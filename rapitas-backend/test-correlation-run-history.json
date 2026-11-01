@@ -1,0 +1,5604 @@
+{
+  "version": 1,
+  "runs": [
+    {
+      "runId": "b1648ee4-bca9-4ca1-9173-a3c93931c76f",
+      "timestamp": "2026-10-29T09:29:05.948Z",
+      "source": "local",
+      "commitSha": "f7253755805053cd65e5791dd8410f5e7eb74aee",
+      "changedFiles": [
+        "rapitas-backend/prisma/schema.desktop/schedule.prisma",
+        "rapitas-backend/src/generated/sqlite-init-sql.ts"
+      ],
+      "testResults": [
+        {
+          "file": "config\\cache-ttl.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "config\\db-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "config\\frontend-url.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "config\\database.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "eval\\private-set\\case-schema.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "config\\logger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "config\\index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\pareto-frontier\\pareto-dominance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "middleware\\local-auth.security.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\pareto-frontier-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\pareto-frontier\\pareto-frontier-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\pareto-frontier\\pareto-statistics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\pareto-frontier\\pareto-recommendation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\role-model-outcomes\\role-model-outcomes-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\role-model-outcomes\\role-model-outcomes-scoring.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\theme-usage\\theme-usage-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\theme-usage\\theme-usage-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\usage-breakdown\\usage-breakdown-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\worker-health\\worker-health-baseline.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\worker-health\\worker-health-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\utilization\\utilization-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\subscription-usage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\worker-health\\worker-health-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\queries\\worker-health\\worker-health-replay.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\approvals\\concurrency-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\worker-health-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\agent-metrics\\usage-budget-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution-management\\executing-tasks-filter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\post-handlers\\continue-post-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\post-handlers\\execute-post-handler.cancellation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\post-handlers\\execute-post-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\post-handlers\\post-execution-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\post-handlers\\success-execution-handler.blocked-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\research\\research-validator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\research\\research-diff-revert.cancellation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\research\\research-phase-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\routes\\continue-route.decision-trace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\routes\\reset-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\routes\\respond-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\execute-setup.worktree-reuse.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\routes\\stop-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\execution-output-validator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\execute-setup.needs-disabled-fastforward.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\instruction-language.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\shutdown-error-handling.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\execution\\shared\\manual-execution-settlement.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\monitoring\\decision-ledger-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\monitoring\\agent-test-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\monitoring\\decision-trace-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\preview\\preview-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\monitoring\\failure-lineage.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\supervision\\supervision-handlers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-cleanup.delete.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\agents\\system\\diagnose-command.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-intake.create.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-intake.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-research.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-query.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\ai\\assistant-roadmap.commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\analytics\\test-correlation\\test-correlation-handlers.manual-run.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\analytics\\test-correlation\\test-correlation-handlers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\memory\\concern-backlog.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\memory\\knowledge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\memory\\notes.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\organization\\scaffold-docs-writer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\organization\\theme-category-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\organization\\scaffold-project-writer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\self-improvement\\miss-signatures.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\organization\\themes.runtime-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\self-improvement\\repair-risk.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\self-improvement\\pr-risk.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\self-learning\\prompt-recommendation-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\self-learning\\learning.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\auth\\google-oauth.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\calendar-slots\\calendar-slots-handlers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\canary.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\deploy.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\outage-guidance.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\system\\tenancy.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\tasks\\task-retry-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\tasks\\task-delete-snapshot.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\commit-cwd.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\deviation\\deviation-handlers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\execution-dashboard.routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\deviation\\deviation-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\conflict-pr-merge-state.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\guards.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\plan-post-processing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\retry-rollback-contract.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\status-transition.question.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\status-transition.invariant-cutoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-adversarial-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-commit-pr-gate-blocked.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-commit-pr-pipeline.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-commit-pr.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\status-transition.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-post-save-pipeline.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\file-save\\verify-completion-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-dry-run.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-files.question-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-file-read.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-mode.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-plan-revision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-files.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-continuation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-plan.deviation-audit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-plan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-redispatch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-dispatch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-plan-revision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-stop-override.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-verification-status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-verification.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\theme-auto-run.remaining-count.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\theme-auto-run.stop.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\workflow-activity-logger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\workflow-auto-commit-publish-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\workflow-auto-commit-reuse-push.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\workflow-auto-commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\workflow-auto-commit-presave.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "schemas\\theme.schema.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\__tests__\\eval-collect-cases.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\__tests__\\eval-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\__tests__\\fault-injection-e2e.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\__tests__\\shuffle-test.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\backfill-execution-time.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\__tests__\\restart-loop-smoke.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\check-docs-health.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\codemods\\__tests__\\codemod-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\coverage-floor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\dev\\prisma-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\ci-failure.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\cli-immediate-exit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\common.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\http-scenarios.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\pr-response-loss.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\fault-scenarios\\__tests__\\response-body.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\gate-manifest-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\gen-boundary-guide.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\gen-resolver-boundary-tests.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\gen-shutdown-error-artifacts.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "routes\\workflow\\handlers\\workflow-handlers-resume-regression.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\judge-precision-scoring.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\measure-replan-cost-harness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\parallel-test.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\gen-type-guards.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\retry-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\run-gate-tests.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\run-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\reset-password.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\test-correlation-hook.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\test-report.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agent-execution\\task-active-time.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\setup-worktree.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\abstract-agent.emitters.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\abstract-agent.helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\abstract-agent.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\agent-event-helpers.emit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\agent-event-helpers.tool-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "scripts\\check-ssot-drift.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\agent-lifecycle-handlers.continue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\agent-lifecycle-handlers.execute.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\agent-retry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\error-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\execution-manager.continue-stop.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\execution-manager.execute.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\interfaces.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\adapter-execution.config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\execution-manager.queries.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\adapter-execution.question-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\adapter-result-converter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\claude-code-agent-adapter.lifecycle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\claude-code-agent-adapter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\providers\\claude-code-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\abstraction\\retry-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-auto-register.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-factory.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-knowledge-sharing.determinism.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-orchestrator.delegation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-knowledge-sharing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-orchestrator.lifecycle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-orchestrator.stop.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-orchestrator.state-and-events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-process-tracker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-service.continue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-service.execute.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-service.shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-session-resolver.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-session-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\event-bridge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\git-api.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\ipc.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\public-api.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\lifecycle-setup-worker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\lifecycle-crash-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\shutdown-error.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\worker-shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\backend-process-identity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\agent-worker\\worker-restart-log.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\base-agent.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\capabilities\\agent-capabilities.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\agent-core.instructed-model.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\agent-core.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\agent-core.execute.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\agent-guard-settings.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\claude-args.process-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\execution-resolver-early-failures.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\execution-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\claude-execution-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\failure-reason-markers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\git-diff-checker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\model-attribution.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\prompt-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\stdin-prompt-writer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\worker-message-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\worker-message-handler.tool-use.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\output-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\cli-availability.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner-close-result.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner-options.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.args.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.line-buffering.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.spawn.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner-args.cmd-roundtrip.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\prompt-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\process-runner.timing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\run-codex-command.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\claude-code\\agent-core.lifecycle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-cost-attribution.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-file-logger\\index-markdown-flush.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-file-logger\\index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-file-logger\\log-file-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-file-logger\\log-markdown-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-file-logger\\log-file-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\execution-timeouts.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\gemini-cli-agent\\output-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\gemini-cli-agent\\config-validator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\gemini-cli-agent\\process-manager.spawn.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\gemini-cli-agent\\prompt-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\auto-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\codex-cli-agent\\stop-running.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\continuation-agent-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\continuation-executor-internal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\continuation-executor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\event-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-handlers.tool-use.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-helpers-types.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-persistence-events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-handlers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-persistence.sqlite.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-persistence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-resume.lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\execution-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\fallback-decision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\gemini-cli-agent\\process-manager.cmd-roundtrip.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\fallback-executor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\fallback-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\core-ops-commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\core-ops-diff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\git-exec.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\git-exclude.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\resolve-worktree-base-dir.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\safety.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\pr\\branch-pr-ops-merge-revert.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\pr\\branch-pr-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\pr\\pr-create-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\pr\\pr-draft-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\pr\\pr-merge-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\node-modules-link.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\project-dependency-bootstrap.prisma.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\dependency-installer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\project-manifests.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\project-dependency-bootstrap.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\project-prisma-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\project-prisma-schema.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\repository-setup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-command-wrapper.test.ts",
+          "status": "fail"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-create.restore.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-filesystem-orphans.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-guard-merge-cache.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-link-skeleton.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-ops.create-worktree-failsafe.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-ops.remove-signal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-preflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-removal-backoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-preservation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-terminal-sweep.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-usable.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\lifecycle-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\log-chunk-manager.sequence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\log-chunk-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-remove.force.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\output-persistence-sqlite.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\question-timeout-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\recovery-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\resume-completion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\resume-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\output-persistence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\shutdown-error.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\stale-blocked-session-reconciliation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\stale-execution-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\stale-recovery-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\resume-state-transition.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\timeout-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\task-executor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\preview\\preview-interaction.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\preview\\preview-session-manager.pending-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\orchestrator\\git-operations\\core\\diff-structured.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\preview\\preview-session-manager.workdir-fallback.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\preview\\preview-session-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\process-priority.exec-file.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\process-priority.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\anthropic-api-provider\\agent-utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\process-resource-sampler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\process-tree-kill.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\cli-utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\stream-event-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\anthropic-api-provider\\temperature-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\gemini-runner-args.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\providers\\stream-event-parser.tool-uses.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\resumable-execution\\current-active-task-ids.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\question-detection\\timeout.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\resumable-execution\\resumable-execution-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\session-resume-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\stop-task-agents.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\task-execution-lock.generation-hydration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\unified-interface\\errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\unified-interface\\utilities.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\task-execution-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\acceptance-self-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\adversarial-diff-review-verdict.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\adversarial-diff-review.jury-diff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\adversarial-diff-review.base-satisfied.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\adversarial-diff-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\adversarial-diff-review.unknown-wiring.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\settle-stopped-tasks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\automated-verifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\automated-verifier.diff-base-ref.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\base-satisfied-plan-items.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\ci-parity-checks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\command-batches.live.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\command-batches.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\command-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\automated-verifier.typecheck.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\file-size-ratchet-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\generated-artifact-paths.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\juror-scheduling.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\juror-unknown-reason.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\jury-panel.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\panel-health.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\quiet-verification.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\automated-verifier-empty-runtime.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\related-tests.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\app-launcher.orphan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\feature-reachability.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-boot-identity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-completeness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-config.contract.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-config.require-entries.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-directory-occupancy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-launch-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-process-identity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\red-state-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-process-stop.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-process-snapshot.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-registry-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\command-tools.live.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-server-shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-smoke.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-start-preflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\smoke-page-events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-server-registry-lifecycle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-verification-stage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\schema-change-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\worktree-server-registry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\scope-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\scope-contamination.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\test-triage-report.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\test-triage.spawn.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-gate.spec-allowlist.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-gate.unverifiable-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-report.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-retry-flow.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\runtime-smoke\\runtime-process-stop.windows.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\test-triage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-retry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\worktree-keep-list.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\worker-health\\worker-health-alert-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\ai-code-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\copilot-intent-responder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\copilot-chat-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\error-diagnosis\\error-diagnosis-aggregator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\error-diagnosis\\diagnose-error.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\error-diagnosis\\error-diagnosis-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\error-diagnosis\\error-diagnosis-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\jev-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\model-discovery\\index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\model-discovery\\tier-classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\natural-language-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\predictive-task-suggester.determinism.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\model-route-stability.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\probe-metrics\\probe-metrics-aggregator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\probe-metrics\\probe-metrics-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\probe-metrics\\probe-metrics-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\recovery-metrics\\recovery-metrics-aggregator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\recovery-metrics\\recovery-metrics-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\routing-reason.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\recovery-metrics\\recovery-metrics-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\smart-model-router.decision-trace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\ci-timing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\ai\\weekly-review-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\correlation-engine.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\failure-tail.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\pr-test-risk.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\test-correlation-notifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\agents\\verification\\verification-scoped-edit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\run-history-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\analytics\\test-correlation\\test-correlation-pr-scan-hook.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\capabilities.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\action-log.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\delete-filter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\delete-proposal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\intent-reader.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\intent-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\research.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\roadmap-commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\roadmap-draft.profile.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\roadmap-interview.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\roadmap-draft.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\task-draft.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\supervision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\assistant\\task-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\claude-agent\\naming-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\communication\\notification-i18n.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\communication\\notification-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\core\\auth-session-resolver.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\communication\\notify-once-per-window.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\core\\auth-session-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\core\\password-reset.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\core\\user-resolver.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\adapters.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\core\\user-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\aggregate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\knowledge-usefulness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\settle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\settle-filing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\tier-outcomes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\failure-lineage\\__tests__\\lineage-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\decision-ledger\\settle-knowledge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\failure-lineage\\__tests__\\log-template-normalizer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\failure-lineage\\__tests__\\postmortem-validator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\failure-lineage\\__tests__\\root-cause-scorer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\agent-created-pr-adoption.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\conflict-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\concern-bridge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\conflict-task.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\continue-execution-pr-link.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\gh-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\gh-retry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\git-exec.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\git-retry-policy-registry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\integration-provisioning.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\git-retry-telemetry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\issue-operations.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\owner-repo.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-guards.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-lookup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-ownership.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-duplicate-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-task-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\repo-bootstrap.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\pr-write.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\resource-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\intake\\intake-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\intake\\intake-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\intake\\intake-question-template.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\intake\\spec-coherence-checker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\intake\\spec-quality-checker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\github\\task-publication-metadata.test.ts",
+          "status": "fail"
+        },
+        {
+          "file": "services\\local-llm\\local-llm-manager.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\mcp-delegation-tool.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\complexity-assessor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\rag-enhanced-caller.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\model-downloader.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\teacher-student.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-recurrence-candidates.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\local-llm\\response-cache.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-backlog-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-relevance-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-search-benchmark.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-recurrence-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-search-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-search-score.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-search-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\concern-task-spec.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\contradiction-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\consolidation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\consolidation-chunking.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\contradiction-sweep.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\decision-journal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\contradiction.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\effectiveness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\forgetting.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\dedup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\hypothesis-from-verify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\hypothesis-from-research.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\hypothesis-service.determinism.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\idea-box-novelty.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\idea-box-search.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\hypothesis-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\index.update-version.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\idea-box-ssot.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\outcome-reinforcement.durable.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\outcome-reinforcement.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\playbook\\playbook-detect.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\playbook\\playbook-generate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\context-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\playbook\\playbook-inject.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\embedding.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\search.determinism.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\reindex\\reindex-batch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\search.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\recall\\hybrid-search.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\recall\\lexical-index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\recall\\rank-fusion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\rag\\vector-index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\recall\\recall-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\recall\\recall-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\task_queue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\reflexion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\task-knowledge-extractor.cooldown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\text-similarity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\theme-resolution.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\theme-saturation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\memory\\validation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\misc\\preview-deploy-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\decision-trace\\consistency-checker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\decision-trace\\dag-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\notes\\note-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\decision-trace\\execution-linker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\decision-trace\\mask.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\decision-trace\\recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\pii-risk\\mitigate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\pii-risk\\pii-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\project-bootstrap-task.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\requirements-task-payload.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\requirements-task-plan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\observability\\pii-risk\\risk-assessor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\runtime-config-contract.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\screen-task-payload.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\screen-task-plan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\spec-consistency.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\spec-gate-task.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\spec-drift.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\organization\\spec-input-coverage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\dependency-graph.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\inventory-loader.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\outage-classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\outage-simulation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\outage-simulation-job.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\outage-slack-notifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-delivery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-core.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-tts-adapter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-wav.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\daily-report-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\outage-guidance\\__tests__\\outage-assessment.perf.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\boundary-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\decision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\git-io.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\reporting\\briefing\\__tests__\\briefing-tts-real.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\deploy-now.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\ui-activity-tracker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\auto-restart-merged-code\\settings-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\calendar-slot\\calendar-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\backlog-scheduler.run-now.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\calendar-slot\\free-slot.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\backlog-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\calendar-slot\\calendar-sync-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\calendar-slot\\token-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\i18n-integrity-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\decision-trace-consistency-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\merge-barrier\\merge-barrier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-cap.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-job.bootstrap.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\calendar-slot\\freebusy-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-job.screens.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-outcome.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-job.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\worktree-cleanup-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\security\\canary-event-log.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\security\\canary-ledger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\security\\canary-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\ci-green-keeper.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\detection-miss-ledger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\diff-review-reason-classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\gate-precision-ledger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\gate-precision-summary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\gate-precision-watcher.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\growth-ledger-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\loop-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\loop-watcher.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\miss-approval-mode.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\miss-signature-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\miss-signature-suggester.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-comment.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-features.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirement-intake-job.spec-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\scheduling\\requirements-document-reader.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-outcome.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-model.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-schema-drift.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\repair-risk-effectiveness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-review-job.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\pr-risk\\pr-risk-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\__tests__\\eval-set-isolation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-band-evidence.backtest.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-band-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-improvement\\retro-kpi-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-alpha-ledger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-alpha-storage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-alpha-spending.simulation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-cell-executor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-version-history.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\comparison\\prompt-comparison-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\experiment-loop\\experiment-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\episode-memory.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\knowledge-graph.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\growth-timeline.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\experiment-loop\\experiment-lifecycle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-evolution-addendum-quality.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-evolution-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-evolution-auto-approve.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-evolution-settle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\prompt-evolution-worker.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\stats-ops.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\task-learning-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\self-learning\\workflow-learning-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\intervention-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\knowledge-reuse-comparison.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\acceptance-status-service.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\observation-gap-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\knowledge-reuse-evaluator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\supervision-events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\streak-calculator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\supervision-heartbeat-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\task-landing-classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\supervision-write-spool.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\cpu-usage-monitor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\supervision\\acceptance-status-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\event-loop-lag-watchdog.stall-kind.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\event-loop-lag-watchdog.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\i18n-integrity-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-format-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-check.causal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\error-capture.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-check.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.agent-crud.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.backlog-job.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\backup-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.held-auto-run-excluded.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.briefing-delivery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.iteration-budget-halt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.listener-ownership.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.plan-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.project-bootstrap.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.project-prisma-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.repair-cutoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.research-sections.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.slow-queue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.stale-active.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.task-budget.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.theme-auto-run-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-health-suppressions.theme-auto-run.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\log-tail-reader.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\prompt-language-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\rapi-profile-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\shutdown-execution-owners.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\resource-telemetry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\auto-run-card-status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\blocked-cause.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\completed-task-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-ai-prompts.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\system\\shutdown-sequence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-create-helpers.parent.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-create-helpers.subtask.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-frequency-suggestions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-knowledge-suggestions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-deletion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-measurement.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.terminal-release.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.update-broadcast.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.update-misc.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.update-fields.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.update-parent-status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-mutations.update-effects.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-parent-status-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-resolver.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-spec-deriver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-suggestions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-unified-suggestions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-terminal-current-release.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\task\\task-trash.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\owned-models.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\session-workspace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-extension.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-backfill.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-provisioning.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-scope.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-backfill.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\usage-budget\\usage-budget-math.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\usage-budget\\usage-budget-notify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-scoping.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\usage-budget\\usage-budget-schema-drift.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\tenancy\\workspace-request.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\usage-budget\\usage-budget-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\ai-orchestra.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\usage-budget\\usage-budget-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\artifact-reuse-reconciler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\apply-task-status-from-workflow.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-cancelled-checks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-candidates.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-baseline-drift.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-checks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-checks.codeql-pending.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-ci-attribution.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-draft-promotion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-notify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-premerge-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-required-workflows.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-task-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-watcher.merge-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-watcher.pending.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-merge-watcher.recovery-order.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run-no-selection-watch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-advance-active.question-race.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-advance-gates.calendar.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\approval-pause-release.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-eligibility.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-global-active-count.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-execution-presence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-advance-select.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-held-tasks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-hold-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-idle-timer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-notifications.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-selection.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-stall-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-terminal-current.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-stop-preservation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\backlog-bandit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\backlog-task-promoter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\auto-run-theme-parked.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\boot-settle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\dev-restart-on-dry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\idea-promotion-diversity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\log-concern-recurrence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\primary-fast-forward.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\open-pr-files-cache.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\queue-wait-exemption.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\dev-restart-shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\requeue-unstarted-task.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\resource-contention-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\resume-tenure.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\self-detect-relevance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.advance-select.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.calendar-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.advance-active.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.iteration-halt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.resource-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.terminal-current.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.terminal-failure-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.unstarted-backstop.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.unstarted-refusal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-types.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-pause-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\automation-policy.core.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\automation-policy.landing-mode.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\automation-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-pr-retry-recovery.hold-integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-pr-retry-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-retry-dispatch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-retry-handoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-task-write.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\blocked-unstarted-restore.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\causal-analysis\\__tests__\\causal-graph.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\causal-analysis\\__tests__\\causal-suggestion-filer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.plan-approved-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\causal-analysis\\__tests__\\log-correlation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\ci-repair-guidance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\causal-analysis\\__tests__\\root-cause-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\completion-gate.scoped-edit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\complexity-analyzer\\analyzers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\completion-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\complexity-analyzer\\core.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\complexity-analyzer\\learning.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\delivery-funnel.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\dry-run-orchestrator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\durable-blocked-write.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\execution-dashboard-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\failure-impact-tree.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\forbidden-change-plan-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\halt-release.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\harness-drift-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\guard-incident-filer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.active-queue-item-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.blocked-escalation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.pattern-a-grace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.pattern-b-grace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.plan-hold-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t1001.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t1202.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t616.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t673.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t708.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t710.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t835.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.repeat-loop-t970.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.stagnation-exclusion-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.suppression-invariants.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\invariant-repair.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\duration-prediction-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\incident-signature-detectors.theme-busy-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\mode-prediction.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\repair-risk-inputs.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\repair-risk-tactic-section.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\task-work-time.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\repair-risk-model.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\workflow-learning-estimator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\workflow-learning-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\workflow-learning-rules.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\workflow-learning-optimizer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\learning\\workflow-learning-stats.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\merge-exhausted-handoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\nonpassing-verify-verdict.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\orphan-flag-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\past-reference-line.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\critic-lesson-cache.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\critic-lessons.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\critic-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\critique-aggregator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\critic-rejection-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\phase-critic-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-critic\\phase-critic.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.past-reference.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.plan-scope.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.publication.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.verify-blockquote.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-segmentation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-output-validator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-split-planner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-summary-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\phase-session-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-auto-approve.plan-hold-notify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-approval-queue-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-declared-files.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\audit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\declaration-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\deviation-mask.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\glob-match.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\log-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\operation-extractor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\operation-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-deviation\\timeline-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-for-verify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-out-of-scope-criteria.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-revision-persistence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\pr-in-flight-wait.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\pr-state-reconciler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\pre-pr-base-sync-aux-cli.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\pre-pr-base-sync-format.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\pre-pr-base-sync.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\primary-checkout-guidance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\probe\\probe-alert.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\probe\\probe-cache.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\probe\\probe-retry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\process-retro\\retro-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\process-retro\\retro-parse.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\process-retro\\retro-prompt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\process-retro\\retro-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\publication-cancellation-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\publication-only-partial.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\question-auto-answer-override-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\question-kind-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\question-operator-action.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\question-options-parser.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-dequeue-candidate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-failure-mark-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-provider-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-skip-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-slot-release.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-starvation-waiters.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-terminal-task-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-theme-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\queue-vanished-task-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\repair-cycle-cost.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\required-merge-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\plan-auto-approve.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\auto-run\\theme-auto-run-scheduler.stopping-idle-paused.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-prompt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-sources.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-verdict.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-review-claim.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\research-complexity.apply.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-plan-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\research-risk.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\reviewed-plan-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\research-complexity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\risk-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\risk-detection.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\role-recommender.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\role-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\role-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\routing-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\role-route-inputs.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-development-theme.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watch-gates.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-inspect-task.stagnation-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.blocked-armed-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.blocked-escalation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.pattern-a-grace.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.theme-auto-run-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\self-incident-watcher.theme-busy-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-completion-handler.reconcile.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-completion-handler.required-merge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\stale-pr-reaper.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-split-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-split-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-completion-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\supervisor-incident-detectors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\supervisor-incident-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\subtask-splitter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\supervisor-incident-inspect.cwd-mismatch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\supervisor-incident-inspect.false-failure.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-budget.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\supervisor-publication-safety.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-budget.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget-active-clock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget-status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget-success.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.cost-window.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.fail-open.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.halt-side.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.pr-awaiting.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.window-reset-causes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-lifecycle-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-iteration-budget.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-spend-rollup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\task-spend-notice.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\transition-recorder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verification-job-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verification-worktree.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-completion-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-evidence-similarity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-invariant-repair.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\requirement-replan-commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-repair-pollution.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-repair-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-repeat-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-self-repair-feedback.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-self-repair-resume.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-self-repair.cas.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verification-job-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-self-repair.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-settle-artifact-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-test-counts.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-unresolved-issues.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-verdict-scope-guidance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-agents-md-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-api-callers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor-coldstart-prompt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\verify-repair-commit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor-prompt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor-verify-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-api-executor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.output-parsing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor-postprocess.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.replan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.resume-handoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.verify.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-context-budget.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.worktree.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-context-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-cli-executor.completion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-context-snapshot.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-db-backfill.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-context-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-disabled.boundary.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-disabled.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-file-utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-hypothesis-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-file-size-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-gate-precision-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-invariants.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-implementer-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-log-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-legacy-migrator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-memory-render.usefulness.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-memory-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-mode-directives.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-agent-prep.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-mode-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-calendar-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-overlap-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-preflight-probe.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-plan-replan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-protected-path-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-probe-integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-replan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator-shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.calendar-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.replan.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.smart-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-paths.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-orchestrator.transitions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-pitfall-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-plan-revision-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-plan-question-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-question-format-guidance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-provider-fallback.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-queue.dequeue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-queue-overlap-continuity.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-queue.query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-queue.status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-autoapprove.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-queue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-blocked.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-question-auto-answer-plan-revision.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-question-auto-answer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-question-pause.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-queue-sweep.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-queue-stall.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-requeue.halt-respect.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-requeue.blocked-stop-integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-requeue.orphan-exhausted.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-requeue.orphan-merge-hold.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-zero-progress.calendar.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-stale-halt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler-zero-progress.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-reconciler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-rejected-plan-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-role-prompts.plan-declaration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-role-prompts.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner-events.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-repair-risk-injection.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner-shutdown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-redispatch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.advancing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.halt-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.stale-active.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner-verify-settle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.verify-settle.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-types.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-verification-evidence-prompt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\worktree-rebuild-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\worktree-reuse.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\config\\desktop-sqlite-self-heal.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\debug-log-analyzer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\debug-log-parsers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\event-emitter-log-level.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.phases.test.ts",
+          "status": "fail"
+        },
+        {
+          "file": "tests\\event-emitter-properties.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\boundary-values.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\event-emitter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\mock-child-process.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\mock-database.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\mock-logger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\reset-mocks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\sqlite-test-db.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\helpers\\test-app.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\metrics-collector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\logger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\middleware\\local-auth.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\middleware\\error-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\registry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\middleware\\performance-middleware.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-audit-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-config-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-execution-config-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-metrics-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-execution-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-resume-router.executing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-session-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-system-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\agent-version-management-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\approvals-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\cli-tools-management-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\cost-optimization-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\execution-logs-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\error-diagnosis.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\execution\\execute-post-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\execution\\instruction-builder.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\execution\\shutdown-error-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\execution\\status-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\judge-eval-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "services\\workflow\\workflow-runner.verify-settle-inflight.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\observation-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\probe-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\recovery-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\agents\\repair-convergence-query.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\ai\\ai-chat-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\ai\\prompts-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\ai\\system-prompts-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\analytics\\reports-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\analytics\\statistics-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\lifestyle\\paid-leave-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\categories-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\labels-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\milestones-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\templates-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\projects-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\resume-condition-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\organization\\themes-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\scheduling\\daily-schedule-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\scheduling\\pomodoro-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\scheduling\\schedules-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\scheduling\\time-entries-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\self-learning\\prompt-evolution-summary-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\social\\github-barrel.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\social\\comments-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\social\\pr-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\social\\register-github-pr-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\sse-cors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\social\\github-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\auth-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\debug-logs-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\developer-mode-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\git-cleanup-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\directories-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\rate-limits-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\notifications-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\search-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\settings-extra-fields.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\settings-types.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\settings-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\top-level-health-route.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\setup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\sse-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\system\\url-metadata-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\batch-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\gantt-data.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\batch-v2.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\recurring-tasks.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\resources-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-analysis-config.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-auto-generate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-quick-create.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-spec-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\task-suggestions.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\tasks.gaps.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\tasks.mutation-errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\temp-statistics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\workflow\\completion-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\tasks\\tasks.subtask-admin.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\workflow\\workflow-roles-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\routes\\workflow\\workflow-routes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\schema\\prisma-unique-writes.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\actions-job-log.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-error-classifier.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\adversarial-diff-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-fallback-selection.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-fallback.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-worker-event-bridge.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-worker-public-api.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\agent-worker-manager-readiness-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\ai-code-review.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\schema\\workspace-tenancy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-merge-ci-failure.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-merge-exhaustion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auth-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-merge-watcher.fail-conflict.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-merge-watcher.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-run-notifications.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-task-generator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\auto-run-stop-halt.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\blocked-cause.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\blocked-task-escalation.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\backup-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\blocked-task-evidence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\blocked-task-policy.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\calendar-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\ci-self-repair.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\cli-output-filter.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\cli-utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\cache-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\codex-json-event-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\completed-task-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\complexity-analyzer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\copilot-action-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\continuation-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\coverage-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\cycle-event-logger.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\eval-judge-results.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\eval-phase-critic-results.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\github-integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\github-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\error-capture.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\github\\pr-guards.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\github\\pr-task-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\github\\manual-pr-link.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\idea-domain-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\idea-box-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\idea-extractor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\idea-qd-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\innovation-session.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\knowledge-injection-governance.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\memory\\rag-search-rank.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\local-model-selector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\memory\\memory-search.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\naming-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\model-route-stability.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\notification-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\no-change-completion.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\outcome-telemetry.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\owner-repo.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\phase-output-reuse.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\pomodoro-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\pomodoro-stats.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\predictive-task-suggester.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\pr-link.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\plan-mode-directive.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\preview-deploy-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\question-detection.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\provider-cooldown.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\realtime-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\recurrence-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\repair-iteration-metrics.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\resume-condition-requeue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\resume-condition-logic.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\research-no-change.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\role-provider-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\search-miss-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\smart-model-router.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\search-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\sse-utils.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\tamper-check.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\task-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\tool-name-canonicalizer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\test-triage.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\verification-scope-and-tests.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\verification-gate.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\verify-convergence.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\verify-repair-unresolved-cutoff.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\verify-self-repair.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-case-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\websocket-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-md-extraction.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-memory-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-reconciler-requeue.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-reconciler-blocked.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\setup\\global-state-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\agent-audit-log.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\agent-config-schema.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\workflow-service.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\agent-display-name.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\agent-models.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\agent-response-cleaner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\ai-client.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\db-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\branch-name-generator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-analyzer.core.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-analyzer.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-analyzer.pattern-normalization.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-parsers.extended.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-analyzer.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-parsers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\debug-log-parsers.unit.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\encryption.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\encryption-key-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\mojibake-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\postgres-to-sqlite-migration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\find-port.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\prisma-optimization.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\response.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\secret-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\spec-array.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\semaphore.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\utils\\title-cleaner.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\agent\\prompt-preview.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\agent\\sanitize-cli-env.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\aux-cli-cleanup.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\aux-cli-launch.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\aux-cli-ownership.multiprocess.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\aux-cli-ownership.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\chatgpt-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\aux-cli-recovery.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.cmd-roundtrip.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.errors.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.launcher-deadline.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.parsing.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.prompt-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "tests\\services\\schema-change-gate.integration.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\cli-failure-reason.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\credentials.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.tracking.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\error-handler.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\gemini-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\index.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\linux-aux-cgroup.live.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\ollama-provider.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\prompt-size-guard.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\ownership-file-lock.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\windows-aux-execution.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\branch-name-generator.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\cli-path-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\encryption-key-resolver.fs-mocked.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\encryption-key-resolver.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\encryption.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\error-messages.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\http-status.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\json-extractor.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\mojibake-detector.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\secret-store.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\semaphore.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\shutdown-error.generated.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\shutdown-error.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\type-guards.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\common\\windows-shell-escape.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\database\\db-helpers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\database\\fail-closed-count.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\database\\prisma-optimization.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\llm-call-context.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\log-parsers\\custom-log-parsers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\log-parsers\\http-log-parsers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\log-parsers\\system-log-parsers.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "workers\\output-parser-handlers.tool-calls.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\claude-cli-provider.containment.live.test.ts",
+          "status": "pass"
+        },
+        {
+          "file": "utils\\ai-client\\windows-aux-job.live.test.ts",
+          "status": "pass"
+        }
+      ],
+      "environment": {
+        "platform": "win32",
+        "runtimeVersion": "1.3.13"
+      },
+      "failureTail": {
+        "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-command-wrapper.test.ts": [
+          "bun test v1.3.13 (bf2e2cec)",
+          "services\\agents\\orchestrator\\git-operations\\worktree\\worktree-command-wrapper.test.ts:",
+          " 97 | describe('defaultWrapperSource', () => {",
+          " 98 |   test(\"resolves rapitas's own wrapper from this module's directory\", () => {",
+          " 99 |     // Pinned so a future folder move cannot silently stop provisioning: the",
+          "100 |     // function would start returning a path that does not exist and every",
+          "101 |     // generated project would quietly lose its heartbeat again.",
+          "102 |     expect(defaultWrapperSource(import.meta.dir).replace(/\\\\/g, '/')).toEndWith(",
+          "                                                                            ^",
+          "error: expect(received).toEndWith(expected)",
+          "Expected to end with: \"/rapitas/scripts/run-checked.cjs\"",
+          "Received: \"C:/Projects/rapitas/.worktrees/t1255-tenancy-stage3/scripts/run-checked.cjs\"",
+          "      at <anonymous> (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\agents\\orchestrator\\git-operations\\worktree\\worktree-command-wrapper.test.ts:102:71)",
+          "(fail) defaultWrapperSource > resolves rapitas's own wrapper from this module's directory",
+          " 5 pass",
+          " 1 fail",
+          " 10 expect() calls",
+          "Ran 6 tests across 1 file. [159.00ms]"
+        ],
+        "services\\github\\task-publication-metadata.test.ts": [
+          "bun test v1.3.13 (bf2e2cec)",
+          "[2026-10-29 09:26:10.729] \u001b[32mINFO\u001b[39m (database): \u001b[36mConnecting to PostgreSQL\u001b[39m",
+          "[2026-10-29 09:26:11.326] \u001b[32mINFO\u001b[39m (github-service:pr-link): \u001b[36m[linkAutoCreatedPr] PR linked to task\u001b[39m",
+          "    \u001b[35mtaskId\u001b[39m: 1",
+          "    \u001b[35mprNumber\u001b[39m: 42",
+          "    \u001b[35mlocalPrId\u001b[39m: 50",
+          "services\\github\\task-publication-metadata.test.ts:",
+          "30 |   client = new PrismaClient({ datasources: { db: { url: `file:${path.replaceAll('\\\\', '/')}` } } });",
+          "31 | });",
+          "32 | afterEach(async () => {",
+          "33 |   await client.$disconnect();",
+          "34 |   sql.close();",
+          "35 |   rmSync(directory, { recursive: true, force: true });",
+          "       ^",
+          "EBUSY: resource busy or locked, rm 'C:\\Users\\ytaka\\AppData\\Local\\Temp\\rapitas-publication-metadata-vtU1pb'",
+          "    path: \"C:\\\\Users\\\\ytaka\\\\AppData\\\\Local\\\\Temp\\\\rapitas-publication-metadata-vtU1pb\",",
+          " syscall: \"rm\",",
+          "   errno: -16,",
+          "    code: \"EBUSY\"",
+          "      at <anonymous> (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\github\\task-publication-metadata.test.ts:35:3)",
+          "(fail) a concurrent content revision is never overwritten or accepted as the reviewed revision [141.00ms]",
+          " 5 pass",
+          " 1 fail",
+          " 14 expect() calls",
+          "Ran 6 tests across 1 file. [992.00ms]"
+        ],
+        "services\\workflow\\workflow-runner.phases.test.ts": [
+          "bun test v1.3.13 (bf2e2cec)",
+          "services\\workflow\\workflow-runner.phases.test.ts:",
+          "203 |   dequeueSequence = [QUEUE_ITEM, null];",
+          "204 |   runner.startProcessing(60_000);",
+          "205 |   await new Promise((resolve) => setTimeout(resolve, 20));",
+          "206 |   const deadline = Date.now() + 3000;",
+          "207 |   while (runner.getStatus().activeItems > 0) {",
+          "208 |     if (Date.now() > deadline) throw new Error('execution did not settle in time');",
+          "                                               ^",
+          "error: execution did not settle in time",
+          "      at runAndSettle (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\workflow\\workflow-runner.phases.test.ts:208:42)",
+          "      at async <anonymous> (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\workflow\\workflow-runner.phases.test.ts:263:11)",
+          "(fail) WorkflowRunner — plan_created auto-approve > task-level autoApprovePlan advances without waiting [3109.00ms]",
+          "280 |       state({ workflowStatus: 'completed', status: 'done' }),",
+          "281 |     ];",
+          "282 |     const runner = WorkflowRunner.getInstance();",
+          "283 |     await runAndSettle(runner);",
+          "284 | ",
+          "285 |     expect(taskUpdateMock).toHaveBeenCalledTimes(1);",
+          "                                 ^",
+          "error: expect(received).toHaveBeenCalledTimes(expected)",
+          "Expected number of calls: 1",
+          "Received number of calls: 2",
+          "      at <anonymous> (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\workflow\\workflow-runner.phases.test.ts:285:28)",
+          "(fail) WorkflowRunner — plan_created auto-approve > user-level autoApprovePlan advances when the task flag is unset [1079.00ms]",
+          "203 |   dequeueSequence = [QUEUE_ITEM, null];",
+          "204 |   runner.startProcessing(60_000);",
+          "205 |   await new Promise((resolve) => setTimeout(resolve, 20));",
+          "206 |   const deadline = Date.now() + 3000;",
+          "207 |   while (runner.getStatus().activeItems > 0) {",
+          "208 |     if (Date.now() > deadline) throw new Error('execution did not settle in time');",
+          "                                               ^",
+          "error: execution did not settle in time",
+          "      at runAndSettle (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\workflow\\workflow-runner.phases.test.ts:208:42)",
+          "      at async <anonymous> (C:\\Projects\\rapitas\\.worktrees\\t1255-tenancy-stage3\\rapitas-backend\\services\\workflow\\workflow-runner.phases.test.ts:296:11)",
+          "(fail) WorkflowRunner — plan_created auto-approve > per-subtask autoApproveSubtaskPlan advances a subtask when other flags are off [3046.00ms]",
+          " 3 pass",
+          " 3 fail",
+          " 9 expect() calls",
+          "Ran 6 tests across 1 file. [8.38s]"
+        ]
+      }
+    }
+  ]
+}

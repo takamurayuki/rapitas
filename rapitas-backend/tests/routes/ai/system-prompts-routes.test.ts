@@ -8,7 +8,7 @@ import { Elysia } from 'elysia';
 const mockPrisma = {
   systemPrompt: {
     findMany: mock(() => Promise.resolve([])),
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({})),
     delete: mock(() => Promise.resolve({})),
@@ -125,7 +125,7 @@ describe('GET /system-prompts/:key', () => {
 
   test('キーでシステムプロンプトを取得すること', async () => {
     const prompt = { id: 1, key: 'task_analysis', name: 'タスク分析', content: 'test' };
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(prompt);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(prompt);
 
     const res = await app.handle(new Request('http://localhost/system-prompts/task_analysis'));
     const body = await res.json();
@@ -135,7 +135,7 @@ describe('GET /system-prompts/:key', () => {
   });
 
   test('存在しないキーで404を返すこと', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(new Request('http://localhost/system-prompts/nonexistent'));
     const body = await res.json();
@@ -162,7 +162,7 @@ describe('POST /system-prompts', () => {
       category: 'general',
       isDefault: false,
     };
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
     mockPrisma.systemPrompt.create.mockResolvedValue(created);
 
     const res = await app.handle(
@@ -197,7 +197,7 @@ describe('POST /system-prompts', () => {
   });
 
   test('重複キーで409を返すこと', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue({
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue({
       id: 1,
       key: 'existing_key',
     });
@@ -231,7 +231,7 @@ describe('PATCH /system-prompts/:key', () => {
   test('システムプロンプトを更新すること', async () => {
     const existing = { id: 1, key: 'task_analysis', name: 'old' };
     const updated = { id: 1, key: 'task_analysis', name: 'new' };
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(existing);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(existing);
     mockPrisma.systemPrompt.update.mockResolvedValue(updated);
 
     const res = await app.handle(
@@ -248,7 +248,7 @@ describe('PATCH /system-prompts/:key', () => {
   });
 
   test('存在しないキーで404を返すこと', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(
       new Request('http://localhost/system-prompts/nonexistent', {
@@ -274,7 +274,7 @@ describe('DELETE /system-prompts/:key', () => {
 
   test('システムプロンプトを削除すること', async () => {
     const existing = { id: 1, key: 'custom_key', isDefault: false };
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(existing);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(existing);
     mockPrisma.systemPrompt.delete.mockResolvedValue(existing);
 
     const res = await app.handle(
@@ -290,7 +290,7 @@ describe('DELETE /system-prompts/:key', () => {
 
   test('デフォルトプロンプトの削除で400を返すこと', async () => {
     const existing = { id: 1, key: 'task_analysis', isDefault: true };
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(existing);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(existing);
 
     const res = await app.handle(
       new Request('http://localhost/system-prompts/task_analysis', {
@@ -304,7 +304,7 @@ describe('DELETE /system-prompts/:key', () => {
   });
 
   test('存在しないキーで404を返すこと', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(
       new Request('http://localhost/system-prompts/nonexistent', {
@@ -333,7 +333,8 @@ describe('POST /system-prompts/:key/reset', () => {
       isDefault: true,
       isActive: true,
     };
-    mockPrisma.systemPrompt.upsert.mockResolvedValue(reset);
+    // findFirst returns null here, so reset takes the create half.
+    mockPrisma.systemPrompt.create.mockResolvedValue(reset);
 
     const res = await app.handle(
       new Request('http://localhost/system-prompts/task_analysis/reset', {
@@ -368,7 +369,7 @@ describe('POST /system-prompts/seed', () => {
   });
 
   test('デフォルトプロンプトをシードすること', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
     mockPrisma.systemPrompt.create.mockResolvedValue({ id: 1 });
 
     const res = await app.handle(
@@ -382,7 +383,7 @@ describe('POST /system-prompts/seed', () => {
   });
 
   test('既存プロンプトをスキップすること', async () => {
-    mockPrisma.systemPrompt.findUnique.mockResolvedValue({
+    mockPrisma.systemPrompt.findFirst.mockResolvedValue({
       id: 1,
       key: 'existing',
     });

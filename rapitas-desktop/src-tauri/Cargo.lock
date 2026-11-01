@@ -3534,6 +3534,7 @@ dependencies = [
  "hound",
  "open",
  "portable-pty",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

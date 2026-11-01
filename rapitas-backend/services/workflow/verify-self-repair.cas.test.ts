@@ -44,7 +44,7 @@ const recordTransition = mock(() => Promise.resolve());
 Object.assign(mockPrisma, {
   $transaction: async (operation: (tx: typeof mockPrisma) => unknown) => operation(mockPrisma),
   agentExecution: { findFirst: async () => null },
-  themeAutoRun: { findUnique: async () => null },
+  themeAutoRun: { findFirst: async () => null },
 });
 Object.assign(mockPrisma, { workflowFileVersion: { create: async () => undefined } });
 Object.assign(mockPrisma.workflowFile, {

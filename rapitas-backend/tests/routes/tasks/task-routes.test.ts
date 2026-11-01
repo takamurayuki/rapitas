@@ -26,8 +26,12 @@ const mockPrisma = {
     createMany: mock(() => Promise.resolve({ count: 0 })),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
-  studyStreak: {
-    upsert: mock(() => Promise.resolve({})),
+  // Label replacement verifies the ids before writing, inside a transaction
+  // (#1330 review). Resolving every id keeps the write assertions meaningful.
+  label: {
+    findMany: mock((args: { where: { id: { in: number[] } } }) =>
+      Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+    ),
   },
   taskSuggestionCache: {
     findMany: mock(() => Promise.resolve([])),
@@ -69,6 +73,30 @@ const mockPrisma = {
   },
   $transaction: mock(transactionImpl),
 };
+
+/** Task ids the shared deletion path was asked to remove. */
+const deletedTaskIds: number[] = [];
+
+// NOTE: Both exports are mirrored. bun's mock.module replaces the whole
+// module, so omitting the bulk entry point made this file stop with one
+// "Export named 'deleteTasksWithTrash' not found" and ALL of its tests vanish
+// (CLAUDE.md § Adding an export to a module).
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    deletedTaskIds.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    const unique = [...new Set(taskIds)];
+    deletedTaskIds.push(...unique);
+    return {
+      deleted: unique,
+      protected: [],
+      notFound: [],
+      trashIds: unique.map(() => 1),
+    };
+  },
+}));
 
 mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
@@ -161,6 +189,10 @@ function resetAllMocks() {
   }
   // Restore default for $transaction
   mockPrisma.$transaction.mockImplementation(transactionImpl);
+  // Same reason: a reset mock would hand replaceTaskLabels undefined.
+  mockPrisma.label.findMany.mockImplementation((args: { where: { id: { in: number[] } } }) =>
+    Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+  );
   // createTask chains `notification.create(...).catch(...)`; a reset
   // (undefined-returning) mock would throw on `.catch` of undefined → 500.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
@@ -241,6 +273,104 @@ describe('GET /tasks', () => {
     expect(res.status).toBe(400);
   });
 
+  // #1332: the response echoed back the `since` it USED and never said what
+  // the next boundary should be, so the client advanced to its own receive
+  // time and permanently skipped anything updated while the request was in
+  // flight. The server knows when it queried; it has to say so.
+  describe('incremental fetch — the next boundary', () => {
+    test('nextSince を返すこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(
+        new Request('http://localhost/tasks?since=2026-03-01T00:00:00.000Z'),
+      );
+      const body = await res.json();
+
+      expect(typeof body.nextSince).toBe('string');
+      expect(Number.isNaN(Date.parse(body.nextSince))).toBe(false);
+    });
+
+    test('nextSince はクエリ発行“前”の時刻であること（取得中の更新を落とさない）', async () => {
+      // The whole point: a row updated DURING the query must still satisfy
+      // `updatedAt > nextSince` next time. So nextSince must be stamped
+      // before the query runs, never after it returns.
+      let stampDuringQuery = '';
+      mockPrisma.task.findMany.mockImplementation(async () => {
+        // A write landing mid-query would carry roughly this timestamp.
+        await new Promise((r) => setTimeout(r, 15));
+        stampDuringQuery = new Date().toISOString();
+        return [];
+      });
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(
+        new Request('http://localhost/tasks?since=2026-03-01T00:00:00.000Z'),
+      );
+      const body = await res.json();
+
+      expect(Date.parse(body.nextSince)).toBeLessThan(Date.parse(stampDuringQuery));
+    });
+
+    // #1336: the incremental path got its boundary from the server, but the
+    // FULL fetch — which seeds the very first boundary — still used the
+    // device clock. A client whose clock runs ahead of the server starts the
+    // next fetch in the server's future and skips everything in between.
+    // The full fetch returns a bare array, so the cursor travels as a header.
+    test('全量取得は X-Server-Cursor ヘッダでカーソルを返すこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+      const cursor = res.headers.get('x-server-cursor');
+
+      expect(typeof cursor).toBe('string');
+      expect(Number.isNaN(Date.parse(cursor!))).toBe(false);
+    });
+
+    test('そのヘッダもクエリ発行“前”の時刻であること', async () => {
+      let stampDuringQuery = '';
+      mockPrisma.task.findMany.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 15));
+        stampDuringQuery = new Date().toISOString();
+        return [];
+      });
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+
+      expect(Date.parse(res.headers.get('x-server-cursor')!)).toBeLessThan(
+        Date.parse(stampDuringQuery),
+      );
+    });
+
+    test('ページ指定の全量取得でもヘッダが付くこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(new Request('http://localhost/tasks?page=1&limit=10'));
+
+      expect(res.headers.get('x-server-cursor')).toBeTruthy();
+    });
+
+    test('全量取得の本文は配列のまま（既存の読み手を壊さない）', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([{ id: 1, title: 'T1', parentId: null }]);
+
+      const res = await app.handle(new Request('http://localhost/tasks'));
+
+      expect(Array.isArray(await res.json())).toBe(true);
+    });
+
+    test('使った since はそのまま返し続けること（既存の読み手を壊さない）', async () => {
+      const since = '2026-03-01T00:00:00.000Z';
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(new Request(`http://localhost/tasks?since=${since}`));
+      const body = await res.json();
+
+      expect(body.since).toBe(since);
+    });
+  });
+
   test('blockedタスクにWorkflowTransitionの最新causeを1クエリで付与すること', async () => {
     const tasks = [
       { id: 1, title: 'Task 1', status: 'todo', parentId: null },
@@ -291,7 +421,6 @@ describe('GET /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValue(task);
@@ -375,7 +504,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
       themeId: null,
       parentId: null,
@@ -404,7 +532,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [{ labelId: 1, label: { id: 1, name: 'Bug' } }],
       themeId: null,
       parentId: null,
@@ -436,7 +563,6 @@ describe('POST /tasks', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValue(parent);
@@ -489,7 +615,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -508,7 +633,10 @@ describe('PATCH /tasks/:id', () => {
     expect(body.title).toBe('Updated');
   });
 
-  test('ステータスをdoneに変更時にstudyStreakをupsertすること', async () => {
+  // Completing a task used to also upsert a daily StudyStreak row. The
+  // learning features were removed, so the only side effect left is the task's
+  // own completedAt — which is what the dashboard counts from.
+  test('ステータスをdoneに変更時にcompletedAtを設定すること', async () => {
     const current = { status: 'in_progress', parentId: null };
     const updated = {
       id: 1,
@@ -518,7 +646,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -537,7 +664,9 @@ describe('PATCH /tasks/:id', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.studyStreak.upsert).toHaveBeenCalledTimes(1);
+    const call = mockPrisma.task.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(call.data.status).toBe('done');
+    expect(call.data.completedAt).toBeInstanceOf(Date);
 
     globalThis.fetch = originalFetch;
   });
@@ -552,7 +681,6 @@ describe('PATCH /tasks/:id', () => {
       theme: null,
       project: null,
       milestone: null,
-      examGoal: null,
       taskLabels: [],
     };
     mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
@@ -594,12 +722,17 @@ describe('DELETE /tasks/:id', () => {
   });
 
   test('タスクを削除すること', async () => {
-    mockPrisma.task.delete.mockResolvedValue({ id: 1, title: 'Deleted' });
+    // What deleting means — the protected guard, the worktree cleanup, the
+    // trash copy and the delete itself — moved into deleteTaskWithTrash so
+    // ラピ and this route cannot drift apart. The route's job is to delegate
+    // and map the outcome; the prisma-level assertion lives in
+    // services/task/task-deletion.test.ts now.
+    deletedTaskIds.length = 0;
 
     const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(deletedTaskIds).toEqual([1]);
   });
 
   test('無効なIDでValidationErrorを返すこと', async () => {

@@ -13,7 +13,6 @@ export * from './tasks';
 export * from './agents';
 export * from './ai';
 export * from './scheduling';
-export * from './learning';
 export * from './system';
 export * from './workflow';
 export * from './social';

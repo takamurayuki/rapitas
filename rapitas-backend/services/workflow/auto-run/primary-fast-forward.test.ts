@@ -118,3 +118,71 @@ describe('fastForwardPrimary', () => {
     expect(r.reason).toBe('status-failed');
   });
 });
+
+// 実測 2026-10-18 (#1060): rapitas-frontend の `predev` が起動のたびに
+// generate-messages.mjs を回して messages/{ja,en}.json を書き換える。出力が
+// コミット済みの内容と少しでも違えば primary は dev サーバー起動の瞬間から
+// dirty になり、同期がその一行で永久に降り続ける。実際、6本のマージが
+// 丸一日反映されず、primary は起動時のコミットに留まっていた。
+describe('generated-file drift', () => {
+  const DIRTY_GENERATED =
+    ' M rapitas-frontend/messages/ja.json\n M rapitas-frontend/messages/en.json\n';
+
+  test('生成物だけが dirty なら復元して同期を続ける', async () => {
+    const { run, calls } = git({
+      'status --porcelain': DIRTY_GENERATED,
+      'rev-parse HEAD': 'aaa111\n',
+      'rev-parse origin/develop': 'bbb222\n',
+    });
+    const r = await fastForwardPrimary({ run });
+
+    expect(r.moved).toBe(true);
+    expect(r.reason).toBe('fast-forwarded');
+    expect(r.restoredGenerated).toEqual([
+      'rapitas-frontend/messages/ja.json',
+      'rapitas-frontend/messages/en.json',
+    ]);
+    expect(calls.some((c) => c.startsWith('checkout -- rapitas-frontend/messages/ja.json'))).toBe(
+      true,
+    );
+  });
+
+  // 人の作業中のファイルは今までどおり一切触らない。復元は生成物限定。
+  test('生成物以外が混ざっていたら触らず dirty を返す', async () => {
+    const { run, calls } = git({
+      'status --porcelain':
+        ' M rapitas-frontend/messages/ja.json\n M rapitas-backend/services/foo.ts\n',
+    });
+    const r = await fastForwardPrimary({ run });
+
+    expect(r.moved).toBe(false);
+    expect(r.reason).toBe('dirty');
+    expect(r.dirtyPaths).toContain('rapitas-backend/services/foo.ts');
+    expect(calls.some((c) => c.startsWith('checkout --'))).toBe(false);
+  });
+
+  test('dirty の内訳を返す（通知と診断がそれを出せるように）', async () => {
+    const { run } = git({ 'status --porcelain': ' M some/other/file.ts\n' });
+    const r = await fastForwardPrimary({ run });
+    expect(r.dirtyPaths).toEqual(['some/other/file.ts']);
+  });
+
+  // 復元できなければ、黙って進めず今までどおり止まる。
+  test('復元に失敗したら dirty として止まる', async () => {
+    const { run } = git({
+      'status --porcelain': DIRTY_GENERATED,
+      'checkout --': new Error('checkout failed'),
+    });
+    const r = await fastForwardPrimary({ run });
+    expect(r.moved).toBe(false);
+    expect(r.reason).toBe('dirty');
+  });
+
+  test('クリーンなツリーでは何も復元しない', async () => {
+    const { run, calls } = git(BEHIND);
+    const r = await fastForwardPrimary({ run });
+    expect(r.moved).toBe(true);
+    expect(r.restoredGenerated).toEqual([]);
+    expect(calls.some((c) => c.startsWith('checkout --'))).toBe(false);
+  });
+});

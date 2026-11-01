@@ -20,6 +20,7 @@ import {
   applyAutoRestartOnMergedCode,
   applyRetroReviewEnabled,
   applyMergeBarrierEnabled,
+  applyRapiProfile,
   applyUiLocale,
 } from './settings-extra-fields';
 import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
@@ -27,6 +28,7 @@ import { readRetroReviewEnabled } from '../../../services/workflow/process-retro
 import { readMergeBarrierEnabled } from '../../../services/scheduling/merge-barrier/merge-barrier';
 import { fetchAvailableModels } from './model-fetcher';
 import { readPromptLanguage } from '../../../services/system/prompt-language-store';
+import { readRapiCharacter, readRapiProfile } from '../../../services/system/rapi-profile-store';
 
 const log = createLogger('routes:settings');
 
@@ -48,6 +50,8 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       autoRestartOnMergedCode: readAutoRestartEnabled(),
       retroReviewEnabled: readRetroReviewEnabled(),
       uiLocale: readPromptLanguage(),
+      rapiProfile: await readRapiProfile(),
+      rapiCharacter: await readRapiCharacter(),
       mergeBarrierEnabled: readMergeBarrierEnabled(),
       claudeApiKeyConfigured: apiKeyConfigured,
       chatgptApiKeyConfigured: chatgptConfigured,
@@ -195,6 +199,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         applyRetroReviewEnabled(extraBody, settingsRef);
         applyMergeBarrierEnabled(extraBody, settingsRef);
         applyUiLocale(extraBody, settingsRef);
+        await applyRapiProfile(extraBody, settingsRef);
 
         return settings;
       } catch (error: unknown) {

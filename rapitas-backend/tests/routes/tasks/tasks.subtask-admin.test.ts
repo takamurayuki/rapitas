@@ -28,6 +28,41 @@ const mockPrisma = {
   },
 };
 
+/** Ids these routes asked the deletion choke point to remove. */
+const chokePointDeletes: number[] = [];
+/** Ids the choke point should refuse as protected. */
+const protectedIds: number[] = [];
+
+// These routes delegate deletion instead of calling `deleteMany` (#1330): a
+// bulk delete cannot refuse a protected row, write a trash copy, or snapshot
+// measurements. Both exports are stubbed, since mock.module replaces the
+// whole module.
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    if (protectedIds.includes(taskId)) return { taskId, outcome: 'protected' };
+    chokePointDeletes.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    const result = {
+      deleted: [] as number[],
+      protected: [] as number[],
+      notFound: [] as number[],
+      trashIds: [] as number[],
+    };
+    for (const id of [...new Set(taskIds)]) {
+      if (protectedIds.includes(id)) {
+        result.protected.push(id);
+        continue;
+      }
+      chokePointDeletes.push(id);
+      result.deleted.push(id);
+      result.trashIds.push(1);
+    }
+    return result;
+  },
+}));
+
 mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -83,6 +118,9 @@ describe('POST /tasks/:id/cleanup-duplicates', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // Module-level, so these accumulate across tests unless cleared here.
+    chokePointDeletes.length = 0;
+    protectedIds.length = 0;
     app = createApp();
   });
 
@@ -118,7 +156,9 @@ describe('POST /tasks/:id/cleanup-duplicates', () => {
     expect(res.status).toBe(200);
     expect(body.deletedCount).toBe(1);
     expect(body.deletedIds).toEqual([11]);
-    expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 11 } });
+    // Duplicate cleanup goes through the guarded path too (#1330 review).
+    expect(chokePointDeletes).toEqual([11]);
+    expect(mockPrisma.task.delete).not.toHaveBeenCalled();
   });
 
   test('重複が無い場合はメッセージのみ返すこと', async () => {
@@ -140,6 +180,9 @@ describe('POST /tasks/cleanup-completed', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // Module-level, so these accumulate across tests unless cleared here.
+    chokePointDeletes.length = 0;
+    protectedIds.length = 0;
     app = createApp();
   });
 
@@ -206,6 +249,9 @@ describe('POST /tasks/cleanup-all-duplicates', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // Module-level, so these accumulate across tests unless cleared here.
+    chokePointDeletes.length = 0;
+    protectedIds.length = 0;
     app = createApp();
   });
 
@@ -245,6 +291,9 @@ describe('DELETE /tasks/:id/subtasks', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // Module-level, so these accumulate across tests unless cleared here.
+    chokePointDeletes.length = 0;
+    protectedIds.length = 0;
     app = createApp();
   });
 
@@ -275,7 +324,30 @@ describe('DELETE /tasks/:id/subtasks', () => {
 
     expect(res.status).toBe(200);
     expect(body.deletedCount).toBe(2);
-    expect(mockPrisma.task.deleteMany).toHaveBeenCalledWith({ where: { parentId: 1 } });
+    // Each subtask goes through the guarded path, so each is recoverable.
+    expect(chokePointDeletes).toEqual([10, 11]);
+    expect(mockPrisma.task.deleteMany).not.toHaveBeenCalled();
+  });
+
+  // The hole this closes: a protected subtask was removed by the bulk route.
+  test('保護されたサブタスクは一括削除でも残ること', async () => {
+    chokePointDeletes.length = 0;
+    protectedIds.push(11);
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 1 });
+    mockPrisma.task.findMany.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+
+    try {
+      const res = await app.handle(
+        new Request('http://localhost/tasks/1/subtasks', { method: 'DELETE' }),
+      );
+      const body = await res.json();
+
+      expect(body.deletedCount).toBe(1);
+      expect(body.protectedIds).toEqual([11]);
+      expect(chokePointDeletes).toEqual([10]);
+    } finally {
+      protectedIds.length = 0;
+    }
   });
 
   test('サブタスクが無い場合はメッセージのみ返すこと', async () => {
@@ -297,6 +369,9 @@ describe('POST /tasks/:id/subtasks/delete-selected', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    // Module-level, so these accumulate across tests unless cleared here.
+    chokePointDeletes.length = 0;
+    protectedIds.length = 0;
     app = createApp();
   });
 
@@ -353,9 +428,8 @@ describe('POST /tasks/:id/subtasks/delete-selected', () => {
     expect(body.deletedCount).toBe(2);
     expect(body.deletedIds).toEqual([10, 11]);
     expect(body.invalidIds).toEqual([999]);
-    expect(mockPrisma.task.deleteMany).toHaveBeenCalledWith({
-      where: { id: { in: [10, 11] }, parentId: 1 },
-    });
+    expect(chokePointDeletes).toEqual([10, 11]);
+    expect(mockPrisma.task.deleteMany).not.toHaveBeenCalled();
   });
 
   test('全て有効なIDのみの場合はinvalidIdsが空になること', async () => {

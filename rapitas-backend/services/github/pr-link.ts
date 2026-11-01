@@ -100,12 +100,15 @@ export async function ensureIntegrationId(
 
   const data = integrationCreateData(ident);
   try {
-    const row = await prisma.gitHubIntegration.upsert({
+    // find-then-create rather than upsert: `repositoryUrl` is unique per
+    // workspace now, so it is not a filter upsert can take. The update half
+    // was empty anyway — this only ever needed "the row, creating it if it is
+    // not there".
+    const found = await prisma.gitHubIntegration.findFirst({
       where: { repositoryUrl: data.repositoryUrl },
-      update: {},
-      create: data,
       select: { id: true },
     });
+    const row = found ?? (await prisma.gitHubIntegration.create({ data, select: { id: true } }));
     log.info(
       { integrationId: row.id, repositoryUrl: data.repositoryUrl },
       '[ensureIntegrationId] Registered a GitHub integration for a repository that had none — its PRs are now visible to PR sync and auto-merge',

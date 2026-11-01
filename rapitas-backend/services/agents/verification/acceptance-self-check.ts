@@ -27,6 +27,31 @@ const KNOWN_FILE_EXT_RE =
 /** Prose/framework names that look like bare filenames but never are. */
 const BARE_TOKEN_STOPLIST = new Set(['node.js', 'next.js', 'nuxt.js', 'vue.js', 'express.js']);
 
+/**
+ * Workflow artifact names. These read like paths but are `WorkflowFile`
+ * rows, so they can never appear in a diff — taking one for a repository
+ * path makes any criterion that mentions it permanently unmet.
+ *
+ * Measured on task #1331 (2026-10-19): two of six criteria read
+ * "… が verify.md に記録されている" and were ✗ on every pass, so no change
+ * could have satisfied them and the task stayed blocked. A criterion left
+ * with no other token is undeterminable instead, which is the honest
+ * verdict — token matching against a diff cannot see inside a DB row.
+ * What verify.md actually says is read by the honesty gate and the
+ * adversarial review, not here.
+ */
+const WORKFLOW_ARTIFACTS = new Set(['research.md', 'question.md', 'plan.md', 'verify.md']);
+
+/**
+ * Whether a token names a workflow artifact rather than a file in the repo.
+ *
+ * Only the bare name: `docs/plan.md` is a real document that a criterion
+ * may legitimately require a change to.
+ */
+function isWorkflowArtifact(token: string): boolean {
+  return !token.includes('/') && WORKFLOW_ARTIFACTS.has(token.toLowerCase());
+}
+
 /** Cap for evidence text (mirrors automated-verifier's MAX_DETAIL_CHARS). */
 const MAX_DETAIL_CHARS = 2_000;
 /** Criterion text is truncated in details lines to keep verify.md readable. */
@@ -115,6 +140,7 @@ export function extractReferenceTokens(text: string): string[] {
     const token = stripLineRef(piece.trim()).replace(/\\/g, '/');
     if (!token) return;
     if (requireSeparator && !token.includes('/')) return;
+    if (isWorkflowArtifact(token)) return;
     if (PATHISH_RE.test(token) || DIRISH_RE.test(token)) out.add(token);
   };
   let rest = text;
@@ -137,6 +163,7 @@ export function extractReferenceTokens(text: string): string[] {
       continue;
     }
     if (!PATHISH_RE.test(token)) continue;
+    if (isWorkflowArtifact(token)) continue;
     if (token.includes('/')) {
       out.add(token);
     } else if (KNOWN_FILE_EXT_RE.test(token) && !BARE_TOKEN_STOPLIST.has(token.toLowerCase())) {

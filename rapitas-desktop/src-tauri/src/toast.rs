@@ -125,7 +125,6 @@ pub async fn show_toast_window(
     title: String,
     body: String,
     link: Option<String>,
-    memo_id: Option<i64>,
     task_id: Option<i64>,
     kind: Option<String>,
 ) -> Result<(), String> {
@@ -135,7 +134,6 @@ pub async fn show_toast_window(
         "title": title,
         "body": body,
         "link": link,
-        "memoId": memo_id,
         "taskId": task_id,
         "kind": kind,
     });

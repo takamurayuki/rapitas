@@ -221,7 +221,9 @@ export async function saveExecutionResult(
         ? toJsonString(result.artifacts)
         : existingData?.artifacts || null,
       completedAt: result.waitingForInput ? null : new Date(),
-      tokensUsed: (existingData?.tokensUsed || 0) + (result.tokensUsed || 0),
+      // NOTE: Overwritten since #1302 — the count comes from the stream-json
+      // `result`, whose usage is session-cumulative like its total_cost_usd.
+      tokensUsed: toFiniteNumber(result.tokensUsed) ?? existingData?.tokensUsed ?? 0,
       executionTimeMs: (existingData?.executionTimeMs || 0) + (result.executionTimeMs || 0),
       errorMessage: result.errorMessage,
       question: result.question || null,

@@ -91,7 +91,7 @@ const fakePrisma = {
   },
   themeAutoRun: {
     findMany: () => Promise.resolve(scanTimeArmedThemes),
-    findUnique: () => Promise.resolve(liveThemeAutoRun),
+    findFirst: () => Promise.resolve(liveThemeAutoRun),
   },
   userSettings: { findFirst: () => Promise.resolve(null) },
   activityLog: { findFirst: () => Promise.resolve(null) },

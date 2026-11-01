@@ -3,6 +3,7 @@ import { prisma } from '../../config';
 import { cacheService, CacheKeys } from '../../services/core/cache-service';
 import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
+import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 
 interface BatchResult {
   id: string;
@@ -177,14 +178,26 @@ registerHandler('PATCH:/tasks/:id', async (context) => {
 registerHandler('DELETE:/tasks/:id', async (context) => {
   const { params } = context;
   const id = parseInt(params!.id);
-  await prisma.task.delete({ where: { id } });
+
+  // NOTE(#1330): Through the choke point, not `prisma.task.delete`. This
+  // handler used to delete directly, so a task the single-task route refuses
+  // as protected was removed here instead — with no trash copy to restore
+  // from and no measurement snapshot, while the cascade took 43 relations.
+  // A batch request is not a reason to skip a guard.
+  const result = await deleteTaskWithTrash(id, 'user');
+  if (result.outcome === 'protected') {
+    throw new Error('保護されたタスクは削除できません');
+  }
+  if (result.outcome === 'not_found') {
+    throw new Error('タスクが見つかりません');
+  }
 
   // Invalidate caches
   await cacheService.delete(CacheKeys.task(params!.id));
   await cacheService.clear('tasks:');
   await cacheService.clear('stats:');
 
-  return { success: true };
+  return { success: true, trashId: result.trashId };
 });
 
 class BatchProcessor {
