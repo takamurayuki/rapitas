@@ -14,10 +14,13 @@ const mockPrisma = {
   },
   agentSession: {
     findFirst: mock(() => Promise.resolve(null)),
+    // Needed by the stop route's worktree cleanup (#1335) — see the note below.
+    findMany: mock(() => Promise.resolve([])),
     create: mock(() =>
       Promise.resolve({ id: 1, configId: 1, branchName: 'test-branch', worktreePath: null }),
     ),
     update: mock(() => Promise.resolve({ id: 1 })),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
   developerModeConfig: {
     findFirst: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
@@ -34,6 +37,18 @@ const mockPrisma = {
     findMany: mock(() => Promise.resolve([])),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({ id: 1 })),
+  },
+  // NOTE(#1335): the stop route touches these, and they were absent. The
+  // resulting TypeError fell into the route's catch, which answered HTTP 200 —
+  // so `should stop task execution` was passing on the DATABASE ERROR path and
+  // never once exercised a successful stop. The same accident this file
+  // already documents for developerModeConfig.agentSessions above; it only
+  // became visible when that catch started setting a 500.
+  workflowQueueItem: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  agentExecutionLog: {
+    deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
@@ -184,7 +199,12 @@ describe('Agent Execution Router', () => {
         }),
       );
 
-      expect(response.status).toBeOneOf([200, 404]);
+      // NOTE(#1335): was `toBeOneOf([200, 404])`, and the 200 it accepted came
+      // from the route's catch block swallowing a TypeError from missing
+      // mocks. Asserting the body as well as an exact status is what stops
+      // this passing on an error path again.
+      expect(response.status).toBe(200);
+      expect((await response.json()).success).toBe(true);
     });
   });
 
