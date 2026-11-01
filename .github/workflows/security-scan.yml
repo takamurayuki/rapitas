@@ -106,19 +106,95 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@10
 
-      - name: Audit frontend dependencies
-        working-directory: rapitas-frontend
-        continue-on-error: true
-        run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+      # NOTE(#1340): needed because rapitas-backend uses bun, and this job had
+      # no way to audit it — which is why that package had never been checked.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - name: Audit desktop dependencies
-        working-directory: rapitas-desktop
+      # `bun audit` reads the installed tree, so without this it reports nothing
+      # and the backend gate would pass by being blind rather than by being clean.
+      #
+      # NOTE(#1340): --frozen-lockfile on purpose. A plain `bun install` lets
+      # CI resolve its own tree, and an audit of a tree that is not the one
+      # that ships measures the wrong thing. The committed bun.lock is what
+      # ships, so that is what gets audited. The bot PRs titled "Fix Bun
+      # Lockfile Format" are not format fixes — they bump lockfileVersion 1→2
+      # and upgrade packages across the tree — so the two can diverge, and this
+      # flag makes that divergence fail loudly here instead of silently
+      # changing what the gate measures.
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      # NOTE(#1340): restructured because this job was green while reporting
+      # `##[error]Process completed with exit code 1`, and worse: both steps ran
+      # two commands in one `run:` under `bash -e`, so a non-zero `--production`
+      # ENDED the step and `--audit-level=high` never executed. The command that
+      # exists to catch high findings only ran when nothing had been found.
+      #
+      # Now: REPORT first (always, advisory, into the Step Summary so a green
+      # job can never be read as "no vulnerabilities"), GATE second (its own
+      # step per package, so none can mask another).
+      #
+      # The gate is PRODUCTION + critical. That is a floor that is green today
+      # and can genuinely fail — not an aspiration. It is deliberately not
+      # `high`: the known highs are transitive and real (backend zod via openai
+      # and @elysiajs/swagger, deepmerge-ts via prisma; desktop zod via jimp),
+      # and gating on them today would block every merge on dependency work
+      # that cannot be done from a worktree. Raising this to `high` belongs with
+      # those updates — see #1340. Dev-only findings (the Storybook criticals)
+      # are a developer-machine surface, reported but not merge-blocking.
+      - name: Report all dependency advisories (advisory)
+        if: always()
         continue-on-error: true
         run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+          {
+            echo "## 依存脆弱性レポート"
+            echo
+            echo "**緑は「脆弱性なし」ではない。** ゲートは本番依存の critical のみ。"
+            echo "以下は dev 依存を含む全件。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # NOTE(#1340): piped through `tee` so the findings land in the step
+          # LOG as well as the summary. Redirecting only into the summary left
+          # no way to confirm from the API that this step had produced anything
+          # — a reporting step whose output cannot be seen is indistinguishable
+          # from one that silently wrote nothing.
+          for pkg in rapitas-frontend rapitas-desktop; do
+            {
+              echo
+              echo "### $pkg (pnpm, dev込み)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            (cd "$pkg" && pnpm audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+          {
+            echo
+            echo "### rapitas-backend (bun, dev込み)"
+            echo "NOTE(#1340): このパッケージは監査工程が存在せず、一度も検査されていなかった。"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          (cd rapitas-backend && bun audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gate — frontend production criticals
+        working-directory: rapitas-frontend
+        run: pnpm audit --production --audit-level=critical
+
+      - name: Gate — desktop production criticals
+        working-directory: rapitas-desktop
+        if: always()
+        run: pnpm audit --production --audit-level=critical
+
+      # bun audit has no --production filter, so this covers dev too. No
+      # critical exists in this package today (12 findings: 2 high, 10
+      # moderate), so a critical appearing here is new and blocks.
+      - name: Gate — backend criticals
+        working-directory: rapitas-backend
+        if: always()
+        run: bun audit --audit-level=critical
 
   codeql:
     name: CodeQL Analysis
