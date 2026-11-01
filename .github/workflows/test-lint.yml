@@ -81,6 +81,63 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
 
+  # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
+  # routes go through their choke points (delete guard, stop reporting, the
+  # incremental-fetch boundary). Putting them in the coverage-measured gate
+  # pulled their 600-line route modules into the denominator and took function
+  # coverage from 51.9% to 46.9%, under its 50% floor (#1330). ADR-0002 says
+  # add tests, never lower the floor — so the wiring is gated here, without
+  # --coverage, where it costs the floor nothing (#1332).
+  route-regression:
+    name: Route Regression
+    runs-on: ubuntu-latest
+    # Hang backstop only; the suite is ~1.3s locally. Same rationale as test-backend.
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      - name: Run route regression suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        # NOTE: File list is maintained in scripts/route-regression-tests.txt
+        # (single source of truth). To add/remove files, edit that manifest —
+        # do NOT modify this step.
+        run: bun run test:routes
+
   # Advisory: runs the full test suite in parallel across OS processes.
   # continue-on-error: true — failures are visible in Step Summary but do NOT block merges.
   # See .github/TESTING_POLICY.md §"失敗ティア表" for the rationale.
@@ -394,6 +451,9 @@ jobs:
           src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
           src/components/note/editor/inline-link.test.ts
           src/components/note/editor/useInlineLinks.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
 
   lint:
     name: Lint Code
@@ -507,6 +567,21 @@ jobs:
         # findMany feeding a prompt, missing temperature, wall-clock/random in prompt
         # builders) without blocking merges. See scripts/check-determinism.cjs.
         run: bun run determinism:check
+
+      # NOTE(#1332): Until this step existed, NO job ran ESLint over the
+      # backend — `Lint Code` only type-checked it — so all three local rules
+      # declared as "error" in eslint.config.mjs had never once been applied
+      # to the code they exist to police:
+      #   local/no-raw-prisma-insensitive
+      #   local/no-unscoped-pr-number-lookup
+      #   local/no-unguarded-task-delete
+      # Their own unit tests were in the gate, which proved the rules work but
+      # not that anything runs them. Exactly docs/lessons/gates-that-do-not-
+      # measure.md. Verified red by reintroducing a raw `prisma.task.delete`.
+      # Warnings do not fail (280 today, same policy as the frontend); errors do.
+      - name: Lint backend code
+        working-directory: rapitas-backend
+        run: bun run lint
 
       - name: Lint frontend code
         working-directory: rapitas-frontend

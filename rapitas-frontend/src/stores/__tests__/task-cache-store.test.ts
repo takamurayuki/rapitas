@@ -648,4 +648,124 @@ describe('taskCacheStore', () => {
       expect(Math.max(...doneIds)).toBe(1799);
     });
   });
+
+  // #1332: the boundary was stamped when the RESPONSE arrived
+  // (`new Date().toISOString()`), so anything updated between sending the
+  // request and handling the reply was never asked for again — the next fetch
+  // started after a moment that had already passed. Permanent, silent loss on
+  // an everyday poll.
+  describe('the incremental fetch boundary', () => {
+    /** A reply that takes `delayMs` to arrive, as a real one does. */
+    function slowReply(body: unknown, delayMs: number) {
+      return {
+        ok: true,
+        json: () => new Promise((r) => setTimeout(() => r(body), delayMs)),
+      } as Response;
+    }
+
+    it("uses the server's nextSince rather than the client's clock", async () => {
+      // The server stamps the instant it queried; that is the only value that
+      // cannot have skipped a concurrent write.
+      useTaskCacheStore.setState({
+        tasks: [],
+        lastFetchedAt: '2026-03-01T00:00:00.000Z',
+        initialized: true,
+      });
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            incremental: true,
+            tasks: [{ id: 1, title: 'T1' }],
+            totalCount: 1,
+            activeIds: [1],
+            nextSince: '2026-03-02T00:00:00.000Z',
+          }),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchUpdates();
+
+      expect(useTaskCacheStore.getState().lastFetchedAt).toBe('2026-03-02T00:00:00.000Z');
+    });
+
+    it('honours nextSince even when nothing changed this cycle', async () => {
+      // The no-op branch advanced the boundary too, so it lost updates just
+      // as readily as the merging branch did.
+      useTaskCacheStore.setState({
+        tasks: [{ id: 1, title: 'T1' } as never],
+        lastFetchedAt: '2026-03-01T00:00:00.000Z',
+        initialized: true,
+      });
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            incremental: true,
+            tasks: [],
+            totalCount: 1,
+            activeIds: [1],
+            nextSince: '2026-03-02T00:00:00.000Z',
+          }),
+      } as Response);
+
+      await useTaskCacheStore.getState().fetchUpdates();
+
+      expect(useTaskCacheStore.getState().lastFetchedAt).toBe('2026-03-02T00:00:00.000Z');
+    });
+
+    it('falls back to the time BEFORE the request, never the time after it', async () => {
+      // An older backend sends no nextSince. The boundary must still not be
+      // the receive time: a write landing mid-flight has to be picked up next
+      // cycle. Overlap is fine — a merge by id is idempotent.
+      useTaskCacheStore.setState({
+        tasks: [],
+        lastFetchedAt: '2026-03-01T00:00:00.000Z',
+        initialized: true,
+      });
+      vi.mocked(fetchWithRetry).mockResolvedValue(
+        slowReply({ incremental: true, tasks: [], totalCount: 0, activeIds: [] }, 40),
+      );
+
+      const beforeSend = Date.now();
+      await useTaskCacheStore.getState().fetchUpdates();
+      const afterReceive = Date.now();
+
+      const boundary = Date.parse(useTaskCacheStore.getState().lastFetchedAt!);
+      expect(boundary).toBeGreaterThanOrEqual(beforeSend - 1);
+      // The reply took 40ms; a receive-time stamp would land at the far end.
+      expect(boundary).toBeLessThan(afterReceive - 20);
+    });
+
+    it('does the same on the non-incremental fallback reply', async () => {
+      useTaskCacheStore.setState({
+        tasks: [],
+        lastFetchedAt: '2026-03-01T00:00:00.000Z',
+        initialized: true,
+      });
+      vi.mocked(fetchWithRetry).mockResolvedValue(slowReply([{ id: 1, title: 'T1' }], 40));
+
+      const beforeSend = Date.now();
+      await useTaskCacheStore.getState().fetchUpdates();
+      const afterReceive = Date.now();
+
+      const boundary = Date.parse(useTaskCacheStore.getState().lastFetchedAt!);
+      expect(boundary).toBeGreaterThanOrEqual(beforeSend - 1);
+      expect(boundary).toBeLessThan(afterReceive - 20);
+    });
+
+    it('stamps the full fetch before its request too', async () => {
+      // fetchAll sets the first boundary; getting it wrong loses everything
+      // written while the initial load was running.
+      useTaskCacheStore.setState({ tasks: [], lastFetchedAt: null, initialized: false });
+      vi.mocked(fetchWithRetry).mockResolvedValue(slowReply([{ id: 1, title: 'T1' }], 40));
+
+      const beforeSend = Date.now();
+      await useTaskCacheStore.getState().fetchAll();
+      const afterReceive = Date.now();
+
+      const boundary = Date.parse(useTaskCacheStore.getState().lastFetchedAt!);
+      expect(boundary).toBeGreaterThanOrEqual(beforeSend - 1);
+      expect(boundary).toBeLessThan(afterReceive - 20);
+    });
+  });
 });
