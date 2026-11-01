@@ -215,6 +215,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const page = query.page ? parseInt(query.page as string) : undefined;
     const pageSize = query.limit ? Math.min(parseInt(query.limit as string), 500) : undefined;
 
+    // NOTE(#1336): The cursor for the NEXT fetch, stamped before the query for
+    // the same reason as `nextSince` above. It travels as a header because the
+    // unpaginated full fetch returns a bare array — putting it in the body
+    // would break every reader of `GET /tasks`.
+    //
+    // This is what seeds the very FIRST boundary, so getting it from the
+    // device clock was its own bug, separate from the in-flight race #1332
+    // fixed: a client running ahead of the server starts the next fetch in
+    // the server's future and skips everything in between. Clock skew is not
+    // a millisecond problem — an unsynced machine can be minutes out.
+    //
+    // The header is listed in `exposeHeaders` in index.ts's cors(). Without
+    // that it is invisible to the frontend (different origin) and this whole
+    // mechanism silently does nothing — see the test that pins it.
+    context.set.headers['X-Server-Cursor'] = new Date().toISOString();
+
     const tasks = await prisma.task.findMany({
       where: baseWhere,
       include: {

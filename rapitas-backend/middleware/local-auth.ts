@@ -7,6 +7,7 @@
  */
 import { timingSafeEqual } from 'crypto';
 import { createLogger } from '../config/logger';
+import { resolveCorsOrigins } from '../config/cors-options';
 import { HTTP_STATUS } from '../utils/common/http-status';
 
 const log = createLogger('local-auth');
@@ -104,16 +105,19 @@ export function createApiTokenGuard():
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // Origins the app itself is allowed to send state-changing requests from.
-// Mirrors index.ts's cors() origin allowlist (CORS_ORIGIN when set, otherwise
-// the frontend dev server / Tauri webview defaults) so the Origin fallback
-// below never blocks legitimate app traffic.
+//
+// NOTE(#1336): this used to keep its OWN copy of the list, described as a
+// mirror of index.ts's cors() allowlist. A security-relevant allowlist held in
+// two places is a list that drifts, and the copies had already diverged: this
+// one did not filter empty entries, so `CORS_ORIGIN=""` produced an allowlist
+// containing the empty string — blocking every legitimate app request instead
+// of falling back to the defaults. Both now read the one resolver.
+//
+// Called once when the guard is built, not per request, so the resolver's
+// throw-on-wildcard cannot surface mid-traffic; index.ts rejects those values
+// at startup anyway.
 function resolveAllowedOrigins(): Set<string> {
-  const configured = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim());
-  return new Set(
-    configured && configured.length > 0
-      ? configured
-      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'],
-  );
+  return new Set(resolveCorsOrigins(process.env.CORS_ORIGIN));
 }
 
 /**

@@ -20,6 +20,7 @@ validateEnvironment();
 
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
+import { buildCorsOptions } from './config/cors-options';
 import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
@@ -80,38 +81,13 @@ app.onRequest(({ request }) => {
   }
 });
 
-// Apply middleware
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',')
-      .map((o) => o.trim())
-      .filter(Boolean)
-  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'];
-// NOTE: credentials:true + wildcard origin would let ANY site read
-// authenticated responses (cookies/tokens attach cross-origin). A
-// misconfigured CORS_ORIGIN must fail at startup, not ship silently.
-if (corsOrigins.some((o) => o === '*' || o === 'null')) {
-  throw new Error(
-    'CORS_ORIGIN must not contain "*" or "null" while credentials are enabled — list explicit origins.',
-  );
-}
-app.use(
-  cors({
-    origin: corsOrigins,
-    credentials: true,
-    // NOTE: X-Rapitas-Source lets the (cross-origin) frontend tag user-originated
-    // requests for the UI-quiet restart gate; without it the preflight strips it.
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Rapitas-Source'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    // NOTE: Preflight impact assessment for the X-Rapitas-Source rollout (task #570):
-    // the apiClient path already sends Content-Type: application/json on every
-    // request, so it was preflighted before the header existed — zero new OPTIONS
-    // there. Net-new preflights come only from fetchWithRetry GETs that used to be
-    // simple requests. @elysiajs/cors defaults maxAge to 5s, which would re-issue
-    // OPTIONS roughly every 5s for polling GETs (~2x request volume); 7200s is
-    // Chrome's preflight-cache cap and bounds that churn to once per 2h per route.
-    maxAge: 7200,
-  }),
-);
+// Apply middleware.
+// NOTE(#1336): the options moved to config/cors-options.ts so the policy can be
+// tested. `exposeHeaders` is the reason: a response header missing from it is
+// simply unreadable by the frontend (different origin), so whatever depends on
+// it stops working with no error anywhere. That is not something to leave as an
+// untested literal in a 487-line entry point.
+app.use(cors(buildCorsOptions(process.env.CORS_ORIGIN)));
 
 // Ensure all responses are JSON formatted
 app.onBeforeHandle(({ set }) => {
