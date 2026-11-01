@@ -24,7 +24,12 @@ export default [
     // on TS syntax (`as`, type annotations) with "Parsing error: Unexpected token",
     // producing a phantom lint error that blocked the workflow verification gate on
     // every task that touched a test file. The tests/** block below overrides rules.
-    ignores: ["node_modules/**", "dist/**"],
+    // NOTE(#1332): `generated/**` is excluded now that CI actually runs ESLint
+    // over this package. It holds the two Prisma clients, which are produced by
+    // `prisma generate` — linting them says nothing about code anyone wrote,
+    // and a regeneration that happened to emit a rule violation would redden a
+    // required gate for a reason no one here controls.
+    ignores: ["node_modules/**", "dist/**", "generated/**"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
