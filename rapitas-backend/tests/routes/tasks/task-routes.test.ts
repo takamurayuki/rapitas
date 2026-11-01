@@ -305,6 +305,41 @@ describe('GET /tasks', () => {
     });
   });
 
+  // #1335 review: parseInt stops at the first character it cannot read, so
+  // `/tasks/5abc` fetched row 5 while appearing to name something else. The
+  // assertion that matters is not the status — it is that the database is
+  // never asked about row 5.
+  describe('GET /tasks/:id — 数字以外を含むidは行5に届かないこと', () => {
+    test.each([
+      ['5abc', 'trailing junk'],
+      ['5e2', 'exponent'],
+      ['5.9', 'decimal'],
+      ['5%20OR%201=1', 'whitespace and an SQL fragment'],
+      ['0x10', 'hex'],
+      ['-3', 'negative'],
+      ['0', 'zero'],
+      ['99999999999999999999', 'beyond MAX_SAFE_INTEGER'],
+    ])('%p (%s) → 400 かつ findUnique を呼ばない', async (raw) => {
+      mockPrisma.task.findUnique.mockClear();
+
+      const res = await app.handle(new Request(`http://localhost/tasks/${raw}`));
+
+      expect(res.status).toBe(400);
+      expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+    });
+
+    test('有効なidは引き続きそのidで引くこと', async () => {
+      mockPrisma.task.findUnique.mockClear();
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 5, title: 'T5', parentId: null });
+
+      const res = await app.handle(new Request('http://localhost/tasks/5'));
+
+      expect(res.status).toBe(200);
+      const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
+      expect(call.where.id).toBe(5);
+    });
+  });
+
   // #1332: the response echoed back the `since` it USED and never said what
   // the next boundary should be, so the client advanced to its own receive
   // time and permanently skipped anything updated while the request was in

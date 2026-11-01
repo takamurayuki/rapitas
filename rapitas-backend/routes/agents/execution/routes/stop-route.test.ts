@@ -537,6 +537,57 @@ describe('stop-route reports a failed status reset', () => {
 // throw may have landed (the generation-id bump runs first, and queue
 // withdrawal or worktree cleanup may be partly done). That is the reason it
 // must not be a 200 — the caller cannot tell how far it got.
+// #1335 review: the strengthened test in agent-execution-router.test.ts only
+// reaches the "nothing was running" path — that file does not stub
+// stopTaskAgents, so the real one finds no executions and stoppedCount is 0.
+// What was asked for is a case with a live target: the stop requested for the
+// right task, the count reported, and the task itself updated.
+describe('stopping a task that really has a running execution', () => {
+  beforeEach(resetMocks);
+
+  it('asks to stop THAT task, reports the count, and resets its status', async () => {
+    const taskId = 905;
+    mockStopTaskAgents.mockResolvedValue({ stoppedCount: 2 });
+    mockDb.task.update.mockImplementation(() => Promise.resolve({ executionGenerationId: 7 }));
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+
+    // The stop was requested, and for this task — not merely "a stop ran".
+    expect(mockStopTaskAgents).toHaveBeenCalledTimes(1);
+    expect(mockStopTaskAgents.mock.calls[0]![0]).toBe(taskId);
+
+    // The count is reported rather than flattened to a boolean.
+    expect(body.stoppedCount).toBe(2);
+
+    // The target task's status was reset, scoped to that id.
+    const statusResets = mockDb.task.update.mock.calls.filter(
+      (c) => (c[0] as { data?: { status?: string } })?.data?.status === 'todo',
+    );
+    expect(statusResets).toHaveLength(1);
+    expect((statusResets[0]![0] as { where: { id: number } }).where.id).toBe(taskId);
+  });
+
+  it('says so when there was nothing running, without claiming a stop', async () => {
+    // The other side of the same contract: stoppedCount must not be inflated.
+    mockStopTaskAgents.mockResolvedValue({ stoppedCount: 0 });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/906/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.stoppedCount).toBe(0);
+    expect(body.message).toContain('No running execution');
+  });
+});
+
 describe('stop-route status code when the stop cannot be completed', () => {
   beforeEach(resetMocks);
 

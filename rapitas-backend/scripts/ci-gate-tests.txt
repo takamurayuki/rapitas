@@ -209,3 +209,8 @@ config/cors-options.test.ts
 # もの（latest・メジャーのみ・matrix宣言の古い版）と見逃すべきもの（${{ }} 式・
 # コメント）の両方を固定する。
 scripts/check-toolchain-drift.test.ts
+
+# ===== id の厳密検証（#1335 レビュー: parseInt は 5abc を 5 として扱っていた） =====
+# db-helpers.parseId は 37 箇所から使われており、そのテストは 42abc -> 42 を
+# 「意図した挙動」として固定していた。弾くべき入力と通すべき入力の両方を置く。
+utils/common/id-validation.test.ts

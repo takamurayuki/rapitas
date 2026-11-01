@@ -96,10 +96,18 @@ describe('fromJsonString', () => {
   });
 });
 
+// NOTE(#1335 review): this block had codified two defects as intended
+// behaviour — `parseId('0')` returning 0 and `parseId('12.34')` returning 12.
+// parseInt stops at the first character it cannot read, so a path segment that
+// names one row resolved to another, and 0 is not a row at all (Prisma
+// autoincrement starts at 1) while being falsy in every `if (id)` check.
+//
+// There is a second copy of these tests at utils/database/db-helpers.test.ts;
+// both are updated. Two test files for one module is its own problem, noted
+// rather than resolved here.
 describe('parseId', () => {
   test('有効な数値文字列をパースすること', () => {
     expect(parseId('123')).toBe(123);
-    expect(parseId('0')).toBe(0);
     expect(parseId('999999')).toBe(999999);
   });
 
@@ -108,7 +116,13 @@ describe('parseId', () => {
     expect(() => parseId('')).toThrow('無効なIDです');
   });
 
-  test('小数点付き文字列は整数部分をパースすること', () => {
-    expect(parseId('12.34')).toBe(12);
+  test('小数点付き文字列を拒否すること', () => {
+    // was: expect(parseId('12.34')).toBe(12)
+    expect(() => parseId('12.34')).toThrow('無効なIDです');
+  });
+
+  test('0 を拒否すること', () => {
+    // was: expect(parseId('0')).toBe(0)
+    expect(() => parseId('0')).toThrow('無効なIDです');
   });
 });
