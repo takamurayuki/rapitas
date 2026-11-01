@@ -115,9 +115,18 @@ jobs:
 
       # `bun audit` reads the installed tree, so without this it reports nothing
       # and the backend gate would pass by being blind rather than by being clean.
+      #
+      # NOTE(#1340): --frozen-lockfile on purpose. A plain `bun install` lets
+      # CI resolve its own tree, and an audit of a tree that is not the one
+      # that ships measures the wrong thing. The committed bun.lock is what
+      # ships, so that is what gets audited. The bot PRs titled "Fix Bun
+      # Lockfile Format" are not format fixes — they bump lockfileVersion 1→2
+      # and upgrade packages across the tree — so the two can diverge, and this
+      # flag makes that divergence fail loudly here instead of silently
+      # changing what the gate measures.
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # NOTE(#1340): restructured because this job was green while reporting
       # `##[error]Process completed with exit code 1`, and worse: both steps ran
