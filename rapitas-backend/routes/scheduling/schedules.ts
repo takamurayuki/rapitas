@@ -176,8 +176,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
         userId?: string;
       };
 
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Schedule event not found');

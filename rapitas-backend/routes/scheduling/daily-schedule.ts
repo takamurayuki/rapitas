@@ -58,7 +58,7 @@ export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'schedule block ID');
       const { label, startTime, endTime, color, icon, category, isNotify, sortOrder } = body as {
         label?: string;
         startTime?: string;

@@ -20,6 +20,7 @@ import {
   setTaskThemeRuntimeConfigJson,
 } from '../../../services/agents/verification/runtime-smoke/runtime-config';
 import { HTTP_STATUS } from '../../../utils/common/http-status';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 export const previewRoutes = new Elysia()
   /**
@@ -203,11 +204,11 @@ export const previewRoutes = new Elysia()
     '/tasks/:id/preview/runtime-config',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid task id' };
       }
+      const taskId = Number(params.id);
       const result = await setTaskThemeRuntimeConfigJson(taskId, body.runtimeConfigJson);
       if (!result.ok) {
         set.status = HTTP_STATUS.BAD_REQUEST;

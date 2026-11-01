@@ -131,10 +131,10 @@ export const commentsRoutes = new Elysia()
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { content: string };
-      const commentId = parseInt(params.id);
-      if (isNaN(commentId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なコメントIDです');
       }
+      const commentId = Number(params.id);
 
       const comment = await prisma.comment.findUnique({
         where: { id: commentId },
@@ -314,10 +314,10 @@ export const commentsRoutes = new Elysia()
       const params = context.params as { id: string };
       const body = context.body as { label?: string | null };
 
-      const linkId = parseInt(params.id);
-      if (isNaN(linkId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なリンクIDです');
       }
+      const linkId = Number(params.id);
 
       const link = await prisma.commentLink.findUnique({
         where: { id: linkId },

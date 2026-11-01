@@ -13,6 +13,7 @@ import {
   listThemeOverrides,
   upsertThemeOverride,
 } from '../../services/scheduling/theme-backlog-override-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:backlog-theme-override');
 
@@ -43,11 +44,11 @@ export const backlogThemeOverrideRoutes = new Elysia({ prefix: '/backlog' })
         set.status = 400;
         return { error: `不明なジョブ種別です: ${params.kind}` };
       }
-      const themeId = parseInt(params.themeId);
-      if (isNaN(themeId)) {
+      if (!isValidEntityId(params.themeId)) {
         set.status = 400;
         return { error: '不正なテーマIDです' };
       }
+      const themeId = Number(params.themeId);
       try {
         const override = await upsertThemeOverride(kind, themeId, body);
         return { success: true, override };

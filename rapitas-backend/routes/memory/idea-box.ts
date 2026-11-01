@@ -151,11 +151,11 @@ export const ideaBoxRoutes = new Elysia()
   .patch(
     '/idea-box/:id',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
 
       try {
         const ok = await updateIdea(id, {

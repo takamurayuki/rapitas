@@ -123,7 +123,7 @@ export const integrationRoutes = new Elysia()
       };
 
       return await prisma.gitHubIntegration.update({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
         data: {
           ...(syncIssues !== undefined && { syncIssues }),
           ...(syncPullRequests !== undefined && { syncPullRequests }),

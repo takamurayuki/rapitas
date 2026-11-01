@@ -220,11 +220,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .put(
     '/:id',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const typedBody = body as UpdateKnowledgeBody;
       const entry = await updateKnowledgeEntry(id, {
         title: typedBody.title,
