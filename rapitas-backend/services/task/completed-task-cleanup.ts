@@ -4,19 +4,17 @@
  * Prunes old COMPLETED tasks to keep the task list manageable. Before deleting a
  * task it makes sure its lessons are captured in the knowledge base: if the task
  * has no KnowledgeEntry yet, it extracts knowledge first; if it already does, it
- * just deletes. Deletion also removes any git worktrees; the task's workflow
- * artifacts cascade-delete with the Task row (WorkflowFile/WorkflowFileVersion
- * both have onDelete: Cascade). Manual trigger only (see the
- * /tasks/cleanup-completed route). Not responsible for scheduling or for
- * duplicate-subtask cleanup (task-cleanup.ts).
+ * just deletes. Manual trigger only (see the /tasks/cleanup-completed route).
+ *
+ * Decides WHICH tasks go; `task-deletion.ts` decides what deleting one means
+ * (protected check, worktrees, trash copy, measurement snapshot, cascade).
+ * Not responsible for scheduling or for duplicate-subtask cleanup
+ * (task-cleanup.ts).
  */
 import { prisma } from '../../config/database';
-import { getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
-import { removeWorktree } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
-import { resolveWorktreeBaseDir } from '../agents/orchestrator/git-operations/core/resolve-worktree-base-dir';
 import { extractKnowledgeFromTask } from '../memory/task-knowledge-extractor';
-import { snapshotTaskMeasurements } from './task-measurement-snapshot';
+import { deleteTaskWithTrash } from './task-deletion';
 
 const log = createLogger('completed-task-cleanup');
 
@@ -55,72 +53,28 @@ export interface CleanupResult {
 }
 
 /**
- * Delete a single task and ALL of its execution artifacts: git worktrees, the
- * workflow md directory on disk, and (via Prisma cascade) its DB rows. The
- * workflow dir must be removed BEFORE the task row (its path is derived from the
- * task's theme/category).
+ * Delete one pruned task through the shared deletion choke point.
+ *
+ * NOTE(#1330 review): this used to clear the worktrees, snapshot the
+ * measurements and call `prisma.task.delete` itself — so the 921 tasks it
+ * pruned went with no trash copy, and a task marked protected between the
+ * candidate query and the delete was removed anyway. The choke point does
+ * all three (protected check, worktrees, trash + measurements), and the
+ * worktree grouping this file carried for #825 moved there with it.
  *
  * @param taskId - Task to delete. / 削除するタスクID
+ * @returns Whether the task was actually removed / 実際に削除されたか
  */
-async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
-  // 1. Remove any git worktrees for this task.
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
-    });
-    const sessions = await prisma.agentSession.findMany({
-      where: { worktreePath: { not: null }, config: { taskId } },
-      select: { id: true, worktreePath: true },
-    });
-    const dirs = [task?.workingDirectory || task?.theme?.workingDirectory, getProjectRoot()];
-
-    // NOTE: Multiple AgentSession rows for this task can share one worktree
-    // directory (retries, self-repair bounces). Group by worktreePath before
-    // calling removeWorktree so a shared path is only torn down once — see
-    // the matching fix + rationale in worktree-cleanup.ts (#825).
-    const sessionsByPath = new Map<string, number[]>();
-    for (const s of sessions) {
-      if (!s.worktreePath) continue;
-      const ids = sessionsByPath.get(s.worktreePath);
-      if (ids) {
-        ids.push(s.id);
-      } else {
-        sessionsByPath.set(s.worktreePath, [s.id]);
-      }
-    }
-
-    for (const [worktreePath, sessionIds] of sessionsByPath) {
-      try {
-        const removed = await removeWorktree(
-          resolveWorktreeBaseDir(worktreePath, dirs),
-          worktreePath,
-        );
-        if (removed) {
-          await prisma.agentSession
-            .updateMany({ where: { id: { in: sessionIds } }, data: { worktreePath: null } })
-            .catch(() => {});
-        } else {
-          log.warn({ taskId, worktreePath }, '[cleanup] removeWorktree refused or failed');
-        }
-      } catch (wtErr) {
-        log.warn({ err: wtErr, taskId, worktreePath }, '[cleanup] worktree remove failed');
-      }
-    }
-  } catch (err) {
-    log.warn({ err, taskId }, '[cleanup] worktree cleanup failed — proceeding');
+async function deleteTaskWithArtifacts(taskId: number): Promise<boolean> {
+  const outcome = await deleteTaskWithTrash(taskId, 'user');
+  if (outcome.outcome === 'protected') {
+    log.info({ taskId }, '[cleanup] refused: task became protected since it was selected');
+    return false;
   }
-
-  // 2. Copy the measurements somewhere the cascade cannot reach. This path
-  //    deleted 921 tasks and kept no trash copy, which is why execution rows
-  //    survive for only 17 of 89 days and the workflow ledger is down to 99
-  //    tasks (measured 2026-10-24).
-  await snapshotTaskMeasurements(taskId, prisma);
-
-  // 3. Delete the task row (cascades WorkflowFile / WorkflowFileVersion /
-  //    WorkflowTransition / sessions etc.). KnowledgeEntry.taskId is NOT a FK,
-  //    so recorded knowledge survives.
-  await prisma.task.delete({ where: { id: taskId } });
+  // `not_found` means something else already removed it — the task is gone,
+  // which is what was wanted, but this run did not do it, so it is not
+  // reported as pruned.
+  return outcome.outcome === 'deleted';
 }
 
 /**
@@ -206,9 +160,14 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
         // If nothing was extractable, we still delete — there is nothing to keep.
       }
 
-      await deleteTaskWithArtifacts(t.id);
-      result.deletedCount++;
-      result.deletedTaskIds.push(t.id);
+      // Counted only when it actually went: a caller that trusts deletedCount
+      // would otherwise believe a protected task is gone while it is still
+      // there — the same "reported as deleted without being deleted" bug the
+      // #1330 review found in the bulk routes.
+      if (await deleteTaskWithArtifacts(t.id)) {
+        result.deletedCount++;
+        result.deletedTaskIds.push(t.id);
+      }
     } catch (err) {
       log.warn({ err, taskId: t.id }, '[cleanup] Failed to prune task — skipping');
     }

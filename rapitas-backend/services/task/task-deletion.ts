@@ -103,3 +103,60 @@ export async function deleteTaskWithTrash(
 
   return { taskId, outcome: 'deleted', ...(trashId !== null ? { trashId } : {}) };
 }
+
+/** What a bulk deletion did, split by outcome. */
+export interface BulkDeletionResult {
+  /** Ids that were deleted and are recoverable from the trash. */
+  deleted: number[];
+  /** Ids refused because the task is marked protected. */
+  protected: number[];
+  /** Ids that had no task. */
+  notFound: number[];
+  /** Trash rows to restore from, one per deleted id. */
+  trashIds: number[];
+}
+
+/**
+ * Delete several tasks through the SAME guarded path as a single delete.
+ *
+ * NOTE: This exists because three callers did not use this module at all
+ * (#1330): the batch API's `DELETE:/tasks/:id` and both subtask-bulk routes
+ * each called `prisma.task.delete` / `deleteMany` directly. A protected task
+ * that the single-task route refuses was therefore removed through the batch,
+ * with no trash copy to restore from and no measurement snapshot, while the
+ * cascade took 43 relations with it. `tasks.ts` had already written the hazard
+ * down — "one guard in two places is a guard that drifts" — so the answer is
+ * another entry point HERE, not another copy of the guard there.
+ *
+ * Deliberately sequential, one full pass per task. A single `deleteMany` is
+ * faster but cannot refuse a protected row, cannot write a trash copy and
+ * cannot snapshot measurements — the three things that make a delete
+ * recoverable. Correctness over speed, on a path that destroys data.
+ *
+ * @param taskIds - The tasks to delete; duplicates are collapsed / 削除対象（重複は畳む）
+ * @param source - Who asked / 削除を要求した主体
+ * @returns Each id sorted into what happened to it / 各IDの結果内訳
+ */
+export async function deleteTasksWithTrash(
+  taskIds: number[],
+  source: TrashSource,
+): Promise<BulkDeletionResult> {
+  const result: BulkDeletionResult = {
+    deleted: [],
+    protected: [],
+    notFound: [],
+    trashIds: [],
+  };
+  for (const taskId of [...new Set(taskIds)]) {
+    const one = await deleteTaskWithTrash(taskId, source);
+    if (one.outcome === 'deleted') {
+      result.deleted.push(taskId);
+      if (one.trashId !== undefined) result.trashIds.push(one.trashId);
+    } else if (one.outcome === 'protected') {
+      result.protected.push(taskId);
+    } else {
+      result.notFound.push(taskId);
+    }
+  }
+  return result;
+}

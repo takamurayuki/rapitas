@@ -26,6 +26,13 @@ const mockPrisma = {
     createMany: mock(() => Promise.resolve({ count: 0 })),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
+  // Label replacement verifies the ids before writing, inside a transaction
+  // (#1330 review). Resolving every id keeps the write assertions meaningful.
+  label: {
+    findMany: mock((args: { where: { id: { in: number[] } } }) =>
+      Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+    ),
+  },
   taskSuggestionCache: {
     findMany: mock(() => Promise.resolve([])),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
@@ -70,10 +77,24 @@ const mockPrisma = {
 /** Task ids the shared deletion path was asked to remove. */
 const deletedTaskIds: number[] = [];
 
+// NOTE: Both exports are mirrored. bun's mock.module replaces the whole
+// module, so omitting the bulk entry point made this file stop with one
+// "Export named 'deleteTasksWithTrash' not found" and ALL of its tests vanish
+// (CLAUDE.md § Adding an export to a module).
 mock.module('../../../services/task/task-deletion', () => ({
   deleteTaskWithTrash: async (taskId: number) => {
     deletedTaskIds.push(taskId);
     return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    const unique = [...new Set(taskIds)];
+    deletedTaskIds.push(...unique);
+    return {
+      deleted: unique,
+      protected: [],
+      notFound: [],
+      trashIds: unique.map(() => 1),
+    };
   },
 }));
 
@@ -168,6 +189,10 @@ function resetAllMocks() {
   }
   // Restore default for $transaction
   mockPrisma.$transaction.mockImplementation(transactionImpl);
+  // Same reason: a reset mock would hand replaceTaskLabels undefined.
+  mockPrisma.label.findMany.mockImplementation((args: { where: { id: { in: number[] } } }) =>
+    Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+  );
   // createTask chains `notification.create(...).catch(...)`; a reset
   // (undefined-returning) mock would throw on `.catch` of undefined → 500.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });

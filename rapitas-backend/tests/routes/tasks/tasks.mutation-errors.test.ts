@@ -27,6 +27,9 @@ const mockPrisma = {
   agentSession: {
     findMany: mock(() => Promise.resolve([])),
     update: mock(() => Promise.resolve({})),
+    // NOTE(#1330): cleanUpTaskWorktrees groups sessions by worktreePath and
+    // clears them with updateMany — several sessions can share one directory.
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
   notification: {
     create: mock(() => Promise.resolve({ id: 1 })),
@@ -141,7 +144,7 @@ function resetAllMocks() {
   // NOTE: removeWorktree now returns Promise<boolean> (実際に削除できたか) —
   // tasks.ts DELETE ハンドラは `if (!removed) continue;` で偽値ならDB更新を
   // スキップするようになった。既定は成功(true)にしないと、後続の
-  // agentSession.update 呼び出しが一切発生しない。
+  // agentSession.updateMany 呼び出しが一切発生しない。
   removeWorktree.mockResolvedValue(true);
 }
 
@@ -237,8 +240,8 @@ describe('DELETE /tasks/:id 保護ガードとworktreeクリーンアップ', ()
 
     expect(res.status).toBe(200);
     expect(removeWorktree).toHaveBeenCalledWith('/repo/task', '/repo/.worktrees/task-1');
-    expect(mockPrisma.agentSession.update).toHaveBeenCalledWith({
-      where: { id: 5 },
+    expect(mockPrisma.agentSession.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [5] } },
       data: { worktreePath: null },
     });
     expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
@@ -259,7 +262,7 @@ describe('DELETE /tasks/:id 保護ガードとworktreeクリーンアップ', ()
     expect(res.status).toBe(200);
     // The failed removeWorktree short-circuits the per-session try block, so
     // the DB pointer is never cleared for this session.
-    expect(mockPrisma.agentSession.update).not.toHaveBeenCalled();
+    expect(mockPrisma.agentSession.updateMany).not.toHaveBeenCalled();
     expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
   });
 

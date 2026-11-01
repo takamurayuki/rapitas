@@ -145,6 +145,12 @@ export const stopRoute = new Elysia().post(
       }
 
       // NOTE: Reset task status to 'todo' so it doesn't stay in a limbo state.
+      // NOTE(#1330): The outcome is REPORTED. This failure used to be logged
+      // and dropped while the route still answered `success: true`, so a task
+      // left in-progress with no execution behind it looked stopped to the
+      // caller. Seen for real in #1000's CI log, on a run whose own summary
+      // recorded HTTP 200 for the same stop.
+      let statusResetFailed = false;
       try {
         const current = await prisma.task
           .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
@@ -167,6 +173,7 @@ export const stopRoute = new Elysia().post(
           },
         }).catch(() => {});
       } catch (taskErr) {
+        statusResetFailed = true;
         log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
       }
 
@@ -174,12 +181,21 @@ export const stopRoute = new Elysia().post(
       // case no execution row existed yet a lock was somehow held.
       releaseTaskExecutionLock(taskId);
 
+      // The executions really were stopped, so this is not a failed stop — but
+      // it is not a clean one either, and the caller has to be able to tell.
+      // The flag is absent on the normal path rather than false, so nothing
+      // existing has to change to keep reading `success`.
+      const partial = statusResetFailed ? { statusResetFailed: true } : {};
+
       if (stoppedCount === 0) {
         return {
           success: true,
           stoppedCount,
           withdrawn: withdraw,
-          message: 'No running execution found; cleaned up queue items and worktrees',
+          ...partial,
+          message: statusResetFailed
+            ? '実行は停止しましたが、タスクのステータスを戻せませんでした'
+            : 'No running execution found; cleaned up queue items and worktrees',
         };
       }
 
@@ -187,7 +203,10 @@ export const stopRoute = new Elysia().post(
         success: true,
         stoppedCount,
         withdrawn: withdraw,
-        message: 'Execution(s) stopped and changes reverted',
+        ...partial,
+        message: statusResetFailed
+          ? '実行は停止しましたが、タスクのステータスを戻せませんでした'
+          : 'Execution(s) stopped and changes reverted',
       };
     } catch (error) {
       log.error({ err: error }, '[stop-execution] Database error');

@@ -7,7 +7,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, ValidationError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
-import { deleteTaskWithTrash } from '../../services/task/task-deletion';
+import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
 import {
   createTask,
   updateTask,
@@ -524,17 +524,28 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         select: { id: true },
       });
 
-      const deletedCount = subtasks.length;
+      // NOTE(#1330): Through the choke point, not `deleteMany`. A bulk delete
+      // cannot refuse a protected row, write a trash copy, or snapshot
+      // measurements, so this route used to destroy all three for every
+      // subtask it touched.
+      const result = await deleteTasksWithTrash(
+        subtasks.map((s: { id: number }) => s.id),
+        'user',
+      );
+      const deletedCount = result.deleted.length;
 
-      await prisma.task.deleteMany({
-        where: { parentId },
-      });
-
-      logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
+      logger.info(
+        { parentId, deletedCount, refused: result.protected.length },
+        '[tasks] Deleted subtasks for parent task',
+      );
 
       return {
         success: true,
         deletedCount,
+        // Reported, not swallowed: a caller that asked for 5 and got 3 needs
+        // to know two were protected rather than see "success".
+        protectedCount: result.protected.length,
+        protectedIds: result.protected,
         message:
           deletedCount > 0
             ? `${deletedCount}件のサブタスクを削除しました`
@@ -584,26 +595,26 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         );
       }
 
-      // Delete only valid subtasks
-      const deleteResult = await prisma.task.deleteMany({
-        where: {
-          id: { in: validIds },
-          parentId,
-        },
-      });
+      // Delete only valid subtasks, through the choke point (#1330) — a
+      // `deleteMany` here skipped the protected-task guard, the trash copy and
+      // the measurement snapshot for every id it was given.
+      const result = await deleteTasksWithTrash(validIds, 'user');
 
       logger.info(
-        `[tasks] Deleted ${deleteResult.count} selected subtasks for parent task ${parentId}`,
+        { parentId, deletedCount: result.deleted.length, refused: result.protected.length },
+        '[tasks] Deleted selected subtasks for parent task',
       );
 
       return {
         success: true,
-        deletedCount: deleteResult.count,
-        deletedIds: validIds,
+        deletedCount: result.deleted.length,
+        deletedIds: result.deleted,
         invalidIds,
+        protectedCount: result.protected.length,
+        protectedIds: result.protected,
         message:
-          deleteResult.count > 0
-            ? `${deleteResult.count}件のサブタスクを削除しました`
+          result.deleted.length > 0
+            ? `${result.deleted.length}件のサブタスクを削除しました`
             : '削除するサブタスクがありませんでした',
       };
     },
