@@ -273,6 +273,57 @@ describe('GET /tasks', () => {
     expect(res.status).toBe(400);
   });
 
+  // #1332: the response echoed back the `since` it USED and never said what
+  // the next boundary should be, so the client advanced to its own receive
+  // time and permanently skipped anything updated while the request was in
+  // flight. The server knows when it queried; it has to say so.
+  describe('incremental fetch — the next boundary', () => {
+    test('nextSince を返すこと', async () => {
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(
+        new Request('http://localhost/tasks?since=2026-03-01T00:00:00.000Z'),
+      );
+      const body = await res.json();
+
+      expect(typeof body.nextSince).toBe('string');
+      expect(Number.isNaN(Date.parse(body.nextSince))).toBe(false);
+    });
+
+    test('nextSince はクエリ発行“前”の時刻であること（取得中の更新を落とさない）', async () => {
+      // The whole point: a row updated DURING the query must still satisfy
+      // `updatedAt > nextSince` next time. So nextSince must be stamped
+      // before the query runs, never after it returns.
+      let stampDuringQuery = '';
+      mockPrisma.task.findMany.mockImplementation(async () => {
+        // A write landing mid-query would carry roughly this timestamp.
+        await new Promise((r) => setTimeout(r, 15));
+        stampDuringQuery = new Date().toISOString();
+        return [];
+      });
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(
+        new Request('http://localhost/tasks?since=2026-03-01T00:00:00.000Z'),
+      );
+      const body = await res.json();
+
+      expect(Date.parse(body.nextSince)).toBeLessThan(Date.parse(stampDuringQuery));
+    });
+
+    test('使った since はそのまま返し続けること（既存の読み手を壊さない）', async () => {
+      const since = '2026-03-01T00:00:00.000Z';
+      mockPrisma.task.findMany.mockResolvedValue([]);
+      mockPrisma.task.count.mockResolvedValue(0);
+
+      const res = await app.handle(new Request(`http://localhost/tasks?since=${since}`));
+      const body = await res.json();
+
+      expect(body.since).toBe(since);
+    });
+  });
+
   test('blockedタスクにWorkflowTransitionの最新causeを1クエリで付与すること', async () => {
     const tasks = [
       { id: 1, title: 'Task 1', status: 'todo', parentId: null },

@@ -152,6 +152,15 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError('Invalid `since` parameter');
       }
 
+      // NOTE(#1332): Stamped BEFORE the query, and returned as `nextSince` so
+      // the client never has to guess the boundary. The client used to advance
+      // to its own receive time, which permanently skipped any row updated
+      // while the request was in flight — the next fetch asked for changes
+      // after a moment that had already passed. Stamping early overlaps
+      // instead: a row written during the query may come back twice, and a
+      // merge by id is idempotent. Only skipping loses data.
+      const nextSince = new Date().toISOString();
+
       const [updated, totalCount, allIds] = await Promise.all([
         prisma.task.findMany({
           where: {
@@ -196,6 +205,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         totalCount,
         activeIds: allIds.map((t) => t.id), // List of currently active task IDs
         since: sinceDate.toISOString(),
+        /** The boundary the NEXT incremental fetch must send as `since`. */
+        nextSince,
         incremental: true,
       };
     }

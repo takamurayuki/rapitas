@@ -34,6 +34,33 @@ interface StopResponseBody {
 }
 
 /**
+ * Read a 2xx reply and say whether it actually reports a stop.
+ *
+ * NOTE: the body is the authority, not the status. `stop-route.ts` catches a
+ * database error and returns `{ success: false, error: … }` **without setting
+ * a status code**, so the failure arrives as HTTP 200 — and reading only
+ * `res.ok` called it a stop while the execution was very possibly still
+ * running. Found by review of #1330 in the very module that fixed that class.
+ *
+ * Only an explicit `false` is a failure: several success paths omit the field
+ * entirely, so absent must keep meaning "fine".
+ *
+ * @param res - The 2xx response / 2xx のレスポンス
+ * @returns null when the body says the stop did not happen / 停止していなければ null
+ */
+async function readStopBody(res: Response): Promise<StopResponseBody | null> {
+  let body: StopResponseBody;
+  try {
+    body = (await res.json()) as StopResponseBody;
+  } catch {
+    // An unreadable body is not a reason to call a 2xx a failure; the endpoint
+    // answers 200 for the stop itself.
+    return {};
+  }
+  return body.success === false ? null : body;
+}
+
+/**
  * Stop the execution(s) for one task.
  *
  * Falls back to the session-level stop when the task-level call is rejected,
@@ -53,6 +80,22 @@ export async function requestStopExecution(options: {
   const { taskId, sessionId, apiBaseUrl } = options;
   const doFetch = options.fetchFn ?? fetch;
 
+  /** The session-level stop, used when the task-level one does not report a stop. */
+  const trySessionFallback = async (): Promise<StopExecutionOutcome> => {
+    if (!sessionId) return { kind: 'failed' };
+    try {
+      const fallback = await doFetch(`${apiBaseUrl}/agents/sessions/${sessionId}/stop`, {
+        method: 'POST',
+      });
+      // The fallback's body is read for the same reason as the task-level
+      // one: `ok` alone said "stopped" for a 200 that reported a failure.
+      if (!fallback.ok) return { kind: 'failed' };
+      return (await readStopBody(fallback)) === null ? { kind: 'failed' } : { kind: 'stopped' };
+    } catch {
+      return { kind: 'failed' };
+    }
+  };
+
   let res: Response;
   try {
     res = await doFetch(`${apiBaseUrl}/tasks/${taskId}/stop-execution`, { method: 'POST' });
@@ -60,26 +103,13 @@ export async function requestStopExecution(options: {
     return { kind: 'failed' };
   }
 
-  if (!res.ok) {
-    if (!sessionId) return { kind: 'failed' };
-    try {
-      const fallback = await doFetch(`${apiBaseUrl}/agents/sessions/${sessionId}/stop`, {
-        method: 'POST',
-      });
-      return fallback.ok ? { kind: 'stopped' } : { kind: 'failed' };
-    } catch {
-      return { kind: 'failed' };
-    }
-  }
+  if (!res.ok) return trySessionFallback();
 
-  // A body that cannot be parsed is not a reason to call a 2xx a failure; the
-  // stop endpoint answers 200 for the stop itself.
-  let body: StopResponseBody = {};
-  try {
-    body = (await res.json()) as StopResponseBody;
-  } catch {
-    return { kind: 'stopped' };
-  }
+  const body = await readStopBody(res);
+  // A 200 that says it failed is treated exactly like a rejected one, down to
+  // trying the session route: a session that answers when the task route
+  // could not is still a real stop.
+  if (body === null) return trySessionFallback();
 
   if (body.statusResetFailed === true) {
     return { kind: 'stopped_with_warning', serverMessage: body.message };

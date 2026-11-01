@@ -86,6 +86,71 @@ describe('a stop whose status reset failed', () => {
   });
 });
 
+describe('a 200 whose body says it did not work', () => {
+  // Reproduced in review of #1330: this module read only the HTTP status, so
+  // a 200 carrying success:false came out as `stopped`. The route really does
+  // answer that way — stop-route.ts catches a DB error and returns
+  // { success: false, error: ... } without setting a status code — so the
+  // panel said "stopped" while the execution was very possibly still running.
+  it('is a failure, not a stop', async () => {
+    const { fn } = fetchQueue(json({ success: false, error: 'Database error occurred.' }));
+
+    const outcome = await requestStopExecution({ taskId: 7, apiBaseUrl: API, fetchFn: fn });
+
+    expect(outcome.kind).toBe('failed');
+    expect(didStop(outcome)).toBe(false);
+  });
+
+  it('tries the session fallback, the same as a non-ok reply would', async () => {
+    const { fn, calls } = fetchQueue(json({ success: false }), json({ success: true }));
+
+    const outcome = await requestStopExecution({
+      taskId: 7,
+      sessionId: 'sess-1',
+      apiBaseUrl: API,
+      fetchFn: fn,
+    });
+
+    expect(calls[1]).toBe(`${API}/agents/sessions/sess-1/stop`);
+    expect(outcome).toEqual({ kind: 'stopped' });
+  });
+
+  it('is still a failure when statusResetFailed is also set', async () => {
+    // Nothing stopped, so this is not the partial outcome — the warning
+    // variant must not swallow an outright failure.
+    const { fn } = fetchQueue(json({ success: false, statusResetFailed: true }));
+
+    expect((await requestStopExecution({ taskId: 7, apiBaseUrl: API, fetchFn: fn })).kind).toBe(
+      'failed',
+    );
+  });
+
+  it('still treats a 200 with no success field as a stop', async () => {
+    // Only an explicit `false` is a failure: the route omits the field on
+    // some success paths, and absent must not start meaning "failed".
+    const { fn } = fetchQueue(json({ stoppedCount: 1 }));
+
+    expect((await requestStopExecution({ taskId: 7, apiBaseUrl: API, fetchFn: fn })).kind).toBe(
+      'stopped',
+    );
+  });
+});
+
+describe('the session fallback body', () => {
+  it('is read too — a 200 saying success:false is not a stop', async () => {
+    const { fn } = fetchQueue(json({}, 500), json({ success: false }));
+
+    const outcome = await requestStopExecution({
+      taskId: 7,
+      sessionId: 'sess-1',
+      apiBaseUrl: API,
+      fetchFn: fn,
+    });
+
+    expect(outcome.kind).toBe('failed');
+  });
+});
+
 describe('a stop that did not happen', () => {
   // The case the review called out: the panel showed stopped while the
   // execution was still running.
