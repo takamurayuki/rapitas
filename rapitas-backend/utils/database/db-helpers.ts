@@ -3,6 +3,7 @@
  * Functions for JSON field handling and ID parsing
  */
 import { INVALID_ID } from '../common/error-messages';
+import { isValidEntityId } from '../common/id-validation';
 
 /**
  * Get labels as an array
@@ -63,13 +64,23 @@ export function fromJsonString<T = unknown>(value: unknown): T | null {
 }
 
 /**
- * Parse ID parameter and validate
- * @throws Error if ID is invalid
+ * Parse an id path parameter, refusing anything that is not exactly a safe
+ * positive integer.
+ *
+ * NOTE(#1335 review): this was `parseInt` guarded by `isNaN`, and `parseInt`
+ * stops at the first character it cannot read — so `42abc`, `5e2`, `5.9` and
+ * `5 OR 1=1` all resolved to real row ids, `0x10` became 0, and a 20-digit
+ * number became an unsafe integer. Across the 37 call sites that reach rows
+ * through this helper, a PATCH or DELETE naming one resource could modify
+ * another. The test file had asserted the `42abc -> 42` behaviour as intended.
+ *
+ * @param id - The raw path segment / 生のパス要素
+ * @returns The validated id / 検証済みの id
+ * @throws {Error} INVALID_ID when it is not a safe positive integer / 安全な正整数でない場合
  */
 export function parseId(id: string): number {
-  const parsed = parseInt(id);
-  if (isNaN(parsed)) {
+  if (!isValidEntityId(id)) {
     throw new Error(INVALID_ID);
   }
-  return parsed;
+  return Number(id);
 }

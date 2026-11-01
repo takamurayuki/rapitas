@@ -210,8 +210,16 @@ describe('Agent Execution Router', () => {
       expect(response.status).toBe(200);
       expect((await response.json()).success).toBe(true);
 
+      // SCOPE (#1335 review): this file does not stub stopTaskAgents, so the
+      // real one runs against mocked prisma with no executions — meaning this
+      // covers the "nothing was running" path and its cleanup, not a live
+      // stop. The case with an actual running execution (stop requested for
+      // the right task, stoppedCount, that task's status reset) lives in
+      // routes/agents/execution/routes/stop-route.test.ts, which has the
+      // stopTaskAgents seam.
+      //
       // Queue items withdrawn, worktree sessions inspected, and the task's
-      // status reset — the three side effects a stop is for.
+      // status reset — the three side effects even a no-op stop performs.
       expect(mockPrisma.workflowQueueItem.updateMany).toHaveBeenCalled();
       expect(mockPrisma.agentSession.findMany).toHaveBeenCalled();
       const statusReset = mockPrisma.task.update.mock.calls.some(

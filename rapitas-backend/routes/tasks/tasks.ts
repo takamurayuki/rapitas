@@ -6,6 +6,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { AppError, NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 import { createLogger } from '../../config/logger';
 import { deleteTaskWithTrash, deleteTasksWithTrash } from '../../services/task/task-deletion';
 import {
@@ -271,10 +272,14 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Get task by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    // NOTE(#1335 review): `isValidEntityId`, not `parseInt` + isNaN. parseInt
+    // stops at the first unreadable character, so `/tasks/5abc`, `/tasks/5e2`
+    // and `/tasks/5.9` all fetched row 5 while appearing to name something
+    // else. Shared with batch-v2 and db-helpers' parseId.
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError(INVALID_ID);
     }
+    const id = Number(params.id);
 
     const task = await prisma.task.findUnique({
       where: { id },

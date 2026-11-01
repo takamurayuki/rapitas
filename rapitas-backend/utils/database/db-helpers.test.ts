@@ -82,8 +82,30 @@ describe('parseId', () => {
     expect(parseId('42')).toBe(42);
   });
 
-  test('parses a numeric string with trailing non-digits (parseInt behavior)', () => {
-    expect(parseId('42abc')).toBe(42);
+  // #1335 review. This block previously contained:
+  //
+  //   test('parses a numeric string with trailing non-digits (parseInt
+  //         behavior)', () => expect(parseId('42abc')).toBe(42));
+  //
+  // which codified the defect as intended behaviour. `parseInt` stops at the
+  // first character it cannot read, so every route reaching a row through this
+  // helper — 37 call sites — treated `/x/42abc` as row 42. On a PATCH or a
+  // DELETE that means a request naming one resource modifies another.
+  describe('refuses anything parseInt would silently truncate', () => {
+    test.each([
+      ['42abc', 'trailing junk — was asserted to return 42'],
+      ['5e2', 'exponent notation'],
+      ['5.9', 'decimal point'],
+      ['5 OR 1=1', 'whitespace and an SQL fragment'],
+      ['0x10', 'hex, which parseInt read as 0'],
+      ['  42  ', 'surrounding whitespace'],
+      ['+42', 'explicit sign'],
+      ['-3', 'negative'],
+      ['0', 'zero — autoincrement starts at 1'],
+      ['99999999999999999999', 'beyond MAX_SAFE_INTEGER'],
+    ])('%p (%s)', (raw) => {
+      expect(() => parseId(raw)).toThrow(INVALID_ID);
+    });
   });
 
   test('throws INVALID_ID for a non-numeric string', () => {
@@ -92,5 +114,12 @@ describe('parseId', () => {
 
   test('throws INVALID_ID for an empty string', () => {
     expect(() => parseId('')).toThrow(INVALID_ID);
+  });
+
+  test('still accepts the ids real URLs carry', () => {
+    // The over-correction guard: tightening must not reject valid ids.
+    expect(parseId('1')).toBe(1);
+    expect(parseId('1465')).toBe(1465);
+    expect(parseId(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
   });
 });

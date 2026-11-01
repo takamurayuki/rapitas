@@ -5,6 +5,7 @@
 import { Elysia } from 'elysia';
 import { createLogger } from '../config/logger';
 import { HTTP_STATUS } from '../utils/common/http-status';
+import { isValidEntityId } from '../utils/common/id-validation';
 import {
   RESOURCE_NOT_FOUND,
   VALIDATION_ERROR,
@@ -88,14 +89,32 @@ export class RequirementReplanHeldError extends AppError {
 
 /**
  * Parse and validate a numeric ID from route params.
- * Throws ValidationError if invalid.
+ *
+ * NOTE(#1335 review): this is the parseId the routes actually use — 25 call
+ * sites — and it was `parseInt` guarded by `isNaN(id) || id <= 0`. parseInt
+ * stops at the first character it cannot read, so `42abc`, `5e2`, `5.9` and
+ * `5 OR 1=1` all resolved to real row ids, `0x10` became 0, and a 20-digit
+ * number became an unsafe integer where two distinct ids can compare equal.
+ * On a PATCH or DELETE a request that appears to name one resource therefore
+ * modified another.
+ *
+ * (`db-helpers.ts` exports a second, one-argument `parseId` with no production
+ * callers. Both are strict now, but this is the one on the request path.)
+ *
+ * @param value - Raw path parameter, or an already-numeric id / 生のパス値か数値
+ * @param label - Name used in the error message / エラー文に使う名称
+ * @returns The validated id / 検証済みの id
+ * @throws {ValidationError} When not a safe positive integer / 安全な正整数でない場合
  */
 export function parseId(value: string | number, label: string = 'ID'): number {
-  const id = typeof value === 'number' ? value : parseInt(value, 10);
-  if (isNaN(id) || id <= 0) {
+  // A number argument skips string parsing but still has to be a usable id:
+  // 5.9 and 2**53 are both numbers and neither is a row.
+  const ok =
+    typeof value === 'number' ? Number.isSafeInteger(value) && value > 0 : isValidEntityId(value);
+  if (!ok) {
     throw new ValidationError(`Invalid ${label}: ${value}`, 'INVALID_ID');
   }
-  return id;
+  return Number(value);
 }
 
 /**

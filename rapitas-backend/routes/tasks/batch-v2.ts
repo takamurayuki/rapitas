@@ -5,6 +5,7 @@ import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-op
 import { performanceMonitoring } from '../../middleware/performance';
 import { deleteTaskWithTrash } from '../../services/task/task-deletion';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 interface BatchResult {
   id: string;
@@ -39,9 +40,13 @@ const requestHandlers = new Map<string, (params: HandlerContext) => Promise<unkn
  * @throws {ValidationError} When it is not a number / 数値でない場合
  */
 function parseTaskId(raw: string): number {
-  const id = parseInt(raw, 10);
-  if (Number.isNaN(id)) throw new ValidationError(`Invalid task id: ${raw}`);
-  return id;
+  // NOTE(#1335 review): `isValidEntityId`, not `parseInt` + isNaN. parseInt
+  // stops at the first character it cannot read, so `/tasks/5abc` and
+  // `/tasks/5e2` both resolved to row 5 — a PATCH or DELETE naming one
+  // resource would have modified another. Shared with the direct route and
+  // with db-helpers' parseId so there is one definition of a usable id.
+  if (!isValidEntityId(raw)) throw new ValidationError(`Invalid task id: ${raw}`);
+  return Number(raw);
 }
 
 function registerHandler(pattern: string, handler: (params: HandlerContext) => Promise<unknown>) {
