@@ -295,7 +295,8 @@ function HypothesisCard({
                 {e.stance === 'for' ? '＋' : '−'}
               </span>
               <span className="text-zinc-700 dark:text-zinc-300">{e.detail}</span>
-              <span className="text-zinc-500 dark:text-zinc-500">
+              {/* break-all: artifacts are long file paths with no spaces to wrap at. */}
+              <span className="min-w-0 break-all text-zinc-500 dark:text-zinc-500">
                 {t('card.artifactWrap', { artifact: e.artifact })}
               </span>
             </li>

@@ -142,7 +142,9 @@ export default function LogsClient() {
         </button>
 
         {read && (
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+          // basis-full below sm: on its own wrapped line the path must truncate
+          // against the card width, not size to its full text.
+          <div className="flex min-w-0 flex-1 basis-full sm:basis-0 items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{SOURCE_LABEL[read.source]}:</span>
             <span className="truncate font-mono">{read.directory ?? '—'}</span>
