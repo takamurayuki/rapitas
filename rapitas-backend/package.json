@@ -43,6 +43,7 @@
     "db:generate:sqlite": "bun run scripts/generate-sqlite-prisma-schema.cjs && prisma generate --schema prisma/schema.desktop",
     "db:prepare:sqlite": "bun run scripts/generate-sqlite-init-sql.cjs && prisma generate --schema prisma/schema.desktop",
     "db:migrate:desktop": "bun run scripts/migrate-postgres-to-sqlite.ts",
+    "db:prepare:postgres-init": "bun run scripts/generate-postgres-init-sql.cjs",
     "db:studio": "prisma studio",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

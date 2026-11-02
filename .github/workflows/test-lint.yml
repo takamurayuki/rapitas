@@ -71,6 +71,9 @@ jobs:
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+          # This job runs a real PostgreSQL service, so the BYO-database
+          # integration test must reach it rather than skip (#1285).
+          RAPITAS_REQUIRE_PG_INTEGRATION: '1'
         # NOTE: File list is maintained in scripts/ci-gate-tests.txt (single source of truth).
         # To add/remove files, edit that manifest — do NOT modify this step.
         # See .github/TESTING_POLICY.md for the gate escalation path.
@@ -537,6 +540,19 @@ jobs:
             echo ""
             echo "ERROR: SQLite generated artifacts are out of sync with the Prisma schema."
             echo "Run 'bun run db:prepare:sqlite' in rapitas-backend/ and commit the regenerated files."
+            exit 1
+          fi
+
+      # The DDL a user's own database is initialized with (#1285) must match
+      # the schema, or "initialize" would create an out-of-date database.
+      - name: Verify PostgreSQL init SQL matches the schema
+        working-directory: rapitas-backend
+        run: |
+          bun run db:prepare:postgres-init
+          if ! git diff --exit-code src/generated/postgres-init-sql.ts; then
+            echo ""
+            echo "ERROR: src/generated/postgres-init-sql.ts is out of sync with prisma/schema."
+            echo "Run 'bun run db:prepare:postgres-init' in rapitas-backend/ and commit the result."
             exit 1
           fi
 

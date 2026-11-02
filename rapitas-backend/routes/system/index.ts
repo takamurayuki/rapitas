@@ -38,6 +38,7 @@ import canaryRoute from './canary.routes';
 import deployRoute from './deploy.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
 import tenancyRoute from './tenancy.routes';
+import userDatabaseRoute from './user-database.routes';
 
 export { settingsRoutes } from './settings';
 export { authRoutes } from './auth';
@@ -98,4 +99,5 @@ export const systemDomainRoutes = new Elysia()
   .use(canaryRoute)
   .use(deployRoute)
   .use(outageGuidanceRoute)
-  .use(tenancyRoute);
+  .use(tenancyRoute)
+  .use(userDatabaseRoute);

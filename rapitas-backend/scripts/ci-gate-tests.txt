@@ -227,3 +227,13 @@ eslint-rules/require-validated-id-param.test.mjs
 # server graph; a query at import time corrupted Prisma's view of the WAL.
 tests/config/sqlite-boot-order.test.ts
 services/system/label-category-backfill.test.ts
+
+# #1285: a user's own PostgreSQL database. The integration test creates and
+# initializes a throwaway database on the job's PostgreSQL service — the only
+# place the generated DDL is applied for real before a user runs it.
+services/system/user-database/user-database-url.test.ts
+services/system/user-database/user-database-store.test.ts
+services/system/user-database/user-database-init.test.ts
+services/system/user-database/user-database-init.integration.test.ts
+config/user-database-override.test.ts
+routes/system/user-database.routes.test.ts
