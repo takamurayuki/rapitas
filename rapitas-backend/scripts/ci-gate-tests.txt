@@ -223,3 +223,7 @@ utils/common/id-validation.test.ts
 # ratchet 一覧(id-param-migration-baseline)は撤去した。空の一覧に対するテストは
 # 自明に通るだけで何も測らない。GET を対象に広げるときは同じ形で作り直す。
 eslint-rules/require-validated-id-param.test.mjs
+# #1000: the entrypoint must finish the desktop SQLite init before loading the
+# server graph; a query at import time corrupted Prisma's view of the WAL.
+tests/config/sqlite-boot-order.test.ts
+services/system/label-category-backfill.test.ts

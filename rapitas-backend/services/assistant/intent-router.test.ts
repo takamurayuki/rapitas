@@ -115,6 +115,14 @@ describe('what the model is told', () => {
     expect(sent[0].content).toContain('タスクが開かれています');
   });
 
+  // #1119 stage 6: changing an existing task's state has its own destination,
+  // distinct from create (new work) and tidy (removing work).
+  test('offers "change" for changing an existing task, with its boundary spelled out', async () => {
+    expect([...ROUTABLE_INTENTS]).toContain('change');
+    await routeIntent('ログインのバグを完了にして', false);
+    expect(sent[0].systemPrompt).toContain('- change:');
+  });
+
   test('is shown every destination it may choose', async () => {
     await routeIntent('なにか', true);
     for (const intent of ROUTABLE_INTENTS) {

@@ -15,6 +15,7 @@ import {
   Locate,
   MessagesSquare,
   OctagonAlert,
+  Pencil,
   Signpost,
   type LucideIcon,
 } from 'lucide-react';
@@ -45,7 +46,9 @@ const PANEL_MODES = ['chat', 'watch', 'create', 'ask', 'consult', 'tidy'] as con
  * drafted, questioned, then created — and it costs the tab bar nothing,
  * which is the shape every capability after this one should take.
  */
-const TYPED_ONLY_MODES = ['roadmap'] as const;
+// `change` (#1119 stage 6) takes the same shape: changing an existing task's
+// status, priority, theme or due date is reached by saying so.
+const TYPED_ONLY_MODES = ['roadmap', 'change'] as const;
 
 /**
  * How many past questions the session history keeps.
@@ -109,4 +112,6 @@ export const MODE_ICONS: Record<PanelMode, LucideIcon> = {
   consult: Locate,
   tidy: Eraser,
   roadmap: Signpost,
+  // Pencil is the app's established "edit" glyph, reused for the same meaning.
+  change: Pencil,
 };

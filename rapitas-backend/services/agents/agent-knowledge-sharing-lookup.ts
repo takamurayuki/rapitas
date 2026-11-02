@@ -9,6 +9,25 @@
 import { prisma } from '../../config/database';
 import { getInsensitiveMode } from '../../config/db-provider';
 
+/**
+ * Whether a pattern's actions are only the legacy pointer back to a task.
+ *
+ * @param actionsJson - LearningPattern.actions / actions 列(JSON)
+ * @returns true when every action is "タスク「…」で成功した手法を適用" / 全て自己参照なら true
+ */
+export function isSelfReferentialActions(actionsJson: string): boolean {
+  try {
+    const actions = JSON.parse(actionsJson) as unknown;
+    return (
+      Array.isArray(actions) &&
+      actions.length > 0 &&
+      actions.every((a) => typeof a === 'string' && /^タスク「.*」で成功した手法を適用$/.test(a))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function findRelevantPatterns(task: {
   title: string;
   themeId: number | null;
@@ -30,6 +49,10 @@ export async function findRelevantPatterns(task: {
   // Filter and rank by relevance
   return (
     patterns
+      // NOTE: Legacy success rows say only "タスク「…」で成功した手法を適用" — a
+      // pointer, not a method (#1322). Kept out of prompts rather than
+      // rewritten in place; a fresh success overwrites them (upsertPattern).
+      .filter((p) => !isSelfReferentialActions(p.actions))
       .map((p) => {
         let relevance = 0;
         try {
@@ -285,6 +308,9 @@ export async function upsertPattern(input: {
     await prisma.learningPattern.update({
       where: { id: existing.id },
       data: {
+        // The latest recorded method replaces the old one — including the
+        // self-referential placeholder every legacy row carries (#1322).
+        actions: input.actions,
         occurrences: { increment: 1 },
         confidence: newConfidence,
         lastObserved: new Date(),

@@ -19,6 +19,7 @@
  */
 import { backfillWorkflowFilesToDatabase } from '../workflow/workflow-db-backfill';
 import { backfillRapiProfileToDatabase } from './rapi-profile-backfill';
+import { backfillLabelCategories } from './label-category-backfill';
 
 /**
  * Run every one-shot migration, in order.
@@ -33,5 +34,6 @@ export async function runStartupBackfills(): Promise<Record<string, number>> {
   return {
     workflowFiles: await backfillWorkflowFilesToDatabase(),
     rapiProfile: await backfillRapiProfileToDatabase(),
+    labelCategories: await backfillLabelCategories(),
   };
 }

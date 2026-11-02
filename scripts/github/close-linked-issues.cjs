@@ -168,6 +168,38 @@ function realGh(args) {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+// GitHub's own hiccups, as `gh` reports them. Anything else (404, 403, a bad
+// argument) is an answer, not a blip, and retrying it only delays the red run.
+const TRANSIENT = /Something went wrong|HTTP 5\d\d|timed? ?out|ECONNRESET|EAI_AGAIN/i;
+
+/**
+ * Wrap a gh runner so a transient GitHub failure is retried.
+ *
+ * Exists because #1371's merge left #1132 open: a single GraphQL "Something
+ * went wrong" failed the close, and nothing retried it until the daily sweep.
+ *
+ * @param {(args: string[]) => string} gh - Runner to wrap / ラップする gh 実行関数
+ * @param {{ attempts?: number, wait?: (ms: number) => void }} [opts] - Tries and back-off / 試行回数と待機
+ * @returns {(args: string[]) => string} The retrying runner / 再試行つき実行関数
+ */
+function retryingGh(gh, { attempts = 3, wait = sleepSync } = {}) {
+  return (args) => {
+    for (let i = 1; ; i++) {
+      try {
+        return gh(args);
+      } catch (err) {
+        const text = `${err && err.message}\n${(err && err.stderr) || ''}`;
+        if (i >= attempts || !TRANSIENT.test(text)) throw err;
+        wait(2000 * i);
+      }
+    }
+  };
+}
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function main() {
   const mode = process.argv[2];
   const repo = process.env.GITHUB_REPOSITORY;
@@ -187,10 +219,15 @@ function main() {
       },
       repo,
       defaultBranch,
-      gh: realGh,
+      gh: retryingGh(realGh),
     });
   } else if (mode === 'sweep') {
-    r = sweep({ repo, defaultBranch, days: Number(process.env.SWEEP_DAYS || 14), gh: realGh });
+    r = sweep({
+      repo,
+      defaultBranch,
+      days: Number(process.env.SWEEP_DAYS || 14),
+      gh: retryingGh(realGh),
+    });
   } else {
     throw new Error(`unknown mode "${mode}" (event | sweep)`);
   }
@@ -201,4 +238,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { extractClosingRefs, closeLinkedIssues, sweep };
+module.exports = { extractClosingRefs, closeLinkedIssues, sweep, retryingGh };
