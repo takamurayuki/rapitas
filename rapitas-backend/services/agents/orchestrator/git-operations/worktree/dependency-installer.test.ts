@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -51,7 +52,9 @@ const {
 const { projectRootOf } = await import('./project-dependency-bootstrap');
 
 // Under the OS temp dir, outside any checkout — see the fixture test below.
-const TMP_ROOT = join(tmpdir(), `rapitas-dependency-installer-${process.pid}`);
+// mkdtemp, not a pid-derived name: a predictable path under the shared temp dir
+// is something another local user could pre-create (CodeQL js/insecure-temporary-file).
+const TMP_ROOT = mkdtempSync(join(tmpdir(), 'rapitas-dependency-installer-'));
 
 // #1345: a worktree without setup-worktree.cjs is bootstrapped from its PROJECT
 // ROOT, which projectRootOf finds by cutting the path at `/.worktrees/`. Fixtures
