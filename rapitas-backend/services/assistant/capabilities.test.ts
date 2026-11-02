@@ -41,9 +41,28 @@ describe('the registry', () => {
         'nothing-to-undo',
         'delete-what-was-made',
         'restore-from-trash',
+        'restore-previous-values',
+        'stop-what-was-started',
         'not-yet-possible',
       ]).toContain(capability.undo);
     }
+  });
+
+  // #1119 stage 6: changing state, one declared entry each, confirmed and
+  // reversible — the roadmap's condition for widening the surface at all.
+  test('declares the stage-6 capabilities, each confirmed and reversible', () => {
+    const byId = new Map(ASSISTANT_CAPABILITIES.map((c) => [c.id as string, c]));
+    expect(byId.get('task.update-draft')).toMatchObject({ writes: false });
+    expect(byId.get('task.update')).toMatchObject({
+      writes: true,
+      requiresConfirmation: true,
+      undo: 'restore-previous-values',
+    });
+    expect(byId.get('autorun.start')).toMatchObject({
+      writes: true,
+      requiresConfirmation: true,
+      undo: 'stop-what-was-started',
+    });
   });
 
   test('a read-only capability has nothing to undo', () => {
