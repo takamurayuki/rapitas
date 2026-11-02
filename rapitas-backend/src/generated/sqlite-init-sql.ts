@@ -1838,7 +1838,7 @@ CREATE INDEX "TaskPattern_userId_themeId_idx" ON "TaskPattern"("userId", "themeI
 CREATE INDEX "TaskPattern_workspaceId_idx" ON "TaskPattern"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskPattern_userId_taskTitle_themeId_key" ON "TaskPattern"("userId", "taskTitle", "themeId");
+CREATE UNIQUE INDEX "TaskPattern_workspaceId_userId_taskTitle_themeId_key" ON "TaskPattern"("workspaceId", "userId", "taskTitle", "themeId");
 
 -- CreateIndex
 CREATE INDEX "UserBehaviorSummary_userId_periodType_periodStart_idx" ON "UserBehaviorSummary"("userId", "periodType", "periodStart");
@@ -1847,7 +1847,7 @@ CREATE INDEX "UserBehaviorSummary_userId_periodType_periodStart_idx" ON "UserBeh
 CREATE INDEX "UserBehaviorSummary_workspaceId_idx" ON "UserBehaviorSummary"("workspaceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UserBehaviorSummary_userId_periodType_periodStart_themeId_key" ON "UserBehaviorSummary"("userId", "periodType", "periodStart", "themeId");
+CREATE UNIQUE INDEX "UserBehaviorSummary_workspaceId_userId_periodType_periodStart_themeId_key" ON "UserBehaviorSummary"("workspaceId", "userId", "periodType", "periodStart", "themeId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TaskAnalysisConfig_taskId_key" ON "TaskAnalysisConfig"("taskId");
