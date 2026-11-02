@@ -7,7 +7,8 @@
 
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const mockExec = mock(
   (
@@ -47,8 +48,22 @@ const {
   taskNeedsDependencies,
   prepareWorktreeDependencies,
 } = await import('./dependency-installer');
+const { projectRootOf } = await import('./project-dependency-bootstrap');
 
-const TMP_ROOT = resolve('.tmp-tests/dependency-installer');
+// Under the OS temp dir, outside any checkout — see the fixture test below.
+const TMP_ROOT = join(tmpdir(), `rapitas-dependency-installer-${process.pid}`);
+
+// #1345: a worktree without setup-worktree.cjs is bootstrapped from its PROJECT
+// ROOT, which projectRootOf finds by cutting the path at `/.worktrees/`. Fixtures
+// inside a checkout that itself lives under `<repo>/.worktrees/` therefore
+// resolved to the real primary checkout, whose manifest made the code call
+// `npm install` there (mocked — but counted by mockExec whenever the primary's
+// install fingerprint was stale). Fixtures must resolve to themselves.
+describe('test fixtures', () => {
+  test('resolve to their own project root, never to the checkout running the tests', () => {
+    expect(projectRootOf(join(TMP_ROOT, 'wt-noscript'))).toBe(join(TMP_ROOT, 'wt-noscript'));
+  });
+});
 
 /** Create a worktree that carries the (tracked) setup-worktree.cjs script. */
 async function makeWorktreeWithSetup(dir: string): Promise<void> {
