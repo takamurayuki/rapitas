@@ -206,11 +206,16 @@ export class WorkflowRunner {
 
     try {
       // Progress workflow from current phase to completion (with infinite loop prevention)
-      let continueLoop = true;
       const maxIterations = resolveMaxIterations();
       let iterationCount = 0;
 
-      while (continueLoop && !abortController.signal.aborted && iterationCount < maxIterations) {
+      while (!abortController.signal.aborted) {
+        // NOTE: Checked before starting another pass, not after the loop: a pass that
+        // finished the item (completed / waiting_approval / requeued) on the last
+        // allowed iteration must not be re-reported as an exhausted budget.
+        if (iterationCount >= maxIterations) {
+          throw new Error(`Maximum iterations (${maxIterations}) exceeded for task ${item.taskId}`);
+        }
         iterationCount++;
         // Check current workflowStatus
         const task = await resolveTaskWorkflowState(item.taskId);
@@ -236,7 +241,6 @@ export class WorkflowRunner {
               'execution_error',
               execution.currentPhase,
             );
-            continueLoop = false;
             break;
           }
           throw new Error(`Task ${item.taskId} not found`);
@@ -259,7 +263,6 @@ export class WorkflowRunner {
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
           propagateSubtaskCompletion(item.taskId, task.parentId);
-          continueLoop = false;
           break;
         }
 
@@ -274,7 +277,6 @@ export class WorkflowRunner {
             });
             this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'completed');
             propagateSubtaskCompletion(item.taskId, task.parentId);
-            continueLoop = false;
             break;
           }
           if (settled === 'moved') {
@@ -284,13 +286,11 @@ export class WorkflowRunner {
           if (settled === 'deferred') {
             await deferVerifyItem(this.queue, item.id);
             this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'verify_done');
-            continueLoop = false;
             break;
           }
           if (abortController.signal.aborted) {
             // The grace window ended because auto-run was STOPPED, not because the
             // task failed — don't mark it failed; the stop path owns the outcome.
-            continueLoop = false;
             break;
           }
           // 'stuck': still verify_done after the grace window — a real, persistent
@@ -302,7 +302,6 @@ export class WorkflowRunner {
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
           await notifyParentOnSubtaskFailure(item.taskId);
-          continueLoop = false;
           break;
         }
 
@@ -326,7 +325,6 @@ export class WorkflowRunner {
             currentPhase: 'plan_created',
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'waiting_approval', 'plan_created');
-          continueLoop = false;
           break;
         }
 
@@ -351,13 +349,11 @@ export class WorkflowRunner {
         const result = await raceWorkflowAdvance(this.orchestrator, item.taskId, phaseTimeoutMs);
         // Stop owns the queue item even when the old phase returns a replan/skip result.
         if (abortController.signal.aborted) {
-          continueLoop = false;
           break;
         }
         if (result.superseded) {
           await this.queue.updateStatus(item.id, 'queued', { currentPhase: result.status });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_requeued', result.status);
-          continueLoop = false;
           break;
         }
 
@@ -374,7 +370,6 @@ export class WorkflowRunner {
           );
           await this.queue.updateStatus(item.id, 'queued', { currentPhase: currentStatus });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_requeued', currentStatus);
-          continueLoop = false;
           break;
         }
 
@@ -390,7 +385,6 @@ export class WorkflowRunner {
           } else {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_retrying', currentStatus);
           }
-          continueLoop = false;
           break;
         }
 
@@ -403,7 +397,6 @@ export class WorkflowRunner {
             { taskId: item.taskId, phase: currentStatus },
             '[WorkflowRunner] Execution aborted — stopping loop without advancing',
           );
-          continueLoop = false;
           break;
         }
 
@@ -416,10 +409,6 @@ export class WorkflowRunner {
 
         // Brief wait before next phase (DB update stabilization + abort check)
         await waitBeforeNextPhase(abortController.signal);
-      }
-
-      if (iterationCount >= maxIterations) {
-        throw new Error(`Maximum iterations (${maxIterations}) exceeded for task ${item.taskId}`);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

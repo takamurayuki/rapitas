@@ -26,8 +26,7 @@ export async function resolveAgentConfig(
   // Only a positive id can be a real AIAgentConfig FK. Synthetic/built-in ids
   // (e.g. -1) and 0 must NOT be persisted as the FK — they'd violate the
   // foreign key on agentExecution.create.
-  let resolvedAgentConfigId =
-    options.agentConfigId && options.agentConfigId > 0 ? options.agentConfigId : undefined;
+  let resolvedAgentConfigId: number | undefined;
 
   if (options.agentConfigId && options.agentConfigId > 0) {
     const dbConfig = await ctx.prisma.aIAgentConfig.findUnique({

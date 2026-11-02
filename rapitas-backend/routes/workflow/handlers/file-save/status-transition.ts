@@ -329,17 +329,10 @@ export async function computeAndApplyStatusTransition(params: {
     } else
       await prisma.task.update({
         where: { id: taskId },
-        // Research-no-change completion (and the verify re-run already-done
-        // false-negative guard) also mark the task itself done.
-        data:
-          researchCompleted || verifyRerunAlreadyDone
-            ? {
-                workflowStatus: newStatus,
-                status: 'done',
-                completedAt: new Date(),
-                updatedAt: new Date(),
-              }
-            : { workflowStatus: newStatus, updatedAt: new Date() },
+        // NOTE: No save path marks the task done here any more — research-no-change
+        // completion (2e4894a43) and the verify re-run already-done shortcut
+        // (e9d608c1c) were removed so completion always passes the gates.
+        data: { workflowStatus: newStatus, updatedAt: new Date() },
       });
     // Record the transition + immediately verify invariants. We log
     // violations but DO NOT throw — the file was already saved on disk
@@ -404,11 +397,7 @@ export async function computeAndApplyStatusTransition(params: {
         fromStatus: currentStatus ?? null,
         toStatus: newStatus,
         actor: 'system',
-        cause: researchCompleted
-          ? 'research_no_change_complete'
-          : verifyRerunAlreadyDone
-            ? 'verify_rerun_already_done'
-            : `file_saved:${fileType}`,
+        cause: `file_saved:${fileType}`,
         phase: fileType,
         metadata: transitionMetadata,
         invariantViolation: violations.length > 0,
