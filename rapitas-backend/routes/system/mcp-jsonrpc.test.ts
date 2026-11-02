@@ -34,7 +34,12 @@ const executeTool = mock(async (name: string) => ({
 // NOTE: Bun's mock.module replaces the whole module, so both runtime exports
 // are mirrored — a missing one makes this file stop with one error and its
 // tests vanish rather than fail (CLAUDE.md § Adding an export to a module).
-mock.module('../../services/mcp/mcp-server', () => ({ getToolDefinitions, executeTool }));
+mock.module('../../services/mcp/mcp-server', () => ({
+  getToolDefinitions,
+  executeTool,
+  MCP_WORKSPACE_ENV: 'RAPITAS_MCP_WORKSPACE_ID',
+  resolveMcpWorkspace: () => null,
+}));
 
 const {
   dispatchMcpMessage,
