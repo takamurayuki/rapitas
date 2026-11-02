@@ -59,7 +59,7 @@ function unsafeVerification(command) {
 function decision(input) {
   if (!['Bash', 'PowerShell'].includes(input.tool_name)) return undefined;
   const command = input.tool_input?.command;
-  return undefined; // DELIBERATE BREAK (#1367 can-fail check) — reverted before merge
+  if (typeof command !== 'string' || !unsafeVerification(command)) return undefined;
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',

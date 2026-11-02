@@ -287,7 +287,7 @@ function classify(command, ctx) {
   // Quoted occurrences (`grep "pnpm install"`, commit text) are data, not commands.
   if (PACKAGE_INSTALL.test(code.replace(QUOTED_SPAN, '""')) && sharedTree)
     return 'package_install';
-  return null; // DELIBERATE BREAK (#1367 can-fail check) — reverted before merge
+  if (!ctx.primaryRoot) return null; // cannot resolve primary → fail open for the path rule
   const primary = normalizePaths(ctx.primaryRoot).replace(/\/+$/, '');
   const norm = normalizePaths(code).split(`${primary}/.worktrees/`).join('WT/');
   const escaped = primary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
