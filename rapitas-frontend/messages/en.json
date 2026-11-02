@@ -1652,7 +1652,8 @@
       "ask": "Find tasks",
       "consult": "This task",
       "tidy": "Tidy up",
-      "roadmap": "Plan it out"
+      "roadmap": "Plan it out",
+      "change": "Change"
     },
     "roadmap": {
       "title": "Plan it out",
@@ -1764,6 +1765,37 @@
       "showing": "showing {shown}",
       "unavailable": "I could not make sense of that. Try putting it another way.",
       "error": "That did not work. Try again."
+    },
+    "change": {
+      "title": "Change a task",
+      "thinking": "Reading…",
+      "hint": "e.g. \"Mark the login bug done\", \"Raise the CSV export priority\"",
+      "unclear": "What I could not tell",
+      "error": "That did not work. Please try again.",
+      "task": "Task",
+      "apply": "Make this change",
+      "applying": "Changing…",
+      "cancel": "Cancel",
+      "applied": "Changed.",
+      "undo": "Undo",
+      "undone": "Undone.",
+      "conflict": "Cannot undo: changed since by someone else: {fields}",
+      "field": {
+        "status": "Status",
+        "priority": "Priority",
+        "themeId": "Theme",
+        "dueDate": "Due date"
+      },
+      "value": {
+        "todo": "To do",
+        "in-progress": "In progress",
+        "done": "Done",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "urgent": "Urgent",
+        "none": "None"
+      }
     }
   },
   "shortcuts": {

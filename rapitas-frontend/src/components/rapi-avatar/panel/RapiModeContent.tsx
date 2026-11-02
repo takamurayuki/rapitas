@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../intake';
+import { TaskChange } from '../intake/change';
 import type { PanelMode } from './rapi-modes';
 
 interface Props {
@@ -43,6 +44,7 @@ const RENDERERS: Record<PanelMode, (handedOver: Props['handedOver']) => React.Re
   consult: () => <TaskConsult />,
   tidy: () => <TaskTidy />,
   roadmap: (h) => <TaskRoadmap handedOver={h('roadmap')} />,
+  change: (h) => <TaskChange handedOver={h('change')} />,
 };
 
 /**
