@@ -12,10 +12,7 @@ import { writeBlockedTask } from '../../../../services/workflow/blocked-task-wri
 import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
 import { createCommit } from '../../../../services/agents/orchestrator/git-operations/core/core-ops';
-import {
-  createPullRequest,
-  type CreatePullRequestResult,
-} from '../../../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
+import { createPullRequest } from '../../../../services/agents/orchestrator/git-operations/pr/branch-pr-ops';
 import { notify } from '../../../../services/workflow/auto-merge-notify';
 import { runAutomatedVerification } from '../../../../services/agents/verification/automated-verifier';
 import { retryOrBlock } from '../../../../services/agents/verification/verification-retry';
@@ -329,7 +326,6 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
-  let prResult: CreatePullRequestResult;
   // Captured OUTSIDE the try so the completion gate below can read it: TS treats
   // an assignment inside try/finally as possibly-unexecuted.
   let publishedPrNumber: number | undefined;
@@ -340,10 +336,9 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
         { taskId, prNumber: existingOpenPr.prNumber },
         'Task already has an open PR — reusing instead of creating a new one',
       );
-      prResult = { success: true, prUrl: existingOpenPr.url, prNumber: existingOpenPr.prNumber };
       publishedPrNumber = existingOpenPr.prNumber;
     } else {
-      prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
+      const prResult = await createPullRequest(executionDir, prTitle, prBody, baseBranch);
       if (!prResult.success) {
         // Task-identity mismatch (task 541): the branch's open PR belongs to
         // another task — notify instead of failing silently so the user can

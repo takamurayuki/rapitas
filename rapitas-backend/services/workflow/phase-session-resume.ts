@@ -164,12 +164,6 @@ export async function resolvePhaseResumeDecision(
       select: { id: true, claudeSessionId: true },
     });
 
-    // Tracks the reason a candidate was excluded, so the final "give up"
-    // return (below the loop) still reports WHY instead of a generic
-    // no_prior_session — carried across candidates so the LAST exclusion
-    // reason wins if every candidate is disqualified for different reasons.
-    let disqualifyReason: PhaseResumeColdStartReason | null = null;
-
     for (const candidate of candidates) {
       const sessionId = candidate.claudeSessionId;
       if (!sessionId || !claudeSessionExists(q.workingDirectory, sessionId)) continue;
@@ -199,7 +193,7 @@ export async function resolvePhaseResumeDecision(
           );
           return { sessionId, coldStartReason: 'resumed' };
         }
-        disqualifyReason =
+        const disqualifyReason: PhaseResumeColdStartReason =
           reason === 'prompt_too_long' ? 'prompt_too_long_exhausted' : 'other_failure_exhausted';
         log.info(
           { taskId: q.taskId, role: q.role, sessionId, failedExecutionId: failedResume.id, reason },
@@ -225,9 +219,9 @@ export async function resolvePhaseResumeDecision(
         '[phase-resume] No prior CLI transcript under this directory — cold-starting',
       );
     }
-    return noSession(
-      disqualifyReason ?? (candidates.length > 0 ? 'transcript_missing' : 'no_prior_session'),
-    );
+    // NOTE: A disqualified candidate returns inside the loop (task 901), so only
+    // "no transcript" and "no candidates" reach here.
+    return noSession(candidates.length > 0 ? 'transcript_missing' : 'no_prior_session');
   } catch (err) {
     // Never let this optimisation block a phase from running.
     log.warn(

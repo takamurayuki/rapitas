@@ -328,3 +328,52 @@ describe('WorkflowRunner — plan_created auto-approve', () => {
     expect(resolveTaskWorkflowStateMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('WorkflowRunner — iteration budget', () => {
+  beforeEach(() => {
+    resetMocks();
+    resetRunner();
+    queueMock.retryIfPossible.mockClear();
+  });
+
+  test('an item finished on the last allowed iteration is not failed as budget-exhausted', async () => {
+    const previous = process.env.RAPITAS_RUNNER_MAX_ITERATIONS;
+    process.env.RAPITAS_RUNNER_MAX_ITERATIONS = '1';
+    try {
+      resolveWorkflowStateSequence = [state({ workflowStatus: 'completed', status: 'done' })];
+      await runAndSettle(WorkflowRunner.getInstance());
+    } finally {
+      if (previous === undefined) delete process.env.RAPITAS_RUNNER_MAX_ITERATIONS;
+      else process.env.RAPITAS_RUNNER_MAX_ITERATIONS = previous;
+    }
+
+    expect(updateStatusMock).toHaveBeenCalledWith(
+      QUEUE_ITEM.id,
+      'completed',
+      expect.objectContaining({ currentPhase: 'completed' }),
+    );
+    expect(queueMock.retryIfPossible).not.toHaveBeenCalled();
+    expect(updateStatusMock).not.toHaveBeenCalledWith(QUEUE_ITEM.id, 'failed', expect.anything());
+  });
+
+  test('a pass beyond the budget still fails the item', async () => {
+    const previous = process.env.RAPITAS_RUNNER_MAX_ITERATIONS;
+    process.env.RAPITAS_RUNNER_MAX_ITERATIONS = '1';
+    try {
+      planApprovalRow = { id: QUEUE_ITEM.taskId, autoApprovePlan: true, parentId: null };
+      resolveWorkflowStateSequence = [
+        state({ workflowStatus: 'plan_created' }),
+        state({ workflowStatus: 'completed', status: 'done' }),
+      ];
+      await runAndSettle(WorkflowRunner.getInstance());
+    } finally {
+      if (previous === undefined) delete process.env.RAPITAS_RUNNER_MAX_ITERATIONS;
+      else process.env.RAPITAS_RUNNER_MAX_ITERATIONS = previous;
+    }
+
+    expect(queueMock.retryIfPossible).toHaveBeenCalledWith(
+      QUEUE_ITEM.id,
+      `Maximum iterations (1) exceeded for task ${QUEUE_ITEM.taskId}`,
+    );
+  });
+});

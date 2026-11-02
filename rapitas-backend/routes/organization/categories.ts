@@ -288,13 +288,13 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
     }
 
     // Update UserSettings.defaultCategoryId
-    let settings = await prisma.userSettings.findFirst();
+    const settings = await prisma.userSettings.findFirst();
     if (!settings) {
-      settings = await prisma.userSettings.create({
+      await prisma.userSettings.create({
         data: { defaultCategoryId: id },
       });
     } else {
-      settings = await prisma.userSettings.update({
+      await prisma.userSettings.update({
         where: { id: settings.id },
         data: { defaultCategoryId: id },
       });
