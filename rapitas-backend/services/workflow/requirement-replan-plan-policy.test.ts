@@ -6,7 +6,6 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { PrismaClient } from '../../generated/prisma-sqlite';
 import type { PrismaClient as PostgresClient } from '../../generated/prisma-postgres';
 import {
-  commitRequirementReplan,
   completeReviewedTask,
   advanceReviewedVerify,
   assertReviewedTaskCurrent,
@@ -44,8 +43,6 @@ const review: ReplanReviewResult = {
     },
   },
 };
-const commit = () => commitRequirementReplan(db as unknown as PostgresClient, 1, now, review);
-
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'rapitas-replan-test-'));
   db = new PrismaClient({

@@ -13,7 +13,7 @@ import {
   PythonLogParser,
   CustomFormatParser,
 } from '../../utils/common/debug-log-parsers';
-import { LogType, LogLevel } from '../../utils/debug-log-analyzer';
+import { LogLevel } from '../../utils/debug-log-analyzer';
 
 describe('NginxLogParser', () => {
   const parser = new NginxLogParser();

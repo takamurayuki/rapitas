@@ -1,7 +1,7 @@
 /**
  * Idea Extractor テスト
  */
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 interface IdeaSubmission {
   title: string;

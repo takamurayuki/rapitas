@@ -134,7 +134,6 @@ describe('POST /directories/favorites', () => {
         body: JSON.stringify({ path: '/test-dir/new-project' }),
       }),
     );
-    const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(mockPrisma.favoriteDirectory.create).toHaveBeenCalledTimes(1);
@@ -187,7 +186,6 @@ describe('PATCH /directories/favorites/:id', () => {
         body: JSON.stringify({ name: 'Updated Name' }),
       }),
     );
-    const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(mockPrisma.favoriteDirectory.update).toHaveBeenCalledTimes(1);

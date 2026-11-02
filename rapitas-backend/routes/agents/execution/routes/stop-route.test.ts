@@ -123,10 +123,6 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
 // ---------------------------------------------------------------------------
 
 const { stopRoute } = await import('./stop-route');
-const { prisma } = await import('../../../../config/database');
-const { orchestrator } = await import('../../../../services/core/orchestrator-instance');
-const { removeWorktree } =
-  await import('../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops');
 
 // Aliases matching the original test variable names
 const mockPrisma = mockDb;
@@ -218,7 +214,7 @@ describe('stop-route worktree cleanup', () => {
     });
 
     // Rebuild the route
-    const rebuiltRoute = stopRoute.post('/tasks/:id/stop-execution', routeHandler);
+    stopRoute.post('/tasks/:id/stop-execution', routeHandler);
 
     // Call the handler
     await routeHandler(context);
@@ -232,7 +228,6 @@ describe('stop-route worktree cleanup', () => {
   });
 
   it.skip('should clean up worktree on developer mode session stop', async () => {
-    const taskId = 123;
     const worktreePath = '/test/repo/.worktrees/task-123-abc123';
 
     // Mock task
@@ -265,11 +260,6 @@ describe('stop-route worktree cleanup', () => {
     mockPrisma.task.update.mockResolvedValue({});
     mockRemoveWorktree.mockResolvedValue(undefined);
 
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
-
     // Create a mock route handler
     const routeHandler = mock();
 
@@ -290,7 +280,6 @@ describe('stop-route worktree cleanup', () => {
   });
 
   it('should handle worktree cleanup errors gracefully', async () => {
-    const taskId = 123;
     const worktreePath = '/test/repo/.worktrees/task-123-abc123';
 
     // Mock task
@@ -322,18 +311,11 @@ describe('stop-route worktree cleanup', () => {
     // Mock worktree cleanup failure
     mockRemoveWorktree.mockRejectedValue(new Error('Cleanup failed'));
 
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
-
     // The route should still complete successfully despite cleanup error
     expect(() => mockRemoveWorktree('/test/repo', worktreePath)).toThrow('Cleanup failed');
   });
 
   it('should skip worktree cleanup when no worktree path exists', async () => {
-    const taskId = 123;
-
     // Mock task
     mockPrisma.task.findUnique.mockResolvedValue({
       workingDirectory: '/test/repo',
@@ -359,11 +341,6 @@ describe('stop-route worktree cleanup', () => {
     mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.agentExecution.update.mockResolvedValue({});
     mockPrisma.task.update.mockResolvedValue({});
-
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
 
     // Verify worktree cleanup is not called when no worktree path
     expect(mockRemoveWorktree).not.toHaveBeenCalled();

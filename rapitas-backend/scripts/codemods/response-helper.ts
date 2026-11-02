@@ -125,9 +125,7 @@ export function transformResponseHelper(input: TransformInput): TransformResult 
 
     if (!parsed) {
       // Could not safely parse — hand off for manual review.
-      if (parsed === null) {
-        manualReview.push(`${filePath}:${lineNum} — complex object, manual review needed`);
-      }
+      manualReview.push(`${filePath}:${lineNum} — complex object, manual review needed`);
       resultLines.push(line);
       continue;
     }

@@ -85,34 +85,12 @@ mock.module('../../observability', () => ({
 }));
 
 // Dynamically import AFTER all mock.module calls.
-const { maybeRestartForUpdate, recordStartupCommit, gracefulRestart } =
-  await import('./dev-restart-on-dry');
+const { gracefulRestart } = await import('./dev-restart-on-dry');
 
 afterAll(() => {
   // Restore process.exit so other tests are unaffected.
   process.exit = originalExit;
 });
-
-/** Waits for gracefulRestart to finish (stopProcessing + gracefulShutdown completed). */
-function waitForCallOrder(expectedLength: number, timeoutMs = 3000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    function check() {
-      if (callOrder.length >= expectedLength) {
-        resolve();
-      } else if (Date.now() - start > timeoutMs) {
-        reject(
-          new Error(
-            `Timed out waiting for ${expectedLength} calls, got: ${JSON.stringify(callOrder)}`,
-          ),
-        );
-      } else {
-        setTimeout(check, 10);
-      }
-    }
-    check();
-  });
-}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -145,7 +123,6 @@ describe('gracefulRestart() — call order', () => {
     // We temporarily mock it to return a "startup" commit, then after recording,
     // headCommit() returns a "new" commit so the HEAD-changed gate passes.
     let headCallCount = 0;
-    const { promisify } = await import('util');
     // We rely on the mock already in place — first call = startup commit, second = new commit.
     // Reset headCallCount and re-invoke.
     headCallCount = 0;

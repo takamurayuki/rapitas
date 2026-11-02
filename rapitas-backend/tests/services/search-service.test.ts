@@ -251,7 +251,6 @@ describe('Search API - サジェスト', () => {
     mockPrisma.task.findMany.mockResolvedValue(tasks);
 
     const res = await app.handle(new Request('http://localhost/search/suggest?q=Task'));
-    const body = await res.json();
 
     expect(res.status).toBe(200);
     // The route limits to take: 8, but mock returns all 12 - the Prisma take
