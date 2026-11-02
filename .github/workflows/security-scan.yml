@@ -144,7 +144,7 @@ jobs:
       # and @elysiajs/swagger, deepmerge-ts via prisma; desktop zod via jimp),
       # and gating on them today would block every merge on dependency work
       # that cannot be done from a worktree. Raising this to `high` belongs with
-      # those updates — see #1340. Dev-only findings (the Storybook criticals)
+      # those updates — see #1340. Dev-only findings (such as frontend undici)
       # are a developer-machine surface, reported but not merge-blocking.
       - name: Report all dependency advisories (advisory)
         if: always()
