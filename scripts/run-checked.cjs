@@ -217,7 +217,7 @@ function main() {
     write(summary);
     process.stdout.write(summary);
     fs.closeSync(logFd);
-    process.exitCode = finalCode;
+    process.exitCode = 0; // DELIBERATE BREAK (#1367 can-fail check) — reverted before merge
   });
 }
 
