@@ -112,10 +112,20 @@ describe('toScreenTaskPayload', () => {
       expect(c).toContain('追記');
     });
 
-    test('asks for nothing when no feature is reached from this screen', () => {
+    test('asks for no registration when no feature is reached from this screen', () => {
       const p = toScreenTaskPayload(screen({ featureIds: [] }), { themeId: 1, outOfScope: [] });
-      const all = [p.description, ...p.goals, ...p.acceptanceCriteria, ...p.constraints].join('\n');
-      expect(all).not.toContain('featureEntries');
+      expect([...p.goals, ...p.acceptanceCriteria].join('\n')).not.toContain('featureEntries');
+    });
+
+    // #1037: saying nothing let the agent infer an obligation from its
+    // reachability criterion and invent `{ "id": "login" }` — a screen name,
+    // counted as a feature. The no-feature screen is now told explicitly.
+    test('tells a no-feature screen to register nothing, and that ids are [F-NN] only', () => {
+      const p = toScreenTaskPayload(screen({ featureIds: [] }), { themeId: 1, outOfScope: [] });
+      const c = p.constraints.join('\n');
+      expect(c).toContain('featureEntries');
+      expect(c).toContain('登録しない');
+      expect(c).toContain('[F-NN]');
     });
   });
 });

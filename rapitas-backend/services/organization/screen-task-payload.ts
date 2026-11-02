@@ -113,7 +113,12 @@ export function toScreenTaskPayload(spec: ScreenTaskSpec, ctx: PayloadContext): 
             `\`${RUNTIME_CONFIG_FILE}\` の \`featureEntries\` は追記する。` +
               '他の画面タスクが登録した entry を消さないこと。',
           ]
-        : []),
+        : [
+            // NOTE: Saying nothing here let an agent infer an obligation and
+            // invent `{ "id": "login" }`, counted as a feature (#1037).
+            `この画面はどの機能の入口でもないため、\`${RUNTIME_CONFIG_FILE}\` の \`featureEntries\` には何も登録しない。` +
+              'featureEntries の id は要件定義の [F-NN] だけで、画面名を id にしない。',
+          ]),
       '設計書(docs/design.md)のディレクトリ構成・技術スタックから逸脱しないこと。逸脱が必要なら報告する。',
       'テストを伴わない実装は完了としない（生成直後のプロジェクトには既存テストがほとんど無いため）。',
       ...ctx.outOfScope.map((s) => `スコープ外: ${s}`),
