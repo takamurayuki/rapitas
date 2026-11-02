@@ -64,13 +64,18 @@ overrides:
   browserslist@<4.28.7: ^4.28.7
   dompurify@<3.4.16: ^3.4.16
   esbuild@>=0.27.3 <0.28.1: ^0.28.1
-  fast-uri@>=3.0.0 <3.1.7: ^3.1.7
+  fast-uri@>=3.0.0 <3.1.9: ^3.1.9
   js-yaml@>=4.0.0 <4.3.2: ^4.3.2
+  # mermaid 11 asks for ^0.16.47; mermaid 12 already moved to ^0.18 with the
+  # same renderToString call, so the 0.18 line is what mermaid itself ships.
+  katex@>=0.11.0 <0.18.2: ^0.18.2
   nanoid@>=3.0.0 <3.3.18: ^3.3.18
   pbkdf2@<3.1.7: ^3.1.7
   postcss@<8.5.10: ^8.5.10
   postcss@<=8.5.11: ^8.5.12
   postcss@<=8.5.17: ^8.5.18
+  # 6.x is a separate major line: @tailwindcss/typography pins 6.0.10 exactly.
+  postcss-selector-parser@<6.1.5: ^6.1.5
   postcss-selector-parser@>=7.0.0 <7.1.6: ^7.1.6
   # NOTE: the upper bound has to track the advisory, not the version that
   # happened to be current when it was written: the lock had already moved
@@ -78,7 +83,7 @@ overrides:
   qs@>=6.11.1 <6.16.0: ^6.16.0
   sharp@<0.35.0: ^0.35.0
   source-map-js@>=1.0.0 <1.2.2: ^1.2.2
-  undici@>=7.0.0 <7.29.1: ^7.29.1
+  undici@>=7.0.0 <7.30.1: ^7.30.1
   uuid@<11.1.1: ^11.1.1
   # NOTE: the bare entry is the one that applies (first match wins), so the
   # floor lives here. A bounded `vite@>=7.0.0 <=7.3.4` entry used to sit
@@ -86,3 +91,6 @@ overrides:
   vite: ^7.3.7
   ws@>=8.0.0 <8.20.1: ^8.20.1
   ws@>=8.0.0 <8.21.0: ^8.21.0
+  # GHSA-mrhx-c7xc-m3w5 (high). Dev only, via eslint-plugin-react-hooks, whose
+  # range (^3.25.0 || ^4.0.0) already admits the patched release.
+  zod@>=4.0.0 <4.6.6: ^4.6.6

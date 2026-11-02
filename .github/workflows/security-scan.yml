@@ -135,17 +135,8 @@ jobs:
       # exists to catch high findings only ran when nothing had been found.
       #
       # Now: REPORT first (always, advisory, into the Step Summary so a green
-      # job can never be read as "no vulnerabilities"), GATE second (its own
-      # step per package, so none can mask another).
-      #
-      # The gate is PRODUCTION + critical. That is a floor that is green today
-      # and can genuinely fail — not an aspiration. It is deliberately not
-      # `high`: the known highs are transitive and real (backend zod via openai
-      # and @elysiajs/swagger, deepmerge-ts via prisma; desktop zod via jimp),
-      # and gating on them today would block every merge on dependency work
-      # that cannot be done from a worktree. Raising this to `high` belongs with
-      # those updates — see #1340. Dev-only findings (such as frontend undici)
-      # are a developer-machine surface, reported but not merge-blocking.
+      # job can never be read as "no vulnerabilities"), GATE second, at high,
+      # with written-down exceptions — see the gate step below.
       - name: Report all dependency advisories (advisory)
         if: always()
         continue-on-error: true
@@ -179,22 +170,29 @@ jobs:
           (cd rapitas-backend && bun audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Gate — frontend production criticals
-        working-directory: rapitas-frontend
-        run: pnpm audit --production --audit-level=critical
-
-      - name: Gate — desktop production criticals
-        working-directory: rapitas-desktop
+      # NOTE(#1340): the gate was "production criticals only", which every one
+      # of the 24 Dependabot alerts open on 2026-11-03 passed — measured: the
+      # pre-fix frontend lock carried 5 highs (zod, 4x undici) and this job was
+      # green. Now ANY high or critical, dev included, fails unless
+      # .github/audit-exceptions.json excuses it with a reason and an expiry;
+      # an expired exception fails too, so an accepted risk is re-read instead
+      # of forgotten. The audits write JSON and exit non-zero on findings, so
+      # `|| true` keeps the step going; an audit that wrote nothing makes the
+      # gate's JSON.parse fail, so a blind audit still turns this red.
+      - name: Collect audit JSON
         if: always()
-        run: pnpm audit --production --audit-level=critical
+        run: |
+          (cd rapitas-frontend && pnpm audit --json > "$RUNNER_TEMP/fe.json" || true)
+          (cd rapitas-desktop && pnpm audit --json > "$RUNNER_TEMP/desk.json" || true)
+          (cd rapitas-backend && bun audit --json > "$RUNNER_TEMP/be.json" || true)
 
-      # bun audit has no --production filter, so this covers dev too. No
-      # critical exists in this package today (12 findings: 2 high, 10
-      # moderate), so a critical appearing here is new and blocks.
-      - name: Gate — backend criticals
-        working-directory: rapitas-backend
+      - name: Gate — high or above, dev included, unless excepted
         if: always()
-        run: bun audit --audit-level=critical
+        run: >-
+          node scripts/security/audit-gate.cjs
+          "frontend=$RUNNER_TEMP/fe.json:pnpm"
+          "desktop=$RUNNER_TEMP/desk.json:pnpm"
+          "backend=$RUNNER_TEMP/be.json:bun"
 
   codeql:
     name: CodeQL Analysis
