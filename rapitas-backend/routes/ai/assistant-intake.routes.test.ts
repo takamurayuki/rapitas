@@ -9,6 +9,7 @@
  * quietly created the task would still return a perfectly good draft.
  */
 import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { aiClientStub } from '../../tests/helpers/ai-client-stub';
 
 /** Every `prisma.<model>.<method>` touched during a request. */
 let calls: string[] = [];
@@ -61,12 +62,16 @@ let modelReply: string | Error = JSON.stringify({
   unclear: [],
 });
 
-mock.module('../../utils/ai-client', () => ({
-  sendAIMessage: async () => {
-    if (modelReply instanceof Error) throw modelReply;
-    return { content: modelReply, tokensUsed: 0 };
-  },
-}));
+// NOTE: The full stub, not just sendAIMessage — mock.module replaces the whole module
+// process-wide, and a one-export stub broke every other importer (#1286).
+mock.module('../../utils/ai-client', () =>
+  aiClientStub({
+    sendAIMessage: async () => {
+      if (modelReply instanceof Error) throw modelReply;
+      return { content: modelReply, tokensUsed: 0 };
+    },
+  }),
+);
 
 mock.module('../../config/database', () => ({
   prisma: recordingPrisma,
