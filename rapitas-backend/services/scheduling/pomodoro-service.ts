@@ -189,7 +189,7 @@ export async function completePomodoro(sessionId: number) {
   }
 
   // Determine next session type
-  let nextType: PomodoroType = 'short_break';
+  let nextType: PomodoroType;
   if (session.type === 'work') {
     if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
       nextType = 'long_break';

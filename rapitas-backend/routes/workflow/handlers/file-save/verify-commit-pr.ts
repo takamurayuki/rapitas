@@ -97,7 +97,7 @@ export async function runVerifyCommitPrCompletion(params: {
       const reason = `PR #${prNumber} は GitHub 上でまだ競合状態です（mergeStateStatus=DIRTY）。base ブランチの最新を取り込んで競合を解消し、PR ブランチへ push してから再検証してください。`;
       const { attemptVerifyRepair } =
         await import('../../../../services/workflow/verify-self-repair');
-      const repair = await attemptVerifyRepair(taskId, newStatus ?? null, reason, savedContent);
+      const repair = await attemptVerifyRepair(taskId, newStatus, reason, savedContent);
       if (repair.bounced && repair.newStatus) {
         log.warn(
           { taskId, prNumber, attempt: repair.attempt, newStatus: repair.newStatus },

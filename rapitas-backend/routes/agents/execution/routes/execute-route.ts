@@ -438,7 +438,7 @@ export const executeRoute = new Elysia().post(
               );
               resolvedModelOverride = undefined;
             }
-          } else if (!targetProvider && resolvedModelOverride) {
+          } else if (!targetProvider) {
             // We picked a model whose family we cannot infer (new release
             // naming, custom alias, …). Sending an unknown id to claude-code
             // produces "There's an issue with the selected model" and a 1.3s

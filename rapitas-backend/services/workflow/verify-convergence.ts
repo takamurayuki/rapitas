@@ -128,7 +128,7 @@ function extractFeatureTokens(criterion: string): string[] {
     if (t.length >= MIN_TOKEN_LEN && !WORKFLOW_ARTIFACT_TOKENS.has(t.toLowerCase())) tokens.add(t);
     // Reasons often cite just the basename while the criterion spells the full
     // path.
-    const base = t.split(/[/\\\\]/).pop() ?? '';
+    const base = t.split(/[/\\]/).pop() ?? '';
     if (
       base.length >= MIN_TOKEN_LEN &&
       base.includes('.') &&

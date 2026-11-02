@@ -333,7 +333,7 @@ export async function triageTestFailures(
   try {
     // Step 3: create detached worktree at merge-base (retry under a NEW dir name —
     // a collision with leftover debris under the old name must not repeat).
-    for (let attempt = 1; !baselineCreated; attempt++) {
+    for (let attempt = 1; ; attempt++) {
       baselineCreated = await createWt(mainRepoRoot, baselineDir, baseCommit);
       if (baselineCreated) break;
       if (attempt >= BASELINE_INFRA_ATTEMPTS) {

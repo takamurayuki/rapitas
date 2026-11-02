@@ -166,7 +166,7 @@ export const continueRoute = new Elysia().post(
       }).catch(() => {});
       // 'reuse' implies canReuseWorktree(recordedWorktree) === true, so it is
       // non-null here; the other branches assign a concrete directory below.
-      let executionDir: string = workingDirectory;
+      let executionDir: string;
       if (decision === 'reuse') {
         executionDir = recordedWorktree!;
         log.info(`[continue-execution] Reusing existing worktree: ${executionDir}`);

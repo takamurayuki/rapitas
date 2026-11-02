@@ -169,8 +169,8 @@ export async function buildCacheInputs(
     }),
   ]);
   if (!taskRow) throw new Error('Verification task inputs are unavailable');
-  const taskText = taskRow ? `${taskRow.title}\n${taskRow.description ?? ''}` : '';
-  const acceptanceCriteria = taskRow ? resolveAcceptanceCriteria(taskRow) : [];
+  const taskText = `${taskRow.title}\n${taskRow.description ?? ''}`;
+  const acceptanceCriteria = resolveAcceptanceCriteria(taskRow);
   return {
     worktreePath,
     planContent: planContent ?? undefined,

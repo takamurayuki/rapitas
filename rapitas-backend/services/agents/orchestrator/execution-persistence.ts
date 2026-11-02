@@ -409,7 +409,7 @@ export async function handleExecutionError(
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : String(error);
   let cancelled = error instanceof ExecutionCancelledError || state.status === 'cancelled';
-  let status: 'cancelled' | 'failed' = cancelled ? 'cancelled' : 'failed';
+  let status: 'cancelled' | 'failed';
 
   const completedAt = new Date();
 
