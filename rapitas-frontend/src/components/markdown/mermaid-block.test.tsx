@@ -160,3 +160,26 @@ describe('MermaidBlock sizing', () => {
     expect(box.className).not.toContain('overflow-hidden');
   });
 });
+
+// #1390: the SVG reaches dangerouslySetInnerHTML, so a sanitizer bypass in
+// mermaid's own strict mode must not become script execution in the page.
+describe('MermaidBlock sanitization', () => {
+  it('strips scripts, event handlers and javascript: links but keeps labels', async () => {
+    mocks.render.mockResolvedValue({
+      svg:
+        '<svg data-mermaid-mock="true" onload="alert(1)"><script>alert(2)</script>' +
+        '<a href="javascript:alert(3)"><text>link</text></a>' +
+        '<foreignObject><div><span class="nodeLabel">Start</span></div></foreignObject>' +
+        '<image href="x" onerror="alert(4)"></image></svg>',
+    });
+    const { container } = renderWithIntl(<MermaidBlock source="flowchart TD\n  A-->B" />);
+    await waitFor(() => {
+      expect(container.querySelector('[data-mermaid-mock]')).not.toBeNull();
+    });
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/onload=|onerror=/i);
+    expect(html).not.toMatch(/javascript:/i);
+    expect(container.querySelector('.nodeLabel')?.textContent).toBe('Start');
+  });
+});
