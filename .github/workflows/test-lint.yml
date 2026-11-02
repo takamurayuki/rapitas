@@ -644,16 +644,19 @@ jobs:
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
 
-      # The issue-closing workflow only runs after a merge, so a parser
-      # regression would first show up as live issues closed or left open.
-      # Catch it on the PR instead (#1365). ~1s.
-      - name: Test the linked-issue closer
-        run: node --test scripts/github/close-linked-issues.test.cjs
+      # Every root script test, by glob, so a new one cannot be left unwired.
+      # Until #1367 only two of six ran: the tests for primary-guard-hook,
+      # run-checked and verification-command-hook — the hooks every agent
+      # session depends on — ran nowhere. Includes the issue closer (#1365),
+      # whose workflow only runs after a merge. ~10s.
+      - name: Test the root script tools
+        run: node --test "scripts/**/*.test.cjs"
 
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
-      # could rot green. Root scripts/*.test.cjs were already wired; this is
-      # the same for the desktop side, and this job is where it costs ~1s on
+      # could rot green. This is the desktop side of the step above (root
+      # scripts/ — NOTE: an earlier version of this comment claimed the root
+      # tests were already wired; they were not, see #1367). It costs ~1s on
       # every PR rather than only on a release build.
       - name: Test the desktop dev-server scripts
         working-directory: rapitas-desktop
@@ -694,6 +697,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # The guard hooks run on Windows in practice (Git Bash / PowerShell
+      # paths), so their tests run here too, not only on Linux (#1367).
+      - name: Test the root script tools (Windows)
+        shell: bash
+        run: node --test "scripts/**/*.test.cjs"
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

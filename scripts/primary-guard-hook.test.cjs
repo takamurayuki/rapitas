@@ -8,7 +8,10 @@ const { decision, classify, recordIncident } = require('./primary-guard-hook.cjs
 
 const PRIMARY = 'C:\\Projects\\rapitas';
 const WT = 'C:\\Projects\\rapitas\\.worktrees\\task-907-9f54f7f2';
-const ctx = { primaryRoot: PRIMARY, projectDir: WT };
+// guardRepoRoot pinned: otherwise the dependency-tree rule compares the fixture
+// paths with wherever this checkout happens to live, and passes only on the
+// one machine where that is C:\Projects\rapitas (#1367).
+const ctx = { primaryRoot: PRIMARY, projectDir: WT, guardRepoRoot: 'c:/projects/rapitas' };
 const denied = (command, tool_name = 'Bash') =>
   decision({ tool_name, tool_input: { command } }, ctx)?.hookSpecificOutput?.permissionDecision ===
   'deny';
