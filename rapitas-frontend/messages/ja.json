@@ -1652,7 +1652,8 @@
       "ask": "タスクを探す",
       "consult": "このタスク",
       "tidy": "片付ける",
-      "roadmap": "計画を立てる"
+      "roadmap": "計画を立てる",
+      "change": "変更する"
     },
     "roadmap": {
       "title": "計画を立てる",
@@ -1764,6 +1765,37 @@
       "showing": "うち{shown}件を表示",
       "unavailable": "うまく読み取れませんでした。言い方を変えてみてください。",
       "error": "うまくいきませんでした。もう一度試してください。"
+    },
+    "change": {
+      "title": "タスクを変更する",
+      "thinking": "読み取っています…",
+      "hint": "例「ログインのバグを完了にして」「CSV出力の優先度を上げて」",
+      "unclear": "読み取れなかったこと",
+      "error": "うまくいきませんでした。もう一度試してください。",
+      "task": "対象",
+      "apply": "この内容で変更する",
+      "applying": "変更しています…",
+      "cancel": "やめる",
+      "applied": "変更しました。",
+      "undo": "元に戻す",
+      "undone": "元に戻しました。",
+      "conflict": "その後に変更された項目があるため元に戻せません: {fields}",
+      "field": {
+        "status": "状態",
+        "priority": "優先度",
+        "themeId": "テーマ",
+        "dueDate": "期限"
+      },
+      "value": {
+        "todo": "未着手",
+        "in-progress": "進行中",
+        "done": "完了",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "urgent": "緊急",
+        "none": "なし"
+      }
     }
   },
   "shortcuts": {

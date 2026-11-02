@@ -40,7 +40,14 @@ const logger = createLogger('rapi-prompt');
 const MAX_INPUT_PX = 108;
 
 /** Where a sentence can be sent. Mirrors the server's routable intents. */
-export type PromptDestination = 'watch' | 'create' | 'ask' | 'tidy' | 'consult' | 'roadmap';
+export type PromptDestination =
+  | 'watch'
+  | 'create'
+  | 'ask'
+  | 'tidy'
+  | 'consult'
+  | 'roadmap'
+  | 'change';
 
 /** What a routed sentence turned into. */
 export interface Routed {
