@@ -540,6 +540,19 @@ jobs:
             exit 1
           fi
 
+      # The DDL a user's own database is initialized with (#1285) must match
+      # the schema, or "initialize" would create an out-of-date database.
+      - name: Verify PostgreSQL init SQL matches the schema
+        working-directory: rapitas-backend
+        run: |
+          bun run db:prepare:postgres-init
+          if ! git diff --exit-code src/generated/postgres-init-sql.ts; then
+            echo ""
+            echo "ERROR: src/generated/postgres-init-sql.ts is out of sync with prisma/schema."
+            echo "Run 'bun run db:prepare:postgres-init' in rapitas-backend/ and commit the result."
+            exit 1
+          fi
+
       - name: Check backend TypeScript with SQLite Prisma Client
         working-directory: rapitas-backend
         run: bunx tsc --noEmit
