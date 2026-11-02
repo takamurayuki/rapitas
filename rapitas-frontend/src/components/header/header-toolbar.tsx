@@ -13,6 +13,7 @@ import {
   Columns3,
   List,
   EllipsisVertical,
+  Languages,
   Moon,
   Sun,
   Settings,
@@ -28,6 +29,7 @@ import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget'
 import NotificationBell from '@/components/NotificationBell';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useLocaleStore } from '@/stores/locale-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import { Spinner } from '@/components/ui/spinner';
@@ -83,6 +85,7 @@ export function HeaderToolbar({
   // True while the task detail is shown in the right slide panel (path stays on
   // the list/kanban route, so the pathname check alone can't detect it).
   const isTaskDetailVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
+  const { locale, setLocale } = useLocaleStore();
 
   const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
 
@@ -95,39 +98,46 @@ export function HeaderToolbar({
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex shrink-0 items-center gap-1 sm:gap-3">
       {/* Hide the header pomodoro whenever a task detail is open — full-page
           (/tasks/...) or the slide panel — to avoid duplicating its controls. */}
       {!pathname?.startsWith('/tasks/') && !isTaskDetailVisible && <GlobalPomodoroWidget />}
 
       {(pathname === '/' || pathname === '/kanban') && (
         <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+          {/* Labels hide below sm (the toggle alone overflowed a 390px phone);
+              aria-label keeps the icon-only buttons named. */}
           <button
             onClick={() => isListView || toggleView()}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+            aria-label={t('list')}
+            className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               isListView
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
             }`}
           >
             <List className="w-4 h-4" />
-            <span>{t('list')}</span>
+            <span className="hidden sm:inline">{t('list')}</span>
           </button>
           <button
             onClick={() => !isListView || toggleView()}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+            aria-label={t('kanban')}
+            className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               !isListView
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
             }`}
           >
             <Columns3 className="w-4 h-4" />
-            <span>{t('kanban')}</span>
+            <span className="hidden sm:inline">{t('kanban')}</span>
           </button>
         </div>
       )}
 
-      <LanguageSwitcher />
+      {/* Language and theme move into the more menu below sm. */}
+      <div className="hidden sm:flex">
+        <LanguageSwitcher />
+      </div>
 
       <NotificationBell />
 
@@ -137,7 +147,7 @@ export function HeaderToolbar({
         aria-checked={darkModeMounted ? isDarkMode : false}
         aria-label={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
         title={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
-        className="relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-full bg-zinc-100 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:bg-zinc-800"
+        className="relative hidden sm:inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-full bg-zinc-100 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:bg-zinc-800"
       >
         <span
           className={`pointer-events-none inline-flex h-[18px] w-[18px] items-center justify-center rounded-full shadow-sm transition-transform duration-200 ease-in-out ${
@@ -258,6 +268,34 @@ export function HeaderToolbar({
               <Settings className="w-4 h-4" />
               <span>{t('generalSettings')}</span>
             </Link>
+            {/* Stand-ins for the toolbar switches hidden below sm. */}
+            <button
+              role="menuitem"
+              onClick={() => {
+                toggleTheme();
+                setIsMoreMenuOpen(false);
+              }}
+              className="sm:hidden w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              {darkModeMounted && isDarkMode ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+              <span>{darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}</span>
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setLocale(locale === 'ja' ? 'en' : 'ja');
+                setIsMoreMenuOpen(false);
+              }}
+              className="sm:hidden w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Languages className="w-4 h-4" />
+              {/* Language names are written in their own language, never translated. */}
+              <span>{locale === 'ja' ? 'English' : '日本語'}</span>
+            </button>
             {isTauriEnv && (
               <button
                 onClick={() => {

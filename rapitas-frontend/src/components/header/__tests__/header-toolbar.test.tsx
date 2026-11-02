@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HeaderToolbar } from '../header-toolbar';
+import { useLocaleStore } from '@/stores/locale-store';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -286,7 +287,8 @@ describe('HeaderToolbar', () => {
 
     it('shows Moon icon in light mode', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} isDarkMode={false} />);
-      expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
+      // Both the toolbar switch and its narrow-screen menu item carry a moon.
+      expect(screen.getAllByTestId('moon-icon').length).toBeGreaterThan(0);
     });
 
     it('shows switchToLight label and aria-checked=true in dark mode', () => {
@@ -321,6 +323,22 @@ describe('HeaderToolbar', () => {
       expect(screen.getByText('restarting')).toBeInTheDocument();
       const button = screen.getByText('restarting').closest('button');
       expect(button).toBeDisabled();
+    });
+
+    // Below `sm` the standalone language and theme switches are hidden so the
+    // header fits a 390px phone; the more menu is how they stay reachable.
+    it('offers the theme switch inside the more menu for narrow screens', () => {
+      const toggleTheme = vi.fn();
+      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} toggleTheme={toggleTheme} />);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'switchToDark' }));
+      expect(toggleTheme).toHaveBeenCalled();
+    });
+
+    it('offers the language switch inside the more menu for narrow screens', () => {
+      useLocaleStore.setState({ locale: 'ja' });
+      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'English' }));
+      expect(useLocaleStore.getState().locale).toBe('en');
     });
 
     it('does not show Tauri minimize button in non-Tauri environment', () => {
