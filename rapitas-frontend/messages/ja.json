@@ -1545,6 +1545,27 @@
         "unavailable": "ラピに聞けませんでした。ローカルLLMが起動しているか確認してください。",
         "failed": "通信に失敗しました。もう一度試してください。"
       }
+    },
+    "userDatabaseCard": {
+      "title": "自分のデータベースを使う",
+      "description": "データを自分の PostgreSQL（Supabase など）に置きます。設定しなければ、これまでどおりこの端末に保存されます。",
+      "stateLocal": "この端末のデータベースを使用中",
+      "stateSaved": "保存済み・未初期化",
+      "stateInitialized": "初期化済み・次回起動から使用",
+      "stateActive": "このデータベースを使用中",
+      "urlLabel": "接続文字列（postgresql://…）",
+      "save": "保存",
+      "measure": "応答時間を測る",
+      "latency": "往復 中央値 {median}ms / p90 {p90}ms（{samples}回）",
+      "hasSchema": "すでに rapitas のテーブルがあります",
+      "noSchema": "まだテーブルはありません",
+      "initialize": "初期化する",
+      "initializeConfirm": "このデータベースに rapitas のテーブルを作成します。この端末のデータは移行されません。",
+      "initializeConfirmCheck": "理解しました",
+      "clear": "この端末のデータベースに戻す",
+      "restart": "切り替えはアプリの再起動後に反映されます。",
+      "escapeHatch": "起動できなくなった場合は RAPITAS_USER_DATABASE=off で元に戻せます。",
+      "errorPrefix": "うまくいきませんでした: {error}"
     }
   },
   "linkView": {

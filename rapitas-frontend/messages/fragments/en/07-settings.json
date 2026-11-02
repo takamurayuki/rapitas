@@ -417,6 +417,27 @@
         "unavailable": "ラピ could not be reached. Check that the local LLM is running.",
         "failed": "The request failed. Please try again."
       }
+    },
+    "userDatabaseCard": {
+      "title": "Use your own database",
+      "description": "Keep your data in your own PostgreSQL (Supabase or similar). Unset, data stays on this device as before.",
+      "stateLocal": "Using the database on this device",
+      "stateSaved": "Saved, not initialized",
+      "stateInitialized": "Initialized — used from the next start",
+      "stateActive": "Using this database",
+      "urlLabel": "Connection string (postgresql://…)",
+      "save": "Save",
+      "measure": "Measure latency",
+      "latency": "Round trip median {median}ms / p90 {p90}ms ({samples} samples)",
+      "hasSchema": "rapitas tables already exist",
+      "noSchema": "No tables yet",
+      "initialize": "Initialize",
+      "initializeConfirm": "This creates the rapitas tables in this database. Data on this device is not migrated.",
+      "initializeConfirmCheck": "I understand",
+      "clear": "Go back to this device’s database",
+      "restart": "The switch takes effect after the app restarts.",
+      "escapeHatch": "If the app cannot start, RAPITAS_USER_DATABASE=off goes back.",
+      "errorPrefix": "That did not work: {error}"
     }
   },
   "linkView": {
