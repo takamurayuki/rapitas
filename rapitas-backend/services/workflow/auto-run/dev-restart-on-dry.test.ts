@@ -152,6 +152,18 @@ describe('maybeRestartForUpdate() — gate 早期リターン', () => {
     expect(await maybeRestartForUpdate(1)).toBe(false);
   });
 
+  // #1132: 再起動の監督者がいることの明示的な opt-in でも gate2 を通過すること。
+  test('gate2: RAPITAS_RESTART_SUPERVISED=true なら TAURI_BUILD 無しでも判定を進める', async () => {
+    delete process.env.TAURI_BUILD;
+    process.env.RAPITAS_RESTART_SUPERVISED = 'true';
+    try {
+      expect(await maybeRestartForUpdate(1)).toBe(false);
+      expect(settingsRead).toHaveBeenCalledTimes(1); // got past gate2 to the settings gate
+    } finally {
+      delete process.env.RAPITAS_RESTART_SUPERVISED;
+    }
+  });
+
   test('gate3: アクティブなエージェントが 1 以上のとき false を返す', async () => {
     process.env.TAURI_BUILD = 'true';
     mockActiveCount = 1;

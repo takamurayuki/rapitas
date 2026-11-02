@@ -23,6 +23,7 @@ import { logCycleEvent } from '../../observability';
 import { realtimeService } from '../../communication/realtime-service';
 import { fastForwardPrimary } from './primary-fast-forward';
 import { notifyOncePerWindow } from '../../communication/notify-once-per-window';
+import { hasRestartSupervisor } from '../../scheduling/auto-restart-merged-code/restart-supervisor';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
@@ -148,11 +149,14 @@ async function persistedWorkIsIdle(): Promise<boolean> {
 export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   if (restarting) return true;
 
-  // Only self-restart under the desktop dev orchestrator (dev.js sets TAURI_BUILD
-  // and relaunches on exit 75). In web dev / a direct run nothing watches for exit
-  // 75, so exiting would ORPHAN the backend and kill the loop — make it a no-op.
-  if (process.env.TAURI_BUILD !== 'true') {
-    diag('TAURI_BUILD!=true', { tauriBuild: process.env.TAURI_BUILD ?? '(unset)' });
+  // Only self-restart when something relaunches on exit 75 (dev.js sets
+  // TAURI_BUILD; other supervised runs opt in with RAPITAS_RESTART_SUPERVISED,
+  // #1132). Otherwise exiting would ORPHAN the backend and kill the loop.
+  if (!hasRestartSupervisor()) {
+    diag('no restart supervisor', {
+      tauriBuild: process.env.TAURI_BUILD ?? '(unset)',
+      restartSupervised: process.env.RAPITAS_RESTART_SUPERVISED ?? '(unset)',
+    });
     return false;
   }
 

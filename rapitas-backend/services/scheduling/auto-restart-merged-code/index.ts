@@ -15,6 +15,7 @@ import { getAgentSystemSnapshot } from '../../../routes/agents/system/agent-syst
 import { countLiveTrackedProcesses } from '../../agents/agent-process-tracker';
 import { AutoMergeWatcher } from '../../workflow/auto-merge-watcher';
 import { decideAutoRestart } from './decision';
+import { hasRestartSupervisor, RESTART_SUPERVISOR_ENV } from './restart-supervisor';
 import {
   classifyMergeUrgency,
   decideBoundaryRestart,
@@ -73,8 +74,12 @@ export class AutoRestartMergedCodeScheduler {
       logger.warn('[AutoRestartMergedCode] Already running, ignoring start request');
       return;
     }
-    if (process.env.TAURI_BUILD !== 'true') {
-      logger.debug('[AutoRestartMergedCode] TAURI_BUILD != true — scheduler disabled');
+    // NOTE: warn, not debug — the log file keeps level 40+, so this refusal was
+    // invisible and hours of it read as silence (#1132).
+    if (!hasRestartSupervisor()) {
+      logger.warn(
+        `[AutoRestartMergedCode] Self-deploy scheduler not started: nothing is known to relaunch this process after exit 75 (TAURI_BUILD and ${RESTART_SUPERVISOR_ENV} are unset). Merged code will not be activated automatically; set ${RESTART_SUPERVISOR_ENV}=true if this run is supervised.`,
+      );
       return;
     }
 
