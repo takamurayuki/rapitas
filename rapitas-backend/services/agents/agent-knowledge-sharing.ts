@@ -158,6 +158,38 @@ export function formatKnowledgeContext(knowledge: SharedKnowledge): string {
   );
 }
 
+/** At most this many changed files describe one pattern; the rest are detail. */
+const MAX_METHOD_LINES = 8;
+
+/**
+ * The method a task used, read from its verify.md changed-files table
+ * (`| File | Kind | What changed & why |`, as CLAUDE.md §5 prescribes).
+ *
+ * @param verifyMd - verify.md content / verify.md の本文
+ * @returns One "path: what/why" line per changed file, or [] without a table / 変更ファイルごとの「パス: 内容」
+ */
+export function extractMethodFromVerify(verifyMd: string): string[] {
+  const lines = verifyMd.split(/\r?\n/);
+  const header = lines.findIndex(
+    (l) => /^\s*\|/.test(l) && /(file|ファイル)/i.test(l) && /(why|what|内容|理由)/i.test(l),
+  );
+  if (header < 0) return [];
+  const out: string[] = [];
+  for (const row of lines.slice(header + 1)) {
+    if (!/^\s*\|/.test(row)) break;
+    const cells = row
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((c) => c.trim().replace(/^`|`$/g, ''));
+    if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue; // separator row
+    const [file, , what] = cells;
+    if (file && what) out.push(`${file}: ${what}`.slice(0, 300));
+    if (out.length >= MAX_METHOD_LINES) break;
+  }
+  return out;
+}
+
 /**
  * Update learning patterns after agent execution completes.
  */
@@ -182,6 +214,19 @@ export async function updatePatternsFromExecution(
     );
 
     if (success) {
+      // NOTE: The method is what verify.md records as changed and why. The
+      // old action was "タスク「<title>」で成功した手法を適用" — a pointer back to
+      // the task, never the method — on all 856 rows (#1322), injected into
+      // agent prompts with confidence up to 0.99. With no recorded method there
+      // is nothing to learn, so nothing is filed.
+      const verify = await prisma.workflowFile
+        .findFirst({ where: { taskId, fileType: 'verify' }, select: { content: true } })
+        .catch(() => null);
+      const method = extractMethodFromVerify(verify?.content ?? '');
+      if (method.length === 0) {
+        log.debug({ taskId }, 'No changed-files record in verify.md; success pattern not filed');
+        return;
+      }
       await upsertPattern({
         patternType: 'success_strategy',
         category,
@@ -191,7 +236,7 @@ export async function updatePatternsFromExecution(
           labels: task.taskLabels.map((tl) => tl.label.name),
           themeId: task.themeId,
         }),
-        actions: JSON.stringify([`タスク「${task.title}」で成功した手法を適用`]),
+        actions: JSON.stringify(method),
         executionId,
       });
     } else {
