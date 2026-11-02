@@ -47,7 +47,7 @@ export function useExecutingTasksPolling(options?: {
   // Dynamically adjust polling interval
   const adjustPollingInterval = useCallback(
     (hasExecutingTasks: boolean, hadError: boolean) => {
-      let newInterval = interval;
+      let newInterval: number;
 
       if (hadError) {
         // Double interval on error (max 30s)

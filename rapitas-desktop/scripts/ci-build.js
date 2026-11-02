@@ -6,13 +6,11 @@
  * It skips database operations and development server startup.
  */
 
-const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 // Define paths
 const DESKTOP_DIR = path.join(__dirname, '..');
-const BACKEND_DIR = path.join(__dirname, '..', '..', 'rapitas-backend');
 const FRONTEND_DIR = path.join(__dirname, '..', '..', 'rapitas-frontend');
 
 console.log('CI Build Script - Preparing for Tauri build...\n');

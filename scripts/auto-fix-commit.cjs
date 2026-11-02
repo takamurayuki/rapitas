@@ -11,7 +11,6 @@
  */
 
 const { execSync } = require('child_process');
-const fs = require('fs');
 
 // 色付きログ
 const colors = {

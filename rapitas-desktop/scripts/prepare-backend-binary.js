@@ -11,7 +11,6 @@ const { deduplicateBackendResources } = require('./backend-resource-dedup');
 const target = process.env.TARGET || process.argv[2] || 'x86_64-unknown-linux-gnu';
 const isWindows = target.includes('windows');
 const isMacos = target.includes('apple-darwin');
-const isLinux = target.includes('linux');
 
 // Determine the binary name based on target
 let binaryName;
@@ -125,7 +124,6 @@ if (fs.existsSync(binariesDir)) {
       }
 
       console.log(`Created placeholder binary: ${placeholderPath}`);
-      foundBinary = placeholderName;
     } else {
       console.error('No backend binary found and not in CI environment');
       process.exit(1);

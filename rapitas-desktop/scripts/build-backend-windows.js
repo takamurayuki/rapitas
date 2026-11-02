@@ -8,7 +8,6 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { createWriteStream } = require('fs');
-const { pipeline } = require('stream/promises');
 
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const OUTPUT_DIR = path.resolve(__dirname, '../src-tauri/binaries');

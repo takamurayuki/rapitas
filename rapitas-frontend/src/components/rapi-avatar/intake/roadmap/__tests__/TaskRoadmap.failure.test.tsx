@@ -24,8 +24,6 @@ let notes: { title?: string; content?: string }[] = [];
 let currentId: string | null = 'note-1';
 /** Which tasks the note was attached to. */
 let linked: { noteId: string; taskId: number }[] = [];
-/** Whether the description updates should fail, to test best-effort. */
-let patchFails = false;
 const noteState = {
   createNote: (title?: string) => {
     notes.push({ title });
@@ -92,7 +90,6 @@ beforeEach(() => {
   requests = [];
   notes = [];
   linked = [];
-  patchFails = false;
   currentId = 'note-1';
   rounds = [ASKED, PLANNED];
   breakDraft = null;
@@ -101,8 +98,8 @@ beforeEach(() => {
     requests.push({ url, body: JSON.parse(String(init?.body)), method: init?.method });
     if (init?.method === 'PATCH') {
       return Promise.resolve({
-        ok: !patchFails,
-        status: patchFails ? 500 : 200,
+        ok: true,
+        status: 200,
         json: () => Promise.resolve({}),
       } as Response);
     }

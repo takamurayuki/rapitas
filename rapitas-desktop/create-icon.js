@@ -7,9 +7,6 @@ async function createIcon() {
   const image = new Jimp({ width: size, height: size, color: 0x00000000 });
 
   // Draw a rounded rectangle with gradient-like effect
-  const color1 = 0x6366f1ff; // Indigo
-  const color2 = 0x8b5cf6ff; // Purple
-
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       // Check if pixel is within rounded rectangle
