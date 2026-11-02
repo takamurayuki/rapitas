@@ -13,6 +13,7 @@
 import { memo, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/ui/useDarkMode';
+import { sanitizeMermaidSvg } from '@/utils/mermaid-svg';
 
 // mermaid.render requires a document-unique element id per invocation.
 let mermaidSeq = 0;
@@ -91,7 +92,7 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
         });
         const rendered = await mermaid.render(id, source);
         if (!cancelled) {
-          setSvg(rendered.svg);
+          setSvg(sanitizeMermaidSvg(rendered.svg));
           setFailed(false);
         }
       } catch {
@@ -131,8 +132,8 @@ function MermaidBlockImpl({ source }: MermaidBlockProps) {
       {svg ? (
         <div
           className="w-full [&_svg]:mx-auto [&_svg]:block [&_svg]:h-auto"
-          // NOTE: SVG string produced by mermaid with securityLevel 'strict'
-          // (sanitized); the only way to mount its output.
+          // NOTE: mermaid SVG (securityLevel 'strict') re-sanitized with DOMPurify
+          // in sanitizeMermaidSvg; the only way to mount its output.
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : (
