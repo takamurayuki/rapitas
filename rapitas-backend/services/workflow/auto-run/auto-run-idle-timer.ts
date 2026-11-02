@@ -252,11 +252,12 @@ export async function countHumanOriginTodo(themeId: number): Promise<number> {
 }
 
 /**
- * Attempt an immediate single-concern promotion for a theme whose idle timer
- * is actively counting down, when a high/urgent concern is open (design
- * point 3). Respects the same outstanding-created cap as ordinary promotion;
- * returns false without promoting when the cap is full or nothing bypass-
- * eligible is open.
+ * Attempt an immediate single-concern promotion when a high/urgent concern is
+ * open: for a theme whose idle timer is counting down (design point 3), and —
+ * since #952 — for one the timer has already stopped, which a promoted concern
+ * re-arms (a USER stop is never passed here). Respects the same
+ * outstanding-created cap as ordinary promotion; returns false without
+ * promoting when the cap is full or nothing bypass-eligible is open.
  *
  * @param themeId - Theme to check/promote for. / 対象テーマID
  * @returns true when a concern was promoted. / 起票できたら true
