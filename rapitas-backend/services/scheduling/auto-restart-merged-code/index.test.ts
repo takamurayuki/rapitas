@@ -519,6 +519,31 @@ describe('start() guards', () => {
     if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;
   });
 
+  // #1132: `bun run dev:stable` is relaunched by a supervisor but is not a Tauri
+  // build, so TAURI_BUILD alone left self-deploy silently off for hours.
+  test('starts under the explicit RAPITAS_RESTART_SUPERVISED=true opt-in (#1132)', async () => {
+    const originalTauri = process.env.TAURI_BUILD;
+    delete process.env.TAURI_BUILD;
+    process.env.RAPITAS_RESTART_SUPERVISED = 'true';
+    enabled = false;
+    const scheduler = new AutoRestartMergedCodeScheduler();
+    await scheduler.start(60 * 60 * 1000);
+    expect(scheduler.getIsRunning()).toBe(true);
+    scheduler.stop();
+    delete process.env.RAPITAS_RESTART_SUPERVISED;
+    if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;
+  });
+
+  test('declining to start is a warning, not a debug line the log file drops (#1132)', async () => {
+    const originalTauri = process.env.TAURI_BUILD;
+    delete process.env.TAURI_BUILD;
+    delete process.env.RAPITAS_RESTART_SUPERVISED;
+    warnings.length = 0;
+    await new AutoRestartMergedCodeScheduler().start(60_000);
+    expect(warnings.some((w) => w.msg.includes('RAPITAS_RESTART_SUPERVISED'))).toBe(true);
+    if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;
+  });
+
   test('starts and stops under TAURI_BUILD=true', async () => {
     const originalTauri = process.env.TAURI_BUILD;
     process.env.TAURI_BUILD = 'true';
