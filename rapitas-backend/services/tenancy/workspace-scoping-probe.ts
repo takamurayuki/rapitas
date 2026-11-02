@@ -24,6 +24,8 @@ import { Database } from 'bun:sqlite';
 import { SQLITE_INIT_SQL } from '../../src/generated/sqlite-init-sql';
 
 const WS = 99;
+/** A second workspace, for rows a scoped read must not see. */
+const OTHER_WS = 98;
 const SEEDED = 3;
 
 /**
@@ -55,9 +57,11 @@ function seed(dbPath: string): void {
       'INSERT INTO "TaskPattern" ("workspaceId","userId","taskTitle","themeId","priority","updatedAt") VALUES (?,?,?,?,?,?)',
       [WS, 1, 'compound-in-99', 0, 'medium', now],
     );
+    // NOTE: In workspace 98, not NULL: the compound key now starts with
+    // workspaceId (#1309), and a compound-unique shorthand cannot name a NULL.
     raw.run(
       'INSERT INTO "TaskPattern" ("workspaceId","userId","taskTitle","themeId","priority","updatedAt") VALUES (?,?,?,?,?,?)',
-      [null, 1, 'compound-outside', 0, 'medium', now],
+      [OTHER_WS, 1, 'compound-outside', 0, 'medium', now],
     );
   } finally {
     raw.close();
@@ -173,15 +177,20 @@ async function main(): Promise<void> {
        * query was refused, not that the row was missing.
        */
       ...(await (async () => {
-        const key = (taskTitle: string) => ({
-          userId_taskTitle_themeId: { userId: 1, taskTitle, themeId: 0 },
+        // The key names the row's own workspace. A scoped read must still be
+        // confined to the session's: the scope overrides workspaceId last.
+        const key = (taskTitle: string, workspaceId: number) => ({
+          workspaceId_userId_taskTitle_themeId: { workspaceId, userId: 1, taskTitle, themeId: 0 },
         });
         const read = async (
           taskTitle: string,
           scoped: boolean,
+          rowWorkspace: number = WS,
         ): Promise<string | null | { error: string }> => {
           const run = async () => {
-            const row = (await prisma.taskPattern.findUnique({ where: key(taskTitle) })) as {
+            const row = (await prisma.taskPattern.findUnique({
+              where: key(taskTitle, rowWorkspace),
+            })) as {
               taskTitle: string;
             } | null;
             return row?.taskTitle ?? null;
@@ -196,11 +205,11 @@ async function main(): Promise<void> {
           compoundFindUniqueInWorkspace: await read('compound-in-99', true),
           // The row outside the workspace must be invisible to a scoped read —
           // null here, and NOT an error.
-          compoundFindUniqueOutsideHidden: await read('compound-outside', true),
+          compoundFindUniqueOutsideHidden: await read('compound-outside', true, OTHER_WS),
           // Controls: unscoped, both rows are reachable, so a null above means
           // "scoped away" rather than "this client cannot read".
           compoundFindUniqueNoWorkspace: await read('compound-in-99', false),
-          compoundFindUniqueOutsideNoWorkspace: await read('compound-outside', false),
+          compoundFindUniqueOutsideNoWorkspace: await read('compound-outside', false, OTHER_WS),
         };
       })()),
     };

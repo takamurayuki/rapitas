@@ -46,7 +46,9 @@ model TaskPattern {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  @@unique([userId, taskTitle, themeId])
+  /// workspaceId first: userId and taskTitle are values and themeId is a `|| 0`
+  /// sentinel, so without it two workspaces collide on the same row (#1309).
+  @@unique([workspaceId, userId, taskTitle, themeId])
   @@index([userId, themeId])
   @@index([workspaceId])
 }
@@ -72,7 +74,8 @@ model UserBehaviorSummary {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  @@unique([userId, periodType, periodStart, themeId])
+  /// workspaceId first: every other key part is a value or a sentinel (#1309).
+  @@unique([workspaceId, userId, periodType, periodStart, themeId])
   @@index([userId, periodType, periodStart])
   @@index([workspaceId])
 }
