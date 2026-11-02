@@ -6,6 +6,20 @@
 // instead of a data-* attribute. DOMPurify preserves element text content reliably,
 // but may corrupt attribute values containing Mermaid syntax (-->, {}, [], etc.).
 
+import DOMPurify from 'dompurify';
+
+/**
+ * DOMPurify config for Mermaid's SVG output. Flowchart/class labels are HTML
+ * inside <foreignObject>; without the integration point DOMPurify drops them.
+ * Checked lossless against real mermaid output for flowchart, sequence, class,
+ * gantt and pie diagrams (same tags, attributes and text before and after).
+ */
+const MERMAID_SVG_PURIFY_CONFIG = {
+  USE_PROFILES: { svg: true, svgFilters: true, html: true },
+  ADD_TAGS: ['foreignObject'],
+  HTML_INTEGRATION_POINTS: { foreignobject: true },
+};
+
 export const DEFAULT_DIAGRAM_SOURCE = `graph TD
     A[開始] --> B{条件分岐}
     B -- はい --> C[処理A]
@@ -82,7 +96,10 @@ export async function renderMermaidBlock(
   try {
     const mermaid = await getMermaid();
     const { svg } = await mermaid.render(id, source);
-    renderEl.innerHTML = svg;
+    // NOTE: The source comes from note content, so the SVG is re-sanitised
+    // here rather than trusting mermaid's 'strict' mode alone — that mode has
+    // had sanitiser bypasses before, and this is a raw innerHTML sink.
+    renderEl.innerHTML = DOMPurify.sanitize(svg, MERMAID_SVG_PURIFY_CONFIG);
   } catch {
     // Mermaid builds the diagram in a `d<id>` element it appends to
     // document.body, and on a parse error it paints "Syntax error in text"

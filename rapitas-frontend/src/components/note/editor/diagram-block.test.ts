@@ -100,6 +100,28 @@ describe('renderMermaidBlock', () => {
     expect(strayElements()).toHaveLength(0);
   });
 
+  // The source is note content and the SVG goes into innerHTML, so a mermaid
+  // sanitiser bypass must not reach the DOM as live markup.
+  it('strips script and event handlers from the SVG mermaid returns', async () => {
+    renderMock.mockResolvedValue({
+      svg:
+        '<svg id="evil" onload="alert(1)"><script>alert(2)</script>' +
+        '<foreignObject><div><img src="x" onerror="alert(3)"><span>label</span></div></foreignObject>' +
+        '<a href="javascript:alert(4)"><text>t</text></a></svg>',
+    });
+    const block = makeBlock('graph TD\n A --> B');
+
+    await renderMermaidBlock(block, labels);
+
+    const render = block.querySelector('.diagram-render') as HTMLElement;
+    expect(render.querySelector('script')).toBeNull();
+    expect(render.querySelector('[onload]')).toBeNull();
+    expect(render.querySelector('[onerror]')).toBeNull();
+    expect(render.innerHTML).not.toContain('javascript:');
+    // Legitimate label HTML inside foreignObject survives sanitisation.
+    expect(render.querySelector('foreignObject span')?.textContent).toBe('label');
+  });
+
   it('does nothing when the block has no source', async () => {
     const block = makeBlock('   ');
 

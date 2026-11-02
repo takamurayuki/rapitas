@@ -58,7 +58,9 @@ export function useAutoExecute({
 
       if (!task.theme?.isDevelopment) {
         logger.warn(`Skipping auto-execute for task ${taskId}: theme is not a development project`);
-      } else if (!isExecuting) {
+      } else {
+        // NOTE: The outer guard already requires !isExecuting, so the former
+        // "already executing" branch here was unreachable.
         setShowAIAssistant(true);
         if (task.status !== 'in-progress') {
           setTask((prev) => {
@@ -67,8 +69,6 @@ export function useAutoExecute({
           });
         }
         executeAgent();
-      } else {
-        logger.warn(`Skipping auto-execute for task ${taskId}: already executing`);
       }
 
       // NOTE: Remove autoExecute param immediately so page refresh won't re-trigger.
