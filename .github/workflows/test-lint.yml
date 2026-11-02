@@ -644,6 +644,12 @@ jobs:
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
 
+      # The issue-closing workflow only runs after a merge, so a parser
+      # regression would first show up as live issues closed or left open.
+      # Catch it on the PR instead (#1365). ~1s.
+      - name: Test the linked-issue closer
+        run: node --test scripts/github/close-linked-issues.test.cjs
+
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
       # could rot green. Root scripts/*.test.cjs were already wired; this is
