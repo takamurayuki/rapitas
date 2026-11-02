@@ -59,12 +59,27 @@ describe('titleMatchesTask', () => {
     label: string;
     title: string | null | undefined;
     id: number;
+    branch?: string;
     expected: boolean;
   };
 
   const titleMatchCases: TitleMatchCase[] = [
     { label: '[Task-N] 形式マッチ', title: '[Task-5] fix something', id: 5, expected: true },
-    { label: '[#N] 形式マッチ', title: '[#5] fix something', id: 5, expected: true },
+    {
+      label: '[#N] 形式マッチ (タスクのブランチ)',
+      title: '[#5] fix something',
+      id: 5,
+      branch: 'feature/t5-fix',
+      expected: true,
+    },
+    // #1215: the same title on an issue branch names an issue, not task 5.
+    {
+      label: '[#N] だがブランチの裏付け無し',
+      title: '[#5] fix something',
+      id: 5,
+      branch: 'feature/5-fix',
+      expected: false,
+    },
     { label: 'タスクIDが異なる', title: '[Task-5] fix', id: 6, expected: false },
     { label: '無関係なタイトル', title: 'some unrelated PR title', id: 5, expected: false },
     { label: 'null タイトル', title: null, id: 5, expected: false },
@@ -75,13 +90,19 @@ describe('titleMatchesTask', () => {
       id: 0,
       expected: true,
     },
-    { label: '[#0] id=0 境界値', title: '[#0] boundary case', id: 0, expected: true },
+    {
+      label: '[#0] id=0 境界値',
+      title: '[#0] boundary case',
+      id: 0,
+      branch: 't0-x',
+      expected: true,
+    },
     { label: '空文字タイトル (boundary)', title: '', id: 5, expected: false },
     { label: '空白のみタイトル (boundary)', title: ' ', id: 5, expected: false },
   ];
 
-  test.each(titleMatchCases)('$label → $expected', ({ title, id, expected }) => {
-    expect(titleMatchesTask(title, id)).toBe(expected);
+  test.each(titleMatchCases)('$label → $expected', ({ title, id, branch, expected }) => {
+    expect(titleMatchesTask(title, id, branch)).toBe(expected);
   });
 
   describe('境界値: id=0 は [Task-0] / [#0] 形式でマッチし、不一致 ID では false を返すこと', () => {
@@ -90,7 +111,7 @@ describe('titleMatchesTask', () => {
     });
 
     it('[#0] 形式 → id=0 と一致すること', () => {
-      expect(titleMatchesTask('[#0] fix something', 0)).toBe(true);
+      expect(titleMatchesTask('[#0] fix something', 0, 't0-fix')).toBe(true);
     });
 
     it('[Task-5] タイトルは id=0 と不一致であること', () => {
@@ -243,7 +264,7 @@ describe('titleMatchesTask 境界値', () => {
   });
 
   test('[#0] 形式で id=0 → true を返すこと（仮説 #3381 回帰固定）', () => {
-    expect(titleMatchesTask('[#0] zero id task', 0)).toBe(true);
+    expect(titleMatchesTask('[#0] zero id task', 0, 'feature/t0-zero')).toBe(true);
   });
 
   test.each(NUMERIC_ID_BOUNDARIES)(

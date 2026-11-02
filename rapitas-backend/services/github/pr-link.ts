@@ -163,7 +163,7 @@ export async function linkAutoCreatedPr(
     // row whose markers name a different task (or prove nothing).
     const existingRow = await prisma.gitHubPullRequest.findUnique({
       where: { integrationId_prNumber: { integrationId, prNumber } },
-      select: { linkedTaskId: true, title: true, body: true },
+      select: { linkedTaskId: true, title: true, body: true, headBranch: true },
     });
     if (existingRow) {
       const verdict = verifyPrOwnership(
@@ -171,6 +171,7 @@ export async function linkAutoCreatedPr(
           linkedTaskId: existingRow.linkedTaskId,
           title: existingRow.title,
           body: existingRow.body,
+          headBranch: existingRow.headBranch,
         },
         taskId,
       );

@@ -951,15 +951,28 @@ describe('GET /github/pull-requests/by-task/:taskId', () => {
     await app.handle(new Request('http://localhost/github/pull-requests/by-task/42'));
 
     // 2回目の findFirst (title フォールバック) は両形式を OR で照合する。
+    // NOTE: Was wrapped in `if (calls.length > 1)`, so a route that never reached
+    // the fallback passed without asserting anything. Assert it is reached.
     const calls = (mockPrisma.gitHubPullRequest.findFirst.mock.calls as unknown as any[][]) || [];
-    if (calls.length > 1) {
-      const titleCall = calls[1][0] as {
-        where: { OR: Array<{ title: { contains: string } }> };
+    expect(calls.length).toBeGreaterThan(1);
+    const titleCall = calls[1][0] as {
+      where: {
+        OR: Array<{
+          title: { contains: string };
+          OR?: Array<{ headBranch: { startsWith?: string; contains?: string } }>;
+        }>;
       };
-      const contains = titleCall.where.OR.map((c) => c.title.contains);
-      expect(contains).toContain('[Task-42]');
-      expect(contains).toContain('[#42]');
-    }
+    };
+    const contains = titleCall.where.OR.map((c) => c.title.contains);
+    expect(contains).toContain('[Task-42]');
+    expect(contains).toContain('[#42]');
+    // #1215: `[#42]` alone is also how issue 42's PR is titled; it must be
+    // backed by task 42's own branch.
+    const hashClause = titleCall.where.OR.find((c) => c.title.contains === '[#42]');
+    expect(hashClause?.OR).toEqual([
+      { headBranch: { startsWith: 't42-' } },
+      { headBranch: { contains: '/t42-' } },
+    ]);
   });
 
   test('PR未作成なら 404 + reason=not_created を返すこと', async () => {

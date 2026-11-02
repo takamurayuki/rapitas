@@ -45,6 +45,7 @@ interface GhPr {
   title: string;
   url: string;
   state: string;
+  headRefName?: string;
 }
 
 /** Prefer a PR that is still open, then the highest number (most recent). */
@@ -75,7 +76,8 @@ export async function discoverAgentCreatedPr(taskId: number): Promise<GhPr | nul
         '--limit',
         String(SCAN_LIMIT),
         '--json',
-        'number,title,url,state',
+        // headRefName: a bare `[#id]` title only names this task on its own branch (#1215).
+        'number,title,url,state,headRefName',
       ],
       // gh resolves the repository from any directory inside the checkout, and
       // the backend always runs inside it. A cwd outside a repo makes gh fail,
@@ -102,7 +104,7 @@ export async function discoverAgentCreatedPr(taskId: number): Promise<GhPr | nul
       typeof (p as GhPr).title === 'string' &&
       typeof (p as GhPr).url === 'string' &&
       typeof (p as GhPr).state === 'string' &&
-      extractTaskMarkerId((p as GhPr).title) === taskId,
+      extractTaskMarkerId((p as GhPr).title, (p as GhPr).headRefName) === taskId,
   );
   return pickBest(candidates);
 }

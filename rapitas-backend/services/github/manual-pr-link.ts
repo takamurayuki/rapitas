@@ -103,7 +103,12 @@ export async function registerManualPr(
   // An operator's explicit action may claim a marker-less PR (no_marker), but a
   // marker naming another task is still a refusal.
   const verdict = verifyPrOwnership(
-    { linkedTaskId: existing?.linkedTaskId ?? null, title: pr.title, body: pr.body },
+    {
+      linkedTaskId: existing?.linkedTaskId ?? null,
+      title: pr.title,
+      body: pr.body,
+      headBranch: pr.headBranch,
+    },
     taskId,
   );
   if (!verdict.canClaim && verdict.reason !== 'no_marker') {

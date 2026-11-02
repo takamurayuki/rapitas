@@ -82,7 +82,7 @@ export async function linkContinueExecutionPr(
     const pr = JSON.parse(trimmed) as GhPrListEntry;
     if (!pr.number || !pr.url) return;
 
-    const markerTaskId = extractTaskMarkerId(pr.title);
+    const markerTaskId = extractTaskMarkerId(pr.title, branchName);
     if (markerTaskId !== taskId) {
       log.warn(
         { taskId, prNumber: pr.number, markerTaskId, title: pr.title },

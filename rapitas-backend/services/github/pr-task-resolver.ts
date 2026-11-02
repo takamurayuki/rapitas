@@ -6,6 +6,7 @@
  */
 import { prisma } from '../../config/database';
 import { runGhCommand } from './gh-client';
+import { isTaskBranch } from './pr-ownership';
 
 /**
  * Resolved task context for PR operations that need both the working directory
@@ -21,17 +22,24 @@ export interface PrTaskContext {
 /**
  * Whether a PR title belongs to the given task.
  *
- * Accepts both PR-title conventions in use: the app's auto-PR format
- * `[Task-{id}] ...` and the agent's CLAUDE.md format `[#{id}] ...`. Used only as
- * a last-resort heuristic after the linkedTaskId/githubPrId links are checked.
+ * Accepts the app's auto-PR format `[Task-{id}] ...` always, and the agent's
+ * `[#{id}] ...` only on the task's own branch (`t{id}-`): `[#N]` is also how
+ * issue PRs are titled, and issue numbers overlap task ids (#1215). Used only
+ * as a last-resort heuristic after the linkedTaskId/githubPrId links are checked.
  *
  * @param title - PR title to test (may be undefined). / PRタイトル
  * @param taskId - Task id to match against. / 対象タスクID
+ * @param headBranch - PR head branch, when known / PRのheadブランチ
  * @returns true when the title references the task. / 一致すればtrue
  */
-export function titleMatchesTask(title: string | null | undefined, taskId: number): boolean {
+export function titleMatchesTask(
+  title: string | null | undefined,
+  taskId: number,
+  headBranch?: string | null,
+): boolean {
   if (!title) return false;
-  return title.includes(`[Task-${taskId}]`) || title.includes(`[#${taskId}]`);
+  if (title.includes(`[Task-${taskId}]`)) return true;
+  return title.includes(`[#${taskId}]`) && isTaskBranch(headBranch, taskId);
 }
 
 /**
@@ -139,15 +147,16 @@ export async function findPrViaGh(
     // tokens). The app's auto-PR titles are `[Task-{id}] ...`, but agent-created
     // PRs follow the CLAUDE.md convention `[#{id}] ...`, so accept both.
     const raw = await runGhCommand(
-      ['pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,url,title'],
+      ['pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,url,title,headRefName'],
       cwd,
     );
     const prs = JSON.parse(raw || '[]') as {
       number: number;
       url: string;
       title: string;
+      headRefName?: string;
     }[];
-    const match = prs.find((p) => titleMatchesTask(p.title, taskId));
+    const match = prs.find((p) => titleMatchesTask(p.title, taskId, p.headRefName));
     return match ? { prNumber: match.number, prUrl: match.url } : null;
   } catch {
     return null;
