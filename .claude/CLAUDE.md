@@ -365,8 +365,11 @@ git push -u origin <branch>
 gh pr create \
   --title "[#<issue>] <description>" \
   --body "## Summary\n...\n\nCloses #<issue>\n\n## Test steps\n..." \
-  --base master
+  --base develop
 ```
+
+`Closes #<issue>` closes the issue as soon as the PR merges (see §5). Write it
+only when this PR finishes the issue; for partial work write `Refs #<issue>`.
 
 Report the PR URL to the user.
 
@@ -380,8 +383,16 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 - Use `gh` CLI for all GitHub operations.
 - Branch naming: `feature/<issue-number>-short-description` or `bugfix/<issue-number>-short-description`
 - `main` must always be deployable. Never push directly to `main`.
-- PR must always be linked to an Issue (`Closes #<issue>`).
-- Base branch for PRs: `master`
+- PR must always be linked to an Issue:
+  - `Closes #<issue>` (also `Fixes` / `Resolves`) — **only when the PR finishes the issue.**
+    The `close-linked-issues` workflow closes it the moment the PR merges into `develop`.
+  - `Refs #<issue>` — partial work, one step of several, or a follow-up. The issue stays open.
+  - NOTE: GitHub itself acts on closing keywords only for merges into the default branch
+    (`main`), so before that workflow existed every fixed issue stayed open (131 of 150 on
+    2026-11-02, #1365). Three of the four still-unfinished ones would have been closed early,
+    because a partial PR had written `Closes`. If an issue was closed too early, reopen it; the
+    daily sweep leaves reopened issues alone.
+- Base branch for PRs: `develop` (`main` is the release line; there is no `master`).
 
 ---
 

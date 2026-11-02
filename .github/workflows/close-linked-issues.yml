@@ -1,0 +1,59 @@
+# Closes the issues a PR names with Closes/Fixes/Resolves #N when it merges
+# into a non-default branch. GitHub only does this for merges into the default
+# branch (main), and work here merges into develop — so until this existed,
+# fixed issues stayed open: 131 of 150 open issues on 2026-11-02 (#1365).
+#
+# Whether a PR really finishes an issue is the author's call, made by writing
+# `Closes #N` (finished) or `Refs #N` (partial). Each close leaves a comment
+# naming the PR, so a wrong one is traceable and can simply be reopened.
+name: Close Linked Issues
+
+on:
+  pull_request:
+    types: [closed]
+  # Catches up anything a missed or failed run left open. Idempotent: closed
+  # issues are skipped, and so is one a person reopened after the PR merged —
+  # that reopen means "not finished" and the sweep must not undo it.
+  schedule:
+    - cron: '17 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: close-linked-issues-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  close:
+    name: Close issues named by merged PRs
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      SWEEP_DAYS: '14'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # A parser that silently matched nothing would make this job green and
+      # useless; one that matched too much would close live issues. Prove it
+      # before letting it touch anything.
+      - name: Test the closing-keyword parser
+        run: node --test scripts/github/close-linked-issues.test.cjs
+
+      - name: Close issues named by this PR
+        if: github.event_name == 'pull_request'
+        run: node scripts/github/close-linked-issues.cjs event
+
+      - name: Sweep recently merged PRs
+        if: github.event_name != 'pull_request'
+        run: node scripts/github/close-linked-issues.cjs sweep
