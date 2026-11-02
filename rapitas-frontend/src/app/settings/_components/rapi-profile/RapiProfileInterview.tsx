@@ -22,7 +22,7 @@
  */
 import { useTranslations } from 'next-intl';
 import { Loader2, Sparkles } from 'lucide-react';
-import { RoadmapQuestions } from '@/components/rapi-avatar/intake/RoadmapQuestions';
+import { RoadmapQuestions } from '@/components/rapi-avatar/intake/roadmap/RoadmapQuestions';
 import { useProfileInterview, type ProfileDraft } from './use-profile-interview';
 
 /** How an applied draft meets what is already in the box. */

@@ -22,7 +22,7 @@
  * showing.
  */
 import { useEffect, useRef } from 'react';
-import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from './intake';
+import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../intake';
 import type { PanelMode } from './rapi-modes';
 
 interface Props {

@@ -17,9 +17,9 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
-import { ExecutionItem } from '../resumable-executions/ExecutionItem';
-import type { ResumableExecution } from '../resumable-executions/types';
-import { taskIdFromLocation } from './intake';
+import { ExecutionItem } from '../../resumable-executions/ExecutionItem';
+import type { ResumableExecution } from '../../resumable-executions/types';
+import { taskIdFromLocation } from '../intake';
 import { RapiModeContent } from './RapiModeContent';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
 import { type Routed } from './RapiPrompt';
@@ -35,7 +35,7 @@ import {
 } from './rapi-modes';
 
 export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
-import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
+import { BUBBLE_COLORS, SpeechBubble } from '../avatar/SpeechBubble';
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];

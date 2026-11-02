@@ -31,7 +31,7 @@ vi.mock('next-intl', () => ({
 }));
 
 /** Each mode marks itself, so "is it still mounted" is observable. */
-vi.mock('../intake', () => ({
+vi.mock('../../intake', () => ({
   TaskWatch: () => <div data-testid="mode-watch" />,
   TaskIntake: () => <div data-testid="mode-create" />,
   TaskAsk: () => <div data-testid="mode-ask" />,
