@@ -128,9 +128,20 @@ export const pullRequestReadRoutes = new Elysia()
       // Match both PR-title conventions: the app's `[Task-{id}]` and the
       // agent's CLAUDE.md `[#{id}]`. Agent-created PRs use the latter and so
       // never went through linkAutoCreatedPr, leaving paths 1/2 empty.
+      // NOTE: `[#{id}]` counts only on the task's own branch (`t{id}-`) — issue
+      // PRs are titled `[#<issue>]` too, and issue numbers overlap task ids (#1215).
       pr = await prisma.gitHubPullRequest.findFirst({
         where: {
-          OR: [{ title: { contains: `[Task-${tid}]` } }, { title: { contains: `[#${tid}]` } }],
+          OR: [
+            { title: { contains: `[Task-${tid}]` } },
+            {
+              title: { contains: `[#${tid}]` },
+              OR: [
+                { headBranch: { startsWith: `t${tid}-` } },
+                { headBranch: { contains: `/t${tid}-` } },
+              ],
+            },
+          ],
         },
         orderBy: { createdAt: 'desc' },
         select,

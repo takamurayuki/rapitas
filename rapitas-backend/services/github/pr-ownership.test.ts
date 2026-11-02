@@ -12,8 +12,27 @@ describe('extractTaskMarkerId', () => {
     expect(extractTaskMarkerId('[Task-541] auto-PRリンクに同一性検証を追加')).toBe(541);
   });
 
-  test('[#{id}] 形式からタスクIDを抽出すること', () => {
-    expect(extractTaskMarkerId('[#233] fix the button')).toBe(233);
+  test('[#{id}] はブランチがそのタスクのもの (t{id}-) のときだけタスクIDとして読むこと', () => {
+    expect(extractTaskMarkerId('[#233] fix the button', 'feature/t233-update-task')).toBe(233);
+    expect(extractTaskMarkerId('[#233] fix the button', 't233-fix')).toBe(233);
+  });
+
+  // #1215: humans and CLAUDE.md-following sessions title PRs `[#<issue>]`, and
+  // issue numbers and task ids overlap (both 1200-1400), so a bare `[#N]` must
+  // never bind a PR to task N.
+  test('[#{id}] はブランチの裏付けが無ければタスクIDとして読まないこと (#1215)', () => {
+    expect(extractTaskMarkerId('[#1213] Model selection metric')).toBeNull();
+    expect(extractTaskMarkerId('[#1213] Model selection metric', 'feature/1213-metric')).toBeNull();
+    expect(extractTaskMarkerId('[#1213] x', 'feature/t12130-other')).toBeNull();
+    expect(extractTaskMarkerId('[#1213] x', 'feature/t1214-other')).toBeNull();
+  });
+
+  test('裏付けの無い [#N] は飛ばし、後続の [Task-N] を拾うこと', () => {
+    expect(extractTaskMarkerId('[#1213] fix ([Task-5] follow-up)')).toBe(5);
+  });
+
+  test('[Task-{id}] はブランチに関係なくタスクIDとして読むこと', () => {
+    expect(extractTaskMarkerId('[Task-541] x', 'feature/1213-unrelated')).toBe(541);
   });
 
   test('マーカーが無ければ null を返すこと', () => {
@@ -31,7 +50,12 @@ describe('extractTaskMarkerId', () => {
 describe('titleMarkersAgree', () => {
   test('両タイトルのマーカーが同一タスクなら true', () => {
     expect(titleMarkersAgree('[Task-172] t', '[Task-172] older title')).toBe(true);
-    expect(titleMarkersAgree('[Task-172] t', '[#172] agent-made PR')).toBe(true);
+    expect(titleMarkersAgree('[Task-172] t', '[#172] agent-made PR', 'feature/t172-x')).toBe(true);
+  });
+
+  test('[#N] の候補はブランチの裏付けが無ければ一致とみなさないこと (#1215)', () => {
+    expect(titleMarkersAgree('[Task-172] t', '[#172] issue PR')).toBe(false);
+    expect(titleMarkersAgree('[Task-172] t', '[#172] issue PR', 'feature/172-x')).toBe(false);
   });
 
   test('マーカーが別タスクなら false', () => {
@@ -91,10 +115,28 @@ describe('verifyPrOwnership', () => {
 
   test('本文マーカーが他タスク → canClaim:false', () => {
     const v = verifyPrOwnership(
-      { linkedTaskId: null, title: 'feat: something', body: 'Auto PR for [#538]' },
+      { linkedTaskId: null, title: 'feat: something', body: 'Auto PR for [Task-538]' },
       541,
     );
     expect(v.canClaim).toBe(false);
     expect(v.reason).toBe('body_marker_mismatch');
+  });
+
+  // #1215: PR #1214 was titled `[#1213] …` for issue 1213 while task 1213 was an
+  // unrelated, finished task. Re-running task 1213 must not adopt it.
+  test('issue 番号の [#N] タイトルは同番号のタスクに採用されないこと (#1215)', () => {
+    const issuePr = { linkedTaskId: null, title: '[#1213] Model metric', body: null };
+    expect(verifyPrOwnership(issuePr, 1213)).toEqual({ canClaim: false, reason: 'no_marker' });
+    expect(
+      verifyPrOwnership({ ...issuePr, headBranch: 'feature/1213-model-metric' }, 1213).canClaim,
+    ).toBe(false);
+  });
+
+  test('タスクのブランチ (t{id}-) から出た [#N] は従来どおり採用されること', () => {
+    const v = verifyPrOwnership(
+      { linkedTaskId: null, title: '[#1160] fix', body: null, headBranch: 'feature/t1160-x' },
+      1160,
+    );
+    expect(v).toEqual({ canClaim: true, reason: 'title_marker_match' });
   });
 });

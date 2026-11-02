@@ -99,10 +99,22 @@ describe('registerManualPr', () => {
     const { db } = makeDb();
     const res = await registerManualPr(
       db,
-      async () => ({ ...OPEN_PR, title: '[#1174] fix' }),
+      async () => ({ ...OPEN_PR, title: '[#1174] fix', headBranch: 'feature/t1174-fix' }),
       params,
     );
     expect(res).toMatchObject({ ok: false, reason: 'marker_mismatch' });
+  });
+
+  // #1215: `[#1174]` on a non-task branch is an issue number, not task 1174's
+  // marker, so it proves nothing and the operator's explicit link stands.
+  test('issue 番号の [#N] タイトル (タスクのブランチでない) は別タスク扱いしないこと', async () => {
+    const { db } = makeDb();
+    const res = await registerManualPr(
+      db,
+      async () => ({ ...OPEN_PR, title: '[#1174] fix', headBranch: 'feature/1174-fix' }),
+      params,
+    );
+    expect(res).toMatchObject({ ok: true });
   });
 
   test('未マージで閉じられた PR を拒否すること', async () => {
