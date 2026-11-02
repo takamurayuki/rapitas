@@ -141,6 +141,32 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: false,
     undo: 'nothing-to-undo',
   },
+  {
+    // Stage 6 (#1119): reads a sentence as "this task, these changes". Writes
+    // nothing — the proposal is a card the user confirms or ignores.
+    id: 'task.update-draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // Changes status, priority, theme or due date — and nothing else. The
+    // audit row keeps every changed field's before and after, which is what
+    // makes the undo possible; the undo restores only fields nobody has
+    // touched since, so it can never overwrite a later edit.
+    id: 'task.update',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'restore-previous-values',
+  },
+  {
+    // Arms auto-run for a theme. Undone by stopping it — which cannot take
+    // back work an agent already did while it ran, which is why this asks.
+    id: 'autorun.start',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'stop-what-was-started',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */
@@ -151,6 +177,10 @@ export type UndoCost =
   | 'delete-what-was-made'
   /** Reversed by restoring the copy taken before the delete. */
   | 'restore-from-trash'
+  /** Reversed by writing back the values the audit row kept. */
+  | 'restore-previous-values'
+  /** Reversed by stopping what it started (work done meanwhile stays done). */
+  | 'stop-what-was-started'
   /** Cannot currently be undone — nothing may be declared this way without
       the roadmap (#1119) saying why, because it means a mistake is permanent. */
   | 'not-yet-possible';

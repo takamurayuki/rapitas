@@ -118,3 +118,20 @@ export {
   type AssistantActionRecord,
   type RecordActionInput,
 } from './action-log';
+
+export {
+  validateTaskChanges,
+  applyTaskUpdate,
+  revertTaskUpdate,
+  TASK_UPDATE_STATUSES,
+  TASK_UPDATE_PRIORITIES,
+  type TaskChanges,
+  type FieldValues,
+  type TaskUpdateDb,
+} from './task-update';
+
+export {
+  proposeTaskUpdate,
+  type UpdateProposal,
+  type UpdateCandidateInput,
+} from './update-proposal';
