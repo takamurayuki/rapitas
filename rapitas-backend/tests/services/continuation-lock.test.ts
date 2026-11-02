@@ -4,7 +4,7 @@
  * Tests the duplicate execution prevention mechanism of executeContinuation.
  */
 
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 
 // Mock class for testing the lock mechanism
 class ContinuationLockManager {

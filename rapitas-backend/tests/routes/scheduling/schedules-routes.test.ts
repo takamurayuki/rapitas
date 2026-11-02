@@ -37,8 +37,7 @@ mock.module('../../../services/recurrence-service', () => ({
 }));
 
 const { schedulesRoutes } = await import('../../../routes/scheduling/schedules');
-const { AppError, ValidationError, NotFoundError } =
-  await import('../../../middleware/error-handler');
+const { AppError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

@@ -7,7 +7,7 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { join, sep } from 'path';
+import { join } from 'path';
 import { tmpdir } from 'os';
 import {
   parseRetryPolicyConfig,

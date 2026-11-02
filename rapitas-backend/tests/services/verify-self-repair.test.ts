@@ -210,7 +210,6 @@ describe('attemptVerifyRepair', () => {
     expect(r.newStatus).toBe('plan_approved');
     expect(r.attempt).toBe(1);
     // task を in-progress に戻し、修復 transition を記録すること
-    const tu = mockPrisma.task.updateMany.mock.calls[0][0] as { data: { status: string } };
     expect(
       (mockPrisma.task.updateMany.mock.calls[0][0] as { where: { status: string } }).where.status,
     ).toBe('in-progress');

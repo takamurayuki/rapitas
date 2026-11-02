@@ -4,7 +4,6 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
-import { errorHandler } from '../../../middleware/error-handler';
 
 // HACK(agent): Bun mock型推論の制限 — 型パラメーターをサポートしていないため `as any` で型チェックをバイパス
 const mockPrisma = {

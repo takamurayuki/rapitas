@@ -52,8 +52,6 @@ const {
   getApiKeyForProvider,
   getDefaultModel,
   getDefaultProvider,
-  isAnyApiKeyConfigured,
-  getConfiguredProviders,
   sendAIMessage,
   sendAIMessageStream,
 } = await import('../../utils/ai-client');
