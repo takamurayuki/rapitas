@@ -11,6 +11,7 @@ import { TASK_TOOL_DEFINITIONS } from './task-tool-definitions';
 import { executeTaskTool } from './task-tool-handlers';
 import { KNOWLEDGE_TOOL_DEFINITIONS, executeKnowledgeTool } from './knowledge-tools';
 import { CONCERN_TOOL_DEFINITIONS, executeConcernTool } from './concern-tools';
+import { INSIGHT_TOOL_DEFINITIONS, executeInsightTool } from './insight-tools';
 import type { MCPTool, MCPToolResult } from './mcp-types';
 
 const log = createLogger('mcp-server');
@@ -32,6 +33,10 @@ const TOOL_MODULES = [
   { definitions: TASK_TOOL_DEFINITIONS, execute: executeTaskTool },
   { definitions: KNOWLEDGE_TOOL_DEFINITIONS, execute: executeKnowledgeTool },
   { definitions: CONCERN_TOOL_DEFINITIONS, execute: executeConcernTool },
+  {
+    definitions: INSIGHT_TOOL_DEFINITIONS,
+    execute: (name: string, args: Record<string, string>) => executeInsightTool(name, args),
+  },
 ] as const;
 
 /**

@@ -42,6 +42,12 @@ mock.module('./task-tool-definitions', () => ({ TASK_TOOL_DEFINITIONS }));
 mock.module('./task-tool-handlers', () => ({ executeTaskTool }));
 mock.module('./knowledge-tools', () => ({ KNOWLEDGE_TOOL_DEFINITIONS, executeKnowledgeTool }));
 mock.module('./concern-tools', () => ({ CONCERN_TOOL_DEFINITIONS, executeConcernTool }));
+const INSIGHT_TOOL_DEFINITIONS = [definition('rapitas_list_hypotheses')];
+const executeInsightTool = mock(
+  async (name: string): Promise<MCPToolResult | null> =>
+    name === 'rapitas_list_hypotheses' ? ran(name) : null,
+);
+mock.module('./insight-tools', () => ({ INSIGHT_TOOL_DEFINITIONS, executeInsightTool }));
 
 const { getToolDefinitions, executeTool } = await import('./mcp-server');
 
@@ -58,6 +64,7 @@ describe('getToolDefinitions', () => {
       'rapitas_list_tasks',
       'rapitas_search_knowledge',
       'rapitas_create_concern',
+      'rapitas_list_hypotheses',
     ]);
   });
 
