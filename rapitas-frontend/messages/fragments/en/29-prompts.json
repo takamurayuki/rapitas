@@ -27,6 +27,7 @@
     "reset": "Reset",
     "confirmReset": "Reset this prompt to default content?",
     "confirmDelete": "Delete this prompt?",
+    "deleteFailed": "Failed to delete the prompt",
     "addSystemPrompt": "Add System Prompt",
     "keyIdentifier": "Key (unique identifier)",
     "keyPlaceholder": "e.g. custom_analysis",
