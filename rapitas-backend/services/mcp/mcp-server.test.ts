@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, mock, beforeEach } from 'bun:test';
 import type { MCPTool, MCPToolResult } from './mcp-types';
+import { currentWorkspaceId } from '../tenancy/workspace-context';
 
 function definition(name: string): MCPTool {
   return { name, description: name, inputSchema: { type: 'object', properties: {} } };
@@ -107,4 +108,54 @@ describe('executeTool', () => {
       detail: 'd',
     });
   });
+});
+
+/**
+ * #1319: MCP clients carry no session cookie, so their calls ran with no
+ * workspace and the scope layer passed them through to every workspace. With
+ * RAPITAS_MCP_WORKSPACE_ID set, the whole tool call runs inside that
+ * workspace — observed from inside the handler, after an await, which is
+ * where a lost ALS context would show (see als-context-lost-in-sync-callback).
+ */
+describe('executeTool — workspace binding (#1319)', () => {
+  const seen: Array<number | null> = [];
+  beforeEach(() => {
+    seen.length = 0;
+    executeTaskTool.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 1));
+      seen.push(currentWorkspaceId());
+      return ran('rapitas_list_tasks');
+    });
+  });
+
+  it('runs the tool inside the configured workspace', async () => {
+    process.env.RAPITAS_MCP_WORKSPACE_ID = '2';
+    try {
+      await executeTool('rapitas_list_tasks', {});
+    } finally {
+      delete process.env.RAPITAS_MCP_WORKSPACE_ID;
+    }
+    expect(seen).toEqual([2]);
+  });
+
+  it('leaves the call unbound when nothing is configured (the agent-compatible default)', async () => {
+    delete process.env.RAPITAS_MCP_WORKSPACE_ID;
+    await executeTool('rapitas_list_tasks', {});
+    expect(seen).toEqual([null]);
+  });
+
+  it.each(['0', '-1', '2.5', '2abc', ' ', '0x2'])(
+    'refuses to run at all with a malformed id %p, rather than run unbound',
+    async (raw) => {
+      process.env.RAPITAS_MCP_WORKSPACE_ID = raw;
+      try {
+        const result = await executeTool('rapitas_list_tasks', {});
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('RAPITAS_MCP_WORKSPACE_ID');
+      } finally {
+        delete process.env.RAPITAS_MCP_WORKSPACE_ID;
+      }
+      expect(seen).toEqual([]);
+    },
+  );
 });
