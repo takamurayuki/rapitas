@@ -1,0 +1,47 @@
+# Keeps ONE issue listing every code-scanning and Dependabot alert that has
+# stayed open past its age limit (critical/high 7 days, medium 30, low 60),
+# and closes it when the list is empty (#1390).
+#
+# Why an issue: 115 code-scanning and 24 Dependabot alerts piled up from
+# 2026-02 on. The Security tab is not somewhere anyone looks, and the PR checks
+# pass on notes, warnings and dev-only findings by design. Issues are read,
+# and close-linked-issues (#1366) closes them when the fix merges.
+name: Alert Backlog Watch
+
+on:
+  schedule:
+    - cron: '23 22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  security-events: read
+
+concurrency:
+  group: alert-backlog-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Report alerts past their age limit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # The Dependabot alerts API is not readable with every token. Prefer a
+      # dedicated read-only token when one is configured; if the default token
+      # is refused, the fetch throws and this run goes RED instead of reading
+      # the refusal as "no alerts" and closing the tracking issue.
+      GH_TOKEN: ${{ secrets.SECURITY_ALERTS_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Test the age and issue logic
+        run: node --test scripts/security/alert-backlog-watch.test.cjs
+
+      - name: Open, update or close the tracking issue
+        run: node scripts/security/alert-backlog-watch.cjs
