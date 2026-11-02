@@ -7,7 +7,27 @@
  * sufficient, condition for a user reaching the feature.
  */
 import { readFile, realpath } from 'fs/promises';
-import { isAbsolute, resolve, sep } from 'path';
+import { isAbsolute, join, resolve, sep } from 'path';
+import { parseRequirementTasks } from '../../../organization/requirements-task-plan';
+
+/**
+ * The `[F-NN]` ids a project's `docs/requirements.md` declares, upper-cased to
+ * match parsed entries.
+ *
+ * @param workdir - Worktree root / worktree ルート
+ * @returns The declared ids, or undefined when the document is absent, unreadable
+ *   or declares none — callers then skip the declared-id check / 宣言済み機能ID(無ければ undefined)
+ */
+export async function readDeclaredFeatures(workdir: string): Promise<Set<string> | undefined> {
+  let markdown: string;
+  try {
+    markdown = await readFile(join(workdir, 'docs', 'requirements.md'), 'utf8');
+  } catch {
+    return undefined;
+  }
+  const ids = parseRequirementTasks(markdown).map((s) => s.id.toUpperCase());
+  return ids.length > 0 ? new Set(ids) : undefined;
+}
 
 /** One declared feature entry point. */
 export interface FeatureEntry {
@@ -171,7 +191,8 @@ export function createWorkdirReader(workdir: string): EntryReader {
  * @param cfg - Runtime config carrying featureEntries / 設定
  * @param workdir - Worktree root / worktree ルート
  * @param reader - Reader override (tests) / テスト用リーダー
- * @param opts - requireEntries: fail when nothing is declared / 未登録を失敗にするか
+ * @param opts - requireEntries: fail when nothing is declared; declaredFeatures:
+ *   the `[F-NN]` ids requirements.md declares, when readable / 未登録を失敗にするか・宣言済み機能ID
  * @returns Composed verdict / 合成後の判定
  */
 export async function applyFeatureReachability(
@@ -179,9 +200,25 @@ export async function applyFeatureReachability(
   cfg: { featureEntries?: FeatureEntry[] },
   workdir: string,
   reader: EntryReader = createWorkdirReader(workdir),
-  opts: { requireEntries?: boolean } = {},
+  opts: { requireEntries?: boolean; declaredFeatures?: ReadonlySet<string> } = {},
 ): Promise<SmokeVerdict> {
-  const r = await evaluateFeatureReachability(cfg.featureEntries, reader);
+  // NOTE: An entry naming no declared feature is reported and left out of the
+  // count (#1037): `{ id: "login" }` made "✓ 入口確認: n/n 機能" count a screen
+  // as a feature. Only applied when the declared set is known — without a
+  // readable requirements.md every entry is taken as before.
+  const declared = opts.declaredFeatures;
+  const all = cfg.featureEntries;
+  const strays = declared && declared.size > 0 && all ? all.filter((e) => !declared.has(e.id)) : [];
+  const counted = strays.length > 0 ? all?.filter((e) => declared?.has(e.id)) : all;
+  const strayLine =
+    strays.length > 0
+      ? [
+          `⚠ requirements.md に無い機能IDの入口は数えない: ${strays.map((e) => e.id).join(', ')}` +
+            '（featureEntries の id は宣言済みの [F-NN] にすること）',
+        ]
+      : [];
+  verdict = { ...verdict, lines: [...verdict.lines, ...strayLine] };
+  const r = await evaluateFeatureReachability(counted, reader);
   if (r.status === 'unreachable') {
     return {
       ok: false,

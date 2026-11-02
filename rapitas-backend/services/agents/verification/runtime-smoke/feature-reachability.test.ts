@@ -5,10 +5,14 @@
  * the composition with the smoke verdict.
  */
 import { describe, it, expect } from 'bun:test';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   parseFeatureEntries,
   evaluateFeatureReachability,
   applyFeatureReachability,
+  readDeclaredFeatures,
   type FeatureEntry,
   type EntryReader,
 } from './feature-reachability';
@@ -189,5 +193,82 @@ describe('applyFeatureReachability with requireEntries', () => {
     const v = await applyFeatureReachability(okVerdict, {}, '/w', reader({}));
     expect(v.ok).toBe(true);
     expect(v.errorCount).toBe(0);
+  });
+});
+
+/**
+ * #1037: `[UI] ログイン` registered `{ id: "login" }` — a screen name, not a
+ * declared `[F-NN]` — and "✓ 入口確認: n/n 機能" counted it as a feature. With
+ * the declared ids known, such an entry is reported by name and not counted.
+ */
+describe('applyFeatureReachability with declaredFeatures', () => {
+  const okVerdict = { ok: true, errorCount: 0, lines: ['✓ /: HTTP 200'] };
+  const declared = new Set(['F-01', 'F-02']);
+
+  it('does not count an entry whose id is no declared feature, and names it', async () => {
+    const v = await applyFeatureReachability(
+      okVerdict,
+      {
+        featureEntries: [
+          { id: 'F-01', file: 'a.tsx' },
+          { id: 'LOGIN', file: 'login.tsx' },
+        ],
+      },
+      '/w',
+      reader({ 'a.tsx': 'x', 'login.tsx': 'y' }),
+      { declaredFeatures: declared },
+    );
+    expect(v.ok).toBe(true);
+    const text = v.lines.join('\n');
+    expect(text).toContain('1/1');
+    expect(text).toContain('LOGIN');
+    expect(text).not.toContain('2/2');
+  });
+
+  it('an undeclared id cannot satisfy requireEntries on its own', async () => {
+    const v = await applyFeatureReachability(
+      okVerdict,
+      { featureEntries: [{ id: 'LOGIN', file: 'login.tsx' }] },
+      '/w',
+      reader({ 'login.tsx': 'y' }),
+      { declaredFeatures: declared, requireEntries: true },
+    );
+    expect(v.ok).toBe(false);
+    expect(v.lines.join('\n')).toContain('LOGIN');
+  });
+
+  // Only the 機能要件 section declares; ids cited in 受入条件 (F-09) do not.
+  it('reads the declared ids from the 機能要件 section of docs/requirements.md', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fr-decl-'));
+    try {
+      mkdirSync(join(dir, 'docs'));
+      writeFileSync(
+        join(dir, 'docs', 'requirements.md'),
+        '# 機能要件\n\n- [F-01] 一覧\n### [F-02] 詳細\n\n# 受入条件\n\n- [F-09] Given …\n',
+      );
+      expect([...((await readDeclaredFeatures(dir)) ?? [])].sort()).toEqual(['F-01', 'F-02']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('has no declared set when requirements.md is missing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fr-decl-'));
+    try {
+      expect(await readDeclaredFeatures(dir)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('without a declared set (no requirements.md) entries are taken as before', async () => {
+    const v = await applyFeatureReachability(
+      okVerdict,
+      { featureEntries: [{ id: 'LOGIN', file: 'login.tsx' }] },
+      '/w',
+      reader({ 'login.tsx': 'y' }),
+    );
+    expect(v.ok).toBe(true);
+    expect(v.lines.join('\n')).toContain('1/1');
   });
 });

@@ -16,7 +16,7 @@ import {
   taskRequiresFeatureEntries,
 } from './runtime-config';
 import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
-import { applyFeatureReachability } from './feature-reachability';
+import { applyFeatureReachability, readDeclaredFeatures } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
 
@@ -306,7 +306,11 @@ export async function runRuntimeSmokeCheck(
       cfg,
       workdir,
       undefined,
-      { requireEntries: await taskRequiresFeatureEntries(taskId) },
+      {
+        requireEntries: await taskRequiresFeatureEntries(taskId),
+        // An entry naming no declared [F-NN] is reported, not counted (#1037).
+        declaredFeatures: await readDeclaredFeatures(workdir),
+      },
     );
     if (verdict.ok && !cfg.readySelector) {
       return {
