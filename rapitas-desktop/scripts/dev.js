@@ -52,6 +52,7 @@ const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
 const { createDevSessionLog } = require('./dev-session-log.cjs');
+const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 // ─── セッションログ ───
@@ -2757,6 +2758,9 @@ async function main() {
 
   // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
   startFrontendWatchdog();
+  // フロントが死んだ／LISTEN しなくなった時に戻す(#1230)。上の watchdog は生存中の
+  // プロセスしか見ないため、プロセス消滅はこれでしか拾えない。
+  startFrontendLiveness();
 
   // Rust 変更を拾っていたら Tauri シェルを再ビルドする。
   // NOTE: await しない。cargo build は分単位でかかり、ここで待つと
@@ -2933,6 +2937,17 @@ function startFrontendProcess() {
     },
   });
   frontend.on('error', (err) => console.error('Frontend error:', err));
+  // NOTE: Bound to THIS child: restartFrontend kills the old one right before
+  // spawning, and its late 'exit' must not mark the replacement dead (#1230).
+  const child = frontend;
+  frontendExited = false;
+  child.on('exit', (code, signal) => {
+    if (frontend !== child) return;
+    frontendExited = true;
+    if (!isCleaningUp && !isFrontendRestarting) {
+      log.warn(`Frontend dev server exited (code ${code}, signal ${signal ?? 'none'}).`);
+    }
+  });
   frontendStartedAt = Date.now();
   if (frontend.pid) writeFrontendPidFile(frontend.pid);
 }
@@ -3159,6 +3174,63 @@ function startFrontendWatchdog() {
   }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
+// ---- Liveness (#1230) ----
+// Set by the spawned child's 'exit'; see startFrontendProcess.
+let frontendExited = false;
+let frontendLivenessTimer = null;
+// One netstat per tick; the decision itself lives in frontend-liveness.cjs.
+const FRONTEND_LIVENESS_INTERVAL_MS = 30_000;
+
+/**
+ * Bring the frontend back when it has died or stopped listening — the case the
+ * RSS/CPU watchdog cannot see, because it only inspects a living process.
+ * Disable with RAPITAS_FRONTEND_LIVENESS=0.
+ */
+function startFrontendLiveness() {
+  if (frontendLivenessTimer) return;
+  if (process.env.RAPITAS_FRONTEND_LIVENESS === '0') {
+    console.log('ℹ️  Frontend liveness check disabled (RAPITAS_FRONTEND_LIVENESS=0).');
+    return;
+  }
+  const cfg = {
+    ...LIVENESS_DEFAULTS,
+    graceMs: Math.max(LIVENESS_DEFAULTS.graceMs, FRONTEND_READY_TIMEOUT_MS),
+  };
+  let state = initialLiveness();
+  console.log(
+    `🩺 Frontend liveness check active (every ${FRONTEND_LIVENESS_INTERVAL_MS / 1000}s on :${actualFrontendPort}).`,
+  );
+  frontendLivenessTimer = setInterval(() => {
+    const busy = isCleaningUp || isFrontendRestarting;
+    const decision = nextLiveness(
+      state,
+      {
+        now: Date.now(),
+        startedAt: frontendStartedAt,
+        listening: busy ? true : isPortListening(actualFrontendPort),
+        exited: frontendExited,
+        busy,
+      },
+      cfg,
+    );
+    state = decision.state;
+    if (decision.action === 'restart') {
+      log.warn(`Frontend is down (${decision.reason}) — restarting it; backend untouched.`);
+      restartFrontend(decision.reason).catch((err) =>
+        console.error('❌ Frontend liveness restart failed:', err.message || err),
+      );
+    } else if (decision.action === 'report') {
+      log.warn(
+        `Frontend process exited but :${actualFrontendPort} is held by another process — not touching it.`,
+      );
+    } else if (decision.action === 'give-up') {
+      log.error(
+        `Frontend keeps dying: ${cfg.maxRestarts} restarts within ${cfg.windowMs / 60000} min. Stopped retrying — check its output above and restart dev.js.`,
+      );
+    }
+  }, FRONTEND_LIVENESS_INTERVAL_MS);
+}
+
 // プロセス終了時のクリーンアップ
 let isCleaningUp = false;
 // Set when dev.js backs off because another instance's backend has an active
@@ -3190,6 +3262,10 @@ function cleanupSync() {
   if (frontendWatchdogTimer) {
     clearInterval(frontendWatchdogTimer);
     frontendWatchdogTimer = null;
+  }
+  if (frontendLivenessTimer) {
+    clearInterval(frontendLivenessTimer);
+    frontendLivenessTimer = null;
   }
 
   // ファイルウォッチャーを先に閉じてリスタート競合を防止
