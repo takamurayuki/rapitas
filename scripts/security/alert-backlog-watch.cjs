@@ -81,12 +81,22 @@ function overdue(items, now) {
  * @param {Date} now - Clock / 現在時刻
  * @returns {string} Markdown body / 本文
  */
-function renderBody(list, now) {
+function renderBody(list, now, unreadable = []) {
   const count = (source) => list.filter((x) => x.source === source).length;
   const lines = [
     `Updated ${now.toISOString().slice(0, 10)} by \`alert-backlog-watch\` (#1390). ` +
       'This issue closes itself when every alert below is fixed or dismissed with a reason.',
     '',
+  ];
+  for (const source of unreadable) {
+    lines.push(
+      `> **${source} alerts were not readable** with this run's token, so they are missing ` +
+        'below and this issue cannot close. Add a `SECURITY_ALERTS_TOKEN` secret ' +
+        '(fine-grained, this repository, "Dependabot alerts: read").',
+      '',
+    );
+  }
+  lines.push(
     `Age limits: critical/high ${LIMIT_DAYS.high} days, medium ${LIMIT_DAYS.medium} days, ` +
       `low ${LIMIT_DAYS.low} days.`,
     '',
@@ -95,7 +105,7 @@ function renderBody(list, now) {
     '',
     '| source | # | severity | age (days) | what | where |',
     '|---|---|---|---|---|---|',
-  ];
+  );
   const MAX_ROWS = 150;
   for (const x of list.slice(0, MAX_ROWS)) {
     lines.push(
@@ -109,10 +119,13 @@ function renderBody(list, now) {
 /**
  * Open, update or close the single tracking issue.
  *
- * @param {{repo:string, list:ReturnType<typeof overdue>, now:Date, gh:(args:string[])=>string}} p - Inputs / 入力
+ * An unreadable source keeps the issue open: "nothing overdue" is only known
+ * when every source was actually read.
+ *
+ * @param {{repo:string, list:ReturnType<typeof overdue>, now:Date, gh:(args:string[])=>string, unreadable?:string[]}} p - Inputs / 入力
  * @returns {'opened'|'updated'|'closed'|'clear'} What it did / 実施内容
  */
-function reconcileIssue({ repo, list, now, gh }) {
+function reconcileIssue({ repo, list, now, gh, unreadable = [] }) {
   const open = JSON.parse(
     gh([
       'issue',
@@ -128,7 +141,7 @@ function reconcileIssue({ repo, list, now, gh }) {
     ]),
   ).filter((i) => i.title === TITLE);
   const existing = open[0];
-  if (!list.length) {
+  if (!list.length && !unreadable.length) {
     if (!existing) return 'clear';
     gh([
       'issue',
@@ -143,7 +156,7 @@ function reconcileIssue({ repo, list, now, gh }) {
     ]);
     return 'closed';
   }
-  const body = renderBody(list, now);
+  const body = renderBody(list, now, unreadable);
   if (existing) {
     gh(['issue', 'edit', String(existing.number), '--repo', repo, '--body', body]);
     return 'updated';
@@ -152,11 +165,12 @@ function reconcileIssue({ repo, list, now, gh }) {
   return 'opened';
 }
 
-function realGh(args) {
+function realGh(args, token) {
   return execFileSync('gh', args, {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
+    env: token ? { ...process.env, GH_TOKEN: token } : process.env,
   });
 }
 
@@ -174,23 +188,40 @@ function fetchAlerts(repo, kind, gh) {
 function main() {
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo) throw new Error('GITHUB_REPOSITORY is required');
-  // A failed fetch must turn the run red: an unreadable alert list that is
-  // treated as "no alerts" would close the tracking issue on a blind run.
-  const items = [
-    ...fetchAlerts(repo, 'code-scanning', realGh).map((alert) => ({
-      source: 'code-scanning',
-      alert,
-    })),
-    ...fetchAlerts(repo, 'dependabot', realGh).map((alert) => ({ source: 'dependabot', alert })),
+  // NOTE: The default Actions token gets HTTP 403 on the Dependabot alerts API
+  // (measured on the first run), so that source may use its own token. A
+  // source that cannot be read is tracked as unreadable — it keeps the issue
+  // open and turns the run red — rather than counted as "no alerts", which
+  // would close the tracking issue on a blind run.
+  const sources = [
+    ['code-scanning', undefined],
+    ['dependabot', process.env.DEPENDABOT_ALERTS_TOKEN || undefined],
   ];
+  const items = [];
+  const unreadable = [];
+  for (const [source, token] of sources) {
+    try {
+      const gh = (args) => realGh(args, token);
+      items.push(...fetchAlerts(repo, source, gh).map((alert) => ({ source, alert })));
+    } catch (err) {
+      console.error(`[alert-backlog-watch] ${source} not readable: ${err.stderr || err.message}`);
+      unreadable.push(source);
+    }
+  }
   const now = new Date();
   const list = overdue(items, now);
-  const did = reconcileIssue({ repo, list, now, gh: realGh });
-  const summary = `alert-backlog-watch: ${items.length} open, ${list.length} past the limit → issue ${did}`;
+  const did = reconcileIssue({ repo, list, now, gh: (a) => realGh(a), unreadable });
+  const summary =
+    `alert-backlog-watch: ${items.length} open, ${list.length} past the limit → issue ${did}` +
+    (unreadable.length ? `; NOT READABLE: ${unreadable.join(', ')}` : '');
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) {
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n\n${renderBody(list, now)}\n`);
+    fs.appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `${summary}\n\n${renderBody(list, now, unreadable)}\n`,
+    );
   }
+  if (unreadable.length) process.exit(1);
 }
 
 if (require.main === module) main();
