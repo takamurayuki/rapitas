@@ -10,28 +10,9 @@ import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { replaceTaskLabels } from '../../services/task/task-label-replace';
 import { isValidEntityId } from '../../utils/common/id-validation';
 
-// NOTE: One-shot backfill for the theme→category label migration: theme-scoped
-// labels inherit their theme's category. Idempotent (only rows still missing
-// categoryId are touched) and best-effort — a failure retries on next boot.
-// Remove together with Label.themeId once all rows carry categoryId.
-void (async () => {
-  try {
-    const orphans = await prisma.label.findMany({
-      where: { categoryId: null, themeId: { not: null } },
-      select: { id: true, theme: { select: { categoryId: true } } },
-    });
-    for (const label of orphans) {
-      if (label.theme?.categoryId != null) {
-        await prisma.label.update({
-          where: { id: label.id },
-          data: { categoryId: label.theme.categoryId },
-        });
-      }
-    }
-  } catch {
-    /* best-effort — retried on next boot */
-  }
-})();
+// NOTE: The theme→category label backfill that ran here at import time moved to
+// services/system/label-category-backfill.ts (run from startup-backfills): a
+// query fired while modules load raced the desktop SQLite initializer (#1000).
 
 export const labelsRoutes = new Elysia({ prefix: '/labels' })
   // Get all labels (optionally filtered by categoryId via ?categoryId=N)
