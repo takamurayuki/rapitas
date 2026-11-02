@@ -488,7 +488,14 @@ function decision(input, ctx) {
   const projectDir = ctx?.projectDir ?? process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? '';
   const primaryRoot =
     ctx && 'primaryRoot' in ctx ? ctx.primaryRoot : resolvePrimaryRoot(process.env, projectDir);
-  const kind = classify(command, { primaryRoot, cwd: ctx?.cwd ?? input.cwd });
+  // NOTE: guardRepoRoot is threaded through so tests can pin it; unset, classify
+  // falls back to this file's own checkout, which on a CI runner (/home/runner,
+  // D:\a\…) is not the C:\Projects\rapitas the fixtures describe (#1367).
+  const kind = classify(command, {
+    primaryRoot,
+    cwd: ctx?.cwd ?? input.cwd,
+    guardRepoRoot: ctx?.guardRepoRoot,
+  });
   if (!kind) return undefined;
   const reasons = {
     primary_mutation:
