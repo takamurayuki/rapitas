@@ -11,7 +11,6 @@
  * hypotheses (see hypothesis-from-research) or injecting them (see
  * workflow-hypothesis-context).
  */
-import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { addEvidence, listHypotheses } from './hypothesis-service';
 import { bigramSimilarity } from './text-similarity';
@@ -218,17 +217,20 @@ async function listOpenHypothesesForTask(
   taskId: number,
 ): Promise<{ id: number; statement: string }[]> {
   try {
-    const task = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { themeId: true } })
-      .catch(() => null);
+    // NOTE: Narrowed in the query by originTaskId, and spanning every
+    // forgetting stage (#1321). Before this it fetched the first 100 open
+    // hypotheses of the task's theme and filtered in memory — which missed a
+    // task's own hypotheses once that page filled, and missed them entirely
+    // once they aged out of 'active'. Measured 2026-10-31: 191 of the 226 open
+    // hypotheses were dormant or archived, so 85% of them could not be matched
+    // to an id-less verdict at all.
     const { hypotheses } = await listHypotheses({
       status: 'open',
-      ...(task?.themeId != null && { themeId: task.themeId }),
+      originTaskId: taskId,
+      stages: 'all',
       limit: 100,
     });
-    return hypotheses
-      .filter((h) => h.originTaskId === taskId)
-      .map((h) => ({ id: h.id, statement: h.statement }));
+    return hypotheses.map((h) => ({ id: h.id, statement: h.statement }));
   } catch {
     return [];
   }

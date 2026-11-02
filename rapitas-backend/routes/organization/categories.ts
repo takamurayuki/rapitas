@@ -6,6 +6,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { categorySchema } from '../../schemas/category.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [
@@ -138,10 +139,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
   // Get category by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('Invalid ID');
     }
+    const id = Number(params.id);
 
     const category = await prisma.category.findUnique({
       where: { id },
@@ -204,10 +205,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('Invalid ID');
       }
+      const id = Number(params.id);
 
       const existing = await prisma.category.findUnique({ where: { id } });
       if (!existing) {
@@ -251,10 +252,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('Invalid ID');
       }
+      const id = Number(params.id);
 
       const category = await prisma.category.findUnique({ where: { id } });
       if (!category) {
@@ -276,10 +277,10 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
   // Set default category (for task list initial selection)
   .patch('/:id/set-default', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('Invalid ID');
     }
+    const id = Number(params.id);
 
     const category = await prisma.category.findUnique({ where: { id } });
     if (!category) {

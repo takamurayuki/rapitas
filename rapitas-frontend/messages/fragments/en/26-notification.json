@@ -2,7 +2,6 @@
   "notification": {
     "open": "Open",
     "close": "Close",
-    "markMemoDone": "Mark done",
     "questionToast": {
       "hint": "Pick an option to answer and resume the workflow",
       "recommended": "Recommended",
@@ -156,10 +155,6 @@
       },
       "daily_report": {
         "title": "Daily report {date}",
-        "message": "{message}"
-      },
-      "memo_reminder": {
-        "title": "Memo reminder",
         "message": "{message}"
       },
       "auto_merge_success": {

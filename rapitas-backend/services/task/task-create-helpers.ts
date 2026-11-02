@@ -83,7 +83,6 @@ export async function createSubtask(
           ...(data.projectId && { projectId: data.projectId }),
           ...(data.milestoneId && { milestoneId: data.milestoneId }),
           ...(data.themeId !== undefined && { themeId: data.themeId }),
-          ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
           ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
           ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
           // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
@@ -141,7 +140,6 @@ export async function createParentTask(
       ...(data.projectId && { projectId: data.projectId }),
       ...(data.milestoneId && { milestoneId: data.milestoneId }),
       ...(data.themeId !== undefined && { themeId: data.themeId }),
-      ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
       ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
       ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
       // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.

@@ -15,6 +15,7 @@ import {
 import { resolveIssueOrThrow } from '../../../services/github/resource-guard';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 import { githubSchemas } from '../../../schemas/github.schema';
+import { parseId } from '../../../middleware/error-handler';
 
 const githubService = new GitHubService(prisma);
 
@@ -26,7 +27,7 @@ export const issueRoutes = new Elysia()
 
     if (fromGitHub === 'true') {
       const integration = await prisma.gitHubIntegration.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
       });
       if (!integration) return [];
       const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
@@ -35,7 +36,7 @@ export const issueRoutes = new Elysia()
 
     return await prisma.gitHubIssue.findMany({
       where: {
-        integrationId: parseInt(id),
+        integrationId: parseId(id, 'integration ID'),
         // Match either case: rows synced/published before state was normalized
         // may be stored UPPERCASE ("OPEN"), so the "open" filter must still find
         // them. (Provider-agnostic — avoids Postgres-only `mode: insensitive`.)
@@ -53,7 +54,7 @@ export const issueRoutes = new Elysia()
     const { params } = context;
     const { id } = params as { id: string };
     return await prisma.gitHubIssue.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'issue ID') },
       include: { integration: true },
     });
   })
@@ -108,7 +109,7 @@ export const issueRoutes = new Elysia()
 
       // Link Issue and Task
       await prisma.gitHubIssue.update({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'issue ID') },
         data: { linkedTaskId: task.id },
       });
 
@@ -123,7 +124,7 @@ export const issueRoutes = new Elysia()
   // Import a synced Issue into the concern backlog
   .post('/issues/:id/create-concern', async (context) => {
     const { id } = context.params as { id: string };
-    const result = await importIssueAsConcern(parseInt(id));
+    const result = await importIssueAsConcern(parseId(id, 'issue ID'));
     if (!result.success) {
       context.set.status = result.status;
       return { error: result.error };
@@ -145,7 +146,7 @@ export const issueRoutes = new Elysia()
       // or no matching integration) do we ask the user to pick a repo.
       let targetIntegrationId = integrationId;
       if (!targetIntegrationId) {
-        const resolved = await resolveConcernIntegration(parseInt(id));
+        const resolved = await resolveConcernIntegration(parseId(id, 'concern ID'));
         targetIntegrationId = resolved?.id;
       }
       if (!targetIntegrationId) {
@@ -155,7 +156,11 @@ export const issueRoutes = new Elysia()
           code: 'NEEDS_INTEGRATION',
         };
       }
-      const result = await publishConcernToIssue(parseInt(id), targetIntegrationId, labels);
+      const result = await publishConcernToIssue(
+        parseId(id, 'concern ID'),
+        targetIntegrationId,
+        labels,
+      );
       if (!result.success) {
         context.set.status = result.status;
         return { error: result.error };

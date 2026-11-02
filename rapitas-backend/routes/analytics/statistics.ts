@@ -12,9 +12,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const monthAgo = new Date(today);
-    monthAgo.setDate(monthAgo.getDate() - 30);
-
     const totalTasks = await prisma.task.count({ where: { parentId: null } });
     const completedTasks = await prisma.task.count({
       where: { parentId: null, status: 'done' },
@@ -34,36 +31,9 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       },
     });
 
-    const weekTimeEntries = await prisma.timeEntry.findMany({
-      where: { startedAt: { gte: weekAgo } },
-    });
-    const weekStudyHours = weekTimeEntries.reduce(
-      (sum: number, entry: { duration: number }) => sum + entry.duration,
-      0,
-    );
-
-    const monthTimeEntries = await prisma.timeEntry.findMany({
-      where: { startedAt: { gte: monthAgo } },
-    });
-    const monthStudyHours = monthTimeEntries.reduce(
-      (sum: number, entry: { duration: number }) => sum + entry.duration,
-      0,
-    );
-
-    const upcomingExams = await prisma.examGoal.findMany({
-      where: {
-        examDate: { gte: today },
-        isCompleted: false,
-      },
-      orderBy: { examDate: 'asc' },
-      take: 5,
-    });
-
-    const streakData = await prisma.studyStreak.findMany({
-      where: { date: { gte: weekAgo } },
-      orderBy: { date: 'asc' },
-    });
-
+    // NOTE: this used to also return study hours, upcoming exams and the
+    // study streak. The learning features were removed; the dashboard reads
+    // only the task counts.
     return {
       tasks: {
         total: totalTasks,
@@ -72,12 +42,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         weekCompleted,
         completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
       },
-      studyTime: {
-        weekHours: Math.round(weekStudyHours * 10) / 10,
-        monthHours: Math.round(monthStudyHours * 10) / 10,
-      },
-      upcomingExams,
-      streakData,
     };
   })
 

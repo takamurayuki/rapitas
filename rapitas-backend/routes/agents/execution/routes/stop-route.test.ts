@@ -123,10 +123,6 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
 // ---------------------------------------------------------------------------
 
 const { stopRoute } = await import('./stop-route');
-const { prisma } = await import('../../../../config/database');
-const { orchestrator } = await import('../../../../services/core/orchestrator-instance');
-const { removeWorktree } =
-  await import('../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops');
 
 // Aliases matching the original test variable names
 const mockPrisma = mockDb;
@@ -218,7 +214,7 @@ describe('stop-route worktree cleanup', () => {
     });
 
     // Rebuild the route
-    const rebuiltRoute = stopRoute.post('/tasks/:id/stop-execution', routeHandler);
+    stopRoute.post('/tasks/:id/stop-execution', routeHandler);
 
     // Call the handler
     await routeHandler(context);
@@ -232,7 +228,6 @@ describe('stop-route worktree cleanup', () => {
   });
 
   it.skip('should clean up worktree on developer mode session stop', async () => {
-    const taskId = 123;
     const worktreePath = '/test/repo/.worktrees/task-123-abc123';
 
     // Mock task
@@ -265,11 +260,6 @@ describe('stop-route worktree cleanup', () => {
     mockPrisma.task.update.mockResolvedValue({});
     mockRemoveWorktree.mockResolvedValue(undefined);
 
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
-
     // Create a mock route handler
     const routeHandler = mock();
 
@@ -290,7 +280,6 @@ describe('stop-route worktree cleanup', () => {
   });
 
   it('should handle worktree cleanup errors gracefully', async () => {
-    const taskId = 123;
     const worktreePath = '/test/repo/.worktrees/task-123-abc123';
 
     // Mock task
@@ -322,18 +311,11 @@ describe('stop-route worktree cleanup', () => {
     // Mock worktree cleanup failure
     mockRemoveWorktree.mockRejectedValue(new Error('Cleanup failed'));
 
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
-
     // The route should still complete successfully despite cleanup error
     expect(() => mockRemoveWorktree('/test/repo', worktreePath)).toThrow('Cleanup failed');
   });
 
   it('should skip worktree cleanup when no worktree path exists', async () => {
-    const taskId = 123;
-
     // Mock task
     mockPrisma.task.findUnique.mockResolvedValue({
       workingDirectory: '/test/repo',
@@ -359,11 +341,6 @@ describe('stop-route worktree cleanup', () => {
     mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.agentExecution.update.mockResolvedValue({});
     mockPrisma.task.update.mockResolvedValue({});
-
-    // Create test context
-    const context = {
-      params: { id: taskId.toString() },
-    };
 
     // Verify worktree cleanup is not called when no worktree path
     expect(mockRemoveWorktree).not.toHaveBeenCalled();
@@ -479,5 +456,149 @@ describe('stop-route worktree cleanup', () => {
       data: { executionGenerationId: { increment: 1 } },
       select: { executionGenerationId: true },
     });
+  });
+});
+
+// Confirmed 2026-11-01 (#1330): the status reset was wrapped in a try/catch
+// that logged and moved on, and the route then returned `success: true`. So a
+// failed reset left the task in its previous status — in-progress, with no
+// execution behind it — while the caller was told the stop had worked. Seen
+// for real in #1000's CI log: `Failed to reset task 1 status` on a run whose
+// own summary recorded `stop-execution returned HTTP 200`.
+describe('stop-route reports a failed status reset', () => {
+  beforeEach(resetMocks);
+
+  it('does not claim the status was reset when the update throws', async () => {
+    const taskId = 901;
+    mockDb.task.update.mockImplementation((args: { data?: Record<string, unknown> }) => {
+      // Only the status reset fails; the generation bump is a different call.
+      if (args?.data && 'status' in args.data) {
+        return Promise.reject(new Error('disk I/O error'));
+      }
+      return Promise.resolve({ executionGenerationId: 1 });
+    });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    // The executions really were stopped, so this is not a failed stop — but
+    // it is not a clean one either, and the caller has to be able to tell.
+    expect(body.statusResetFailed).toBe(true);
+    expect(body.message).toContain('ステータス');
+  });
+
+  it('says nothing about a reset failure on the normal path', async () => {
+    // resetMocks clears calls but keeps a mockImplementation, so the throwing
+    // one from the test above would otherwise still be installed.
+    mockDb.task.update.mockImplementation(() => Promise.resolve({ executionGenerationId: 1 }));
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/902/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(body.success).toBe(true);
+    expect(body.statusResetFailed).toBeUndefined();
+  });
+});
+
+// #1335: the error path answered HTTP 200 with success:false, because the
+// catch returned a body without setting a status. The #1332 client now reads
+// the body and is safe either way, but any other caller — including a future
+// one — was told "200" for a stop that cannot be reported as complete. A
+// status code that contradicts its own body is not a contract.
+//
+// "Cannot be reported as complete", not "nothing happened": work before the
+// throw may have landed (the generation-id bump runs first, and queue
+// withdrawal or worktree cleanup may be partly done). That is the reason it
+// must not be a 200 — the caller cannot tell how far it got.
+// #1335 review: the strengthened test in agent-execution-router.test.ts only
+// reaches the "nothing was running" path — that file does not stub
+// stopTaskAgents, so the real one finds no executions and stoppedCount is 0.
+// What was asked for is a case with a live target: the stop requested for the
+// right task, the count reported, and the task itself updated.
+describe('stopping a task that really has a running execution', () => {
+  beforeEach(resetMocks);
+
+  it('asks to stop THAT task, reports the count, and resets its status', async () => {
+    const taskId = 905;
+    mockStopTaskAgents.mockResolvedValue({ stoppedCount: 2 });
+    mockDb.task.update.mockImplementation(() => Promise.resolve({ executionGenerationId: 7 }));
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/${taskId}/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+
+    // The stop was requested, and for this task — not merely "a stop ran".
+    expect(mockStopTaskAgents).toHaveBeenCalledTimes(1);
+    expect(mockStopTaskAgents.mock.calls[0]![0]).toBe(taskId);
+
+    // The count is reported rather than flattened to a boolean.
+    expect(body.stoppedCount).toBe(2);
+
+    // The target task's status was reset, scoped to that id.
+    const statusResets = mockDb.task.update.mock.calls.filter(
+      (c) => (c[0] as { data?: { status?: string } })?.data?.status === 'todo',
+    );
+    expect(statusResets).toHaveLength(1);
+    expect((statusResets[0]![0] as { where: { id: number } }).where.id).toBe(taskId);
+  });
+
+  it('says so when there was nothing running, without claiming a stop', async () => {
+    // The other side of the same contract: stoppedCount must not be inflated.
+    mockStopTaskAgents.mockResolvedValue({ stoppedCount: 0 });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/906/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.stoppedCount).toBe(0);
+    expect(body.message).toContain('No running execution');
+  });
+});
+
+describe('stop-route status code when the stop cannot be completed', () => {
+  beforeEach(resetMocks);
+
+  it('answers 5xx, not 200, when the database fails outright', async () => {
+    // Throws from inside the handler's try, which is the path that reported
+    // success:false with HTTP 200.
+    mockResolveTaskWorkingDirectory.mockImplementation(() =>
+      Promise.reject(new Error('disk I/O error')),
+    );
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/903/stop-execution`, { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(body.success).toBe(false);
+  });
+
+  it('still answers 200 for a partial stop, which is not a failure', async () => {
+    // The over-correction guard. A failed status reset means the executions
+    // DID stop; turning that into a 5xx would undo #1330's distinction.
+    mockDb.task.update.mockImplementation((args: { data?: Record<string, unknown> }) => {
+      if (args?.data && 'status' in args.data) {
+        return Promise.reject(new Error('disk I/O error'));
+      }
+      return Promise.resolve({ executionGenerationId: 1 });
+    });
+
+    const res = await stopRoute.handle(
+      new Request(`${BASE}/904/stop-execution`, { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).statusResetFailed).toBe(true);
   });
 });

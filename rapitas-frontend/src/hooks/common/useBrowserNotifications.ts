@@ -19,7 +19,7 @@ import { resolveNotificationText } from '@/components/notifications/notification
 const logger = createLogger('useBrowserNotifications');
 
 /** Reminder types alert even while the window is focused — that is their job. */
-const REMINDER_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_reminder']);
+const REMINDER_TYPES = new Set(['schedule_reminder']);
 
 /**
  * An agent question blocks the workflow until answered, so it alerts like a
@@ -56,25 +56,6 @@ export interface SSENotificationPayload {
     metadata?: string | Record<string, unknown> | null;
   };
   unreadCount: number;
-}
-
-/**
- * Extract the memo id from a notification's metadata (memo reminders carry
- * `{"memoId": n}`), tolerating both the raw DB string and a parsed object.
- *
- * @param metadata - Notification metadata / 通知メタデータ
- * @returns The memo id, or null / メモID(無ければnull)
- */
-export function extractMemoId(
-  metadata: string | Record<string, unknown> | null | undefined,
-): number | null {
-  try {
-    const obj = typeof metadata === 'string' ? (JSON.parse(metadata) as unknown) : metadata;
-    const id = (obj as { memoId?: unknown } | null | undefined)?.memoId;
-    return typeof id === 'number' && Number.isFinite(id) ? id : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -169,7 +150,6 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
               title,
               body: message,
               link: notification.link ?? null,
-              memoId: extractMemoId(notification.metadata),
               taskId: isQuestion ? extractTaskId(notification.metadata) : null,
               kind: isQuestion ? 'question' : null,
             });

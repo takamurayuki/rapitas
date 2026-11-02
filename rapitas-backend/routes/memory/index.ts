@@ -15,6 +15,7 @@ import { hypothesisRoutes } from './hypothesis';
 import { backlogScheduleRoutes } from '../backlog';
 import { backlogThemeOverrideRoutes } from '../backlog';
 import { dailyReportRoutes } from '../daily-report-routes';
+import notesRoute from './notes.routes';
 
 export { knowledgeRoutes } from './knowledge';
 export { memorySystemRoutes } from './memory-system';
@@ -35,4 +36,5 @@ export const memoryDomainRoutes = new Elysia()
   .use(hypothesisRoutes)
   .use(backlogScheduleRoutes)
   .use(backlogThemeOverrideRoutes)
-  .use(dailyReportRoutes);
+  .use(dailyReportRoutes)
+  .use(notesRoute);

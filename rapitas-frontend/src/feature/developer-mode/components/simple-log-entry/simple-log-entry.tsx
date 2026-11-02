@@ -11,7 +11,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ChevronDown, ChevronUp, Loader } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { MarkdownView } from '@/components/markdown/MarkdownView';
 import type { UserFriendlyLogEntry } from '../../utils/log-pattern-rules';
 import { getLogEntryIcon } from './log-entry-icons';
@@ -143,17 +143,12 @@ export const SimpleLogEntryList: React.FC<
     newEntriesCount?: number;
   } & HighlightProps
 > = ({ entries, newEntriesCount = 0, searchQuery, highlightText }) => {
-  const t = useTranslations('devMode.simpleLogEntry');
-  if (entries.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-8 text-zinc-500">
-        <div className="text-center">
-          <Loader className="mx-auto mb-2 h-6 w-6 animate-spin text-zinc-600" />
-          <p className="text-sm">{t('waitingForLogs')}</p>
-        </div>
-      </div>
-    );
-  }
+  // NOTE: an empty list draws nothing. It used to render a spinner reading
+  // "実行ログを待機中…", but nothing here can know whether an execution is
+  // running — so on a task that was never executed it promised an arrival
+  // that would never come (reported 2026-10-23). Why the list is empty is
+  // the caller's knowledge, so the caller says it.
+  if (entries.length === 0) return null;
 
   return (
     <div>

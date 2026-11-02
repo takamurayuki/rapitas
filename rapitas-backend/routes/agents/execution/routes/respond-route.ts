@@ -13,6 +13,7 @@ import { createLogger } from '../../../../config/logger';
 import { getProjectRoot } from '../../../../config';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import { HTTP_STATUS } from '../../../../utils/common/http-status';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:respond');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -22,7 +23,7 @@ export const respondRoute = new Elysia().post(
   async (context) => {
     const params = context.params as { id: string };
     const body = context.body as { response: string };
-    const taskId = parseInt(params.id);
+    const taskId = parseId(params.id, 'task ID');
     const { response } = body;
 
     if (!response?.trim()) {

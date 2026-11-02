@@ -319,20 +319,22 @@ if (typeof window !== 'undefined' && !g.__rapitasPomodoroWired) {
     closeAudioContext();
   });
 
-  // The pomodoro-float window delegates Checkpoint and Cancel here (via Tauri
-  // events) instead of calling syncPomodoroToBackend itself, because
-  // /pomodoro-float is excluded from isSyncOwner. Registered at module level
-  // (not inside a component) so it keeps working for the lifetime of the main
-  // window regardless of what is currently rendered.
+  // The pomodoro-float window delegates Cancel here (via Tauri events)
+  // instead of calling syncPomodoroToBackend itself, because /pomodoro-float
+  // is excluded from isSyncOwner. Registered at module level (not inside a
+  // component) so it keeps working for the lifetime of the main window
+  // regardless of what is currently rendered.
   // Gated on isSyncOwner(): ONLY the owner may handle a delegated action. This
   // module runs in every Tauri window, so without the gate the float window
   // registered the handler for the very event it emits — and handling it there
-  // re-enters the delegation, because a non-owner's checkpoint()/cancel() emits
-  // the request instead of calling the backend:
+  // re-enters the delegation, because a non-owner's cancel() emits the request
+  // instead of calling the backend:
   //
-  //   float receives → checkpoint() → not owner → delegateToMain() → emits →
+  //   float receives → cancel() → not owner → delegateToMain() → emits →
   //   float receives → …
   //
+  // NOTE: the incident below was the since-removed Checkpoint action, which
+  // delegated the same way. Keep the gate — Cancel has the identical shape.
   // One press of 「作業時間を登録」 started an unbounded loop. Measured
   // 2026-10-06 over CDP while it ran: 3,680 `plugin:event|emit_to` calls in 15 s
   // from /pomodoro-float (245/s) and 4,460 GET /pomodoro/active in 15 s from
@@ -342,9 +344,6 @@ if (typeof window !== 'undefined' && !g.__rapitasPomodoroWired) {
   // what made the app look disconnected.
   if ('__TAURI_INTERNALS__' in window && isSyncOwner()) {
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('pomodoro-float:checkpoint-request', () => {
-        void syncPomodoroToBackend.checkpoint();
-      });
       listen('pomodoro-float:cancel-request', () => {
         void syncPomodoroToBackend.cancel();
       });

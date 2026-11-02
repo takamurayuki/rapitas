@@ -45,6 +45,10 @@ function table(defaults: Row = {}) {
   return {
     rows,
     findUnique: async ({ where }: { where: Row }) => find(where),
+    // The store reaches for findFirst on the rows whose uniqueness became
+    // workspace-scoped: `where: { repo, prNumber }` is no longer a unique
+    // filter, so findUnique cannot take it. Same lookup, same result here.
+    findFirst: async ({ where }: { where: Row }) => find(where),
     findMany: async ({ where, orderBy, take }: { where?: Row; orderBy?: Row; take?: number }) => {
       let out = rows.filter((r) => matchWhere(r, where));
       if (orderBy) {

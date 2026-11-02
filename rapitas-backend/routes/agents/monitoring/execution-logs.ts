@@ -8,6 +8,7 @@ import {
   listExecutionLogFiles,
   getExecutionLogFile,
 } from '../../../services/agents/execution-file-logger';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 export const executionLogsRoutes = new Elysia()
   /**
@@ -40,11 +41,11 @@ export const executionLogsRoutes = new Elysia()
    */
   .get('/api/execution-logs/:executionId', async (context) => {
     const { params, query, set } = context;
-    const executionId = Number(params.executionId);
-    if (isNaN(executionId)) {
+    if (!isValidEntityId(params.executionId)) {
       set.status = 400;
       return { error: 'Invalid execution ID' };
     }
+    const executionId = Number(params.executionId);
 
     const logFile = await getExecutionLogFile(executionId);
     if (!logFile) {
@@ -88,11 +89,11 @@ export const executionLogsRoutes = new Elysia()
    */
   .get('/api/execution-logs/:executionId/download', async (context) => {
     const { params, set } = context;
-    const executionId = Number(params.executionId);
-    if (isNaN(executionId)) {
+    if (!isValidEntityId(params.executionId)) {
       set.status = 400;
       return { error: 'Invalid execution ID' };
     }
+    const executionId = Number(params.executionId);
 
     const logFile = await getExecutionLogFile(executionId);
     if (!logFile) {
@@ -115,11 +116,11 @@ export const executionLogsRoutes = new Elysia()
    */
   .get('/api/execution-logs/:executionId/errors', async (context) => {
     const { params, set } = context;
-    const executionId = Number(params.executionId);
-    if (isNaN(executionId)) {
+    if (!isValidEntityId(params.executionId)) {
       set.status = 400;
       return { error: 'Invalid execution ID' };
     }
+    const executionId = Number(params.executionId);
 
     const logFile = await getExecutionLogFile(executionId);
     if (!logFile) {

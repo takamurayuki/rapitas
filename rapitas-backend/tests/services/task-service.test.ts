@@ -27,14 +27,20 @@ const mockPrisma = {
     createMany: mock(() => Promise.resolve({ count: 0 })),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
+  // Label replacement runs through replaceTaskLabels now (#1330 review): ids
+  // are verified, then the delete and create happen in one transaction. This
+  // resolves every id and runs the callback against this same mock, so the
+  // existing write assertions still hold.
+  label: {
+    findMany: mock((args: { where: { id: { in: number[] } } }) =>
+      Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+    ),
+  },
   // createTask fires a best-effort notification.create; the mock must expose it
   // or `prisma.notification.create` throws synchronously (the .catch can't catch
   // a property access on undefined) and task creation fails.
   notification: {
     create: mock(() => Promise.resolve({ id: 1 })),
-  },
-  studyStreak: {
-    upsert: mock(() => Promise.resolve({})),
   },
   // updateTask releases the theme's currentTaskId in the same transaction (task 1009).
   themeAutoRun: {
@@ -42,6 +48,25 @@ const mockPrisma = {
   },
   $transaction: mock(transactionImpl),
 };
+
+/** Ids duplicate cleanup handed to the deletion choke point. */
+const chokePointDeletes: number[] = [];
+
+// Duplicate cleanup goes through the guarded deletion path now (#1330
+// review), and that path uses its OWN prisma rather than the injected client —
+// so it is stubbed here to keep these tests about the dedup logic. Both
+// exports are mirrored; mock.module replaces the whole module.
+mock.module('../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    chokePointDeletes.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    const unique = [...new Set(taskIds)];
+    chokePointDeletes.push(...unique);
+    return { deleted: unique, protected: [], notFound: [], trashIds: unique.map(() => 1) };
+  },
+}));
 
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -100,6 +125,11 @@ function resetAllMocks() {
   // `notification.create(...).catch(...)`, so a reset (undefined-returning) mock
   // would throw on `.catch` of undefined.
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
+  // Same reason: replaceTaskLabels verifies the ids before writing, and a
+  // reset mock would hand it undefined instead of a list.
+  mockPrisma.label.findMany.mockImplementation((args: { where: { id: { in: number[] } } }) =>
+    Promise.resolve(args.where.id.in.map((id) => ({ id }))),
+  );
 }
 
 // ============ createTask ============
@@ -217,18 +247,6 @@ describe('updateTask', () => {
     expect(mockPrisma.task.update).toHaveBeenCalled();
   });
 
-  test('完了時にストリークを記録すること', async () => {
-    const currentTask = { status: 'todo', parentId: null };
-    const updatedTask = { id: 1, title: 'Task', status: 'done', themeId: 1, parentId: null };
-    mockPrisma.task.findUnique
-      .mockResolvedValueOnce(currentTask)
-      .mockResolvedValueOnce(updatedTask);
-
-    await updateTask(mockPrisma as never, 1, { status: 'done' });
-
-    expect(mockPrisma.studyStreak.upsert).toHaveBeenCalled();
-  });
-
   test.each(['done', 'cancelled'])(
     '%s への変更時、同一 $transaction 内で currentTaskId を CAS 解放すること',
     async (status) => {
@@ -340,7 +358,6 @@ describe('updateTask', () => {
 
     // Verify update and other operations were not called
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
-    expect(mockPrisma.studyStreak.upsert).not.toHaveBeenCalled();
   });
 });
 
@@ -457,7 +474,11 @@ describe('cleanupDuplicateSubtasks', () => {
     const deletedIds = await cleanupDuplicateSubtasks(mockPrisma as never, 10);
 
     expect(deletedIds).toEqual([2, 3]); // kept id:1, deleted id:2 and id:3
-    expect(mockPrisma.task.delete).toHaveBeenCalledTimes(2);
+    // Asserted against the choke point, not the injected client: deleting
+    // through `prisma.task.delete` here skipped the protected check, the trash
+    // copy and the measurement snapshot (#1330 review).
+    expect(chokePointDeletes).toEqual([2, 3]);
+    expect(mockPrisma.task.delete).not.toHaveBeenCalled();
   });
 
   test('重複がない場合は空配列を返すこと', async () => {

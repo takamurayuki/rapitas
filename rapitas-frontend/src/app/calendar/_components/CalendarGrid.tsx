@@ -127,9 +127,7 @@ function getEventStyle(event: CalendarEvent, schedules: ScheduleEvent[]) {
   let bgColor = event.color || '#3B82F6';
   let eventIcon = null;
 
-  if (event.type === 'exam') {
-    bgColor = event.color || '#10B981';
-  } else if (event.type === 'schedule') {
+  if (event.type === 'schedule') {
     const scheduleEvent = schedules.find((s) => s.id === event.id);
     if (scheduleEvent?.type === 'PAID_LEAVE') {
       bgColor = event.color || '#FF6B6B';
@@ -307,10 +305,6 @@ function CalendarLegend() {
         <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
           <div className="w-1 h-3 rounded-sm bg-blue-500" />
           {t('legendTask')}
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-          <div className="w-1 h-3 rounded-sm bg-emerald-500" />
-          {t('legendExam')}
         </div>
         <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
           <span className="text-[10px] font-medium text-red-500">{t('legendHolidayIcon')}</span>

@@ -64,3 +64,5 @@ What did we decide? Be specific.
 | [0005](./0005-realtime-transport.md) | Realtime transport: keep `ws`, remove dead Socket.IO | accepted (implemented 2026-04-09) |
 | [0006](./0006-prisma-schema-folder-split.md) | Split `schema.prisma` into a `prismaSchemaFolder` | accepted (implemented 2026-04-09) |
 | [0007](./0007-always-red-ci-gates-file-size-and-full-suite.md) | Always-red CI gates: file-size ratchet and Full Suite (Advisory) | accepted |
+| [0008](./0008-jury-of-claude-models.md) | Rebuild the adversarial jury out of Claude models | accepted |
+| [0009](./0009-score-models-on-the-repair-loop.md) | Score a model choice on the repair loop, not on process exit | accepted |

@@ -33,9 +33,12 @@ mock.module('../../utils/ai-client', () => ({
   sendAIMessageStream: mock(() => Promise.resolve(new ReadableStream())),
 }));
 
+// All four runtime exports mirrored: mock.module replaces the whole module.
 mock.module('../agents/agent-knowledge-sharing', () => ({
   gatherSharedKnowledge: () => Promise.resolve({}),
   formatKnowledgeContext: () => '',
+  extractMethodFromVerify: () => [],
+  updatePatternsFromExecution: () => Promise.resolve(),
 }));
 
 const mockMatchCopilotIntent = mock(() => null as string | null);

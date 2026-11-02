@@ -78,7 +78,7 @@ const mockPrisma = {
     updateMany: mock(() => Promise.resolve({ count: 1 })),
   },
   workflowRoleConfig: {
-    findUnique: mock(() =>
+    findFirst: mock(() =>
       Promise.resolve({
         role: 'planner',
         isEnabled: true,
@@ -97,7 +97,7 @@ const mockPrisma = {
     ),
   },
   systemPrompt: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findFirst: mock(() => Promise.resolve(null)),
   },
   workflowTransition: { findFirst: async () => null, count: mock(() => Promise.resolve(0)) },
   aIAgentConfig: {

@@ -27,6 +27,7 @@ import type {
   TimelineEventType,
   ActorType,
 } from '../../services/memory/types';
+import { parseId } from '../../middleware/error-handler';
 
 // Type definitions for request bodies
 interface ResolveContradictionBody {
@@ -104,7 +105,7 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
   .post(
     '/contradictions/:id/resolve',
     async ({ params, body }) => {
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'contradiction ID');
       const typedBody = body as ResolveContradictionBody;
       await resolveContradiction(id, typedBody.resolution);
       return { success: true };

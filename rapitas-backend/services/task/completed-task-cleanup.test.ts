@@ -3,12 +3,14 @@
  *
  * cleanupCompletedTasks の分岐（keepRecent正規化・themeIdスコープ・dryRun・
  * 知識未記録/既記録・オープンサブタスクによるスキップ・タスク単位の例外握りつぶし）
- * および内部の deleteTaskWithArtifacts の副作用（worktree除去・workflow dir削除・
- * タスク削除）を検証する。
+ * と、削除が共通の choke point を通ること（#1330 レビュー）を検証する。
  *
- * prisma / getProjectRoot / removeWorktree /
- * extractKnowledgeFromTask はすべてモジュール直import（引数注入ではない）ため、
- * mock.module が必須。
+ * worktree 除去の挙動は task-worktree-cleanup.test.ts へ移した。この経路が
+ * 持っていた2つ目の実装を choke point 側へ統合したため、ここで prisma を
+ * 覗く形の検証は「どこで消したか」ではなく「何を通ったか」に置き換えている。
+ *
+ * prisma / extractKnowledgeFromTask / task-deletion はすべてモジュール
+ * 直import（引数注入ではない）ため、mock.module が必須。
  *
  * HACK(agent): bun:test の mock.module はプロセスグローバルなため、
  * 各モックモジュールの実エクスポートを全てミラーする。
@@ -102,6 +104,37 @@ mock.module('../memory/task-knowledge-extractor', () => ({
   searchCrossProjectKnowledge: () => Promise.resolve([]),
 }));
 
+/** Ids handed to the deletion choke point, and the outcome it answers with. */
+const chokePointCalls: Array<{ taskId: number; source: string }> = [];
+let chokePointOutcome: 'deleted' | 'protected' | 'not_found' = 'deleted';
+let chokePointThrows: Error | null = null;
+
+// The prune goes through the guarded path (#1330 review). It used to clear
+// worktrees, snapshot measurements and call `prisma.task.delete` itself, so
+// the 921 tasks it removed kept no trash copy. Both exports are mirrored;
+// mock.module replaces the whole module.
+mock.module('./task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number, source: string) => {
+    if (chokePointThrows) {
+      const err = chokePointThrows;
+      chokePointThrows = null;
+      throw err;
+    }
+    chokePointCalls.push({ taskId, source });
+    return {
+      taskId,
+      outcome: chokePointOutcome,
+      ...(chokePointOutcome === 'deleted' ? { trashId: 1 } : {}),
+    };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => ({
+    deleted: taskIds,
+    protected: [],
+    notFound: [],
+    trashIds: taskIds.map(() => 1),
+  }),
+}));
+
 const { cleanupCompletedTasks, DEFAULT_KEEP_RECENT } = await import('./completed-task-cleanup');
 
 function completedTask(id: number) {
@@ -131,6 +164,9 @@ beforeEach(() => {
   removeWorktreeMock.mockResolvedValue(true);
   extractKnowledgeFromTaskMock.mockReset();
   extractKnowledgeFromTaskMock.mockResolvedValue([]);
+  chokePointCalls.length = 0;
+  chokePointOutcome = 'deleted';
+  chokePointThrows = null;
 });
 
 describe('DEFAULT_KEEP_RECENT', () => {
@@ -257,7 +293,10 @@ describe('cleanupCompletedTasks — 実削除（非dryRun）', () => {
     expect(result.knowledgeRecorded).toBe(1);
     expect(result.deletedCount).toBe(1);
     expect(result.deletedTaskIds).toEqual([5]);
-    expect(taskDelete).toHaveBeenCalledWith({ where: { id: 5 } });
+    // Asserted against the choke point, not prisma: deleting here directly is
+    // the bug this path had (#1330 review).
+    expect(chokePointCalls).toEqual([{ taskId: 5, source: 'user' }]);
+    expect(taskDelete).not.toHaveBeenCalled();
   });
 
   test('抽出結果が空配列の場合 → knowledgeRecordedは加算されないが削除は行われること', async () => {
@@ -291,7 +330,7 @@ describe('cleanupCompletedTasks — 実削除（非dryRun）', () => {
     expect(result.skippedWithOpenSubtasks).toBe(1);
     expect(result.deletedCount).toBe(0);
     expect(knowledgeEntryCount).not.toHaveBeenCalled();
-    expect(taskDelete).not.toHaveBeenCalled();
+    expect(chokePointCalls).toEqual([]);
   });
 
   test('knowledgeEntry.countが例外を投げた場合 → そのタスクをスキップし他候補の処理は継続すること', async () => {
@@ -313,13 +352,13 @@ describe('cleanupCompletedTasks — 実削除（非dryRun）', () => {
     const result = await cleanupCompletedTasks({ keepRecent: 0 });
 
     expect(result.deletedCount).toBe(0);
-    expect(taskDelete).not.toHaveBeenCalled();
+    expect(chokePointCalls).toEqual([]);
   });
 
-  test('taskDeleteが例外を投げた場合 → deletedCountに加算されないこと', async () => {
+  test('削除が例外を投げた場合 → deletedCountに加算されないこと', async () => {
     taskFindMany.mockResolvedValueOnce([completedTask(12)]);
     knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskDelete.mockRejectedValueOnce(new Error('FK violation'));
+    chokePointThrows = new Error('FK violation');
 
     const result = await cleanupCompletedTasks({ keepRecent: 0 });
 
@@ -328,129 +367,57 @@ describe('cleanupCompletedTasks — 実削除（非dryRun）', () => {
   });
 });
 
-describe('cleanupCompletedTasks — deleteTaskWithArtifacts の副作用', () => {
-  test('worktreeを持つセッションがある場合 → removeWorktreeとagentSession.updateが呼ばれること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(20)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockResolvedValueOnce({ workingDirectory: '/projects/task-20' });
-    agentSessionFindMany.mockResolvedValueOnce([
-      { id: 1, worktreePath: '/projects/task-20/.worktrees/a' },
-    ]);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).toHaveBeenCalledWith(
-      '/projects/task-20',
-      '/projects/task-20/.worktrees/a',
-    );
-    expect(agentSessionUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: [1] } },
-      data: { worktreePath: null },
-    });
-  });
-
-  test('複数セッションが同一worktreePathを共有する場合 → removeWorktreeは1回だけ呼ばれ、全セッションIDがupdateManyでクリアされること (#825)', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(26)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockResolvedValueOnce({ workingDirectory: '/projects/task-26' });
-    agentSessionFindMany.mockResolvedValueOnce([
-      { id: 10, worktreePath: '/projects/task-26/.worktrees/shared' },
-      { id: 11, worktreePath: '/projects/task-26/.worktrees/shared' },
-      { id: 12, worktreePath: '/projects/task-26/.worktrees/shared' },
-    ]);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).toHaveBeenCalledTimes(1);
-    expect(removeWorktreeMock).toHaveBeenCalledWith(
-      '/projects/task-26',
-      '/projects/task-26/.worktrees/shared',
-    );
-    expect(agentSessionUpdateMany).toHaveBeenCalledTimes(1);
-    expect(agentSessionUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: [10, 11, 12] } },
-      data: { worktreePath: null },
-    });
-  });
-
-  test('task.workingDirectoryが無くtheme.workingDirectoryがある場合 → themeのworkingDirectoryがbaseDirとして使われること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockResolvedValueOnce({
-      workingDirectory: null,
-      theme: { workingDirectory: '/projects/theme-dir' },
-    });
-    agentSessionFindMany.mockResolvedValueOnce([
-      { id: 5, worktreePath: '/projects/theme-dir/.worktrees/a' },
-    ]);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).toHaveBeenCalledWith(
-      '/projects/theme-dir',
-      '/projects/theme-dir/.worktrees/a',
-    );
-  });
-
-  test('taskのworkingDirectoryが無い場合 → getProjectRootがbaseDirとして使われること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(21)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockResolvedValueOnce({ workingDirectory: null });
-    agentSessionFindMany.mockResolvedValueOnce([{ id: 2, worktreePath: '/wt/b' }]);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).toHaveBeenCalledWith('/tmp/project-root', '/wt/b');
-  });
-
-  test('removeWorktreeがfalseを返す場合 → agentSession.updateは呼ばれないこと', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(25)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockResolvedValueOnce({ workingDirectory: '/projects/task-25' });
-    agentSessionFindMany.mockResolvedValueOnce([
-      { id: 5, worktreePath: '/projects/task-25/.worktrees/a' },
-    ]);
-    removeWorktreeMock.mockResolvedValueOnce(false);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).toHaveBeenCalledWith(
-      '/projects/task-25',
-      '/projects/task-25/.worktrees/a',
-    );
-    expect(agentSessionUpdate).not.toHaveBeenCalled();
-  });
-
-  test('worktreePathがnullのセッションは除去処理をスキップすること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(22)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    agentSessionFindMany.mockResolvedValueOnce([{ id: 3, worktreePath: null }]);
-
-    await cleanupCompletedTasks({ keepRecent: 0 });
-
-    expect(removeWorktreeMock).not.toHaveBeenCalled();
-  });
-
-  test('removeWorktreeが例外を投げても削除処理全体は継続すること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(23)]);
-    knowledgeEntryCount.mockResolvedValueOnce(1);
-    agentSessionFindMany.mockResolvedValueOnce([{ id: 4, worktreePath: '/wt/c' }]);
-    removeWorktreeMock.mockRejectedValueOnce(new Error('git error'));
+// Flagged in the #1330 review: the three bulk routes were routed through the
+// guard and this prune was not. Its own comment recorded the cost — 921 tasks
+// removed with no trash copy — and the protected check it relied on was only a
+// filter in the candidate query, so a task marked protected after selection
+// was removed anyway.
+describe('the prune goes through the deletion guard', () => {
+  test('every candidate is deleted through the choke point, with the source recorded', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(30), completedTask(31)]);
+    knowledgeEntryCount.mockResolvedValue(1);
 
     const result = await cleanupCompletedTasks({ keepRecent: 0 });
 
-    expect(result.deletedCount).toBe(1);
-    expect(taskDelete).toHaveBeenCalledWith({ where: { id: 23 } });
+    expect(chokePointCalls).toEqual([
+      { taskId: 30, source: 'user' },
+      { taskId: 31, source: 'user' },
+    ]);
+    expect(result.deletedCount).toBe(2);
+    // Nothing deletes a Task row here any more.
+    expect(taskDelete).not.toHaveBeenCalled();
   });
 
-  test('task.findUniqueが例外を投げても、task削除は継続すること', async () => {
-    taskFindMany.mockResolvedValueOnce([completedTask(24)]);
+  test('a task that became protected after selection is not reported as pruned', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(32)]);
     knowledgeEntryCount.mockResolvedValueOnce(1);
-    taskFindUnique.mockRejectedValueOnce(new Error('DB error'));
+    chokePointOutcome = 'protected';
 
     const result = await cleanupCompletedTasks({ keepRecent: 0 });
 
+    // A caller that trusts deletedCount would otherwise believe the task is
+    // gone while it is still there.
+    expect(result.deletedCount).toBe(0);
+    expect(result.deletedTaskIds).toEqual([]);
+  });
+
+  test('a task something else already removed is not counted as pruned by this run', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(33)]);
+    knowledgeEntryCount.mockResolvedValueOnce(1);
+    chokePointOutcome = 'not_found';
+
+    const result = await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(result.deletedCount).toBe(0);
+    expect(result.deletedTaskIds).toEqual([]);
+  });
+
+  test('a dry run reaches the choke point for nothing at all', async () => {
+    taskFindMany.mockResolvedValueOnce([completedTask(34)]);
+
+    const result = await cleanupCompletedTasks({ keepRecent: 0, dryRun: true });
+
+    expect(chokePointCalls).toEqual([]);
     expect(result.deletedCount).toBe(1);
-    expect(taskDelete).toHaveBeenCalledWith({ where: { id: 24 } });
   });
 });

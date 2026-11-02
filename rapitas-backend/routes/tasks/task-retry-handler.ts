@@ -6,6 +6,7 @@
  * Not responsible for dispatching the re-run itself.
  */
 import { prisma } from '../../config/database';
+import { invalidateContextSnapshots } from '../../services/workflow/workflow-context-snapshot';
 import { ValidationError } from '../../middleware/error-handler';
 import { resolveImplementEntryStatus } from '../../services/workflow/verify-self-repair';
 import { recordTransition } from '../../services/workflow/transition-recorder';
@@ -98,6 +99,13 @@ export async function retryTask(
     cause: 'task_retried',
     metadata: { from: task.status },
   }).catch(() => {});
+
+  // A retry is a decision that the previous attempt's view of the world was
+  // not good enough, and that includes what it was told: drop the frozen
+  // retrieved context so the next phase recalls against the knowledge base
+  // as it stands now. Best-effort — a stale snapshot is worse than a fresh
+  // one, but neither is worth failing the retry over.
+  await invalidateContextSnapshots(id).catch(() => 0);
 
   // countPriorRepairs resets the self-repair budget at the most recent
   // `task_retried` entry, so this row is what grants the retry a fresh slate.

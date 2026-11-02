@@ -5,7 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
-import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 import { parseRuntimeConfig } from '../../services/agents/verification/runtime-smoke/runtime-config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,6 +13,7 @@ import { execSync, execFileSync } from 'child_process';
 import { resolveThemeCategory } from './theme-category-resolver';
 import { writeScaffoldDocs } from './scaffold-docs-writer';
 import type { ScaffoldFile } from './scaffold-project-writer';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -55,10 +56,10 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get theme by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     const theme = await prisma.theme.findUnique({
       where: { id },
@@ -135,10 +136,10 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       // Check if theme exists
       const existingTheme = await prisma.theme.findUnique({
@@ -214,10 +215,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        throw new ValidationError('無効なIDです');
-      }
+      const id = parseId(params.id, 'theme ID');
 
       return await prisma.theme.delete({
         where: { id },
@@ -262,10 +260,10 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Set default theme (per category: only one default per category)
   .patch('/:id/set-default', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     // Get the theme to find its category
     const theme = await prisma.theme.findUnique({

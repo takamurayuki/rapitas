@@ -1,0 +1,26 @@
+{
+  "$comment": [
+    "Single source of truth for the toolchain versions CI installs (#1340 step 1).",
+    "",
+    "WHY THIS EXISTS: three different Bun versions were writing and validating one",
+    "lockfile. The gates used 1.3.13, update-lockfiles.yml used 1.3.11, and seven",
+    "jobs — including the 'Fix Bun Lockfile Format' bot — used 'latest'. bun 1.3.13",
+    "writes bun.lock lockfileVersion 1; a newer bun writes 2. That is why the bot",
+    "opened a PR against every feature branch proposing a 1->2 bump plus a tree of",
+    "package upgrades, under a title that read like a formatting fix.",
+    "",
+    "pnpm was 'pnpm@10' everywhere (floating within a major) while pnpm-lock.yaml is",
+    "lockfileVersion 9.0, and a developer machine was on pnpm 12 — which would",
+    "rewrite those lockfiles on the next local install.",
+    "",
+    "An audit, a test run and a release build cannot be said to use the same",
+    "dependencies while the resolver version varies between them.",
+    "",
+    "KEEPING IT HONEST: scripts/check-toolchain-drift.ts compares every workflow",
+    "against this file and fails on any deviation, so a new job cannot quietly",
+    "reintroduce 'latest'. Update this file and the workflows together."
+  ],
+  "bun": "1.3.13",
+  "pnpm": "10.34.9",
+  "node": "24"
+}

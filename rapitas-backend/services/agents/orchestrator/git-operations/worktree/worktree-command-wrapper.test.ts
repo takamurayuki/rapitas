@@ -99,9 +99,13 @@ describe('defaultWrapperSource', () => {
     // Pinned so a future folder move cannot silently stop provisioning: the
     // function would start returning a path that does not exist and every
     // generated project would quietly lose its heartbeat again.
-    expect(defaultWrapperSource(import.meta.dir).replace(/\\/g, '/')).toEndWith(
-      '/rapitas/scripts/run-checked.cjs',
-    );
-    expect(existsSync(defaultWrapperSource(import.meta.dir))).toBe(true);
+    // NOTE: Was `toEndWith('/rapitas/scripts/run-checked.cjs')`, which named the
+    // checkout's DIRECTORY: green in CI (/rapitas/rapitas/), red in every task
+    // worktree (/.worktrees/<task>/). The repo root's name is not the contract;
+    // the file existing at <root>/scripts is (#1345).
+    const source = defaultWrapperSource(import.meta.dir);
+    expect(source.replace(/\\/g, '/')).toEndWith('/scripts/run-checked.cjs');
+    expect(source.replace(/\\/g, '/')).not.toContain('/rapitas-backend/');
+    expect(existsSync(source)).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import { prisma } from '../../../config/database';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 import { createLogger } from '../../../config/logger';
 import { AVAILABLE_AGENT_VERSIONS, getLatestVersionKey } from './version-registry';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-version-write');
 
@@ -20,7 +21,7 @@ export const agentVersionWriteRoutes = new Elysia()
     '/agents/:id/update',
     async ({ params, body }) => {
       try {
-        const agentId = parseInt(params.id);
+        const agentId = parseId(params.id, 'agent ID');
         const { targetVersion } = body as { targetVersion: string };
 
         const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
@@ -91,7 +92,7 @@ export const agentVersionWriteRoutes = new Elysia()
   // Install agent
   .post('/agents/:id/install', async ({ params }) => {
     try {
-      const agentId = parseInt(params.id);
+      const agentId = parseId(params.id, 'agent ID');
 
       const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
       if (!agent) {
@@ -143,7 +144,7 @@ export const agentVersionWriteRoutes = new Elysia()
   // Uninstall agent
   .post('/agents/:id/uninstall', async ({ params }) => {
     try {
-      const agentId = parseInt(params.id);
+      const agentId = parseId(params.id, 'agent ID');
 
       const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
       if (!agent) {

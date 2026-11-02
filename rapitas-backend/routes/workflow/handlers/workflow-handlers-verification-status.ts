@@ -14,6 +14,7 @@ import {
   getLatestJob,
   type VerificationJobRecord,
 } from '../../../services/workflow/verification-job-store';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:self-verification-status');
 
@@ -108,11 +109,11 @@ function toResponse(record: VerificationJobRecord) {
  * @returns The job's state, or 404 when the runId is unknown. / ジョブ状態または404
  */
 export async function handleRunVerificationStatus(ctx: RunVerificationStatusContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
   if (ctx.params.runId === 'latest') {
     return handleRunVerificationLatest(ctx as RunVerificationLatestContext);
   }
@@ -142,11 +143,11 @@ export async function handleRunVerificationStatus(ctx: RunVerificationStatusCont
  * @returns The latest job's state, or 404 when no job exists for this task. / 最新ジョブ状態または404
  */
 export async function handleRunVerificationLatest(ctx: RunVerificationLatestContext) {
-  const taskId = parseInt(ctx.params.taskId);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
 
   try {
     const record = await getLatestJob(taskId);

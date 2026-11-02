@@ -26,10 +26,10 @@ test.each(['running', 'idle'])(
     });
     try {
       await db.$executeRawUnsafe(
-        'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, status TEXT, output TEXT, errorMessage TEXT)',
+        'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, output TEXT, errorMessage TEXT)',
       );
       await db.$executeRawUnsafe(
-        "INSERT INTO AgentExecution VALUES (1, 'cancelled', 'terminal result', NULL)",
+        "INSERT INTO AgentExecution (id, status, output, errorMessage) VALUES (1, 'cancelled', 'terminal result', NULL)",
       );
       const write = getOutputWriter(ctx, manager);
       await write('late error');

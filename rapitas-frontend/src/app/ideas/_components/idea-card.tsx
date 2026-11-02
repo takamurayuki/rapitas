@@ -13,6 +13,7 @@ import { formatDate } from '@/utils/date';
 import type { Theme } from '@/types';
 import type { Idea } from './idea-box.types';
 import { PRIORITY_HINT_KEY, SOURCE_ICONS } from './idea-box.utils';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 interface IdeaCardProps {
   idea: Idea;
@@ -87,7 +88,7 @@ export function IdeaCard({
                 /tasks/{ID} へ遷移する。 */}
             {idea.usedInTaskId && (
               <a
-                href={`/tasks/${idea.usedInTaskId}`}
+                href={withHeaderVisible(`/tasks/${idea.usedInTaskId}`)}
                 className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:underline dark:bg-amber-900/40 dark:text-amber-300"
               >
                 {t('card.taskCreatedBadge', { id: idea.usedInTaskId })}

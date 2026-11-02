@@ -48,8 +48,17 @@ mock.module('../agents/orchestrator/git-operations/pr/gh-cli-path', () => ({
 
 const { discoverAgentCreatedPr, adoptAgentCreatedPr } = await import('./agent-created-pr-adoption');
 
-function prList(prs: { number: number; title: string; state: string }[]): string {
-  return JSON.stringify(prs.map((p) => ({ ...p, url: `https://example.test/pr/${p.number}` })));
+// Defaults to the task's own branch (t{id}-), where agent-made [#id] PRs live.
+function prList(
+  prs: { number: number; title: string; state: string; headRefName?: string }[],
+): string {
+  return JSON.stringify(
+    prs.map((p) => ({
+      headRefName: `feature/t${p.title.match(/\d+/)?.[0]}-work`,
+      ...p,
+      url: `https://example.test/pr/${p.number}`,
+    })),
+  );
 }
 
 beforeEach(() => {
@@ -81,6 +90,20 @@ describe('discoverAgentCreatedPr', () => {
   test('does not match another task whose id shares a prefix', async () => {
     ghStdout = prList([{ number: 900, title: '[#110] other task', state: 'OPEN' }]);
     expect(await discoverAgentCreatedPr(1105)).toBeNull();
+  });
+
+  // #1215: PR #1214 was titled [#1213] for ISSUE 1213; task 1213 was unrelated.
+  test('does not adopt a [#id] PR whose branch is not the task branch (#1215)', async () => {
+    ghStdout = prList([
+      { number: 1214, title: '[#1105] issue fix', state: 'OPEN', headRefName: 'feature/1105-x' },
+    ]);
+    expect(await discoverAgentCreatedPr(1105)).toBeNull();
+  });
+
+  test('asks gh for the head branch, which is what proves a [#id] marker', async () => {
+    await discoverAgentCreatedPr(1105);
+    const args = execFileMock.mock.calls[0][1] as string[];
+    expect(args[args.indexOf('--json') + 1].split(',')).toContain('headRefName');
   });
 
   test('ignores a PR with no task marker', async () => {

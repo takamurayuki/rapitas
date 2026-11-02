@@ -17,6 +17,16 @@ const mockPrisma = {
     create: mock(() => Promise.resolve({})),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
+  // Register and login provision a workspace before issuing the session: an
+  // account signed in without one resolves to "no workspace" and would see
+  // every workspace's data. Without these the whole route 500s.
+  workspaceMember: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  workspace: {
+    findUnique: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({ id: 1, slug: 'testuser', name: 'testuser' })),
+  },
 };
 
 const mockBcrypt = {
@@ -72,6 +82,16 @@ function resetAllMocks() {
   mockBcrypt.compare.mockReset();
   mockBcrypt.hash.mockResolvedValue('$2a$12$hashed');
   mockBcrypt.compare.mockResolvedValue(true);
+  // mockReset() drops the implementation too, and workspace provisioning runs
+  // on both register and login — an unprimed `workspace.create` returns
+  // undefined and the route 500s before it ever reaches its own assertions.
+  mockPrisma.workspaceMember.findFirst.mockResolvedValue(null);
+  mockPrisma.workspace.findUnique.mockResolvedValue(null);
+  mockPrisma.workspace.create.mockResolvedValue({
+    id: 1,
+    slug: 'testuser',
+    name: 'testuser',
+  });
 }
 
 function createApp() {
@@ -118,6 +138,45 @@ describe('POST /auth/register', () => {
     expect(body.user.username).toBe('testuser');
     expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.userSession.create).toHaveBeenCalledTimes(1);
+  });
+
+  test('新規ユーザーに自分のワークスペースを与えること', async () => {
+    // Without this the account signs in with no workspace, which resolves to
+    // "no workspace" and shows it EVERY workspace's data. Dropping the
+    // provisioning call would otherwise leave the test above green, since it
+    // only needs the mocks to exist.
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+    mockPrisma.user.create.mockResolvedValue({
+      id: 42,
+      username: 'newcomer',
+      email: 'newcomer@example.com',
+      role: 'user',
+      createdAt: now,
+      lastLoginAt: null,
+    });
+    mockPrisma.userSession.create.mockResolvedValue({});
+
+    const res = await app.handle(
+      new Request('http://localhost/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'newcomer',
+          email: 'newcomer@example.com',
+          password: 'password123',
+        }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.workspace.create).toHaveBeenCalledTimes(1);
+    const args = mockPrisma.workspace.create.mock.calls[0]?.[0] as {
+      data: { name: string; members: { create: { userId: number; role: string } } };
+    };
+    expect(args.data.name).toBe('newcomer');
+    expect(args.data.members.create).toEqual({ userId: 42, role: 'owner' });
+    expect(body.workspace).toEqual({ id: 1, slug: 'testuser', name: 'testuser' });
   });
 
   test('既存ユーザー名で409を返すこと', async () => {

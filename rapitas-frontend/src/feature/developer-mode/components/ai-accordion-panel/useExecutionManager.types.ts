@@ -60,6 +60,14 @@ export type UseExecutionManagerOptions = {
   setExpandedSection: (section: AccordionSection | null) => void;
 };
 
+/** Why a stop was not clean, for the panel to translate and show. */
+export interface StopNotice {
+  /** `failed`: nothing was stopped. `reset_failed`: stopped, status stuck. */
+  kind: 'failed' | 'reset_failed';
+  /** The backend's own explanation, when it sent one. */
+  serverMessage?: string;
+}
+
 export type UseExecutionManagerResult = {
   // Log sources
   logs: string[];
@@ -85,6 +93,14 @@ export type UseExecutionManagerResult = {
   isRestoring: boolean;
   // Execution status flags
   isRunning: boolean;
+  /** True while a stop request is in flight; the request is awaited now. */
+  isStopping: boolean;
+  /**
+   * Set when a stop did not fully succeed (#1330 review). Null on a clean
+   * stop. A code rather than a sentence, so the panel translates it — the
+   * optional server message is the backend's own wording when it sent one.
+   */
+  stopNotice: StopNotice | null;
   isCompleted: boolean;
   isCancelled: boolean;
   isFailed: boolean | string | null | undefined;

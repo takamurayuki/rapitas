@@ -8,6 +8,21 @@
  * written), so the agent-memory page showed knowledge-nodes / episodic-memory at
  * 0 and success-rate (= completedExperiments / totalExperiments) permanently 0.
  * Not responsible for the LearningPattern path, which is wired elsewhere.
+ *
+ * NOTE: `Experiment.hypothesis` / `result` / `evaluation` / `learning` are
+ * left empty here ON PURPOSE, and are empty in all 496 rows. They belong to
+ * an earlier design that the hypothesis ledger superseded: hypotheses live
+ * in `KnowledgeEntry` with `sourceType: 'hypothesis'` (2,095 entries as of
+ * 2026-10-24, still being written), behind hypothesis-service.ts, which also
+ * enforces falsifiability on the statement and demands a concrete artifact
+ * for every piece of evidence. Filling them here too would split one ledger
+ * across two tables.
+ *
+ * What this row IS: one per task, upserted on the terminal outcome, so the
+ * memory page's success rate (completedExperiments / totalExperiments)
+ * tracks real task outcomes. Read it as an outcome record, not as a record
+ * of what was predicted — an empty `hypothesis` column here does NOT mean
+ * no hypothesis was filed.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';

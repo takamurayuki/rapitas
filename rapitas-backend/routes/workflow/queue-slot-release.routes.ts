@@ -15,6 +15,7 @@ import { Elysia } from 'elysia';
 import { createLogger } from '../../config/logger';
 import { releaseQueueSlot } from '../../services/workflow/queue-slot-release';
 import { HTTP_STATUS } from '../../utils/common/http-status';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:queue-slot-release');
 
@@ -36,11 +37,11 @@ const queueSlotReleaseRoutes = new Elysia({ prefix: '/workflow' }).post(
   '/tasks/:taskId/release-queue-slot',
   async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId, 10);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       ctx.set.status = HTTP_STATUS.BAD_REQUEST;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
 
     const headers = ctx.headers as Record<string, string | undefined> | undefined;
     const rawSource = headers?.['x-rapitas-source'];

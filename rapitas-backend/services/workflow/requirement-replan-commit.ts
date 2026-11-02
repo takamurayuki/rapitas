@@ -213,7 +213,7 @@ async function commitReviewedDecision(
           }),
           task.themeId === null
             ? null
-            : tx.themeAutoRun.findUnique({
+            : tx.themeAutoRun.findFirst({
                 where: { themeId: task.themeId },
                 select: { status: true },
               }),

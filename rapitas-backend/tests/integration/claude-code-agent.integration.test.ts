@@ -5,7 +5,7 @@
  * NOTE: These tests use mocks and do not invoke the actual Claude Code CLI.
  */
 
-import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import type { QuestionType } from '../../services/agents/base-agent';
 import type { QuestionDetails } from '../../services/agents/question-detection';
 

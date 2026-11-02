@@ -183,7 +183,7 @@ export function SubtaskLogTabs({
     });
 
     if (hasFailed) return 'failed';
-    if (hasCompleted && !isRunning) return 'completed';
+    if (hasCompleted) return 'completed';
     return 'idle';
   }, [isRunning, subtasks, getSubtaskStatus]);
 

@@ -125,3 +125,68 @@ describe('CalendarSyncService.start / stop', () => {
     expect(storedState?.lastStatus).toBe('ok');
   });
 });
+
+/**
+ * Which workspace the poller writes into.
+ *
+ * The timer tick runs outside any request, so there is no AsyncLocalStorage
+ * workspace context around it — and calendar-store's writes would land
+ * unscoped, putting one account's busy blocks where every account reads them.
+ * The service therefore takes the scope as a dependency and wraps its whole
+ * body in it, so the manual path and the timer path cannot differ.
+ */
+describe('workspace scope', () => {
+  it('runs every persisting step inside the scope', async () => {
+    const inside: string[] = [];
+    let depth = 0;
+    const service = new CalendarSyncService({
+      now: () => NOW,
+      fetchBusy: async () => {
+        inside.push(depth > 0 ? 'fetch:scoped' : 'fetch:UNSCOPED');
+        return [b('10:00', '11:00')];
+      },
+      runScoped: async (fn) => {
+        depth += 1;
+        try {
+          return await fn();
+        } finally {
+          depth -= 1;
+        }
+      },
+    });
+
+    await service.syncOnce();
+
+    expect(inside).toEqual(['fetch:scoped']);
+    // Writes happen after the fetch, so the scope must still be open then.
+    expect(states.length).toBeGreaterThan(0);
+  });
+
+  it('wraps the timer tick too, not just a manual sync', async () => {
+    let entered = 0;
+    const service = new CalendarSyncService({
+      now: () => NOW,
+      fetchBusy: async () => [],
+      runScoped: async (fn) => {
+        entered += 1;
+        return fn();
+      },
+    });
+
+    // start() does an immediate first tick through the same path.
+    service.start(60);
+    await Promise.resolve();
+    await Promise.resolve();
+    service.stop();
+
+    expect(entered).toBeGreaterThan(0);
+  });
+
+  it('works unscoped when no scope is supplied', async () => {
+    // Single-workspace installs and tests pass nothing; behaviour must be
+    // identical to before this dependency existed.
+    const service = new CalendarSyncService({ now: () => NOW, fetchBusy: async () => [] });
+    const r = await service.syncOnce();
+    expect(r.status).toBe('ok');
+  });
+});

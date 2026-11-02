@@ -31,7 +31,7 @@ test.each(['cancelled', 'canceling', 'completed', 'running'])(
     const emit = mock(() => {});
     try {
       await db.$executeRawUnsafe(
-        'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, status TEXT, startedAt DATETIME, executionTimeMs INTEGER, output TEXT, completedAt DATETIME, errorMessage TEXT)',
+        'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, startedAt DATETIME, executionTimeMs INTEGER, output TEXT, completedAt DATETIME, errorMessage TEXT)',
       );
       await db.$executeRawUnsafe('INSERT INTO AgentExecution (id,status) VALUES (1,?)', persisted);
       await handleExecutionError(

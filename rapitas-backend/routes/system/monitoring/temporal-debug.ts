@@ -8,6 +8,7 @@ import {
   getFileTemporalHistory,
   getExecutionTrace,
 } from '../../../services/analytics/temporal-debugger';
+import { parseId } from '../../../middleware/error-handler';
 
 export const temporalDebugRoutes = new Elysia({ prefix: '/temporal-debug' })
   /**
@@ -40,7 +41,7 @@ export const temporalDebugRoutes = new Elysia({ prefix: '/temporal-debug' })
     '/execution/:executionId',
     async (context) => {
       const { params } = context;
-      const executionId = parseInt(params.executionId);
+      const executionId = parseId(params.executionId, 'execution ID');
 
       const trace = await getExecutionTrace(executionId);
       if (!trace) return { success: false, error: 'Trace not found' };

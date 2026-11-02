@@ -44,7 +44,9 @@ const fakePrisma = {
   },
   themeAutoRun: {
     findMany: () => Promise.resolve([{ themeId: 1 }]),
-    findUnique: () => Promise.resolve({ ...theme }),
+    // `themeId` is unique only within a workspace now, so production reads
+    // this row with findFirst rather than a unique lookup.
+    findFirst: () => Promise.resolve({ ...theme }),
     count: () => Promise.resolve(0),
   },
   userSettings: { findFirst: () => Promise.resolve(null) },

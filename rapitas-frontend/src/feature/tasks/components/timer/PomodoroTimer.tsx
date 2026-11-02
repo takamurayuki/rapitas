@@ -11,7 +11,6 @@ import {
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
 } from '../../pomodoro/pomodoro-store';
-import { syncPomodoroToBackend } from '../../pomodoro/pomodoro-sync';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -244,15 +243,6 @@ export default function PomodoroTimer({
     }
   };
 
-  const handleCheckpoint = async () => {
-    const result = await syncPomodoroToBackend.checkpoint();
-    // 0 minutes means either no theme-linked study goal or too little time
-    // elapsed to round up to a minute — nothing meaningful to report.
-    if (result && result.studyMinutesRecorded > 0) {
-      showToast(t('checkpointToast', { minutes: result.studyMinutesRecorded }), 'success');
-    }
-  };
-
   const handleTakeBreak = () => {
     store.takeBreak();
   };
@@ -465,7 +455,6 @@ export default function PomodoroTimer({
           onResume={handleResumeTimer}
           onComplete={handleCompleteTask}
           onStop={handleStopTimer}
-          onCheckpoint={handleCheckpoint}
           onCutBreak={() => store.cutBreakShort()}
         />
       )}

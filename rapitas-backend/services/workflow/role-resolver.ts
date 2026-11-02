@@ -93,7 +93,7 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
     return null;
   }
 
-  const roleConfig = await prisma.workflowRoleConfig.findUnique({
+  const roleConfig = await prisma.workflowRoleConfig.findFirst({
     where: { role },
     select: { agentConfigId: true, isEnabled: true, modelId: true },
   });

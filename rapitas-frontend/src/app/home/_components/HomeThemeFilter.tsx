@@ -130,53 +130,49 @@ export function HomeThemeFilter({
           ref={themeScrollRef}
           className="flex items-center gap-2 overflow-x-auto scroll-smooth flex-1 theme-scroll-hidden"
         >
-          {filteredThemes.length === 0 && categoryFilter !== null ? (
-            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 py-1 px-1">
-              <span>NO_THEMES_FOUND</span>
+          {filteredThemes.map((theme) => {
+            const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
+            const isActive = themeFilter === theme.id;
+            return (
               <button
-                onClick={() => router.push('/themes')}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
+                key={theme.id}
+                onClick={() => onThemeChange(theme.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                  isActive
+                    ? 'shadow-lg font-bold text-white dark:text-white'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
+                }`}
+                // Only the selected chip wears its theme's colour. Every chip
+                // used to, selected or not, and a row of them read as scattered
+                // colour the reader had to decode one at a time — while the
+                // selected one, the only thing this row exists to show, stopped
+                // standing out among them (asked for 2026-10-31).
+                //
+                // An unselected chip takes its TEXT from the category tabs
+                // above — `slate-500`, not the `slate-600` it had, which read
+                // heavier than the tabs it sits under (#1289). The chip keeps
+                // its own fill; only the text follows them. Keep the two in
+                // step when either changes.
+                //
+                // `color` is left out rather than set for an inactive chip: an
+                // inline colour would win over the slate class above.
+                style={isActive ? { backgroundColor: theme.color, color: '#ffffff' } : undefined}
               >
-                <Plus className="w-3 h-3" />
-                ADD_THEME
+                <IconComponent className="w-3.5 h-3.5" />
+                {theme.name}
+                {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
               </button>
-            </div>
-          ) : (
-            <>
-              {filteredThemes.map((theme) => {
-                const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
-                const isActive = themeFilter === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => onThemeChange(theme.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
-                      isActive
-                        ? 'shadow-lg font-bold text-white dark:text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                    style={{
-                      backgroundColor: isActive ? theme.color : undefined,
-                      color: isActive ? '#ffffff' : theme.color,
-                    }}
-                  >
-                    <IconComponent className="w-3.5 h-3.5" />
-                    {theme.name}
-                    {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
-                  </button>
-                );
-              })}
-              {/* Theme add — matches FILTER button palette (slate). */}
-              <button
-                onClick={() => router.push('/themes')}
-                title={t('addTheme')}
-                aria-label={t('addTheme')}
-                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
+            );
+          })}
+          {/* Theme add — matches FILTER button palette (slate). */}
+          <button
+            onClick={() => router.push('/themes')}
+            title={t('addTheme')}
+            aria-label={t('addTheme')}
+            className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {isScrollNeeded && (

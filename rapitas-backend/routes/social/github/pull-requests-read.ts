@@ -16,6 +16,7 @@ import {
   evaluateAutoMergeChecks,
   blockingChecks,
 } from '../../../services/workflow/auto-merge-checks';
+import { parseId } from '../../../middleware/error-handler';
 
 const githubService = new GitHubService(prisma);
 
@@ -28,7 +29,7 @@ export const pullRequestReadRoutes = new Elysia()
 
     if (fromGitHub === 'true') {
       const integration = await prisma.gitHubIntegration.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
       });
       if (!integration) return [];
       const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
@@ -50,7 +51,7 @@ export const pullRequestReadRoutes = new Elysia()
 
     return await prisma.gitHubPullRequest.findMany({
       where: {
-        integrationId: parseInt(id),
+        integrationId: parseId(id, 'integration ID'),
         ...stateWhere,
       },
       include: {
@@ -67,7 +68,7 @@ export const pullRequestReadRoutes = new Elysia()
     const { params } = context;
     const { id } = params as { id: string };
     return await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'pull request ID') },
       include: {
         integration: true,
         reviews: { orderBy: { submittedAt: 'desc' } },
@@ -88,7 +89,7 @@ export const pullRequestReadRoutes = new Elysia()
   //      still resolves after a title edit) next time.
   .get('/pull-requests/by-task/:taskId', async (context) => {
     const { taskId } = context.params as { taskId: string };
-    const tid = parseInt(taskId);
+    const tid = parseId(taskId, 'task ID');
     // headBranch + integrationId: let the task-detail CI badge deep-link into
     // the CI/CD view for the RIGHT repository, filtered to this PR's branch
     // (integration defaulting to the first repo showed "no runs" for PRs of
@@ -127,9 +128,20 @@ export const pullRequestReadRoutes = new Elysia()
       // Match both PR-title conventions: the app's `[Task-{id}]` and the
       // agent's CLAUDE.md `[#{id}]`. Agent-created PRs use the latter and so
       // never went through linkAutoCreatedPr, leaving paths 1/2 empty.
+      // NOTE: `[#{id}]` counts only on the task's own branch (`t{id}-`) — issue
+      // PRs are titled `[#<issue>]` too, and issue numbers overlap task ids (#1215).
       pr = await prisma.gitHubPullRequest.findFirst({
         where: {
-          OR: [{ title: { contains: `[Task-${tid}]` } }, { title: { contains: `[#${tid}]` } }],
+          OR: [
+            { title: { contains: `[Task-${tid}]` } },
+            {
+              title: { contains: `[#${tid}]` },
+              OR: [
+                { headBranch: { startsWith: `t${tid}-` } },
+                { headBranch: { contains: `/t${tid}-` } },
+              ],
+            },
+          ],
         },
         orderBy: { createdAt: 'desc' },
         select,
@@ -207,7 +219,7 @@ export const pullRequestReadRoutes = new Elysia()
   // reasons the by-task/:taskId 404 branch returns.
   .get('/pull-requests/by-task/:taskId/ci-status', async (context) => {
     const { taskId } = context.params as { taskId: string };
-    const tid = parseInt(taskId);
+    const tid = parseId(taskId, 'task ID');
     const select = { prNumber: true, state: true } as const;
 
     let pr = await prisma.gitHubPullRequest.findFirst({

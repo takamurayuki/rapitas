@@ -18,9 +18,9 @@ import { API_BASE_URL } from '@/utils/api';
  *
  * /pomodoro-float is excluded for the same reason: it mounts its own
  * usePomodoroStore instance with an independent tick, so without this
- * exclusion it would race main on start/complete. Its Cancel/Checkpoint
+ * exclusion it would race main on start/complete. Its Cancel
  * buttons do not call the backend directly — they delegate via a Tauri event
- * to main instead (see pomodoro-store.ts's cancel-request/checkpoint-request
+ * to main instead (see pomodoro-store.ts's cancel-request
  * listeners).
  */
 export const isSyncOwner = (): boolean =>
@@ -29,7 +29,7 @@ export const isSyncOwner = (): boolean =>
     window.location.pathname.startsWith(p),
   );
 
-// The float window is a non-owner that still needs its Cancel/Checkpoint to
+// The float window is a non-owner that still needs its Cancel to
 // reach the backend — it re-emits the action to main, the sole sync owner,
 // instead of POSTing itself. Gated on __TAURI_INTERNALS__ so jsdom/browser
 // tests (which set neither) never attempt the dynamic @tauri-apps import.
@@ -111,41 +111,5 @@ export const syncPomodoroToBackend = {
         }
       })
       .catch(() => {});
-  },
-
-  /**
-   * Records study time for the active session's elapsed-so-far without
-   * changing its status. Unlike the fire-and-forget methods above, the
-   * caller needs the recorded minute count to show a toast — so this
-   * resolves with the result instead of returning void.
-   *
-   * @returns Recorded minutes, or null when there is no active session, the
-   * call is not the sync owner, or the request failed / 記録分数(no-op時はnull)
-   */
-  checkpoint: async (): Promise<{ studyMinutesRecorded: number } | null> => {
-    if (!isSyncOwner()) {
-      if (isFloatWindow()) void delegateToMain('pomodoro-float:checkpoint-request');
-      return null;
-    }
-    try {
-      const activeRes = await fetch(`${API_BASE_URL}/pomodoro/active`, {
-        signal: AbortSignal.timeout(20000),
-      });
-      const activeData = (await activeRes.json()) as { session?: { id: number } };
-      const sessionId = activeData.session?.id;
-      if (!sessionId) return null;
-
-      const res = await fetch(`${API_BASE_URL}/pomodoro/sessions/${sessionId}/checkpoint`, {
-        signal: AbortSignal.timeout(20000),
-        method: 'POST',
-      });
-      if (!res.ok) return null;
-
-      const data = (await res.json()) as { success: boolean; studyMinutesRecorded?: number };
-      if (!data.success || typeof data.studyMinutesRecorded !== 'number') return null;
-      return { studyMinutesRecorded: data.studyMinutesRecorded };
-    } catch {
-      return null;
-    }
   },
 };

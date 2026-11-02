@@ -27,10 +27,12 @@ const log = createLogger('self-learning:knowledge-graph');
  * （weight）
  */
 export async function addNode(input: CreateNodeInput): Promise<GraphNode> {
-  const existing = await prisma.knowledgeGraphNode.findUnique({
-    where: {
-      label_nodeType: { label: input.label, nodeType: input.nodeType },
-    },
+  // findFirst, not findUnique: the constraint is now
+  // @@unique([workspaceId, label, nodeType]), so one workspace's node with a
+  // given label no longer blocks another's — and the workspace half of the
+  // key comes from the scope layer, not from here.
+  const existing = await prisma.knowledgeGraphNode.findFirst({
+    where: { label: input.label, nodeType: input.nodeType },
   });
 
   if (existing) {

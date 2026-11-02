@@ -72,6 +72,21 @@ export const GATES: readonly GateEntry[] = [
   },
   {
     kind: 'test-suite',
+    id: 'route-regression',
+    description:
+      'Route wiring regression gate — runs scripts/route-regression-tests.txt WITHOUT coverage',
+    manifest: 'route-regression-tests.txt',
+    // NOTE: deliberately no '--coverage'. These files import 600-line route
+    // modules; measuring them pulled the backend-tests gate's function
+    // coverage from 51.9% to 46.9%, under its 50% floor (#1330). ADR-0002
+    // says add tests, never lower the floor — so the wiring is gated here,
+    // separately, where it costs the floor nothing. No coverageFloor for the
+    // same reason: there is nothing to measure without '--coverage', and a
+    // floor that cannot be computed is a gate that cannot fail.
+    args: ['--isolate'],
+  },
+  {
+    kind: 'test-suite',
     id: 'sqlite-tests',
     description:
       'SQLite compatibility gate — runs scripts/sqlite-compat-tests.txt with RAPITAS_DB_PROVIDER=sqlite',

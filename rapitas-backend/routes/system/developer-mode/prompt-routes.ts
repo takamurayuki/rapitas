@@ -18,6 +18,7 @@ import {
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
 import { getLabelsArray, toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:developer-mode:prompt');
 
@@ -31,7 +32,7 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
     '/optimize-prompt/:taskId',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
       const { clarificationAnswers, savePrompt } = (body || {}) as {
         clarificationAnswers?: Record<string, string>;
         savePrompt?: boolean;
@@ -164,7 +165,7 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
     '/format-prompt/:taskId',
     async (context) => {
       const { params, body, set } = context;
-      const taskId = parseInt(params.taskId);
+      const taskId = parseId(params.taskId, 'task ID');
       const { optimizedResult } = body as { optimizedResult: OptimizedPromptResult };
 
       if (!optimizedResult) {

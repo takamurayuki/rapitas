@@ -52,7 +52,12 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+      # NOTE(#1340): --frozen-lockfile. A plain `bun install` re-resolves the tree
+      # against package.json ranges, so a job could run against dependencies the
+      # committed bun.lock never recorded. The dedicated Frozen Install job
+      # proves the lockfile is installable; it cannot stop another job from
+      # resolving something else, which is what the #1349 review pointed out.
+        run: bun install --frozen-lockfile
 
       - name: Setup test database
         working-directory: rapitas-backend
@@ -66,6 +71,9 @@ jobs:
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+          # This job runs a real PostgreSQL service, so the BYO-database
+          # integration test must reach it rather than skip (#1285).
+          RAPITAS_REQUIRE_PG_INTEGRATION: '1'
         # NOTE: File list is maintained in scripts/ci-gate-tests.txt (single source of truth).
         # To add/remove files, edit that manifest — do NOT modify this step.
         # See .github/TESTING_POLICY.md for the gate escalation path.
@@ -80,6 +88,63 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
+
+  # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
+  # routes go through their choke points (delete guard, stop reporting, the
+  # incremental-fetch boundary). Putting them in the coverage-measured gate
+  # pulled their 600-line route modules into the denominator and took function
+  # coverage from 51.9% to 46.9%, under its 50% floor (#1330). ADR-0002 says
+  # add tests, never lower the floor — so the wiring is gated here, without
+  # --coverage, where it costs the floor nothing (#1332).
+  route-regression:
+    name: Route Regression
+    runs-on: ubuntu-latest
+    # Hang backstop only; the suite is ~1.3s locally. Same rationale as test-backend.
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      - name: Run route regression suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        # NOTE: File list is maintained in scripts/route-regression-tests.txt
+        # (single source of truth). To add/remove files, edit that manifest —
+        # do NOT modify this step.
+        run: bun run test:routes
 
   # Advisory: runs the full test suite in parallel across OS processes.
   # continue-on-error: true — failures are visible in Step Summary but do NOT block merges.
@@ -120,7 +185,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Setup test database
         working-directory: rapitas-backend
@@ -193,7 +258,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Generate Prisma client
         working-directory: rapitas-backend
@@ -231,7 +296,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Generate SQLite Prisma Client
         working-directory: rapitas-backend
@@ -264,10 +329,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -280,17 +345,22 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
-      - name: Setup Bun for frontend tests
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.13'
-
-      - name: Install frontend dependencies (bun)
-        working-directory: rapitas-frontend
-        run: bun install
-
+      # NOTE(#1340 step 1): the Bun setup and `bun install` that used to sit
+      # here are gone, and the tests run through pnpm instead.
+      #
+      # `rapitas-frontend/bun.lock` is gitignored — pnpm-lock.yaml is this
+      # package's source of truth. But the job ran `pnpm install` and then
+      # `bun install` in the SAME directory, and with no bun lockfile to read,
+      # bun resolved straight from package.json: newest version satisfying each
+      # range, pnpm-lock.yaml ignored, node_modules mutated after pnpm had
+      # populated it. The frontend gate was therefore testing a tree that the
+      # committed lockfile does not describe.
+      #
+      # Verified the gate's own file list passes under node-run vitest before
+      # removing bun: `vitest run --coverage <the list>` exits 0 with all four
+      # coverage floors met.
       - name: Run TypeScript type check
         working-directory: rapitas-frontend
         run: pnpm tsc --noEmit
@@ -300,15 +370,23 @@ jobs:
         # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
         # enforced gate (it was previously aspirational — coverage never ran in
         # CI). The floor is calibrated to THIS file list; keep them in sync.
+        #
+        # NOTE: vitest SILENTLY IGNORES a path that does not exist and still
+        # exits 0 — measured 2026-10-26. So deleting a test file named here
+        # does not go red; the gate just quietly runs one file fewer. Two
+        # entries were stale when this was measured: PomodoroTimer.test.tsx
+        # (deleted with the pomodoro checkpoint) and formatLogData.test.ts
+        # (gone for longer, with CI green the whole time). When you remove a
+        # test file, remove its line here too — nothing else will tell you.
         run: >
-          bunx vitest run --coverage
+          pnpm exec vitest run --coverage
           src/components/__tests__/AppIcon.test.tsx
           src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
           src/components/__tests__/ErrorBoundary.test.tsx
           src/components/__tests__/LanguageSwitcher.test.tsx
+          src/components/__tests__/header-guest-auth-links.test.tsx
           src/components/copilot/__tests__/CopilotChatPanel.test.tsx
           src/feature/tasks/components/__tests__/TaskCard.test.tsx
-          src/feature/tasks/components/timer/PomodoroTimer.test.tsx
           src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
           src/app/ideas/_components/__tests__/IdeasClient.test.tsx
           src/hooks/__tests__/useBackendHealth.test.ts
@@ -363,11 +441,32 @@ jobs:
           src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
           src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
-          src/feature/tasks/hooks/__tests__/formatLogData.test.ts
           src/app/api/generate-claude-md/fallback-package.test.ts
           src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
           src/app/api/review-spec/__tests__/review-prompt.test.ts
           src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
+          src/stores/__tests__/link-library-store.test.ts
+          src/stores/__tests__/link-view-store.test.ts
+          src/components/link-view/useLinkView.test.ts
+          src/components/link-view/LinkViewPane.test.ts
+          src/components/link-view/link-tab-meta.test.ts
+          src/lib/__tests__/pane-layering.test.ts
+          src/components/link-view/group-actions.test.ts
+          src/components/link-view/tab-strip/tab-arrangement.test.ts
+          src/components/link-view/tab-strip/TabStrip.test.tsx
+          src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
+          src/components/common/__tests__/AppContent.test.tsx
+          src/components/common/__tests__/shortcut-editable-guard.test.ts
+          src/app/tasks/[id]/components/TaskNoteSplitView.test.tsx
+          src/components/header/__tests__/task-detail-link.test.ts
+          src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
+          src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
+          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
+          src/components/note/editor/inline-link.test.ts
+          src/components/note/editor/useInlineLinks.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
+          src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
 
   lint:
     name: Lint Code
@@ -386,7 +485,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -394,7 +493,7 @@ jobs:
           bun-version: '1.3.13'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Get pnpm store directory
         shell: bash
@@ -411,7 +510,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Generate Prisma Client (needed for tsc)
         working-directory: rapitas-backend
@@ -421,7 +520,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Check backend TypeScript
         working-directory: rapitas-backend
@@ -441,6 +540,19 @@ jobs:
             echo ""
             echo "ERROR: SQLite generated artifacts are out of sync with the Prisma schema."
             echo "Run 'bun run db:prepare:sqlite' in rapitas-backend/ and commit the regenerated files."
+            exit 1
+          fi
+
+      # The DDL a user's own database is initialized with (#1285) must match
+      # the schema, or "initialize" would create an out-of-date database.
+      - name: Verify PostgreSQL init SQL matches the schema
+        working-directory: rapitas-backend
+        run: |
+          bun run db:prepare:postgres-init
+          if ! git diff --exit-code src/generated/postgres-init-sql.ts; then
+            echo ""
+            echo "ERROR: src/generated/postgres-init-sql.ts is out of sync with prisma/schema."
+            echo "Run 'bun run db:prepare:postgres-init' in rapitas-backend/ and commit the result."
             exit 1
           fi
 
@@ -474,6 +586,17 @@ jobs:
         # Run `bun run generate:route-barrels` and commit the updated files.
         run: bun run generate:route-barrels:check
 
+      # NOTE(#1340 step 1): every workflow must install the versions declared in
+      # .github/toolchain.json. Three Bun versions were writing and validating
+      # one bun.lock — 1.3.13 in the gates, 1.3.11 in update-lockfiles AND in
+      # the release build's matrix, 'latest' in seven jobs including the
+      # lockfile bot — and bun 1.3.13 writes lockfileVersion 1 while a newer
+      # bun writes 2. An audit, a test run and a release build cannot be said
+      # to use the same dependencies while the resolver version varies.
+      - name: Check toolchain version drift
+        working-directory: rapitas-backend
+        run: bun run check:toolchain
+
       - name: Check determinism guard (advisory)
         working-directory: rapitas-backend
         continue-on-error: true
@@ -481,6 +604,21 @@ jobs:
         # findMany feeding a prompt, missing temperature, wall-clock/random in prompt
         # builders) without blocking merges. See scripts/check-determinism.cjs.
         run: bun run determinism:check
+
+      # NOTE(#1332): Until this step existed, NO job ran ESLint over the
+      # backend — `Lint Code` only type-checked it — so all three local rules
+      # declared as "error" in eslint.config.mjs had never once been applied
+      # to the code they exist to police:
+      #   local/no-raw-prisma-insensitive
+      #   local/no-unscoped-pr-number-lookup
+      #   local/no-unguarded-task-delete
+      # Their own unit tests were in the gate, which proved the rules work but
+      # not that anything runs them. Exactly docs/lessons/gates-that-do-not-
+      # measure.md. Verified red by reintroducing a raw `prisma.task.delete`.
+      # Warnings do not fail (280 today, same policy as the frontend); errors do.
+      - name: Lint backend code
+        working-directory: rapitas-backend
+        run: bun run lint
 
       - name: Lint frontend code
         working-directory: rapitas-frontend
@@ -522,6 +660,24 @@ jobs:
       - name: Test the system-dependency installer
         run: node --test scripts/install-ci-system-deps.test.cjs
 
+      # Every root script test, by glob, so a new one cannot be left unwired.
+      # Until #1367 only two of six ran: the tests for primary-guard-hook,
+      # run-checked and verification-command-hook — the hooks every agent
+      # session depends on — ran nowhere. Includes the issue closer (#1365),
+      # whose workflow only runs after a merge. ~10s.
+      - name: Test the root script tools
+        run: node --test "scripts/**/*.test.cjs"
+
+      # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
+      # (#1074): dev.js's helpers had tests that nothing executed, so they
+      # could rot green. This is the desktop side of the step above (root
+      # scripts/ — NOTE: an earlier version of this comment claimed the root
+      # tests were already wired; they were not, see #1367). It costs ~1s on
+      # every PR rather than only on a release build.
+      - name: Test the desktop dev-server scripts
+        working-directory: rapitas-desktop
+        run: node --test scripts/*.test.cjs
+
       - name: Install system dependencies
         run: |
           bash scripts/install-ci-system-deps.sh \
@@ -558,6 +714,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # The guard hooks run on Windows in practice (Git Bash / PowerShell
+      # paths), so their tests run here too, not only on Linux (#1367).
+      - name: Test the root script tools (Windows)
+        shell: bash
+        run: node --test "scripts/**/*.test.cjs"
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -579,3 +741,103 @@ jobs:
         env:
           CI: true
         run: cargo test --workspace
+
+  # NOTE(#1340 step 1, criterion 4): proves the committed lockfiles are
+  # authoritative, on a runner that shares nothing with any other job.
+  #
+  # Every other install in this repository uses `--no-frozen-lockfile`, so
+  # until now no path verified that the lockfiles actually describe an
+  # installable tree — they could drift from package.json indefinitely and
+  # nothing would say so. This job installs all three packages frozen and then
+  # runs the required backend gates against that tree, so "the audit, the tests
+  # and the release build use the same dependencies" is a checked claim rather
+  # than an intention.
+  #
+  # It deliberately does NOT use a dependency cache: a warm cache can hide a
+  # lockfile that no longer resolves from the registry.
+  frozen-install:
+    name: Frozen Install Verification
+    runs-on: ubuntu-latest
+    # Hang backstop only.
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: rapitas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.34.9
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+
+      - name: Backend — frozen install
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      - name: Frontend — frozen install
+        working-directory: rapitas-frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Desktop — frozen install
+        working-directory: rapitas-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bunx prisma generate
+
+      # The gates, against the frozen tree rather than a resolved-fresh one.
+      - name: Backend gate suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: bun run test:ci
+
+      - name: Route regression suite
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: bun run test:routes
+
+      - name: Explain a failure
+        if: failure()
+        run: |
+          {
+            echo "## A frozen install or a gate failed on a clean runner"
+            echo
+            echo "This job installs every package with its lockfile held fixed and"
+            echo "no dependency cache. A failure here means one of:"
+            echo
+            echo "- a lockfile no longer satisfies its package.json (reconcile them"
+            echo "  deliberately — do NOT delete the lockfile and reinstall, which"
+            echo "  upgrades everything it can)"
+            echo "- a lockfile references something the registry no longer serves"
+            echo "- the gates pass only against a freshly-resolved tree, which means"
+            echo "  the committed lockfiles are not what is being tested elsewhere"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -13,6 +13,7 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
+import { isValidEntityId } from '../../../../utils/common/id-validation';
 
 const execAsync = promisify(exec);
 const log = createLogger('routes:agent-execution:base-branches');
@@ -41,11 +42,11 @@ function parseRemoteBranches(stdout: string): string[] {
 export const baseBranchesRoute = new Elysia().get(
   '/tasks/:id/base-branches',
   async (context) => {
-    const taskId = parseInt(context.params.id);
-    if (isNaN(taskId)) {
+    if (!isValidEntityId(context.params.id)) {
       context.set.status = 400;
       return { success: false, branches: [], defaultBranch: null, error: 'Invalid task ID' };
     }
+    const taskId = Number(context.params.id);
 
     const task = await prisma.task
       .findUnique({

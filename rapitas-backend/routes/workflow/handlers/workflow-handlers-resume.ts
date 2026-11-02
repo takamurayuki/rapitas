@@ -23,6 +23,7 @@ import {
   applyQuestionAnswerByKind,
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -230,11 +231,11 @@ export async function handleAnswerWorkflowQuestion({
   /** Kind resolved for this answer — surfaced for observability; the UI does not parse it. / 解決されたkind */
   resolvedKind: QuestionAnswerKind;
 }> {
-  const taskId = parseInt(params.taskId, 10);
-  if (Number.isNaN(taskId)) {
+  if (!isValidEntityId(params.taskId)) {
     set.status = 400;
     throw new ValidationError('Invalid taskId');
   }
+  const taskId = Number(params.taskId);
 
   // A spec question is a decision the WORKFLOW is not entitled to make for
   // itself. Task 662 asked whether its 「視覚的に区別できる」 acceptance criterion

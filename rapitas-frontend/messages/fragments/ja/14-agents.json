@@ -68,6 +68,12 @@
     "trendDays": "トレンド期間（日）",
     "totalExecutions": "総実行回数",
     "successRate": "成功率",
+    "firstPassCompletion": "初回完了率",
+    "firstPassCompletionSample": "完了タスク {count}件",
+    "firstPassCompletionEmpty": "完了タスクなし",
+    "firstPassCompletionLowSample": "標本不足",
+    "executionCompletionRate": "実行完了率 {rate}%",
+    "tokenMix": "cache読み {cache}%・出力 {output}%",
     "totalTokenUsage": "総トークン使用量",
     "activeAgents": "アクティブエージェント",
     "recoveryMetrics": {

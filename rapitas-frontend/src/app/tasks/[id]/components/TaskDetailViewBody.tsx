@@ -9,7 +9,6 @@ import TaskPreviewSection from './TaskPreviewSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import { CopilotChatPanel } from '@/components/copilot';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useTranslations } from 'next-intl';
 
@@ -124,18 +123,6 @@ export default function TaskDetailViewBody({
   const tDev = useTranslations('devMode');
   useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
-  // Context for the copilot's "next action" recommender (rule-based, see
-  // next-action-recommender.ts). canRunAgent mirrors the execute-route gate.
-  const subtasks = task.subtasks ?? [];
-  const nextActionContext = {
-    status: task.status,
-    subtaskTotal: subtasks.length,
-    subtaskDone: subtasks.filter((s) => s.status === 'done').length,
-    complexityScore: task.complexityScore ?? null,
-    estimatedHours: task.estimatedHours ?? null,
-    canRunAgent: !!(task.theme?.isDevelopment && task.theme?.workingDirectory),
-  };
-
   return (
     <>
       <div id="td-info" className="mb-6 scroll-mt-16">
@@ -160,17 +147,12 @@ export default function TaskDetailViewBody({
         />
       </div>
 
-      {/* AI Assistant — proactive next-action chat, on its own. */}
-      <div id="td-ai" className="mb-6 scroll-mt-16">
-        <CopilotChatPanel
-          taskId={taskId}
-          taskTitle={task.title}
-          taskStatus={task.status}
-          taskDescription={task.description}
-          onTaskUpdated={onTaskUpdated}
-          nextActionContext={nextActionContext}
-        />
-      </div>
+      {/* The AI assistant chat used to sit here, between the detail card and
+          the execution card. It is ラピ's now — she is already the thing in
+          this app you talk to, and a second conversational panel on the page
+          cost a card's worth of height on every task whether or not anyone
+          spoke to it. The same component runs in her bubble, against the same
+          /copilot endpoints, so nothing it could do was lost. */}
 
       {/* Agent Execution — split out from the AI assistant chat into its own
           always-visible card. Nesting it inside the chat panel made it

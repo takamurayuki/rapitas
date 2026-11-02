@@ -121,9 +121,21 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
           }
         }
       }
-      if (createdTables > 0 || createdIndexes > 0 || addedColumns > 0) {
+      // Only after the add-phase: an index the init SQL declares must exist
+      // before its superseded predecessor is taken away, or there would be a
+      // window with neither.
+      const droppedIndexes = dropStaleIndexes(database, SQLITE_INIT_SQL, databasePath);
+      if (createdTables > 0 || createdIndexes > 0 || addedColumns > 0 || droppedIndexes > 0) {
         log.info(
-          { databasePath, createdTables, skippedTables, createdIndexes, indexErrors, addedColumns },
+          {
+            databasePath,
+            createdTables,
+            skippedTables,
+            createdIndexes,
+            indexErrors,
+            addedColumns,
+            droppedIndexes,
+          },
           'Desktop SQLite database self-healed missing tables/columns',
         );
       } else {
@@ -312,4 +324,79 @@ export function addMissingColumns(
     }
   }
   return added;
+}
+
+/**
+ * Lowest number of indexes a healthy init SQL declares.
+ *
+ * The drop below infers "the schema no longer wants this index" from the init
+ * SQL's absence of it, which is only sound if the init SQL is complete. A
+ * failed or truncated regeneration would otherwise read as "the schema wants
+ * no indexes" and take every one of them. The live database declared 275 on
+ * 2026-10-28, so a figure this low can only mean the file is broken.
+ */
+const MIN_DECLARED_INDEXES = 50;
+
+/** Prisma names every index it owns `<Table>_..._key` or `<Table>_..._idx`. */
+const PRISMA_INDEX_NAME = /_(?:key|idx)$/;
+
+/**
+ * Drop the Prisma-owned indexes the init SQL no longer declares.
+ *
+ * The rest of the self-heal only ever ADDS, which leaves one kind of drift
+ * permanent: an index the schema has stopped wanting keeps enforcing. That is
+ * not cosmetic. Turning a `@unique` into `@@unique([workspaceId, key])`
+ * creates the new index and leaves the old global one in place, so the second
+ * workspace still cannot insert its own row — the generated client would say
+ * the constraint had changed while the database went on enforcing the old one.
+ * Measured on the live database: 284 indexes against 275 declared, the 9 extra
+ * left behind by models that no longer exist.
+ *
+ * Only indexes matching Prisma's own naming are considered, so an index added
+ * by hand for a slow query is never taken. Dropping an index removes no rows.
+ *
+ * @param database - Open SQLite database / オープン中の SQLite データベース
+ * @param initSql - The generated init SQL, the source of truth / 生成された init SQL
+ * @param databasePath - DB path for log context / ログ用の DB パス
+ * @returns Number of indexes dropped / 削除したインデックス数
+ */
+export function dropStaleIndexes(
+  database: import('bun:sqlite').Database,
+  initSql: string,
+  databasePath: string,
+): number {
+  const declared = new Set<string>();
+  for (const m of initSql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+"([^"]+)"/gi)) {
+    declared.add(m[1]);
+  }
+  if (declared.size < MIN_DECLARED_INDEXES) {
+    log.warn(
+      { databasePath, declared: declared.size, floor: MIN_DECLARED_INDEXES },
+      'Skipping stale-index cleanup: the init SQL declares too few indexes to be trusted',
+    );
+    return 0;
+  }
+
+  // `sql IS NOT NULL` excludes the indexes SQLite creates for UNIQUE table
+  // constraints, which cannot be dropped on their own.
+  const live = database
+    .query("SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
+    .all() as Array<{ name: string }>;
+
+  let dropped = 0;
+  for (const { name } of live) {
+    if (declared.has(name)) continue;
+    if (!PRISMA_INDEX_NAME.test(name)) continue;
+    try {
+      database.exec(`DROP INDEX "${name}"`);
+      dropped++;
+      log.info({ databasePath, index: name }, 'Dropped SQLite index the schema no longer declares');
+    } catch (err) {
+      log.warn(
+        { err, databasePath, index: name },
+        'Failed to drop stale SQLite index (continuing)',
+      );
+    }
+  }
+  return dropped;
 }

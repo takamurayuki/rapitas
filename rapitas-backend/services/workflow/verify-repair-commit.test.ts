@@ -31,26 +31,30 @@ beforeEach(async () => {
     datasources: { db: { url: `file:${join(dir, 'test.db').replaceAll('\\', '/')}` } },
   });
   for (const sql of [
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER, parentId INTEGER)',
-    'CREATE TABLE WorkflowFile (id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, absolutePath TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,fileType))',
-    'CREATE TABLE DeveloperModeConfig (id INTEGER PRIMARY KEY, taskId INTEGER)',
-    'CREATE TABLE AgentSession (id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME, createdAt DATETIME)',
-    'CREATE TABLE ThemeAutoRun (id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
-    'CREATE TABLE WorkflowQueueItem (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, orchestraSessionId INTEGER, themeId INTEGER, status TEXT, currentPhase TEXT, priority INTEGER, dependencies TEXT, retryCount INTEGER DEFAULT 0, maxRetries INTEGER DEFAULT 3, errorMessage TEXT, result TEXT, queuedAt DATETIME DEFAULT CURRENT_TIMESTAMP, startedAt DATETIME, completedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)',
-    'CREATE TABLE WorkflowFileVersion (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, archivedAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
-    'CREATE TABLE ActivityLog (id INTEGER PRIMARY KEY, taskId INTEGER, action TEXT, createdAt DATETIME)',
-    'CREATE TABLE WorkflowTransition (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT, updatedAt DATETIME, themeId INTEGER, parentId INTEGER)',
+    'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, absolutePath TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,fileType))',
+    'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
+    'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
+    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME, createdAt DATETIME)',
+    'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
+    'CREATE TABLE WorkflowQueueItem (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, orchestraSessionId INTEGER, themeId INTEGER, status TEXT, currentPhase TEXT, priority INTEGER, dependencies TEXT, retryCount INTEGER DEFAULT 0, maxRetries INTEGER DEFAULT 3, errorMessage TEXT, result TEXT, queuedAt DATETIME DEFAULT CURRENT_TIMESTAMP, startedAt DATETIME, completedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)',
+    'CREATE TABLE WorkflowFileVersion (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, archivedAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE ActivityLog (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, action TEXT, createdAt DATETIME)',
+    'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
     "INSERT INTO WorkflowFile (id,taskId,fileType) VALUES (1,1,'plan')",
-    'INSERT INTO DeveloperModeConfig VALUES (1,1)',
-    'INSERT INTO AgentSession VALUES (1,1)',
+    'INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)',
+    'INSERT INTO AgentSession (id, configId) VALUES (1,1)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(
     "INSERT INTO Task (id,status,workflowStatus,updatedAt,themeId) VALUES (1,'in-progress','verify_done',?,NULL)",
     now,
   );
-  await db.$executeRawUnsafe("INSERT INTO AgentExecution VALUES (1,1,'running',?,?)", now, now);
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt, createdAt) VALUES (1,1,'running',?,?)",
+    now,
+    now,
+  );
 });
 afterEach(async () => {
   await db?.$disconnect();
@@ -118,7 +122,7 @@ test('durable stop intent blocks repair before task status changes', async () =>
 });
 test('new execution does not authorize an old verdict', async () => {
   await db.$executeRawUnsafe(
-    "INSERT INTO AgentExecution VALUES (2,1,'running',?,?)",
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt, createdAt) VALUES (2,1,'running',?,?)",
     new Date(now.getTime() + 1),
     new Date(now.getTime() + 1),
   );
@@ -242,7 +246,7 @@ test('failed queue write is observable and the same receipt can retry', async ()
 test('old delivery cannot enqueue a newer execution', async () => {
   const receipt = await repairReceipt();
   await db.$executeRawUnsafe(
-    "INSERT INTO AgentExecution VALUES (2,1,'running',?,?)",
+    "INSERT INTO AgentExecution (id, sessionId, status, startedAt, createdAt) VALUES (2,1,'running',?,?)",
     new Date(),
     new Date(),
   );

@@ -55,7 +55,7 @@ mock.module('../../config/database', () => ({
         return Promise.resolve({ createdAt: new Date(NOW_MS - ONE_HOUR_MS - 60_000) });
       },
     },
-    themeAutoRun: { findUnique: () => Promise.resolve({ enabled: true }) },
+    themeAutoRun: { findFirst: () => Promise.resolve({ enabled: true }) },
   },
   ensureDatabaseConnection: async () => {},
 }));

@@ -19,6 +19,7 @@ import type {
   EpisodeOutcome,
   EmotionalTag,
 } from '../../services/self-learning/types';
+import { parseId } from '../../middleware/error-handler';
 
 export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   // --- Experiment CRUD ---
@@ -31,7 +32,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   })
 
   .get('/:id', async ({ params }) => {
-    const experiment = await getExperiment(parseInt(params.id));
+    const experiment = await getExperiment(parseId(params.id, 'experiment ID'));
     if (!experiment) return { error: 'Experiment not found' };
     return experiment;
   })
@@ -53,7 +54,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .put(
     '/:id',
     async ({ params, body }) => {
-      return updateExperiment(parseInt(params.id), {
+      return updateExperiment(parseId(params.id, 'experiment ID'), {
         ...body,
         status: body.status as ExperimentPhase | undefined,
         evaluation: body.evaluation
@@ -88,7 +89,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .post(
     '/:id/research',
     async ({ params, body }) => {
-      return runResearch(parseInt(params.id), body.query);
+      return runResearch(parseId(params.id, 'experiment ID'), body.query);
     },
     {
       body: t.Object({
@@ -101,7 +102,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   .post(
     '/:id/evaluate',
     async ({ params, body }) => {
-      return updateExperiment(parseInt(params.id), {
+      return updateExperiment(parseId(params.id, 'experiment ID'), {
         evaluation: {
           ...body,
           testsPassed: 0,
@@ -124,12 +125,12 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
 
   // --- Timeline ---
   .get('/:id/timeline', async ({ params }) => {
-    return getExperimentTimeline(parseInt(params.id));
+    return getExperimentTimeline(parseId(params.id, 'experiment ID'));
   })
 
   // --- Summary ---
   .get('/:id/summary', async ({ params }) => {
-    return summarizeExperiment(parseInt(params.id));
+    return summarizeExperiment(parseId(params.id, 'experiment ID'));
   })
 
   // --- Episodes ---
@@ -137,7 +138,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
     '/:id/episodes',
     async ({ params, body }) => {
       return saveEpisode({
-        experimentId: parseInt(params.id),
+        experimentId: parseId(params.id, 'experiment ID'),
         phase: body.phase as EpisodePhase,
         content: body.content,
         context: body.context as Record<string, unknown> | undefined,

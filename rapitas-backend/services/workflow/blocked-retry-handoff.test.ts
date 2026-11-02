@@ -69,7 +69,7 @@ const fakePrisma = {
   agentExecution: { findFirst: () => Promise.resolve(liveExecution ? { id: 1 } : null) },
   workflowQueueItem: { findFirst: () => Promise.resolve(queueItem ? { id: 1 } : null) },
   themeAutoRun: {
-    findUnique: () => Promise.resolve(theme ? { ...theme } : null),
+    findFirst: () => Promise.resolve(theme ? { ...theme } : null),
     count: () => Promise.resolve(0),
   },
 };

@@ -32,6 +32,7 @@ import {
   handleDryRunDrift,
 } from '../handlers/workflow-handlers-dry-run';
 import { computeRepairIterationMetrics } from '../../../services/workflow/repair-iteration-metrics';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 // Re-export helpers and types for consumers that import from this path
 export {
@@ -177,10 +178,14 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .get('/tasks/:taskId/transitions', async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId);
-    if (!Number.isFinite(taskId)) {
+    // NOTE(#1349): the status, not just the body. Both outcomes below used to
+    // answer 200 with `success: false`, so a caller reading the status was told
+    // the request had worked — the contract #1335 rejected on stop-execution.
+    if (!isValidEntityId(params.taskId)) {
+      ctx.set.status = 400;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
     const rows = await prisma.workflowTransition
       .findMany({
         where: { taskId },
@@ -188,6 +193,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       })
       .catch(() => null);
     if (!rows) {
+      ctx.set.status = 500;
       return { success: false, error: 'failed to load transitions' };
     }
     const transitions = rows.map((r) => {
@@ -212,10 +218,12 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
    */
   .get('/tasks/:taskId/repair-iterations', async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId);
-    if (!Number.isFinite(taskId)) {
+    // See the transitions route above: the status joins the body.
+    if (!isValidEntityId(params.taskId)) {
+      ctx.set.status = 400;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
     const [transitionRows, commitRows] = await Promise.all([
       prisma.workflowTransition
         .findMany({
@@ -233,6 +241,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         .catch(() => null),
     ]);
     if (!transitionRows || !commitRows) {
+      ctx.set.status = 500;
       return { success: false, error: 'failed to load repair iteration data' };
     }
     const commits = commitRows.map((row) => {

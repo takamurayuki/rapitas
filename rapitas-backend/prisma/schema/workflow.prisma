@@ -14,6 +14,8 @@
  */
 model WorkflowFile {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId    Int
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** "research" | "plan" | "question" | "verify" */
@@ -35,6 +37,7 @@ model WorkflowFile {
 
   @@unique([taskId, fileType])
   @@index([fileType, updatedAt])
+  @@index([workspaceId])
 }
 
 /**
@@ -45,6 +48,8 @@ model WorkflowFile {
  */
 model WorkflowFileVersion {
   id         Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** "research" | "plan" | "question" | "verify" */
@@ -55,11 +60,14 @@ model WorkflowFileVersion {
   archivedAt DateTime @default(now())
 
   @@index([taskId, fileType, archivedAt])
+  @@index([workspaceId])
 }
 
 model WorkflowRoleConfig {
   id              Int            @id @default(autoincrement())
-  role            String         @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  role            String        
   agentConfigId   Int?
   agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
   modelId         String?
@@ -78,12 +86,17 @@ model WorkflowRoleConfig {
   metadata        String         @default("{}")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  @@index([workspaceId])
+  @@unique([workspaceId, role])
 }
 
 // Workflow mode settings (step definitions by mode)
 model WorkflowModeConfig {
   id              Int       @id @default(autoincrement())
-  mode            String    @unique // "lightweight", "standard", "comprehensive"
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  mode            String    // "lightweight", "standard", "comprehensive"
   name            String    // Display name (e.g., "lightweight", "standard", "detailed")
   description     String?   // Mode description
   stepDefinitions String    // JSON: Step definitions [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
@@ -97,11 +110,15 @@ model WorkflowModeConfig {
   updatedAt       DateTime  @updatedAt
 
   @@index([mode])
+  @@index([workspaceId])
+  @@unique([workspaceId, mode])
 }
 
 // Workflow orchestrator sessions
 model OrchestraSession {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   status          String    @default("idle") // idle, conducting, paused, completed, error
   maxConcurrency  Int       @default(3)
   totalTasks      Int       @default(0)
@@ -115,6 +132,7 @@ model OrchestraSession {
   queueItems      WorkflowQueueItem[]
 
   @@index([status])
+  @@index([workspaceId])
 }
 
 /**
@@ -129,6 +147,8 @@ model OrchestraSession {
  */
 model WorkflowTransition {
   id           Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId       Int
   task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   /** Workflow status before the transition. `null` for the very first row. */
@@ -162,11 +182,14 @@ model WorkflowTransition {
   @@index([taskId, createdAt])
   @@index([cause])
   @@index([executionId])
+  @@index([workspaceId])
 }
 
 // Workflow queue items
 model WorkflowQueueItem {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId            Int
   // Set when the item was enqueued by the per-theme auto-run scheduler, so the
   // scheduler can scope "in-flight for this theme" without a session lookup.
@@ -193,6 +216,7 @@ model WorkflowQueueItem {
   @@index([orchestraSessionId])
   @@index([taskId])
   @@index([themeId, status])
+  @@index([workspaceId])
 }
 
 /// Durable, fail-closed ownership and result record for requirement replan reviews.
@@ -218,13 +242,17 @@ model RequirementReviewClaim {
 /// Idempotent authorization for a user-requested re-evaluation.
 model RequirementReviewRetryRequest {
   id         Int      @id @default(autoincrement())
-  requestId  String   @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  requestId  String  
   taskId     Int
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   consumedAt DateTime?
   createdAt  DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([workspaceId])
+  @@unique([workspaceId, requestId])
 }
 
 /// Per-theme auto-execution state. One row per theme that has had auto-run
@@ -234,7 +262,9 @@ model RequirementReviewRetryRequest {
 /// this file — the scheduler always loads themes explicitly by id.
 model ThemeAutoRun {
   id             Int       @id @default(autoincrement())
-  themeId        Int       @unique
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  themeId        Int      
   enabled        Boolean   @default(false)
   status         String    @default("idle") // idle | running | paused | stopping
   order          String    @default("priority") // priority | created
@@ -256,4 +286,6 @@ model ThemeAutoRun {
   updatedAt      DateTime  @updatedAt
 
   @@index([status])
+  @@index([workspaceId])
+  @@unique([workspaceId, themeId])
 }

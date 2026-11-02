@@ -149,7 +149,9 @@ async function tryAutoAnswerOne(
   // keep the pre-existing behaviour for it, and fail open on a lookup error.
   if (task.themeId != null) {
     const autoRun = await prisma.themeAutoRun
-      .findUnique({ where: { themeId: task.themeId }, select: { enabled: true } })
+      // findFirst: themeId is unique per workspace now, so it is not a filter
+      // findUnique can take.
+      .findFirst({ where: { themeId: task.themeId }, select: { enabled: true } })
       .catch(() => null);
     if (autoRun && !autoRun.enabled) {
       log.info(

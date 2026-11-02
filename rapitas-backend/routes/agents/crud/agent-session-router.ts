@@ -10,6 +10,7 @@ import {
   getCurrentActiveExecutionIds,
   getLiveTaskIdsForActiveExecutions,
 } from '../../../services/agents/resumable-execution';
+import { parseId } from '../../../middleware/error-handler';
 
 /**
  * Agent Session Management Router
@@ -22,7 +23,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
   .get('/sessions/:id', async (context) => {
     const { params } = context;
     return await prisma.agentSession.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseId(params.id, 'session ID') },
       include: {
         agentActions: { orderBy: { createdAt: 'desc' } },
         agentExecutions: {
@@ -39,7 +40,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
   // Stop session
   .post('/sessions/:id/stop', async (context) => {
     const { params } = context;
-    const sessionId = parseInt(params.id);
+    const sessionId = parseId(params.id, 'session ID');
 
     // Enumerate durable executions: the worker does not own main-process CLIs.
     const executions = await prisma.agentExecution.findMany({

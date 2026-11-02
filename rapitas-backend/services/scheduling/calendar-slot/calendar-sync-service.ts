@@ -30,6 +30,15 @@ export interface CalendarSyncDeps {
   fetchBusy: (timeMin: Date, timeMax: Date) => Promise<BusyBlock[]>;
   now?: () => Date;
   leadMinutes?: number;
+  /**
+   * Runs the whole sync inside one workspace's scope.
+   *
+   * Load-bearing for the poller: a timer tick happens outside any request, so
+   * without this calendar-store's writes land UNSCOPED and one account's busy
+   * blocks become everyone's. Omitted on a single-workspace install, where
+   * behaviour is identical to before this existed.
+   */
+  runScoped?: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
 function fingerprint(blocks: readonly BusyBlock[]): string {
@@ -69,6 +78,20 @@ export class CalendarSyncService {
    * @returns Sync outcome; never throws / 同期結果（例外を投げない）
    */
   async syncOnce(): Promise<{ status: 'ok' | 'error'; changed: boolean }> {
+    const runScoped = this.deps.runScoped;
+    if (!runScoped) return this.syncOnceInScope();
+    return runScoped(() => this.syncOnceInScope());
+  }
+
+  /**
+   * The sync itself, already inside the workspace scope.
+   *
+   * Everything that touches calendar-store has to be in here, not around the
+   * call — the whole point is that the writes, not only the fetch, are scoped.
+   *
+   * @returns Sync outcome; never throws / 同期結果（例外を投げない）
+   */
+  private async syncOnceInScope(): Promise<{ status: 'ok' | 'error'; changed: boolean }> {
     const now = this.now();
     const horizonEnd = new Date(now.getTime() + CALENDAR_HORIZON_DAYS * 86_400_000);
     try {

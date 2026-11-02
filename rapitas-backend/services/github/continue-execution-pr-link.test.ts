@@ -54,7 +54,11 @@ describe('linkContinueExecutionPr', () => {
 
   test('PRが見つかりタイトルマーカーがtaskIdと一致する場合、linkAutoCreatedPrを呼ぶ', async () => {
     const prisma = makePrisma();
-    await linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' });
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/t1058-fix',
+      cwd: '/wt',
+    });
 
     expect(runGhCommandMock).toHaveBeenCalledTimes(1);
     expect(linkAutoCreatedPrMock).toHaveBeenCalledTimes(1);
@@ -65,7 +69,7 @@ describe('linkContinueExecutionPr', () => {
     };
     expect(arg.taskId).toBe(1058);
     expect(arg.prNumber).toBe(42);
-    expect(arg.headBranch).toBe('feature/1058');
+    expect(arg.headBranch).toBe('feature/t1058-fix');
   });
 
   test('PRが見つかったがタイトルマーカーが別のtaskIdを指す場合、linkAutoCreatedPrを呼ばない', async () => {
@@ -80,7 +84,23 @@ describe('linkContinueExecutionPr', () => {
       ),
     );
     const prisma = makePrisma();
-    await linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' });
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/t1058-fix',
+      cwd: '/wt',
+    });
+
+    expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
+  });
+
+  // #1215: on a branch that is not task 1058's own, `[#1058]` is an issue number.
+  test('[#taskId] でもブランチがタスクのものでなければ linkAutoCreatedPr を呼ばない', async () => {
+    const prisma = makePrisma();
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/1058-issue-fix',
+      cwd: '/wt',
+    });
 
     expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
   });
@@ -97,7 +117,11 @@ describe('linkContinueExecutionPr', () => {
       ),
     );
     const prisma = makePrisma();
-    await linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' });
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/t1058-fix',
+      cwd: '/wt',
+    });
 
     expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
   });
@@ -105,14 +129,22 @@ describe('linkContinueExecutionPr', () => {
   test('該当ブランチにopen PRがない場合（null応答）、linkAutoCreatedPrを呼ばない', async () => {
     runGhCommandMock = mock(() => Promise.resolve('null'));
     const prisma = makePrisma();
-    await linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' });
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/t1058-fix',
+      cwd: '/wt',
+    });
 
     expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
   });
 
   test('Task.githubPrIdが既に設定済みの場合、ghコマンド自体を呼ばない', async () => {
     const prisma = makePrisma(99);
-    await linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' });
+    await linkContinueExecutionPr(prisma, {
+      taskId: 1058,
+      branchName: 'feature/t1058-fix',
+      cwd: '/wt',
+    });
 
     expect(runGhCommandMock).not.toHaveBeenCalled();
     expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
@@ -131,7 +163,11 @@ describe('linkContinueExecutionPr', () => {
     const prisma = makePrisma();
 
     await expect(
-      linkContinueExecutionPr(prisma, { taskId: 1058, branchName: 'feature/1058', cwd: '/wt' }),
+      linkContinueExecutionPr(prisma, {
+        taskId: 1058,
+        branchName: 'feature/t1058-fix',
+        cwd: '/wt',
+      }),
     ).resolves.toBeUndefined();
     expect(linkAutoCreatedPrMock).not.toHaveBeenCalled();
   });

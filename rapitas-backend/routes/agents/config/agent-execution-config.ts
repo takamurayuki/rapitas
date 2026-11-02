@@ -5,6 +5,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
+import { parseId } from '../../../middleware/error-handler';
 
 /** Type for agent execution config create/update body */
 interface ExecutionConfigBody {
@@ -69,7 +70,7 @@ export const agentExecutionConfigRoutes = new Elysia({
 })
   .get('/:taskId', async (context) => {
     const { params, set } = context;
-    const taskId = parseInt((params as { taskId: string }).taskId);
+    const taskId = parseId((params as { taskId: string }).taskId, 'task ID');
 
     const config = await prisma.agentExecutionConfig.findUnique({
       where: { taskId },
@@ -99,7 +100,7 @@ export const agentExecutionConfigRoutes = new Elysia({
     async (context) => {
       const { params, set } = context;
       const body = context.body as ExecutionConfigBody;
-      const taskId = parseInt((params as { taskId: string }).taskId);
+      const taskId = parseId((params as { taskId: string }).taskId, 'task ID');
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
@@ -241,7 +242,7 @@ export const agentExecutionConfigRoutes = new Elysia({
     async (context) => {
       const { set } = context;
       const body = context.body as ExecutionConfigBody;
-      const taskId = parseInt((context.params as { taskId: string }).taskId);
+      const taskId = parseId((context.params as { taskId: string }).taskId, 'task ID');
 
       const existing = await prisma.agentExecutionConfig.findUnique({
         where: { taskId },
@@ -330,7 +331,7 @@ export const agentExecutionConfigRoutes = new Elysia({
 
   .delete('/:taskId', async (context) => {
     const { params, set } = context;
-    const taskId = parseInt((params as { taskId: string }).taskId);
+    const taskId = parseId((params as { taskId: string }).taskId, 'task ID');
 
     const existing = await prisma.agentExecutionConfig.findUnique({
       where: { taskId },

@@ -52,7 +52,7 @@ export async function resolveAutoRunRestartTenureStart(
 ): Promise<number> {
   let startedAt: number | undefined;
   try {
-    const row = await prisma.themeAutoRun.findUnique({
+    const row = await prisma.themeAutoRun.findFirst({
       where: { themeId },
       select: { startedAt: true },
     });

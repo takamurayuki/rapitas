@@ -19,21 +19,9 @@ export type {
   WorkflowRoleConfig,
 } from './workflow.types';
 
-export type {
-  Label,
-  TaskLabel,
-  ExamGoal,
-  StudyStreak,
-  LearningGoalSubtask,
-  LearningGoalTask,
-  LearningGoalPhase,
-  LearningGoalResource,
-  GeneratedLearningPlan,
-  LearningGoal,
-  Habit,
-  HabitLog,
-  Resource,
-} from './learning.types';
+export type { Label, TaskLabel } from './label.types';
+
+export type { Resource } from './resource.types';
 
 export type {
   TimeEntry,

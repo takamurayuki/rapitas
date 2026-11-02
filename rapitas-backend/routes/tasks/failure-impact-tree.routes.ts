@@ -14,6 +14,7 @@ import {
   buildFailureImpactTree,
   type FailureTaskSnapshot,
 } from '../../services/workflow/failure-impact-tree';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:failure-impact-tree');
 
@@ -51,11 +52,11 @@ async function loadTaskFamilySnapshots(failedTaskId: number): Promise<FailureTas
 const failureImpactTreeRoute = new Elysia().get(
   '/tasks/:id/failure-impact-tree',
   async ({ params, set }) => {
-    const failedTaskId = parseInt(params.id, 10);
-    if (Number.isNaN(failedTaskId)) {
+    if (!isValidEntityId(params.id)) {
       set.status = 400;
       return { error: 'invalid task id' };
     }
+    const failedTaskId = Number(params.id);
 
     try {
       const snapshots = await loadTaskFamilySnapshots(failedTaskId);

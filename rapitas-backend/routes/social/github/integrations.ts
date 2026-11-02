@@ -9,6 +9,7 @@ import { prisma } from '../../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../../services/core/github-service';
 import { githubSchemas, githubParamSchemas } from '../../../schemas/github.schema';
 import { makeOwnerRepoString, asOwnerRepoString } from '../../../services/github/owner-repo';
+import { parseId } from '../../../middleware/error-handler';
 
 const githubService = new GitHubService(prisma);
 
@@ -102,7 +103,7 @@ export const integrationRoutes = new Elysia()
   .get('/integrations/:id', async ({ params }) => {
     const { id } = params;
     return await prisma.gitHubIntegration.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'integration ID') },
       include: {
         _count: { select: { pullRequests: true, issues: true } },
       },
@@ -122,7 +123,7 @@ export const integrationRoutes = new Elysia()
       };
 
       return await prisma.gitHubIntegration.update({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
         data: {
           ...(syncIssues !== undefined && { syncIssues }),
           ...(syncPullRequests !== undefined && { syncPullRequests }),
@@ -143,7 +144,7 @@ export const integrationRoutes = new Elysia()
     async ({ params }) => {
       const { id } = params;
       return await prisma.gitHubIntegration.delete({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'integration ID') },
       });
     },
     {
@@ -154,7 +155,7 @@ export const integrationRoutes = new Elysia()
   // Sync PRs
   .post('/integrations/:id/sync-prs', async ({ params }) => {
     const { id } = params;
-    const count = await githubService.syncPullRequests(parseInt(id));
+    const count = await githubService.syncPullRequests(parseId(id, 'integration ID'));
     return { syncedCount: count };
   })
 
@@ -162,7 +163,7 @@ export const integrationRoutes = new Elysia()
   .post('/integrations/:id/sync-issues', async (context) => {
     const { params } = context;
     const { id } = params as { id: string };
-    const count = await githubService.syncIssues(parseInt(id));
+    const count = await githubService.syncIssues(parseId(id, 'integration ID'));
     return { syncedCount: count };
   })
 

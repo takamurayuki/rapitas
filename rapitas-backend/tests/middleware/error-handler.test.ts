@@ -146,6 +146,39 @@ describe('parseId', () => {
     expect(() => parseId('0')).toThrow(ValidationError);
     expect(() => parseId('-5')).toThrow(ValidationError);
   });
+
+  // #1335 レビュー: これが**実際に使われている** parseId（ルート25箇所）。
+  // parseInt は読めない文字で止まるので、'42abc' は 42 を返していた。つまり
+  // 別のリソースを名指ししているように見えるリクエストが行 42 に届く。
+  // PATCH / DELETE では書き換え先を間違える。
+  describe('parseInt が黙って切り詰める入力を拒否すること', () => {
+    test.each([
+      ['42abc', '数字のあとにゴミ'],
+      ['5e2', '指数表記'],
+      ['5.9', '小数点'],
+      ['5 OR 1=1', '空白とSQL片'],
+      ['0x10', '16進表記'],
+      ['  42  ', '前後の空白'],
+      ['+42', '正符号'],
+      ['99999999999999999999', 'MAX_SAFE_INTEGER超'],
+    ])('%p (%s)', (raw) => {
+      expect(() => parseId(raw)).toThrow(ValidationError);
+    });
+
+    test('number 引数でも安全な正整数以外を拒否すること', () => {
+      expect(() => parseId(5.9)).toThrow(ValidationError);
+      expect(() => parseId(Number.MAX_SAFE_INTEGER + 2)).toThrow(ValidationError);
+      expect(() => parseId(Number.NaN)).toThrow(ValidationError);
+    });
+
+    test('有効な id は引き続き通ること', () => {
+      // 厳しくしすぎて正常なidを拒否する修正を防ぐ。
+      expect(parseId('1')).toBe(1);
+      expect(parseId('1465')).toBe(1465);
+      expect(parseId(42)).toBe(42);
+      expect(parseId(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    });
+  });
 });
 
 describe('errorHandler middleware (inline onError)', () => {

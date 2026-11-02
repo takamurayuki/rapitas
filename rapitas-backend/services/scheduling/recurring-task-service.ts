@@ -242,7 +242,6 @@ export async function generateNextTaskInstance(
       themeId: masterTask.themeId,
       projectId: masterTask.projectId,
       milestoneId: masterTask.milestoneId,
-      examGoalId: masterTask.examGoalId,
       isDeveloperMode: masterTask.isDeveloperMode,
       isAiTaskAnalysis: masterTask.isAiTaskAnalysis,
       workflowMode: masterTask.workflowMode,

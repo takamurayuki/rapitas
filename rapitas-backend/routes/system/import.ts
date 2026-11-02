@@ -23,11 +23,6 @@ function validateBackupStructure(data: unknown): data is {
     labels?: unknown[];
     categories?: unknown[];
     themes?: unknown[];
-    habits?: unknown[];
-    habitLogs?: unknown[];
-    examGoals?: unknown[];
-    learningGoals?: unknown[];
-    studyStreaks?: unknown[];
     scheduleEvents?: unknown[];
     timeEntries?: unknown[];
     pomodoroSessions?: unknown[];
@@ -243,50 +238,6 @@ export const importRoutes = new Elysia({ prefix: '/import' })
         async (project) => prisma.project.findFirst({ where: { name: project.name } }),
       );
 
-      // Import habits
-      await importEntities(
-        'habits',
-        data.habits as Array<{
-          name: string;
-          description?: string;
-          frequency?: string;
-          targetCount?: number;
-        }>,
-        async (habit) => {
-          await prisma.habit.create({
-            data: {
-              name: habit.name,
-              description: habit.description,
-              frequency: habit.frequency || 'daily',
-              targetCount: habit.targetCount || 1,
-            },
-          });
-        },
-        async (habit) => prisma.habit.findFirst({ where: { name: habit.name } }),
-      );
-
-      // Import exam goals
-      await importEntities(
-        'examGoals',
-        data.examGoals as Array<{
-          name: string;
-          description?: string;
-          examDate?: string;
-          targetScore?: number;
-        }>,
-        async (goal) => {
-          await prisma.examGoal.create({
-            data: {
-              name: goal.name,
-              description: goal.description,
-              examDate: goal.examDate ? new Date(goal.examDate) : new Date(),
-              targetScore: goal.targetScore?.toString(),
-            },
-          });
-        },
-        async (goal) => prisma.examGoal.findFirst({ where: { name: goal.name } }),
-      );
-
       log.info(
         `Restore completed: imported=${JSON.stringify(result.imported)}, skipped=${JSON.stringify(result.skipped)}, errors=${result.errors.length}`,
       );
@@ -328,19 +279,6 @@ export const importRoutes = new Elysia({ prefix: '/import' })
                 t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
               ),
               themes: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
-              habits: t.Optional(t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 })),
-              habitLogs: t.Optional(
-                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
-              ),
-              examGoals: t.Optional(
-                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
-              ),
-              learningGoals: t.Optional(
-                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
-              ),
-              studyStreaks: t.Optional(
-                t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
-              ),
               scheduleEvents: t.Optional(
                 t.Array(t.Record(t.String(), t.Unknown()), { maxItems: 50000 }),
               ),

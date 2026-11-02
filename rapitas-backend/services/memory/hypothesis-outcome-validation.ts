@@ -29,13 +29,19 @@ export async function validateHypothesesForTaskOutcome(
 ): Promise<number> {
   if (finalStatus !== 'completed' && finalStatus !== 'blocked') return 0;
 
-  const { hypotheses } = await listHypotheses({
+  // NOTE: Narrowed by originTaskId in the query and spanning every forgetting
+  // stage (#1321). The in-memory filter over the first 100 of the theme's open
+  // hypotheses dropped a task's own once that page filled, and dropped them
+  // permanently once they left 'active' — 191 of 226 open hypotheses were
+  // dormant or archived when measured on 2026-10-31. `themeId` is now
+  // redundant: originTaskId already identifies the task that formed them.
+  const { hypotheses: mine } = await listHypotheses({
     status: 'open',
-    ...(themeId != null && { themeId }),
+    originTaskId: taskId,
+    stages: 'all',
     limit: 100,
   }).catch(() => ({ hypotheses: [] }));
 
-  const mine = hypotheses.filter((h) => h.originTaskId === taskId);
   if (mine.length === 0) return 0;
 
   const stance = finalStatus === 'completed' ? 'for' : 'against';

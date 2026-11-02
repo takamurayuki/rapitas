@@ -14,7 +14,14 @@ import type { BusyBlock } from './free-slot';
 
 const log = createLogger('calendar-store');
 
-const SYNC_STATE_ID = 1;
+// NOTE: the row used to be addressed as `id: 1`, which the model's
+// `@id @default(1)` invited. Under workspace scoping that cannot work — the
+// scope layer adds `workspaceId` to the where, so a second workspace's write
+// missed and then tried to CREATE id=1 again, colliding with the first
+// workspace's row. The failure was caught and logged at warn, so the status
+// silently never persisted for anyone but the default workspace. Every access
+// below is find-then-write instead, letting the scope layer choose the row
+// and stamp the owner.
 
 /** Persisted poller status (single CalendarSyncState row). */
 export interface CalendarSyncStateRecord {
@@ -32,8 +39,9 @@ interface CalendarBusyBlockDelegate {
 }
 
 interface CalendarSyncStateDelegate {
-  upsert(args: object): Promise<unknown>;
-  findUnique(args: object): Promise<CalendarSyncStateRecord | null>;
+  findFirst(args: object): Promise<({ id: number } & Partial<CalendarSyncStateRecord>) | null>;
+  update(args: { where: { id: number }; data: CalendarSyncStateRecord }): Promise<unknown>;
+  create(args: { data: CalendarSyncStateRecord }): Promise<unknown>;
 }
 
 interface CalendarDb {
@@ -105,18 +113,23 @@ export async function listBusyBlocks(): Promise<BusyBlock[]> {
 }
 
 /**
- * The poller status row.
+ * This workspace's poller status row.
  *
  * @returns Status, or null when absent / unreadable / 同期状態（無ければ null）
  */
 export async function getSyncState(): Promise<CalendarSyncStateRecord | null> {
   try {
-    return await (
+    const row = await (
       await db()
-    ).calendarSyncState.findUnique({
-      where: { id: SYNC_STATE_ID },
+    ).calendarSyncState.findFirst({
       select: { lastSyncedAt: true, lastStatus: true, lastError: true },
     });
+    if (!row) return null;
+    return {
+      lastSyncedAt: row.lastSyncedAt ?? null,
+      lastStatus: row.lastStatus ?? 'never',
+      lastError: row.lastError ?? null,
+    };
   } catch (err) {
     log.warn({ err }, '[calendar-store] getSyncState failed');
     return null;
@@ -124,20 +137,22 @@ export async function getSyncState(): Promise<CalendarSyncStateRecord | null> {
 }
 
 /**
- * Upsert the poller status row.
+ * Write this workspace's poller status row, creating it on first use.
  *
  * @param state - New status / 新しい同期状態
  * @returns false when the DB write failed / 書き込み失敗時は false
  */
 export async function saveSyncState(state: CalendarSyncStateRecord): Promise<boolean> {
   try {
-    await (
-      await db()
-    ).calendarSyncState.upsert({
-      where: { id: SYNC_STATE_ID },
-      create: { id: SYNC_STATE_ID, ...state },
-      update: state,
-    });
+    const client = await db();
+    const existing = await client.calendarSyncState.findFirst({ select: { id: true } });
+    if (existing) {
+      await client.calendarSyncState.update({ where: { id: existing.id }, data: state });
+    } else {
+      // No id and no workspaceId: the column default assigns the one, the
+      // scope layer stamps the other.
+      await client.calendarSyncState.create({ data: state });
+    }
     return true;
   } catch (err) {
     log.warn({ err }, '[calendar-store] saveSyncState failed');

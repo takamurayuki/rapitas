@@ -17,7 +17,7 @@
  */
 'use strict';
 
-const { execSync, spawnSync } = require('child_process');
+const { execSync } = require('child_process');
 const { randomBytes } = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -110,41 +110,6 @@ function askQuestion(query) {
       resolve(answer.trim());
     });
   });
-}
-
-// --- Helper: approve pnpm build scripts ---
-function approvePnpmBuilds(dir) {
-  const settingsFile = path.join(dir, 'node_modules', '.pnpm', 'settings.json');
-
-  // Check if we need to approve builds
-  try {
-    const result = execSync('pnpm config get enable-pre-post-scripts', {
-      cwd: dir,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-
-    // If pre/post scripts are disabled, we need to approve builds
-    if (result === 'false') {
-      info('Approving pnpm build scripts...');
-
-      // Use --yes to auto-approve all build scripts
-      const approveCmd = 'echo "yes" | pnpm config set enable-pre-post-scripts true';
-      execSync(approveCmd, {
-        cwd: dir,
-        encoding: 'utf-8',
-        stdio: 'inherit',
-        shell: true,
-      });
-
-      ok('Build scripts approved');
-      return true;
-    }
-  } catch (err) {
-    // If command fails, settings might not exist yet - that's okay
-  }
-
-  return false;
 }
 
 // --- Step 1: Check prerequisites ---

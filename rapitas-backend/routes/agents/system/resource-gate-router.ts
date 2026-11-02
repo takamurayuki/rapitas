@@ -11,6 +11,7 @@ import { prisma } from '../../../config/database';
 import { WorkflowQueueService } from '../../../services/workflow/workflow-queue';
 import { getHostCpuBusyPercent } from '../../../services/system/resource-telemetry';
 import { requestResourceGateOverride } from '../../../services/workflow/auto-run/resource-contention-gate';
+import { parseId } from '../../../middleware/error-handler';
 
 const DEFAULT_THRESHOLD_PERCENT = 85;
 
@@ -61,7 +62,7 @@ export const resourceGateRouter = new Elysia({ prefix: '/agents/resource-gate' }
   .post(
     '/override/:themeId',
     ({ params, set }) => {
-      requestResourceGateOverride(parseInt(params.themeId, 10));
+      requestResourceGateOverride(parseId(params.themeId, 'theme ID'));
       set.status = 204;
     },
     { params: t.Object({ themeId: t.String() }) },

@@ -13,6 +13,8 @@ enum ScheduleEventType {
 // Schedule events (calendar schedule with reminder notifications)
 model ScheduleEvent {
   id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   title           String
   description     String?
   startAt         DateTime
@@ -37,12 +39,15 @@ model ScheduleEvent {
   @@index([userId])
   @@index([startAt])
   @@index([parentEventId])
+  @@index([workspaceId])
 }
 
 // Paid leave remaining days management
 model PaidLeaveBalance {
   id                    Int       @id @default(autoincrement())
-  userId                String    @unique @default("default")
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  userId                String    @default("default")
   totalDays             Int       @default(20) // Annual granted days
   usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
   remainingDays         Float     // Remaining days (actually stored, not a computed field)
@@ -52,27 +57,45 @@ model PaidLeaveBalance {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  @@unique([userId, fiscalYear])
+  @@unique([workspaceId, userId, fiscalYear])
   @@index([fiscalYear])
+  @@index([workspaceId])
+  @@unique([workspaceId, userId])
 }
 
 // Google Calendar busy interval for the calendar-aware auto-run gate (task 1174).
 // Times only — no title / attendee / location column, by design (AC1).
 model CalendarBusyBlock {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   startAt   DateTime
   endAt     DateTime
   fetchedAt DateTime @default(now())
 
   @@index([startAt])
+  @@index([workspaceId])
 }
 
-// Single-row status of the calendar FreeBusy poller (id = 1). lastError never
-// contains event details; the OAuth token lives in the OS keychain, not here.
+// Status of the calendar FreeBusy poller, one row PER WORKSPACE. lastError
+// never contains event details; the OAuth token lives in the OS keychain, not
+// here.
+//
+// NOTE: `id` was `@default(1)` because this was a single-row table addressed
+// as `id: 1`. Once the calendar connection became per-account (2026-10-29)
+// that collided: the scope layer adds `workspaceId` to the where, so a second
+// workspace's write missed and then tried to create id=1 again on top of the
+// first workspace's row. autoincrement + a unique on the owner is what makes
+// "one row per workspace" true rather than hoped-for. Changed while both
+// calendar tables were empty, so no row had to be migrated.
 model CalendarSyncState {
-  id           Int       @id @default(1)
+  id           Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   lastSyncedAt DateTime?
   lastStatus   String    @default("never") // never | ok | error
   lastError    String?
   updatedAt    DateTime  @updatedAt
+  @@unique([workspaceId])
+  @@index([workspaceId])
 }

@@ -280,7 +280,7 @@ export async function generateWeeklyReview(
       return lastWeek;
     })();
 
-  const existing = await prisma.weeklyReview.findUnique({
+  const existing = await prisma.weeklyReview.findFirst({
     where: { weekStart: targetWeekStart },
   });
   if (existing) {

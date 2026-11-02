@@ -32,6 +32,23 @@ const deleteMany = guard('deleteMany', { count: 1 });
 const createMany = guard('createMany', { count: 1 });
 const findMany = guard('findMany', [{ startAt: at('10:00'), endAt: at('11:00') }]);
 const upsert = guard('upsert', {});
+let existingSyncStateId: number | null = 7;
+const syncFindFirst = mock(async (_args?: unknown) => {
+  calls.push('syncFindFirst');
+  if (fail) throw new Error('no such table: CalendarSyncState');
+  // One delegate serves both calls with different `select`s, so the double
+  // returns the id AND the status fields rather than guessing which call it is.
+  return existingSyncStateId === null
+    ? null
+    : {
+        id: existingSyncStateId,
+        lastSyncedAt: at('09:55'),
+        lastStatus: 'ok' as const,
+        lastError: null,
+      };
+});
+const syncUpdate = guard('syncUpdate', {});
+const syncCreate = guard('syncCreate', {});
 const findUnique = guard('findUnique', {
   lastSyncedAt: at('09:55'),
   lastStatus: 'ok',
@@ -42,7 +59,13 @@ const activityCreate = guard('activityCreate', {});
 mock.module('../../../config/database', () => ({
   prisma: {
     calendarBusyBlock: { deleteMany, createMany, findMany },
-    calendarSyncState: { upsert, findUnique },
+    calendarSyncState: {
+      upsert,
+      findUnique,
+      findFirst: syncFindFirst,
+      update: syncUpdate,
+      create: syncCreate,
+    },
     activityLog: { create: activityCreate },
     $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
   },
@@ -54,7 +77,18 @@ const store = await import('./calendar-store');
 beforeEach(() => {
   calls.length = 0;
   fail = false;
-  for (const m of [deleteMany, createMany, findMany, upsert, findUnique, activityCreate]) {
+  existingSyncStateId = 7;
+  for (const m of [
+    deleteMany,
+    createMany,
+    findMany,
+    upsert,
+    findUnique,
+    activityCreate,
+    syncFindFirst,
+    syncUpdate,
+    syncCreate,
+  ]) {
     m.mockClear();
   }
 });
@@ -82,14 +116,12 @@ describe('calendar-store', () => {
     });
   });
 
-  it('saveSyncState upserts the single row and getSyncState reads it back', async () => {
+  it('saveSyncState writes the row it found and getSyncState reads it back', async () => {
     const state = { lastSyncedAt: at('09:55'), lastStatus: 'error' as const, lastError: 'x' };
     expect(await store.saveSyncState(state)).toBe(true);
-    expect(upsert.mock.calls[0]![0]).toEqual({
-      where: { id: 1 },
-      create: { id: 1, ...state },
-      update: state,
-    });
+    // Keyed on the row the scope layer picked, not on a literal id — see the
+    // NOTE in calendar-store.ts for what the literal broke.
+    expect(syncUpdate.mock.calls[0]![0]).toEqual({ where: { id: 7 }, data: state });
     expect(await store.getSyncState()).toEqual({
       lastSyncedAt: at('09:55'),
       lastStatus: 'ok',
@@ -125,5 +157,58 @@ describe('calendar-store', () => {
         ),
       );
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * One sync-state row per workspace.
+ *
+ * The row was addressed as `id: 1` — a literal, because the model declares
+ * `@id @default(1)` as a single-row table. Under workspace scoping that is
+ * unworkable: the scope layer adds `workspaceId` to the where, so a second
+ * workspace's upsert misses and then CREATEs id=1 again, colliding with the
+ * first workspace's row. The write failed, was caught, logged at warn and
+ * reported as `false` — the status silently never persisted for anyone but
+ * the default workspace. Find-then-write lets the scope layer pick the row
+ * and stamp the owner.
+ */
+describe('saveSyncState is per workspace', () => {
+  const state = { lastSyncedAt: at('09:00'), lastStatus: 'ok' as const, lastError: null };
+
+  it('never addresses the row by a hard-coded id', async () => {
+    expect(await store.saveSyncState(state)).toBe(true);
+    expect(calls).not.toContain('upsert');
+    for (const call of syncUpdate.mock.calls as unknown as [{ where: { id: number } }][]) {
+      expect(call[0].where.id).toBe(7);
+    }
+  });
+
+  it('updates the row this workspace already has', async () => {
+    await store.saveSyncState(state);
+    expect(calls).toEqual(['syncFindFirst', 'syncUpdate']);
+    expect(syncCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates one when this workspace has none, without choosing an id', async () => {
+    existingSyncStateId = null;
+    await store.saveSyncState(state);
+    expect(calls).toEqual(['syncFindFirst', 'syncCreate']);
+    const args = syncCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    // An explicit id is what collided across workspaces; the DB assigns it.
+    expect(args.data).not.toHaveProperty('id');
+    expect(args.data).not.toHaveProperty('workspaceId');
+  });
+
+  it('still reports false instead of throwing when the DB is unavailable', async () => {
+    fail = true;
+    expect(await store.saveSyncState(state)).toBe(false);
+  });
+});
+
+describe('getSyncState is per workspace', () => {
+  it('reads without a hard-coded id, so the scope layer picks the row', async () => {
+    await store.getSyncState();
+    expect(calls).toEqual(['syncFindFirst']);
+    expect(findUnique).not.toHaveBeenCalled();
   });
 });

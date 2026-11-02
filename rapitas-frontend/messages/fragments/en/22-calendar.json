@@ -1,5 +1,11 @@
 {
   "calendar": {
+    "shared": {
+      "pickerLabel": "Calendar to show",
+      "myCalendar": "My calendar",
+      "notShared": "This calendar is not shared with you — they may have revoked it.",
+      "readFailed": "Could not load the shared calendar."
+    },
     "title": "Calendar",
     "subtitle": "View schedules, deadlines, and exam dates",
     "newEvent": "New event",

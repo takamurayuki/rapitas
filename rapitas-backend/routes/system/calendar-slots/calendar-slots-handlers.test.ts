@@ -164,7 +164,7 @@ describe('completeCalendarOAuth', () => {
     const store = new MemoryCalendarTokenStore();
     const r = await completeCalendarOAuth(
       { code: 'c', state: 'forged' },
-      { exchange, tokenStore: store, triggerSync: async () => {} },
+      { exchange, tokenStoreFor: () => store, triggerSync: async () => {} },
     );
     expect(r).toBe('invalid_state');
     expect(exchange).not.toHaveBeenCalled();
@@ -172,12 +172,16 @@ describe('completeCalendarOAuth', () => {
   });
 
   it('stores the refresh token via the token store and triggers a sync', async () => {
-    const state = createOAuthState();
+    const state = createOAuthState(1);
     const store = new MemoryCalendarTokenStore();
     const triggerSync = mock(async () => {});
     const r = await completeCalendarOAuth(
       { code: 'c', state },
-      { exchange: async () => ({ refresh_token: 'rt-1' }), tokenStore: store, triggerSync },
+      {
+        exchange: async () => ({ refresh_token: 'rt-1' }),
+        tokenStoreFor: () => store,
+        triggerSync,
+      },
     );
     expect(r).toBe('connected');
     expect(store.get()).toBe('rt-1');
@@ -185,21 +189,130 @@ describe('completeCalendarOAuth', () => {
     // A state is single-use.
     const again = await completeCalendarOAuth(
       { code: 'c', state },
-      { exchange: async () => ({ refresh_token: 'rt-2' }), tokenStore: store, triggerSync },
+      {
+        exchange: async () => ({ refresh_token: 'rt-2' }),
+        tokenStoreFor: () => store,
+        triggerSync,
+      },
     );
     expect(again).toBe('invalid_state');
   });
 
   it('reports no_refresh_token when Google omits it', async () => {
-    const state = createOAuthState();
+    const state = createOAuthState(1);
     const r = await completeCalendarOAuth(
       { code: 'c', state },
       {
         exchange: async () => ({ refresh_token: null }),
-        tokenStore: new MemoryCalendarTokenStore(),
+        tokenStoreFor: () => new MemoryCalendarTokenStore(),
         triggerSync: async () => {},
       },
     );
     expect(r).toBe('no_refresh_token');
+  });
+});
+
+/**
+ * Which account is connecting.
+ *
+ * The callback is a top-level redirect FROM accounts.google.com, and the
+ * session cookie is SameSite=Strict — so it is not sent, and
+ * `currentWorkspaceId()` is null inside this request. The workspace therefore
+ * has to be remembered when the flow STARTS. It is kept server-side, in the
+ * same single-use state map that already guards CSRF, so nothing in the URL
+ * is trusted.
+ */
+describe('which workspace the connection belongs to', () => {
+  it('stores the token into the workspace that started the flow', async () => {
+    const stores = new Map<number | null, MemoryCalendarTokenStore>();
+    const storeFor = (ws: number | null) => {
+      if (!stores.has(ws)) stores.set(ws, new MemoryCalendarTokenStore());
+      return stores.get(ws)!;
+    };
+
+    const state = createOAuthState(2);
+    const r = await completeCalendarOAuth(
+      { code: 'c', state },
+      {
+        exchange: async () => ({ refresh_token: 'rt-ws2' }),
+        tokenStoreFor: storeFor,
+        triggerSync: async () => {},
+      },
+    );
+
+    expect(r).toBe('connected');
+    expect(storeFor(2).get()).toBe('rt-ws2');
+    // The point of the change: it must not land in the default workspace.
+    expect(storeFor(1).get()).toBeNull();
+  });
+
+  it('syncs the workspace that connected, not the request context', async () => {
+    const synced: (number | null)[] = [];
+    const state = createOAuthState(2);
+
+    await completeCalendarOAuth(
+      { code: 'c', state },
+      {
+        exchange: async () => ({ refresh_token: 'rt' }),
+        tokenStoreFor: () => new MemoryCalendarTokenStore(),
+        triggerSync: async (ws) => {
+          synced.push(ws);
+        },
+      },
+    );
+
+    expect(synced).toEqual([2]);
+  });
+
+  it('keeps two flows apart when they overlap', async () => {
+    // Two accounts connecting at once must not swap tokens; the state is what
+    // tells them apart, not any shared variable.
+    const stores = new Map<number | null, MemoryCalendarTokenStore>();
+    const storeFor = (ws: number | null) => {
+      if (!stores.has(ws)) stores.set(ws, new MemoryCalendarTokenStore());
+      return stores.get(ws)!;
+    };
+    const stateA = createOAuthState(1);
+    const stateB = createOAuthState(2);
+
+    await completeCalendarOAuth(
+      { code: 'a', state: stateB },
+      {
+        exchange: async () => ({ refresh_token: 'for-2' }),
+        tokenStoreFor: storeFor,
+        triggerSync: async () => {},
+      },
+    );
+    await completeCalendarOAuth(
+      { code: 'b', state: stateA },
+      {
+        exchange: async () => ({ refresh_token: 'for-1' }),
+        tokenStoreFor: storeFor,
+        triggerSync: async () => {},
+      },
+    );
+
+    expect(storeFor(1).get()).toBe('for-1');
+    expect(storeFor(2).get()).toBe('for-2');
+  });
+
+  it('still refuses a forged state, so the workspace cannot be chosen by the caller', async () => {
+    const stores = new Map<number | null, MemoryCalendarTokenStore>();
+    const storeFor = (ws: number | null) => {
+      if (!stores.has(ws)) stores.set(ws, new MemoryCalendarTokenStore());
+      return stores.get(ws)!;
+    };
+
+    const r = await completeCalendarOAuth(
+      { code: 'c', state: 'forged' },
+      {
+        exchange: async () => ({ refresh_token: 'rt' }),
+        tokenStoreFor: storeFor,
+        triggerSync: async () => {},
+      },
+    );
+
+    expect(r).toBe('invalid_state');
+    expect(stores.size).toBe(0);
   });
 });

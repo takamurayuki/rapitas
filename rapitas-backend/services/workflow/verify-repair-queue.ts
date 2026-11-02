@@ -115,7 +115,7 @@ export async function readRepairQueueEligibility(
   const theme =
     task.themeId === null
       ? null
-      : await tx.themeAutoRun.findUnique({
+      : await tx.themeAutoRun.findFirst({
           where: { themeId: task.themeId },
           select: { enabled: true, status: true },
         });

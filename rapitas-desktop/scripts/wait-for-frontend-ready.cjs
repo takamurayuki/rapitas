@@ -15,6 +15,12 @@
  * nothing saying to wait. So the probe issues a real GET and lets the request
  * itself be the wait, with a long per-request timeout; repeatedly aborting and
  * re-issuing would keep interrupting the very compile it is waiting for.
+ *
+ * Why the response's IDENTITY is checked too. On 2026-10-29 another project's
+ * Rails dev server held 127.0.0.1:3000 and answered 200 on `/`. This gate
+ * passed on that 200 and announced the frontend as serving, so the rapitas
+ * window showed the other project and nothing said why. A readiness check
+ * that cannot tell whose server answered is not measuring readiness.
  */
 
 /** Status codes that mean the dev server is serving. */
@@ -34,33 +40,121 @@ const DEFAULT_PROGRESS_EVERY_MS = 10_000;
  */
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 
+/** Appears in this app's own HTML (the root layout's title). */
+const APP_MARKER = 'Rapi+';
+/** Next.js sends this unless `poweredByHeader` is turned off; this app leaves it on. */
+const DEV_SERVER_HEADER = 'x-powered-by';
+/** The value that identifies the response as coming from a Next.js server. */
+const DEV_SERVER_SIGNATURE = 'next.js';
+
+/**
+ * Whose server answered, and whether it is serving.
+ *
+ * `ready` on the Next.js header alone, not only on the app marker: a compile
+ * error is served by OUR dev server with an overlay instead of the app's
+ * HTML, and reporting that as someone else's server would turn a build error
+ * into a bogus port-conflict report.
+ *
+ * @param {object} response
+ * @param {number} response.statusCode HTTP status / HTTPステータス
+ * @param {Record<string,string|string[]|undefined>} response.headers Response headers / レスポンスヘッダ
+ * @param {string} response.body Response body, possibly truncated / レスポンス本文（切り詰め可）
+ * @returns {'ready'|'not-serving'|'foreign'} What answered / 応答したものの判定
+ */
+function classifyResponse({ statusCode, headers, body }) {
+  if (statusCode < READY_STATUS_MIN || statusCode > READY_STATUS_MAX) return 'not-serving';
+  if (typeof body === 'string' && body.includes(APP_MARKER)) return 'ready';
+  const powered = headerValue(headers, DEV_SERVER_HEADER);
+  if (powered !== null && powered.toLowerCase().includes(DEV_SERVER_SIGNATURE)) return 'ready';
+  return 'foreign';
+}
+
+/**
+ * One header, by a case-insensitive name.
+ *
+ * Node lower-cases incoming header names, but this is also called with
+ * hand-written objects, where the casing is whatever the author typed.
+ *
+ * @param {Record<string,string|string[]|undefined>} headers Headers / ヘッダ
+ * @param {string} name Lower-case header name / 小文字のヘッダ名
+ * @returns {string|null} The value, or null / 値、無ければ null
+ */
+function headerValue(headers, name) {
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    if (key.toLowerCase() !== name) continue;
+    return Array.isArray(value) ? value.join(',') : (value ?? null);
+  }
+  return null;
+}
+
+/**
+ * How much of the body to keep while looking for the marker.
+ *
+ * The marker sits in `<head>`, so a few KB is plenty, and an unbounded read
+ * would hold the whole page in memory on every poll.
+ */
+const BODY_SCAN_LIMIT = 16_384;
+
+/** @typedef {{kind:'ready'|'not-serving'|'foreign', statusCode:number, server:string|null}} ProbeResult */
+
 /**
  * One HTTP GET against the dev server's root.
  *
  * @param {number} port Frontend port / フロントのポート
  * @param {number} requestTimeoutMs Per-request ceiling / 1リクエストの上限
- * @returns {Promise<boolean>} Whether it served a page / ページを返したか
+ * @returns {Promise<ProbeResult>} What answered / 応答したものの判定
  */
 function httpProbe(port, requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
   const http = require('http');
+  const unreachable = { kind: 'not-serving', statusCode: 0, server: null };
   return new Promise((resolve) => {
     // 127.0.0.1, not localhost: on Windows the [::1] attempt is dropped
     // silently and every probe would pay the happy-eyeballs fallback.
     const req = http.get(
       { hostname: '127.0.0.1', port, path: '/', timeout: requestTimeoutMs },
       (res) => {
-        // Drain: an undrained response keeps the socket open and the next
-        // probe would queue behind it.
-        res.resume();
-        resolve(res.statusCode >= READY_STATUS_MIN && res.statusCode <= READY_STATUS_MAX);
+        const statusCode = res.statusCode ?? 0;
+        const server = headerValue(res.headers, 'server');
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          // Keep consuming after the cap rather than destroying the socket:
+          // an undrained response keeps it open and the next probe would
+          // queue behind it.
+          if (body.length < BODY_SCAN_LIMIT) body += chunk;
+        });
+        res.on('end', () => {
+          resolve({
+            kind: classifyResponse({ statusCode, headers: res.headers, body }),
+            statusCode,
+            server,
+          });
+        });
+        res.on('error', () => resolve(unreachable));
       },
     );
-    req.on('error', () => resolve(false));
+    req.on('error', () => resolve(unreachable));
     req.on('timeout', () => {
       req.destroy();
-      resolve(false);
+      resolve(unreachable);
     });
   });
+}
+
+/**
+ * Accept both probe shapes.
+ *
+ * The injected probes in the tests — and any caller written before identity
+ * checking existed — return a plain boolean.
+ *
+ * @param {boolean|ProbeResult|null|undefined} result Raw probe result / プローブの生の戻り値
+ * @returns {ProbeResult} Normalised result / 正規化した結果
+ */
+function normalizeProbeResult(result) {
+  if (result !== null && typeof result === 'object' && typeof result.kind === 'string') {
+    return { statusCode: 0, server: null, ...result };
+  }
+  return { kind: result ? 'ready' : 'not-serving', statusCode: 0, server: null };
 }
 
 /**
@@ -99,13 +193,24 @@ async function waitForFrontendReady(opts) {
   // do/while, not while: a zero or negative timeout must still probe once
   // rather than silently skip the check and claim nothing is known.
   do {
-    let ok = false;
+    let outcome = { kind: 'not-serving', statusCode: 0, server: null };
     try {
-      ok = await probe(port);
+      outcome = normalizeProbeResult(await probe(port));
     } catch {
-      ok = false; // not listening yet
+      // not listening yet
     }
-    if (ok) {
+    // Someone else's server will never become ours, so waiting the full
+    // ceiling only delays the one message that explains the screen.
+    if (outcome.kind === 'foreign') {
+      const who = outcome.server ?? 'an unidentified server';
+      log.warn(
+        `  ❌ ポート ${port} に応答しているのは rapitas のフロントエンドではありません ` +
+          `(HTTP ${outcome.statusCode}, Server: ${who})。` +
+          'そのプロセスを停止するか別ポートへ移してから、rapitas を起動し直してください。',
+      );
+      return { ready: false, elapsedMs: now() - startedAt, foreign: outcome };
+    }
+    if (outcome.kind === 'ready') {
       const elapsedMs = now() - startedAt;
       log.info(`  ✅ Frontend is serving (http://127.0.0.1:${port}/) after ${Math.round(elapsedMs / 1000)}s`);
       return { ready: true, elapsedMs };
@@ -130,6 +235,8 @@ async function waitForFrontendReady(opts) {
 module.exports = {
   waitForFrontendReady,
   httpProbe,
+  classifyResponse,
+  APP_MARKER,
   READY_STATUS_MIN,
   READY_STATUS_MAX,
   DEFAULT_TIMEOUT_MS,

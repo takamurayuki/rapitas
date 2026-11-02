@@ -51,6 +51,27 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { killDeadPidEstablishedPeers } = require('./dev-established-cleanup.cjs');
 const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-frontend-ready.cjs');
+const { createDevSessionLog } = require('./dev-session-log.cjs');
+const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
+const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
+const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
+// ─── セッションログ ───
+// NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
+// 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
+// backend 側の pino ログには pid の連鎖(41840 → 15896 → 17184)とその後の「4つ目が
+// 無い」事実だけが残り、dev.js がなぜ死んだかはディスク上のどこにも無かった。
+// console をここで tee してから以降の全出力をファイルにも残す。
+const devSessionLog = createDevSessionLog();
+devSessionLog.wrapConsole(console);
+devSessionLog.appendDevEvent('dev_start', {
+  argv: process.argv.slice(2),
+  node: process.version,
+  cwd: process.cwd(),
+});
+// A hard kill (taskkill /F) runs no handler, so no exit event is ever written
+// for it. A last heartbeat with nothing after it is the only thing that tells
+// "killed" apart from "stopped cleanly". Unref'd, so it cannot hold dev.js open.
+devSessionLog.startHeartbeat();
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -421,6 +442,30 @@ async function ensurePortAvailable(port) {
     console.log(
       `  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(', ')}`,
     );
+  }
+
+  // Say so when the port belongs to another program entirely. Until now
+  // the only hint was forceKillAllOnPort's terse "does not look
+  // rapitas-related" line, buried among the kill retries, so the
+  // 2026-10-29 Rails collision looked like rapitas simply showing another
+  // project. This only reports: the kill decision and its identity guard
+  // are unchanged, because "not confirmed ours" also covers our own
+  // orphaned bun.exe (see port-ownership.cjs).
+  if (listeningPids.size > 0) {
+    const occupants = [...listeningPids].map((pid) => {
+      const procs = queryWin32Processes(`ProcessId=${pid}`);
+      return {
+        pid,
+        name: procs[0] ? procs[0].Name : null,
+        commandLine: procs[0] ? procs[0].CommandLine : null,
+      };
+    });
+    const occupancy = classifyOccupancy({ occupants, isRapitasOwned: isRapitasOwnedProcess });
+    if (occupancy.kind === 'foreign') {
+      for (const line of describePortConflict({ port, foreign: occupancy.foreign })) {
+        console.warn(line);
+      }
+    }
   }
 
   // バックエンドポートの場合、まずエージェント実行中かチェック
@@ -2194,6 +2239,28 @@ async function restartBackendInner(processAlreadyExited) {
       console.error('❌ Frontend recycle failed:', err.message || err),
     );
   }
+
+  // 同じ理由で Rust も見る。exit 75 の自己デプロイは backend の子プロセスを
+  // 撃ち直すだけで dev.js 自身は生き続けるため、main() は二度と走らない。
+  // 起動時だけに置くと、マージで入ってきた Rust 変更が永久に再ビルドされない。
+  kickTauriRebuild('after-backend-restart');
+}
+
+/**
+ * Rust 変更を拾っていたら Tauri シェルを再ビルドする。
+ *
+ * NOTE: await しない。cargo build は分単位でかかり、待つとエージェントの
+ * 生命線である backend の利用開始をその分遅らせる。変更が無ければ
+ * 状態ファイルを見て即座に戻るので、毎回呼んでも安い。
+ *
+ * @param {string} cause - 呼び出し元(ログ用) / 発火元
+ */
+function kickTauriRebuild(cause) {
+  void maybeRebuildTauri({
+    repoRoot: REPO_ROOT,
+    enabled: process.env.RAPITAS_AUTO_REBUILD_TAURI !== '0',
+    log: { info: (m) => console.log(m), warn: (m) => log.warn(m) },
+  }).catch((err) => log.warn(`[tauri-rebuild] (${cause}) unexpected failure: ${err.message}`));
 }
 
 /**
@@ -2691,6 +2758,16 @@ async function main() {
 
   // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
   startFrontendWatchdog();
+  // フロントが死んだ／LISTEN しなくなった時に戻す(#1230)。上の watchdog は生存中の
+  // プロセスしか見ないため、プロセス消滅はこれでしか拾えない。
+  startFrontendLiveness();
+
+  // Rust 変更を拾っていたら Tauri シェルを再ビルドする。
+  // NOTE: await しない。cargo build は分単位でかかり、ここで待つと
+  // エージェントの生命線である backend の利用開始をその分遅らせる。
+  // 自己再起動(exit 75)で backend が落ちても dev.js は生き残るので、
+  // 再起動を起こしたそのイベント自体をこのビルドが越えられる。
+  kickTauriRebuild('startup');
 
   // --watch モード時は fs.watch ベースのファイル監視を開始
   if (useWatch) {
@@ -2860,6 +2937,17 @@ function startFrontendProcess() {
     },
   });
   frontend.on('error', (err) => console.error('Frontend error:', err));
+  // NOTE: Bound to THIS child: restartFrontend kills the old one right before
+  // spawning, and its late 'exit' must not mark the replacement dead (#1230).
+  const child = frontend;
+  frontendExited = false;
+  child.on('exit', (code, signal) => {
+    if (frontend !== child) return;
+    frontendExited = true;
+    if (!isCleaningUp && !isFrontendRestarting) {
+      log.warn(`Frontend dev server exited (code ${code}, signal ${signal ?? 'none'}).`);
+    }
+  });
   frontendStartedAt = Date.now();
   if (frontend.pid) writeFrontendPidFile(frontend.pid);
 }
@@ -3086,6 +3174,63 @@ function startFrontendWatchdog() {
   }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
+// ---- Liveness (#1230) ----
+// Set by the spawned child's 'exit'; see startFrontendProcess.
+let frontendExited = false;
+let frontendLivenessTimer = null;
+// One netstat per tick; the decision itself lives in frontend-liveness.cjs.
+const FRONTEND_LIVENESS_INTERVAL_MS = 30_000;
+
+/**
+ * Bring the frontend back when it has died or stopped listening — the case the
+ * RSS/CPU watchdog cannot see, because it only inspects a living process.
+ * Disable with RAPITAS_FRONTEND_LIVENESS=0.
+ */
+function startFrontendLiveness() {
+  if (frontendLivenessTimer) return;
+  if (process.env.RAPITAS_FRONTEND_LIVENESS === '0') {
+    console.log('ℹ️  Frontend liveness check disabled (RAPITAS_FRONTEND_LIVENESS=0).');
+    return;
+  }
+  const cfg = {
+    ...LIVENESS_DEFAULTS,
+    graceMs: Math.max(LIVENESS_DEFAULTS.graceMs, FRONTEND_READY_TIMEOUT_MS),
+  };
+  let state = initialLiveness();
+  console.log(
+    `🩺 Frontend liveness check active (every ${FRONTEND_LIVENESS_INTERVAL_MS / 1000}s on :${actualFrontendPort}).`,
+  );
+  frontendLivenessTimer = setInterval(() => {
+    const busy = isCleaningUp || isFrontendRestarting;
+    const decision = nextLiveness(
+      state,
+      {
+        now: Date.now(),
+        startedAt: frontendStartedAt,
+        listening: busy ? true : isPortListening(actualFrontendPort),
+        exited: frontendExited,
+        busy,
+      },
+      cfg,
+    );
+    state = decision.state;
+    if (decision.action === 'restart') {
+      log.warn(`Frontend is down (${decision.reason}) — restarting it; backend untouched.`);
+      restartFrontend(decision.reason).catch((err) =>
+        console.error('❌ Frontend liveness restart failed:', err.message || err),
+      );
+    } else if (decision.action === 'report') {
+      log.warn(
+        `Frontend process exited but :${actualFrontendPort} is held by another process — not touching it.`,
+      );
+    } else if (decision.action === 'give-up') {
+      log.error(
+        `Frontend keeps dying: ${cfg.maxRestarts} restarts within ${cfg.windowMs / 60000} min. Stopped retrying — check its output above and restart dev.js.`,
+      );
+    }
+  }, FRONTEND_LIVENESS_INTERVAL_MS);
+}
+
 // プロセス終了時のクリーンアップ
 let isCleaningUp = false;
 // Set when dev.js backs off because another instance's backend has an active
@@ -3117,6 +3262,10 @@ function cleanupSync() {
   if (frontendWatchdogTimer) {
     clearInterval(frontendWatchdogTimer);
     frontendWatchdogTimer = null;
+  }
+  if (frontendLivenessTimer) {
+    clearInterval(frontendLivenessTimer);
+    frontendLivenessTimer = null;
   }
 
   // ファイルウォッチャーを先に閉じてリスタート競合を防止
@@ -3227,6 +3376,30 @@ function cleanupSync() {
   console.log('  Cleanup completed.');
 }
 
+// NOTE: These only RECORD. The handlers below keep owning the exit, so the
+// cleanup order is unchanged. SIGHUP/SIGBREAK (a closing console window on
+// Windows) had no handler at all, and adding one here would suppress Node's
+// default termination — so each one cleans up and exits exactly like SIGINT.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => devSessionLog.appendDevEvent('dev_signal', { signal }));
+}
+for (const signal of ['SIGHUP', 'SIGBREAK']) {
+  process.on(signal, () => {
+    devSessionLog.appendDevEvent('dev_signal', { signal });
+    cleanupSync();
+    process.exit(0);
+  });
+}
+// A hard kill runs none of this; the heartbeat is what covers that case.
+process.on('uncaughtException', (err) => {
+  devSessionLog.appendDevEvent('dev_uncaught', {
+    message: String(err && err.message),
+    stack: String(err && err.stack),
+  });
+  console.error('Uncaught exception in dev.js:', err);
+  process.exit(1);
+});
+
 process.on('SIGINT', () => {
   cleanupSync();
   process.exit(0);
@@ -3235,7 +3408,8 @@ process.on('SIGTERM', () => {
   cleanupSync();
   process.exit(0);
 });
-process.on('exit', () => {
+process.on('exit', (code) => {
+  devSessionLog.appendDevEvent('dev_exit', { code });
   // exit イベントでは非同期処理不可なので同期的にクリーンアップ
   // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
   cleanupSync();
@@ -3243,6 +3417,7 @@ process.on('exit', () => {
 
 // 未処理のPromise拒否でクラッシュしないようにする
 process.on('unhandledRejection', (reason) => {
+  devSessionLog.appendDevEvent('dev_unhandled_rejection', { reason: String(reason) });
   console.error('Unhandled rejection in dev.js:', reason);
   // クラッシュせずにログのみ出力
 });

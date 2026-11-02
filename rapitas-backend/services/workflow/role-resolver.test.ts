@@ -24,7 +24,7 @@ let roleConfigRow: {
 const taskUpdateMock = mock(() => Promise.resolve({}));
 mock.module('../../config/database', () => ({
   prisma: {
-    workflowRoleConfig: { findUnique: () => Promise.resolve(roleConfigRow) },
+    workflowRoleConfig: { findFirst: () => Promise.resolve(roleConfigRow) },
     task: { update: taskUpdateMock },
   },
 }));

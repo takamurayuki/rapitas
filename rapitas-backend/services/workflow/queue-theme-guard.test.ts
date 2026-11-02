@@ -2,7 +2,7 @@ import { test, expect, mock } from 'bun:test';
 const task = mock(async () => ({ status: 'todo', themeId: 1 }));
 const run = mock(async () => ({ enabled: false, status: 'idle' }));
 mock.module('../../config', () => ({
-  prisma: { task: { findUnique: task }, themeAutoRun: { findUnique: run } },
+  prisma: { task: { findUnique: task }, themeAutoRun: { findFirst: run } },
 }));
 const { isQueueThemeRunning } = await import('./queue-theme-guard');
 test('validated single-task repairs can run with an idle disabled scheduler, never a paused or stopping one', async () => {

@@ -4,14 +4,12 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
-import {
-  parseRRule,
-  expandRecurrence,
-  RECURRENCE_PRESETS,
-} from '../../services/scheduling/recurrence-service';
+import { RECURRENCE_PRESETS } from '../../services/scheduling/recurrence-service';
+import { listScheduleEvents } from '../../services/scheduling/schedule-listing';
 import { createLogger } from '../../config/logger';
 import { realtimeService } from '../../services/communication/realtime-service';
 import { syncCalendarToTask } from '../../services/scheduling/task-calendar-sync';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:schedules');
 
@@ -78,95 +76,15 @@ const scheduleStopRecurrenceBody = t.Object(
 );
 
 export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
-  // Get all schedule events (with optional date range filter)
-  // Expands recurring events into virtual instances
+  // Get all schedule events (with optional date range filter). The recurrence
+  // expansion lives in schedule-listing so the shared-calendar read (#1270)
+  // draws the same occurrences this does.
   .get('/', async (context) => {
-    const { query } = context;
-    const { from, to } = query as { from?: string; to?: string };
-
-    const rangeStart = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const rangeEnd = to ? new Date(to) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-
-    // Fetch non-recurring events
-    const where: Record<string, unknown> = {
-      recurrenceRule: null,
-      parentEventId: null,
-    };
-    if (from || to) {
-      where.startAt = {};
-      if (from) (where.startAt as Record<string, unknown>).gte = new Date(from);
-      if (to) (where.startAt as Record<string, unknown>).lte = new Date(to);
-    }
-
-    const normalEvents = await prisma.scheduleEvent.findMany({
-      where,
-      orderBy: { startAt: 'asc' },
+    const { from, to } = context.query as { from?: string; to?: string };
+    return listScheduleEvents(prisma.scheduleEvent, {
+      ...(from ? { from: new Date(from) } : {}),
+      ...(to ? { to: new Date(to) } : {}),
     });
-
-    // Fetch recurring event parents
-    const recurringEvents = await prisma.scheduleEvent.findMany({
-      where: {
-        recurrenceRule: { not: null },
-        parentEventId: null,
-      },
-    });
-
-    // Fetch recurrence exceptions (individually edited instances)
-    const exceptions = await prisma.scheduleEvent.findMany({
-      where: {
-        isRecurrenceException: true,
-        startAt: { gte: rangeStart, lte: rangeEnd },
-      },
-    });
-
-    const exceptionDates = new Set(
-      exceptions.map((e) => `${e.parentEventId}:${e.originalDate?.toISOString().split('T')[0]}`),
-    );
-
-    // Expand recurring events into virtual instances
-    const expandedEvents: typeof normalEvents = [];
-
-    for (const event of recurringEvents) {
-      if (!event.recurrenceRule) continue;
-
-      try {
-        const rule = parseRRule(event.recurrenceRule);
-        const occurrences = expandRecurrence(
-          event.startAt,
-          rule,
-          rangeStart,
-          rangeEnd,
-          event.recurrenceEnd,
-        );
-
-        for (const date of occurrences) {
-          const dateKey = `${event.id}:${date.toISOString().split('T')[0]}`;
-
-          // Skip if an exception instance exists (the exception replaces this occurrence)
-          if (exceptionDates.has(dateKey)) continue;
-
-          // Generate virtual instance
-          const duration = event.endAt ? event.endAt.getTime() - event.startAt.getTime() : 0;
-
-          expandedEvents.push({
-            ...event,
-            id: event.id * 10000 + (Math.floor(date.getTime() / 86400000) % 10000), // virtual ID
-            startAt: date,
-            endAt: duration > 0 ? new Date(date.getTime() + duration) : null,
-            parentEventId: event.id,
-          });
-        }
-      } catch (e) {
-        log.error({ err: e }, `Failed to expand recurrence for event ${event.id}`);
-      }
-    }
-
-    // Merge all events and sort by start time
-    const allEvents = [...normalEvents, ...expandedEvents, ...exceptions].sort(
-      (a, b) => a.startAt.getTime() - b.startAt.getTime(),
-    );
-
-    return allEvents;
   })
 
   // Recurrence presets list
@@ -177,8 +95,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Get single schedule event
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+    if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+    const id = Number(params.id);
 
     const event = await prisma.scheduleEvent.findUnique({ where: { id } });
     if (!event) throw new NotFoundError('Schedule event not found');
@@ -258,8 +176,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
         userId?: string;
       };
 
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Schedule event not found');
@@ -312,8 +230,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Schedule event not found');
@@ -335,8 +253,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id/exception',
     async (context) => {
       const { params, body } = context;
-      const parentId = parseInt(params.id);
-      if (isNaN(parentId)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const parentId = Number(params.id);
 
       const data = body as {
         originalDate: string; // original recurrence date
@@ -380,8 +298,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     '/:id/stop-recurrence',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError('Invalid ID');
+      if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+      const id = Number(params.id);
 
       const data = body as { stopDate: string };
 
@@ -421,8 +339,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Mark reminder as sent
   .post('/reminders/:id/sent', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError('Invalid ID');
+    if (!isValidEntityId(params.id)) throw new ValidationError('Invalid ID');
+    const id = Number(params.id);
 
     return await prisma.scheduleEvent.update({
       where: { id },

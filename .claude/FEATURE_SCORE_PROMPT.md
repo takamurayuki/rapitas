@@ -95,25 +95,24 @@
 
 ---
 
-### 6. 学習・暗記サブシステム（5 点）
+### 6. 学習・暗記サブシステム（0 点 — 撤去済み）
 
-| サブ項目 | 計測コマンド | 配点 |
-| --- | --- | ---: |
-| 6-1. フラッシュカード (FlashcardDeck + Flashcard) | Prisma + `routes/learning/flashcards/*` | 2 |
-| 6-2. 試験ゴール / 学習目標 (ExamGoal, LearningGoal) | Prisma + 対応 route | 2 |
-| 6-3. 学習継続 (StudyStreak) | Prisma model + ロジック | 1 |
+このサブシステムは利用されていないため削除された（単語帳・学習ロードマップ・
+学習目標・試験目標・学習継続）。採点対象から外す。過去スコアと比較するときは、
+満点が 5 点ぶん下がっていることに注意。
 
 ---
 
-### 7. 生産性 / 時間管理（10 点）
+### 7. 生産性 / 時間管理（7 点）
+
+ハビット (Habit + HabitLog) と 達成 / アチーブメント は削除済みのため項目から外した
+（旧 7-3 / 7-4、合計 3 点ぶん）。
 
 | サブ項目 | 計測コマンド | 配点 |
 | --- | --- | ---: |
 | 7-1. ポモドーロ (`PomodoroSession` + service) | Prisma + `services/scheduling/pomodoro-service.ts` | 2 |
 | 7-2. デイリースケジュール / カレンダー (`ScheduleEvent`, `DailyScheduleBlock`) | Prisma + `routes/scheduling/*` | 3 |
-| 7-3. ハビット (Habit + HabitLog) | Prisma + ページ | 2 |
-| 7-4. 達成 / アチーブメント (gamification) | `app/achievements` + 関連ロジック | 1 |
-| 7-5. レポート / 分析 (WeeklyReview, ActivityLog) | Prisma + reports ページ | 2 |
+| 7-3. レポート / 分析 (WeeklyReview, ActivityLog) | Prisma + reports ページ | 2 |
 
 ---
 

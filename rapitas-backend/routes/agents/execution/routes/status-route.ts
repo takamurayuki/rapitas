@@ -12,6 +12,7 @@ import { createLogger } from '../../../../config/logger';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import type { AgentExecutionWithExtras } from '../../../../types/agent-execution-types';
 import { computeTaskActiveTime } from '../../../../services/agent-execution/task-active-time';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:status');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -40,7 +41,7 @@ export const statusRoute = new Elysia().get(
   async (context) => {
     const { params, query } = context;
     try {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const outputOffset =
         typeof query.outputOffset === 'string' ? parseInt(query.outputOffset, 10) : NaN;
 

@@ -5,6 +5,11 @@
  * production implementation uses the OS keychain through secret-store; there
  * is deliberately no DB column for the token (AGENTS.md: credentials live in
  * the OS keychain). Not responsible for the OAuth exchange itself.
+ *
+ * One slot per workspace. Found 2026-10-29: the account name was a single
+ * fixed string, so whichever account connected its Google Calendar first
+ * supplied the busy blocks for EVERY account on the install — a throwaway
+ * `verify` login read the owner's calendar.
  */
 import { createLogger } from '../../../config/logger';
 import {
@@ -16,8 +21,26 @@ import {
 
 const log = createLogger('calendar-token-store');
 
-/** Keychain account name of the calendar refresh token. */
+/**
+ * Keychain account name used when no workspace is known.
+ *
+ * Also the name this feature used before the token became per-workspace;
+ * nothing writes it any more, so a caller without a workspace reads null and
+ * reports "not connected" rather than picking up somebody's credential.
+ */
 export const CALENDAR_TOKEN_ACCOUNT = 'google-calendar:refresh-token';
+
+/**
+ * The keychain account holding one workspace's calendar refresh token.
+ *
+ * @param workspaceId - Owning workspace, or null when unknown / 所有ワークスペース（不明なら null）
+ * @returns Keychain account name / キーチェーンのアカウント名
+ */
+export function calendarTokenAccount(workspaceId: number | null): string {
+  return workspaceId === null
+    ? CALENDAR_TOKEN_ACCOUNT
+    : `${CALENDAR_TOKEN_ACCOUNT}:w${workspaceId}`;
+}
 
 /** Where the calendar refresh token is kept. */
 export interface CalendarTokenStore {
@@ -52,9 +75,18 @@ export class MemoryCalendarTokenStore implements CalendarTokenStore {
  * restart on such hosts.
  */
 export class KeychainCalendarTokenStore implements CalendarTokenStore {
-  private readonly ref = `keychain:${CALENDAR_TOKEN_ACCOUNT}`;
+  private readonly account: string;
+  private readonly ref: string;
   private fallbackCipher: string | null = null;
   private persistent = false;
+
+  /**
+   * @param workspaceId - Whose calendar this store holds / どのワークスペースの資格情報か
+   */
+  constructor(workspaceId: number | null = null) {
+    this.account = calendarTokenAccount(workspaceId);
+    this.ref = `keychain:${this.account}`;
+  }
 
   get(): string | null {
     if (this.fallbackCipher) return resolveStoredSecret(this.fallbackCipher);
@@ -67,7 +99,7 @@ export class KeychainCalendarTokenStore implements CalendarTokenStore {
   }
 
   set(token: string): void {
-    const stored = saveSecret(CALENDAR_TOKEN_ACCOUNT, token);
+    const stored = saveSecret(this.account, token);
     this.persistent = isKeychainSecretRef(stored);
     this.fallbackCipher = this.persistent ? null : stored;
     if (!this.persistent) {

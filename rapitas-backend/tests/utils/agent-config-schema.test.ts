@@ -191,9 +191,6 @@ describe('validateAgentConfig', () => {
   });
 
   test('文字列フィールドの長さバリデーション', () => {
-    const shortString = 'a'.repeat(4); // Less than 5 chars
-    const longString = 'a'.repeat(1001); // Over 1000 chars
-
     // maxTokens is a numeric field, so check if any text fields with length validation exist
     const schemas = getAllAgentConfigSchemas();
     const schemaWithStringField = schemas.find((s) =>

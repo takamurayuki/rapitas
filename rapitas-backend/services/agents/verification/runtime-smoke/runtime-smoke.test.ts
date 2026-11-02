@@ -96,6 +96,18 @@ describe('looksLikeEnvironmentFailure', () => {
     expect(looksLikeEnvironmentFailure(['sh: vite: command not found'])).toBe(true);
   });
 
+  // 実測 2026-10-18 (#1058): タスク worktree の node_modules はジャンクション共有で、
+  // pnpm 12 はそれを task run state に使うのを拒否する。これを環境起因と見抜けず、
+  // TempoRaid の 11 件が runtime=UNVERIFIED のまま理由不明で滞留した。
+  it('matches pnpm refusing a symlinked node_modules', () => {
+    expect(looksLikeEnvironmentFailure(['Error: ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH'])).toBe(true);
+    expect(
+      looksLikeEnvironmentFailure([
+        '  × Refusing to use task run state directory at C:\\x\\node_modules because it is a symbolic link or not a directory',
+      ]),
+    ).toBe(true);
+  });
+
   it('does not match ordinary app failures (those stay hard failures)', () => {
     expect(looksLikeEnvironmentFailure(['TypeError: x is not a function'])).toBe(false);
     expect(looksLikeEnvironmentFailure(['Error: listen EADDRINUSE :3000'])).toBe(false);

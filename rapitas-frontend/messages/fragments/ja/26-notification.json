@@ -2,7 +2,6 @@
   "notification": {
     "open": "開く",
     "close": "閉じる",
-    "markMemoDone": "完了にする",
     "questionToast": {
       "hint": "選択肢を押すと回答してワークフローを再開します",
       "recommended": "推奨",
@@ -156,10 +155,6 @@
       },
       "daily_report": {
         "title": "デイリーレポート {date}",
-        "message": "{message}"
-      },
-      "memo_reminder": {
-        "title": "メモのリマインダー",
         "message": "{message}"
       },
       "auto_merge_success": {

@@ -124,6 +124,24 @@ describe('Agent Metrics Router', () => {
       expect(data.totalAgents).toBeDefined();
       expect(data.activeAgents).toBeDefined();
       expect(data.averageExecutionTime).toBeDefined();
+      expect(data.totalUnfinished).toBeDefined();
+    });
+
+    // The two halves of the KPI card come from different tables, so the quality
+    // half can fail on its own — mockPrisma here has no workflowTransition
+    // delegate, which is the shape a schema skew or a mid-deploy answer has.
+    // The liveness half must still arrive (#1300).
+    it('still answers when the quality half cannot be computed', async () => {
+      const response = await app.handle(new Request('http://localhost/agent-metrics/overview'));
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.totalExecutions).toBeDefined();
+      expect(data.firstPassCompletion).toEqual({
+        completedTasks: 0,
+        repairFreeTasks: 0,
+        rate: null,
+      });
     });
   });
 

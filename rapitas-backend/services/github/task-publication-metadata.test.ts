@@ -20,9 +20,13 @@ beforeEach(() => {
   const path = join(directory, 'test.db');
   sql = new Database(path);
   sql.exec(
-    'CREATE TABLE Task (id INTEGER PRIMARY KEY, updatedAt DATETIME, prCreationLockedAt DATETIME, githubPrId INTEGER)',
+    'CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, updatedAt DATETIME, prCreationLockedAt DATETIME, githubPrId INTEGER)',
   );
-  sql.query('INSERT INTO Task VALUES (1, ?, NULL, NULL)').run(revision.getTime());
+  sql
+    .query(
+      'INSERT INTO Task (id, updatedAt, prCreationLockedAt, githubPrId) VALUES (1, ?, NULL, NULL)',
+    )
+    .run(revision.getTime());
   client = new PrismaClient({ datasources: { db: { url: `file:${path.replaceAll('\\', '/')}` } } });
 });
 afterEach(async () => {

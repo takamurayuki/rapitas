@@ -1,7 +1,12 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { waitForFrontendReady, READY_STATUS_MIN, READY_STATUS_MAX } = require('./wait-for-frontend-ready.cjs');
+const {
+  waitForFrontendReady,
+  classifyResponse,
+  READY_STATUS_MIN,
+  READY_STATUS_MAX,
+} = require('./wait-for-frontend-ready.cjs');
 
 /** A clock and sleeper that advance together, so no test actually waits. */
 function fakeClock() {
@@ -125,5 +130,111 @@ test('a zero/negative timeout still probes once (no silent skip)', async () => {
     log: quietLog,
   });
   assert.equal(calls, 1);
+  assert.equal(result.ready, true);
+});
+
+/**
+ * Whose server answered.
+ *
+ * Reported 2026-10-29: another project's Rails dev server held
+ * 127.0.0.1:3000 and answered 200 on `/`. This gate passed on that 200 and
+ * printed "Frontend is serving", so the rapitas window showed the other
+ * project with nothing anywhere saying what had happened. A readiness check
+ * that cannot tell whose server it reached is not measuring readiness.
+ */
+test('the app itself is ready — its own page, by the marker in it', () => {
+  assert.equal(
+    classifyResponse({
+      statusCode: 200,
+      headers: { 'x-powered-by': 'Next.js' },
+      body: '<title>Rapi+</title>',
+    }),
+    'ready',
+  );
+});
+
+test('our dev server is ready even when the body is an error overlay', () => {
+  // A compile error still means OUR server is the one on the port; refusing
+  // it here would turn a build error into a bogus "foreign server" report.
+  assert.equal(
+    classifyResponse({
+      statusCode: 200,
+      headers: { 'x-powered-by': 'Next.js' },
+      body: '<h1>Failed to compile</h1>',
+    }),
+    'ready',
+  );
+});
+
+test("another project's server is foreign, however healthy it looks", () => {
+  assert.equal(
+    classifyResponse({
+      statusCode: 200,
+      headers: { server: 'Puma 6.4.0' },
+      body: '<title>Readify</title>',
+    }),
+    'foreign',
+  );
+});
+
+test('a header-less 200 with our marker is still ours', () => {
+  assert.equal(
+    classifyResponse({ statusCode: 200, headers: {}, body: 'Rapi+' }),
+    'ready',
+  );
+});
+
+test('a 5xx is not serving — neither ready nor foreign', () => {
+  // 5xx is our own dev server failing to compile; it must keep waiting.
+  assert.equal(
+    classifyResponse({
+      statusCode: 500,
+      headers: { 'x-powered-by': 'Next.js' },
+      body: '',
+    }),
+    'not-serving',
+  );
+});
+
+test('the header match is case-insensitive and tolerates a version suffix', () => {
+  assert.equal(
+    classifyResponse({ statusCode: 404, headers: { 'X-Powered-By': 'next.js' }, body: '' }),
+    'ready',
+  );
+});
+
+test('a foreign server stops the wait at once instead of polling for minutes', async () => {
+  const clock = fakeClock();
+  const lines = [];
+  let calls = 0;
+  const result = await waitForFrontendReady({
+    port: 3000,
+    timeoutMs: 240_000,
+    pollIntervalMs: 1_000,
+    probe: async () => {
+      calls++;
+      return { kind: 'foreign', statusCode: 200, server: 'Puma 6.4.0' };
+    },
+    ...clock,
+    log: { info: (m) => lines.push(m), warn: (m) => lines.push(m) },
+  });
+  assert.equal(result.ready, false);
+  // Waiting four minutes for a server that will never be ours is the bug.
+  assert.equal(calls, 1);
+  assert.equal(result.foreign?.server, 'Puma 6.4.0');
+  const text = lines.join('\n');
+  assert.match(text, /3000/);
+  assert.match(text, /Puma/);
+});
+
+test('a boolean probe still works, so the existing callers are unaffected', async () => {
+  const clock = fakeClock();
+  const result = await waitForFrontendReady({
+    port: 3000,
+    timeoutMs: 10_000,
+    probe: async () => true,
+    ...clock,
+    log: quietLog,
+  });
   assert.equal(result.ready, true);
 });

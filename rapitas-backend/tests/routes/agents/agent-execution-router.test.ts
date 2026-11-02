@@ -14,10 +14,13 @@ const mockPrisma = {
   },
   agentSession: {
     findFirst: mock(() => Promise.resolve(null)),
+    // Needed by the stop route's worktree cleanup (#1335) — see the note below.
+    findMany: mock(() => Promise.resolve([])),
     create: mock(() =>
       Promise.resolve({ id: 1, configId: 1, branchName: 'test-branch', worktreePath: null }),
     ),
     update: mock(() => Promise.resolve({ id: 1 })),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
   developerModeConfig: {
     findFirst: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
@@ -34,6 +37,18 @@ const mockPrisma = {
     findMany: mock(() => Promise.resolve([])),
     create: mock(() => Promise.resolve({ id: 1 })),
     update: mock(() => Promise.resolve({ id: 1 })),
+  },
+  // NOTE(#1335): the stop route touches these, and they were absent. The
+  // resulting TypeError fell into the route's catch, which answered HTTP 200 —
+  // so `should stop task execution` was passing on the DATABASE ERROR path and
+  // never once exercised a successful stop. The same accident this file
+  // already documents for developerModeConfig.agentSessions above; it only
+  // became visible when that catch started setting a 500.
+  workflowQueueItem: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  agentExecutionLog: {
+    deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
@@ -184,7 +199,33 @@ describe('Agent Execution Router', () => {
         }),
       );
 
-      expect(response.status).toBeOneOf([200, 404]);
+      // NOTE(#1335): was `toBeOneOf([200, 404])`, and the 200 it accepted came
+      // from the route's catch block swallowing a TypeError from missing
+      // mocks — so this never exercised a successful stop.
+      //
+      // Status and body are not enough on their own: the catch path could be
+      // made to return those too. The assertions below check the stop
+      // actually DID something, which is the only thing that distinguishes a
+      // real stop from a well-shaped reply.
+      expect(response.status).toBe(200);
+      expect((await response.json()).success).toBe(true);
+
+      // SCOPE (#1335 review): this file does not stub stopTaskAgents, so the
+      // real one runs against mocked prisma with no executions — meaning this
+      // covers the "nothing was running" path and its cleanup, not a live
+      // stop. The case with an actual running execution (stop requested for
+      // the right task, stoppedCount, that task's status reset) lives in
+      // routes/agents/execution/routes/stop-route.test.ts, which has the
+      // stopTaskAgents seam.
+      //
+      // Queue items withdrawn, worktree sessions inspected, and the task's
+      // status reset — the three side effects even a no-op stop performs.
+      expect(mockPrisma.workflowQueueItem.updateMany).toHaveBeenCalled();
+      expect(mockPrisma.agentSession.findMany).toHaveBeenCalled();
+      const statusReset = mockPrisma.task.update.mock.calls.some(
+        (c) => (c[0] as { data?: { status?: string } })?.data?.status === 'todo',
+      );
+      expect(statusReset).toBe(true);
     });
   });
 

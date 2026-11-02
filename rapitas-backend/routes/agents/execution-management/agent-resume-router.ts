@@ -16,6 +16,7 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 // by the regular workflow advance loop in workflow-orchestrator.
 import { handleResumeCompletion } from '../../../services/agents/orchestrator/resume-completion';
 import { selectExecutingRows } from './executing-tasks-filter';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-resume');
 
@@ -26,7 +27,7 @@ export const agentResumeRouter = new Elysia()
     '/agents/executions/:id/acknowledge',
     async (context) => {
       const { params } = context;
-      const executionId = parseInt(params.id);
+      const executionId = parseId(params.id, 'execution ID');
 
       const execution = await prisma.agentExecution.findUnique({
         where: { id: executionId },
@@ -58,7 +59,7 @@ export const agentResumeRouter = new Elysia()
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { timeout?: number } | undefined;
-      const executionId = parseInt(params.id);
+      const executionId = parseId(params.id, 'execution ID');
 
       try {
         const execution = await prisma.agentExecution.findUnique({

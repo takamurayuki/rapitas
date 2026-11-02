@@ -95,10 +95,26 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   }
 
   // ── Running / Paused ─────────────────────────────────────────────────────
-  // Rest state is always visible; the hover overlay covers it entirely with the
-  // red "停止" look. The Orbit spinner's parent never changes appearance, which
-  // prevents the rasterization warp that occurs when a spinning element's
-  // ancestor color-transitions mid-frame.
+  // NOTE: Two controls since 2026-10-31, where it was one wide button labelled
+  // "タスク自動実行中" whose onClick was stop(). The visible label did not
+  // describe what pressing it did, nothing revealed that it stopped anything
+  // until the pointer was over it, and on a touch screen the stop could not be
+  // reached at all. Running-ness is already said by ラピ, the task cards and
+  // SystemStatusPanel, so the control does not need to be a fourth status
+  // display at the cost of hiding its only action.
+  //
+  // The status is a plain span, so the status can no longer be clicked into a
+  // stop — a USER stop sets `enabled = false` and is never auto re-armed
+  // (theme-auto-run-mutations.finalizeStop), so a misclick cost a run that
+  // only a deliberate 開始 brings back.
+  //
+  // Splitting also retires the overlay that existed to keep the Orbit
+  // spinner's ancestor from color-transitioning mid-frame: the stop is a
+  // sibling now, so nothing above the spinner changes on hover.
+  //
+  // No pause button, though the hook offers one: pausing is known to leave the
+  // in-flight WorkflowQueueItem holding the only concurrency slot, starving
+  // every theme (memory: pause-strands-the-only-slot).
   const paused = status === 'paused';
 
   const restBorder = paused
@@ -114,14 +130,10 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => stop()}
-        disabled={actionLoading}
-        title={t('autoExecutionMode.stopTitle')}
-        className={`group relative inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none transition-all duration-75 hover:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
+      {/* STATUS — says what is happening, and does nothing when clicked. */}
+      <span
+        className={`inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
       >
-        {/* REST — icon circle + label. Parent never mutates on hover (overlay
-            handles the visual swap), so the Orbit spin stays artifact-free. */}
         <span
           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBg}`}
         >
@@ -136,17 +148,23 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           )}
         </span>
         <span>{paused ? t('autoExecutionMode.paused') : t('autoExecutionMode.runningLabel')}</span>
+      </span>
 
-        {/* HOVER OVERLAY — fully opaque; instant opacity swap (no transition)
-            so the spinner's parent never sees a mid-fade partial repaint. */}
-        <span className="absolute -inset-px flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3.5 text-red-600 opacity-0 shadow-[0_2px_0_0_#fca5a5] group-hover:opacity-100 dark:border-red-700 dark:bg-zinc-900 dark:text-red-400 dark:shadow-[0_2px_0_0_#991b1b]">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 dark:bg-red-400">
-            <Square className="h-2.5 w-2.5 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
-          </span>
-          <span className="absolute inset-0 flex translate-x-2 items-center justify-center pointer-events-none">
-            {tAutoRun('stop')}
-          </span>
-        </span>
+      {/* STOP — the one action, always legible. Zinc until hovered: the square
+          and the word already say what it does, so the colour only has to
+          confirm it on approach rather than shout from the toolbar. */}
+      <button
+        onClick={() => stop()}
+        disabled={actionLoading}
+        title={t('autoExecutionMode.stopTitle')}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-sm font-medium text-zinc-600 shadow-[0_2px_0_0_#e4e4e7] select-none transition-colors duration-75 hover:border-red-300 hover:text-red-600 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:shadow-[0_2px_0_0_#27272a] dark:hover:border-red-700 dark:hover:text-red-400"
+      >
+        {actionLoading ? (
+          <Spinner size="sm" className="text-zinc-400 dark:text-zinc-500" />
+        ) : (
+          <Square className="h-3 w-3 fill-current" />
+        )}
+        {tAutoRun('stop')}
       </button>
       {errorBadge}
     </div>

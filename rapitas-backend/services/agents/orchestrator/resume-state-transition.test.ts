@@ -19,12 +19,12 @@ beforeEach(() => {
   // Only columns touched by this transition; use the real generated client
   // and actual database rollback rather than simulating transaction behavior.
   observer.exec(`
-    CREATE TABLE AgentExecution (id INTEGER PRIMARY KEY, status TEXT, output TEXT,
+    CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, output TEXT,
       errorMessage TEXT, updatedAt DATETIME);
-    CREATE TABLE Task (id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT,
+    CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT,
       updatedAt DATETIME);
-    INSERT INTO AgentExecution VALUES (10, 'interrupted', 'previous', 'interruption', CURRENT_TIMESTAMP);
-    INSERT INTO Task VALUES (5, 'todo', 'plan_approved', CURRENT_TIMESTAMP);
+    INSERT INTO AgentExecution (id, status, output, errorMessage, updatedAt) VALUES (10, 'interrupted', 'previous', 'interruption', CURRENT_TIMESTAMP);
+    INSERT INTO Task (id, status, workflowStatus, updatedAt) VALUES (5, 'todo', 'plan_approved', CURRENT_TIMESTAMP);
   `);
   client = new PrismaClient({ datasources: { db: { url: `file:${path.replaceAll('\\', '/')}` } } });
 });

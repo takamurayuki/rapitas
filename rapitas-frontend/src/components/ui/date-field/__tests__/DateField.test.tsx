@@ -113,6 +113,49 @@ describe('DateField', () => {
     expect(onChange).toHaveBeenCalledWith('2026-12-24');
   });
 
+  // blur で保存する呼び出し元には、ピッカーでの選択が届いていなかった。
+  // 隠しピッカーは tabIndex=-1 で、クリックはカレンダーボタンに乗るので
+  // テキスト欄は blur しない — 画面に出たまま保存されない(2026-10-31)。
+  it('ピッカーでの選択は確定として onCommit で通知する(保存の契機)', () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <DateField value="" onChange={() => {}} onCommit={onCommit} aria-label="期限" />,
+    );
+    fireEvent.change(container.querySelector('input[type="date"]')!, {
+      target: { value: '2026-12-24' },
+    });
+    expect(onCommit).toHaveBeenCalledWith('2026-12-24');
+  });
+
+  // onBlur を代わりに呼ぶ手もあるが、呼び出し元の onBlur はそのレンダーの
+  // state を読むため、onChange と同じ tick では「ひとつ前の値」を保存する。
+  // だから確定値は引数で渡す。
+  it('onCommit は選ばれた値そのものを渡す', () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <DateField
+        withTime
+        value="2026-01-01T09:00"
+        onChange={() => {}}
+        onCommit={onCommit}
+        aria-label="期限"
+      />,
+    );
+    fireEvent.change(container.querySelector('input[type="datetime-local"]')!, {
+      target: { value: '2026-12-24T10:00' },
+    });
+    expect(onCommit).toHaveBeenCalledWith('2026-12-24T10:00');
+  });
+
+  it('手入力では onCommit を呼ばない(1打ごとの保存を避け、確定は blur に任せる)', () => {
+    const onCommit = vi.fn();
+    render(<DateField value="" onChange={() => {}} onCommit={onCommit} aria-label="期限" />);
+    fireEvent.change(screen.getByRole('textbox', { name: '期限' }), {
+      target: { value: '2026/12/24' },
+    });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it('min / max を隠しピッカーへ渡す', () => {
     const { container } = render(
       <DateField

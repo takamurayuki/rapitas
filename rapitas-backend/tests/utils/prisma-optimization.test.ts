@@ -3,7 +3,7 @@
  *
  * Tests for query optimization utilities.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({

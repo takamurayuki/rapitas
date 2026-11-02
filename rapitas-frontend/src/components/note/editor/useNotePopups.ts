@@ -7,6 +7,7 @@ export interface NotePopupsState {
   showBlockPicker: boolean;
   showColorPicker: boolean;
   showBorderPicker: boolean;
+  showTablePicker: boolean;
   showLinkInput: boolean;
   showCodeInput: boolean;
   showFontSizePicker: boolean;
@@ -15,6 +16,7 @@ export interface NotePopupsState {
   setShowBlockPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowColorPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowBorderPicker: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowTablePicker: React.Dispatch<React.SetStateAction<boolean>>;
   setShowLinkInput: React.Dispatch<React.SetStateAction<boolean>>;
   setShowCodeInput: React.Dispatch<React.SetStateAction<boolean>>;
   setShowFontSizePicker: React.Dispatch<React.SetStateAction<boolean>>;
@@ -33,6 +35,7 @@ export function useNotePopups(): NotePopupsState {
   const [showBlockPicker, setShowBlockPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBorderPicker, setShowBorderPicker] = useState(false);
+  const [showTablePicker, setShowTablePicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [showFontSizePicker, setShowFontSizePicker] = useState(false);
@@ -43,6 +46,7 @@ export function useNotePopups(): NotePopupsState {
     setShowBlockPicker(false);
     setShowColorPicker(false);
     setShowBorderPicker(false);
+    setShowTablePicker(false);
     setShowLinkInput(false);
     setShowCodeInput(false);
     setShowFontSizePicker(false);
@@ -56,6 +60,7 @@ export function useNotePopups(): NotePopupsState {
     setShowBlockPicker(false);
     setShowColorPicker(false);
     setShowBorderPicker(false);
+    setShowTablePicker(false);
     setShowFontSizePicker(false);
     setShowFontPicker(false);
     setShowTextColorPicker(false);
@@ -69,6 +74,7 @@ export function useNotePopups(): NotePopupsState {
       showBlockPicker ||
       showColorPicker ||
       showBorderPicker ||
+      showTablePicker ||
       showLinkInput ||
       showCodeInput ||
       showFontSizePicker ||
@@ -100,6 +106,7 @@ export function useNotePopups(): NotePopupsState {
     showBlockPicker,
     showColorPicker,
     showBorderPicker,
+    showTablePicker,
     showLinkInput,
     showCodeInput,
     showFontSizePicker,
@@ -112,6 +119,7 @@ export function useNotePopups(): NotePopupsState {
     showBlockPicker,
     showColorPicker,
     showBorderPicker,
+    showTablePicker,
     showLinkInput,
     showCodeInput,
     showFontSizePicker,
@@ -120,6 +128,7 @@ export function useNotePopups(): NotePopupsState {
     setShowBlockPicker,
     setShowColorPicker,
     setShowBorderPicker,
+    setShowTablePicker,
     setShowLinkInput,
     setShowCodeInput,
     setShowFontSizePicker,

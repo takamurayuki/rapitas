@@ -10,6 +10,13 @@ import { aiChatRoutes } from './ai-chat';
 import { copilotChatRoutes } from './copilot-chat';
 import { promptsRoutes } from './prompts';
 import { systemPromptsRoutes } from './system-prompts';
+import assistantCleanupRoute from './assistant-cleanup.routes';
+import assistantIntakeRoute from './assistant-intake.routes';
+import assistantProfileRoute from './assistant-profile.routes';
+import assistantQueryRoute from './assistant-query.routes';
+import assistantResearchRoute from './assistant-research.routes';
+import assistantRoadmapRoute from './assistant-roadmap.routes';
+import assistantUpdateRoute from './assistant-update.routes';
 
 export { aiChatRoutes } from './ai-chat';
 export { copilotChatRoutes } from './copilot-chat';
@@ -20,4 +27,11 @@ export const aiDomainRoutes = new Elysia()
   .use(aiChatRoutes)
   .use(copilotChatRoutes)
   .use(promptsRoutes)
-  .use(systemPromptsRoutes);
+  .use(systemPromptsRoutes)
+  .use(assistantCleanupRoute)
+  .use(assistantIntakeRoute)
+  .use(assistantProfileRoute)
+  .use(assistantQueryRoute)
+  .use(assistantResearchRoute)
+  .use(assistantRoadmapRoute)
+  .use(assistantUpdateRoute);

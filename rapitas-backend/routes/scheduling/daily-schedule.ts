@@ -4,6 +4,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
+import { parseId } from '../../middleware/error-handler';
 
 export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
   .get('/', async () => {
@@ -57,7 +58,7 @@ export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'schedule block ID');
       const { label, startTime, endTime, color, icon, category, isNotify, sortOrder } = body as {
         label?: string;
         startTime?: string;
@@ -102,7 +103,7 @@ export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
   .delete(
     '/:id',
     async ({ params }) => {
-      const id = parseInt(params.id);
+      const id = parseId(params.id, 'schedule block ID');
       return await prisma.dailyScheduleBlock.delete({ where: { id } });
     },
     {

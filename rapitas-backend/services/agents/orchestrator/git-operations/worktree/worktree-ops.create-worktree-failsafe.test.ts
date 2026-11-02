@@ -141,6 +141,15 @@ const mockExecFile = mock((file: string, args: unknown, options: unknown, callba
 mock.module('child_process', () => ({ execFile: mockExecFile }));
 mock.module('node:child_process', () => ({ execFile: mockExecFile }));
 
+// The collision suffix comes from randomBytes(4). It is pinned so the test can
+// choose a suffix that happens to contain the task id, which the real generator
+// produces about once in every 680 runs.
+// Copied rather than kept as a namespace: mock.module rewrites live bindings, so
+// `realCrypto.randomBytes` would otherwise resolve to the mock and recurse.
+const realCrypto = { ...(await import('node:crypto')) };
+const mockRandomBytes = mock(realCrypto.randomBytes);
+mock.module('node:crypto', () => ({ ...realCrypto, randomBytes: mockRandomBytes }));
+
 const { createWorktree } = await import('./worktree-ops');
 
 beforeEach(() => {
@@ -148,6 +157,7 @@ beforeEach(() => {
   worktreeListBehavior = 'free';
   inUseBranch = BRANCH;
   mockExistsSync.mockReset().mockReturnValue(false);
+  mockRandomBytes.mockReset().mockImplementation(realCrypto.randomBytes);
 });
 
 describe('createWorktree — branch-in-use detection', () => {
@@ -161,21 +171,27 @@ describe('createWorktree — branch-in-use detection', () => {
     expect(execFileCalls.find((c) => c.includes('git worktree add'))).not.toContain(`add C:`); // sanity: didn't add the un-suffixed branch
   });
 
-  test('does NOT embed the task id twice when a canonical (t<id>-marked) name collides', async () => {
-    // Regression: the old suffixing appended `-task-513` unconditionally, so a
-    // name already carrying `t513` became `feature/...-t513-...-task-513`
-    // (the double-suffix bug, e.g. `feature/implement-perf-t319-task-319`).
-    worktreeListBehavior = 'in-use';
+  test.each([
+    ['a suffix without the task id', 'abcdef01'],
+    ['a suffix that contains the task id', '00513000'],
+  ])(
+    'does NOT embed the task id twice when a canonical name collides (%s)',
+    async (_label, suffix) => {
+      // Regression: the old suffixing appended `-task-513` unconditionally, so a
+      // name already carrying `t513` became `feature/...-t513-...-task-513`
+      // (the double-suffix bug, e.g. `feature/implement-perf-t319-task-319`).
+      worktreeListBehavior = 'in-use';
+      mockRandomBytes.mockImplementation(() => Buffer.from(suffix, 'hex'));
 
-    await createWorktree('/test/repo', BRANCH, 513);
+      await createWorktree('/test/repo', BRANCH, 513);
 
-    const branchArg = addedBranchArg();
-    expect(branchArg).toBeDefined();
-    expect(branchArg).not.toContain('task-513');
-    // Exactly one occurrence of the task id in the BRANCH NAME itself
-    // (the worktree PATH also contains task-513 — inspect only the branch arg).
-    expect(branchArg!.match(/513/g)).toHaveLength(1);
-  });
+      // NOTE: the whole name is matched rather than counting `513`. The suffix
+      // is random hex, so it can contain the id by chance, which made a count
+      // fail about once in 680 runs. Exact equality still refuses a second id
+      // marker, because nothing but the generated suffix may follow BRANCH.
+      expect(addedBranchArg()).toBe(`${BRANCH}-${suffix}`);
+    },
+  );
 
   test('keeps the legacy -task-<id> suffix for names WITHOUT the t<id> marker (backward compat)', async () => {
     worktreeListBehavior = 'in-use';

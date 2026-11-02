@@ -24,10 +24,9 @@ import { parseAcceptanceCriteria } from './review-acceptance-criteria';
  */
 import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
 import { generatedArtifactReason } from './generated-artifact-paths';
-import { getAuxAiMode, sendAIMessage } from '../../../utils/ai-client';
-import type { AIProvider } from '../../../utils/ai-client/types';
-import { DEFAULT_MODELS } from '../../../utils/ai-client/types';
-import { inferProviderFromModelId } from '../../workflow/role-provider-resolver';
+import { sendAIMessage } from '../../../utils/ai-client';
+import { buildPanel, type JurorSpec } from './jury-panel';
+import { summarisePanel, type UnknownReason } from './juror-unknown-reason';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
 import { detectHighRisk } from '../../workflow/risk-detection';
 import { appendEvent } from '../../memory/timeline';
@@ -52,9 +51,6 @@ const log = createLogger('verification:adversarial-diff-review');
 const MAX_DIFF_CHARS = 48000;
 /** Minimum patch budget per file so no changed file is entirely invisible. */
 const MIN_FILE_PATCH_CHARS = 1500;
-/** Providers we will use as a judge, in default preference order. */
-const JUDGE_PROVIDERS: AIProvider[] = ['claude', 'gemini', 'chatgpt'];
-
 // NOTE: Prompt text and verdict parsing/aggregation moved to sibling modules
 // (file-size split); re-exported so existing importers keep working.
 export { buildDiffReviewPrompt } from './adversarial-diff-review-prompt';
@@ -144,15 +140,8 @@ export function isAdversarialReviewEnabled(): boolean {
   return v !== '0' && v !== 'false' && v !== 'off';
 }
 
-/** Map a role-resolver Provider (e.g. 'openai') to an AI-client provider. */
-function toAIProvider(p: string | null): AIProvider | null {
-  if (p === 'openai') return 'chatgpt';
-  if (p === 'claude' || p === 'gemini' || p === 'chatgpt') return p as AIProvider;
-  return null; // ollama / unknown → not used as a judge
-}
-
-/** Best-effort: the AI provider the implementer used, to exclude it as judge. */
-async function implementerAIProvider(taskId: number): Promise<AIProvider | null> {
+/** Best-effort: the model the implementer ran, so it judges itself last. */
+async function implementerModelId(taskId: number): Promise<string | null> {
   const exec = await prisma.agentExecution
     .findFirst({
       where: { session: { config: { taskId } } },
@@ -160,7 +149,7 @@ async function implementerAIProvider(taskId: number): Promise<AIProvider | null>
       select: { modelName: true },
     })
     .catch(() => null);
-  return exec?.modelName ? toAIProvider(inferProviderFromModelId(exec.modelName)) : null;
+  return exec?.modelName ?? null;
 }
 
 /**
@@ -199,7 +188,7 @@ export const JUROR_COOLOFF_MS = 30 * 60_000;
  * before they were asked. Resting it costs nothing: a skipped juror returns the
  * same 'unknown' it would have returned, just immediately.
  */
-const jurorHealth = new Map<AIProvider, { strikes: number; skipUntilMs: number }>();
+const jurorHealth = new Map<string, { strikes: number; skipUntilMs: number }>();
 
 /** Clear the juror timeout history. Test-only — never call from production code. */
 export function resetJurorHealth(): void {
@@ -209,82 +198,96 @@ export function resetJurorHealth(): void {
 /**
  * Whether a juror is currently rested after repeated timeouts.
  *
- * @param provider - Judge provider. / ジャッジのプロバイダ
+ * @param juror - Juror label (provider:model). / 陪審員ラベル
  * @param nowMs - Current time (ms). / 現在時刻
  * @returns true while the juror should be skipped. / 休ませる間は true
  */
-export function jurorIsRested(provider: AIProvider, nowMs: number): boolean {
-  return (jurorHealth.get(provider)?.skipUntilMs ?? 0) > nowMs;
+export function jurorIsRested(juror: string, nowMs: number): boolean {
+  return (jurorHealth.get(juror)?.skipUntilMs ?? 0) > nowMs;
 }
 
 /**
  * Record one juror attempt so repeated timeouts eventually rest the provider.
  *
- * @param provider - Judge provider. / ジャッジのプロバイダ
+ * @param juror - Juror label (provider:model). / 陪審員ラベル
  * @param timedOut - Whether this attempt timed out. / タイムアウトしたか
  * @param nowMs - Current time (ms). / 現在時刻
  */
-export function recordJurorOutcome(provider: AIProvider, timedOut: boolean, nowMs: number): void {
+export function recordJurorOutcome(juror: string, timedOut: boolean, nowMs: number): void {
   if (!timedOut) {
-    jurorHealth.delete(provider);
+    jurorHealth.delete(juror);
     return;
   }
-  const prev = jurorHealth.get(provider);
+  const prev = jurorHealth.get(juror);
   const strikes = (prev?.strikes ?? 0) + 1;
-  jurorHealth.set(provider, {
+  jurorHealth.set(juror, {
     strikes,
     skipUntilMs: strikes >= JUROR_TIMEOUT_STRIKES ? nowMs + JUROR_COOLOFF_MS : 0,
   });
 }
 
 /**
- * Ask one juror (provider) for an independent verdict. Never throws.
+ * Ask one juror for an independent verdict. Never throws.
  *
- * @param provider - Judge provider. / ジャッジのプロバイダ
+ * The seat carries its own model: in Claude-only CLI mode the panel is three
+ * distinct Claude models rather than three vendors, because routing Gemini
+ * and OpenAI through Claude would be one vote counted three times
+ * (jury-panel.ts).
+ *
+ * @param seat - The juror to ask. / 問い合わせる陪審員
  * @param prompt - Shared review prompt. / 共通レビュープロンプト
  * @returns The juror's verdict ('unknown' on error/timeout/unparseable). / 判定
  */
-async function askJuror(provider: AIProvider, prompt: string): Promise<JurorVerdict> {
-  const unknown: JurorVerdict = { provider, verdict: 'unknown', severity: 0, reasons: [] };
-  // CLI auxiliary mode routes every family through Claude. Never count those
-  // duplicate calls as independent Gemini/OpenAI votes, or wait for them.
-  if (getAuxAiMode() === 'cli' && provider !== 'claude') {
-    return {
-      ...unknown,
-      reasons: ['Requested provider unavailable in Claude-only auxiliary CLI mode'],
-    };
-  }
-
+async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVerdict> {
+  const { provider, model, label } = seat;
+  // One shape per cause: four different failures used to land on the same
+  // bare 'unknown', which is why a slide in the unknown rate could not be
+  // attributed afterwards (juror-unknown-reason.ts).
+  const unknownFor = (unknownReason: UnknownReason): JurorVerdict => ({
+    provider,
+    model,
+    verdict: 'unknown',
+    severity: 0,
+    reasons: [],
+    unknownReason,
+  });
   const timeoutMs = jurorTimeoutMs();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const verdict = await Promise.race([
       sendAIMessage({
         provider,
-        model: DEFAULT_MODELS[provider],
+        model,
         systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
         maxTokens: 1200,
         messages: [{ role: 'user', content: prompt }],
       }).then((res) => {
         const v = parseReviewVerdict(res.content);
-        recordJurorOutcome(provider, false, Date.now());
-        return { provider, verdict: v.verdict, severity: v.severity, reasons: v.reasons };
+        recordJurorOutcome(label, false, Date.now());
+        return {
+          provider,
+          model,
+          verdict: v.verdict,
+          severity: v.severity,
+          reasons: v.reasons,
+          ...(v.verdict === 'unknown' ? { unknownReason: 'unparsable' as const } : {}),
+        };
       }),
       new Promise<JurorVerdict>((resolve) => {
         timer = setTimeout(() => {
-          recordJurorOutcome(provider, true, Date.now());
+          recordJurorOutcome(label, true, Date.now());
           log.warn(
-            { provider, timeoutMs },
+            { juror: label, timeoutMs },
             '[adversarial-review] Juror timed out — counting as unknown',
           );
-          resolve(unknown);
+          resolve(unknownFor('timeout'));
         }, timeoutMs);
       }),
     ]);
     return verdict;
   } catch (err) {
-    log.warn({ err, provider }, '[adversarial-review] Juror failed');
-    return unknown;
+    log.warn({ err, juror: label }, '[adversarial-review] Juror failed');
+    return unknownFor('error');
   } finally {
     // Without this the pending timer keeps the event loop (and in tests, the
     // process) alive for the full timeout after a fast juror already answered.
@@ -311,7 +314,13 @@ export async function reviewDiffAdversarially(params: {
 }): Promise<DiffReviewResult> {
   const { taskId, worktreePath, suppressEventLog } = params;
   if (!isAdversarialReviewEnabled() || !worktreePath) {
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
+    return {
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'disabled',
+    };
   }
 
   try {
@@ -348,27 +357,23 @@ export async function reviewDiffAdversarially(params: {
       diffText,
     });
 
-    // Jury: every provider judges INDEPENDENTLY and in parallel (no debate —
-    // independent votes measurably beat argumentative protocols). Ordering
-    // still lists non-implementer families first for log readability only.
-    const implProvider = await implementerAIProvider(taskId);
-    const order = [
-      ...JUDGE_PROVIDERS.filter((p) => p !== implProvider),
-      ...JUDGE_PROVIDERS.filter((p) => p === implProvider),
-    ];
+    // Jury: every juror judges INDEPENDENTLY (no debate — independent votes
+    // measurably beat argumentative protocols). The implementer's own model
+    // is seated last; see jury-panel.ts for why it is never dropped.
+    const order = buildPanel({ implementerModel: await implementerModelId(taskId) });
     // Skip jurors resting after repeated timeouts — they would only add the
     // full timeout to this review and answer 'unknown' anyway. If that would
     // empty the panel, ask everyone: a blind gate is worse than a slow one.
     const nowMs = Date.now();
-    const awake = order.filter((p) => !jurorIsRested(p, nowMs));
+    const awake = order.filter((seat) => !jurorIsRested(seat.label, nowMs));
     const panel = awake.length > 0 ? awake : order;
     if (panel.length < order.length) {
       log.info(
-        { rested: order.filter((p) => !panel.includes(p)) },
+        { rested: order.filter((seat) => !panel.includes(seat)).map((seat) => seat.label) },
         '[adversarial-review] Skipping jurors that keep timing out',
       );
     }
-    const jurors = await mapJurors(panel, (provider) => askJuror(provider, prompt));
+    const jurors = await mapJurors(panel, (seat) => askJuror(seat, prompt));
     // A fail about a plan item that a sibling PR already put on the base ref can
     // never be fixed by the diff — drop it deterministically (task 1196).
     const { applyBaseSatisfiedFilter } = await import('./base-satisfied-plan-items');
@@ -391,10 +396,25 @@ export async function reviewDiffAdversarially(params: {
           severity: aggregated.severity,
           jurors: jurors.map((j) => ({
             provider: j.provider,
+            model: j.model,
             verdict: j.verdict,
             severity: j.severity,
             reasons: j.reasons,
+            unknownReason: j.unknownReason,
           })),
+          // Seats planned vs seats asked. A juror rested after repeated
+          // timeouts is dropped before anyone is asked, so without this the
+          // review reads as a smaller jury that answered in full — which is
+          // exactly how the panel shrank to one voter unnoticed.
+          panel: summarisePanel({
+            planned: order.map((seat) => ({ label: seat.label })),
+            asked: panel.map((seat) => ({ label: seat.label })),
+            jurors: jurors.map((j) => ({
+              label: `${j.provider}:${j.model ?? ''}`,
+              verdict: j.verdict,
+              unknownReason: j.unknownReason,
+            })),
+          }),
         },
         correlationId: `task-${taskId}`,
       }).catch(() => {});
@@ -406,7 +426,7 @@ export async function reviewDiffAdversarially(params: {
           taskId,
           verdict: aggregated.verdict,
           severity: aggregated.severity,
-          votes: jurors.map((j) => `${j.provider}:${j.verdict}`).join(','),
+          votes: jurors.map((j) => `${j.model ?? j.provider}:${j.verdict}`).join(','),
         },
         '[adversarial-review] Jury verdict',
       );
@@ -434,9 +454,12 @@ export async function reviewDiffAdversarially(params: {
       };
     }
     log.warn({ taskId }, '[adversarial-review] Jury unavailable on low-risk change — failing open');
+    // Every juror answered 'unknown'; their own reasons are on the rows.
     return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
   } catch (err) {
+    // The gate was on and the pipeline broke — distinct from 'disabled',
+    // which is the operator switching it off.
     log.warn({ err, taskId }, '[adversarial-review] Review errored — failing open');
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, unknownReason: 'error' };
   }
 }

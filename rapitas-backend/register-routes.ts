@@ -12,7 +12,6 @@ import { tasksDomainRoutes } from './routes/tasks';
 import { agentsDomainRoutes } from './routes/agents';
 import { aiDomainRoutes } from './routes/ai';
 import { schedulingDomainRoutes } from './routes/scheduling';
-import { learningDomainRoutes } from './routes/learning';
 import { systemDomainRoutes } from './routes/system';
 import { workflowDomainRoutes } from './routes/workflow';
 import { socialDomainRoutes } from './routes/social';
@@ -31,7 +30,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(agentsDomainRoutes);
   app.use(aiDomainRoutes);
   app.use(schedulingDomainRoutes);
-  app.use(learningDomainRoutes);
   app.use(systemDomainRoutes);
   app.use(workflowDomainRoutes);
   app.use(socialDomainRoutes);

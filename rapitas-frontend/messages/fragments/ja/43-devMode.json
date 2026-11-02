@@ -376,6 +376,9 @@
       "runningNoLogsYet": "実行中です。ログを準備しています...",
       "stopAria": "実行を停止",
       "stop": "停止",
+      "stopping": "停止中...",
+      "stopFailed": "実行を停止できませんでした。まだ動いている可能性があります。",
+      "stopResetFailed": "実行は停止しましたが、タスクのステータスを戻せませんでした。タスク一覧で状態を確認してください。",
       "reset": "リセット",
       "openPr": "PRを開く",
       "rerun": "再実行",
@@ -545,10 +548,12 @@
       "getApiKey": "APIキーを取得"
     },
     "continuationForm": {
-      "placeholder": "継続指示を入力...",
+      "placeholder": "次にやってほしいことを書いてください（改行できます）",
       "inputAria": "継続実行の内容",
       "runAria": "継続実行",
-      "run": "実行"
+      "run": "実行",
+      "label": "追加の指示（前回の出力を引き継いで続きを実行）",
+      "submitHint": "Ctrl / Cmd + Enter で実行"
     },
     "terminalInput": {
       "placeholderWaiting": "回答を入力...",
@@ -780,8 +785,7 @@
       "fullText": "全文",
       "repeatCount": "×{count}",
       "copyPath": "パスをコピー",
-      "copied": "コピーしました",
-      "waitingForLogs": "実行ログを待機中..."
+      "copied": "コピーしました"
     },
     "agentExecutionPanel": {
       "unknownError": "不明なErrorが発生しました"

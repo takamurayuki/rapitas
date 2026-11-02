@@ -101,24 +101,98 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
-      - name: Audit frontend dependencies
-        working-directory: rapitas-frontend
+      # NOTE(#1340): needed because rapitas-backend uses bun, and this job had
+      # no way to audit it — which is why that package had never been checked.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+
+      # `bun audit` reads the installed tree, so without this it reports nothing
+      # and the backend gate would pass by being blind rather than by being clean.
+      #
+      # NOTE(#1340): --frozen-lockfile on purpose. A plain `bun install` lets
+      # CI resolve its own tree, and an audit of a tree that is not the one
+      # that ships measures the wrong thing. The committed bun.lock is what
+      # ships, so that is what gets audited. The bot PRs titled "Fix Bun
+      # Lockfile Format" are not format fixes — they bump lockfileVersion 1→2
+      # and upgrade packages across the tree — so the two can diverge, and this
+      # flag makes that divergence fail loudly here instead of silently
+      # changing what the gate measures.
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      # NOTE(#1340): restructured because this job was green while reporting
+      # `##[error]Process completed with exit code 1`, and worse: both steps ran
+      # two commands in one `run:` under `bash -e`, so a non-zero `--production`
+      # ENDED the step and `--audit-level=high` never executed. The command that
+      # exists to catch high findings only ran when nothing had been found.
+      #
+      # Now: REPORT first (always, advisory, into the Step Summary so a green
+      # job can never be read as "no vulnerabilities"), GATE second, at high,
+      # with written-down exceptions — see the gate step below.
+      - name: Report all dependency advisories (advisory)
+        if: always()
         continue-on-error: true
         run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+          {
+            echo "## 依存脆弱性レポート"
+            echo
+            echo "**緑は「脆弱性なし」ではない。** ゲートは本番依存の critical のみ。"
+            echo "以下は dev 依存を含む全件。"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # NOTE(#1340): piped through `tee` so the findings land in the step
+          # LOG as well as the summary. Redirecting only into the summary left
+          # no way to confirm from the API that this step had produced anything
+          # — a reporting step whose output cannot be seen is indistinguishable
+          # from one that silently wrote nothing.
+          for pkg in rapitas-frontend rapitas-desktop; do
+            {
+              echo
+              echo "### $pkg (pnpm, dev込み)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            (cd "$pkg" && pnpm audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+          {
+            echo
+            echo "### rapitas-backend (bun, dev込み)"
+            echo "NOTE(#1340): このパッケージは監査工程が存在せず、一度も検査されていなかった。"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          (cd rapitas-backend && bun audit 2>&1) | tee -a "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Audit desktop dependencies
-        working-directory: rapitas-desktop
-        continue-on-error: true
+      # NOTE(#1340): the gate was "production criticals only", which every one
+      # of the 24 Dependabot alerts open on 2026-11-03 passed — measured: the
+      # pre-fix frontend lock carried 5 highs (zod, 4x undici) and this job was
+      # green. Now ANY high or critical, dev included, fails unless
+      # .github/audit-exceptions.json excuses it with a reason and an expiry;
+      # an expired exception fails too, so an accepted risk is re-read instead
+      # of forgotten. The audits write JSON and exit non-zero on findings, so
+      # `|| true` keeps the step going; an audit that wrote nothing makes the
+      # gate's JSON.parse fail, so a blind audit still turns this red.
+      - name: Collect audit JSON
+        if: always()
         run: |
-          pnpm audit --production
-          pnpm audit --audit-level=high
+          (cd rapitas-frontend && pnpm audit --json > "$RUNNER_TEMP/fe.json" || true)
+          (cd rapitas-desktop && pnpm audit --json > "$RUNNER_TEMP/desk.json" || true)
+          (cd rapitas-backend && bun audit --json > "$RUNNER_TEMP/be.json" || true)
+
+      - name: Gate — high or above, dev included, unless excepted
+        if: always()
+        run: >-
+          node scripts/security/audit-gate.cjs
+          "frontend=$RUNNER_TEMP/fe.json:pnpm"
+          "desktop=$RUNNER_TEMP/desk.json:pnpm"
+          "backend=$RUNNER_TEMP/be.json:bun"
 
   codeql:
     name: CodeQL Analysis

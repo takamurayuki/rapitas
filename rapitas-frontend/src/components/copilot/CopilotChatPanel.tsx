@@ -24,6 +24,7 @@ export function CopilotChatPanel({
   nextActionContext,
   className = '',
   embedded = false,
+  compact = false,
   children,
 }: CopilotChatPanelProps) {
   const t = useTranslations('copilot.chatPanel');
@@ -117,11 +118,23 @@ export function CopilotChatPanel({
           (p-4 + border-b + text-lg title) so all task-detail cards read as
           the same kind of section, not just the ones that happen to share a
           component. */}
-      <div className="flex items-center justify-between border-b border-zinc-100 p-4 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
-        </div>
+      {/* Compact drops the title and its glyph entirely: in ラピ's bubble the
+          heading said "AIアシスタント" above a column that is already her, and
+          `text-lg` + `p-4` cost more height than the content below it. The
+          reset button survives — it is the only control in here. */}
+      <div
+        className={
+          compact
+            ? 'flex items-center justify-end px-1'
+            : 'flex items-center justify-between border-b border-zinc-100 p-4 dark:border-zinc-800'
+        }
+      >
+        {!compact && (
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
+          </div>
+        )}
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <button
@@ -140,8 +153,14 @@ export function CopilotChatPanel({
         ref={scrollRef}
         role="log"
         aria-live="polite"
-        className="flex-1 overflow-y-auto px-4 py-3"
-        style={{ minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }}
+        className={
+          compact ? 'flex-1 overflow-y-auto px-1 py-1' : 'flex-1 overflow-y-auto px-4 py-3'
+        }
+        style={
+          compact
+            ? { maxHeight: 'calc(70vh - 7rem)' }
+            : { minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }
+        }
       >
         {/* Show the passive insight only when there are no recommendations to
             avoid a duplicate prompt; hide recommendations while an action runs
@@ -154,6 +173,7 @@ export function CopilotChatPanel({
             <NextActionRecommendations
               actions={nextActions}
               onSelect={handleSelect}
+              compact={compact}
               isBusy={isLoading}
             />
           </div>

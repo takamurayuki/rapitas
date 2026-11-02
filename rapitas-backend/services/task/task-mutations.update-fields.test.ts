@@ -107,9 +107,6 @@ function createMockPrisma() {
       deleteMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
       createMany: mock(() => Promise.resolve({ count: 0 })) as ReturnType<typeof mock>,
     },
-    studyStreak: {
-      upsert: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
-    },
     activityLog: {
       create: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
     },
@@ -138,33 +135,6 @@ describe('updateTask — タスク未検出', () => {
       'タスク(ID: 999)が見つかりません',
     );
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
-  });
-});
-
-describe('updateTask — ストリーク記録', () => {
-  test('status=done の場合、studyStreak.upsert を呼ぶこと', async () => {
-    setupFindUnique({ status: 'todo', parentId: null }, { id: 1, status: 'done', parentId: null });
-
-    await updateTask(mockPrisma as never, 1, { status: 'done' });
-
-    expect(mockPrisma.studyStreak.upsert).toHaveBeenCalledTimes(1);
-    const call = mockPrisma.studyStreak.upsert.mock.calls[0]![0] as {
-      where: { date: Date };
-      create: { tasksCompleted: number };
-    };
-    expect(call.where.date.getHours()).toBe(0);
-    expect(call.create.tasksCompleted).toBe(1);
-  });
-
-  test('status が done 以外の場合、studyStreak.upsert を呼ばないこと', async () => {
-    setupFindUnique(
-      { status: 'todo', parentId: null },
-      { id: 1, status: 'in-progress', parentId: null },
-    );
-
-    await updateTask(mockPrisma as never, 1, { status: 'in-progress' });
-
-    expect(mockPrisma.studyStreak.upsert).not.toHaveBeenCalled();
   });
 });
 

@@ -45,7 +45,7 @@ interface TaskRow {
 function matchClause(value: unknown, clause: unknown): boolean {
   if (clause === null) return value === null;
   if (clause instanceof Date) return value instanceof Date && value.getTime() === clause.getTime();
-  if (clause !== null && typeof clause === 'object') {
+  if (typeof clause === 'object') {
     return Object.entries(clause as Record<string, unknown>).every(([op, opVal]) => {
       const v = value as Date | null;
       switch (op) {

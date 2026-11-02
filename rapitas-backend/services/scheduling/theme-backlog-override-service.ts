@@ -116,16 +116,24 @@ export async function upsertThemeOverride(
   if (patch.logDir !== undefined) data.logDir = patch.logDir?.trim() ? patch.logDir.trim() : null;
   if (patch.logFormat !== undefined) data.logFormat = normalizeLogFormat(patch.logFormat);
 
-  const row = await prisma.themeBacklogSchedule.upsert({
-    where: { kind_themeId: { kind, themeId } },
-    create: {
-      kind,
-      themeId,
-      enabled: patch.enabled ?? true,
-      logDir: typeof data.logDir === 'string' ? (data.logDir as string) : null,
-      logFormat: data.logFormat as string | undefined,
-    },
-    update: data,
+  // The compound unique gained `workspaceId`, so `kind_themeId` no longer
+  // names a constraint. The find is workspace-scoped by the client extension,
+  // and the id it returns addresses the row in any context.
+  const found = await prisma.themeBacklogSchedule.findFirst({
+    where: { kind, themeId },
+    select: { id: true },
   });
+
+  const row = found
+    ? await prisma.themeBacklogSchedule.update({ where: { id: found.id }, data })
+    : await prisma.themeBacklogSchedule.create({
+        data: {
+          kind,
+          themeId,
+          enabled: patch.enabled ?? true,
+          logDir: typeof data.logDir === 'string' ? (data.logDir as string) : null,
+          logFormat: data.logFormat as string | undefined,
+        },
+      });
   return toOverride(row as OverrideRow);
 }

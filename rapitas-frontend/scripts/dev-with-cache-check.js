@@ -13,6 +13,14 @@ const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const CACHE_DIR = path.join(ROOT, '.next');
+
+/**
+ * The address the dev server binds.
+ *
+ * An IP literal, not `localhost` and not the wildcard — see the NOTE at the
+ * `next dev` call for why the wildcard is unsafe here.
+ */
+const DEV_HOSTNAME = '127.0.0.1';
 const TURBO_CACHE = path.join(ROOT, 'node_modules', '.cache');
 const LOCK_FILE = path.join(ROOT, 'pnpm-lock.yaml');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
@@ -153,7 +161,18 @@ function main() {
   // Start Next.js dev server
   console.log('🚀 Starting Next.js dev server...\n');
   try {
-    execSync('next dev', { stdio: 'inherit', cwd: ROOT });
+    // NOTE: --hostname is not optional. Without it Next binds the wildcard
+    // [::]:3000, and on Windows a LATER address-specific bind to
+    // 127.0.0.1:3000 by another program wins for that address while our
+    // wildcard socket stays open — so nothing reports a conflict and every
+    // loopback request reaches the other program. That happened on
+    // 2026-10-29: another project's Rails dev server took both loopback
+    // addresses and its pages were served inside the rapitas window.
+    // Holding the literal address ourselves means whoever comes second
+    // gets the EADDRINUSE instead of silently stealing the port. The
+    // backend has bound 127.0.0.1:3001 this way since the 2026-07
+    // takeover, and every client in this repo addresses the IP literal.
+    execSync(`next dev --hostname ${DEV_HOSTNAME}`, { stdio: 'inherit', cwd: ROOT });
   } catch (err) {
     process.exit(err.status || 1);
   }

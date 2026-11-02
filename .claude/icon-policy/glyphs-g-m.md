@@ -20,11 +20,14 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Gavel`                   | 敵対的レビュー判定（adversarial diff-review judge eval）カードタイトル |
 | `LayoutTemplate`          | テンプレート設定（タスク詳細メニュー。テンプレート実体は `FileStack`） |
 | `GitBranch`               | タスク詳細の「ワークフロー」セクション（`TaskWorkflowSection` カードヘッダー + quick-nav `td-workflow`。注: 同一glyphは実際のGitブランチ名フィールド/ピッカー(テーマ設定・ディレクトリピッカー等)でも多用されており、そちらは別の慣用（ブランチそのもの）として許容 — カード見出し文脈とフィールド文脈は視覚的に紛れないため） |
-| `Milestone`               | 学習ロードマップ (nav: /learning-roadmap、ページヘッダー・目標フォームモーダル。旧 学習目標=BookMarked / 試験目標=Target は統合により nav から退役) |
-| `Goal`                    | ビジネス目標の入力（効率フロンティアの what-if 推奨フォーム `GoalForm` 見出し。注: `Target`＝学習/試験目標・`Milestone`＝学習ロードマップとは別概念） |
+| `Goal`                    | ビジネス目標の入力（効率フロンティアの what-if 推奨フォーム `GoalForm` 見出し。注: `Target` とは別概念） |
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
 | `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `MoveUp`                  | リスト内の並び順を1つ上げる（AI利用予算の分類ルール一覧 `ClassificationRulesEditor` — 上にあるルールが優先。注: `ChevronUp`＝折りたたみ・優先度、`ArrowUp`＝ディレクトリピッカーの親フォルダへ移動とは別概念） |
 | `GitGraph`                | 失敗の系譜図（nav: /agents/failure-lineage、ページ見出し・空状態。ERROR/WARN ログの推定再発連鎖と根本原因候補の可視化。注: `GitBranch`＝ワークフローセクション/ブランチ名、`GitCompare`＝ドライラン差分比較とは別概念） |
+| `ListFilter`              | ラピの「タスクを探す」モード（`RapiModeTabs` の ask タブ — 条件で絞って数える。注: `Search`＝知識ブラウザ、`ScanSearch`＝検出漏れ兆候とは別概念） |
+| `MessagesSquare`          | ラピの「対話」モード（`RapiModeTabs` の chat タブ — 文章で頼む入口、パネルの既定タブ。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
+| `Locate`                  | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |
+| `LogIn`                   | ログイン（`/auth/login` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。既存の `LogOut`＝ログアウトと自然に対になる。ワークスペース分離の導入でアカウントに意味が生まれたため 2026-10-28 にヘッダ導線を復活させ、その際に正式登録） |

@@ -62,6 +62,8 @@ interface ExecutionRow {
   tokensUsed: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  cacheReadInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
   executionTimeMs: number | null;
   costUsd: unknown;
 }
@@ -110,6 +112,8 @@ export async function loadUsageSamples(
       tokensUsed: true,
       inputTokens: true,
       outputTokens: true,
+      cacheReadInputTokens: true,
+      cacheCreationInputTokens: true,
       executionTimeMs: true,
       costUsd: true,
     },
@@ -129,6 +133,8 @@ export async function loadUsageSamples(
         tokensUsed: toInt(r.tokensUsed),
         inputTokens: toInt(r.inputTokens),
         outputTokens: toInt(r.outputTokens),
+        cacheReadInputTokens: toInt(r.cacheReadInputTokens),
+        cacheCreationInputTokens: toInt(r.cacheCreationInputTokens),
       }),
       durationMs: toInt(r.executionTimeMs),
       costUsd: toNumber(r.costUsd),

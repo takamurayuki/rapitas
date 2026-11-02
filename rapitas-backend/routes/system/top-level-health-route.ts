@@ -8,6 +8,7 @@
  */
 import { prisma } from '../../config';
 import { getAgentSystemSnapshot } from '../agents/system/agent-system-router';
+import { getReadinessSnapshot } from '../../services/system/startup-readiness';
 
 /**
  * Handle the top-level `/health` liveness check aggregating DB connectivity
@@ -20,10 +21,22 @@ export async function handleTopLevelHealthCheck(): Promise<Record<string, unknow
   try {
     await prisma.$queryRaw`SELECT 1`;
     const snapshot = await getAgentSystemSnapshot();
+    const readiness = getReadinessSnapshot();
     return {
+      // NOTE: `status` keeps its old values on purpose (#1323). Warm-up runs
+      // after the listener opens and can outlast the 30s health timeouts in
+      // dev.js / restart-loop-smoke / CI, all of which gate on
+      // `status === 'healthy'` — reporting 'warming' there would turn a
+      // readiness signal into a startup failure. The new truth rides on
+      // `ready` instead, which a caller that needs to WRITE should wait for:
+      // `database: 'connected'` means the connection works, not that a write
+      // will land (measured: SQLITE_IOERR_SHORT_READ inside this window).
       status:
         snapshot.status === 'healthy' || snapshot.status === 'busy' ? 'healthy' : snapshot.status,
       database: 'connected',
+      ready: readiness.ready,
+      warmupStage: readiness.warmupStage,
+      readyAfterMs: readiness.readyAfterMs,
       uptimeSeconds: Math.round(process.uptime()),
       activeExecutions: snapshot.activeExecutions,
       runningExecutions: snapshot.runningExecutions,

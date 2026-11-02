@@ -7,10 +7,11 @@ import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';
 import { getLabelsArray, toJsonString } from '../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
+import { parseId } from '../../middleware/error-handler';
 
 export const promptsRoutes = new Elysia()
   .get('/tasks/:id/prompts', async ({ params }) => {
-    const taskIdNum = parseInt(params.id);
+    const taskIdNum = parseId(params.id, 'task ID');
 
     const task = await prisma.task.findUnique({
       where: { id: taskIdNum },
@@ -52,7 +53,7 @@ export const promptsRoutes = new Elysia()
     '/tasks/:id/prompts',
     async (context) => {
       const { params, body, set } = context;
-      const taskIdNum = parseInt(params.id);
+      const taskIdNum = parseId(params.id, 'task ID');
       const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription } =
         body as {
           name?: string;
@@ -99,7 +100,7 @@ export const promptsRoutes = new Elysia()
   .patch(
     '/prompts/:id',
     async ({ params, body, set }) => {
-      const promptId = parseInt(params.id);
+      const promptId = parseId(params.id, 'prompt ID');
       const { name, optimizedPrompt, isActive } = body as {
         name?: string;
         optimizedPrompt?: string;
@@ -145,7 +146,7 @@ export const promptsRoutes = new Elysia()
     '/prompts/:id',
     async (context) => {
       const { params, set } = context;
-      const promptId = parseInt(params.id);
+      const promptId = parseId(params.id, 'prompt ID');
 
       const existing = await prisma.taskPrompt.findUnique({
         where: { id: promptId },
@@ -170,7 +171,7 @@ export const promptsRoutes = new Elysia()
   // Bulk prompt optimization for task and all subtasks
   .post('/tasks/:id/prompts/generate-all', async (context) => {
     const { params, set } = context;
-    const taskIdNum = parseInt(params.id);
+    const taskIdNum = parseId(params.id, 'task ID');
 
     const promptProvider = await getDefaultProvider();
     const promptApiKey = await getApiKeyForProvider(promptProvider);

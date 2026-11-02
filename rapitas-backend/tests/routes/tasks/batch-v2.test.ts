@@ -36,6 +36,30 @@ mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
+
+/** Ids this batch handler asked the deletion choke point to remove. */
+const chokePointDeletes: number[] = [];
+/** Ids the choke point should refuse as protected. */
+const protectedIds: number[] = [];
+
+// The batch handler delegates deletion instead of calling prisma.task.delete
+// (#1330): deleting directly skipped the protected-task guard, the trash copy
+// and the measurement snapshot. This file tests batch dispatch, so the choke
+// point itself is stubbed — both exports, since mock.module replaces the whole
+// module.
+mock.module('../../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    if (protectedIds.includes(taskId)) return { taskId, outcome: 'protected' };
+    chokePointDeletes.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 42 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => ({
+    deleted: taskIds,
+    protected: [],
+    notFound: [],
+    trashIds: taskIds.map(() => 42),
+  }),
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
   logger: {
@@ -208,17 +232,40 @@ describe('POST /batch/v2', () => {
     expect(body.results[0].body.nextCursor).toBe('20');
   });
 
-  test('GET /tasks/:idで存在しないタスクは200・body nullを返すこと', async () => {
+  // #1335: was 200 + null body, which disagreed with nothing at the time
+  // because the direct route did the same — and both were wrong. A caller
+  // checking only the status concluded the task existed.
+  test('GET /tasks/:idで存在しないタスクは404を返すこと', async () => {
     mockPrisma.task.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'GET', path: '/tasks/999' }]));
     const body = await res.json();
 
-    // Regression check for the null.cached crash fixed in batch-v2.ts.
-    expect(body.results[0].status).toBe(200);
-    expect(body.results[0].body).toBeNull();
-    expect(body.results[0].cached).toBe(false);
+    // Per-request status: one missing task must not fail the whole batch.
+    expect(res.status).toBe(200);
+    expect(body.results[0].status).toBe(404);
+    expect(body.results[0].error).toBeTruthy();
+    // Nothing absent gets cached.
     expect(mockCacheService.set).not.toHaveBeenCalled();
+  });
+
+  test('バッチ内の他のリクエストは404に引きずられないこと', async () => {
+    // The dispatcher maps per request; a 404 in one must leave the rest alone.
+    mockPrisma.task.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 5 });
+
+    const res = await app.handle(
+      batchRequest([
+        { id: 'missing', method: 'GET', path: '/tasks/999' },
+        { id: 'present', method: 'GET', path: '/tasks/5' },
+      ]),
+    );
+    const body = await res.json();
+
+    const byId = Object.fromEntries(
+      (body.results as Array<{ id: string; status: number }>).map((r) => [r.id, r.status]),
+    );
+    expect(byId.missing).toBe(404);
+    expect(byId.present).toBe(200);
   });
 
   test('GET /tasks/:idで見つかった場合キャッシュへ保存すること', async () => {
@@ -240,9 +287,59 @@ describe('POST /batch/v2', () => {
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'GET', path: '/tasks/abc' }]));
     const body = await res.json();
 
-    expect(body.results[0].status).toBe(200);
-    const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
-    expect(Number.isNaN(call.where.id)).toBe(true);
+    // This test is about handler RESOLUTION — that the regex fallback routes
+    // `/tasks/abc` to GET:/tasks/:id at all. Resolution is proven by the 400:
+    // an unresolved path would not produce a validation error from inside the
+    // handler. It must NOT be proven by observing NaN reach Prisma.
+    //
+    // #1335 review: my first version asserted 404 here, which pinned a defect.
+    // The 404 only happened because the mock answers null for id NaN; the real
+    // Prisma rejects NaN, so production took a different path — and it
+    // disagreed with the direct route, which answers 400. The id is validated
+    // before any DB access now.
+    expect(body.results[0].status).toBe(400);
+    expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+  });
+
+  // #1335 review: all three id-taking batch handlers did `parseInt` with no
+  // validation and handed the result straight to Prisma. A 400 before the
+  // query matches the direct route and keeps NaN out of the database layer.
+  describe('不正なIDはDBに触れる前に400を返すこと', () => {
+    test('GET は findUnique を呼ばないこと', async () => {
+      const res = await app.handle(batchRequest([{ id: 'r', method: 'GET', path: '/tasks/abc' }]));
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+    });
+
+    test('PATCH は update を呼ばないこと', async () => {
+      const res = await app.handle(
+        batchRequest([{ id: 'r', method: 'PATCH', path: '/tasks/abc', params: { title: 'x' } }]),
+      );
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    });
+
+    test('DELETE は削除 choke point を呼ばないこと', async () => {
+      const res = await app.handle(
+        batchRequest([{ id: 'r', method: 'DELETE', path: '/tasks/abc' }]),
+      );
+
+      expect((await res.json()).results[0].status).toBe(400);
+      expect(chokePointDeletes).toEqual([]);
+    });
+
+    test('有効なIDは引き続き通ること', async () => {
+      // The over-correction guard: validation must not reject real ids.
+      mockPrisma.task.findUnique.mockResolvedValue({ id: 5, title: 'X' });
+
+      const res = await app.handle(batchRequest([{ id: 'r', method: 'GET', path: '/tasks/5' }]));
+
+      expect((await res.json()).results[0].status).toBe(200);
+      const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
+      expect(call.where.id).toBe(5);
+    });
   });
 
   test('GET /statistics/tasksでLONG TTLで保存すること', async () => {
@@ -290,13 +387,36 @@ describe('POST /batch/v2', () => {
   });
 
   test('DELETE /tasks/:idでタスクを削除すること', async () => {
+    chokePointDeletes.length = 0;
+
     const res = await app.handle(batchRequest([{ id: 'r1', method: 'DELETE', path: '/tasks/5' }]));
     const body = await res.json();
 
     expect(body.results[0].status).toBe(200);
-    expect(body.results[0].body).toEqual({ success: true });
-    const deleteCall = mockPrisma.task.delete.mock.calls[0]![0] as { where: { id: number } };
-    expect(deleteCall.where.id).toBe(5);
+    expect(body.results[0].body).toEqual({ success: true, trashId: 42 });
+    // Through the guarded path, so the delete is recoverable from the trash.
+    expect(chokePointDeletes).toEqual([5]);
+    expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+  });
+
+  // The hole this closes: the single-task route refuses a protected task, and
+  // the batch used to delete it anyway.
+  test('保護されたタスクはバッチ経由でも削除されないこと', async () => {
+    chokePointDeletes.length = 0;
+    protectedIds.push(7);
+
+    try {
+      const res = await app.handle(
+        batchRequest([{ id: 'r1', method: 'DELETE', path: '/tasks/7' }]),
+      );
+      const body = await res.json();
+
+      expect(body.results[0].status).not.toBe(200);
+      expect(chokePointDeletes).toEqual([]);
+      expect(mockPrisma.task.delete).not.toHaveBeenCalled();
+    } finally {
+      protectedIds.length = 0;
+    }
   });
 
   test('ハンドラが存在しない場合500を返すこと', async () => {

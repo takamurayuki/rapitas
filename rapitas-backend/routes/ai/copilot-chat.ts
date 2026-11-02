@@ -15,6 +15,7 @@ import {
 } from '../../services/ai/copilot-action-service';
 import { generateTaskRetrospective } from '../../services/ai/retrospective-service';
 import { aiRateLimiter } from '../../middleware/rate-limiter';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:copilot-chat');
 
@@ -163,11 +164,11 @@ export const copilotChatRoutes = new Elysia()
       ) {
         return { error: 'リクエストが多すぎます。しばらくしてから再試行してください。' };
       }
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.taskId)) {
         set.status = 400;
         return { error: '無効なタスクIDです' };
       }
+      const taskId = Number(params.taskId);
       try {
         return await generateTaskRetrospective(taskId);
       } catch (err) {
@@ -185,8 +186,8 @@ export const copilotChatRoutes = new Elysia()
   .get(
     '/copilot/chat/:taskId/history',
     async ({ params }) => {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) return { messages: [] };
+      if (!isValidEntityId(params.taskId)) return { messages: [] };
+      const taskId = Number(params.taskId);
       const messages = await getCopilotHistory(taskId);
       return { messages };
     },

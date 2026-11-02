@@ -92,7 +92,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -106,11 +106,16 @@ jobs:
       # twice, a third time by Build (ubuntu-latest)'s full Tauri build. What is
       # left (`bun build --compile` and `next build`) needs neither.
       - name: Install pnpm
-        run: npm install -g pnpm@10
+        run: npm install -g pnpm@10.34.9
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install
+      # NOTE(#1340): --frozen-lockfile. A plain `bun install` re-resolves the tree
+      # against package.json ranges, so a job could run against dependencies the
+      # committed bun.lock never recorded. The dedicated Frozen Install job
+      # proves the lockfile is installable; it cannot stop another job from
+      # resolving something else, which is what the #1349 review pointed out.
+        run: bun install --frozen-lockfile
 
       - name: Generate Prisma Client
         working-directory: rapitas-backend
@@ -133,11 +138,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Install desktop dependencies
         working-directory: rapitas-desktop
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build backend
         working-directory: rapitas-backend

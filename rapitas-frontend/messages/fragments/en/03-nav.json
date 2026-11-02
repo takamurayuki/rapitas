@@ -8,11 +8,6 @@
     "taskSettings": "Task Settings",
     "dashboard": "Dashboard",
     "calendar": "Calendar",
-    "learning": "Learning",
-    "learningGoals": "Learning Goals",
-    "examGoals": "Exam Goals",
-    "learningRoadmap": "Learning Roadmap",
-    "vocabulary": "Vocabulary Book",
     "habitsAchievements": "Schedule",
     "dailySchedule": "Daily Schedule",
     "weeklyReport": "Weekly Report",
@@ -46,10 +41,13 @@
     "list": "List",
     "kanban": "Kanban",
     "userMenu": "User menu",
+    "rapiProfileLink": "What ラピ knows about you",
     "userMenuTitle": "{username} - User menu",
     "admin": "Admin",
     "user": "User",
     "logout": "Logout",
+    "login": "Log in",
+    "register": "Create account",
     "moreMenu": "More menu",
     "closeNoteAI": "Close Note & AI",
     "openNoteAI": "Note & AI (Ctrl+E)",
@@ -75,7 +73,6 @@
     "concerns": "Concerns",
     "hypotheses": "Hypotheses",
     "notes": "Notes",
-    "memos": "Memos",
     "logAnalysis": "Log Analysis"
   }
 }

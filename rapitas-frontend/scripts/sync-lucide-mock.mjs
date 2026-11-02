@@ -10,7 +10,7 @@
  *   node scripts/sync-lucide-mock.mjs --check  # check only (exit 1 on drift or violation)
  */
 
-import { readFile, writeFile, readdir, stat, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join, extname, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname } from 'node:path';

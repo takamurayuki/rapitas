@@ -3,6 +3,9 @@ import { prisma } from '../../config';
 import { cacheService, CacheKeys } from '../../services/core/cache-service';
 import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
+import { deleteTaskWithTrash } from '../../services/task/task-deletion';
+import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 interface BatchResult {
   id: string;
@@ -20,6 +23,31 @@ type HandlerContext = {
 };
 
 const requestHandlers = new Map<string, (params: HandlerContext) => Promise<unknown>>();
+
+/**
+ * Parse a task id from a batch path segment, refusing anything non-numeric.
+ *
+ * NOTE(#1335 review): every id-taking handler here did a bare `parseInt` and
+ * handed the result to Prisma, so `/tasks/abc` sent `NaN` into the query
+ * layer. Prisma rejects that, and the batch API therefore disagreed with the
+ * direct route, which answers 400 from its own `isNaN` check. Validating
+ * before the DB keeps the two consistent and keeps NaN out of the database
+ * layer entirely — a test asserting what NaN *did* downstream was pinning the
+ * defect rather than the contract.
+ *
+ * @param raw - The `:id` path segment / パスの :id 部分
+ * @returns The parsed id / 解析した id
+ * @throws {ValidationError} When it is not a number / 数値でない場合
+ */
+function parseTaskId(raw: string): number {
+  // NOTE(#1335 review): `isValidEntityId`, not `parseInt` + isNaN. parseInt
+  // stops at the first character it cannot read, so `/tasks/5abc` and
+  // `/tasks/5e2` both resolved to row 5 — a PATCH or DELETE naming one
+  // resource would have modified another. Shared with the direct route and
+  // with db-helpers' parseId so there is one definition of a usable id.
+  if (!isValidEntityId(raw)) throw new ValidationError(`Invalid task id: ${raw}`);
+  return Number(raw);
+}
 
 function registerHandler(pattern: string, handler: (params: HandlerContext) => Promise<unknown>) {
   requestHandlers.set(pattern, handler);
@@ -109,7 +137,7 @@ registerHandler('GET:/tasks', async (context) => {
 
 registerHandler('GET:/tasks/:id', async (context) => {
   const { params } = context;
-  const id = parseInt(params!.id);
+  const id = parseTaskId(params!.id);
   const cacheKey = CacheKeys.task(params!.id);
 
   const cached = await cacheService.get(cacheKey);
@@ -122,10 +150,15 @@ registerHandler('GET:/tasks/:id', async (context) => {
     ...QueryOptimizers.taskWithRelations(),
   } as Parameters<typeof prisma.task.findUnique>[0]);
 
-  if (task) {
-    await cacheService.set(cacheKey, task, CacheKeys.TTL.MEDIUM);
-  }
+  // NOTE(#1335): 404, matching the Elysia route. These are two separate
+  // implementations of `GET /tasks/:id` and both answered 200 with a null
+  // body for a missing id; fixing one and not the other would leave the batch
+  // API disagreeing with the direct route about whether a task exists. The
+  // dispatcher maps a thrown AppError to `status: err.status`, so this
+  // surfaces as a per-request 404 rather than failing the whole batch.
+  if (!task) throw new NotFoundError(`Task ${id} not found`);
 
+  await cacheService.set(cacheKey, task, CacheKeys.TTL.MEDIUM);
   return task;
 });
 
@@ -159,7 +192,7 @@ registerHandler('POST:/tasks', async (context) => {
 
 registerHandler('PATCH:/tasks/:id', async (context) => {
   const { params, body } = context;
-  const id = parseInt(params!.id);
+  const id = parseTaskId(params!.id);
   const task = await prisma.task.update({
     where: { id },
     data: body as Parameters<typeof prisma.task.update>[0]['data'],
@@ -176,15 +209,27 @@ registerHandler('PATCH:/tasks/:id', async (context) => {
 
 registerHandler('DELETE:/tasks/:id', async (context) => {
   const { params } = context;
-  const id = parseInt(params!.id);
-  await prisma.task.delete({ where: { id } });
+  const id = parseTaskId(params!.id);
+
+  // NOTE(#1330): Through the choke point, not `prisma.task.delete`. This
+  // handler used to delete directly, so a task the single-task route refuses
+  // as protected was removed here instead — with no trash copy to restore
+  // from and no measurement snapshot, while the cascade took 43 relations.
+  // A batch request is not a reason to skip a guard.
+  const result = await deleteTaskWithTrash(id, 'user');
+  if (result.outcome === 'protected') {
+    throw new Error('保護されたタスクは削除できません');
+  }
+  if (result.outcome === 'not_found') {
+    throw new Error('タスクが見つかりません');
+  }
 
   // Invalidate caches
   await cacheService.delete(CacheKeys.task(params!.id));
   await cacheService.clear('tasks:');
   await cacheService.clear('stats:');
 
-  return { success: true };
+  return { success: true, trashId: result.trashId };
 });
 
 class BatchProcessor {
@@ -259,10 +304,15 @@ class BatchProcessor {
         };
       } catch (error: unknown) {
         const executionTime = performance.now() - startTime;
-        const err = error as { status?: number; message?: string };
+        // NOTE(#1335): `statusCode` first. AppError (and so every
+        // ValidationError / NotFoundError in this codebase) carries its status
+        // as `statusCode`; reading only `status` meant EVERY deliberate error
+        // a handler threw was reported as a 500. `status` is kept as a
+        // fallback for plain objects that use that name.
+        const err = error as { statusCode?: number; status?: number; message?: string };
         return {
           id: request.id,
-          status: err.status || 500,
+          status: err.statusCode ?? err.status ?? 500,
           error: err.message || 'Internal server error',
           executionTime,
         };

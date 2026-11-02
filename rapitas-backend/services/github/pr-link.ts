@@ -100,12 +100,15 @@ export async function ensureIntegrationId(
 
   const data = integrationCreateData(ident);
   try {
-    const row = await prisma.gitHubIntegration.upsert({
+    // find-then-create rather than upsert: `repositoryUrl` is unique per
+    // workspace now, so it is not a filter upsert can take. The update half
+    // was empty anyway — this only ever needed "the row, creating it if it is
+    // not there".
+    const found = await prisma.gitHubIntegration.findFirst({
       where: { repositoryUrl: data.repositoryUrl },
-      update: {},
-      create: data,
       select: { id: true },
     });
+    const row = found ?? (await prisma.gitHubIntegration.create({ data, select: { id: true } }));
     log.info(
       { integrationId: row.id, repositoryUrl: data.repositoryUrl },
       '[ensureIntegrationId] Registered a GitHub integration for a repository that had none — its PRs are now visible to PR sync and auto-merge',
@@ -160,7 +163,7 @@ export async function linkAutoCreatedPr(
     // row whose markers name a different task (or prove nothing).
     const existingRow = await prisma.gitHubPullRequest.findUnique({
       where: { integrationId_prNumber: { integrationId, prNumber } },
-      select: { linkedTaskId: true, title: true, body: true },
+      select: { linkedTaskId: true, title: true, body: true, headBranch: true },
     });
     if (existingRow) {
       const verdict = verifyPrOwnership(
@@ -168,6 +171,7 @@ export async function linkAutoCreatedPr(
           linkedTaskId: existingRow.linkedTaskId,
           title: existingRow.title,
           body: existingRow.body,
+          headBranch: existingRow.headBranch,
         },
         taskId,
       );

@@ -16,6 +16,10 @@ import { useRetroKpiData } from '../useRetroKpiData';
 import { WeeklyMetricChart } from './WeeklyMetricChart';
 import { KpiDiffBadge } from './KpiDiffBadge';
 import { computeKpiDiff, toRetroKpiPoints } from './retro-kpi-points';
+// NOTE: Rates and medians go through the same sample gate the improvement
+// digest uses (#1304). A 590-minute median over two tasks is not a measurement,
+// and it was reaching both the chart line and the week-on-week badge.
+import { gatedBySample } from './sample-gate';
 
 const ICON_BG = 'bg-indigo-100 dark:bg-indigo-900/30';
 const ICON_COLOR = 'text-indigo-600 dark:text-indigo-400';
@@ -42,7 +46,11 @@ export function RetroKpiSection() {
   const windows = ledger?.windows ?? [];
   const vsLabel = t('retroKpi.vsPrevWeek');
 
-  const repairRateDiff = computeKpiDiff(windows, (w) => w.repairRate.rate, 'lower_is_better');
+  const repairRateDiff = computeKpiDiff(
+    windows,
+    (w) => gatedBySample(w.repairRate.rate, w.repairRate.completedTasks),
+    'lower_is_better',
+  );
   const mergedDiff = computeKpiDiff(windows, (w) => w.autoMerged, 'higher_is_better');
   const exhaustedDiff = computeKpiDiff(windows, (w) => w.autoMergeExhausted, 'lower_is_better');
   const conflictDiff = computeKpiDiff(windows, (w) => w.autoMergeConflictFiled, 'lower_is_better');
@@ -54,7 +62,7 @@ export function RetroKpiSection() {
   );
   const leadTimeDiff = computeKpiDiff(
     windows,
-    (w) => w.leadTimeMinutes.medianMinutes,
+    (w) => gatedBySample(w.leadTimeMinutes.medianMinutes, w.leadTimeMinutes.sampleSize),
     'lower_is_better',
   );
 
@@ -103,7 +111,9 @@ export function RetroKpiSection() {
             series={[
               { dataKey: 'rate', label: t('retroKpi.repairRate.seriesLabel'), color: '#f59e0b' },
             ]}
-            data={toRetroKpiPoints(windows, (w) => ({ rate: w.repairRate.rate }))}
+            data={toRetroKpiPoints(windows, (w) => ({
+              rate: gatedBySample(w.repairRate.rate, w.repairRate.completedTasks),
+            }))}
           />
 
           <WeeklyMetricChart
@@ -217,7 +227,9 @@ export function RetroKpiSection() {
             series={[
               { dataKey: 'median', label: t('retroKpi.leadTime.seriesLabel'), color: '#6366f1' },
             ]}
-            data={toRetroKpiPoints(windows, (w) => ({ median: w.leadTimeMinutes.medianMinutes }))}
+            data={toRetroKpiPoints(windows, (w) => ({
+              median: gatedBySample(w.leadTimeMinutes.medianMinutes, w.leadTimeMinutes.sampleSize),
+            }))}
           />
         </div>
       )}

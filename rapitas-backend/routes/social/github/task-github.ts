@@ -10,6 +10,7 @@ import { GitHubService } from '../../../services/core/github-service';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
 import { registerGithubPrRoutes } from './task-github-register-pr';
+import { parseId } from '../../../middleware/error-handler';
 
 const githubService = new GitHubService(prisma);
 
@@ -26,7 +27,7 @@ export const taskGithubRoutes = new Elysia()
       };
 
       const task = await prisma.task.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'task ID') },
       });
       if (!task) return { error: 'Task not found' };
 
@@ -50,14 +51,14 @@ export const taskGithubRoutes = new Elysia()
           labels: JSON.stringify(issue.labels),
           authorLogin: issue.authorLogin,
           url: issue.url,
-          linkedTaskId: parseInt(id),
+          linkedTaskId: parseId(id, 'task ID'),
           lastSyncedAt: new Date(),
         },
       });
 
       // Update Task
       await prisma.task.update({
-        where: { id: parseInt(id) },
+        where: { id: parseId(id, 'task ID') },
         data: { githubIssueId: savedIssue.id },
       });
 
@@ -87,13 +88,13 @@ export const taskGithubRoutes = new Elysia()
     // PR *number* (the by-task path-2 lookup is `where prNumber: githubPrId`),
     // so read the number off the row rather than storing the local id.
     const pr = await prisma.gitHubPullRequest.update({
-      where: { id: parseInt(prId) },
-      data: { linkedTaskId: parseInt(id) },
+      where: { id: parseId(prId, 'pull request ID') },
+      data: { linkedTaskId: parseId(id, 'task ID') },
       select: { prNumber: true },
     });
 
     await prisma.task.update({
-      where: { id: parseInt(id) },
+      where: { id: parseId(id, 'task ID') },
       data: { githubPrId: pr.prNumber },
     });
 

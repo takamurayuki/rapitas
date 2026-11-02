@@ -250,6 +250,27 @@ describe('POST /tasks/:id/comments', () => {
 
     expect(res.status).toBe(400);
   });
+
+  // NOTE(#1349): 'abc' 以外は素通りしていた。parseInt('5e2') は 5 なので
+  // isNaN が false になり、コメントは別のタスクに付いていた。作成が
+  // 始まっていないことまで見る。
+  test.each([
+    ['指数表記', '5e2'],
+    ['数値に続く接尾辞', '5abc'],
+    ['16進表記', '0x10'],
+    ['ゼロ', '0'],
+  ])('無効なタスクID(%s: %s)で他タスクにコメントを付けないこと', async (_label, raw) => {
+    const res = await app.handle(
+      new Request(`http://localhost/tasks/${raw}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'テスト' }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.comment.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('PATCH /comments/:id', () => {

@@ -13,6 +13,7 @@ import {
   getGeneratedTasks,
   RECURRENCE_PRESETS,
 } from '../../services/scheduling';
+import { parseId } from '../../middleware/error-handler';
 
 const log = createLogger('routes:recurring-tasks');
 
@@ -24,7 +25,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .put(
     '/:id/recurrence',
     async ({ params, body, set }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const { recurrenceRule, recurrenceEndAt, recurrenceTime, inheritWorkflowFiles } = body;
 
       try {
@@ -68,7 +69,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .delete(
     '/:id/recurrence',
     async ({ params, set }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
 
       try {
         const task = await removeTaskRecurrence(prisma, taskId);
@@ -100,7 +101,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/occurrences',
     async ({ params, query }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const limit = query.limit ? parseInt(query.limit) : 10;
 
       const task = await prisma.task.findUnique({
@@ -149,7 +150,7 @@ export const recurringTaskRoutes = new Elysia({ prefix: '/tasks' })
   .get(
     '/:id/generated',
     async ({ params, query }) => {
-      const taskId = parseInt(params.id);
+      const taskId = parseId(params.id, 'task ID');
       const limit = query.limit ? parseInt(query.limit) : 50;
       const includeCompleted = query.includeCompleted !== 'false';
 

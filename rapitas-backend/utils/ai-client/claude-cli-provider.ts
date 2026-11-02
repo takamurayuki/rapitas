@@ -33,6 +33,10 @@ import {
 } from './claude-cli-timeouts';
 
 export { ClaudeCliUnavailableError } from './cli-errors';
+import { toolArgsFor, type CliToolAccess } from './claude-cli-tools';
+
+// Re-exported so callers keep importing the provider's own vocabulary.
+export type { CliToolAccess } from './claude-cli-tools';
 // Re-exported from their new home so existing importers (routes/ai/ai-chat.ts,
 // the provider's own tests) keep working after the 500-line split.
 export {
@@ -157,20 +161,6 @@ function buildCliEnv(): NodeJS.ProcessEnv {
   delete env.ANTHROPIC_AUTH_TOKEN;
   return env;
 }
-
-/** Tools disabled for pure text generation — no repo/file/shell/network access. */
-const DISALLOWED_TOOLS =
-  'Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,MultiEdit';
-
-/** Auxiliary calls generate text; they do not need the default coding-agent prompt or tools. */
-const TEXT_ONLY_ARGS = [
-  '--effort',
-  'low',
-  '--tools',
-  '',
-  '--system-prompt',
-  'You are a text processing assistant. Follow the supplied instructions and return only the requested text. Do not use tools.',
-];
 
 /**
  * Fold system prompt + conversation into a single stdin prompt. Passing text via
@@ -344,6 +334,7 @@ async function spawnCli(
  * @param _maxTokens - Accepted for signature parity; the CLI manages output length / 署名互換のため受理
  * @param timeoutMs - Optional longer wall-clock cap for this call; see
  *   {@link resolveCliTimeoutMs}. / この呼び出しのみ上限を延長する場合
+ * @param tools - What this one call may reach; defaults to nothing / この呼び出しが使える道具
  * @returns The generated text and token usage / 生成テキストとトークン使用量
  * @throws {ClaudeCliUnavailableError} When the CLI cannot serve the request / CLIが応答できない場合
  */
@@ -353,6 +344,7 @@ export async function callClaudeCli(
   systemPrompt: string | undefined,
   _maxTokens: number,
   timeoutMs?: number,
+  tools: CliToolAccess = 'none',
 ): Promise<AIResponse> {
   await acquireSlot();
   try {
@@ -362,9 +354,7 @@ export async function callClaudeCli(
       'json',
       '--model',
       toCliModel(model),
-      '--disallowedTools',
-      DISALLOWED_TOOLS,
-      ...TEXT_ONLY_ARGS,
+      ...toolArgsFor(tools),
     ];
     const stdout = await spawnCli(
       args,
@@ -422,9 +412,8 @@ export async function callClaudeCliStream(
     'stream-json',
     '--model',
     toCliModel(model),
-    '--disallowedTools',
-    DISALLOWED_TOOLS,
-    ...TEXT_ONLY_ARGS,
+    // Streaming is text generation only; nothing here needs the web.
+    ...toolArgsFor('none'),
   ];
 
   await acquireSlot();

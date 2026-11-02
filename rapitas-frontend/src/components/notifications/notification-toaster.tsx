@@ -14,7 +14,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { extractMemoId, useBrowserNotifications } from '@/hooks/common/useBrowserNotifications';
+import { useBrowserNotifications } from '@/hooks/common/useBrowserNotifications';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { API_BASE_URL } from '@/utils/api';
@@ -22,7 +22,7 @@ import { isTauri } from '@/utils/tauri';
 import { resolveNotificationText } from './notification-type-icons';
 
 /** Types worth an interruptive toast — quiet ones stay bell-only. */
-const TOASTED_TYPES = new Set(['memo_reminder', 'habit_reminder', 'schedule_reminder']);
+const TOASTED_TYPES = new Set(['schedule_reminder']);
 
 /** How far back a missed reminder may be replayed after (re)connecting. */
 const REPLAY_WINDOW_MS = 10 * 60_000;
@@ -102,7 +102,6 @@ export function NotificationToaster() {
           title,
           body: message,
           link: n.link,
-          memoId: extractMemoId(n.metadata),
         }).catch(() => {}),
       );
       return;

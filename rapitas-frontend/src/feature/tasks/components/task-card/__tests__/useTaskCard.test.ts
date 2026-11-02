@@ -171,27 +171,15 @@ describe('useTaskCard', () => {
       expect(result.current.isWaitingForInput).toBe(true);
       expect(result.current.executionClasses?.borderColor).toBe('amber');
       expect(result.current.cardBorderColor).toBe(result.current.waitingAmberConfig.borderColor);
-      expect(result.current.cardBgColor).toBe(result.current.waitingAmberConfig.bgColor);
     });
 
-    it('awaiting_question（実行行なし）の場合もカード背景がamberになること', () => {
+    it('awaiting_question（実行行なし）でもカードボーダーがamberになること', () => {
       mockStoreState.status = null;
       const task = createMockTask({ status: 'in-progress', workflowStatus: 'awaiting_question' });
       const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
 
       expect(result.current.isWaitingForInput).toBe(true);
-      expect(result.current.cardBgColor).toBe(result.current.waitingAmberConfig.bgColor);
-    });
-
-    it('通常ステータスではカード背景がステータス色 + ダーク既定色になること', () => {
-      mockStoreState.status = null;
-      const task = createMockTask({ status: 'todo' });
-      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
-
-      expect(result.current.isWaitingForInput).toBe(false);
-      expect(result.current.cardBgColor).toBe(
-        `${result.current.currentStatus.bgColor} dark:bg-indigo-dark-900`,
-      );
+      expect(result.current.cardBorderColor).toBe(result.current.waitingAmberConfig.borderColor);
     });
 
     it('startedAtがある場合、実行中はexecutionElapsedが文字列になること', () => {
@@ -219,6 +207,48 @@ describe('useTaskCard', () => {
 
       // 10分（累積）+ 30秒（現在経過）≒ 10:30 — フェーズ切替で0に戻らない
       expect(result.current.executionElapsed).toBe('10:30');
+    });
+  });
+
+  // NOTE: 面が状態を持つのをやめた（2026-10-31 の依頼）。一覧で1枚ごとに面が
+  // 染まると色が散らばって読みにくく、状態は既に3通りで言えている: 4px の左縦線、
+  // ステータスアイコン自身の色、待ちのときは文言入りの琥珀バッジ。面まで染めるのは、
+  // 一番強い信号を一番弱い区別に使っていた。
+  describe('カードの面', () => {
+    it('どの状態でも同一で、状態は縦線が担い続けること', () => {
+      mockStoreState.status = null;
+      const todo = renderHook(() =>
+        useTaskCard(createMockTask({ status: 'todo' }), onStatusChange, onTaskUpdated),
+      );
+      const done = renderHook(() =>
+        useTaskCard(createMockTask({ status: 'done' }), onStatusChange, onTaskUpdated),
+      );
+
+      // 実値で固定する。`toBe(todo...)` だけだと、この mock は全ステータスで
+      // 同じ bgColor を返すため、ステータス色を流用したままでも通ってしまう。
+      expect(todo.result.current.cardBgColor).toBe('bg-white dark:bg-indigo-dark-900');
+      expect(done.result.current.cardBgColor).toBe('bg-white dark:bg-indigo-dark-900');
+      // 面を揃えた代わりに、状態の手がかりごと消えてはいけない。
+      expect(done.result.current.cardBorderColor).not.toBe(todo.result.current.cardBorderColor);
+    });
+
+    it('ステータス色を面に流用しないこと', () => {
+      mockStoreState.status = null;
+      const task = createMockTask({ status: 'todo' });
+      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
+
+      expect(result.current.cardBgColor).not.toContain(result.current.currentStatus.bgColor);
+      expect(result.current.cardBgColor).toContain('bg-white');
+    });
+
+    it('待ち状態でも面を琥珀に染めないこと（縦線・アイコン・バッジが担う）', () => {
+      mockStoreState.status = 'waiting_for_input';
+      const task = createMockTask({ status: 'todo' });
+      const { result } = renderHook(() => useTaskCard(task, onStatusChange, onTaskUpdated));
+
+      expect(result.current.isWaitingForInput).toBe(true);
+      expect(result.current.cardBgColor).not.toContain(result.current.waitingAmberConfig.bgColor);
+      expect(result.current.cardBgColor).toContain('bg-white');
     });
   });
 

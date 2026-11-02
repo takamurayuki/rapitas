@@ -16,6 +16,16 @@ import { useProgressColors } from '../completion/TaskCompletionAnimation';
 const logger = createLogger('TaskCard');
 
 /**
+ * The one surface every task card sits on.
+ *
+ * Deliberately not a function of the task: see `cardBgColor` below for why the
+ * status no longer tints it. `indigo-dark-900` is the dark theme's card step in
+ * the lightness ladder (canvas < header < card), so this is "plain card", not
+ * "no colour".
+ */
+const CARD_SURFACE = 'bg-white dark:bg-indigo-dark-900';
+
+/**
  * CSS class bundle derived from the current agent execution status.
  */
 export interface ExecutionClasses {
@@ -206,13 +216,18 @@ export function useTaskCard(
     ? waitingAmberConfig.borderColor
     : currentStatus.borderColor;
 
-  // A question-paused card only tinted its left border, so it read like an
-  // ordinary in-progress card in a list (2026-09-14). The surface now follows
-  // the same amber as the badge; the dark fallback stays with the status path
-  // because its `dark:bg-*` would otherwise compete with the amber one.
-  const cardBgColor = isWaitingForInput
-    ? waitingAmberConfig.bgColor
-    : `${currentStatus.bgColor} dark:bg-indigo-dark-900`;
+  // NOTE: The surface stopped carrying state on 2026-10-31. A list where every
+  // card is tinted by its own status spends its largest area on colour the
+  // reader has to decode card by card, and the state is already said three
+  // other ways: the 4px left border above, the status icon's own colour and
+  // chip, and — while waiting — an amber badge with the word on it.
+  //
+  // This replaces the amber waiting surface added 2026-09-14, when a
+  // question-paused card was said to read like an ordinary in-progress one.
+  // That card had nothing but its left border then; it now also carries the
+  // badge, the amber icon chip and `ai-glow-amber`, so the border is no longer
+  // alone in saying it.
+  const cardBgColor = CARD_SURFACE;
 
   const sweepColors = useProgressColors(1, 2);
 

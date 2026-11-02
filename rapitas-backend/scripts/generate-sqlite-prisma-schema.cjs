@@ -13,6 +13,23 @@ function copySqliteSchema() {
 
   fs.mkdirSync(targetDir, { recursive: true });
 
+  // Prune first. This only ever copied files forward, so deleting a schema
+  // file from the source left its stale copy here still declaring the models
+  // it was meant to remove — and `prisma generate` then fails on relations to
+  // models that no longer exist anywhere else.
+  const sourceNames = new Set(
+    fs
+      .readdirSync(sourceDir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.prisma'))
+      .map((e) => e.name),
+  );
+  for (const entry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.prisma')) continue;
+    if (sourceNames.has(entry.name)) continue;
+    fs.unlinkSync(path.join(targetDir, entry.name));
+    console.log(`Pruned stale SQLite schema file: ${entry.name}`);
+  }
+
   for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith('.prisma')) continue;
 

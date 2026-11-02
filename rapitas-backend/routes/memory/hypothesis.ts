@@ -21,6 +21,7 @@ import {
   type HypothesisStatus,
   type EvidenceStance,
 } from '../../services/memory/hypothesis-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:hypothesis');
 
@@ -34,7 +35,13 @@ export const hypothesisRoutes = new Elysia()
       const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
-      return listHypotheses({ status, domain, themeId, limit, offset });
+      // NOTE: Spans every forgetting stage (#1321). This endpoint backs the
+      // ledger page, whose counts come from /hypotheses/stats — and those count
+      // the whole ledger. Leaving the list active-only showed 2.1% of it
+      // (44 of 2,100 when measured) and, worse, zero rows under the
+      // "supported" filter while the card above it said 1,509, because
+      // graduation consolidates a hypothesis out of 'active'.
+      return listHypotheses({ status, domain, themeId, stages: 'all', limit, offset });
     },
     {
       query: t.Object({
@@ -52,11 +59,11 @@ export const hypothesisRoutes = new Elysia()
 
   /** Fetch one hypothesis (with its evidence trail). */
   .get('/hypotheses/:id', async ({ params, set }) => {
-    const id = parseInt(params.id);
-    if (!Number.isFinite(id)) {
+    if (!isValidEntityId(params.id)) {
       set.status = 400;
       return { error: '無効なIDです' };
     }
+    const id = Number(params.id);
     const hyp = await getHypothesis(id);
     if (!hyp) {
       set.status = 404;
@@ -104,11 +111,11 @@ export const hypothesisRoutes = new Elysia()
   .post(
     '/hypotheses/:id/evidence',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       if (!body.detail?.trim() || !body.artifact?.trim()) {
         set.status = 400;
         return { error: '観察 (detail) と具体的根拠 (artifact) は必須です' };
@@ -147,11 +154,11 @@ export const hypothesisRoutes = new Elysia()
   .put(
     '/hypotheses/:id/status',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       const ok = await setHypothesisStatus(id, body.status as HypothesisStatus);
       if (!ok) {
         set.status = 404;
@@ -166,11 +173,11 @@ export const hypothesisRoutes = new Elysia()
   .delete(
     '/hypotheses/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isFinite(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: '無効なIDです' };
       }
+      const id = Number(params.id);
       const ok = await deleteHypothesis(id);
       if (!ok) {
         set.status = 404;

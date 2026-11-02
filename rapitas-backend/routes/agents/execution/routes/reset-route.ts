@@ -12,6 +12,7 @@ import { createLogger } from '../../../../config/logger';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { removeWorktree } from '../../../../services/agents/orchestrator/git-operations/worktree/worktree-ops';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:reset');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -20,7 +21,7 @@ export const resetRoute = new Elysia().post(
   '/tasks/:id/reset-execution-state',
   async (context) => {
     const { params, headers, request } = context;
-    const taskId = parseInt(params.id);
+    const taskId = parseId(params.id, 'task ID');
 
     // Diagnostic: log WHO triggered the reset (FE button click vs API caller).
     // Past incidents had executions silently killed within ~14s of start with no

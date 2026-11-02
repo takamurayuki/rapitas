@@ -10,8 +10,7 @@
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [
     "src/**/*.test.{ts,tsx}",
-    "src/**/__tests__/**",
-    "src/**/*.stories.{ts,tsx}"
+    "src/**/__tests__/**"
   ],
   "ignoreDependencies": [
     "@types/*",

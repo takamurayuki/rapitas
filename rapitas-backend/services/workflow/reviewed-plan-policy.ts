@@ -12,7 +12,7 @@ export async function readReviewedPlanPolicy(
 ): Promise<ReviewedPlanPolicy> {
   if (mode !== 'lightweight' && mode !== 'standard' && mode !== 'comprehensive')
     throw new Error('Unknown workflow mode');
-  const row = await db.workflowModeConfig.findUnique({
+  const row = await db.workflowModeConfig.findFirst({
     where: { mode },
     select: { stepDefinitions: true },
   });

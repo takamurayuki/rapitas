@@ -172,7 +172,11 @@ describe('RetroKpiSection', () => {
   it('shapes chart data oldest-first with null passthrough', () => {
     const newest = makeWindow({
       to: '2026-08-30T12:00:00.000Z',
-      leadTimeMinutes: { sampleSize: 3, medianMinutes: 57 },
+      // NOTE: sampleSize was 3 here, which the sample gate now withholds
+      // (#1304). Raised above the threshold so this test keeps testing what it
+      // is named for — ordering and null passthrough — and the gating itself is
+      // asserted in the describe below.
+      leadTimeMinutes: { sampleSize: 10, medianMinutes: 57 },
     });
     const oldest = makeWindow({ to: '2026-08-23T12:00:00.000Z' });
     setHookState({
@@ -186,5 +190,117 @@ describe('RetroKpiSection', () => {
       { weekLabel: '8/23', median: null },
       { weekLabel: '8/30', median: 57 },
     ]);
+  });
+});
+
+/**
+ * The improvement digest already dropped thin-sample rates; this section did
+ * not. Live data on 2026-10-31: a 590-minute lead-time median over 2 tasks sat
+ * on the same line as 35 minutes over 28, and fed the "vs last week" badge —
+ * so sampling noise was rendered as a regression (#1304).
+ */
+describe('RetroKpiSection sample gating', () => {
+  beforeEach(() => {
+    chartProps.length = 0;
+    mockUseRetroKpiData.mockReset();
+  });
+
+  const seriesOf = (title: string) =>
+    chartProps.find((p) => p.title === `agents.growth.retroKpi.${title}.title`)?.data;
+
+  it('withholds a repair rate and a median computed over too few tasks', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-10-31T00:00:00.000Z',
+            repairRate: { completedTasks: 2, repairedTasks: 1, rate: 0.5 },
+            leadTimeMinutes: { sampleSize: 2, medianMinutes: 590 },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<RetroKpiSection />);
+
+    expect(seriesOf('repairRate')).toEqual([{ weekLabel: '10/31', rate: null }]);
+    expect(seriesOf('leadTime')).toEqual([{ weekLabel: '10/31', median: null }]);
+  });
+
+  // Counts are not rates: 2 auto-merges is exactly 2, whatever the week's size.
+  it('leaves the count series untouched on the same thin week', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-10-31T00:00:00.000Z',
+            repairRate: { completedTasks: 2, repairedTasks: 1, rate: 0.5 },
+            autoMergeConflictFiled: 2,
+            verifyRepairNonConvergence: 3,
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<RetroKpiSection />);
+
+    expect(seriesOf('conflictFiled')).toEqual([{ weekLabel: '10/31', conflicts: 2 }]);
+    expect(seriesOf('nonConvergence')).toEqual([{ weekLabel: '10/31', nonConvergence: 3 }]);
+  });
+
+  // The diff badge is the worst place for a thin sample: it turns noise into a
+  // verdict about the week just gone.
+  it('does not let a thin week decide the week-on-week verdict', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-10-31T00:00:00.000Z',
+            repairRate: { completedTasks: 2, repairedTasks: 1, rate: 0.5 },
+            leadTimeMinutes: { sampleSize: 2, medianMinutes: 590 },
+          }),
+          makeWindow({
+            to: '2026-10-24T00:00:00.000Z',
+            repairRate: { completedTasks: 28, repairedTasks: 10, rate: 0.357 },
+            leadTimeMinutes: { sampleSize: 28, medianMinutes: 35 },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<RetroKpiSection />);
+
+    const tones = screen.getAllByTestId('kpi-diff-badge').map((b) => b.getAttribute('data-tone'));
+    // repairRate (index 0) and leadTime (last) both compare against a withheld
+    // current value, so neither can read as improved or worsened.
+    expect(tones[0]).toBe('neutral');
+    expect(tones[tones.length - 1]).toBe('neutral');
+  });
+
+  it('still states a rate and a median once the sample is there', () => {
+    setHookState({
+      ledger: {
+        windowDays: 7,
+        windows: [
+          makeWindow({
+            to: '2026-10-24T00:00:00.000Z',
+            repairRate: { completedTasks: 28, repairedTasks: 10, rate: 0.357 },
+            leadTimeMinutes: { sampleSize: 28, medianMinutes: 35 },
+          }),
+        ],
+      },
+      loading: false,
+      error: null,
+    });
+    render(<RetroKpiSection />);
+
+    expect(seriesOf('repairRate')).toEqual([{ weekLabel: '10/24', rate: 0.357 }]);
+    expect(seriesOf('leadTime')).toEqual([{ weekLabel: '10/24', median: 35 }]);
   });
 });

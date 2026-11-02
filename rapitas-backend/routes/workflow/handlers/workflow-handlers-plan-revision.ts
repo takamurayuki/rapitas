@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { NotFoundError, ValidationError } from '../../../middleware/error-handler';
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { persistPlanRevision } from '../../../services/workflow/plan-revision-persistence';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:workflow:plan-revision');
 
@@ -73,11 +74,11 @@ export async function handleRevisePlan({ params, body, set, headers }: RevisePla
   ok: true;
   toStatus: 'research_done';
 }> {
-  const taskId = parseInt(params.taskId, 10);
-  if (Number.isNaN(taskId)) {
+  if (!isValidEntityId(params.taskId)) {
     set.status = 400;
     throw new ValidationError('Invalid taskId');
   }
+  const taskId = Number(params.taskId);
 
   // Directing the planner is a human act, the same class as answering a spec
   // question — an agent must not hand itself a revised plan. Mirrors the guard

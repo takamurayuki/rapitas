@@ -59,6 +59,8 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
           className={className}
           isLoading={dueTodayResult.isLoading}
           totalCount={totalCount}
+          // Compact mode self-fetches, so this is always the live count.
+          overdueCount={dueTodayResult.overdueCount}
           efficiency={efficiency}
           tasks={tasks}
           isCelebrating={isCelebrating}

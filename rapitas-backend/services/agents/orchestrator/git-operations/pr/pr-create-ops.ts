@@ -261,7 +261,7 @@ export async function createPullRequest(
           // `[Task-{id}]`/`[#{id}]` markers agree. No `gh pr create` fallback:
           // GitHub forbids a second open PR for the same head→base, so creating
           // would just burn an API call and fail.
-          if (!titleMarkersAgree(title, pr.title)) {
+          if (!titleMarkersAgree(title, pr.title, currentBranch)) {
             logger.warn(
               `[createPullRequest] Open PR #${pr.number} on ${currentBranch} (title: ${JSON.stringify(pr.title ?? null)}) does not carry this task's marker — refusing to adopt it`,
             );

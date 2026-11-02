@@ -7,29 +7,12 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { labelSchema } from '../../schemas/label.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import { replaceTaskLabels } from '../../services/task/task-label-replace';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
-// NOTE: One-shot backfill for the theme→category label migration: theme-scoped
-// labels inherit their theme's category. Idempotent (only rows still missing
-// categoryId are touched) and best-effort — a failure retries on next boot.
-// Remove together with Label.themeId once all rows carry categoryId.
-void (async () => {
-  try {
-    const orphans = await prisma.label.findMany({
-      where: { categoryId: null, themeId: { not: null } },
-      select: { id: true, theme: { select: { categoryId: true } } },
-    });
-    for (const label of orphans) {
-      if (label.theme?.categoryId != null) {
-        await prisma.label.update({
-          where: { id: label.id },
-          data: { categoryId: label.theme.categoryId },
-        });
-      }
-    }
-  } catch {
-    /* best-effort — retried on next boot */
-  }
-})();
+// NOTE: The theme→category label backfill that ran here at import time moved to
+// services/system/label-category-backfill.ts (run from startup-backfills): a
+// query fired while modules load raced the desktop SQLite initializer (#1000).
 
 export const labelsRoutes = new Elysia({ prefix: '/labels' })
   // Get all labels (optionally filtered by categoryId via ?categoryId=N)
@@ -48,10 +31,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
   // Get label by ID
   .get('/:id', async (context) => {
     const { params } = context;
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
+    if (!isValidEntityId(params.id)) {
       throw new ValidationError('無効なIDです');
     }
+    const id = Number(params.id);
 
     const label = await prisma.label.findUnique({
       where: { id },
@@ -108,10 +91,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/:id',
     async (context) => {
       const { params, body } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       const { name, description, color, icon, categoryId } = body as {
         name?: string;
@@ -176,10 +159,10 @@ export const labelsRoutes = new Elysia({ prefix: '/labels' })
     '/:id',
     async (context) => {
       const { params } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なIDです');
       }
+      const id = Number(params.id);
 
       return await prisma.label.delete({
         where: { id },
@@ -200,27 +183,18 @@ export const taskLabelsRoutes = new Elysia()
     '/tasks/:id/labels',
     async (context) => {
       const { params, body } = context;
-      const taskId = parseInt(params.id);
-      if (isNaN(taskId)) {
+      if (!isValidEntityId(params.id)) {
         throw new ValidationError('無効なタスクIDです');
       }
+      const taskId = Number(params.id);
 
       const { labelIds } = body as { labelIds: number[] };
 
-      // Delete existing associations
-      await prisma.taskLabel.deleteMany({
-        where: { taskId },
-      });
-
-      // Create new associations
-      if (labelIds && labelIds.length > 0) {
-        await prisma.taskLabel.createMany({
-          data: labelIds.map((labelId: number) => ({
-            taskId,
-            labelId,
-          })),
-        });
-      }
+      // NOTE(#1330): One atomic replacement. This used to be a bare
+      // `deleteMany` followed by a `createMany`, so a failing create left the
+      // old labels already deleted and the new ones unwritten — the task ended
+      // up with none. Unknown ids are now refused before the delete runs.
+      await replaceTaskLabels(prisma, taskId, labelIds);
 
       // Return updated task with labels
       return await prisma.task.findUnique({

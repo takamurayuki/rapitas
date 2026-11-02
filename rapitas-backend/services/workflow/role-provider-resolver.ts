@@ -38,7 +38,7 @@ export async function resolveRoleProviderPreferences(
   taskId: number,
 ): Promise<{ preferredProvider?: Provider; excludeProviders?: Provider[] }> {
   const [roleConfig, settings] = await Promise.all([
-    prisma.workflowRoleConfig.findUnique({
+    prisma.workflowRoleConfig.findFirst({
       where: { role },
       select: {
         preferredProviderOverride: true,

@@ -94,7 +94,16 @@ export function localDayStart(now: Date, tzOffsetMinutes: number, daysBack: numb
 }
 
 /**
- * Token count of one execution: tokensUsed when recorded, else input + output.
+ * Token count of one execution: the sum of the four per-class columns, falling
+ * back to `tokensUsed` only when none of them was recorded.
+ *
+ * NOTE: The preference used to be the other way round (#1302). `tokensUsed` is
+ * persisted as `existing + new` from the CLI's stream-json `result`, whose usage
+ * is session-cumulative, so it double counts once an execution resumes; the four
+ * per-class columns are overwritten with the latest snapshot and are correct.
+ * The old fallback also summed input + output only, dropping the cache columns —
+ * 99.3% of the tokens on this machine (measured 2026-10-31). Rows written before
+ * the per-class columns existed carry only `tokensUsed`, hence the fallback.
  *
  * @param row - Token columns of an AgentExecution / トークン列
  * @returns Token count / トークン数
@@ -103,10 +112,16 @@ export function resolveExecutionTokens(row: {
   tokensUsed: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  cacheReadInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
 }): number {
-  const used = row.tokensUsed ?? 0;
-  if (used > 0) return used;
-  return (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
+  const perClass =
+    (row.inputTokens ?? 0) +
+    (row.outputTokens ?? 0) +
+    (row.cacheReadInputTokens ?? 0) +
+    (row.cacheCreationInputTokens ?? 0);
+  if (perClass > 0) return perClass;
+  return row.tokensUsed ?? 0;
 }
 
 /**

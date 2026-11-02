@@ -18,6 +18,7 @@ import {
   type RawPhaseTransition,
 } from '../../services/workflow/phase-segmentation';
 import { generateSummary } from '../../services/workflow/phase-summary-metrics';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:phase-timeline');
 
@@ -25,11 +26,11 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
   '/tasks/:taskId/phase-timeline',
   async (ctx) => {
     const params = ctx.params as { taskId: string };
-    const taskId = parseInt(params.taskId, 10);
-    if (!Number.isFinite(taskId)) {
+    if (!isValidEntityId(params.taskId)) {
       ctx.set.status = 400;
       return { success: false, error: 'invalid taskId' };
     }
+    const taskId = Number(params.taskId);
 
     try {
       const [config, transitions, planFile, task] = await Promise.all([

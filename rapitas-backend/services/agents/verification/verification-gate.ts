@@ -271,7 +271,20 @@ export async function blockTaskForVerification(
       actor: 'system',
       cause: VERIFICATION_UNVERIFIABLE_HOLD_CAUSE,
       phase: 'verify',
-      metadata: { summary: result.summary, unverifiableChecks },
+      // The details, not just the names. `runtime=UNVERIFIED` says a check
+      // could not run; it does not say why, and the why is already sitting in
+      // `details` (the launch log tail included). Measured 2026-10-18
+      // (#1058): eleven tasks accumulated on an unrunnable `start` command,
+      // and the pnpm error behind it reached nothing anyone reads — it
+      // surfaced once, quoted inside a review judge's prose. Truncated
+      // because a launch log tail is unbounded and this row is read by the UI.
+      metadata: {
+        summary: result.summary,
+        unverifiableChecks,
+        unverifiableDetails: result.checks
+          .filter((c) => c.unverifiable)
+          .map((c) => ({ name: c.name, details: (c.details ?? '').slice(0, 2000) })),
+      },
     }).catch((err) =>
       log.warn({ err, taskId }, 'Failed to record the unverifiable hold transition'),
     );

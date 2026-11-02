@@ -22,7 +22,7 @@ import {
  * @returns ThemeAutoRun state / ThemeAutoRun状態
  */
 export async function getOrCreateAutoRun(themeId: number): Promise<ThemeAutoRunState> {
-  const existing = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const existing = await prisma.themeAutoRun.findFirst({ where: { themeId } });
   if (existing) return mapToState(existing);
 
   const created = await prisma.themeAutoRun.create({
@@ -38,7 +38,7 @@ export async function getOrCreateAutoRun(themeId: number): Promise<ThemeAutoRunS
  * @returns state or null / 状態またはnull
  */
 export async function getAutoRunState(themeId: number): Promise<ThemeAutoRunState | null> {
-  const record = await prisma.themeAutoRun.findUnique({ where: { themeId } });
+  const record = await prisma.themeAutoRun.findFirst({ where: { themeId } });
   return record ? mapToState(record) : null;
 }
 
@@ -72,7 +72,7 @@ export function isAutoRunHandlingTask(state: ThemeAutoRunState | null, taskId: n
  */
 export async function isThemeAutoRunActive(themeId: number | null | undefined): Promise<boolean> {
   if (!themeId) return false;
-  const record = await prisma.themeAutoRun.findUnique({
+  const record = await prisma.themeAutoRun.findFirst({
     where: { themeId },
     select: { status: true },
   });

@@ -141,7 +141,7 @@ async function main(): Promise<void> {
   let errored = 0;
   const cases: JudgeEvalCaseResult[] = [];
   for (const f of FIXTURES) {
-    let got: ReviewVerdict = 'unknown';
+    let got: ReviewVerdict;
     try {
       got = await judge(provider, f);
     } catch (err) {

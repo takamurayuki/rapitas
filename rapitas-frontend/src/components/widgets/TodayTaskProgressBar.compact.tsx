@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, CheckCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 interface DueTodayTask {
   id: number;
@@ -22,6 +23,8 @@ export interface TodayTaskProgressBarCompactProps {
   className: string;
   isLoading: boolean;
   totalCount: number;
+  /** Unfinished tasks already past due — the one number worth saying on an empty day. */
+  overdueCount: number;
   efficiency: number;
   tasks: DueTodayTask[] | undefined;
   isCelebrating: boolean;
@@ -34,6 +37,7 @@ export default function TodayTaskProgressBarCompact({
   className,
   isLoading,
   totalCount,
+  overdueCount,
   efficiency,
   tasks,
   isCelebrating,
@@ -58,19 +62,36 @@ export default function TodayTaskProgressBarCompact({
   const popoverTasks = remaining.slice(0, 6);
   const extraCount = remaining.length - popoverTasks.length;
 
-  // ── 本日期限のタスクがない場合: 無効表示 ──────────────────────────────
+  // ── 本日期限のタスクがない場合: 文字だけ ──────────────────────────────
+  // NOTE: No bar and no card here (asked for 2026-10-31). A thermometer with
+  // nothing due can only ever read 0%, which looks like a day gone badly
+  // rather than a day with nothing on it, and it drew the eye to the one
+  // element carrying no information. What is left is the sentence, plus the
+  // overdue count — the only number still worth knowing on such a day.
   if (!isLoading && totalCount === 0) {
     return (
-      <div className={`relative ${className}`}>
-        {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
-            toolbar controls; the old rounded-xl slate card with shadow-sm floated
-            against its flat neighbours. */}
-        <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-indigo-dark-900">
-          <p className="mb-1.5 text-[12px] font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
-            {t('noDueTodayTasks')}
-          </p>
-          <div className="relative h-4 rounded-full border-2 border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800" />
-        </div>
+      // NOTE: `className` (the bar's fixed width) is deliberately not applied
+      // here. It is narrower than the sentence, which wrapped and left "2件"
+      // alone on a second line — a number cut off from the words it belongs
+      // to. A sentence sizes itself, and staying one line also keeps the
+      // toolbar the same height whether or not anything is due today, so the
+      // task list below does not jump when the theme changes.
+      <div className="relative">
+        <p className="whitespace-nowrap text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
+          {overdueCount > 0
+            ? // Only the overdue half is emphasised. "Nothing due" is a status
+              // and "2 overdue" is work being missed — set alike, the eye stops
+              // at the first half and the second is the reason this line exists.
+              // Amber rather than red: the toolbar is a calm strip, and an
+              // overdue task needs attention, it is not an error.
+              t.rich('noDueTodayWithOverdue', {
+                count: overdueCount,
+                overdue: (chunks) => (
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">{chunks}</span>
+                ),
+              })
+            : t('noDueTodayTasks')}
+        </p>
       </div>
     );
   }
@@ -230,7 +251,7 @@ export default function TodayTaskProgressBarCompact({
                   {popoverTasks.map((tk) => (
                     <li key={tk.id}>
                       <Link
-                        href={`/tasks/${tk.id}`}
+                        href={withHeaderVisible(`/tasks/${tk.id}`)}
                         onClick={() => setIsHovered(false)}
                         className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
                       >

@@ -21,6 +21,7 @@ import {
 } from '../../services/memory/concern-backlog-service';
 import { searchConcerns } from '../../services/memory/concern-search-service';
 import { closeIssueForConcern } from '../../services/github/concern-bridge';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:concern-backlog');
 
@@ -130,11 +131,11 @@ export const concernBacklogRoutes = new Elysia()
   .patch(
     '/concerns/:id',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const status = body.status === 'dismissed' ? 'dismissed' : 'open';
       const ok = await setConcernStatus(id, status);
       if (!ok) {
@@ -155,11 +156,11 @@ export const concernBacklogRoutes = new Elysia()
   .delete(
     '/concerns/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const ok = await deleteConcern(id);
       if (!ok) {
         set.status = 404;
@@ -174,11 +175,11 @@ export const concernBacklogRoutes = new Elysia()
   .post(
     '/concerns/:id/convert-to-task',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (!Number.isSafeInteger(id) || id <= 0) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       try {
         const taskId = await convertConcernToTask(id);
         if (taskId === null) {

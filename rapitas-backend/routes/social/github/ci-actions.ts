@@ -14,13 +14,16 @@ import {
 } from '../../../services/github/actions';
 import { resolveIntegrationOrThrow } from '../../../services/github/resource-guard';
 import { makeOwnerRepoString } from '../../../services/github/owner-repo';
+import { parseId } from '../../../middleware/error-handler';
 
 export const ciActionRoutes = new Elysia()
   // CI/CD: list a repo's recent GitHub Actions workflow runs.
   .get('/integrations/:id/runs', async (context) => {
     const { id } = context.params as { id: string };
     const { limit } = context.query as { limit?: string };
-    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
+    const integration = await prisma.gitHubIntegration.findUnique({
+      where: { id: parseId(id, 'integration ID') },
+    });
     if (!integration) return [];
     const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
@@ -37,7 +40,7 @@ export const ciActionRoutes = new Elysia()
     const integration = await resolveIntegrationOrThrow(id);
     const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
-      return await getWorkflowRun(repo, parseInt(runId));
+      return await getWorkflowRun(repo, parseId(runId, 'workflow run ID'));
     } catch (err) {
       context.set.status = 502;
       return { error: err instanceof Error ? err.message : '実行詳細の取得に失敗しました' };
@@ -50,7 +53,7 @@ export const ciActionRoutes = new Elysia()
     const { failed } = context.query as { failed?: string };
     const integration = await resolveIntegrationOrThrow(id);
     const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
-    const log = await getWorkflowRunLog(repo, parseInt(runId), failed === 'true');
+    const log = await getWorkflowRunLog(repo, parseId(runId, 'workflow run ID'), failed === 'true');
     return { log };
   })
 
@@ -61,7 +64,7 @@ export const ciActionRoutes = new Elysia()
     const integration = await resolveIntegrationOrThrow(id);
     const repo = makeOwnerRepoString(integration.ownerName, integration.repositoryName);
     try {
-      const sections = await getWorkflowJobLog(repo, parseInt(jobId));
+      const sections = await getWorkflowJobLog(repo, parseId(jobId, 'workflow job ID'));
       return { sections };
     } catch (err) {
       context.set.status = 502;

@@ -97,7 +97,7 @@ export const workflowRolesRoutes = new Elysia()
 
     await ensureRolesExist();
 
-    const config = await prisma.workflowRoleConfig.findUnique({
+    const config = await prisma.workflowRoleConfig.findFirst({
       where: { role },
       include: {
         agentConfig: {
@@ -175,7 +175,7 @@ export const workflowRolesRoutes = new Elysia()
 
       // Check existence when systemPromptKey is specified
       if (systemPromptKey !== undefined && systemPromptKey !== null) {
-        const prompt = await prisma.systemPrompt.findUnique({
+        const prompt = await prisma.systemPrompt.findFirst({
           where: { key: systemPromptKey },
         });
         if (!prompt) {
@@ -194,8 +194,20 @@ export const workflowRolesRoutes = new Elysia()
         updateData.preferredProviderOverride = preferredProviderOverride;
       }
 
-      const updated = await prisma.workflowRoleConfig.update({
+      // `role` is unique only within a workspace now (@@unique([workspaceId,
+      // role])), so it can no longer identify a row on its own. Locate it
+      // first — the find is workspace-scoped — then update it by id.
+      const target = await prisma.workflowRoleConfig.findFirst({
         where: { role },
+        select: { id: true },
+      });
+      if (!target) {
+        set.status = HTTP_STATUS.NOT_FOUND;
+        return { error: `ロール設定 "${role}" が見つかりません` };
+      }
+
+      const updated = await prisma.workflowRoleConfig.update({
+        where: { id: target.id },
         data: updateData,
         include: {
           agentConfig: {

@@ -132,6 +132,48 @@ describe('waitForHealth', () => {
     expect(result.ok).toBe(false);
   });
 
+  // #1323: "healthy" means the port answers, not that a write will land.
+  // Warm-up runs after the listener opens — measured 6,474ms on 2026-10-31 —
+  // and the fault-injection scenarios all write inside that window.
+  it('with requireReady, keeps waiting while ready is false', async () => {
+    const mockFetch = async (_url: string) =>
+      new Response(JSON.stringify({ status: 'healthy', ready: false }), { status: 200 });
+
+    const result = await waitForHealth(3210, 50, 0, mockFetch, true);
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('with requireReady, returns ok once ready flips to true', async () => {
+    let calls = 0;
+    const mockFetch = async (_url: string) => {
+      calls++;
+      const ready = calls >= 3;
+      return new Response(JSON.stringify({ status: 'healthy', ready }), { status: 200 });
+    };
+
+    const result = await waitForHealth(3210, 5000, 0, mockFetch, true);
+
+    expect(result.ok).toBe(true);
+    expect(result.attempts).toBe(3);
+  });
+
+  it('without requireReady, ignores ready entirely (unchanged contract)', async () => {
+    const mockFetch = async (_url: string) =>
+      new Response(JSON.stringify({ status: 'healthy', ready: false }), { status: 200 });
+
+    expect((await waitForHealth(3210, 5000, 0, mockFetch)).ok).toBe(true);
+  });
+
+  // An older build has no `ready` field. requireReady must not hang against it
+  // forever, so a missing field falls back to the old contract.
+  it('with requireReady, accepts a payload that has no ready field', async () => {
+    const mockFetch = async (_url: string) =>
+      new Response(JSON.stringify({ status: 'healthy' }), { status: 200 });
+
+    expect((await waitForHealth(3210, 5000, 0, mockFetch, true)).ok).toBe(true);
+  });
+
   it('returns ok=false when fetch always throws (timeout)', async () => {
     const mockFetch = async (_url: string) => {
       throw new Error('ECONNREFUSED');

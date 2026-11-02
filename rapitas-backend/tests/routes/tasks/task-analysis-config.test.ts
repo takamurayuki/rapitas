@@ -246,20 +246,37 @@ describe('PUT /task-analysis-config/:taskId', () => {
     expect(res.status).toBe(200);
   });
 
-  test('無効なtaskIdはNaNとしてPrismaへ渡ること', async () => {
-    mockPrisma.task.findUnique.mockResolvedValue(null);
+  // NOTE(#1349): このテストは「NaN が Prisma へ渡ること」を仕様として固定して
+  // いた。NaN が渡るのは症状の軽い方で、同じ parseInt は '5abc' を 5 にするため、
+  // PUT は呼び出し元が指していない行の設定を書き換えていた。旧 assert:
+  //   expect(res.status).toBe(404);
+  //   expect(Number.isNaN(call.where.id)).toBe(true);
+  // 見るべきは「DB に到達しないこと」。findUnique は実在する行5を返すので、
+  // ハンドラが切り捨てた id で到達したらこのテストは落ちる。
+  test.each([
+    ['読めない文字', 'abc'],
+    ['数値に続く接尾辞', '5abc'],
+    ['指数表記', '5e2'],
+    ['小数', '5.9'],
+    ['ゼロ', '0'],
+  ])('無効なtaskId(%s: %s)はDBに触れず拒否されること', async (_label, raw) => {
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 5 });
 
     const res = await app.handle(
-      new Request('http://localhost/task-analysis-config/abc', {
+      new Request(`http://localhost/task-analysis-config/${raw}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );
 
-    expect(res.status).toBe(404);
-    const call = mockPrisma.task.findUnique.mock.calls[0]![0] as { where: { id: number } };
-    expect(Number.isNaN(call.where.id)).toBe(true);
+    // NOTE: このルータ単体には AppError をステータスへ写像する onError が無い
+    // ので bun 上は 500 になる。実機は index.ts のグローバルハンドラ配下で 400。
+    // ここで固定したいのは「2xx を返さない」と「DB に触れない」ことなので、
+    // 単体の写像の有無に依存しない形にする。
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(mockPrisma.task.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.taskAnalysisConfig.upsert).not.toHaveBeenCalled();
   });
 });
 

@@ -19,20 +19,24 @@ let supportedList: FakeHyp[] = [];
 let refutedList: FakeHyp[] = [];
 const statusCalls: Array<string | undefined> = [];
 const themeIdCalls: Array<number | undefined> = [];
+const stagesCalls: Array<string | undefined> = [];
 let listHypothesesShouldThrow = false;
 
-const listHypotheses = mock((options: { status?: string; themeId?: number; limit?: number }) => {
-  statusCalls.push(options.status);
-  themeIdCalls.push(options.themeId);
-  if (listHypothesesShouldThrow) return Promise.reject(new Error('db error'));
-  const list =
-    options.status === 'open'
-      ? openList
-      : options.status === 'supported'
-        ? supportedList
-        : refutedList;
-  return Promise.resolve({ hypotheses: list, total: list.length });
-});
+const listHypotheses = mock(
+  (options: { status?: string; themeId?: number; limit?: number; stages?: string }) => {
+    statusCalls.push(options.status);
+    themeIdCalls.push(options.themeId);
+    stagesCalls.push(options.stages);
+    if (listHypothesesShouldThrow) return Promise.reject(new Error('db error'));
+    const list =
+      options.status === 'open'
+        ? openList
+        : options.status === 'supported'
+          ? supportedList
+          : refutedList;
+    return Promise.resolve({ hypotheses: list, total: list.length });
+  },
+);
 
 mock.module('../memory/hypothesis-service', () => ({
   HYPOTHESIS_DOMAINS: ['codebase', 'agent-behavior', 'performance', 'architecture', 'other'],
@@ -62,6 +66,7 @@ beforeEach(() => {
   refutedList = [];
   statusCalls.length = 0;
   themeIdCalls.length = 0;
+  stagesCalls.length = 0;
   listHypothesesShouldThrow = false;
   listHypotheses.mockClear();
   findUnique.mockReset();
@@ -205,5 +210,39 @@ describe('buildHypothesisContext — 証拠記録の例は送信可能なJSONで
   it('選択肢記法 "for"|"against" を本文中に残さない', async () => {
     const md = await buildHypothesisContext(1, 'ja');
     expect(md).not.toContain('"for"|"against"');
+  });
+});
+
+// Measured 2026-10-31 (#1321): the ledger held 1,509 validated hypotheses and
+// NOT ONE of them was in forgettingStage 'active', because graduation
+// consolidates a hypothesis out of that stage. listHypotheses filtered on it,
+// so `status: 'supported'` returned an empty list every single time — and the
+// prompt's「立証済み（信頼してよい確定知見）」section is gated on that list being
+// non-empty. The one thing the ledger exists to deliver never reached an agent.
+describe('established findings must not be hidden by forgetting decay', () => {
+  it('asks for every stage when fetching supported hypotheses', async () => {
+    await buildHypothesisContext(1);
+
+    const supportedIdx = statusCalls.indexOf('supported');
+    expect(supportedIdx).toBeGreaterThanOrEqual(0);
+    expect(stagesCalls[supportedIdx]).toBe('all');
+  });
+
+  it('asks for every stage when fetching refuted hypotheses', async () => {
+    await buildHypothesisContext(1);
+
+    const refutedIdx = statusCalls.indexOf('refuted');
+    expect(refutedIdx).toBeGreaterThanOrEqual(0);
+    expect(stagesCalls[refutedIdx]).toBe('all');
+  });
+
+  // Open hypotheses are the working set, where recency is the point: an
+  // archived conjecture is not something to go looking for evidence on now.
+  it('leaves open hypotheses scoped to the active stage', async () => {
+    await buildHypothesisContext(1);
+
+    const openIdx = statusCalls.indexOf('open');
+    expect(openIdx).toBeGreaterThanOrEqual(0);
+    expect(stagesCalls[openIdx]).toBeUndefined();
   });
 });

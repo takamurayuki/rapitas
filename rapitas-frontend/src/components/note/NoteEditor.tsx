@@ -1,6 +1,6 @@
 'use client';
 // NoteEditor
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useRef, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
@@ -9,6 +9,10 @@ import NoteEditorFooter from './editor/NoteEditorFooter';
 import EditorToolbar from './editor/EditorToolbar';
 import DiagramBlockEdit from './editor/DiagramBlockEdit';
 import { getDiagramSource, setDiagramSource } from './editor/diagram-block';
+import { useTableControls } from './editor/useTableControls';
+import { TableControlsOverlay } from './editor/TableControlsOverlay';
+import { InlineLinkPopup } from './editor/InlineLinkPopup';
+import { useInlineLinks } from './editor/useInlineLinks';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -28,6 +32,20 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
   const updateNote = useNoteStore((s) => s.updateNote);
   const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
   const [editingDiagram, setEditingDiagram] = useState<DiagramEditState | null>(null);
+
+  // Confluence-style handles on the table itself. The toolbar's grid still
+  // inserts tables; editing one happens where the table is.
+  // The handles are positioned inside this scrolling box rather than fixed
+  // to the viewport: the note opens in a modal that sets
+  // `will-change: transform` while dragged, which makes it the containing
+  // block for fixed descendants and puts viewport coordinates elsewhere.
+  const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableControls = useTableControls(
+    editor.contentRef,
+    editorScrollRef,
+    (n) => t('editorDom.tableHeading', { n }),
+    editor.markDirty,
+  );
 
   const handleEditorClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -51,6 +69,10 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
     },
     [editor],
   );
+
+  // Plain links inside the text: paste to make one, Ctrl+click to follow,
+  // hover for the panel that opens, re-points or removes it.
+  const inlineLinks = useInlineLinks(editor.contentRef, editor.markDirty);
 
   const handleDiagramSave = useCallback(
     async (newSource: string) => {
@@ -94,6 +116,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         showTextColorPicker={editor.showTextColorPicker}
         showColorPicker={editor.showColorPicker}
         showBorderPicker={editor.showBorderPicker}
+        showTablePicker={editor.showTablePicker}
         showLinkInput={editor.showLinkInput}
         showCodeInput={editor.showCodeInput}
         linkUrl={editor.linkUrl}
@@ -108,6 +131,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
         setShowTextColorPicker={editor.setShowTextColorPicker}
         setShowColorPicker={editor.setShowColorPicker}
         setShowBorderPicker={editor.setShowBorderPicker}
+        setShowTablePicker={editor.setShowTablePicker}
         setShowLinkInput={editor.setShowLinkInput}
         setShowCodeInput={editor.setShowCodeInput}
         setLinkUrl={editor.setLinkUrl}
@@ -130,7 +154,7 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
       />
 
       {children ?? (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div ref={editorScrollRef} className="relative flex-1 overflow-y-auto custom-scrollbar">
           <div
             ref={editor.contentRef}
             contentEditable
@@ -144,9 +168,29 @@ export default function NoteEditor({ note, children }: NoteEditorProps) {
             onKeyDown={editor.onEditorKeyDown}
             onCompositionStart={editor.onEditorCompositionStart}
             onCompositionEnd={editor.onEditorCompositionEnd}
-            onClick={handleEditorClick}
+            onClick={(e) => {
+              inlineLinks.onClick(e);
+              handleEditorClick(e);
+            }}
+            onPaste={inlineLinks.onPaste}
+            onMouseOver={inlineLinks.onMouseOver}
+            onMouseLeave={inlineLinks.onMouseLeave}
+            onFocus={inlineLinks.onCaretMoved}
+            onKeyUp={inlineLinks.onCaretMoved}
             style={{ lineHeight: '1.8', fontSize: '16px' }}
           />
+          <TableControlsOverlay controls={tableControls} />
+          {inlineLinks.popup && (
+            <InlineLinkPopup
+              state={inlineLinks.popup}
+              onOpen={inlineLinks.openPopupLink}
+              onRemove={inlineLinks.removePopupLink}
+              onRetarget={inlineLinks.retargetPopupLink}
+              onDismiss={inlineLinks.dismissPopup}
+              onHold={inlineLinks.holdPopup}
+              onRelease={inlineLinks.releasePopup}
+            />
+          )}
         </div>
       )}
 

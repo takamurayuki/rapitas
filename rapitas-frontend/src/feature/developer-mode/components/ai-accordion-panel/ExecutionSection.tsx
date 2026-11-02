@@ -17,6 +17,7 @@ import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { PillButton } from '@/components/ui/pill-button';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
+import type { StopNotice } from './useExecutionManager.types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/SubtaskExecutionStatus';
 import { useTaskPrAvailability } from '../../hooks/useTaskPrAvailability';
 import { ExecutionBody } from './ExecutionBody';
@@ -82,6 +83,14 @@ export type ExecutionSectionProps = {
   onSetBranchName: (v: string) => void;
   onSetBaseBranch: (v: string) => void;
   onGenerateBranchName: () => Promise<void>;
+  /** True while the stop request is in flight — the button must not re-fire. */
+  isStopping: boolean;
+  /**
+   * Why the last stop was not clean (#1330 review). The backend's
+   * `statusResetFailed` flag and a failed stop used to have no reader at all,
+   * so the panel said "stopped" either way.
+   */
+  stopNotice: StopNotice | null;
   // Action handlers
   onExecute: () => Promise<void>;
   onStop: () => Promise<void>;
@@ -143,6 +152,8 @@ export function ExecutionSection({
   onSetBranchName,
   onSetBaseBranch,
   onGenerateBranchName,
+  isStopping,
+  stopNotice,
   onExecute,
   onStop,
   onReset,
@@ -209,13 +220,14 @@ export function ExecutionSection({
             <PillButton
               icon={Square}
               color="zinc"
+              disabled={isStopping}
               onClick={(e) => {
                 e.stopPropagation();
                 onStop();
               }}
               ariaLabel={t('stopAria')}
             >
-              {t('stop')}
+              {isStopping ? t('stopping') : t('stop')}
             </PillButton>
           )}
           {isCompleted && (
@@ -339,6 +351,19 @@ export function ExecutionSection({
         <div className="px-4 pt-3 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
           <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{prError}</span>
+        </div>
+      )}
+
+      {stopNotice && (
+        <div
+          role="alert"
+          className="px-4 pt-3 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400"
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>
+            {stopNotice.serverMessage ??
+              (stopNotice.kind === 'failed' ? t('stopFailed') : t('stopResetFailed'))}
+          </span>
         </div>
       )}
 

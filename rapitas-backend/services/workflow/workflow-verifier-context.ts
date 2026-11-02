@@ -9,6 +9,7 @@ import { observeWorkflowStage } from './workflow-stage-timing';
 import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { snapshotSection } from './workflow-context-snapshot';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
 import { buildCriticLessonsSection } from './phase-critic';
 import { buildGatePrecisionContext } from './workflow-gate-precision-context';
@@ -55,7 +56,7 @@ Preserve command exit codes before formatting output: piping a command into tail
   // Recall prior knowledge for the verifier too — failure lessons from
   // similar tasks tell it exactly which regressions to probe for.
   const verifierMemory = await observeWorkflowStage(taskId, 'context.buildMemoryContext', () =>
-    buildMemoryContext(taskId, task, language),
+    snapshotSection(taskId, 'memory', () => buildMemoryContext(taskId, task, language)),
   );
   if (verifierMemory) {
     ctx += `\n\n${verifierMemory}`;
@@ -66,13 +67,15 @@ Preserve command exit codes before formatting output: piping a command into tail
   const verifyLessons = await observeWorkflowStage(
     taskId,
     'context.buildCriticLessonsSection',
-    () => buildCriticLessonsSection('verify', language),
+    () => snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('verify', language)),
   );
   if (verifyLessons) {
     ctx += `\n\n${verifyLessons}`;
   }
   // Repair-risk tactics — see the researcher context for rationale.
-  const verifyRepairRisk = await buildRepairRiskTacticSection(taskId, task, 'verify', language);
+  const verifyRepairRisk = await snapshotSection(taskId, 'repairRisk', () =>
+    buildRepairRiskTacticSection(taskId, task, 'verify', language),
+  );
   if (verifyRepairRisk) {
     ctx += `\n\n${verifyRepairRisk}`;
   }
@@ -82,7 +85,9 @@ Preserve command exit codes before formatting output: piping a command into tail
   // directive never reached the verifier and the ledger never graduated
   // anything (every entry stuck at 検証待ち). Surfaces the open hypotheses (with
   // ids) the verifier must evaluate.
-  const hypothesis = await buildHypothesisContext(taskId, language);
+  const hypothesis = await snapshotSection(taskId, 'hypothesis', () =>
+    buildHypothesisContext(taskId, language),
+  );
   if (hypothesis) {
     ctx += `\n\n${hypothesis}`;
   }

@@ -38,6 +38,18 @@ export interface DateFieldProps {
   autoFocus?: boolean;
   /** Some callers persist on blur rather than on every keystroke. */
   onBlur?: () => void;
+  /**
+   * A whole value was chosen at once, from the calendar picker.
+   *
+   * Callers that persist on blur need this: the picker is opened from the
+   * button beside the field, so the text input never receives focus and never
+   * blurs, and the pick reached the screen without ever being saved.
+   *
+   * It carries the value instead of reusing `onBlur` because a caller's
+   * `onBlur` reads the state of the render it was created in — called in the
+   * same tick as `onChange`, it would store the date that was there before.
+   */
+  onCommit?: (value: string) => void;
   /** Applied to the text field, so a call site's existing classes keep working. */
   className?: string;
   /** Applied to the wrapper, for the slot's own layout (e.g. `flex-1`). */
@@ -62,6 +74,7 @@ export default function DateField({
   disabled,
   autoFocus,
   onBlur,
+  onCommit,
   className,
   wrapperClassName,
   'aria-label': ariaLabel,
@@ -152,6 +165,8 @@ export default function DateField({
         onChange={(e) => {
           editingRef.current = false;
           onChange(e.target.value);
+          // A pick is a finished value, and no blur follows it — see onCommit.
+          onCommit?.(e.target.value);
         }}
         className="pointer-events-none absolute right-0 bottom-0 h-0 w-0 border-0 p-0 opacity-0"
       />

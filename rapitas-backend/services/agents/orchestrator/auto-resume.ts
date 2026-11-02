@@ -179,7 +179,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
       const themeRun =
         task.themeId == null
           ? null
-          : await prisma.themeAutoRun.findUnique({
+          : await prisma.themeAutoRun.findFirst({
               where: { themeId: task.themeId },
               select: { enabled: true, status: true },
             });

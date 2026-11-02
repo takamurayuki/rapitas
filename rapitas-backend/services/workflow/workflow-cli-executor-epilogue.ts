@@ -349,13 +349,38 @@ export async function runPhaseEpilogue(params: {
           });
         }
 
+        // NOTE: The research/plan critic, on THIS path (#1303). Every save in
+        // production arrives here — agents do not PUT, the epilogue harvests —
+        // while the gate lived only on the PUT route, so it had judged nothing
+        // in weeks. Same gate, same timeout and fail-open; before auto-approve,
+        // since a rejected plan must not be approved.
+        let criticRejected = false;
+        if (transition.outputFile === 'research' || transition.outputFile === 'plan') {
+          const { runPhaseCriticGate } =
+            await import('../../routes/workflow/handlers/file-save/critic-gate');
+          const gate = await runPhaseCriticGate({
+            taskId,
+            fileType: transition.outputFile,
+            newStatus: transition.nextStatus,
+            savedContent: fileContent,
+            workflowMode: updatedTask?.workflowMode ?? null,
+          }).catch((err: unknown) => {
+            log.warn({ err, taskId }, '[WorkflowCLIExecutor] Phase critic gate threw — proceeding');
+            return { newStatus: transition.nextStatus, criticRejection: null };
+          });
+          if (gate.criticRejection) {
+            criticRejected = true;
+            phaseStatus = gate.criticRejection.rolledBackTo as WorkflowAdvanceResult['status'];
+          }
+        }
+
         // Auto-approve plan when the user's settings allow it. Without
         // this, the orchestrator-driven planner phase would land on
         // `plan_created` and wait for a UI click — even when
         // `userSettings.autoApprovePlan = true` is enabled, because the
         // auto-approve helper used to live exclusively in the HTTP file
         // handler that the orchestrator path bypasses.
-        if (transition.nextStatus === 'plan_created') {
+        if (!criticRejected && transition.nextStatus === 'plan_created') {
           const approval = await maybeAutoApprovePlan(taskId, language).catch(() => null);
           if (approval?.autoApproved) {
             log.info(

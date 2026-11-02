@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { isInTitleInput } from './formatting';
 import { createCodeBlockNode, normalizeCodeBlocks, type CodeBlockLabels } from './code-block';
 import { createLinkNode, type LinkCardLabels } from './link-card';
-import { createTableNode } from './table';
+import { useTableInsertion, type TableInsertionHandlers } from './useTableInsertion';
 import {
   createDiagramBlockNode,
   renderMermaidBlock,
@@ -19,8 +19,8 @@ import {
  * these builder modules construct DOM directly and have no hook access.
  */
 export interface EditorDomLabels extends CodeBlockLabels, DiagramBlockLabels, LinkCardLabels {
-  /** The 3 default header cell labels for a freshly inserted table. */
-  tableHeadings: readonly [string, string, string];
+  /** Names a table heading by its 1-based column position. / 見出しの命名 */
+  tableHeadingName: (position: number) => string;
 }
 
 /**
@@ -44,10 +44,9 @@ export interface InsertionSetters {
 /**
  * Values returned by useEditorInsertion.
  */
-export interface EditorInsertionHandlers {
+export interface EditorInsertionHandlers extends TableInsertionHandlers {
   insertNodeAtCursor: (node: Node) => void;
   insertLink: () => Promise<void>;
-  insertTable: () => void;
   insertCodeBlock: () => void;
   insertDiagramBlock: () => void;
   openLinkInput: () => void;
@@ -166,31 +165,7 @@ export function useEditorInsertion(
     savedSelectionRef,
   ]);
 
-  const insertTable = useCallback(() => {
-    if (isInTitleInput()) return;
-    if (!contentRef.current?.contains(document.activeElement)) {
-      contentRef.current?.focus();
-    }
-    const frag = createTableNode(labels.tableHeadings);
-    const lastChild = frag.lastChild;
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      if (!contentRef.current?.contains(range.commonAncestorContainer)) return;
-      range.deleteContents();
-      range.insertNode(frag);
-      if (lastChild) {
-        const newRange = document.createRange();
-        newRange.setStartAfter(lastChild);
-        newRange.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(newRange);
-      }
-    } else if (contentRef.current) {
-      contentRef.current.appendChild(frag);
-    }
-    handleContentChange();
-  }, [contentRef, handleContentChange, labels]);
+  const table = useTableInsertion(contentRef, handleContentChange, labels.tableHeadingName);
 
   const insertCodeBlock = useCallback(() => {
     const frag = createCodeBlockNode(labels, codeLanguage);
@@ -259,7 +234,7 @@ export function useEditorInsertion(
   return {
     insertNodeAtCursor,
     insertLink,
-    insertTable,
+    ...table,
     insertCodeBlock,
     insertDiagramBlock,
     openLinkInput,

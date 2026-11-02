@@ -3,7 +3,9 @@
  *
  * Reclaims directories under `.worktrees/` that git no longer tracks, which the
  * database-driven sweep cannot see.
- * Deliberately removes only EMPTY directories — see the rmdir note below.
+ * Removes a directory only when it is EMPTY, or when it holds nothing but the
+ * link scaffolding setup-worktree.cjs leaves behind — see the rmdir note below
+ * and worktree-link-skeleton.ts.
  *
  * A nonempty directory is therefore REPORTED, never removed, and that report is
  * aggregated: the refusal is the safety check working, so it is logged once per
@@ -19,6 +21,7 @@ import * as fsPromises from 'node:fs/promises';
 import { createLogger } from '../../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from '../core/safety';
 import { listRegisteredWorktrees } from './worktree-git-list';
+import { removeLinkSkeleton } from './worktree-link-skeleton';
 
 const logger = createLogger('git-operations/worktree-ops');
 
@@ -132,6 +135,23 @@ export async function sweepFilesystemOrphans(
         logger.info(`[cleanupOrphanedWorktrees] Removed empty orphan directory: ${dirPath}`);
       } catch (error) {
         if (classifyPreservation(error) === 'nonempty') {
+          // Nonempty is usually the safety check working, but one shape of
+          // nonempty is not work at all: what the tooling itself provisioned
+          // and git never knew about, so never removed — the junctions from
+          // setup-worktree.cjs and the copied-in verification wrapper. Both
+          // leave the directory unreclaimable forever; measured 2026-10-22 at
+          // 161 of 164 directories under `.worktrees/`.
+          //
+          // baseDir is the checkout those copies came from, so a stray file
+          // is only disregarded when the same bytes are still sitting at the
+          // same relative path here.
+          if (removeLinkSkeleton(dirPath, { repoRoot: baseDir })) {
+            cleanedCount++;
+            logger.info(
+              `[cleanupOrphanedWorktrees] Removed link-skeleton orphan directory: ${dirPath}`,
+            );
+            continue;
+          }
           // Expected: collected for one summary below instead of a stack per
           // directory per sweep.
           preserved.push(dirEntry.name);
@@ -153,9 +173,10 @@ export async function sweepFilesystemOrphans(
     if (preserved.length > 0) {
       // Named, so the leftovers are actionable rather than merely recurring: the
       // directory name is the last record of the owning task once git's
-      // metadata is gone. Reclaiming them is a human step — unlink the
-      // node_modules junction first, THEN delete, or a recursive remove walks
-      // into the main checkout's shared tree.
+      // metadata is gone. What reaches this point now holds a real file, so
+      // reclaiming it is a human step — unlink the node_modules junction
+      // first, THEN delete, or a recursive remove walks into the main
+      // checkout's shared tree.
       const tasks = preserved
         .map(parseWorktreeTaskId)
         .filter((id): id is number => id !== null)

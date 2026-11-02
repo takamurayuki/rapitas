@@ -1,0 +1,87 @@
+// ============================================================================
+// tenancy.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for workspace tenancy. Add new models in this file rather
+// than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// One isolated set of data. Everything a user creates, and everything the
+// agent records while working for them, belongs to exactly one workspace.
+//
+// Why this exists: there was no way to try something without it landing in the
+// real data. 188 tasks, 34 themes, 13,680 knowledge entries and 105,280
+// timeline events all sat in one undivided pile, and logging in as a second
+// account showed the same pile — authentication existed and worked, but no
+// row belonged to anyone.
+//
+// NOTE: `workspaceId` is a plain indexed Int on each root model, with NO
+// foreign key to this table. Declaring the relation would put 49 back-relation
+// lines on this model and add an FK write to every insert across 140k+ rows,
+// for a column whose integrity is enforced at a single chokepoint anyway (the
+// Prisma client extension added in stage 2). The cost is that deleting a
+// workspace does not cascade — it needs an explicit sweep. Same deliberate
+// no-FK pattern as StudySession.goalId was.
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  /// Short stable handle used in logs and the workspace switcher.
+  slug      String   @unique
+  name      String
+  /// The one every pre-tenancy row belongs to; exactly one may be true.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members WorkspaceMember[]
+
+  calendarSharesGranted  CalendarShare[] @relation("CalendarShareOwner")
+  calendarSharesReceived CalendarShare[] @relation("CalendarShareViewer")
+
+  @@index([isDefault])
+}
+
+// Which users may see a workspace. Separate from User so one account can hold
+// a real workspace and a throwaway one without duplicating the login.
+model WorkspaceMember {
+  id          Int       @id @default(autoincrement())
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'owner' may delete the workspace; 'member' may not.
+  role        String    @default("owner")
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+// One workspace letting another VIEW its month calendar (schedule events only
+// — never tasks). Read-only by construction: no write path consults this
+// table, so a grant can only ever widen what is readable.
+//
+// NOTE: no field here may be named `workspaceId`. getOwnedModels() derives the
+// scoped set from the generated client by looking for exactly that column, so
+// naming either side `workspaceId` would make the scope layer filter this
+// table by the CURRENT workspace — and a grant has to be readable from both
+// ends: the owner lists what they share, the viewer lists what they may see.
+// The two explicit names are what keep it out of that mechanism, which is why
+// they are not `workspaceId` + `otherWorkspaceId`.
+//
+// Direction matters: a row means ownerWorkspaceId is visible TO
+// viewerWorkspaceId, and says nothing about the reverse.
+//
+// FKs with cascade, unlike the root models' bare `workspaceId` (see the NOTE
+// on Workspace): this is a small tenancy table, and a deleted workspace must
+// not leave a grant pointing at it.
+model CalendarShare {
+  id                Int       @id @default(autoincrement())
+  /// Whose calendar is exposed.
+  ownerWorkspaceId  Int
+  owner             Workspace @relation("CalendarShareOwner", fields: [ownerWorkspaceId], references: [id], onDelete: Cascade)
+  /// Who may read it.
+  viewerWorkspaceId Int
+  viewer            Workspace @relation("CalendarShareViewer", fields: [viewerWorkspaceId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+
+  @@unique([ownerWorkspaceId, viewerWorkspaceId])
+  @@index([viewerWorkspaceId])
+}

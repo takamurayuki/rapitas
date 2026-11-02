@@ -11,6 +11,7 @@ import { analyzeTask } from '../../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:developer-mode:analyze');
 
@@ -21,7 +22,7 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
   '/analyze/:taskId',
   async (context) => {
     const { params, set } = context;
-    const taskId = parseInt(params.taskId);
+    const taskId = parseId(params.taskId, 'task ID');
 
     const defaultProvider = await getDefaultProvider();
     const apiKey = await getApiKeyForProvider(defaultProvider);

@@ -7,6 +7,8 @@
 // Experiment log - record all task executions as experiments
 model Experiment {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId        Int?
   title         String
   status        String    @default("created") // created, researching, hypothesizing, planning, executing, evaluating, learning, completed, failed
@@ -34,11 +36,14 @@ model Experiment {
   @@index([taskId])
   @@index([status])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Hypothesis management - track solution hypotheses
 model Hypothesis {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   content       String    // Hypothesis content
@@ -53,11 +58,14 @@ model Hypothesis {
 
   @@index([experimentId])
   @@index([status])
+  @@index([workspaceId])
 }
 
 // Critic review - results from independent evaluation agent
 model CriticReview {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   phase         String    // hypothesis, plan, execution
@@ -72,11 +80,14 @@ model CriticReview {
 
   @@index([experimentId])
   @@index([phase])
+  @@index([workspaceId])
 }
 
 // Learning patterns - record success/failure patterns
 model LearningPattern {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   patternType   String    // success_strategy, failure_pattern, optimization, anti_pattern
   category      String    // bug_fix, feature_implementation, refactoring, debugging, testing
   description   String
@@ -92,11 +103,14 @@ model LearningPattern {
   @@index([patternType])
   @@index([category])
   @@index([confidence])
+  @@index([workspaceId])
 }
 
 // Workflow learning records - actual workflow execution data from completed tasks
 model WorkflowLearningRecord {
   id                    Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId                Int
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   workflowMode          String    // Actually used mode: lightweight, standard, comprehensive
@@ -121,6 +135,7 @@ model WorkflowLearningRecord {
   @@index([categoryId])
   @@index([outcome])
   @@index([createdAt])
+  @@index([workspaceId])
 }
 
 // Task duration predictions - distribution-based duration estimates (median /
@@ -153,6 +168,8 @@ model TaskDurationPrediction {
 // Workflow optimization rules - patterns extracted from learning data
 model WorkflowOptimizationRule {
   id                Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   ruleType          String    // skip_phase, downgrade_mode, upgrade_mode, adjust_time
   condition         String    // JSON: Rule application condition
   recommendation    String    // JSON: Recommended action
@@ -168,6 +185,7 @@ model WorkflowOptimizationRule {
   @@index([ruleType])
   @@index([confidence])
   @@index([isActive])
+  @@index([workspaceId])
 }
 
 // Detection-miss ledger — one row per quality-gate slip-through discovered
@@ -177,6 +195,8 @@ model WorkflowOptimizationRule {
 // bounces are NOT misses — the gate caught those BEFORE completion.
 model DetectionMissCase {
   id           Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId       Int
   /** Which gate the defect slipped past: ci_repair | post_completion_concern */
   gate         String
@@ -187,12 +207,14 @@ model DetectionMissCase {
   /** When the evidence event happened (not when this row was recorded). */
   detectedAt   DateTime @default(now())
   /** miss:<gate>:<taskId>:<discriminator> — absorbs re-scans of the same event. */
-  dedupKey     String   @unique
+  dedupKey     String  
   createdAt    DateTime @default(now())
 
   @@index([gate])
   @@index([taskId])
   @@index([detectedAt])
+  @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Gate-precision ledger — one row per verify_repair dispute (the SAME
@@ -206,6 +228,8 @@ model DetectionMissCase {
 // criterion-matchable prose (see identifyIndictedCriteria).
 model GatePrecisionCase {
   id             Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   taskId         Int
   /** Repair gate this dispute came from. v1: always "verify_repair". */
   gate           String
@@ -220,13 +244,15 @@ model GatePrecisionCase {
   /** When the dispute resolved (or was last observed, for unresolved_blocked). */
   detectedAt     DateTime @default(now())
   /** gate-precision:<taskId>:<criterionIndex>:<lastBounceTransitionId> — absorbs re-scans. */
-  dedupKey       String   @unique
+  dedupKey       String  
   createdAt      DateTime @default(now())
 
   @@index([gate])
   @@index([taskId])
   @@index([verdict])
   @@index([detectedAt])
+  @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Signature suggestions learned from detection-miss cases (task #578).
@@ -238,6 +264,8 @@ model GatePrecisionCase {
 // flips the mode back to manual.
 model MissSignatureSuggestion {
   id          Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   /** Source DetectionMissCase.id; null for signatures without a single case. */
   caseId      Int?
   /** The proposed detection cue (what the next watcher/reviewer should look for). */
@@ -249,12 +277,14 @@ model MissSignatureSuggestion {
   reviewedBy  String?
   reviewedAt  DateTime?
   /** suggest:<gate>:<signatureKey> — one row per distinct cue. */
-  dedupKey    String    @unique
+  dedupKey    String   
   createdAt   DateTime  @default(now())
 
   @@index([status])
   @@index([caseId])
   @@index([reviewedAt])
+  @@index([workspaceId])
+  @@unique([workspaceId, dedupKey])
 }
 
 // Prompt evolution records - history of prompt improvements.
@@ -265,6 +295,8 @@ model MissSignatureSuggestion {
 // the prompt pair and performanceDelta once the A/B result lands.
 model PromptEvolution {
   id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   experimentId  Int?
   experiment    Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
   // NOTE: kept non-null with "" default (not nullable) so generated types stay
@@ -284,4 +316,5 @@ model PromptEvolution {
   @@index([category])
   @@index([performanceDelta])
   @@index([status])
+  @@index([workspaceId])
 }

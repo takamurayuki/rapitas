@@ -19,6 +19,7 @@ type SettingsTab = {
 };
 
 const SETTINGS_TABS: SettingsTab[] = [
+  { href: '/settings/personal', labelKey: 'layout.personalTab' },
   { href: '/settings/general', labelKey: 'layout.generalTab' },
   { href: '/settings', labelKey: 'title' },
   { href: '/settings/developer-mode', labelKey: 'devModeTitle' },

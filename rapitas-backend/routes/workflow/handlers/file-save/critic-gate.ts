@@ -110,6 +110,35 @@ export async function runPhaseCriticGate(params: {
         severity: gate.severity,
       };
     }
+  } else if (fileType === 'research' || fileType === 'plan') {
+    // NOTE: warn, and only for the two artifacts this gate exists to judge
+    // (#1303). A verify or question save is not a skip — it is none of this
+    // gate's business — but a research.md or plan.md that reached the save
+    // path WITHOUT being judged is the gate losing its only chance at that
+    // artifact, which is a problem the daily log-health job should see.
+    //
+    // This line exists because the question "did the critic run?" was
+    // unanswerable. Every outcome the gate records is a FAILURE — a rejection
+    // writes a `<phase>_critic_failed` transition, a timeout and an error warn
+    // — while a pass logs one `log.info` in phase-critic.ts, and
+    // config/logger.ts persists warn and above only. So a gate that passed and
+    // a gate that never ran look identical on disk, and criticFirstPass reads
+    // null either way.
+    //
+    // `newStatus` is the discriminator: it is set only by the save that
+    // ADVANCES the status (status-transition.ts), and the `file_saved:<type>`
+    // transition the metric counts lives behind the same condition. Recording
+    // it here says which of the two conditions declined the gate.
+    log.warn(
+      {
+        taskId,
+        fileType,
+        newStatus: newStatus ?? null,
+        workflowMode,
+        reason: workflowMode === 'lightweight' ? 'lightweight_mode' : 'status_not_advanced',
+      },
+      '[phase-critic-gate] artifact saved without being judged',
+    );
   }
 
   return { newStatus, criticRejection };

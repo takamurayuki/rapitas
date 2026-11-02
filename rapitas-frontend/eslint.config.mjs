@@ -4,8 +4,14 @@ import nextTs from 'eslint-config-next/typescript';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import { stagedSeverity } from '../eslint-shared.mjs';
 import noIconCollision from '../rapitas-backend/eslint-rules/no-icon-collision.mjs';
+import noTaskLinkWithoutHeader from '../rapitas-backend/eslint-rules/no-task-link-without-header.mjs';
 
-const localPlugin = { rules: { 'no-icon-collision': noIconCollision } };
+const localPlugin = {
+  rules: {
+    'no-icon-collision': noIconCollision,
+    'no-task-link-without-header': noTaskLinkWithoutHeader,
+  },
+};
 
 // a11y ratchet: every jsx-a11y recommended rule at 'warn' so the accessibility
 // gap is visible on each lint run without breaking CI; promote individual rules
@@ -45,6 +51,12 @@ const eslintConfig = defineConfig([
       // NOTE: warn (not error) — existing violations (Lightbulb ~10 files) are known;
       // raise to 'error' after auditing and replacing each violation (separate task).
       'local/no-icon-collision': 'warn',
+      // 'error' from the start, unlike the ratchets above: every existing
+      // violation is fixed in the same change, so there is no backlog to
+      // grandfather. Dropping the header takes the way back with it, which
+      // has had to be fixed by hand twice (notification links, then the
+      // note split view #1092).
+      'local/no-task-link-without-header': 'error',
       // NOTE: Frontend no-console starts at 'warn'; backend uses 'error'.
       // Raise to 'error' after auditing existing violations.
       'no-console': 'warn',
@@ -66,10 +78,7 @@ const eslintConfig = defineConfig([
   },
   {
     // Test files — relax no-console and no-explicit-any
-    files: [
-      'src/**/__tests__/**/*.{ts,tsx}',
-      '**/rapitas-frontend/src/**/__tests__/**/*.{ts,tsx}',
-    ],
+    files: ['src/**/__tests__/**/*.{ts,tsx}', '**/rapitas-frontend/src/**/__tests__/**/*.{ts,tsx}'],
     rules: {
       ...stagedSeverity('tests'),
     },

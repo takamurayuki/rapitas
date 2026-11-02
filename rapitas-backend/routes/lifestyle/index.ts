@@ -6,10 +6,8 @@
  * (see scripts/generate-route-barrels.cjs).
  */
 import { Elysia } from 'elysia';
-import { habitsRoutes } from './habits';
 import { paidLeaveRoutes } from './paid-leave';
 
-export { habitsRoutes } from './habits';
 export { paidLeaveRoutes } from './paid-leave';
 
-export const lifestyleDomainRoutes = new Elysia().use(habitsRoutes).use(paidLeaveRoutes);
+export const lifestyleDomainRoutes = new Elysia().use(paidLeaveRoutes);

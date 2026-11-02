@@ -25,6 +25,7 @@ import {
   type ResumableReason,
   type ResumeConditionSpec,
 } from '../../services/workflow/resume-condition';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:resume-condition');
 
@@ -85,8 +86,9 @@ async function loadTask(db: Db, taskId: number) {
 }
 
 async function prepare(ctx: ResumeCtx, deps: ResumeDeps): Promise<PrepareResult> {
-  const taskId = parseInt(ctx.params.taskId, 10);
-  if (!Number.isFinite(taskId)) return { ok: false, status: 400, error: 'invalid taskId' };
+  if (!isValidEntityId(ctx.params.taskId))
+    return { ok: false, status: 400, error: 'invalid taskId' };
+  const taskId = Number(ctx.params.taskId);
   const task = await loadTask(deps.db, taskId);
   if (!task) return { ok: false, status: 404, error: 'task not found' };
   if (task.status !== 'blocked') return { ok: false, status: 409, error: 'task is not blocked' };
@@ -128,11 +130,11 @@ export async function handleGetResumeQuestion(
   ctx: ResumeCtx,
   deps: ResumeDeps = defaultResumeDeps,
 ) {
-  const taskId = parseInt(ctx.params.taskId, 10);
-  if (!Number.isFinite(taskId)) {
+  if (!isValidEntityId(ctx.params.taskId)) {
     ctx.set.status = 400;
     return { success: false as const, error: 'invalid taskId' };
   }
+  const taskId = Number(ctx.params.taskId);
   const task = await loadTask(deps.db, taskId);
   if (!task) {
     ctx.set.status = 404;

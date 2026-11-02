@@ -4,7 +4,7 @@ const update = mock(async () => ({}));
 mock.module('../../config', () => ({
   prisma: {
     workflowRoleConfig: {
-      findUnique: async () => ({
+      findFirst: async () => ({
         isEnabled: true,
         agentConfig: { id: 1, agentType: 'claude-code' },
       }),

@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import {
   getAgentMetrics,
   getExecutionTrends,
+  getFirstPassCompletion,
   getMetricsOverview,
   getAgentPerformanceComparison,
   getSelfObservationSummary,
@@ -24,10 +25,12 @@ import { getUsdJpyRate } from './currency-config';
 import { paretoFrontierRouter } from './pareto-frontier-router';
 import { workerHealthRouter } from './worker-health-router';
 import { usageBudgetRouter } from './usage-budget-router';
+import { roleModelOutcomesRouter } from './role-model-outcomes-router';
 import { computeGrowthLedgerMetrics } from '../../../services/self-improvement/growth-ledger-metrics';
 import { computeRetroKpiMetrics } from '../../../services/self-improvement/retro-kpi-metrics';
 import { readJudgeEvalResult } from '../../../services/observability/eval-judge-results';
 import type { DateRange } from './types';
+import { isValidEntityId } from '../../../utils/common/id-validation';
 
 const log = createLogger('routes:agent-metrics');
 
@@ -49,6 +52,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
   .use(paretoFrontierRouter) // NOTE: before `/:agentId` so the static paths are never captured
   .use(workerHealthRouter)
   .use(usageBudgetRouter)
+  .use(roleModelOutcomesRouter)
 
   .get('/', async ({ query }) => {
     try {
@@ -62,8 +66,21 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
 
   .get('/overview', async ({ query }) => {
     try {
-      const overview = await getMetricsOverview(parseDateRange(query));
-      return overview;
+      // The two halves are computed from different tables — executions for
+      // liveness, workflow transitions for quality — but must describe the
+      // same window, so both take the one parsed range.
+      const dateRange = parseDateRange(query);
+      const [overview, firstPassCompletion] = await Promise.all([
+        getMetricsOverview(dateRange),
+        // The quality half must not take the liveness half down with it — it
+        // reads a different table, and an empty result renders as "—" rather
+        // than blanking the whole KPI bar.
+        getFirstPassCompletion(dateRange).catch((error) => {
+          log.error({ err: error }, 'Error computing first-pass completion');
+          return { completedTasks: 0, repairFreeTasks: 0, rate: null };
+        }),
+      ]);
+      return { ...overview, firstPassCompletion };
     } catch (error) {
       log.error({ err: error }, 'Error fetching metrics overview');
       return { error: 'Failed to fetch metrics overview' };
@@ -144,10 +161,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
 
   .get('/:agentId', async ({ params, query }) => {
     try {
-      const agentId = parseInt(params.agentId);
-      if (Number.isNaN(agentId)) {
+      if (!isValidEntityId(params.agentId)) {
         return { error: 'Invalid agentId' };
       }
+      const agentId = Number(params.agentId);
       const dateRange = parseDateRange(query);
 
       const whereClause: { createdAt?: { gte?: Date; lte?: Date } } = {};

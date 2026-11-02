@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useSuggestedTasks, type TaskSuggestion } from '../hooks/useIntelligence';
+import { withHeaderVisible } from '@/components/header/task-detail-link';
 
 // NOTE: Urgent/high keep warning hues (red/amber, app-wide status meanings);
 // medium/low stay zinc — indigo is reserved for active/primary action only.
@@ -173,7 +174,7 @@ export function SuggestedTasksWidget() {
               {index + 1}
             </div>
 
-            <Link href={`/tasks/${task.taskId}`} className="flex-1 min-w-0">
+            <Link href={withHeaderVisible(`/tasks/${task.taskId}`)} className="flex-1 min-w-0">
               <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 {task.title}
               </p>

@@ -13,6 +13,7 @@ import {
   getVersionChangeDescription,
   type VersionInfo,
 } from './version-registry';
+import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-version-read');
 
@@ -111,7 +112,7 @@ export const agentVersionReadRoutes = new Elysia()
   // Get version history for agent
   .get('/agents/:id/version-history', async ({ params }) => {
     try {
-      const agentId = parseInt(params.id);
+      const agentId = parseId(params.id, 'agent ID');
 
       const agent = await prisma.aIAgentConfig.findUnique({ where: { id: agentId } });
       if (!agent) {

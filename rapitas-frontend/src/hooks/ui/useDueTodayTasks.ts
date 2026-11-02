@@ -22,8 +22,25 @@ export interface UseDueTodayTasksResult {
   tasks: DueTodayTask[];
   completedCount: number;
   totalCount: number;
+  /**
+   * Unfinished tasks whose due date is before today.
+   *
+   * Here because a day with nothing due is not necessarily a clear day, and
+   * the widget had nothing to say on one. Split at the start of today, so a
+   * task due this morning counts as due today and never as both.
+   */
+  overdueCount: number;
   isLoading: boolean;
 }
+
+/**
+ * Statuses that take a task out of both counts.
+ *
+ * Mirrors the backend's own `TERMINAL` in `services/assistant/supervision.ts`,
+ * whose `overdue` survey is `status: notFinished, dueDate: { lt: now }` — the
+ * two should not disagree about what is still outstanding.
+ */
+const TERMINAL_STATUSES = ['done', 'cancelled'];
 
 /**
  * Returns local-timezone start/end timestamps for today as UTC milliseconds.
@@ -55,5 +72,14 @@ export function useDueTodayTasks(): UseDueTodayTasksResult {
 
   const completedCount = useMemo(() => tasks.filter((t) => t.status === 'done').length, [tasks]);
 
-  return { tasks, completedCount, totalCount: tasks.length, isLoading };
+  const overdueCount = useMemo(() => {
+    const { start } = todayLocalBounds();
+    return storeTasks.filter((t) => {
+      if (!t.dueDate) return false;
+      if (TERMINAL_STATUSES.includes(t.status)) return false;
+      return new Date(t.dueDate).getTime() < start;
+    }).length;
+  }, [storeTasks]);
+
+  return { tasks, completedCount, totalCount: tasks.length, overdueCount, isLoading };
 }

@@ -4,7 +4,7 @@ import { readReviewedPlanPolicy } from './reviewed-plan-policy';
 const database = (raw: string | null) =>
   ({
     workflowModeConfig: {
-      findUnique: mock(async () => (raw === null ? null : { stepDefinitions: raw })),
+      findFirst: mock(async () => (raw === null ? null : { stepDefinitions: raw })),
     },
   }) as unknown as Pick<Prisma.TransactionClient, 'workflowModeConfig'>;
 
@@ -31,8 +31,8 @@ test('invalid settings never imply permission to omit planning', async () => {
 });
 test('database failure propagates instead of allowing the lightweight default', async () => {
   const db = database(null);
-  db.workflowModeConfig.findUnique = mock(async () => {
+  db.workflowModeConfig.findFirst = mock(async () => {
     throw new Error('DB unavailable');
-  }) as unknown as typeof db.workflowModeConfig.findUnique;
+  }) as unknown as typeof db.workflowModeConfig.findFirst;
   await expect(readReviewedPlanPolicy(db, 'lightweight')).rejects.toThrow('DB unavailable');
 });

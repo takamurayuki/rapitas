@@ -23,14 +23,13 @@ const ROUTES_DIR = path.resolve(__dirname, '..', 'routes');
 const MANIFEST_PATH = path.join(ROUTES_DIR, 'route-barrel-legacy-manifest.json');
 
 // Fixed domain key list — `routes/index.ts` / `register-routes.ts` (out of
-// scope for this generator) enumerate the same 14 domains.
+// scope for this generator) enumerate the same 13 domains.
 const DOMAINS = [
   'organization',
   'tasks',
   'agents',
   'ai',
   'scheduling',
-  'learning',
   'system',
   'workflow',
   'social',

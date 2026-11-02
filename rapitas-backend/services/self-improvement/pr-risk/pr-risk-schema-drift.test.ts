@@ -102,9 +102,14 @@ describe('pr-risk.prisma ↔ PrRiskDb', () => {
     });
   }
 
-  it('declares the composite unique keys the store queries by', () => {
-    expect(SCHEMA).toContain('@@unique([repo, prNumber, headSha])'); // repo_prNumber_headSha
-    expect(SCHEMA).toContain('@@unique([repo, prNumber])'); // repo_prNumber
-    expect(SCHEMA).toMatch(/month\s+String\s+@unique/);
+  it('declares the unique keys with the workspace in them', () => {
+    // Each of these used to omit workspaceId, which made the key global: the
+    // second workspace could not record its own score, outcome or monthly
+    // metric for the same repo, PR or month. The store reads them with
+    // findFirst for the same reason — none of them is a unique filter on its
+    // own any more.
+    expect(SCHEMA).toContain('@@unique([workspaceId, repo, prNumber, headSha])');
+    expect(SCHEMA).toContain('@@unique([workspaceId, repo, prNumber])');
+    expect(SCHEMA).toContain('@@unique([workspaceId, month])');
   });
 });

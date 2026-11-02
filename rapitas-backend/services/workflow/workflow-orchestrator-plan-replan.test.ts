@@ -44,7 +44,7 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
   },
   workflowRoleConfig: {
-    findUnique: mock(() =>
+    findFirst: mock(() =>
       Promise.resolve({
         role: 'implementer',
         isEnabled: true,

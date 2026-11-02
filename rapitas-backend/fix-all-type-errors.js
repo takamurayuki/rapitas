@@ -7,7 +7,6 @@ const routesDir = path.join(__dirname, 'routes');
 // Load and fix TypeScript files
 function fixTypeScriptFile(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
-  let modified = false;
 
   // 1. Add t to Elysia import
   if (!content.includes('import { Elysia, t')) {
@@ -15,7 +14,6 @@ function fixTypeScriptFile(filePath) {
       /import\s*{\s*Elysia\s*}\s*from\s*["']elysia["'];?/g,
       'import { Elysia, t } from "elysia";'
     );
-    modified = true;
   }
 
   // 2. Remove type annotations

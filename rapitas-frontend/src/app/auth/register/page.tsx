@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, UserPlus, User, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -209,7 +209,7 @@ export default function RegisterPage() {
 
         {/* Form */}
         <div className="bg-white dark:bg-zinc-800 py-8 px-4 shadow-lg rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <div className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Error display */}
             {error && (
               <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
@@ -222,42 +222,6 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* Create account with Google */}
-            <div>
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={isGoogleLoading || isSubmitting}
-                className="group relative w-full flex justify-center py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-sm font-medium rounded-md text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isGoogleLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zinc-400 mr-2"></div>
-                    {t('creatingWithGoogle')}
-                  </div>
-                ) : (
-                  <div className="flex items-center">
-                    <GoogleIcon />
-                    <span className="ml-2">{t('createWithGoogle')}</span>
-                  </div>
-                )}
-              </button>
-            </div>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                  {tc('or')}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <form className="space-y-6 mt-6" onSubmit={handleSubmit}>
             {/* Username */}
             <div>
               <label
@@ -267,9 +231,6 @@ export default function RegisterPage() {
                 {t('username')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="username"
                   name="username"
@@ -278,7 +239,7 @@ export default function RegisterPage() {
                   required
                   value={formData.username}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('usernamePlaceholder')}
                 />
               </div>
@@ -293,9 +254,6 @@ export default function RegisterPage() {
                 {t('email')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="email"
                   name="email"
@@ -304,7 +262,7 @@ export default function RegisterPage() {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder="email@example.com"
                 />
               </div>
@@ -319,9 +277,6 @@ export default function RegisterPage() {
                 {t('password')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="password"
                   name="password"
@@ -330,7 +285,7 @@ export default function RegisterPage() {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-3 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('passwordPlaceholder')}
                 />
                 <button
@@ -339,9 +294,9 @@ export default function RegisterPage() {
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
+                    <EyeOff className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
                   ) : (
-                    <Eye className="h-5 w-5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
+                    <Eye className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
                   )}
                 </button>
               </div>
@@ -391,9 +346,6 @@ export default function RegisterPage() {
                 {t('confirmPassword')}
               </label>
               <div className="mt-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
-                </div>
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -402,7 +354,7 @@ export default function RegisterPage() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
+                  className="appearance-none relative block w-full pl-3 pr-9 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:border-indigo-400 focus:z-10 sm:text-sm"
                   placeholder={t('confirmPasswordPlaceholder')}
                 />
                 <button
@@ -411,9 +363,9 @@ export default function RegisterPage() {
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
                   {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
+                    <EyeOff className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
                   ) : (
-                    <Eye className="h-5 w-5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
+                    <Eye className="h-4 w-4 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-400" />
                   )}
                 </button>
               </div>
@@ -440,6 +392,40 @@ export default function RegisterPage() {
                   <div className="flex items-center">
                     <UserPlus className="h-4 w-4 mr-2" />
                     {t('createAccount')}
+                  </div>
+                )}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                  {tc('or')}
+                </span>
+              </div>
+            </div>
+
+            {/* Create account with Google */}
+            <div>
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isGoogleLoading || isSubmitting}
+                className="group relative w-full flex justify-center py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-sm font-medium rounded-md text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isGoogleLoading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zinc-400 mr-2"></div>
+                    {t('creatingWithGoogle')}
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <GoogleIcon />
+                    <span className="ml-2">{t('createWithGoogle')}</span>
                   </div>
                 )}
               </button>

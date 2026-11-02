@@ -151,14 +151,13 @@ export class UserBehaviorService {
     const userId = 1; // Currently fixed
     const labelIds = task.taskLabels?.map((tl) => tl.labelId) || [];
 
-    const existingPattern = await prisma.taskPattern.findUnique({
-      where: {
-        userId_taskTitle_themeId: {
-          userId,
-          taskTitle: task.title,
-          themeId: task.themeId || 0,
-        },
-      },
+    // NOTE: findFirst on the plain fields: the compound unique now leads with
+    // workspaceId (#1309), which the workspace scope supplies. And the real
+    // themeId, not `|| 0` — the create below stores null for a task without a
+    // theme, so a 0 lookup never found that row and every completion of such a
+    // task added another one.
+    const existingPattern = await prisma.taskPattern.findFirst({
+      where: { userId, taskTitle: task.title, themeId: task.themeId ?? null },
     });
 
     const timeToStart =
@@ -202,7 +201,7 @@ export class UserBehaviorService {
       await prisma.taskPattern.create({
         data: {
           userId,
-          themeId: task.themeId,
+          themeId: task.themeId ?? null, // must match the lookup above
           taskTitle: task.title,
           taskDescription: task.description,
           priority: task.priority,

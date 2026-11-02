@@ -25,6 +25,7 @@ import {
   resolveLatestFinishedSession,
   resolveSessionWithLatestExecution,
 } from '../../../../services/agents/agent-session-resolver';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:continue');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -41,7 +42,7 @@ export const continueRoute = new Elysia().post(
     ) {
       return { success: false, error: 'Too many requests. Please try again later.' };
     }
-    const taskId = parseInt(context.params.id);
+    const taskId = parseId(context.params.id, 'task ID');
     const { instruction, sessionId, agentConfigId } = context.body as {
       instruction?: string;
       sessionId?: number;

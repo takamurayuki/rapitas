@@ -295,24 +295,31 @@ export async function updateModeSettings(
 ): Promise<WorkflowModeSettings> {
   const current = await getModeSettings(mode);
   const next: WorkflowModeSettings = { ...current, ...patch, mode };
-  await prisma.workflowModeConfig.upsert({
+  // `mode` is unique only within a workspace now (@@unique([workspaceId,
+  // mode])), so an upsert cannot be keyed on it. The find is workspace-scoped
+  // by the client extension; its id addresses the row in any context.
+  const found = await prisma.workflowModeConfig.findFirst({
     where: { mode },
-    update: {
-      stepDefinitions: toggleJson(next),
-      complexityMin: next.complexityMin,
-      complexityMax: next.complexityMax,
-      isEnabled: next.isEnabled,
-    },
-    create: {
-      mode,
-      name: MODE_LABELS[mode]?.name ?? mode,
-      description: MODE_LABELS[mode]?.description ?? null,
-      stepDefinitions: toggleJson(next),
-      complexityMin: next.complexityMin,
-      complexityMax: next.complexityMax,
-      isEnabled: next.isEnabled,
-    },
+    select: { id: true },
   });
+  const settings = {
+    stepDefinitions: toggleJson(next),
+    complexityMin: next.complexityMin,
+    complexityMax: next.complexityMax,
+    isEnabled: next.isEnabled,
+  };
+  if (found) {
+    await prisma.workflowModeConfig.update({ where: { id: found.id }, data: settings });
+  } else {
+    await prisma.workflowModeConfig.create({
+      data: {
+        mode,
+        name: MODE_LABELS[mode]?.name ?? mode,
+        description: MODE_LABELS[mode]?.description ?? null,
+        ...settings,
+      },
+    });
+  }
   invalidateModeConfigCache();
   return next;
 }

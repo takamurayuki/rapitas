@@ -106,7 +106,15 @@ const TERMINAL_CONCERN_STATUSES: ReadonlySet<ConcernStatusLite> = new Set([
 ]);
 
 /** Transition causes that anchor a task into the analysis range. */
-const SAVE_CAUSES = ['file_saved:research', 'file_saved:plan'] as const;
+// NOTE: phase_completed:researcher/planner are the harvest path's saves — the
+// one production actually uses (#1303). Counting file_saved:* alone (the PUT
+// route) left criticFirstPass at total 0 through weeks of completed tasks.
+const SAVE_CAUSES = [
+  'file_saved:research',
+  'file_saved:plan',
+  'phase_completed:researcher',
+  'phase_completed:planner',
+] as const;
 
 // NOTE: `loc:` is the prefix the production writer emits (submitConcern,
 // concern-backlog-service.ts:202 `tags.push(`loc:${...}`)`). The long-form
@@ -172,12 +180,14 @@ export function groupTaskEvents(rows: GrowthTransitionRow[]): TaskEventLite[] {
         ev.ciRepairCount++;
         break;
       case 'file_saved:research':
+      case 'phase_completed:researcher':
         // First save wins: first-pass attribution belongs to the attempt week.
         if (!ev.researchSavedAt || row.createdAt < ev.researchSavedAt) {
           ev.researchSavedAt = row.createdAt;
         }
         break;
       case 'file_saved:plan':
+      case 'phase_completed:planner':
         if (!ev.planSavedAt || row.createdAt < ev.planSavedAt) {
           ev.planSavedAt = row.createdAt;
         }

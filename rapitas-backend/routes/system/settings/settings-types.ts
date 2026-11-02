@@ -42,6 +42,10 @@ export interface UserSettingsUpdateBody {
   mergeBarrierEnabled?: boolean;
   /** UI locale pushed by the desktop app; agent prompts follow it (file-backed, no DB column). */
   uiLocale?: 'ja' | 'en';
+  /** Standing self-introduction ラピ plans against (file-backed, no DB column). */
+  rapiProfile?: string;
+  /** How the user works and what they value; shapes the plan (file-backed). */
+  rapiCharacter?: string;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

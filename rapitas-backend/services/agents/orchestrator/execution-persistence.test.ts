@@ -213,7 +213,15 @@ describe('determineExecutionStatus()', () => {
 // ── saveExecutionResult() ────────────────────────────────────────────────────
 
 describe('saveExecutionResult()', () => {
-  test('completed: 既存値に加算し、completedAt を設定し、自己学習レコードを記録する', async () => {
+  // NOTE: This test previously asserted tokensUsed: 15 (existing 5 + new 10),
+  // pinning the defect fixed in #1302. The token counts come from the CLI's
+  // stream-json `result`, whose usage is SESSION-CUMULATIVE — the same message
+  // whose total_cost_usd is documented as cumulative in task-spend-rollup.ts.
+  // Adding cumulative snapshots double counts on every resume, which is why
+  // costUsd and the four per-class token columns in `usageUpdate` have always
+  // overwritten. executionTimeMs still accumulates and should: the resolver
+  // computes it as `Date.now() - startTime` per invocation, not cumulatively.
+  test('completed: トークンは上書き・時間は加算し、completedAt と自己学習レコードを記録する', async () => {
     const prisma = makePrisma();
     const state = makeState({ output: 'final output' });
     const fileLogger = makeFileLogger();
@@ -233,7 +241,7 @@ describe('saveExecutionResult()', () => {
       data: expect.objectContaining({
         status: 'completed',
         output: 'final output',
-        tokensUsed: 15,
+        tokensUsed: 10,
         executionTimeMs: 1500,
         completedAt: expect.any(Date),
         artifacts: null,
@@ -260,6 +268,50 @@ describe('saveExecutionResult()', () => {
       errorMessage: null,
       modelName: null,
     });
+  });
+
+  // A resume carries no usage snapshot on some paths (an aux run, a cancelled
+  // close). Overwriting unconditionally would then wipe the count the first
+  // save already recorded, which is the opposite failure to the one #1302 fixed.
+  test('結果にトークン値が無い場合は既存の tokensUsed を保持する', async () => {
+    const prisma = makePrisma();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      makeState(),
+      { success: true, executionTimeMs: 100 },
+      fileLogger,
+      { tokensUsed: 7, executionTimeMs: 0, artifacts: null, claudeSessionId: null },
+    );
+
+    const updateArg = prisma.agentExecution.updateMany.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.tokensUsed).toBe(7);
+  });
+
+  // An explicit zero is a measurement, not a missing value.
+  test('結果が 0 トークンを明示した場合は 0 で上書きする', async () => {
+    const prisma = makePrisma();
+    const fileLogger = makeFileLogger();
+
+    await saveExecutionResult(
+      prisma as never,
+      1,
+      2,
+      makeState(),
+      { success: true, tokensUsed: 0, executionTimeMs: 100 },
+      fileLogger,
+      { tokensUsed: 7, executionTimeMs: 0, artifacts: null, claudeSessionId: null },
+    );
+
+    const updateArg = prisma.agentExecution.updateMany.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(updateArg.data.tokensUsed).toBe(0);
   });
 
   test('waitingForInput=true: completedAt は null、usageUpdate は常に空、自己学習は記録されない', async () => {

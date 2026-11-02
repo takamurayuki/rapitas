@@ -19,9 +19,12 @@
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
+    "auth:reset-password": "bun run scripts/reset-password.ts",
     "test:sqlite": "bun scripts/run-gate.ts sqlite-tests",
     "test:ci": "bun scripts/run-gate.ts backend-tests",
+    "test:routes": "bun scripts/run-gate.ts route-regression",
     "test:coverage": "bun test --coverage --isolate",
+    "check:toolchain": "bun run scripts/check-toolchain-drift.ts",
     "check:guards": "bun run scripts/check-critical-guards.ts",
     "check:ssot": "bun run scripts/check-ssot-drift.ts --check",
     "check:docs": "bun run scripts/check-docs-health.ts",
@@ -40,9 +43,12 @@
     "db:generate:sqlite": "bun run scripts/generate-sqlite-prisma-schema.cjs && prisma generate --schema prisma/schema.desktop",
     "db:prepare:sqlite": "bun run scripts/generate-sqlite-init-sql.cjs && prisma generate --schema prisma/schema.desktop",
     "db:migrate:desktop": "bun run scripts/migrate-postgres-to-sqlite.ts",
+    "db:prepare:postgres-init": "bun run scripts/generate-postgres-init-sql.cjs",
     "db:studio": "prisma studio",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "audit": "bun audit",
+    "audit:gate": "bun audit --audit-level=critical",
     "format": "prettier --write \"**/*.ts\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore",
     "e2e": "bun run scripts/restart-loop-smoke.ts",
@@ -73,7 +79,7 @@
     "eslint": "^10.3.0",
     "prettier": "^3.8.3",
     "prisma": "^6.19.3",
-    "sharp": "^0.35.0"
+    "sharp": "^0.35.4"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"
@@ -85,13 +91,13 @@
     "@google/generative-ai": "^0.24.1",
     "@napi-rs/keyring": "^1.3.0",
     "@prisma/client": "^6.19.3",
-    "@sentry/bun": "^10.51.0",
+    "@sentry/bun": "^10.78.0",
     "@sinclair/typebox": "0.34.15",
     "@types/ws": "^8.18.1",
     "@xenova/transformers": "^2.17.2",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
-    "elysia": "^1.4.28",
+    "elysia": "^1.4.29",
     "file-type": "^22.0.1",
     "googleapis": "^171.4.0",
     "ioredis": "^5.10.1",
@@ -108,16 +114,18 @@
     "protobufjs"
   ],
   "overrides": {
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.4",
     "protobufjs": "^7.5.8",
     "defu": "^6.1.5",
     "minimatch": "^9.0.7",
     "flatted": "^3.4.0",
     "picomatch": "^4.0.4",
     "ws": "^8.21.0",
-    "brace-expansion": "^2.1.3",
-    "qs": "^6.15.2",
+    "brace-expansion": "^2.1.5",
+    "nanoid": "^5.1.16",
+    "qs": "^6.16.0",
     "file-type": "^22.0.1",
-    "@opentelemetry/core": "^2.8.0"
+    "@opentelemetry/core": "^2.8.0",
+    "fast-copy": "^4.1.0"
   }
 }

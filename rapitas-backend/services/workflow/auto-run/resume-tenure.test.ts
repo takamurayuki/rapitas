@@ -22,7 +22,7 @@ function stub(opts: {
 }): PrismaClient {
   return {
     themeAutoRun: {
-      findUnique: () =>
+      findFirst: () =>
         opts.throwOnTheme
           ? Promise.reject(new Error('db down'))
           : Promise.resolve(opts.themeRow === false ? null : { startedAt: opts.startedAt ?? null }),

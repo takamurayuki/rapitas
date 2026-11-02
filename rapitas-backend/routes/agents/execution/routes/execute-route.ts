@@ -44,6 +44,7 @@ import {
 import { assertSafeGitRef } from '../../../../utils/common/branch-name-generator';
 import type { AttachmentDescriptor } from '../shared/instruction-builder';
 import { readPromptLanguage } from '../../../../services/system/prompt-language-store';
+import { parseId } from '../../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-execution:execute');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -87,8 +88,7 @@ export const executeRoute = new Elysia().post(
        */
       mode?: 'research' | 'development';
     };
-    const { id } = params;
-    const taskIdNum = parseInt(id);
+    const taskIdNum = parseId(params.id, 'task ID');
     const {
       agentConfigId,
       workingDirectory,

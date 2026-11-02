@@ -10,7 +10,7 @@ const latestExecution = mock(
 mock.module('../../config/database', () => ({
   prisma: {
     task: { findUnique: task },
-    themeAutoRun: { findUnique: run },
+    themeAutoRun: { findFirst: run },
     agentExecution: { findFirst: latestExecution },
     workflowTransition: { findFirst: stopIntent },
   },

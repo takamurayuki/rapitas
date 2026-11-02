@@ -190,7 +190,9 @@ fn detection_loop(app_handle: &tauri::AppHandle) -> Result<(), String> {
                         // wake-word-detected handler provides a non-intrusive
                         // visual cue in that case.
                         use tauri::Manager;
-                        if let Some(window) = app_handle.get_webview_window("main") {
+                        // `get_window`: `get_webview_window` stops resolving once
+                        // the link pane docks a child webview into "main" (#1070).
+                        if let Some(window) = app_handle.get_window("main") {
                             let is_minimized = window.is_minimized().unwrap_or(false);
                             let is_visible = window.is_visible().unwrap_or(true);
                             if is_minimized || !is_visible {

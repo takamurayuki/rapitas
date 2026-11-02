@@ -12,7 +12,6 @@
 
 const http = require('http');
 const https = require('https');
-const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 

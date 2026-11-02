@@ -9,6 +9,7 @@
 import { observeWorkflowStage } from './workflow-stage-timing';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { snapshotSection } from './workflow-context-snapshot';
 import { buildKnownPitfallsSection } from './workflow-pitfall-context';
 import { buildFileSizeAwarenessSection } from './workflow-file-size-context';
 import { buildHypothesisContext } from './workflow-hypothesis-context';
@@ -135,7 +136,7 @@ export async function buildImplementerContext(
   // Recall prior knowledge for the implementer too — known pitfalls and past
   // design decisions should steer the actual code changes, not just research.
   const memory = await observeWorkflowStage(taskId, 'context.buildMemoryContext', () =>
-    buildMemoryContext(taskId, task, language),
+    snapshotSection(taskId, 'memory', () => buildMemoryContext(taskId, task, language)),
   );
   if (memory) {
     ctx += `\n\n${memory}`;
@@ -143,7 +144,7 @@ export async function buildImplementerContext(
   // Known pitfalls from the knowledge graph: gate rejections this task's
   // type/technologies have historically hit, with cause-specific advice.
   const pitfalls = await observeWorkflowStage(taskId, 'context.buildKnownPitfallsSection', () =>
-    buildKnownPitfallsSection(task, language),
+    snapshotSection(taskId, 'pitfalls', () => buildKnownPitfallsSection(task, language)),
   );
   if (pitfalls) {
     ctx += `\n\n${pitfalls}`;
@@ -154,7 +155,8 @@ export async function buildImplementerContext(
   const implementLessons = await observeWorkflowStage(
     taskId,
     'context.buildCriticLessonsSection',
-    () => buildCriticLessonsSection('implement', language),
+    () =>
+      snapshotSection(taskId, 'lessons', () => buildCriticLessonsSection('implement', language)),
   );
   if (implementLessons) {
     ctx += `\n\n${implementLessons}`;
@@ -171,7 +173,9 @@ export async function buildImplementerContext(
   }
   // Hypothesis ledger: the implementer's concrete changes + test results are
   // prime evidence — surface open/proven hypotheses and how to record it.
-  const hypothesis = await buildHypothesisContext(taskId, language);
+  const hypothesis = await snapshotSection(taskId, 'hypothesis', () =>
+    buildHypothesisContext(taskId, language),
+  );
   if (hypothesis) {
     ctx += `\n\n${hypothesis}`;
   }

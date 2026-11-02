@@ -1,0 +1,89 @@
+# ルート回帰ゲート — テストマニフェスト
+#
+# このファイルに記載されたテストのみが `bun run test:routes` で実行される。
+# 1 行 1 ファイル（rapitas-backend/ からの相対パス）。
+# '#' 始まりはコメント、空行は無視される。
+#
+# --- なぜ ci-gate-tests.txt と別なのか ---
+# このゲートは **--coverage を付けない**。#1330 でルートレベルのテストを
+# ci-gate-tests.txt へ入れたところ、600行級のルートモジュールがまるごと
+# カバレッジ母数に入り、関数カバレッジが 51.9% → 46.9% と床(50%)を割った。
+# ADR-0002 は「テストを足せ、床を下げるな」なので、正しさのゲートを床の
+# 失敗と引き換えにはしない。
+#
+# 集計から切り離した必須ジョブとして回すことで、床を維持したまま
+# 「配線の退行」を捕まえられる（#1332 レビューの指摘）。
+# カバレッジを測らないので、ここへの追加は床に一切影響しない。
+#
+# --- ルール ---
+# - .github/workflows/test-lint.yml の route-regression ジョブがこのファイルを参照する。
+# - 追加前に `bun run test:routes` でローカルグリーンを確認してから追記すること。
+# - 削除する場合はコメントアウトし、懸念バックログへ起票してから除外すること。
+# - 「このルートが choke point / ガードを通ること」を固定するテストはここへ置く。
+#   純粋なロジックのユニットテストは ci-gate-tests.txt（カバレッジ付き）へ。
+# --------------
+
+# ===== 書き込み経路の整合性（#1330 / #1332） =====
+# 一括削除が削除 choke point を通ること、保護タスクを拒否して報告すること。
+tests/routes/tasks/batch-v2.test.ts
+tests/routes/tasks/tasks.subtask-admin.test.ts
+
+# 停止が失敗を飲まずに statusResetFailed を返すこと。
+routes/agents/execution/routes/stop-route.test.ts
+
+# 差分同期の境界（nextSince）をサーバーが返すこと。これが無いとクライアントは
+# 受信時刻を次の境界にしてしまい、取得中に入った更新を永久に落とす（#1332）。
+tests/routes/tasks/task-routes.test.ts
+
+# ===== 変更操作のid検証（#1349） =====
+# parseInt の切り捨てで /tasks/5abc が行5に届いていた。実機で再現済み:
+# DELETE /tasks/1473abc が {"id":1473,"trashId":986} を返し行1473が消えた。
+# ステータスだけでなく「DBに触れないこと」を assert するのでここに置く
+# （カバレッジ母数に影響しないゲート）。
+tests/routes/tasks/tasks.mutation-errors.test.ts
+
+# 実行停止が id の示さない行に届かないこと（#1349）。ステータスではなく
+# 「DBに触れないこと」を assert する。生成IDの bump は復旧側が走行中セッションを
+# 蘇生するかの判断に使われるので、別タスクに対して走ると実行が死ぬ。
+routes/agents/execution/routes/stop-route.id-validation.test.ts
+
+# ===== 削除経路のid検証（#1349 PR3） =====
+# DELETE 24箇所のうち18箇所は「ガードがあるのに効いていない」状態だった。
+# isNaN / Number.isFinite / Number.isSafeInteger / Number.isInteger はいずれも
+# parseInt が返した切り捨て後の値を受け入れるため、/labels/5e2 はラベル500に、
+# /calendar-shares/5e2 はワークスペース500の共有解除に解決していた。
+# 代表2経路をここで固定する（ステータスではなく「DBに触れないこと」を assert）。
+# 残り22箇所は require-validated-id-param が error として押さえる。
+tests/routes/organization/labels-routes.test.ts
+routes/system/calendar-shares/calendar-shares.routes.test.ts
+
+# ===== POST 経路のid検証（#1349 PR5） =====
+# これで変更操作(POST/PATCH/PUT/DELETE)の全106箇所が移行完了。
+# ポモドーロの pause/resume/complete/cancel は 4経路すべてが切り捨てた id で
+# 他人のセッションを操作できた（parseInt('1e1')=1、parseInt('0x10')=16 で
+# isNaN は false）。コメント投稿は別タスクにコメントが付いていた。
+# いずれもステータスではなく「サービス/DBを呼ばないこと」を assert する。
+tests/routes/scheduling/pomodoro-routes.test.ts
+tests/routes/social/comments-routes.test.ts
+
+# ===== レビューで見つかった修正漏れ（#1349 PR7） =====
+# 「163箇所直した」と「未修正ゼロ」は別だった。ESLintルールに2つの盲点があり、
+# 61箇所が残っていた:
+#   1. context.params as { id: string } — 型アサーションで出所を追えなかった
+#   2. 別モジュールに切り出されたハンドラ — 動詞が祖先に無いと見逃していた
+# 400 だけでなく「到達していないこと」を assert する。何に到達しないかが要点:
+#   - 秘密情報ストア (saveAgentApiKey / deleteStoredSecret) — 他エージェントの
+#     アカウントに書いたAPIキーは読み戻して直せない
+#   - 自動実行 (startAutoRun / stopAutoRun / stopThemeAgents) — stop は未コミットの
+#     作業を revert しロックを解放する
+#   - ドライラン実行 (runDryRunVerification) — 他タスクの worktree でゲートを走らせる
+routes/agents/config/agent-api-key-router.id-validation.test.ts
+routes/workflow/theme-auto-run.id-validation.test.ts
+routes/workflow/handlers/workflow-handlers-dry-run.id-validation.test.ts
+# ===== 読み取り系のHTTP契約（#1349 レビュー） =====
+# transitions / repair-iterations は不正IDでもDB失敗でも 200 を返し、本当の結果は
+# ボディにしか無かった。ステータスだけ読む呼び出し元は成功と受け取る（#1335 で
+# stop-execution について直したのと同じ形）。契約:
+#   不正ID -> 400・DB未到達 / DB失敗 -> 500 / 正常・履歴0件 -> 200 空の履歴
+# 「履歴が空」で 404 にはしない（フロントには「タスクが消えた」と読める）。
+routes/workflow/core/workflow.read-http-contract.test.ts

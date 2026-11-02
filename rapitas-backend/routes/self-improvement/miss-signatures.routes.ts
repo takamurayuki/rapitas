@@ -12,6 +12,7 @@ import {
   reviewSuggestion,
   getMissSummary,
 } from '../../services/self-improvement/miss-signature-service';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:miss-signatures');
 
@@ -40,11 +41,11 @@ const missSignaturesRoutes = new Elysia({ prefix: '/self-improvement/miss-signat
   .post(
     '/:id/review',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id, 10);
-      if (!Number.isInteger(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = 400;
         return { error: 'id が不正です' };
       }
+      const id = Number(params.id);
       const ok = await reviewSuggestion(id, body.approved);
       if (!ok) {
         set.status = 404;

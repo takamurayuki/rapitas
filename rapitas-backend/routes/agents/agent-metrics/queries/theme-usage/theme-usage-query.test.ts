@@ -35,6 +35,8 @@ function exec(overrides: Record<string, unknown> = {}): Record<string, unknown> 
     tokensUsed: 0,
     inputTokens: 100,
     outputTokens: 50,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0,
     executionTimeMs: 2000,
     costUsd: 0,
     ...overrides,
@@ -72,7 +74,14 @@ describe('getThemeUsage', () => {
   test('aggregates tokens / executions / duration per day and theme', async () => {
     execFind.mockImplementation(() =>
       Promise.resolve([
-        exec({ tokensUsed: 1000 }),
+        // NOTE: This row used to carry `tokensUsed: 1000` and the expectations
+        // below pinned that column winning over input + output. The precedence
+        // is now the four per-class columns first (#1302) — `tokensUsed`
+        // accumulates a session-cumulative source and double counts resumes.
+        // Expressing the same 1000 as a cache read keeps every number below
+        // unchanged and additionally proves cache tokens are counted, which
+        // the old input + output fallback dropped.
+        exec({ cacheReadInputTokens: 850 }),
         exec({ startedAt: new Date('2026-10-09T05:00:00Z') }),
         exec({ sessionId: 2 }),
         exec({ sessionId: 3 }),

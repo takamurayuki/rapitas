@@ -96,19 +96,57 @@ describe('date keys and month window', () => {
   });
 });
 
+// NOTE: These tests used to pin the opposite preference — tokensUsed first,
+// input + output only as a fallback. Both halves of that were wrong (#1302):
+// `tokensUsed` is written as `existing + new` from a SESSION-CUMULATIVE source,
+// so it double counts once an execution resumes, while the four per-class
+// columns are overwritten with the latest snapshot and are correct. And the old
+// fallback dropped the cache columns, which are 99.3% of the tokens on this
+// machine (measured 2026-10-31: cacheRead 94.78%, cacheCreation 4.54%).
 describe('resolveExecutionTokens', () => {
-  test('prefers tokensUsed when recorded', () => {
-    expect(resolveExecutionTokens({ tokensUsed: 500, inputTokens: 10, outputTokens: 20 })).toBe(
-      500,
-    );
+  const row = (over: Partial<Parameters<typeof resolveExecutionTokens>[0]> = {}) => ({
+    tokensUsed: null,
+    inputTokens: null,
+    outputTokens: null,
+    cacheReadInputTokens: null,
+    cacheCreationInputTokens: null,
+    ...over,
   });
-  test('falls back to input + output when tokensUsed is 0', () => {
-    expect(resolveExecutionTokens({ tokensUsed: 0, inputTokens: 10, outputTokens: 20 })).toBe(30);
+
+  test('sums the four per-class columns, which are the overwritten ones', () => {
+    expect(
+      resolveExecutionTokens(
+        row({
+          inputTokens: 10,
+          outputTokens: 20,
+          cacheReadInputTokens: 300,
+          cacheCreationInputTokens: 40,
+        }),
+      ),
+    ).toBe(370);
   });
-  test('treats null columns as 0', () => {
-    expect(resolveExecutionTokens({ tokensUsed: null, inputTokens: null, outputTokens: 7 })).toBe(
-      7,
-    );
+
+  // The whole defect: a resumed execution's tokensUsed holds the sum of the
+  // session's cumulative snapshots, so it exceeds the real total.
+  test('ignores an inflated tokensUsed when the per-class columns are present', () => {
+    expect(
+      resolveExecutionTokens(row({ tokensUsed: 999_999, inputTokens: 10, outputTokens: 20 })),
+    ).toBe(30);
+  });
+
+  // Cache reads cost about a tenth of fresh input tokens, but they are still
+  // tokens — a budget that drops them undercounts by two orders of magnitude.
+  test('counts the cache columns, which the old fallback dropped', () => {
+    expect(resolveExecutionTokens(row({ cacheReadInputTokens: 500 }))).toBe(500);
+  });
+
+  // Rows written before the per-class columns existed carry only tokensUsed.
+  test('falls back to tokensUsed when every per-class column is empty', () => {
+    expect(resolveExecutionTokens(row({ tokensUsed: 500 }))).toBe(500);
+  });
+
+  test('reports 0 when nothing was recorded at all', () => {
+    expect(resolveExecutionTokens(row())).toBe(0);
   });
 });
 

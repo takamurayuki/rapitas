@@ -164,6 +164,8 @@ export function AIAccordionPanelInner({
           onSetBaseBranch={exec.setBaseBranch}
           onGenerateBranchName={exec.handleGenerateBranchName}
           onExecute={exec.handleExecute}
+          isStopping={exec.isStopping}
+          stopNotice={exec.stopNotice}
           onStop={exec.handleStopExecution}
           onReset={exec.handleReset}
           onRerun={exec.handleRerunExecution}

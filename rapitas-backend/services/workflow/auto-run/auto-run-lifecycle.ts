@@ -73,7 +73,12 @@ export async function processStoppingThemesImpl(
 }
 
 /** Cause codes for an idle theme resuming (mirrors the `theme.resumed` event). */
-type ResumeCause = 'new_todo' | 'backlog_promotable' | 'concern_bypass' | 'manual_task_rearm';
+type ResumeCause =
+  | 'new_todo'
+  | 'backlog_promotable'
+  | 'concern_bypass'
+  | 'manual_task_rearm'
+  | 'concern_rearm';
 
 /** Start an idle theme and record why (log + cycle event + SSE). */
 async function resumeIdleTheme(themeId: number, cause: ResumeCause, todo: number): Promise<void> {
@@ -184,11 +189,11 @@ async function processArmedIdleTheme(
 /**
  * Handle a single STOPPED (enabled:false) idle theme (task 784): a USER stop
  * (idleStoppedAt null) stays stopped forever. A TIMER stop re-arms on a
- * human-filed task (design point 5 — "手動でタスクが起票されたら…自動再アーム");
- * severity-high concerns and the nightly self-refill window deliberately do
- * NOT re-arm it (they only bypass the countdown BEFORE the stop — see
- * processArmedIdleTheme) — the theme still learns (self-refills in place)
- * but stays off until a human re-arms it.
+ * human-filed task (design point 5 — "手動でタスクが起票されたら…自動再アーム")
+ * or, since #952, on an urgent/high concern — the same signal that already
+ * bypasses the countdown before the stop. The nightly self-refill still does
+ * NOT re-arm it: the theme learns (self-refills in place) but ordinary
+ * backlog alone does not wake it.
  */
 async function processStoppedIdleTheme(
   prisma: PrismaClient,
@@ -205,6 +210,15 @@ async function processStoppedIdleTheme(
     .catch(() => 0);
   if (manualTodo > 0) {
     await resumeIdleTheme(state.themeId, 'manual_task_rearm', manualTodo);
+    return;
+  }
+
+  // An urgent/high concern re-arms a TIMER stop too (#952, option 1). It
+  // already returned the theme to work while the countdown ran; one minute
+  // after the stop the same concern could not, so the system's reaction to
+  // its own urgent findings depended on which side of the boundary they fell.
+  if (await attemptCriticalConcernBypass(state.themeId)) {
+    await resumeIdleTheme(state.themeId, 'concern_rearm', 0);
     return;
   }
 

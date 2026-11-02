@@ -23,14 +23,23 @@ export async function recordSearchMiss(rawQuery: string): Promise<void> {
   const normalized = rawQuery.trim().toLowerCase();
   if (normalized.length < 3) return;
 
-  await prisma.searchMiss.upsert({
+  // find-then-write rather than upsert: `query` is unique per workspace now,
+  // so it is not a filter upsert can take. The increment stays an atomic
+  // database-side operation on the update branch.
+  const found = await prisma.searchMiss.findFirst({
     where: { query: normalized },
-    create: { query: normalized, hitCount: 1, lastSearchedAt: new Date() },
-    update: {
-      hitCount: { increment: 1 },
-      lastSearchedAt: new Date(),
-    },
+    select: { id: true },
   });
+  if (!found) {
+    await prisma.searchMiss.create({
+      data: { query: normalized, hitCount: 1, lastSearchedAt: new Date() },
+    });
+  } else {
+    await prisma.searchMiss.update({
+      where: { id: found.id },
+      data: { hitCount: { increment: 1 }, lastSearchedAt: new Date() },
+    });
+  }
 
   log.debug({ query: normalized }, 'Recorded search miss');
 }

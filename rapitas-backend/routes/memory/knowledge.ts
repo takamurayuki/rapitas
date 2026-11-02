@@ -23,6 +23,7 @@ import type {
   ForgettingStage,
   ValidationStatus,
 } from '../../services/memory/types';
+import { isValidEntityId } from '../../utils/common/id-validation';
 
 // Type definitions for request bodies
 interface CreateKnowledgeBody {
@@ -149,11 +150,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .get(
     '/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const entry = await prisma.knowledgeEntry.findUnique({
         where: { id },
         include: {
@@ -219,11 +220,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .put(
     '/:id',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const typedBody = body as UpdateKnowledgeBody;
       const entry = await updateKnowledgeEntry(id, {
         title: typedBody.title,
@@ -254,11 +255,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .delete(
     '/:id',
     async ({ params, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const entry = await archiveKnowledgeEntry(id);
       return { success: true, entry };
     },
@@ -269,11 +270,11 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   .post(
     '/:id/pin',
     async ({ params, body, set }) => {
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
+      if (!isValidEntityId(params.id)) {
         set.status = HTTP_STATUS.BAD_REQUEST;
         return { error: 'Invalid ID' };
       }
+      const id = Number(params.id);
       const typedBody = body as PinKnowledgeBody;
       const until = new Date(typedBody.until);
       const entry = await pinKnowledgeEntry(id, until);

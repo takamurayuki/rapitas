@@ -4,8 +4,8 @@ import { useRef, useState, useEffect } from 'react';
 import type { Task, DeveloperModeConfig } from '@/types';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
-import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
-import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
+import { TaskDetailQuickNav } from './TaskDetailQuickNav';
+import { buildQuickNavSections } from './quick-nav-sections';
 import { useTranslations } from 'next-intl';
 import { openPomodoroFloatWindow } from '@/feature/tasks/pomodoro/pomodoro-float-launcher';
 import type { WorkflowFile } from '@/types';
@@ -94,6 +94,12 @@ export default function TaskDetailContent({
   const t = useTranslations('task');
   const tCommon = useTranslations('common');
   const tWorkflow = useTranslations('workflow');
+  const tDev = useTranslations('devMode');
+
+  // The same gate TaskDetailViewBody uses for the section itself: agents
+  // cannot run without a working directory, so the card is not rendered and
+  // the chip must not offer it.
+  const showExecutionSection = viewBodyProps.showAIPanel && !!task.theme?.workingDirectory;
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentReady, setContentReady] = useState(false);
   const initialScrollDoneRef = useRef(false);
@@ -107,15 +113,16 @@ export default function TaskDetailContent({
     }
   }, [showSkeleton]);
 
-  // Quick-jump targets — must match the section ids in TaskDetailViewBody.
-  const quickNavSections: QuickNavSection[] = [
-    { id: 'td-info', label: tCommon('detail'), icon: Info },
-    { id: 'td-ai', label: 'AI', icon: Bot },
-    ...(task.theme?.isDevelopment === true
-      ? [{ id: 'td-workflow', label: tWorkflow('title'), icon: GitBranch }]
-      : []),
-    { id: 'td-subtasks', label: t('subtasks'), icon: ListTodo },
-  ];
+  const quickNavSections = buildQuickNavSections({
+    showExecutionSection,
+    isDevelopmentTheme: task.theme?.isDevelopment === true,
+    labels: {
+      detail: tCommon('detail'),
+      execution: tDev('executionSection.title'),
+      workflow: tWorkflow('title'),
+      subtasks: t('subtasks'),
+    },
+  });
 
   return (
     <div

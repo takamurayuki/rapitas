@@ -111,23 +111,82 @@ export function formatBackendFailure(elapsedMs: number, stdout: string, stderr: 
   return lines.join('\n');
 }
 
+/** Cap on each tapped stream. A backend can log for minutes; holding all of it
+ *  would trade a blind failure for an out-of-memory one. */
+const MAX_TAP_CHARS = 20_000;
+
 /**
- * Drains a spawned backend's piped streams. Never throws: this runs on a path
- * that is already failing, and losing the report must not mask the real cause.
+ * A bounded sink that keeps only the TAIL of what it is given — where a fatal
+ * error lands.
  *
- * @param proc - The spawned backend. / 起動したバックエンド
- * @returns Both streams as text. / 両ストリームのテキスト
+ * @param maxChars - Most characters to retain. / 保持する最大文字数
+ * @returns append/read handles. / 追記と読み出し
  */
-async function readBackendStreams(proc: Subprocess): Promise<{ stdout: string; stderr: string }> {
-  const read = async (stream: unknown): Promise<string> => {
-    try {
-      if (!stream || typeof stream === 'number') return '';
-      return await new Response(stream as ReadableStream).text();
-    } catch {
-      return '';
-    }
+export function createTailBuffer(maxChars: number): {
+  append: (chunk: string) => void;
+  read: () => string;
+} {
+  let text = '';
+  return {
+    append(chunk: string) {
+      text += chunk;
+      if (text.length > maxChars) text = text.slice(-maxChars);
+    },
+    read: () => text,
   };
-  return { stdout: await read(proc.stdout), stderr: await read(proc.stderr) };
+}
+
+/**
+ * Copy a child stream into a sink as it arrives.
+ *
+ * NOTE: Incremental. This replaced a readBackendStreams() that drained each
+ * pipe to EOF with `new Response(stream).text()`, which can only finish once
+ * the child is gone — so it was usable on the startup path alone. A scenario
+ * that fails mid-run needs the log WHILE the backend still holds the pipe
+ * open (#1000), so the tap starts at spawn and the buffer reads at any point.
+ *
+ * @param stream - The child's stdout or stderr. / 子プロセスのストリーム
+ * @param sink - Receives decoded text. / 受け手
+ */
+async function tapStream(stream: unknown, sink: (text: string) => void): Promise<void> {
+  if (!stream || typeof stream === 'number') return;
+  const decoder = new TextDecoder();
+  try {
+    for await (const chunk of stream as ReadableStream<Uint8Array>) {
+      sink(decoder.decode(chunk, { stream: true }));
+    }
+  } catch {
+    // The pipe closing mid-read is the normal end of a killed backend.
+  }
+}
+
+/**
+ * Builds the backend-side context for a FAILED scenario.
+ *
+ * Exists because `Fault Injection E2E` kept reporting
+ * `task creation failed: HTTP 500` with no indication of why the backend
+ * answered 500 — formatBackendFailure covers only the startup path (#1000).
+ * Deliberately says nothing about a health check, which is that other path.
+ *
+ * @param stdout - Tapped stdout. / 取得したstdout
+ * @param stderr - Tapped stderr. / 取得したstderr
+ * @returns A multi-line report for the CI log. / CIログ向けレポート
+ */
+export function formatScenarioBackendContext(stdout: string, stderr: string): string {
+  const out = tail(stdout);
+  const err = tail(stderr);
+  const lines = ['[fault-e2e] a scenario failed — backend output follows'];
+  if (!out && !err) {
+    // Silence is itself the finding: the backend answered without logging,
+    // which points somewhere different than a stack trace would.
+    lines.push('[fault-e2e] the backend produced no output on either stream (no output captured)');
+    return lines.join('\n');
+  }
+  lines.push(`[fault-e2e] --- backend stderr (last ${FAILURE_TAIL_LINES} lines) ---`);
+  lines.push(err || '(empty)');
+  lines.push(`[fault-e2e] --- backend stdout (last ${FAILURE_TAIL_LINES} lines) ---`);
+  lines.push(out || '(empty)');
+  return lines.join('\n');
 }
 
 /**
@@ -170,15 +229,34 @@ async function main(): Promise<void> {
 
   try {
     proc = spawnIsolatedBackend(FAULT_E2E_PORT, databaseUrl);
-    const health = await waitForHealth(FAULT_E2E_PORT, HEALTH_TIMEOUT_MS);
+    // Tap both streams from the moment it starts. A scenario that fails
+    // mid-run needs the backend's log while the child still holds the pipe
+    // open, which draining to EOF cannot give (#1000).
+    const stdoutTail = createTailBuffer(MAX_TAP_CHARS);
+    const stderrTail = createTailBuffer(MAX_TAP_CHARS);
+    void tapStream(proc.stdout, stdoutTail.append);
+    void tapStream(proc.stderr, stderrTail.append);
+    // NOTE: Waits for READY, not merely healthy (#1000 / #1323). Every
+    // scenario writes, and warm-up runs after the listener opens: measured
+    // 2026-10-31, `/health` reported healthy for 6,474ms while startup-backfills
+    // and the agent worker were still writing the same SQLite file, and writes
+    // arriving there failed with SQLITE_IOERR_SHORT_READ (522). The whole run
+    // takes ~3s, so it fitted entirely inside that window — which is why
+    // duplicate-callback and process-restart failed on 5 of 7 runs with
+    // "HTTP 500: タスクの作成に失敗しました" and no cause in any log.
+    const health = await waitForHealth(
+      FAULT_E2E_PORT,
+      HEALTH_TIMEOUT_MS,
+      undefined,
+      undefined,
+      true,
+    );
     if (!health.ok) {
-      const failed = proc;
-      // Kill first: the streams only reach EOF once the child is gone, so
-      // reading them while it still holds the pipe open would block here.
-      await killBackend(failed);
+      // Kill first so the taps see EOF and flush what the child wrote on its
+      // way out; killBackend already settles for 300ms afterwards.
+      await killBackend(proc);
       proc = null;
-      const streams = await readBackendStreams(failed);
-      console.error(formatBackendFailure(health.elapsedMs, streams.stdout, streams.stderr));
+      console.error(formatBackendFailure(health.elapsedMs, stdoutTail.read(), stderrTail.read()));
       process.exit(1);
     }
 
@@ -205,6 +283,11 @@ async function main(): Promise<void> {
       ),
     );
     proc = null; // already killed by the scenario
+    if (results.some((r) => !r.passed)) {
+      // Printed before the summary table so the cause sits next to the symptom
+      // in the CI log rather than scrolled away above it.
+      console.error(formatScenarioBackendContext(stdoutTail.read(), stderrTail.read()));
+    }
   } finally {
     await killBackend(proc);
     rmSync(tmpDir, { recursive: true, force: true });

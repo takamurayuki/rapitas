@@ -215,21 +215,6 @@ describe('syncPomodoroToBackend', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('checkpoint() emits pomodoro-float:checkpoint-request to main instead of fetching, under Tauri on /pomodoro-float', async () => {
-      setPathname('/pomodoro-float');
-      setTauriInternals(true);
-      const fetchMock = vi.fn().mockResolvedValue({});
-      vi.stubGlobal('fetch', fetchMock);
-
-      const result = await syncPomodoroToBackend.checkpoint();
-      await flushPromises();
-      await flushPromises();
-
-      expect(emitToMock).toHaveBeenCalledWith('main', 'pomodoro-float:checkpoint-request');
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(result).toBeNull();
-    });
-
     it('cancel() does not delegate on /pomodoro-float without __TAURI_INTERNALS__ (existing jsdom/browser test env)', async () => {
       setPathname('/pomodoro-float');
       setTauriInternals(false);

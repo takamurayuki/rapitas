@@ -47,6 +47,23 @@ mock.module('../../services/agents/orchestrator/git-operations/worktree/worktree
 const extractKnowledgeFromTask = mock(() => Promise.resolve([101])) as any;
 mock.module('../../services/memory/task-knowledge-extractor', () => ({ extractKnowledgeFromTask }));
 
+/** Ids handed to the deletion choke point. */
+const chokePointDeletes: number[] = [];
+
+// The prune goes through the guarded path (#1330 review) — it used to call
+// prisma.task.delete itself, skipping the trash copy. Both exports are
+// mirrored because mock.module replaces the whole module.
+mock.module('../../services/task/task-deletion', () => ({
+  deleteTaskWithTrash: async (taskId: number) => {
+    chokePointDeletes.push(taskId);
+    return { taskId, outcome: 'deleted', trashId: 1 };
+  },
+  deleteTasksWithTrash: async (taskIds: number[]) => {
+    chokePointDeletes.push(...taskIds);
+    return { deleted: taskIds, protected: [], notFound: [], trashIds: taskIds.map(() => 1) };
+  },
+}));
+
 const { cleanupCompletedTasks } = await import('../../services/task/completed-task-cleanup');
 
 beforeEach(() => {
@@ -63,6 +80,7 @@ beforeEach(() => {
   ]) {
     m.mockReset();
   }
+  chokePointDeletes.length = 0;
   taskCount.mockResolvedValue(0); // no open subtasks
   taskDelete.mockResolvedValue({});
   taskFindUnique.mockResolvedValue({ workingDirectory: null });
@@ -82,7 +100,7 @@ describe('cleanupCompletedTasks', () => {
     expect(r.candidateCount).toBe(3);
     expect(r.deletedCount).toBe(3);
     expect(r.deletedTaskIds).toEqual([3, 4, 5]);
-    expect(taskDelete).toHaveBeenCalledTimes(3);
+    expect(chokePointDeletes).toHaveLength(3);
     // 記録済みなので抽出は呼ばれない
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
   });
@@ -96,7 +114,7 @@ describe('cleanupCompletedTasks', () => {
     expect(extractKnowledgeFromTask).toHaveBeenCalledWith(10);
     expect(r.knowledgeRecorded).toBe(1);
     expect(r.alreadyRecorded).toBe(0);
-    expect(taskDelete).toHaveBeenCalledTimes(1);
+    expect(chokePointDeletes).toHaveLength(1);
   });
 
   test('dryRun は削除・抽出をせず件数のみ返すこと', async () => {
@@ -108,7 +126,7 @@ describe('cleanupCompletedTasks', () => {
     expect(r.dryRun).toBe(true);
     expect(r.candidateCount).toBe(2);
     expect(r.deletedCount).toBe(2); // would-delete count
-    expect(taskDelete).not.toHaveBeenCalled();
+    expect(chokePointDeletes).toEqual([]);
     expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
   });
 
@@ -142,7 +160,7 @@ describe('cleanupCompletedTasks', () => {
 
     expect(r.skippedWithOpenSubtasks).toBe(1);
     expect(r.deletedCount).toBe(0);
-    expect(taskDelete).not.toHaveBeenCalled();
+    expect(chokePointDeletes).toEqual([]);
   });
 
   describe('fault injection — knowledge-loss-before-delete', () => {
@@ -156,7 +174,7 @@ describe('cleanupCompletedTasks', () => {
       const r = await cleanupCompletedTasks({ keepRecent: 0 });
 
       expect(r.deletedCount).toBe(0);
-      expect(taskDelete).not.toHaveBeenCalled();
+      expect(chokePointDeletes).toEqual([]);
       expect(extractKnowledgeFromTask).not.toHaveBeenCalled();
     });
 
@@ -170,7 +188,7 @@ describe('cleanupCompletedTasks', () => {
       const r = await cleanupCompletedTasks({ keepRecent: 0 });
 
       expect(r.deletedCount).toBe(0);
-      expect(taskDelete).not.toHaveBeenCalled();
+      expect(chokePointDeletes).toEqual([]);
       expect(r.knowledgeRecorded).toBe(0);
     });
 
@@ -182,7 +200,7 @@ describe('cleanupCompletedTasks', () => {
       const r = await cleanupCompletedTasks({ keepRecent: 0 });
 
       expect(r.deletedCount).toBe(1);
-      expect(taskDelete).toHaveBeenCalledTimes(1);
+      expect(chokePointDeletes).toHaveLength(1);
       expect(r.knowledgeRecorded).toBe(0);
     });
   });

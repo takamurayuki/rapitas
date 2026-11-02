@@ -340,9 +340,13 @@ backend when that restart followed a `git pull`.
    check reports drift and `restartFrontend('next-cache-drift-after-backend-restart')`
    recycles the frontend — correct behaviour, it stops a stale `.next` from
    being served (see §10 and the 2026-08-05 CPU spin).
-2. The recovery in `src-tauri/src/dev_server_wait.rs` is armed **only** from
-   Tauri's `setup` hook (`app_setup.rs`), and it returns early when :3000 is
-   already listening. So it covers a cold app launch and nothing else.
+2. The recovery in `src-tauri/src/dev_server_wait.rs` used to be armed **only**
+   from Tauri's `setup` hook (`app_setup.rs`), returning early when :3000 was
+   already listening — so it covered a cold app launch and nothing else.
+   **Fixed 2026-10-19:** it is now a standing watcher that re-navigates on each
+   confirmed :3000 down→up transition, so a recycled frontend brings the window
+   back on its own within a second or two. If you are on a build from before
+   that, the manual fix below still applies.
 
 Restarting the backend does not restart `rapitas.exe`. The window therefore
 outlives the frontend it was pointed at, the port dies under it, and no code
@@ -365,12 +369,17 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3001/agents/system-sta
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
 ```
 
-> Deliberately not fixed (2026-10-15 decision). Making `dev_server_wait` a
-> standing watcher that re-navigates on every :3000 down→up transition would
-> cover this too, but the window only opens on the first restart after a pull,
-> and one manual reload clears it. Revisit if it starts happening on ordinary
-> restarts — that would mean `frontendNextCacheIsStale()` is reporting drift
-> when HEAD has not moved.
+> Was deliberately not fixed (2026-10-15): the window only opened on the first
+> restart after a pull, and one manual reload cleared it. That reasoning
+> assumed a pull meant someone was at the keyboard. It stopped holding once the
+> loop pulls and restarts unattended (`restartOnAutoRunDry` plus the automated
+> primary sync) — on 2026-10-19 a window sat dead for about forty minutes with
+> nobody to reload it. `dev_server_wait` is now the standing watcher that note
+> described.
+>
+> The symptom can still reach you from a stale `rapitas.exe`: the watcher is
+> Rust, so a desktop binary built before 2026-10-19 does not have it. Reload
+> once, and rebuild when convenient.
 
 ---
 
