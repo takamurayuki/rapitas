@@ -165,6 +165,20 @@ describe('groupTaskEvents', () => {
     expect(t1.completedAt).toEqual(at(5));
   });
 
+  // #1303: production saves arrive through the epilogue's harvest, which
+  // records `phase_completed:<role>`, not `file_saved:<type>`. Counting only
+  // the latter left criticFirstPass at total 0 for weeks of real work.
+  it('counts harvested research/plan (phase_completed:researcher/planner) as saves', () => {
+    const rows = [
+      trow(1, 9, { cause: 'phase_completed:researcher' }),
+      trow(1, 8, { cause: 'phase_completed:planner' }),
+      trow(1, 7, { cause: 'phase_completed:implementer' }),
+    ];
+    const t1 = groupTaskEvents(rows)[0]!;
+    expect(t1.researchSavedAt).toEqual(at(9));
+    expect(t1.planSavedAt).toEqual(at(8));
+  });
+
   it('flags plan bounces via failed and exhausted causes', () => {
     const rows = [
       trow(1, 2, { cause: 'plan_critic_failed' }),
