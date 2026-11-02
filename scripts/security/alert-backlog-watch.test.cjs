@@ -102,3 +102,21 @@ test('closes the issue once the backlog is clear, and does nothing when already 
   assert.equal(reconcileIssue({ repo: 'o/r', list: [], now: NOW, gh: g.gh }), 'clear');
   assert.equal(g.calls.length, 1);
 });
+
+// The default Actions token cannot read Dependabot alerts (HTTP 403, measured
+// on the first run). Code scanning must still be tracked, and an unreadable
+// source must never let the issue close as if it were clear.
+test('an unreadable source keeps the issue open and says what is missing', () => {
+  const f = fakeGh([{ number: 9, title: TITLE }]);
+  const did = reconcileIssue({
+    repo: 'o/r',
+    list: [],
+    now: NOW,
+    gh: f.gh,
+    unreadable: ['dependabot'],
+  });
+  assert.equal(did, 'updated');
+  assert.ok(!f.calls.some((c) => c[1] === 'close'));
+  const edit = f.calls.find((c) => c[1] === 'edit');
+  assert.match(edit[edit.indexOf('--body') + 1], /dependabot.*not readable/i);
+});

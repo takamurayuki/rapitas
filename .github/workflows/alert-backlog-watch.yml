@@ -28,11 +28,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # The Dependabot alerts API is not readable with every token. Prefer a
-      # dedicated read-only token when one is configured; if the default token
-      # is refused, the fetch throws and this run goes RED instead of reading
-      # the refusal as "no alerts" and closing the tracking issue.
-      GH_TOKEN: ${{ secrets.SECURITY_ALERTS_TOKEN || github.token }}
+      # Code scanning and the issue itself use the job token.
+      GH_TOKEN: ${{ github.token }}
+      # NOTE: The job token gets HTTP 403 on the Dependabot alerts API (first
+      # run, 2026-11-03), so that one source reads with a fine-grained,
+      # read-only SECURITY_ALERTS_TOKEN ("Dependabot alerts: read" on this repo).
+      # Without it the run is RED and the issue says Dependabot is unread — it
+      # never treats the refusal as "no alerts" and closes itself.
+      DEPENDABOT_ALERTS_TOKEN: ${{ secrets.SECURITY_ALERTS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
