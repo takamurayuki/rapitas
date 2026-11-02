@@ -146,6 +146,17 @@ mock.module('./subtask-completion-handler', () => ({
   isParentFinalizable: () => true,
 }));
 
+// NOTE: shouldAutoApprovePlan consults this module, which imports prisma from
+// config/database directly — NOT the '../../config' mocked above. Unmocked, every
+// auto-approve test opened a real PostgreSQL connection and waited for it to
+// fail: instant in CI, ~5s on a dev machine, past runAndSettle's 3s deadline
+// (#1208). The hold itself is covered by plan-auto-approve.plan-hold-notify.
+mock.module('./forbidden-change-plan-hold', () => ({
+  PLAN_FORBIDDEN_CHANGE_HOLD_CAUSE: 'plan_forbidden_change_hold',
+  buildOverrideInstruction: () => '',
+  resolveForbiddenChangePlanHold: () => Promise.resolve(null),
+}));
+
 const { WorkflowRunner } = await import('./workflow-runner');
 
 function resetRunner(): void {
