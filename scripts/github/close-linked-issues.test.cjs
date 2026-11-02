@@ -206,3 +206,35 @@ test('sweep applies the same rule to recently merged PRs on any non-default base
   assert.deepEqual(r.closed, [1]);
   assert.ok(listArgs.includes('merged:>=2026-10-20'), listArgs.join(' '));
 });
+
+// #1371's merge left #1132 open: one GraphQL "Something went wrong" failed the
+// close, and nothing retried it until the next daily sweep.
+test('a transient GitHub error is retried; the close then succeeds', () => {
+  const { retryingGh } = require('./close-linked-issues.cjs');
+  let calls = 0;
+  const flaky = () => {
+    calls++;
+    if (calls < 3) throw new Error('GraphQL: Something went wrong while executing your query');
+    return 'ok';
+  };
+  assert.equal(retryingGh(flaky, { attempts: 3, wait: () => {} })(['issue', 'close', '1']), 'ok');
+  assert.equal(calls, 3);
+});
+
+test('a non-transient error is not retried, and the last transient error surfaces', () => {
+  const { retryingGh } = require('./close-linked-issues.cjs');
+  let calls = 0;
+  const notFound = () => {
+    calls++;
+    throw new Error('HTTP 404: Not Found');
+  };
+  assert.throws(() => retryingGh(notFound, { attempts: 3, wait: () => {} })([]), /404/);
+  assert.equal(calls, 1);
+  calls = 0;
+  const alwaysDown = () => {
+    calls++;
+    throw new Error('HTTP 502: Bad Gateway');
+  };
+  assert.throws(() => retryingGh(alwaysDown, { attempts: 3, wait: () => {} })([]), /502/);
+  assert.equal(calls, 3);
+});
