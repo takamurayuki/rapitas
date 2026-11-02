@@ -12,7 +12,7 @@
  * `phase_transition` actually carries (see workflow-runner-events.ts). The
  * avatar spec describes them by agent role; this is the same ladder.
  */
-import type { RapiAvatarState } from './RapiAvatar';
+import type { RapiAvatarState } from '../avatar/RapiAvatar';
 
 /** Planning the work: researcher and planner. */
 const THINKING_PHASES = new Set(['draft', 'research_done']);

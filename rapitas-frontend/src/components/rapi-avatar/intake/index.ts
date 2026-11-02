@@ -5,14 +5,14 @@
  */
 export { TaskIntake } from './TaskIntake';
 export { TaskAsk } from './TaskAsk';
-export { TaskCleanup } from './TaskCleanup';
-export { TaskBulkCleanup } from './TaskBulkCleanup';
+export { TaskCleanup } from './cleanup/TaskCleanup';
+export { TaskBulkCleanup } from './cleanup/TaskBulkCleanup';
 export { TaskConsult, taskIdFromLocation } from './TaskConsult';
 export { TaskWatch } from './TaskWatch';
-export { TaskTidy } from './TaskTidy';
-export { TaskRoadmap } from './TaskRoadmap';
-export { useDeleteFilter, type UseDeleteFilter } from './use-delete-filter';
-export { useDeleteProposal, type UseDeleteProposal } from './use-delete-proposal';
+export { TaskTidy } from './cleanup/TaskTidy';
+export { TaskRoadmap } from './roadmap/TaskRoadmap';
+export { useDeleteFilter, type UseDeleteFilter } from './cleanup/use-delete-filter';
+export { useDeleteProposal, type UseDeleteProposal } from './cleanup/use-delete-proposal';
 export { TaskDraftCard } from './TaskDraftCard';
 export { useTaskDraft, type UseTaskDraft } from './use-task-draft';
 export {

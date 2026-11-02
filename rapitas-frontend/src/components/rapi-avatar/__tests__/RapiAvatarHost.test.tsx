@@ -38,7 +38,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
   useSearchParams: () => new URLSearchParams(search),
 }));
-vi.mock('../useRapiAvatarState', () => ({
+vi.mock('../state/useRapiAvatarState', () => ({
   useRapiAvatarState: (interrupted: number) => ({
     state: interrupted > 0 ? 'waiting' : 'running',
     agents: 1,

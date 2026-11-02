@@ -18,9 +18,9 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useResumableExecutions } from '@/components/resumable-executions/useResumableExecutions';
-import { RapiAvatarDock } from './RapiAvatarDock';
-import { RapiAvatarPanel } from './RapiAvatarPanel';
-import { useRapiAvatarState } from './useRapiAvatarState';
+import { RapiAvatarDock } from './avatar/RapiAvatarDock';
+import { RapiAvatarPanel } from './panel/RapiAvatarPanel';
+import { useRapiAvatarState } from './state/useRapiAvatarState';
 import { isAppShellHidden } from '@/utils/app-shell';
 
 /**
