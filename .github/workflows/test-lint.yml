@@ -71,6 +71,9 @@ jobs:
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+          # This job runs a real PostgreSQL service, so the BYO-database
+          # integration test must reach it rather than skip (#1285).
+          RAPITAS_REQUIRE_PG_INTEGRATION: '1'
         # NOTE: File list is maintained in scripts/ci-gate-tests.txt (single source of truth).
         # To add/remove files, edit that manifest — do NOT modify this step.
         # See .github/TESTING_POLICY.md for the gate escalation path.

@@ -42,9 +42,12 @@ export function validateDatabaseUrl(
 export function maskDatabaseUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    if (parsed.password) parsed.password = '***';
-    // URL() would re-encode the placeholder; put it back literally.
-    return parsed.toString().replace('%2A%2A%2A', '***');
+    if (!parsed.password) return parsed.toString();
+    // NOTE: Assembled from the parts rather than by string-replacing an encoded
+    // placeholder: that replace hit the first match anywhere in the URL — the
+    // username, if it happened to spell it — instead of the password slot.
+    const host = `${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return `${parsed.protocol}//${parsed.username}:***@${host}`;
   } catch {
     return '***';
   }

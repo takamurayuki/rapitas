@@ -46,6 +46,13 @@ describe('maskDatabaseUrl', () => {
   test('a URL without a password is unchanged', () => {
     expect(maskDatabaseUrl('postgres://alice@h/db')).toBe('postgres://alice@h/db');
   });
+  test('a username that looks like the encoded placeholder is left alone', () => {
+    // The old string replace hit the FIRST "%2A%2A%2A" — the username here —
+    // and left the password slot percent-encoded (CodeQL js/incomplete-sanitization).
+    expect(maskDatabaseUrl('postgresql://%2A%2A%2A:s3cr3t@h:5432/db')).toBe(
+      'postgresql://%2A%2A%2A:***@h:5432/db',
+    );
+  });
   test('an unparseable string is fully masked, never echoed', () => {
     expect(maskDatabaseUrl('postgres://user:pa ss@@')).toBe('***');
   });

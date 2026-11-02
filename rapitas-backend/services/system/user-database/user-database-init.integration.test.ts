@@ -41,10 +41,12 @@ const target = (() => {
 })();
 
 if (!available) {
-  // NOTE: In CI a postgres DATABASE_URL that cannot be reached is a broken
+  // NOTE: Where a job promises a PostgreSQL service (RAPITAS_REQUIRE_PG_INTEGRATION=1,
+  // set on the gate step that runs one), an unreachable database is a broken
   // service, not a reason to skip — a skip there would be a green gate that
-  // measured nothing. Locally (or with a sqlite URL) it is just absent.
-  if (process.env.CI === 'true' && /^postgres(ql)?:\/\//.test(base)) {
+  // measured nothing. Other CI jobs carry a placeholder postgres URL with no
+  // server behind it (the shuffle job), so `CI=true` alone cannot decide this.
+  if (process.env.RAPITAS_REQUIRE_PG_INTEGRATION === '1') {
     throw new Error(
       '[user-database-init.integration] CI PostgreSQL in DATABASE_URL is unreachable',
     );
