@@ -63,7 +63,9 @@ export function HomeToolbar({
   const allSelected = selectedTasksSize === selectableTaskCount && selectableTaskCount > 0;
 
   return (
-    <div className="mb-4 flex items-center justify-between">
+    // NOTE: wraps instead of squeezing — at 390px the actions were crushed into
+    // one-character-wide columns of vertical text.
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-4">
         <TodayTaskProgressBar compact={true} className="w-60" />
       </div>
@@ -71,7 +73,7 @@ export function HomeToolbar({
       {/* Right-side action group (auto-exec / create / bulk). Hidden when the
           visible task list is empty so it doesn't sit beside an empty list. */}
       {hasVisibleTasks && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
           {/* Auto-execution toggle — hidden during bulk selection */}
           {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
 
