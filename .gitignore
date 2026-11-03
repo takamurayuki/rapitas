@@ -46,7 +46,9 @@ analysis-result.json
 # Memory system vector DB
 rapitas-backend/data/
 # Stray lockfiles (each subproject owns its own; see ADR-0001)
-pnpm-lock.yaml
+# Anchored: unanchored, this also matched the real rapitas-frontend/ and
+# rapitas-desktop/ lockfiles, so `git ls-files -ci` could never be a gate.
+/pnpm-lock.yaml
 rapitas-frontend/bun.lock
 rapitas-desktop/bun.lock
 
@@ -63,3 +65,17 @@ rapitas-desktop/.data/
 
 # Scoped tsconfig the verification gate writes next to the checked project (automated-verifier.ts); pid-named scratch, never source
 .rapitas-verify-scoped-*.tsconfig.json
+
+# Agent scratch dumps that escaped the rules above under other spellings and
+# were committed (task 1041 `.wftmp.json`, 1043 `.tmp_wf*.json`, 1049
+# `.rv*.json`, 1050 `.verify-NNNN-*.json`, 1088 `result.json`). These rules only
+# keep them out of `git status`; the durable guard is
+# scripts/repo-hygiene/check-repo-hygiene.cjs, which fails CI on any tracked
+# file at the repo or package roots that is not on its allowlist.
+/.wftmp*
+/.tmp_*
+/.rv[0-9]*
+/.verify-[0-9]*
+/*.log
+/rapitas-backend/result.json
+/rapitas-backend/*.log

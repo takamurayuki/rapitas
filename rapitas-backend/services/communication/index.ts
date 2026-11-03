@@ -5,7 +5,6 @@
  */
 
 export * from './realtime-service';
-export * from './websocket-service';
 export * from './webhook-notification-service';
 export * from './notification-service';
 // NOTE: sse-utils also exports SSEEvent which conflicts with realtime-service.
