@@ -25,7 +25,13 @@ import { scheduleShutdownSequence } from '../../system/shutdown-sequence';
 import { getAgentSystemSnapshot } from '../../../routes/agents/system/agent-system-router';
 import { countLiveTrackedProcesses } from '../../agents/agent-process-tracker';
 import { AutoMergeWatcher } from '../../workflow/auto-merge-watcher';
-import { fetchAndCountAhead, isWorkingTreeClean, fastForwardToRemote } from './git-io';
+import {
+  fetchAndCountAhead,
+  isWorkingTreeClean,
+  fastForwardToRemote,
+  listChangedPaths,
+} from './git-io';
+import { dependencyGate } from './dependency-preflight';
 
 const logger = createLogger('deploy-now');
 
@@ -62,7 +68,12 @@ export type DeployNowReason =
   /** Uncommitted work in the checkout; pulling would destroy it. */
   | 'working-tree-dirty'
   /** The checkout has diverged and cannot fast-forward. */
-  | 'fast-forward-failed';
+  | 'fast-forward-failed'
+  /**
+   * The pull changes bun.lock but the pinned bun is not on PATH, so dev.js
+   * could not reinstall it and would refuse to start the backend (#1403).
+   */
+  | 'dependency-toolchain-mismatch';
 
 export interface DeployNowResult {
   deployed: boolean;
@@ -134,6 +145,9 @@ export async function inspectDeploy(startupCommit: string | null): Promise<Deplo
   if (!(await isWorkingTreeClean()))
     return { ready: false, reason: 'working-tree-dirty', aheadCount };
 
+  const depBlocker = await dependencyGate(await listChangedPaths(startupCommit, branch));
+  if (depBlocker) return { ready: false, reason: depBlocker, aheadCount };
+
   return { ready: true, reason: 'deployed', aheadCount };
 }
 
@@ -168,6 +182,11 @@ export async function deployNow(startupCommit: string | null): Promise<DeployNow
     logger.warn({ aheadCount }, 'deploy request refused: working tree dirty');
     return { deployed: false, reason: 'working-tree-dirty', aheadCount };
   }
+
+  // After the pull dev.js reinstalls changed lockfiles and refuses to start
+  // on a failed install; refuse here when that failure is already certain.
+  const depBlocker = await dependencyGate(await listChangedPaths(startupCommit, branch));
+  if (depBlocker) return { deployed: false, reason: depBlocker, aheadCount };
 
   // Without the pull, exit(75) relaunches on the SAME commit and the deploy
   // looks like it silently did nothing.

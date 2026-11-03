@@ -40,6 +40,7 @@ import {
   writeDeferCount,
 } from './settings-store';
 import { getLastUiRequestAt } from './ui-activity-tracker';
+import { dependencyGate } from './dependency-preflight';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
@@ -273,6 +274,8 @@ export class AutoRestartMergedCodeScheduler {
       logger.warn('[AutoRestartMergedCode] Working tree dirty — skipping pull/restart this tick');
       return false;
     }
+    // #1403: a lockfile dev.js could not reinstall would strand the restart.
+    if (await dependencyGate(changedPaths)) return false;
 
     // Without this pull, exit(75) relaunches on the SAME old commit: dev.js's
     // ensurePrimaryBranch never pulls, and PR merge skips primary-checkout sync.
@@ -415,6 +418,7 @@ export class AutoRestartMergedCodeScheduler {
         logger.warn('[AutoRestartMergedCode] Working tree dirty at boundary — restart skipped');
         return false;
       }
+      if (await dependencyGate(await listChangedPaths(this.startupCommit, branch))) return false;
       if (!(await fastForwardToRemote(branch))) {
         return false;
       }
