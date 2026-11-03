@@ -181,7 +181,7 @@ const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2 mb-1 min-w-0">
             <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
               <h3
-                className={`font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0${
+                className={`font-medium text-zinc-900 dark:text-zinc-50 line-clamp-2 break-all sm:line-clamp-none sm:truncate text-sm min-w-0${
                   onOpenInPage && !isSelectionMode
                     ? ' hover:underline hover:text-blue-600 dark:hover:text-blue-400'
                     : ''

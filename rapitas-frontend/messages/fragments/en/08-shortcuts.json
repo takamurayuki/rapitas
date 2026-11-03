@@ -45,6 +45,7 @@
       "shortcutHelp": "Shortcut Help",
       "toggleAI": "Notes + AI",
       "commandBar": "Command Bar",
+      "toggleBrowser": "Toggle Browser Panel",
       "triageApprove": "Triage: Approve",
       "triageDefer": "Triage: Defer",
       "triageReject": "Triage: Send back",

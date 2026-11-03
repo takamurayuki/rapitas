@@ -50,7 +50,8 @@ export function HeaderSearch({
   };
 
   return (
-    <div className="flex-1 max-w-md mx-4">
+    // min-w-0 lets the field shrink instead of pushing the toolbar off a phone screen.
+    <div className="flex-1 min-w-0 max-w-md mx-2 sm:mx-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
         <input

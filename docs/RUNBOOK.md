@@ -73,8 +73,13 @@ loss.
 **Fix:**
 
 ```bash
-# Check backend logs
-tail -n 200 rapitas-backend/logs/backend.log
+# Check backend logs. Full output goes to the console (the dev.js / terminal
+# window); warn/error/fatal entries are also appended as NDJSON to a daily file
+# (rapitas-backend/config/logger.ts):
+#   $RAPITAS_DATA_DIR/logs/backend-YYYY-MM-DD.log   (default ~/.rapitas/logs/)
+# rapitas-desktop/scripts/dev.js sets RAPITAS_DATA_DIR=rapitas-desktop/.data, so
+# for the desktop dev stack look in rapitas-desktop/.data/logs/.
+tail -n 200 ~/.rapitas/logs/backend-$(date +%F).log
 
 # Restart only the backend
 make backend
@@ -83,7 +88,7 @@ make backend
 If the crash repeats, run with verbose logging:
 
 ```bash
-cd rapitas-backend && DEBUG=* bun run dev
+cd rapitas-backend && LOG_LEVEL=debug bun run dev
 ```
 
 ---
@@ -143,18 +148,19 @@ If `make env-check` reports the placeholder credentials warning, edit
 
 ## 5. Bun + Playwright pipe hang (Windows)
 
-**Symptom:** Screenshot worker hangs forever; Playwright never returns.
+**Symptom:** Browser smoke checks / screenshots hang forever; Playwright never returns.
 
 **Diagnosis:** Known Bun bug — `--remote-debugging-pipe` is broken in the Bun
 runtime on Windows. Tracked at
 [oven-sh/bun#23826](https://github.com/oven-sh/bun/issues/23826).
 
-**Fix:** Already mitigated. Screenshot capture runs via a Node.js subprocess
-(`screenshot-worker.cjs`), not directly under Bun. If you see this hang again,
-verify the worker is being spawned via Node:
+**Fix:** Already mitigated. Playwright runs in a Node.js subprocess
+(`rapitas-backend/services/agents/verification/runtime-smoke/playwright-worker.mjs`,
+spawned by `playwright-worker-client.ts` next to it), not directly under Bun.
+If you see this hang again, verify the worker is being spawned via Node:
 
 ```bash
-grep -r "screenshot-worker" rapitas-backend/services/screenshot/
+grep -rn "playwright-worker.mjs" rapitas-backend/services/
 ```
 
 If a new code path tries to call Playwright directly from Bun, route it
@@ -196,9 +202,7 @@ were testing earlier, but `develop` doesn't expect them.
 
 ```bash
 cd rapitas-backend
-npx prisma migrate reset       # DESTRUCTIVE: wipes data
-# or
-npx prisma db push --force-reset
+npx prisma db push --force-reset   # DESTRUCTIVE: wipes data (no migration history exists to reset to)
 ```
 
 If you need the data, dump it first:

@@ -9,8 +9,8 @@
 
 | スクリプト | npm script | 概要 |
 |---|---|---|
-| `insensitive-mode.ts` | ― | Pattern A (`isPostgres ? { mode: 'insensitive' as const } : {}`) → `getInsensitiveMode()` に置換 |
 | `insensitive-spread.ts` | `codemod:insensitive-spread` | Pattern B1（中間変数 `const insensitive = getInsensitiveMode()`）をスプレッドにインライン化 |
+| `prefer-test-each.ts` | `codemod:test-each` | 同一 matcher の `expect` が 3 つ以上並ぶテストブロックを `test.each` 形式に変換（`codemod:all` には含まれない） |
 | `spec-array.ts` | `codemod:spec-array` | `JSON.parse(x \|\| '[]')` → `parseSpecArray(x)` に置換 |
 | `prisma-singleton.ts` | `codemod:prisma` | `new PrismaClient()` → `prisma` シングルトンに置換 |
 | `response-helper.ts` | `codemod:response` | `{ success: true, data: x }` → `createResponse(x)` に置換 |
@@ -21,8 +21,9 @@ bun run codemod:insensitive-spread
 bun run codemod:spec-array
 bun run codemod:prisma
 bun run codemod:response
+bun run codemod:test-each
 
-# 全コードモッド連続実行（dry-run）
+# response / spec-array / prisma / insensitive-spread を連続実行（dry-run）
 bun run codemod:all
 ```
 
@@ -104,8 +105,8 @@ interface TransformResult {
 実際の変換ロジックとは独立しており、変換前の確認・影響範囲調査に使います。
 
 ```bash
-# 例: insensitive-mode パターンにマッチするファイルを検索
-ast-grep scan --rule scripts/codemods/rules/insensitive-mode.yml .
+# 例: insensitive-spread パターンにマッチするファイルを検索
+ast-grep scan --rule scripts/codemods/rules/insensitive-spread.yml .
 ```
 
 ---

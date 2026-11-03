@@ -44,6 +44,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -88,6 +91,16 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
+
+      # #1410: every test file this PR adds or modifies runs here, with no
+      # registration in scripts/ci-gate-tests.txt, and is green only when
+      # bun's junit report shows each one ran and bun exited 0. Separate from
+      # the coverage-measured gate above so it cannot move the floors.
+      - name: Run the tests this PR adds or changes (backend)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: node scripts/gates/changed-tests-gate.cjs --package backend --base origin/${{ github.base_ref }}
 
   # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
   # routes go through their choke points (delete guard, stop reporting, the
@@ -325,6 +338,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -369,104 +385,22 @@ jobs:
         working-directory: rapitas-frontend
         # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
         # enforced gate (it was previously aspirational — coverage never ran in
-        # CI). The floor is calibrated to THIS file list; keep them in sync.
+        # CI). The floor is calibrated to the manifest's file list.
         #
-        # NOTE: vitest SILENTLY IGNORES a path that does not exist and still
-        # exits 0 — measured 2026-10-26. So deleting a test file named here
-        # does not go red; the gate just quietly runs one file fewer. Two
-        # entries were stale when this was measured: PomodoroTimer.test.tsx
-        # (deleted with the pomodoro checkpoint) and formatLogData.test.ts
-        # (gone for longer, with CI green the whole time). When you remove a
-        # test file, remove its line here too — nothing else will tell you.
-        run: >
-          pnpm exec vitest run --coverage
-          src/components/__tests__/AppIcon.test.tsx
-          src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
-          src/components/__tests__/ErrorBoundary.test.tsx
-          src/components/__tests__/LanguageSwitcher.test.tsx
-          src/components/__tests__/header-guest-auth-links.test.tsx
-          src/components/copilot/__tests__/CopilotChatPanel.test.tsx
-          src/feature/tasks/components/__tests__/TaskCard.test.tsx
-          src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
-          src/app/ideas/_components/__tests__/IdeasClient.test.tsx
-          src/hooks/__tests__/useBackendHealth.test.ts
-          src/hooks/__tests__/useDarkMode.test.ts
-          src/hooks/__tests__/useDebounce.test.ts
-          src/hooks/__tests__/useFilteredTasks.test.ts
-          src/hooks/__tests__/useLocalStorageState.test.ts
-          src/hooks/__tests__/useLoginForm.test.ts
-          src/hooks/__tests__/useNotificationPreferences.test.ts
-          src/hooks/__tests__/usePomodoroStats.test.ts
-          src/hooks/__tests__/useSearchFilters.test.ts
-          src/hooks/__tests__/useSplitView.test.ts
-          src/hooks/__tests__/useTaskSearch.test.ts
-          src/hooks/__tests__/useTaskSorting.test.ts
-          src/hooks/__tests__/useWindowResize.test.ts
-          src/hooks/__tests__/useWorkflowFiles.test.ts
-          src/lib/__tests__/cache-utils.test.ts
-          src/lib/__tests__/cache-warmup.test.ts
-          src/lib/__tests__/logger.test.ts
-          src/lib/__tests__/task-api.test.ts
-          src/lib/__tests__/utils.test.ts
-          src/lib/audio/__tests__/wav-codec.test.ts
-          src/stores/__tests__/app-mode-store.test.ts
-          src/stores/__tests__/execution-state-store.test.ts
-          src/stores/__tests__/filter-data-store.test.ts
-          src/stores/__tests__/locale-store.test.ts
-          src/stores/__tests__/note-store.test.ts
-          src/stores/__tests__/shortcut-store.test.ts
-          src/stores/__tests__/task-cache-store.test.ts
-          src/stores/__tests__/task-detail-visibility-store.test.ts
-          src/stores/__tests__/ui-mode-store.test.ts
-          src/stores/__tests__/server-restart-store.test.ts
-          src/feature/terminal/__tests__/terminal-store.test.ts
-          src/feature/terminal/__tests__/terminal-context-store.test.ts
-          src/utils/__tests__/api.test.ts
-          src/utils/__tests__/date.test.ts
-          src/utils/__tests__/external-links.test.ts
-          src/utils/__tests__/favicon.test.ts
-          src/utils/__tests__/holidays.test.ts
-          src/utils/__tests__/labels.test.ts
-          src/utils/__tests__/notification.test.ts
-          src/utils/__tests__/tauri.test.ts
-          src/utils/__tests__/validation.test.ts
-          src/feature/knowledge/hooks/__tests__/useContradictions.test.ts
-          src/feature/knowledge/hooks/__tests__/useKnowledgeSearch.test.ts
-          src/feature/developer-mode/components/__tests__/formatLogLine.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-handlers.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-terminal.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-loop.test.ts
-          src/feature/developer-mode/components/deviation-timeline/DeviationTimeline.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/DeviationItem.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
-          src/feature/tasks/components/gantt/gantt-utils.test.ts
-          src/app/api/generate-claude-md/fallback-package.test.ts
-          src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
-          src/app/api/review-spec/__tests__/review-prompt.test.ts
-          src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
-          src/stores/__tests__/link-library-store.test.ts
-          src/stores/__tests__/link-view-store.test.ts
-          src/components/link-view/useLinkView.test.ts
-          src/components/link-view/LinkViewPane.test.ts
-          src/components/link-view/link-tab-meta.test.ts
-          src/lib/__tests__/pane-layering.test.ts
-          src/components/link-view/group-actions.test.ts
-          src/components/link-view/tab-strip/tab-arrangement.test.ts
-          src/components/link-view/tab-strip/TabStrip.test.tsx
-          src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
-          src/components/common/__tests__/AppContent.test.tsx
-          src/components/common/__tests__/shortcut-editable-guard.test.ts
-          src/app/tasks/[id]/components/TaskNoteSplitView.test.tsx
-          src/components/header/__tests__/task-detail-link.test.ts
-          src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
-          src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
-          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
-          src/components/note/editor/inline-link.test.ts
-          src/components/note/editor/useInlineLinks.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
+        # NOTE(#1410): vitest SILENTLY IGNORES a path that does not exist and
+        # still exits 0 (measured 2026-10-26, and again when two files moved
+        # in #1376 dropped out of this gate unnoticed). So the list lives in
+        # rapitas-frontend/scripts/ci-gate-tests.txt and runs through
+        # vitest-manifest-gate, which fails when a listed file is missing or
+        # did not actually run according to vitest's own JSON report.
+        run: node ../scripts/gates/vitest-manifest-gate.cjs scripts/ci-gate-tests.txt -- --coverage
+
+      # #1410: every frontend test file this PR adds or modifies runs here
+      # without registration in the manifest, verified the same way as the
+      # gate above (each file must appear in vitest's own report).
+      - name: Run the tests this PR adds or changes (frontend)
+        if: github.event_name == 'pull_request'
+        run: node scripts/gates/changed-tests-gate.cjs --package frontend --base origin/${{ github.base_ref }}
 
   lint:
     name: Lint Code
@@ -486,6 +420,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      # NOTE (#1410): import direction and cycles, as a ratchet. Fails on a new
+      # backend services/ → routes/ (or utils|config → services|routes) import,
+      # a frontend components/ui → feature|app or lib|utils → app import, or a
+      # new runtime import cycle; today's ones are listed in
+      # scripts/import-graph/import-graph-baseline.json, which may only shrink
+      # (an entry that no longer occurs fails too). Dependency-free, so it
+      # runs before the installs and fails fast. ~4s.
+      - name: Import direction and cycles
+        run: node scripts/import-graph/check-import-graph.cjs
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -667,6 +611,33 @@ jobs:
       # whose workflow only runs after a merge. ~10s.
       - name: Test the root script tools
         run: node --test "scripts/**/*.test.cjs"
+
+      # #1403: the tracked tree had 76 files nobody meant to keep — agent
+      # scratch dumps, logs, ignored-but-tracked dirs, one-shot scripts long
+      # after use. Fails on any tracked-but-ignored file, any repo/package
+      # root file off scripts/repo-hygiene/root-allowlist.json, and any
+      # script under a scripts/ dir that nothing references. ~2s.
+      - name: Repo hygiene
+        run: node scripts/repo-hygiene/check-repo-hygiene.cjs
+
+      # #1403: the code is the source of truth for the docs. Fails when a
+      # current doc names a path that does not exist, a package.json script
+      # that does not exist, a Node/Bun/pnpm version other than the pins, a
+      # workflow status set other than WORKFLOW_STATUSES, or when the backend
+      # starts reading an env var .env.example does not document (ratchet).
+      # docs/archive, docs/adr and docs/lessons are history and exempt. ~2s.
+      - name: Docs match the code
+        run: node scripts/docs/check-docs-drift.cjs
+
+      # NOTE: #1410 — .github/quality-gates.json is the one definition of which
+      # checks gate a merge (branch protection is generated from it, and the
+      # auto-merge reads it). On 2026-10-16 main required four job names that no
+      # longer existed and every PR sat BLOCKED. Fails when a listed name is
+      # reported by no job, a required check is path-filtered/continue-on-error/
+      # if-gated, an advisory entry is past its review date, or a PR job is
+      # unclassified. ~1s.
+      - name: Quality gates match the workflows
+        run: node scripts/gates/quality-gates.cjs --check
 
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they

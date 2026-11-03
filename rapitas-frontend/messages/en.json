@@ -1865,6 +1865,7 @@
       "shortcutHelp": "Shortcut Help",
       "toggleAI": "Notes + AI",
       "commandBar": "Command Bar",
+      "toggleBrowser": "Toggle Browser Panel",
       "triageApprove": "Triage: Approve",
       "triageDefer": "Triage: Defer",
       "triageReject": "Triage: Send back",
@@ -2064,20 +2065,6 @@
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
-      "landingTitle": "Landing classification of completed tasks",
-      "landingCount": "Count",
-      "landingClasses": {
-        "qualified": "Counted (verified, criteria, system merge evidence)",
-        "landing_pending": "Waiting for merge",
-        "policy_unreadable": "Merge evidence unreadable",
-        "merge_not_requested": "Merge not requested (commit/PR only)",
-        "criteria_missing": "No acceptance criteria",
-        "unverified_completion": "Completed without verification",
-        "publish_after_stop": "Published after stop",
-        "manual_merge": "Manual merge (intervention)",
-        "landing_failed": "Merge failed",
-        "subtask": "Subtask (not counted)"
-      },
       "effectiveMaxConcurrency": "Effective concurrency",
       "unsampled": "Not sampled yet",
       "empty": "No deferrals recorded",
@@ -2521,6 +2508,20 @@
     "supervision": {
       "title": "Supervision acceptance",
       "subtitle": "Judges hands-off continuous operation and knowledge-reuse effect from evidence. Unobserved time is never counted as success.",
+      "landingTitle": "Landing classification of completed tasks",
+      "landingCount": "Count",
+      "landingClasses": {
+        "qualified": "Counted (verified, criteria, system merge evidence)",
+        "landing_pending": "Waiting for merge",
+        "policy_unreadable": "Merge evidence unreadable",
+        "merge_not_requested": "Merge not requested (commit/PR only)",
+        "criteria_missing": "No acceptance criteria",
+        "unverified_completion": "Completed without verification",
+        "publish_after_stop": "Published after stop",
+        "manual_merge": "Manual merge (intervention)",
+        "landing_failed": "Merge failed",
+        "subtask": "Subtask (not counted)"
+      },
       "met": "Acceptance bar met",
       "notMet": "Not met",
       "loadFailed": "Could not load supervision acceptance status. An unreadable status is treated as not met.",
@@ -3808,6 +3809,7 @@
     "reset": "Reset",
     "confirmReset": "Reset this prompt to default content?",
     "confirmDelete": "Delete this prompt?",
+    "deleteFailed": "Failed to delete the prompt",
     "addSystemPrompt": "Add System Prompt",
     "keyIdentifier": "Key (unique identifier)",
     "keyPlaceholder": "e.g. custom_analysis",
@@ -6525,5 +6527,11 @@
       "elapsed": "Elapsed {time}"
     },
     "loadFailed": "Failed to load pending decisions"
+  },
+  "themePicker": {
+    "title": "Choose a theme",
+    "placeholder": "Choose a theme",
+    "uncategorized": "Uncategorized",
+    "manage": "Create and edit categories and themes"
   }
 }

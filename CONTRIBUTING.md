@@ -14,13 +14,15 @@ from a fresh clone to a merged PR**. For deeper context, see
 
 | Tool | Version | Why |
 |---|---|---|
-| Node.js | 20.x (see `.nvmrc`) | Frontend / desktop tooling |
-| Bun | 1.1.42+ | Backend runtime + compile |
-| pnpm | latest | Frontend / desktop package manager |
-| PostgreSQL | 14+ | Primary database |
+| Node.js | 24 (see `.nvmrc`) | Frontend / desktop tooling |
+| Bun | 1.3.13 | Backend runtime + compile |
+| pnpm | 10.34.9 | Frontend / desktop package manager |
+| PostgreSQL | 14+ | Web build database (the desktop build uses SQLite) |
 | Rust | stable | Tauri builds |
 
-Three runtimes coexist intentionally — see
+The versions CI installs are pinned in
+[`.github/toolchain.json`](.github/toolchain.json) — treat that file as the
+source of truth. Three runtimes coexist intentionally — see
 [ADR 0001](docs/adr/0001-three-runtimes-coexistence.md).
 
 ---
@@ -44,8 +46,9 @@ make dev-tauri
 # or: cd rapitas-desktop && node scripts/dev.js
 ```
 
-`scripts/preflight-check.cjs` runs first and validates Node, Bun, pnpm,
-PostgreSQL connectivity, and that ports 3000/3001 are free.
+`npm run dev` runs `scripts/preflight-check.cjs` first; it checks the Node,
+Bun and pnpm installs, the `.env` files, `node_modules`, that `DATABASE_URL`
+is set, and whether ports 3000/3001 are free.
 
 ---
 
@@ -101,11 +104,11 @@ See [`commitlint.config.js`](commitlint.config.js). Most common:
 |---|---|---|
 | Formatting | Prettier defaults | `lint-staged` on commit |
 | TS rules | ESLint + `@typescript-eslint` | `lint-staged` + CI |
-| `any` type | Forbidden (use `// HACK(agent): reason` if unavoidable) | review |
-| File size | ≤ 300 lines (hard limit 500) | review (see `COMPONENT_SPLITTING_POLICY.md`) |
-| Dir size | ≤ 10 files (hard limit 20) | review (see `FOLDER_ORGANIZATION_POLICY.md`) |
-| Public function docs | Required (JSDoc / rustdoc) | review (see `COMMENT_POLICY.md`) |
-| Comments | WHY, not WHAT | review (see `COMMENT_POLICY.md`) |
+| `any` type | Forbidden (use `// HACK(agent): reason` + an eslint-disable directive if unavoidable) | ESLint (`@typescript-eslint/no-explicit-any` is an error in prod code, `eslint-shared.mjs`) |
+| File size | ≤ 300 lines (hard limit 500) | `scripts/check-large-files.cjs` (`File Size Check` workflow, ratcheted against a baseline) + review (see `.claude/COMPONENT_SPLITTING_POLICY.md`) |
+| Dir size | ≤ 10 files (hard limit 20) | review (see `.claude/FOLDER_ORGANIZATION_POLICY.md`) |
+| Public function docs | Required (JSDoc / rustdoc) | review (see `.claude/COMMENT_POLICY.md`) |
+| Comments | WHY, not WHAT | review (see `.claude/COMMENT_POLICY.md`) |
 
 ---
 
@@ -118,8 +121,9 @@ make test-frontend   # vitest
 ```
 
 Coverage targets are managed via a stepwise ratchet — see
-[ADR 0002](docs/adr/0002-coverage-gate-staging.md). At time of writing the
-frontend gate is **15%**; new PRs that meaningfully drop coverage will be
+[ADR 0002](docs/adr/0002-coverage-gate-staging.md). The enforced frontend
+thresholds live in `rapitas-frontend/vitest.config.ts` (`coverage.thresholds`);
+new PRs that meaningfully drop coverage will be
 asked to add tests.
 
 For new features, prioritize tests in this order:

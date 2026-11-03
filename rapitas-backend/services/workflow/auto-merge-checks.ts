@@ -9,52 +9,45 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createLogger } from '../../config/logger';
+import { loadQualityGateBlockingChecks } from './quality-gates-definition';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-checks');
 
 /**
- * Checks that GATE the merge. A PR merges only when every present blocking check
- * passes; advisory checks (bundle size, performance, previews) are ignored.
- * Overridable via RAPITAS_AUTOMERGE_CHECKS (comma-separated names).
+ * Resolve the set of check names that gate auto-merge. A PR merges only when
+ * every present blocking check passes; checks outside the set are ignored.
+ *
+ * NOTE: #1410 — the default set is the `required` + `conditional` entries of
+ * .github/quality-gates.json, the file branch protection is generated from.
+ * It replaced a hardcoded list that had drifted from GitHub's required
+ * contexts (it lacked the Windows/macOS builds, the Windows Rust check and
+ * three security scans). RAPITAS_AUTOMERGE_CHECKS (comma-separated) still
+ * overrides it explicitly.
+ *
+ * @returns The blocking names, or null when the gates file cannot be read —
+ *   the caller must then merge NOTHING (fail closed); the reason is logged
+ *   here. / マージをゲートするチェック名。定義を読めない場合は null（何もマージしない）
  */
-const DEFAULT_BLOCKING_CHECKS = [
-  'Test Backend',
-  'Lint Code',
-  'Check Frontend',
-  'Test SQLite Compatible Suite',
-  'Check Rust Code',
-  'Lint Markdown files',
-  // The ratchet was decorative until 2026-08-30: nine files crossed the hard
-  // limit on develop while PRs merged past a red file-size check.
-  'Enforce per-file line limits (with ratchet baseline)',
-  'Lint GitHub Actions workflows',
-  'Secret scanning',
-  // Build gates: never auto-merge code that doesn't build. (macOS/Windows build
-  // matrices are intentionally NOT blocking — they are slower/flakier; the Linux
-  // build + Quick Build Check are the representative gate. Override via
-  // RAPITAS_AUTOMERGE_CHECKS if your matrix differs.)
-  'Quick Build Check',
-  'Build (ubuntu-latest)',
-  // task 950: CodeQL and the HACK/FIXME ceiling (ADR-0004) used to be
-  // advisory; PR #703 sat 3+ days with both red while the task was already
-  // marked completed. Both are now blocking. security-scan.yml's `codeql`
-  // job runs a language matrix, so the check name is per-language.
-  'CodeQL Analysis (javascript)',
-  'CodeQL Analysis (typescript)',
-  'Enforce HACK/FIXME ceilings (ADR-0004)',
-];
-
-/** Resolve the set of check names that gate auto-merge. / マージをゲートするチェック名 */
-export function blockingChecks(): Set<string> {
+export function blockingChecks(): Set<string> | null {
   const raw = process.env.RAPITAS_AUTOMERGE_CHECKS;
-  const names = raw
-    ? raw
+  if (raw) {
+    return new Set(
+      raw
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)
-    : DEFAULT_BLOCKING_CHECKS;
-  return new Set(names);
+        .filter(Boolean),
+    );
+  }
+  const loaded = loadQualityGateBlockingChecks();
+  if (!loaded.ok) {
+    log.error(
+      { reason: loaded.reason },
+      '[auto-merge] Quality gates definition unavailable — merging nothing until it is fixed',
+    );
+    return null;
+  }
+  return new Set(loaded.names);
 }
 
 /** Resolve the platform-specific `gh` CLI invocation path. / gh CLI のパス */

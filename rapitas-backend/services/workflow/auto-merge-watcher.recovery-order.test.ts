@@ -40,6 +40,8 @@ const candidate = (taskId: number) => ({
 });
 
 let candidates = [candidate(895), candidate(896)];
+// #1410: null = .github/quality-gates.json unreadable; the tick must merge nothing.
+let blockingFixture: Set<string> | null = new Set<string>();
 mock.module('./auto-merge-candidates', () => ({
   findCandidates: () => {
     order.push('findCandidates');
@@ -48,7 +50,7 @@ mock.module('./auto-merge-candidates', () => ({
 }));
 
 mock.module('./auto-merge-checks', () => ({
-  blockingChecks: () => new Set<string>(),
+  blockingChecks: () => blockingFixture,
   evaluateAutoMergeChecks: () => 'pending',
   readPrChecks: mock(() => Promise.resolve([])),
   readMergeState: mock(() => Promise.resolve('CLEAN')),
@@ -136,6 +138,7 @@ beforeEach(() => {
   recoveredIds = [];
   recoveryThrows = false;
   candidates = [candidate(895), candidate(896)];
+  blockingFixture = new Set<string>();
 });
 
 describe('AutoMergeWatcher.tick — マージ済み回収の順序', () => {
@@ -160,5 +163,16 @@ describe('AutoMergeWatcher.tick — マージ済み回収の順序', () => {
 
     expect(order).toEqual(['recover', 'findCandidates']);
     expect(processed).toEqual([895, 896]);
+  });
+});
+
+describe('AutoMergeWatcher.tick — gates definition unavailable (#1410)', () => {
+  test('fails closed: no candidate is processed when blockingChecks() is null', async () => {
+    blockingFixture = null;
+
+    await AutoMergeWatcher.getInstance().tick();
+
+    expect(order).toEqual(['recover', 'findCandidates']);
+    expect(processed).toEqual([]);
   });
 });

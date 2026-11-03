@@ -175,7 +175,7 @@ export { createTask, updateTask } from './task-mutations';
 
 ## 6. WHEN NOT TO REORGANIZE
 
-- **Generated directories** (e.g., `node_modules/`, `.next/`, `prisma/migrations/`).
+- **Generated directories** (e.g., `node_modules/`, `.next/`, `rapitas-backend/generated/`).
 - **Directories with ≤ 10 files** that share a single domain.
 - **Test directories** (`__tests__/`) — keep tests co-located with their subjects.
 - **Config directories** (`config/`, `middleware/`) — typically small and stable.

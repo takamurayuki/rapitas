@@ -7,16 +7,14 @@
     "dev:watch": "node scripts/dev.js --watch",
     "dev:force": "node scripts/dev.js --force",
     "stop": "node scripts/dev.js --stop",
-    "tauri": "tauri dev",
-    "tauri:watch": "tauri dev -c src-tauri/tauri.watch.conf.json",
-    "tauri:only": "tauri dev --no-dev-server",
+    "tauri": "node scripts/dep-sync.cjs --only desktop && tauri dev",
+    "tauri:watch": "node scripts/dep-sync.cjs --only desktop && tauri dev -c src-tauri/tauri.watch.conf.json",
+    "tauri:only": "node scripts/dep-sync.cjs --only desktop && tauri dev --no-dev-server",
     "build": "tauri build --features custom-protocol -c src-tauri/tauri.build.conf.json",
     "ci:prepare": "node scripts/ci-build.js"
   },
   "devDependencies": {
-    "@resvg/resvg-js": "^2.6.2",
-    "@tauri-apps/cli": "^2.12.3",
-    "jimp": "^1.6.0"
+    "@tauri-apps/cli": "^2.12.3"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4"

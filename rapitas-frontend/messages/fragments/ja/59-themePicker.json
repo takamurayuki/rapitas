@@ -1,0 +1,8 @@
+{
+  "themePicker": {
+    "title": "テーマを選択",
+    "placeholder": "テーマを選択",
+    "uncategorized": "未分類",
+    "manage": "カテゴリ・テーマの作成と編集"
+  }
+}

@@ -4,10 +4,12 @@ Tauri v2を使用したRapitasのデスクトップアプリケーション版�
 
 ## 必要条件
 
-- [Rust](https://www.rust-lang.org/tools/install)
-- [Node.js](https://nodejs.org/) (v18+)
-- [pnpm](https://pnpm.io/)
-- [Bun](https://bun.sh/) (バックエンド用)
+CI が使うバージョンは [`.github/toolchain.json`](../.github/toolchain.json) が正 (Node は [`.nvmrc`](../.nvmrc) にも記載)。
+
+- [Rust](https://www.rust-lang.org/tools/install) (stable)
+- [Node.js](https://nodejs.org/) 24
+- [pnpm](https://pnpm.io/) 10.34.9
+- [Bun](https://bun.sh/) 1.3.13 (バックエンド用)
 
 ### Windows追加要件
 
@@ -51,24 +53,20 @@ npx tauri icon path/to/your-icon.png
 pnpm run dev
 ```
 
-これにより:
+`pnpm run dev` は `node scripts/dev.js` を実行し、以下を行います:
 
-- Next.jsの開発サーバーが起動 (http://localhost:3000)
-- バックエンドサーバーが自動起動 (http://localhost:3001)
-- Tauriウィンドウが開きます
+- ポート 3001/3000 に残った rapitas のプロセスを停止
+- SQLite 用 Prisma Client と初期化 SQL を生成 (`bun run db:prepare:sqlite`。スキーマ未変更ならスキップ)
+- バックエンド (`bun run dev:stable`, http://localhost:3001) を起動し、続けて Next.js 開発サーバー (http://localhost:3000) を起動
+
+Tauri ウィンドウも含めて起動する場合は `pnpm run tauri` (`tauri dev`) を使います。`src-tauri/tauri.conf.json` の `beforeDevCommand` が `node scripts/dev.js` を実行するため、上記のサーバー起動も同時に行われます。
 
 ## ビルド
-
-### 開発ビルド
-
-```bash
-pnpm run build
-```
 
 ### リリースビルド
 
 ```bash
-pnpm tauri build
+pnpm run build   # tauri build --features custom-protocol -c src-tauri/tauri.build.conf.json
 ```
 
 ビルド成果物は `src-tauri/target/release/bundle/` に出力されます:

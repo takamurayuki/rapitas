@@ -75,14 +75,17 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 - `POST /workflow/tasks/{taskId}/approve-plan`
 - `PUT /workflow/tasks/{taskId}/status`
 
-標準的な状態遷移:
+標準的な状態遷移（全集合は `rapitas-backend/services/workflow/workflow-types.ts` の `WORKFLOW_STATUSES`）:
 
+0. 作成直後: `draft`
 1. `research.md` 保存後: `research_done`
 2. `plan.md` 保存後: `plan_created`
 3. Plan 承認後: `plan_approved`
 4. 実装開始後: `in_progress`
 5. `verify.md` 保存後: `verify_done`
 6. 必要な commit / PR / merge などの完了ゲート通過後: `completed` またはタスク `done`
+
+`question.md` を保存すると、どのフェーズからでも `awaiting_question` になり、回答されると直前の状態に戻る。
 
 `verify.md` を保存しただけでタスクを完了扱いにしてはいけない。`autoCommit`、`autoCreatePR`、`autoMergePR` が有効な場合は、要求された最終ステップまで成功してから完了にする。
 
@@ -133,7 +136,7 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 
 3. **テスト・型チェック・lint はメインではなく worktree 内で実行する。** スクリプトを当てた後の worktree は完全にスタンドアロンに動作するため、テスト修正と再実行のループも worktree 内で完結できる。メインのバックエンドサーバー（ポート 3001）には触れない。
 
-4. **Prisma スキーマを worktree 内で変更しない。** 生成物 (`rapitas-backend/src/generated`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
+4. **Prisma スキーマを worktree 内で変更しない。** Prisma Client の生成物 (`rapitas-backend/generated/prisma-postgres` / `rapitas-backend/generated/prisma-sqlite`。出力先は `rapitas-backend/prisma/schema/_generators.prisma` の `output`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
 
 5. **DB を共有していることに注意する。** 統合テストは PostgreSQL を共有するため、複数 worktree 並行で破壊的なテストを走らせない。テスト用に独立した DB が必要な場合は `DATABASE_URL` を実行時に上書きして別スキーマに向ける。
 

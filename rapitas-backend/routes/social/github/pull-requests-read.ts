@@ -255,10 +255,14 @@ export const pullRequestReadRoutes = new Elysia()
     if (checks === null) {
       return { status: 'unknown' as const, prNumber: pr.prNumber, prState: pr.state };
     }
+    // null = the gates definition is unreadable (#1410): the badge cannot judge, so 'unknown'.
+    const blocking = blockingChecks();
     const status =
       checks.length === 0
         ? ('no_checks' as const)
-        : evaluateAutoMergeChecks(checks, blockingChecks());
+        : blocking
+          ? evaluateAutoMergeChecks(checks, blocking)
+          : ('unknown' as const);
     return { status, prNumber: pr.prNumber, prState: pr.state, checks };
   })
 

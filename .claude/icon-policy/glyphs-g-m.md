@@ -4,7 +4,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `memo-section`（メモ種別「アイデア」バッジ）、`rapitas-frontend/src/components/category/icons`（アイコンピッカー登録）、`rapitas-frontend/src/components/header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Layers`                  | 複雑度「詳細」                           |
 | `ListTodo`                | サブタスク                               |

@@ -37,7 +37,8 @@ export default function Pagination({
   const showNav = totalPages > 1;
 
   return (
-    <div className="mt-6 flex items-center justify-center gap-3">
+    // flex-wrap: per-page sizes and page numbers did not fit one row on a phone.
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
       {/* Items per page */}
       <div className="flex items-center gap-1">
         {itemsPerPageOptions.map((count) => (

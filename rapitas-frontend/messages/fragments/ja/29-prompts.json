@@ -27,6 +27,7 @@
     "reset": "リセット",
     "confirmReset": "このプロンプトをデフォルトの内容にリセットしますか？",
     "confirmDelete": "このプロンプトを削除しますか？",
+    "deleteFailed": "プロンプトの削除に失敗しました",
     "addSystemPrompt": "システムプロンプトを追加",
     "keyIdentifier": "キー（一意な識別子）",
     "keyPlaceholder": "例: custom_analysis",

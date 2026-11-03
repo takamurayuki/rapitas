@@ -1,6 +1,6 @@
 # rapitas-backend
 
-Elysia + Bun + Prisma ORM + PostgreSQL で構築されたRapitasのバックエンドAPI。
+Elysia + Bun + Prisma ORM で構築されたRapitasのバックエンドAPI。データベースは Web 版が PostgreSQL、デスクトップ版が SQLite (`DATABASE_URL` が `file:` で始まると SQLite。Prisma Client は `generated/prisma-postgres` と `generated/prisma-sqlite` に別々に生成される)。
 
 ## セットアップ
 
@@ -12,9 +12,11 @@ bun install
 bunx prisma db push
 bun run db:generate
 
-# 開発サーバー起動
+# 開発サーバー起動 (scripts/dev.ts: 起動時に db push + generate を自動実行)
 bun run dev
 ```
+
+デスクトップ (SQLite) で動かす場合はリポジトリルートから `cd rapitas-desktop && node scripts/dev.js` を使う。
 
 ## 主要API
 
@@ -38,7 +40,7 @@ bun run dev
 
 ### エージェント
 
-- `POST /agents/execute` - AIエージェント実行
+- `POST /tasks/:id/execute` - タスクに対してAIエージェントを実行 (`routes/agents/execution/routes/execute-route.ts`)
 - `GET /approvals` - 承認待ちリスト
 - `POST /approvals/:id/approve` - 承認
 - `POST /approvals/:id/reject` - 却下
@@ -65,5 +67,3 @@ bun test
 ## 環境変数
 
 `.env.example`を参照してください。
-
-This project was created using `bun init` in bun v1.2.10. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.

@@ -55,6 +55,7 @@ const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
+const { syncForLaunch } = require('./dep-sync.cjs');
 // ─── セッションログ ───
 // NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
 // 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
@@ -1916,8 +1917,19 @@ async function verifyBackendListening() {
  * @param {number} crashes - ウィンドウ内のクラッシュ回数
  */
 function notifyBackendDown(crashes) {
-  const title = 'rapitas: バックエンドが停止しました';
-  const body = `${crashes}回連続でクラッシュし自動回復を停止。手動で再起動してください。`;
+  showBalloon(
+    'rapitas: バックエンドが停止しました',
+    `${crashes}回連続でクラッシュし自動回復を停止。手動で再起動してください。`,
+  );
+}
+
+/**
+ * Best-effort Windows balloon notification; a no-op elsewhere.
+ *
+ * @param {string} title - Balloon title / 通知タイトル
+ * @param {string} body - Balloon text / 通知本文
+ */
+function showBalloon(title, body) {
   try {
     // PowerShell のバルーン通知。Windows 以外では何も起きない。
     const ps = [
@@ -2167,6 +2179,62 @@ async function stopBackendCompletely(skipShutdownApi = false) {
   removeBackendPidFile();
 }
 
+// Set when syncForLaunch stopped the frontend to reinstall it; the restart
+// path brings it back once the backend is up.
+let frontendStoppedForDeps = false;
+// Set when a dependency sync failed: the liveness check must not bring the
+// frontend back on the tree that failed to install.
+let dependencySyncBlocked = false;
+
+/**
+ * Bring node_modules in line with the committed lockfiles (see dep-sync.cjs).
+ * On failure nothing is started: running on dependencies that do not match
+ * the code is how the 2026-10-16 Tauri bump broke the next launch.
+ *
+ * @param {'startup'|'restart'} phase - Caller, for logs / 呼び出し元
+ * @returns {boolean} True when it is safe to start / 起動してよいか
+ */
+function runDependencySync(phase) {
+  const result = syncForLaunch({
+    repoRoot: REPO_ROOT,
+    log: { info: (m) => console.log(m), warn: (m) => log.warn(m), error: (m) => log.error(m) },
+    stopFrontend: () => {
+      console.log('  Stopping the frontend so its dependencies can be reinstalled...');
+      killProcessTree(frontend);
+      sleepSync(1000);
+      if (isPortListening(actualFrontendPort)) forceKillAllOnPort(actualFrontendPort);
+    },
+  });
+  if (result.frontendStopped && phase === 'restart') frontendStoppedForDeps = true;
+  if (result.desktopStale) {
+    showBalloon(
+      'rapitas: デスクトップの依存関係が更新されました',
+      'アプリを再起動すると反映されます (npm run tauri が自動でインストールします)。',
+    );
+  }
+  devSessionLog.appendDevEvent('dep_sync', {
+    phase,
+    ok: result.ok,
+    status: result.status,
+    reason: result.reason,
+    installed: result.installed,
+    failedPackage: result.failedPackage,
+  });
+  if (result.ok) return true;
+  dependencySyncBlocked = true;
+  frontendStoppedForDeps = false;
+  log.error(
+    `Dependency sync failed (${result.reason}) — ${phase === 'restart' ? 'backend restart refused' : 'startup aborted'}.`,
+  );
+  showBalloon(
+    phase === 'restart'
+      ? 'rapitas: 依存関係の更新に失敗し再起動を中止しました'
+      : 'rapitas: 依存関係の更新に失敗し起動を中止しました',
+    `${result.failedPackage || 'toolchain'}: ${result.reason}。ログの手順で修正後、アプリを再起動してください。`,
+  );
+  return false;
+}
+
 /**
  * バックエンドを再起動する（完全停止 → DB同期 → 起動）
  *
@@ -2208,15 +2276,21 @@ async function restartBackend(processAlreadyExited = false) {
 
 async function restartBackendInner(processAlreadyExited) {
   console.log('\n🔄 Restarting backend server...');
-  console.log('  Step 1/4: Stopping backend completely...');
+  console.log('  Step 1/5: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log('  Step 2/4: Cleaning up stray processes...');
+  console.log('  Step 2/5: Cleaning up stray processes...');
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
   killStrayBackendHelpers();
 
-  console.log('  Step 3/4: Syncing database and generating Prisma Client...');
+  // NOTE(#1403): exit 75 follows a self-deploy `git merge --ff-only`, which
+  // never reinstalls. Sync node_modules to the pulled lockfiles while the
+  // backend is down (Windows locks its native files while it runs).
+  console.log('  Step 3/5: Syncing dependencies with the committed lockfiles...');
+  if (!runDependencySync('restart')) return;
+
+  console.log('  Step 4/5: Syncing database and generating Prisma Client...');
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
@@ -2224,10 +2298,16 @@ async function restartBackendInner(processAlreadyExited) {
     console.log('  Attempting to start backend without DB sync...');
   }
 
-  console.log('  Step 4/4: Starting backend...');
+  console.log('  Step 5/5: Starting backend...');
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log('✅ Backend restart completed.');
+  if (frontendStoppedForDeps) {
+    frontendStoppedForDeps = false;
+    restartFrontend('dependencies-reinstalled').catch((err) =>
+      console.error('❌ Frontend restart after dependency sync failed:', err.message || err),
+    );
+  }
 
   // バックエンド再起動はユーザーが「コード変更を反映したい」タイミング。
   // フロントは長寿命プロセスで .next キャッシュだけが git HEAD から乖離していく
@@ -2636,6 +2716,9 @@ async function main() {
     console.log(`  Port ${LLAMA_SERVER_PORT} (llama-server) in use, killing leftover...`);
     forceKillAllOnPort(LLAMA_SERVER_PORT);
   }
+
+  // Before Prisma generate and the first spawn: both run against node_modules.
+  if (!runDependencySync('startup')) process.exit(1);
 
   // syncDatabaseAndGenerateClient が EPERM で失敗した場合、bun が再び DLL を握っている
   // 可能性があるので 1 度だけリトライする。
@@ -3201,7 +3284,7 @@ function startFrontendLiveness() {
     `🩺 Frontend liveness check active (every ${FRONTEND_LIVENESS_INTERVAL_MS / 1000}s on :${actualFrontendPort}).`,
   );
   frontendLivenessTimer = setInterval(() => {
-    const busy = isCleaningUp || isFrontendRestarting;
+    const busy = isCleaningUp || isFrontendRestarting || dependencySyncBlocked;
     const decision = nextLiveness(
       state,
       {

@@ -19,7 +19,7 @@ When rules conflict, follow this order:
   Before killing any Node.js/bun process, verify it is NOT port 3001.
 
 - **Never run `prisma generate` or `prisma db push` manually.**
-  dev.js runs these automatically on startup. Running them manually requires a server restart, which severs the agent's own connection.
+  The dev startup scripts run them automatically (`rapitas-desktop/scripts/dev.js` for the desktop/SQLite stack, `rapitas-backend/scripts/dev/prisma-sync.ts` for `bun run dev`). Running them manually requires a server restart, which severs the agent's own connection.
   If any file under `rapitas-backend/prisma/schema/` (the `prismaSchemaFolder` layout — see ADR-0006) is modified, stop and instruct the user to restart the server.
 
 - **Never write workflow files directly** (mkdir, Write tool, etc.).
@@ -44,17 +44,19 @@ When rules conflict, follow this order:
 | Layer    | Stack                                     | Port |
 | -------- | ----------------------------------------- | ---- |
 | Frontend | Next.js 16 + Tailwind CSS v4 + TypeScript | 3000 |
-| Backend  | Elysia + Bun + Prisma ORM + PostgreSQL    | 3001 |
+| Backend  | Elysia + Bun + Prisma ORM — PostgreSQL (web) / SQLite (desktop) | 3001 |
 | Desktop  | Tauri 2.x                                 | —    |
 
-### Dev server startup (managed by `rapitas-desktop/scripts/dev.js`)
+### Dev server startup
 
-Automatically handles on each start:
+`rapitas-desktop/scripts/dev.js` (`npm run dev:tauri`, desktop / SQLite) handles on each start:
 
-1. Kill zombie processes on ports 3001/3000
-2. `prisma db push --skip-generate`
-3. `bun run db:generate`
-4. Start backend and frontend
+1. Pin the checkout to the primary branch (`RAPITAS_PRIMARY_BRANCH`, default `develop`)
+2. Kill stale rapitas processes and free ports 3001/3000 (identity-guarded: only rapitas-owned node/bun processes are killed)
+3. `bun run db:prepare:sqlite` — regenerate the SQLite init SQL and the SQLite Prisma client (skipped when the schema hash is unchanged); the backend applies the init SQL to the desktop DB on boot (`rapitas-backend/config/desktop-sqlite.ts`)
+4. Start the backend (`bun run dev:stable`), wait for it to be ready, then start the frontend (`pnpm run dev`)
+
+`bun run dev` in `rapitas-backend` (`scripts/dev.ts`, used for the web / PostgreSQL stack) instead runs `prisma db push --skip-generate` + `prisma generate` for the active provider via `scripts/dev/prisma-sync.ts` before starting the server.
 
 ---
 
@@ -94,14 +96,15 @@ Automatically handles on each start:
 ### Commit message format
 
 ```
-<type>(<scope>): <description under 50 chars>
+<type>(<scope>): <description, ideally under 50 chars>
 
 <body — optional>
 
 #<issue-number>
 ```
 
-Types: `feat` `fix` `docs` `style` `refactor` `test` `chore`
+Types (enforced by `commitlint.config.js` via the `.husky/commit-msg` hook): `feat` `fix` `docs` `style` `refactor` `test` `chore` `perf` `ci` `revert`.
+commitlint warns when the subject exceeds 72 characters and when the scope is not in its `scope-enum`; scope must be kebab-case.
 Language: English only. Use imperative mood ("Add", not "Added").
 
 ---
@@ -167,15 +170,25 @@ curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/status \
 
 ### Status transitions (automatic on file save)
 
+The full set is `WORKFLOW_STATUSES` in `rapitas-backend/services/workflow/workflow-types.ts`:
+
 ```
-draft → research_done → plan_created → [plan_approved] → in_progress → completed
+draft → research_done → plan_created → [plan_approved] → in_progress → verify_done → completed
+                         (any active phase) ⇄ awaiting_question
 ```
 
-| File saved  | Auto-transition                    |
-| ----------- | ---------------------------------- |
-| research.md | `research_done`                    |
-| plan.md     | `plan_created` (awaiting approval) |
-| verify.md   | `completed`                        |
+| File saved  | Auto-transition                                                     |
+| ----------- | ------------------------------------------------------------------- |
+| research.md | `research_done`                                                     |
+| question.md | `awaiting_question` (returns to the previous status once answered)  |
+| plan.md     | `plan_created` (awaiting approval)                                  |
+| verify.md   | `verify_done` (only when the verify gates pass)                     |
+
+`completed` is NOT set by saving verify.md. It is set only after the
+commit / PR pipeline finishes what the task requires
+(`rapitas-backend/routes/workflow/handlers/file-save/verify-commit-pr-pipeline.ts`;
+for auto-merged PRs, `rapitas-backend/services/workflow/auto-merge-watcher.ts`
+on merge). See `rapitas-backend/routes/workflow/handlers/file-save/status-transition.ts`.
 
 ### Step-by-step
 
@@ -381,7 +394,9 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 
 - Remote: `https://github.com/takamurayuki`
 - Use `gh` CLI for all GitHub operations.
-- Branch naming: `feature/<issue-number>-short-description` or `bugfix/<issue-number>-short-description`
+- Branch naming (human-created branches): `feature/<issue-number>-short-description` or `bugfix/<issue-number>-short-description` (`docs/`, `chore/` etc. are also used).
+  Branches created by the agent system are generated by `rapitas-backend/utils/common/branch-name-generator.ts`:
+  `<feature|bugfix|chore>/t<taskId>-<english-slug>` (≤ 50 chars, task id, not issue number).
 - `main` must always be deployable. Never push directly to `main`.
 - PR must always be linked to an Issue:
   - `Closes #<issue>` (also `Fixes` / `Resolves`) — **only when the PR finishes the issue.**

@@ -267,8 +267,8 @@ export default function Header() {
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
       <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-        <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between h-16 px-2 sm:px-6">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
               className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -282,7 +282,8 @@ export default function Header() {
                 <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
                   <AppIcon size={20} className="text-white" />
                 </div>
-                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                {/* Wordmark drops below sm; the icon alone still links home. */}
+                <span className="hidden sm:inline text-lg font-bold text-indigo-600 dark:text-indigo-400">
                   Rapi+
                 </span>
               </div>
