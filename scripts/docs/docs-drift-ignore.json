@@ -1,0 +1,26 @@
+{
+  "_comment": "What check-docs-drift must not treat as a repository path. `paths`: tokens that look like paths but are not tracked files on purpose — workflow artifacts that are WorkflowFile DB rows (research.md, plan.md, ...), gitignored build/runtime output, release artifacts made at publish time. `illustrativeNameDocs`: naming-policy docs whose bare file names are made-up examples (their real paths, anything containing '/', are still checked). A moved or deleted file belongs in the doc fix, not here.",
+  "paths": [
+    "research.md",
+    "plan.md",
+    "verify.md",
+    "question.md",
+    ".next/",
+    "out/",
+    "node_modules/",
+    ".verification-logs/",
+    ".agent-pids/",
+    "src-tauri/binaries/",
+    "rapitas-desktop/src-tauri/binaries/",
+    "src-tauri/target/release/bundle/",
+    "update.json",
+    "latest.json",
+    "MEMORY.md"
+  ],
+  "illustrativeNameDocs": [
+    ".claude/CLAUDE.md",
+    ".claude/COMPONENT_SPLITTING_POLICY.md",
+    ".claude/FOLDER_ORGANIZATION_POLICY.md",
+    ".claude/FEATURE_SCORE_PROMPT.md"
+  ]
+}

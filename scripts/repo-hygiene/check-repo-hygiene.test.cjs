@@ -18,14 +18,17 @@ test('flags root and package-root files that are not allowlisted, ignores deeper
     'docs/anything.md',
   ];
   const allow = { '': ['README.md'], 'rapitas-backend': ['package.json'] };
-  assert.deepEqual(unexpectedRootFiles(files, allow), ['.wftmp.json', 'rapitas-backend/result.json']);
+  assert.deepEqual(unexpectedRootFiles(files, allow), [
+    '.wftmp.json',
+    'rapitas-backend/result.json',
+  ]);
 });
 
 test('a script mentioned only by itself or its own test is unreferenced', () => {
   const mentions = {
     'used-tool': ['scripts/used-tool.cjs', 'package.json'],
     'one-shot': ['scripts/one-shot.ts', 'scripts/one-shot.test.ts'],
-    'documented': ['scripts/documented.ps1', 'docs/RUNBOOK.md'],
+    documented: ['scripts/documented.ps1', 'docs/RUNBOOK.md'],
   };
   const grep = (needle) => mentions[needle] || [];
   assert.deepEqual(
