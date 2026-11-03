@@ -24,8 +24,8 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
   const statusText =
     totalIdeas === 0 ? t('header.statusEmpty') : t('header.statusCount', { count: totalIdeas });
 
-  // Amber matches IdeaBoxPanel.tsx (the home-widget sibling) — same feature,
-  // same palette. See docs/design/ui-design-language.md §5 change log.
+  // Amber is this feature's deliberate per-feature exception to the indigo
+  // accent. See docs/design/ui-design-language.md §5 change log.
   return (
     <div className="mb-6 flex items-center justify-between">
       <div className="flex items-center gap-3">
