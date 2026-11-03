@@ -41,23 +41,19 @@ done
 # 2) Fast typecheck — skip if commit message contains [skip-typecheck]
 echo "🔍 Pre-push typecheck..."
 
-cd rapitas-frontend && pnpm exec tsc --noEmit -p tsconfig.json 2>&1 \
-    | grep -E "error TS" | grep -v "KnowledgeClient.test" \
-    | head -1 | grep -q "error TS" \
-    && {
-        echo "❌ Frontend typecheck failed. Run: cd rapitas-frontend && pnpm exec tsc --noEmit"
-        exit 1
-    }
-cd ..
+# NOTE(#1410): judged by tsc's EXIT CODE. This used to grep the output for
+# "error TS" (minus an exclusion list), so a tsc that failed to start, or
+# failed without that string, passed. Both packages typecheck clean today, so
+# the exclusions had nothing left to excuse.
+if ! (cd rapitas-frontend && pnpm exec tsc --noEmit -p tsconfig.json); then
+    echo "❌ Frontend typecheck failed (or could not run). Run: cd rapitas-frontend && pnpm exec tsc --noEmit"
+    exit 1
+fi
 
-cd rapitas-backend && bunx tsc --noEmit --skipLibCheck 2>&1 \
-    | grep -E "error TS" | grep -vE "bun-types|overrides.d.ts|KnowledgeClient" \
-    | head -1 | grep -q "error TS" \
-    && {
-        echo "❌ Backend typecheck failed. Run: cd rapitas-backend && bunx tsc --noEmit"
-        exit 1
-    }
-cd ..
+if ! (cd rapitas-backend && bunx tsc --noEmit --skipLibCheck); then
+    echo "❌ Backend typecheck failed (or could not run). Run: cd rapitas-backend && bunx tsc --noEmit"
+    exit 1
+fi
 
 echo "✅ Pre-push checks passed"
 exit 0
