@@ -253,7 +253,9 @@ test('real tree: the committed gates file passes --check', () => {
   assert.equal(run(['--check', '--today', TODAY]), 0);
 });
 
-test('real tree: required entries are exactly the 15 contexts branch protection requires', () => {
+// 2026-11-03: Route Regression and Frozen Install Verification promoted (25/25
+// green on the last 25 merged develop PRs); branch protection updated to match.
+test('real tree: required entries are exactly the 17 contexts branch protection requires', () => {
   const gates = JSON.parse(fs.readFileSync(REAL_GATES, 'utf8'));
   const required = gates.checks
     .filter((c) => c.mode === 'required')
@@ -269,8 +271,10 @@ test('real tree: required entries are exactly the 15 contexts branch protection 
     'CodeQL Analysis (javascript)',
     'CodeQL Analysis (typescript)',
     'Dependency Security Check',
+    'Frozen Install Verification',
     'Lint Code',
     'NPM Security Audit',
+    'Route Regression',
     'Rust Security Audit',
     'Secret scanning',
     'Test Backend',
