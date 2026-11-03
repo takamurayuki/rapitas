@@ -668,6 +668,23 @@ jobs:
       - name: Test the root script tools
         run: node --test "scripts/**/*.test.cjs"
 
+      # #1403: the tracked tree had 76 files nobody meant to keep — agent
+      # scratch dumps, logs, ignored-but-tracked dirs, one-shot scripts long
+      # after use. Fails on any tracked-but-ignored file, any repo/package
+      # root file off scripts/repo-hygiene/root-allowlist.json, and any
+      # script under a scripts/ dir that nothing references. ~2s.
+      - name: Repo hygiene
+        run: node scripts/repo-hygiene/check-repo-hygiene.cjs
+
+      # #1403: the code is the source of truth for the docs. Fails when a
+      # current doc names a path that does not exist, a package.json script
+      # that does not exist, a Node/Bun/pnpm version other than the pins, a
+      # workflow status set other than WORKFLOW_STATUSES, or when the backend
+      # starts reading an env var .env.example does not document (ratchet).
+      # docs/archive, docs/adr and docs/lessons are history and exempt. ~2s.
+      - name: Docs match the code
+        run: node scripts/docs/check-docs-drift.cjs
+
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
       # could rot green. This is the desktop side of the step above (root
