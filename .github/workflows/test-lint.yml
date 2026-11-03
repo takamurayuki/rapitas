@@ -421,6 +421,16 @@ jobs:
         with:
           node-version: '24'
 
+      # NOTE (#1410): import direction and cycles, as a ratchet. Fails on a new
+      # backend services/ → routes/ (or utils|config → services|routes) import,
+      # a frontend components/ui → feature|app or lib|utils → app import, or a
+      # new runtime import cycle; today's ones are listed in
+      # scripts/import-graph/import-graph-baseline.json, which may only shrink
+      # (an entry that no longer occurs fails too). Dependency-free, so it
+      # runs before the installs and fails fast. ~4s.
+      - name: Import direction and cycles
+        run: node scripts/import-graph/check-import-graph.cjs
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
