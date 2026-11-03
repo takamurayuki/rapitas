@@ -107,11 +107,15 @@ describe('blockingChecks', () => {
       'Dependency Security Check',
       'NPM Security Audit',
       'Rust Security Audit',
+      // Promoted to required on 2026-11-03 (25/25 green on the last 25 merged PRs).
+      'Route Regression',
+      'Frozen Install Verification',
     ]) {
       expect(set?.has(name)).toBe(true);
     }
     expect(set?.has('Full Suite (Advisory)')).toBe(false);
-    expect(set?.has('Route Regression')).toBe(false);
+    // Advisory since 2026-11-03, matching the workflow's own continue-on-error.
+    expect(set?.has('Lint Markdown files')).toBe(false);
   });
 
   it('parses a comma-separated RAPITAS_AUTOMERGE_CHECKS override', () => {
