@@ -38,12 +38,16 @@ The CI/CD pipeline consists of several workflow files:
 ### 2. `test-lint.yml`
 
 - **Purpose**: Run tests and linting checks
-- **Triggers**: Push to main branches, PRs
+- **Triggers**: Push to `main` / `develop`, PRs into them
 - **Jobs**:
-  - Backend tests with PostgreSQL
-  - Frontend tests and type checking
-  - Code linting for TypeScript
-  - Rust code formatting and Clippy checks
+  - `test-backend` — backend gate suite with PostgreSQL, coverage floor
+  - `route-regression` — route wiring gate
+  - `test-sqlite` — SQLite-compatible suite
+  - `test-full-advisory`, `test-order-check` — advisory full suite / shuffled order
+  - `check-frontend` — frontend type check and gate tests with coverage
+  - `lint` — ESLint / Prettier
+  - `rust-check`, `rust-check-windows` — Rust formatting and Clippy (Linux, Windows)
+  - `frozen-install` — every lockfile installs with `--frozen-lockfile`
 
 #### Test Baseline & Failure Policy
 
@@ -51,11 +55,12 @@ The test jobs in `test-lint.yml` follow a two-tier strategy:
 
 | Tier | Jobs | Merge impact |
 | ---- | ---- | ------------ |
-| **hard-gate** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows` | Blocks merge on failure |
+| **hard-gate** | `test-backend`, `route-regression`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows`, `frozen-install` | Blocks merge on failure |
 | **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
 
-The gate suite file list is maintained in `rapitas-backend/scripts/ci-gate-tests.txt`
-(single source of truth). Do not edit the file list inline in the YAML.
+Backend gates are declared in `rapitas-backend/scripts/ci-gates.ts`; each gate's
+file list is a manifest next to it (`ci-gate-tests.txt`, `route-regression-tests.txt`,
+`sqlite-compat-tests.txt`). Do not edit the file lists inline in the YAML.
 
 For full details on failure tiers, retrigger policy, coverage thresholds, and the gate
 escalation path, see **[TESTING_POLICY.md](TESTING_POLICY.md)**.
@@ -67,7 +72,7 @@ escalation path, see **[TESTING_POLICY.md](TESTING_POLICY.md)**.
 - **Scans**:
   - Trivy for general vulnerabilities
   - cargo-audit for Rust dependencies
-  - npm/pnpm audit for JavaScript dependencies
+  - pnpm audit (frontend, desktop) and bun audit (backend) for JavaScript dependencies
   - CodeQL for code-level security issues
 
 ### 4. `pr-preview.yml`
@@ -182,26 +187,29 @@ If you see PostgreSQL connection errors in CI, ensure:
 
 If you encounter `Unknown lockfile version` errors:
 
-1. **Temporary Fix**: The CI/CD pipeline is configured with `BUN_LOCKFILE_SKIP=true` to bypass lockfile validation
-2. **Root Cause**: This occurs due to lockfile version compatibility between different Bun versions
-3. **Local Fix**: To regenerate the lockfile locally:
+1. **Root Cause**: The lockfile was written by a different Bun version. CI installs the
+   version pinned in `.github/toolchain.json` (checked by `rapitas-backend/scripts/check-toolchain-drift.ts`)
+   and every install uses `bun install --frozen-lockfile`, so a lockfile the pinned Bun would
+   rewrite fails CI instead of being silently updated.
+2. **Local Fix**: Install the pinned Bun version, then regenerate and commit the lockfile in
+   the main checkout (never inside a git worktree):
 
    ```bash
    cd rapitas-backend
-   rm -f bun.lock
    bun install
    ```
 
-4. **Automated Fix**: Run the `fix-bun-lock.yml` workflow manually to create a PR with updated lockfile
-5. **Long-term Solution**: Keep Bun version consistent across local development and CI
+3. **Check**: The `fix-bun-lock.yml` workflow runs `bun install --frozen-lockfile` and reports
+   a mismatch for a human to resolve; it does not rewrite the lockfile.
 
 ### pnpm Lockfile Issues
 
 If you encounter `pnpm-lock.yaml is not up to date` errors:
 
-1. **Temporary Fix**: The CI/CD pipeline now uses `pnpm install --no-frozen-lockfile` to allow lockfile updates
-2. **Root Cause**: New dependencies were added to package.json but the lockfile wasn't updated
-3. **Local Fix**: To update the lockfile locally:
+1. **Root Cause**: New dependencies were added to package.json but the lockfile wasn't updated.
+   CI installs with `pnpm install --frozen-lockfile` (pnpm version pinned in
+   `.github/toolchain.json`), so the stale lockfile fails the job.
+2. **Local Fix**: To update the lockfile locally (main checkout, not a worktree):
 
    ```bash
    cd rapitas-frontend  # or rapitas-desktop
@@ -210,8 +218,7 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
    git commit -m "fix: update pnpm lockfile"
    ```
 
-4. **Prevention**: Always commit lockfile changes when adding/updating dependencies
-5. **CI Behavior**: The `--no-frozen-lockfile` flag allows CI to update the lockfile automatically, but changes won't be persisted
+3. **Prevention**: Always commit lockfile changes when adding/updating dependencies
 
 ### Build Failures
 
@@ -224,7 +231,7 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 5. **Turbopack Import Issues**: If you encounter "Module not found" errors during CI builds:
    - **Symptom**: Error like `Module not found: Can't resolve './Toast'`
    - **Cause**: Turbopack sometimes has issues with relative imports in CI environments
-   - **Solution**: Turbopack is disabled in CI builds (`--no-turbopack` flag and `NEXT_TURBO=0`)
+   - **Solution**: Turbopack is disabled in CI builds (`NEXT_TURBO=0` in the workflow env)
    - **Note**: Local development still uses Turbopack for faster builds
 
 ### Security Scan Issues
