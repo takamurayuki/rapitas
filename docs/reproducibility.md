@@ -91,7 +91,7 @@ longer mutate state; only a task's *outcome* does.
 
 ### 5. Sorted git-diff file listing
 
-`services/agents/orchestrator/git-operations/diff-structured.ts`'s `getDiff()`
+`services/agents/orchestrator/git-operations/core/diff-structured.ts`'s `getDiff()`
 now sorts the returned `FileDiffRecord[]` by `filename` (`localeCompare`)
 before returning. The previous order followed raw `git diff`/`git status`
 output, which is not a guaranteed-stable ordering (rename detection, index
@@ -131,7 +131,7 @@ New module: `services/ai/model-route-stability.ts`.
   retry-worthy, so the *next* ordinary retry recomputes fresh instead of
   reusing a pin that is now known-bad.
 - Wired into `services/workflow/workflow-orchestrator.ts` (the main
-  auto-select call) and `routes/agents/execution/execute-route.ts` (the
+  auto-select call) and `routes/agents/execution/routes/execute-route.ts` (the
   manual dev-mode auto-select call). `tryProviderFallback`'s own
   `getSmartRoute` call is intentionally left calling the router directly —
   it *is* the deliberate re-route this cache defers to.

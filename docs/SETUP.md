@@ -149,5 +149,5 @@ Health check: `http://localhost:3001/agents/health` (there is no root `/health` 
 Commits run an auto-fix pre-commit hook (lint-staged → Prettier + ESLint, auto-restage, re-check). Details: [docs/pre-commit-guide.md](pre-commit-guide.md).
 
 - Branch naming: `feature/<issue>-desc` / `bugfix/<issue>-desc`
-- Conventional Commits; TypeScript strict; test coverage target ≥ 80% for new code
-- Agent operating rules: [CLAUDE.md](../CLAUDE.md)
+- Conventional Commits (enforced by commitlint); TypeScript strict; new code ships with tests (≥ 80% coverage is the long-term target, not today's gate — see ADR-0002)
+- Agent operating rules: [.claude/CLAUDE.md](../.claude/CLAUDE.md) and [AGENTS.md](../AGENTS.md)

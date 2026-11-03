@@ -52,7 +52,7 @@ runVerificationGate(taskId, worktreePath, sid)  ── ESLint --format json + ts
 
 ## Part 1 — Isolation: a git worktree per execution
 
-Each execution gets its own worktree, created in `services/agents/orchestrator/git-operations/worktree-ops.ts`:
+Each execution gets its own worktree, created in `services/agents/orchestrator/git-operations/worktree/worktree-ops.ts`:
 
 ```ts
 // worktree-ops.ts
@@ -90,7 +90,7 @@ What it does:
 - **Bounded I/O:** each command runs via async `spawn` (never `execSync`) with a **180s timeout** and a **2KB** detail cap, so a runaway check can't hang or flood the log.
 - **Result:** `{ ok, changedFiles, checks[], summary, unverifiable? }`, e.g. `summary: "lint=ok / typecheck=NG(2)"`.
 
-Crucially, **both paths to a PR are gated** on `automated-verifier.ts` before a commit can happen — the verify.md auto-commit (`routes/workflow/workflow-auto-commit.ts`) calls the shared `runVerificationGate()` wrapper, while the post-execution review (`routes/agents/execution/post-execution-review.ts`) calls `runAutomatedVerification()` directly and re-implements its own blocking/retry handling inline rather than going through `runVerificationGate()`. So there's no back door to an unverified PR today, but it's two call sites enforcing the same rule rather than one shared function — worth consolidating.
+Crucially, **both paths to a PR are gated** on `automated-verifier.ts` before a commit can happen — the verify.md auto-commit (`routes/workflow/workflow-auto-commit.ts`) calls the shared `runVerificationGate()` wrapper, while the post-execution review (`routes/agents/execution/post-handlers/post-execution-review.ts`) calls `runAutomatedVerification()` directly and re-implements its own blocking/retry handling inline rather than going through `runVerificationGate()`. So there's no back door to an unverified PR today, but it's two call sites enforcing the same rule rather than one shared function — worth consolidating.
 
 **Why fail-closed / changed-files-only?** Fail-closed because a gate that passes when it can't actually check is worse than no gate (false confidence). Changed-files-only because a repo with pre-existing type errors would otherwise make *every* agent run fail for reasons the agent didn't cause — the gate must measure the agent's *marginal* damage.
 
@@ -179,7 +179,7 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 
 | Concern | File |
 | --- | --- |
-| Worktree create/remove/orphan-cleanup | `services/agents/orchestrator/git-operations/worktree-ops.ts` |
+| Worktree create/remove/orphan-cleanup | `services/agents/orchestrator/git-operations/worktree/worktree-ops.ts` |
 | Worktree cleanup scheduler | `services/scheduling/worktree-cleanup-scheduler.ts` |
 | Worktree dependency linking | `scripts/setup-worktree.cjs` |
 | Agent worker (separate process) | `services/agents/agent-worker-manager.ts` |
@@ -188,5 +188,5 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 | Self-repair retry loop | `services/agents/verification/verification-retry.ts` |
 | Workflow state machine + invariants | `routes/workflow/handlers/workflow-handlers-files.ts` |
 | Auto-commit / PR (gate-guarded) | `routes/workflow/workflow-auto-commit.ts` |
-| Post-execution review (gate-guarded) | `routes/agents/execution/post-execution-review.ts` |
+| Post-execution review (gate-guarded) | `routes/agents/execution/post-handlers/post-execution-review.ts` |
 | Models: `AgentSession`, `AgentExecution` | `prisma/schema/agents.prisma` |

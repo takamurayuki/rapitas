@@ -164,7 +164,7 @@ of older kebab-case files remain — do not rename them just for style).
 ## 6. WHEN NOT TO SPLIT
 
 - **Generated files** (e.g., Prisma client, icon registries from codegen) — these are maintained by tools.
-- **Configuration files** (e.g., `next.config.ts`, `tailwind.config.ts`).
+- **Configuration files** (e.g., `next.config.ts`, `vitest.config.ts`).
 - **Migration files** — never modify after creation.
 - **Single-purpose utility files** under 300 lines that would produce files under 50 lines each if split.
 

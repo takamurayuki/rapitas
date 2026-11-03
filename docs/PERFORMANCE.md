@@ -20,7 +20,7 @@ you measure something interesting or apply a fix that survives review.
 | Frontend `/home` LCP (dev)      | local Lighthouse      | < 2.5 s  | ~1.8 s               | `lighthouse http://localhost:3000` |
 | Tauri cold launch               | window paint          | < 1.5 s  | not measured         | manual stopwatch                   |
 | Tauri installer size            | per platform          | < 30 MB  | ~25 MB               | file size check                    |
-| WebSocket p95 broadcast latency | round-trip            | < 100 ms | ~50 ms               | custom test                        |
+| SSE p95 broadcast latency       | round-trip            | < 100 ms | not measured         | custom test                        |
 
 **Measurement commands:**
 
@@ -42,33 +42,31 @@ cd rapitas-frontend && pnpm build && ls -la .next/static/chunks/
 ### 2.1 ~~Prisma `schema.prisma` monolith~~ (resolved 2026-04-09)
 
 Resolved per [ADR-0006](adr/0006-prisma-schema-folder-split.md): the
-1426-line `schema.prisma` (72 models, 1 enum) was split into 11 per-domain
-files under `rapitas-backend/prisma/schema/` using Prisma's
-`prismaSchemaFolder` preview feature. Largest resulting file is
-`core.prisma` at 226 lines. Editor latency and `prisma generate` runtime
-should improve correspondingly — measure and update §1 once observed.
+former single-file Prisma schema (1426 lines, 72 models, 1 enum) was split into
+per-domain files under `rapitas-backend/prisma/schema/` using Prisma's
+`prismaSchemaFolder` layout (GA in Prisma 6; 15 domain files as of 2026-11).
+Editor latency and `prisma generate` runtime should improve correspondingly —
+measure and update §1 once observed.
 
-### 2.2 Frontend `useExecutionManager.ts` (609 lines)
+### 2.2 Frontend `useExecutionManager.ts` (about 490 lines as of 2026-11)
+
+`rapitas-frontend/src/feature/developer-mode/components/ai-accordion-panel/useExecutionManager.ts`
 
 **Symptom:** This hook is on the agent execution panel critical path. Re-renders
 inside it propagate to the entire developer mode UI.
 
 **Why:** It conflates state, IO, polling, and render derivation — and the
-file is over the hard 500-line limit.
+file is near the hard 500-line limit.
 
 **Mitigation (planned):** Split per
-[`COMPONENT_SPLITTING_POLICY.md`](../COMPONENT_SPLITTING_POLICY.md) into
+[`COMPONENT_SPLITTING_POLICY.md`](../.claude/COMPONENT_SPLITTING_POLICY.md) into
 `useExecutionState`, `useExecutionPolling`, `useExecutionDispatch`, and a
 thin orchestrator hook.
 
-### 2.3 Backend `agent-core.ts` (1012 lines)
+### 2.3 ~~Backend `agent-core.ts` (1012 lines)~~ (resolved)
 
-**Symptom:** Slow editor open + slow type-check on this file.
-
-**Why:** All Claude Code orchestration logic in one module.
-
-**Mitigation (planned):** Split into provider/state/io per ADR-style module
-boundaries, per `COMPONENT_SPLITTING_POLICY.md`.
+`rapitas-backend/services/agents/claude-code/agent-core.ts` has since been
+split and is about 450 lines (2026-11).
 
 ### 2.4 Bun + Playwright pipe hang on Windows
 
@@ -77,11 +75,13 @@ from Bun.
 
 **Why:** [oven-sh/bun#23826](https://github.com/oven-sh/bun/issues/23826)
 
-**Mitigation:** Already in place. Screenshot worker runs as a Node.js
-subprocess (`screenshot-worker.cjs`). See
+**Mitigation:** Already in place. Browser automation runs in a Node.js
+subprocess
+(`rapitas-backend/services/agents/verification/runtime-smoke/playwright-worker.mjs`,
+driven by `playwright-worker-client.ts`). See
 [RUNBOOK §5](RUNBOOK.md#5-bun--playwright-pipe-hang-windows).
 
-### 2.5 71-model schema → wide JOINs
+### 2.5 Wide schema (about 100 models) → wide JOINs
 
 **Symptom (anticipated):** Once the dataset grows, common task-list endpoints
 that include `category`, `theme`, `project`, `milestone`, `labels`, `comments`
@@ -91,7 +91,7 @@ will produce wide JOINs and large response payloads.
 
 - Use Prisma `select` instead of `include` on list endpoints — only ship
   fields the UI actually renders
-- Add `@@index` directives to `schema.prisma` for the foreign-key columns
+- Add `@@index` directives in `rapitas-backend/prisma/schema/*.prisma` for the foreign-key columns
   that appear in `where` filters
 - Paginate aggressively (cursor-based, default page size 50)
 - For derived fields (e.g. `taskCount` per category), maintain a
@@ -100,10 +100,10 @@ will produce wide JOINs and large response payloads.
 ### 2.6 ~~Two realtime transports~~ (resolved 2026-04-09)
 
 Resolved per [ADR-0005](adr/0005-realtime-transport.md): the supposed
-"second transport" (Socket.IO Client) was dead code in
-`rapitas-frontend/lib/api-client-optimized.ts` with no consumers. The file
-and the dependency have been removed; the backend's native `ws` is the
-single realtime transport.
+"second transport" (Socket.IO Client) was dead code in a frontend API client
+with no consumers. The file and the dependency have been removed. The single
+realtime transport is SSE (see [ARCHITECTURE §4](ARCHITECTURE.md#realtime));
+the unmounted backend `ws` service was later deleted as well.
 
 ---
 
@@ -111,12 +111,12 @@ single realtime transport.
 
 ### 3.1 Frontend
 
-- **SWR** for caching and dedup — see `src/lib/swr-config.ts` (if present)
-- **`task-cache-store`** with localStorage persistence + 24h cache window
-  (see `MEMORY.md` 2026-02-19 v3 entry)
-- **Skeleton loaders** to prevent layout shift (`HomeClient.tsx`)
+- **SWR** for caching and dedup
+- **`task-cache-store`** (`rapitas-frontend/src/stores/task-cache-store.ts`)
+  with localStorage persistence + 24h cache window
+- **Skeleton loaders** to prevent layout shift (`rapitas-frontend/src/app/HomeClient.tsx`)
 - **Specific `transition-*` properties** instead of `transition-all` to
-  avoid resize re-triggers (`MEMORY.md` 2026-02-19 v1)
+  avoid resize re-triggers
 - **Recharts** with memoized data shapers
 - **`use client` only where needed** — most pages remain server components
 

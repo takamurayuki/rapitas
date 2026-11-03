@@ -148,18 +148,19 @@ If `make env-check` reports the placeholder credentials warning, edit
 
 ## 5. Bun + Playwright pipe hang (Windows)
 
-**Symptom:** Screenshot worker hangs forever; Playwright never returns.
+**Symptom:** Browser smoke checks / screenshots hang forever; Playwright never returns.
 
 **Diagnosis:** Known Bun bug — `--remote-debugging-pipe` is broken in the Bun
 runtime on Windows. Tracked at
 [oven-sh/bun#23826](https://github.com/oven-sh/bun/issues/23826).
 
-**Fix:** Already mitigated. Screenshot capture runs via a Node.js subprocess
-(`screenshot-worker.cjs`), not directly under Bun. If you see this hang again,
-verify the worker is being spawned via Node:
+**Fix:** Already mitigated. Playwright runs in a Node.js subprocess
+(`rapitas-backend/services/agents/verification/runtime-smoke/playwright-worker.mjs`,
+spawned by `playwright-worker-client.ts` next to it), not directly under Bun.
+If you see this hang again, verify the worker is being spawned via Node:
 
 ```bash
-grep -r "screenshot-worker" rapitas-backend/services/screenshot/
+grep -rn "playwright-worker.mjs" rapitas-backend/services/
 ```
 
 If a new code path tries to call Playwright directly from Bun, route it

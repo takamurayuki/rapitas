@@ -293,7 +293,7 @@ See also: `.github/CI_CD_SETUP.md`.
 ## 7. Open architectural questions
 
 1. **Schema-first vs code-first** for Prisma — currently `db push` based, no
-   migration history (`prisma/migrations/` has been removed). ADR-0003 calls
+   migration history (the migrations directory has been removed). ADR-0003 calls
    for moving to `prisma migrate` before public release.
 2. **Module ownership** — about 100 models split across 15 per-domain files (ADR-0006)
    still lacks CODEOWNERS-by-domain, so cross-domain ownership is unclear.
