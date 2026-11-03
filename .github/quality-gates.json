@@ -198,6 +198,14 @@
       "expires": "2027-02-01"
     },
     {
+      "name": "Browser E2E",
+      "workflow": "browser-e2e.yml",
+      "job": "browser-e2e",
+      "mode": "advisory",
+      "reason": "New 2026-11-04 (#1410): real Chromium against the built frontend and an isolated backend (create/update a task, failed stop, failed save). Runs on every PR with no paths filter and reports red honestly (not continue-on-error); advisory only while its flake rate is watched, then promote to required.",
+      "expires": "2026-11-18"
+    },
+    {
       "name": "Knip (frontend)",
       "workflow": "knip.yml",
       "job": "knip-frontend",
