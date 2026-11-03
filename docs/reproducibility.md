@@ -57,6 +57,18 @@ user-visible generated artifact now pins `temperature: 0`:
 **CLI-driven phases (claude-code, codex, gemini CLI) were intentionally left
 untouched** — see "Accepted structural residual" below.
 
+#### Temperature is model-aware
+
+`temperature: 0` is pinned **only for models that still accept the parameter**.
+The Claude 5 family / Opus 4.7–4.8 / Sonnet 5 **removed** `temperature` and
+return HTTP 400 on any value, so the direct-SDK wrapper omits it entirely for
+those models. The gate is `modelAcceptsTemperature(modelId)` (exported from
+`rapitas-backend/services/agents/providers/anthropic-api-provider/agent.ts`):
+older models get `temperature: config.temperature ?? 0`; rejecting models get
+the parameter omitted. For those models determinism is steered by prompt
+content and model choice rather than a sampling parameter (temperature 0 never
+guaranteed identical output on prior models either).
+
 ### 4. No read-triggered mutation in memory retrieval
 
 `services/memory/rag/search.ts`'s `searchKnowledge()` used to fire-and-forget
@@ -138,7 +150,20 @@ the CLI runners themselves was explicitly out of scope for this pass. This
 means full determinism is only achievable end-to-end for direct-API-driven
 phases (Anthropic API provider, Ollama/llama-server); CLI-driven phases
 remain as reproducible as the upstream CLI's own (undocumented) sampling
-behavior allows.
+behavior allows. Their prompt *inputs* are still held deterministic, so the
+CLI-runner files are exempt from the temperature check in
+`check-determinism.cjs` but **not** from the wall-clock/random-in-prompt check.
+
+### Recommendation — pin explicit model versions, not aliases
+
+The one remaining low-risk determinism lever for CLI runs is **configuring an
+explicit, dated model version rather than a moving alias**. An alias silently
+re-points when a new snapshot ships, so the same task config can start behaving
+differently after a provider-side model update with no change on our side.
+Pinning a specific version makes model drift an explicit, reviewed config
+change. This is a configuration recommendation only — it does not remove the
+sampling residual above, and it is intentionally **not** enforced in code,
+since staying current with a model line is often the desired behavior.
 
 ## The 8-point determinism checklist
 
@@ -168,8 +193,12 @@ Use this when reviewing a new prompt-feeding code path:
    output, and similar OS-ordered listings that feed a prompt should be
    explicitly sorted (e.g. by path) rather than trusting OS/git iteration
    order.
-8. **CI guard** — (not implemented in this pass) a lint rule or CI check that
-   flags a new `findMany` missing an `orderBy`, a new `.sort()` on a
-   float/score without a tiebreak, or a new direct-SDK `messages.create`
-   call without an explicit `temperature`, so regressions are caught before
-   merge rather than rediscovered empirically.
+8. **CI guard** — `rapitas-backend/scripts/check-determinism.cjs`
+   (`bun run determinism:check`) scans the prompt-critical directories
+   (`services/memory`, `services/workflow`, `services/agents`, `services/ai`,
+   `routes/agents`) for the source patterns behind the points above
+   (heuristic, dependency-free). It runs in the `Lint Code` job of
+   `test-lint.yml` as an **advisory** step (`continue-on-error`, without
+   `--strict`); `--strict` exits 1 on any finding. Suppress a genuine false
+   positive with a `// determinism-ok: <reason>` comment on the line directly
+   above the flagged line.
