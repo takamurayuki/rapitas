@@ -73,6 +73,15 @@ export interface ReclaimOptions {
    * the same relative path. Omitted, every real file keeps the directory.
    */
   repoRoot?: string;
+  /**
+   * Files the caller has positive grounds to call regenerable tool output,
+   * judged by the path relative to the inspected directory.
+   *
+   * NOTE(#1403): added for run-checked.cjs logs (gitignored, rewritten on
+   * every run). A predicate rather than a list of names so the judgement
+   * stays with the caller that knows what produced the file.
+   */
+  isDisposable?: (relative: string) => boolean;
 }
 
 /**
@@ -131,8 +140,11 @@ function collectProvisioned(
       continue;
     }
     // A real file. Only a copy the checkout already has, at this same path,
-    // is something nobody can lose by deleting.
-    if (!matchesCheckout(child, childRelative, stat.size, options.repoRoot)) return null;
+    // or output the caller vouches for, is something nobody can lose by deleting.
+    const disposable = stat.isFile() && options.isDisposable?.(childRelative) === true;
+    if (!disposable && !matchesCheckout(child, childRelative, stat.size, options.repoRoot)) {
+      return null;
+    }
     provisioned.push(child);
   }
   return provisioned;

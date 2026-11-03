@@ -3,11 +3,13 @@
  *
  * Periodic scheduler for cleaning up orphaned git worktrees.
  * Runs every 30 minutes by default to remove worktrees from completed/failed sessions
- * and orphaned filesystem directories that git no longer tracks.
+ * and orphaned filesystem directories that git no longer tracks, then prunes
+ * local branches whose work is provably preserved (#1403).
  */
 
 import { createLogger } from '../../config/logger';
 import { cleanupOrphanedWorktrees } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
+import { pruneMergedLocalBranches } from '../agents/orchestrator/git-operations/branch-hygiene';
 import { getProjectRoot } from '../../config';
 
 const logger = createLogger('worktree-cleanup-scheduler');
@@ -102,6 +104,23 @@ export class WorktreeCleanupScheduler {
     } catch (error) {
       logger.error({ err: error }, '[WorktreeCleanupScheduler] Cleanup cycle failed');
       // Don't throw - let the scheduler continue running
+    }
+
+    // After the worktree sweep, so branches it just released are judged too.
+    // Separate try: a branch-prune failure must not read as a worktree failure.
+    try {
+      const pruned = await pruneMergedLocalBranches(baseDir);
+      logger.info(
+        {
+          examined: pruned.examined,
+          deleted: pruned.deleted.length,
+          kept: pruned.kept,
+          skipped: pruned.skipped,
+        },
+        '[WorktreeCleanupScheduler] Local branch prune completed',
+      );
+    } catch (error) {
+      logger.error({ err: error }, '[WorktreeCleanupScheduler] Local branch prune failed');
     }
   }
 }
