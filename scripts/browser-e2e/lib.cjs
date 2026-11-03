@@ -144,7 +144,9 @@ function evaluateRun({ expected, results, browserLaunched, reservedHits }) {
  * @returns {string} Markdown / Markdown文字列
  */
 function renderSummary({ results, verdict, meta }) {
-  const esc = (s) => String(s).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  // Backslashes first, or an input ending in "\" would escape the "|" added next
+  // (CodeQL js/incomplete-sanitization).
+  const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
   const lines = [`## Browser E2E — ${verdict.ok ? 'PASS' : 'FAIL'}`, ''];
   for (const [k, v] of Object.entries(meta)) lines.push(`- **${esc(k)}**: ${esc(v)}`);
   lines.push(

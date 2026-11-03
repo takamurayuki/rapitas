@@ -49,7 +49,10 @@ function withTimeout(promise, ms, label) {
 async function runScenario(scenario, env) {
   const started = Date.now();
   const checker = lib.createChecker();
-  const context = await env.browser.newContext({ locale: 'ja-JP', viewport: { width: 1400, height: 900 } });
+  const context = await env.browser.newContext({
+    locale: 'ja-JP',
+    viewport: { width: 1400, height: 900 },
+  });
   await prepareContext(context, { reservedHits: env.reservedHits, sabotage: env.sabotage });
   const page = await context.newPage();
   page.on('pageerror', (err) => log(`  [${scenario.name}] page error: ${err.message}`));
@@ -59,7 +62,12 @@ async function runScenario(scenario, env) {
       SCENARIO_TIMEOUT_MS,
       scenario.name,
     );
-    return { name: scenario.name, status: 'passed', assertions: checker.count(), ms: Date.now() - started };
+    return {
+      name: scenario.name,
+      status: 'passed',
+      assertions: checker.count(),
+      ms: Date.now() - started,
+    };
   } catch (err) {
     const shot = path.join(env.artifacts, `${scenario.name}.png`);
     await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
@@ -84,9 +92,14 @@ async function main() {
   const skipBuild = process.argv.includes('--no-build');
   const apiBase = `http://127.0.0.1:${backendPort}`;
   const frontendBase = `http://127.0.0.1:${frontendPort}`;
-  const artifacts =
-    process.env.BROWSER_E2E_ARTIFACTS || path.join(os.tmpdir(), 'rapitas-browser-e2e-artifacts');
+  // CI names the directory (runner.temp, uploaded on failure). Locally a fresh
+  // mkdtemp dir, not a fixed /tmp name another user could pre-create
+  // (CodeQL js/insecure-temporary-file).
+  const artifacts = process.env.BROWSER_E2E_ARTIFACTS
+    ? process.env.BROWSER_E2E_ARTIFACTS
+    : fs.mkdtempSync(path.join(os.tmpdir(), 'rapitas-browser-e2e-artifacts-'));
   fs.mkdirSync(artifacts, { recursive: true });
+  log(`artifacts: ${artifacts}`);
   if (sabotage) log(`SABOTAGE ACTIVE: ${sabotage} — ${lib.SABOTAGES[sabotage]}`);
 
   for (const port of [backendPort, frontendPort]) {
@@ -139,7 +152,9 @@ async function main() {
     const shared = { api, apiBase, frontendBase, s: loadStrings(), sabotage, themeId: theme.id };
     for (const scenario of SCENARIOS) {
       const r = await runScenario(scenario, { browser, shared, reservedHits, sabotage, artifacts });
-      log(`${r.status === 'passed' ? 'PASS' : 'FAIL'} ${r.name} (${r.assertions} assertions, ${r.ms}ms)${r.error ? ` — ${r.error}` : ''}`);
+      log(
+        `${r.status === 'passed' ? 'PASS' : 'FAIL'} ${r.name} (${r.assertions} assertions, ${r.ms}ms)${r.error ? ` — ${r.error}` : ''}`,
+      );
       results.push(r);
     }
   } catch (err) {
