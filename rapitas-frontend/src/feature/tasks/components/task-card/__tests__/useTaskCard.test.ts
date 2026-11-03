@@ -124,7 +124,11 @@ describe('useTaskCard', () => {
       expect(result.current.localSubtasks).toEqual([newSubtask]);
     });
 
-    it('handleSubtaskStatusChangeは対象サブタスクのみを楽観更新し、onStatusChangeを呼ぶこと', () => {
+    // NOTE: The subtask's own status buttons (SubtaskStatusButtons) send the
+    // PATCH. Forwarding to the card's onStatusChange made the home list send a
+    // second, concurrent PATCH for the same subtask; when that one lost the
+    // race it surfaced as 「更新に失敗しました」 (reported 2026-11-04).
+    it('handleSubtaskStatusChangeは対象サブタスクのみを楽観更新し、親の更新処理は呼ばないこと', () => {
       const sub1 = createMockTask({ id: 2, status: 'todo' });
       const sub2 = createMockTask({ id: 3, status: 'todo' });
       const task = createMockTask({ subtasks: [sub1, sub2] });
@@ -134,7 +138,7 @@ describe('useTaskCard', () => {
 
       expect(result.current.localSubtasks.find((s) => s.id === 2)?.status).toBe('done');
       expect(result.current.localSubtasks.find((s) => s.id === 3)?.status).toBe('todo');
-      expect(onStatusChange).toHaveBeenCalledWith(2, 'done');
+      expect(onStatusChange).not.toHaveBeenCalled();
     });
   });
 
