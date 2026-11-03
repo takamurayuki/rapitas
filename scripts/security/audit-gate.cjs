@@ -33,9 +33,21 @@ const EXCEPTIONS_PATH = path.join(__dirname, '..', '..', '.github', 'audit-excep
  * @returns {{scope:string, pkg:string, ghsa:string, severity:string, title:string}[]} Findings / 検出一覧
  */
 function parseAudit(scope, format, json) {
+  // NOTE(#1410): a FAILED audit (network error, registry 5xx) still prints
+  // JSON — `{"error": {...}}` from pnpm. Reading anything without the result
+  // shape as "no advisories" made the gate green on a blind run, so a report
+  // that is not recognisably a result is rejected.
+  const isObject = json !== null && typeof json === 'object' && !Array.isArray(json);
+  const notResult = (why) =>
+    new Error(`${scope}: ${format} output is not an audit result (${why}) — the audit did not run`);
+  if (!isObject) throw notResult('not a JSON object');
+  if ('error' in json) throw notResult(`error: ${JSON.stringify(json.error).slice(0, 200)}`);
   const out = [];
   if (format === 'pnpm') {
-    for (const a of Object.values((json && json.advisories) || {})) {
+    if (typeof json.advisories !== 'object' || json.advisories === null) {
+      throw notResult('no "advisories" object');
+    }
+    for (const a of Object.values(json.advisories)) {
       out.push({
         scope,
         pkg: a.module_name,
@@ -45,7 +57,8 @@ function parseAudit(scope, format, json) {
       });
     }
   } else if (format === 'bun') {
-    for (const [pkg, list] of Object.entries(json || {})) {
+    for (const [pkg, list] of Object.entries(json)) {
+      if (!Array.isArray(list)) throw notResult(`"${pkg}" is not an advisory list`);
       for (const a of list) {
         out.push({ scope, pkg, ghsa: ghsaFromUrl(a.url), severity: a.severity, title: a.title });
       }

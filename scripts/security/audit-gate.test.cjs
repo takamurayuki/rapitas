@@ -108,3 +108,20 @@ test('the committed exceptions file is valid and nothing in it has expired yet',
   assert.deepEqual(v.invalid, []);
   assert.deepEqual(v.expired, [], 'renew or remove: an expired exception fails every PR');
 });
+
+// #1410: an audit that FAILED (network error, registry 5xx) still prints JSON.
+// Read as "no advisories", it made the gate green on a blind run.
+test('an error report or an unexpected shape is rejected, never read as clean', () => {
+  const pnpmError = { error: { code: 'ERR_PNPM_AUDIT_BAD_RESPONSE', message: 'fetch failed' } };
+  assert.throws(() => parseAudit('frontend', 'pnpm', pnpmError), /not an audit result/);
+  assert.throws(() => parseAudit('frontend', 'pnpm', {}), /not an audit result/);
+  assert.throws(() => parseAudit('frontend', 'pnpm', null), /not an audit result/);
+  assert.throws(() => parseAudit('backend', 'bun', { error: 'network' }), /not an audit result/);
+  assert.throws(() => parseAudit('backend', 'bun', [1, 2]), /not an audit result/);
+  assert.throws(() => parseAudit('backend', 'bun', null), /not an audit result/);
+});
+
+test('a genuinely clean report is still accepted', () => {
+  assert.deepEqual(parseAudit('frontend', 'pnpm', { advisories: {}, metadata: {} }), []);
+  assert.deepEqual(parseAudit('backend', 'bun', {}), []);
+});
