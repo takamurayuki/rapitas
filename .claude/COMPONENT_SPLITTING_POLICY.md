@@ -44,11 +44,11 @@ Split into the following structure:
 components/
 └── feature-name/
     ├── index.ts              # re-exports public API
-    ├── feature-name.tsx      # main component (orchestrator)
-    ├── feature-name-header.tsx
-    ├── feature-name-list.tsx
-    ├── feature-name-item.tsx
-    ├── use-feature-name.ts   # custom hook (state + logic)
+    ├── FeatureName.tsx       # main component (orchestrator)
+    ├── FeatureNameHeader.tsx
+    ├── FeatureNameList.tsx
+    ├── FeatureNameItem.tsx
+    ├── useFeatureName.ts     # custom hook (state + logic)
     ├── feature-name.types.ts # types/interfaces
     └── feature-name.utils.ts # pure helper functions
 ```
@@ -136,14 +136,19 @@ feature-validators.test.ts
 
 ## 4. NAMING CONVENTIONS
 
-| Target             | Convention  | Example                     |
-| ------------------ | ----------- | --------------------------- |
-| Component files    | kebab-case  | `task-card-header.tsx`      |
-| Hook files         | kebab-case  | `use-task-actions.ts`       |
-| Type files         | kebab-case  | `task.types.ts`             |
-| Util files         | kebab-case  | `date-utils.ts`             |
-| Test files         | kebab-case  | `task-card.test.tsx`        |
-| Index/barrel files | `index.ts`  | `index.ts`                  |
+These match the naming table in `.claude/CLAUDE.md` §3 and the existing code
+(component files are overwhelmingly PascalCase, hook files camelCase; a minority
+of older kebab-case files remain — do not rename them just for style).
+
+| Target             | Convention                   | Example                     |
+| ------------------ | ---------------------------- | --------------------------- |
+| Component files    | PascalCase                   | `TaskCardHeader.tsx`        |
+| Hook files         | camelCase                    | `useTaskActions.ts`         |
+| Type files         | kebab-case                   | `task.types.ts`             |
+| Util files         | kebab-case                   | `date-utils.ts`             |
+| Test files         | (source file name) + `.test` | `TaskCard.test.tsx`         |
+| Directories        | kebab-case                   | `task-card/`                |
+| Index/barrel files | `index.ts`                   | `index.ts`                  |
 
 ---
 
