@@ -1,0 +1,87 @@
+# Browser E2E — CI Pipeline (#1410 "Real-browser checks of critical flows")
+#
+# Drives the production-built frontend in a real Chromium against a real,
+# isolated backend (throwaway SQLite, ports 3221/3220 — never 3000/3001) and
+# proves three flows end to end: create → update a task (checked on screen
+# AND through the API after a reload), a failed stop is shown and not
+# reported as stopped, and a failed save is not shown as saved.
+# See scripts/browser-e2e/run.cjs.
+#
+# No paths filter: these flows cross frontend and backend, so a change on
+# either side (or to shared config) can break them.
+# Not continue-on-error: a failure is reported red. It is classified
+# "advisory" in .github/quality-gates.json while its flake rate is watched,
+# so it does not block auto-merge or branch protection yet.
+
+name: Browser E2E
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  browser-e2e:
+    name: Browser E2E
+    runs-on: ubuntu-latest
+    # Measured locally: next build ~130s, scenarios ~25s. Installs dominate in CI.
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.34.9
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      # Both generated clients are gitignored runtime requirements (see the
+      # Fault Injection E2E job in e2e.yml). The URL is never connected to.
+      - name: Generate Prisma clients
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_unused
+        run: |
+          bun run db:generate
+          bun run db:generate:sqlite
+
+      - name: Install frontend dependencies
+        working-directory: rapitas-frontend
+        run: pnpm install --frozen-lockfile
+
+      # playwright-core, not playwright: the runner launches through
+      # playwright-core (1.61) and the two packages pin different browser
+      # revisions, so `playwright install` would fetch the wrong one.
+      - name: Install Chromium
+        working-directory: rapitas-backend
+        run: ./node_modules/.bin/playwright-core install --with-deps chromium
+
+      - name: Unit tests for the runner helpers
+        run: node --test scripts/browser-e2e/lib.test.cjs
+
+      - name: Run Browser E2E
+        env:
+          BROWSER_E2E_ARTIFACTS: ${{ runner.temp }}/browser-e2e
+        run: node scripts/browser-e2e/run.cjs
+
+      - name: Upload screenshots and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-artifacts
+          path: ${{ runner.temp }}/browser-e2e
+          retention-days: 7
