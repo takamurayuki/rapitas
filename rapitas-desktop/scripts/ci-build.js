@@ -23,7 +23,6 @@ if (!fs.existsSync(binariesDir)) {
 }
 
 // Copy frontend build output
-const frontendBuildDir = path.join(FRONTEND_DIR, 'out');
 const desktopPublicDir = path.join(DESKTOP_DIR, 'public');
 
 // Debug: List all directories in frontend
