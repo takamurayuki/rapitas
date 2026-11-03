@@ -237,3 +237,8 @@ services/system/user-database/user-database-init.test.ts
 services/system/user-database/user-database-init.integration.test.ts
 config/user-database-override.test.ts
 routes/system/user-database.routes.test.ts
+
+# #1410: the auto-merge reads its blocking checks from .github/quality-gates.json
+# and must merge nothing (fail closed) when that file cannot be read.
+services/workflow/quality-gates-definition.test.ts
+services/workflow/auto-merge-checks.fail-closed.test.ts

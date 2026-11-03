@@ -138,10 +138,10 @@ export class AutoMergeWatcher {
       });
       void checkBaselineDrift().catch(() => {}); // throttled + throwaway worktree; never blocks the tick
       const candidates = (await findCandidates()).filter((c) => !recovered.includes(c.taskId));
-      const blocking = blockingChecks();
+      const blocking = blockingChecks(); // null = gates file unreadable: fail closed, merge nothing
       for (const c of candidates) {
         try {
-          if (!(await canContinueAutoMerge(c.taskId))) continue;
+          if (!blocking || !(await canContinueAutoMerge(c.taskId))) continue;
           await this.process(c, blocking);
         } catch (err) {
           log.warn({ err, taskId: c.taskId }, '[auto-merge] Candidate failed');

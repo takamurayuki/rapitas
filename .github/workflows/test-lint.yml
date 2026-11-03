@@ -629,6 +629,16 @@ jobs:
       - name: Docs match the code
         run: node scripts/docs/check-docs-drift.cjs
 
+      # NOTE: #1410 — .github/quality-gates.json is the one definition of which
+      # checks gate a merge (branch protection is generated from it, and the
+      # auto-merge reads it). On 2026-10-16 main required four job names that no
+      # longer existed and every PR sat BLOCKED. Fails when a listed name is
+      # reported by no job, a required check is path-filtered/continue-on-error/
+      # if-gated, an advisory entry is past its review date, or a PR job is
+      # unclassified. ~1s.
+      - name: Quality gates match the workflows
+        run: node scripts/gates/quality-gates.cjs --check
+
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
       # could rot green. This is the desktop side of the step above (root
