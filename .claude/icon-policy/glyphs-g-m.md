@@ -4,12 +4,12 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Layers`                  | 複雑度「詳細」                           |
 | `ListTodo`                | サブタスク                               |
 | `ListPlus`                | タスク作成 / タスク起票 (task_created、quick-capture のタスクモードタブ — 同一概念の再利用) |
-| `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`） |
+| `ListChecks`              | 提案タスクの完了条件バレット（旧 `TaskSuggestionDetail` — 未使用のため #1403 で削除。この意味でグリフを使う画面は現在ない） |
 | `Globe`                   | スコープ「グローバル」                   |
 | `LayoutDashboard`         | ダッシュボード (nav: /dashboard)         |
 | `LayoutList`              | タスク分類グループ (nav: category/theme/label umbrella) |
