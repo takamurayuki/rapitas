@@ -73,8 +73,13 @@ loss.
 **Fix:**
 
 ```bash
-# Check backend logs
-tail -n 200 rapitas-backend/logs/backend.log
+# Check backend logs. Full output goes to the console (the dev.js / terminal
+# window); warn/error/fatal entries are also appended as NDJSON to a daily file
+# (rapitas-backend/config/logger.ts):
+#   $RAPITAS_DATA_DIR/logs/backend-YYYY-MM-DD.log   (default ~/.rapitas/logs/)
+# rapitas-desktop/scripts/dev.js sets RAPITAS_DATA_DIR=rapitas-desktop/.data, so
+# for the desktop dev stack look in rapitas-desktop/.data/logs/.
+tail -n 200 ~/.rapitas/logs/backend-$(date +%F).log
 
 # Restart only the backend
 make backend
@@ -83,7 +88,7 @@ make backend
 If the crash repeats, run with verbose logging:
 
 ```bash
-cd rapitas-backend && DEBUG=* bun run dev
+cd rapitas-backend && LOG_LEVEL=debug bun run dev
 ```
 
 ---
@@ -196,9 +201,7 @@ were testing earlier, but `develop` doesn't expect them.
 
 ```bash
 cd rapitas-backend
-npx prisma migrate reset       # DESTRUCTIVE: wipes data
-# or
-npx prisma db push --force-reset
+npx prisma db push --force-reset   # DESTRUCTIVE: wipes data (no migration history exists to reset to)
 ```
 
 If you need the data, dump it first:
