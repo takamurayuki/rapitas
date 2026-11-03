@@ -38,7 +38,12 @@ const BASELINE_PATH = path.join(__dirname, 'import-graph-baseline.json');
 
 /** Path segments that are never part of the graph. */
 const SKIP_DIR = /(^|\/)(node_modules|generated|\.next|\.next-tauri|dist|out|coverage)\//;
-const TEST_FILE = /(^|\/)(__tests__|__mocks__|tests|test|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+// Two separate tests on purpose: a test DIRECTORY anywhere in the path, or a
+// test-file SUFFIX. One alternation mixed an unanchored and an end-anchored
+// branch (CodeQL js/regex/missing-regexp-anchor).
+const TEST_DIR = /(?:^|\/)(?:__tests__|__mocks__|tests|test|e2e)\//;
+const TEST_SUFFIX = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const TEST_FILE = { test: (p) => TEST_DIR.test(p) || TEST_SUFFIX.test(p) };
 
 /**
  * Packages and their direction rules. `from`/`to` are package-relative path
