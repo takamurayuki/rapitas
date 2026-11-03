@@ -44,6 +44,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -88,6 +91,16 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
+
+      # #1410: every test file this PR adds or modifies runs here, with no
+      # registration in scripts/ci-gate-tests.txt, and is green only when
+      # bun's junit report shows each one ran and bun exited 0. Separate from
+      # the coverage-measured gate above so it cannot move the floors.
+      - name: Run the tests this PR adds or changes (backend)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: node scripts/gates/changed-tests-gate.cjs --package backend --base origin/${{ github.base_ref }}
 
   # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
   # routes go through their choke points (delete guard, stop reporting, the
@@ -325,6 +338,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -378,6 +394,13 @@ jobs:
         # vitest-manifest-gate, which fails when a listed file is missing or
         # did not actually run according to vitest's own JSON report.
         run: node ../scripts/gates/vitest-manifest-gate.cjs scripts/ci-gate-tests.txt -- --coverage
+
+      # #1410: every frontend test file this PR adds or modifies runs here
+      # without registration in the manifest, verified the same way as the
+      # gate above (each file must appear in vitest's own report).
+      - name: Run the tests this PR adds or changes (frontend)
+        if: github.event_name == 'pull_request'
+        run: node scripts/gates/changed-tests-gate.cjs --package frontend --base origin/${{ github.base_ref }}
 
   lint:
     name: Lint Code
