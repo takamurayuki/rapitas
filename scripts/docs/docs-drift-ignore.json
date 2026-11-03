@@ -1,5 +1,5 @@
 {
-  "_comment": "What check-docs-drift must not treat as a repository path. `paths`: tokens that look like paths but are not tracked files on purpose — workflow artifacts that are WorkflowFile DB rows (research.md, plan.md, ...), gitignored build/runtime output, release artifacts made at publish time. `illustrativeNameDocs`: naming-policy docs whose bare file names are made-up examples (their real paths, anything containing '/', are still checked). A moved or deleted file belongs in the doc fix, not here.",
+  "_comment": "What check-docs-drift must not treat as a repository path. `paths`: tokens that look like paths but are not tracked files on purpose — workflow artifacts that are WorkflowFile DB rows (research.md, plan.md, ...), gitignored build/runtime output, release artifacts made at publish time. `illustrativeNameDocs`: naming-policy docs whose bare file names are made-up examples (their real paths, anything containing '/', are still checked). A moved or deleted file belongs in the doc fix, not here. Also: branch prefixes (chore/), a deliberate negative example (src/index.ts in CI_CD_SETUP: \"not src/index.ts\"), placeholders (schema/X.prisma), risk-signal patterns quoted from code (migrations/), and a struck-through resolved mention (schema.prisma in PERFORMANCE).",
   "paths": [
     "research.md",
     "plan.md",
@@ -15,7 +15,13 @@
     "src-tauri/target/release/bundle/",
     "update.json",
     "latest.json",
-    "MEMORY.md"
+    "MEMORY.md",
+    "chore/",
+    "src/index.ts",
+    "schema/X.prisma",
+    "migrations/",
+    "schema.prisma",
+    "rapitas-backend/generated/"
   ],
   "illustrativeNameDocs": [
     ".claude/CLAUDE.md",

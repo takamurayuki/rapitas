@@ -230,6 +230,22 @@ function git(args) {
 }
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
+function isGitIgnored(token, docPath) {
+  const clean = token.replace(/^\.\//, '');
+  const docDir = path.posix.dirname(docPath);
+  const candidates = [clean, ...PACKAGE_ROOTS.filter(Boolean).map((r) => `${r}/${clean}`)];
+  if (docDir !== '.') candidates.push(`${docDir}/${clean}`);
+  for (const c of candidates) {
+    try {
+      execFileSync('git', ['check-ignore', '-q', '--no-index', c], { cwd: ROOT });
+      return true;
+    } catch {
+      /* exit 1: not ignored */
+    }
+  }
+  return false;
+}
+
 function main() {
   const updateBaseline = process.argv.includes('--update-env-baseline');
   const files = git(['ls-files']).trim().split('\n');
@@ -270,8 +286,12 @@ function main() {
       // Naming-policy docs illustrate with made-up file names; their real
       // paths (anything with a "/") are still checked.
       if (exampleDocs.has(doc) && !token.includes('/')) continue;
-      if (!resolves(token, doc, tracked))
-        problems.push(`${doc}:${line} path does not exist: ${token}`);
+      if (resolves(token, doc, tracked)) continue;
+      // Generated and runtime output (rapitas-backend/generated/,
+      // rapitas-desktop/public/, .next/) is real but never tracked: a path
+      // .gitignore covers is described, not stale.
+      if (isGitIgnored(token, doc)) continue;
+      problems.push(`${doc}:${line} path does not exist: ${token}`);
     }
     for (const { name, line } of missingScripts(md, scripts)) {
       problems.push(`${doc}:${line} no package.json script named "${name}"`);

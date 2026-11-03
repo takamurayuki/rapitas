@@ -75,14 +75,17 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 - `POST /workflow/tasks/{taskId}/approve-plan`
 - `PUT /workflow/tasks/{taskId}/status`
 
-標準的な状態遷移:
+標準的な状態遷移（全集合は `rapitas-backend/services/workflow/workflow-types.ts` の `WORKFLOW_STATUSES`）:
 
+0. 作成直後: `draft`
 1. `research.md` 保存後: `research_done`
 2. `plan.md` 保存後: `plan_created`
 3. Plan 承認後: `plan_approved`
 4. 実装開始後: `in_progress`
 5. `verify.md` 保存後: `verify_done`
 6. 必要な commit / PR / merge などの完了ゲート通過後: `completed` またはタスク `done`
+
+`question.md` を保存すると、どのフェーズからでも `awaiting_question` になり、回答されると直前の状態に戻る。
 
 `verify.md` を保存しただけでタスクを完了扱いにしてはいけない。`autoCommit`、`autoCreatePR`、`autoMergePR` が有効な場合は、要求された最終ステップまで成功してから完了にする。
 
