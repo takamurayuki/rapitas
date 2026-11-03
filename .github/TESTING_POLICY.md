@@ -85,8 +85,8 @@ paths で絞られたチェックは `conditional`（走ったときだけ auto-
 | `check-frontend` | **required** | ブロックする | フロントエンド型検査 + 指定テストを `vitest run --coverage` で実行（`vitest.config.ts` の閾値を強制） |
 | `rust-check` | **required** | ブロックする | Rust フォーマット / Clippy / ルートスクリプトのテスト・docs/ゲート定義の整合 |
 | `rust-check-windows` | **required** | ブロックする | Windows 上の Rust ビルド検査 |
-| `route-regression` | **advisory** | ブロックしない | ルート配線の回帰を検出（全 PR で走るが、ブランチ保護にも auto-merge にも入っていなかった。昇格を見直す） |
-| `frozen-install` | **advisory** | ブロックしない | 全 lockfile が `--frozen-lockfile` でインストールできること（同上） |
+| `route-regression` | **required** | ブロックする | ルート配線の回帰を検出（2026-11-03 昇格。直近25件のマージPRで25/25成功） |
+| `frozen-install` | **required** | ブロックする | 全 lockfile が `--frozen-lockfile` でインストールできること（同上） |
 | `test-full-advisory` | **advisory** | ブロックしない | 全スイートの回帰を可視化 |
 | `test-order-check` | **advisory** | ブロックしない | テスト順序依存を検出 |
 

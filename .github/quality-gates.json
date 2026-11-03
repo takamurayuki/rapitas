@@ -134,8 +134,9 @@
       "name": "Lint Markdown files",
       "workflow": "markdownlint.yml",
       "job": "markdownlint",
-      "mode": "conditional",
-      "reason": "Runs only when Markdown changes. NOTE: the job is continue-on-error ('advisory until the existing Markdown is brought up to spec'), yet auto-merge has blocked on its failures since before #1410; kept as-is so this change does not alter merge behaviour. Decide one or the other."
+      "mode": "advisory",
+      "reason": "Markdown style only, and the workflow itself is continue-on-error ('advisory until the existing Markdown is brought up to spec'). Made advisory 2026-11-03 so auto-merge agrees with the workflow's declared intent; whether docs are TRUE is gated by 'Docs match the code' (check-docs-drift), which blocks.",
+      "expires": "2027-02-01"
     },
     {
       "name": "Quick Build Check",
@@ -148,17 +149,15 @@
       "name": "Route Regression",
       "workflow": "test-lint.yml",
       "job": "route-regression",
-      "mode": "advisory",
-      "reason": "Runs on every PR but has never been required or auto-merge blocking; promote to required once its green rate on develop is measured.",
-      "expires": "2027-02-01"
+      "mode": "required",
+      "reason": "Pins that routes go through their choke points (delete guard, stop reporting, fetch boundary). Runs on every PR; promoted 2026-11-03 after 25/25 green on the last 25 merged develop PRs. The docs had long described it as blocking."
     },
     {
       "name": "Frozen Install Verification",
       "workflow": "test-lint.yml",
       "job": "frozen-install",
-      "mode": "advisory",
-      "reason": "Proves the committed lockfiles install frozen; runs on every PR but was never made blocking. Candidate for required.",
-      "expires": "2027-02-01"
+      "mode": "required",
+      "reason": "Proves the committed lockfiles install frozen — the lockfile is what ships and what dep-sync installs (#1408). Runs on every PR; promoted 2026-11-03 after 25/25 green on the last 25 merged develop PRs."
     },
     {
       "name": "Full Suite (Advisory)",

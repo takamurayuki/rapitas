@@ -55,8 +55,8 @@ The test jobs in `test-lint.yml` follow a two-tier strategy:
 
 | Tier | Jobs | Merge impact |
 | ---- | ---- | ------------ |
-| **required** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows` | Blocks merge on failure |
-| **advisory** | `route-regression`, `frozen-install`, `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
+| **required** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows`, `route-regression`, `frozen-install` | Blocks merge on failure |
+| **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
 
 The tiers above are an excerpt. The single definition of which checks gate a
 merge — across every workflow — is [`.github/quality-gates.json`](quality-gates.json);
