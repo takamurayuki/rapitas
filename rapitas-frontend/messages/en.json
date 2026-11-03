@@ -6527,5 +6527,11 @@
       "elapsed": "Elapsed {time}"
     },
     "loadFailed": "Failed to load pending decisions"
+  },
+  "themePicker": {
+    "title": "Choose a theme",
+    "placeholder": "Choose a theme",
+    "uncategorized": "Uncategorized",
+    "manage": "Create and edit categories and themes"
   }
 }

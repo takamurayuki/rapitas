@@ -22,7 +22,6 @@ import { Calendar, Clock, Tag } from 'lucide-react';
 import {
   NewTaskHeader,
   PrioritySelector,
-  ThemeSelector,
   SubtaskForm,
   SubtaskList,
   WorkflowSection,
@@ -31,6 +30,7 @@ import {
 import { useNewTaskForm } from './hooks';
 import DurationInput from '@/components/ui/hours-minutes-input/HoursMinutesInput';
 import DateField from '@/components/ui/date-field/DateField';
+import { ThemePicker } from '@/components/ui/theme-picker';
 import { formatDate } from '@/utils/date';
 
 function NewTaskClient() {
@@ -100,10 +100,14 @@ function NewTaskClient() {
                 icon={<Layers className="w-3.5 h-3.5" />}
                 className="flex-1"
               >
-                <ThemeSelector
+                {/* NOTE: was a flat wall of ~40 theme chips at 10px; the picker
+                    groups them by category behind one button. */}
+                <ThemePicker
                   themes={form.visibleThemes}
-                  themeId={form.themeId}
-                  onSelect={form.handleThemeSelect}
+                  categories={form.categories}
+                  value={form.themeId}
+                  onChange={(theme) => theme && form.handleThemeSelect(theme)}
+                  label={t('theme')}
                 />
               </FieldItem>
             </InlineFieldGroup>

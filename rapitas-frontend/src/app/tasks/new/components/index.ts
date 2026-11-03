@@ -6,7 +6,6 @@
 export { NewTaskHeader } from './NewTaskHeader';
 export { PrioritySelector, usePriorityOptions } from './PrioritySelector';
 export type { PriorityOption } from './PrioritySelector';
-export { ThemeSelector } from './ThemeSelector';
 export { SubtaskForm } from './SubtaskForm';
 export { SubtaskList } from './SubtaskList';
 export { WorkflowSection } from './WorkflowSection';

@@ -6527,5 +6527,11 @@
       "elapsed": "経過 {time}"
     },
     "loadFailed": "判断待ちの取得に失敗しました"
+  },
+  "themePicker": {
+    "title": "テーマを選択",
+    "placeholder": "テーマを選択",
+    "uncategorized": "未分類",
+    "manage": "カテゴリ・テーマの作成と編集"
   }
 }
