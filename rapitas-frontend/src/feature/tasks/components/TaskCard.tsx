@@ -4,7 +4,11 @@ import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
-import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  getStatusDisplay,
+  renderStatusIcon,
+  statusIconColor,
+} from '@/feature/tasks/config/StatusConfig';
 import { Tag, Repeat, RefreshCw, Lock, Clock, History } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -125,7 +129,7 @@ const TaskCard = memo(function TaskCard({
         ) : (
           <div
             className={`relative flex items-center justify-center w-7 h-7 rounded-md ${
-              tc.isWaitingForInput ? tc.waitingAmberConfig.color : tc.currentStatus.color
+              tc.isWaitingForInput ? tc.waitingAmberConfig.color : statusIconColor(tc.currentStatus)
             } ${tc.isWaitingForInput ? tc.waitingAmberConfig.bgColor : tc.currentStatus.bgColor} ${
               tc.executionStatus
                 ? ''

@@ -12,7 +12,26 @@ import {
   resolveStatusConfig,
   getStatusDisplay,
   renderStatusIcon,
+  statusIconColor,
 } from '../StatusConfig';
+
+// The done check sat as green-700 beside a green-500 left line, which read as
+// a duller green once cards stopped being tinted by status (#1288). The icon
+// matches the line; text keeps green-700, which green-500 is too light for.
+describe('statusIconColor', () => {
+  it('draws the done icon in the same green as the card line', () => {
+    const lineAsText = statusConfig.done.borderColor.replace(/border-l-/g, 'text-');
+    expect(statusIconColor(statusConfig.done)).toBe(lineAsText);
+  });
+
+  it('keeps the darker green for done text', () => {
+    expect(statusConfig.done.color).toBe('text-green-700 dark:text-green-300');
+  });
+
+  it('falls back to the text colour for statuses without an icon colour', () => {
+    expect(statusIconColor(statusConfig.todo)).toBe(statusConfig.todo.color);
+  });
+});
 
 describe('isInProgressStatus', () => {
   it('in-progressをtrueと判定すること', () => {
