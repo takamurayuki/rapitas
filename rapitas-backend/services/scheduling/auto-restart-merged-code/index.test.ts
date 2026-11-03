@@ -31,6 +31,7 @@ let deferCount = 0;
 let auxChildren = 0;
 let isMergingFlag = false;
 let notificationFails = false;
+let depBlocker: 'dependency-toolchain-mismatch' | null = null;
 
 const idleSnapshot = {
   isShuttingDown: false,
@@ -77,6 +78,17 @@ mock.module('./settings-store', () => ({
   writeDeferCount: (count: number) => {
     callOrder.push(`writeDeferCount:${count}`);
     deferCount = count;
+  },
+}));
+
+// Every export: mock.module replaces the module process-wide.
+mock.module('./dependency-preflight', () => ({
+  DEPENDENCY_LOCKFILES: [],
+  readPinnedBunVersion: () => '1.3.13',
+  checkDependencyToolchain: () => depBlocker,
+  dependencyGate: () => {
+    callOrder.push('dependencyGate');
+    return Promise.resolve(depBlocker);
   },
 }));
 
@@ -163,6 +175,7 @@ beforeEach(() => {
   auxChildren = 0;
   isMergingFlag = false;
   notificationFails = false;
+  depBlocker = null;
   resetUiActivity();
   delete process.env.RAPITAS_PRIMARY_BRANCH;
 });
@@ -177,6 +190,7 @@ describe('runOnce — success path', () => {
       'listChangedPaths:startup123:develop',
       'getAgentSystemSnapshot',
       'isWorkingTreeClean',
+      'dependencyGate',
       'fastForwardToRemote:develop',
       'getAgentSystemSnapshot',
       'createNotification:system',
@@ -426,6 +440,8 @@ describe('evaluateBoundaryRestart — task-boundary path', () => {
       'fetchAndCountAhead:startup123:develop',
       'getAgentSystemSnapshot',
       'isWorkingTreeClean',
+      'listChangedPaths:startup123:develop',
+      'dependencyGate',
       'fastForwardToRemote:develop',
       'getAgentSystemSnapshot',
       'createNotification:system',
@@ -581,3 +597,25 @@ for (const field of ['activeExecutions', 'runningExecutions', 'queueDepth'] as c
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
 }
+
+// #1403: after the pull dev.js reinstalls changed lockfiles and refuses to
+// start the backend if it cannot. Both automatic paths must hold the pull when
+// that refusal is already certain, rather than pull and strand the system.
+describe('dependency gate', () => {
+  test('runOnce does not pull or restart when the dependency gate refuses', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    expect(await makeScheduler().runOnce()).toBe(false);
+    expect(callOrder).toContain('dependencyGate');
+    expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('the task-boundary path does not pull or restart when the gate refuses', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    changedPaths = ['rapitas-backend/bun.lock'];
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder).toContain('dependencyGate');
+    expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+});
