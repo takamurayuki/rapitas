@@ -46,7 +46,7 @@
 
 ## 1. Baseline 定義
 
-**基準ゲート（baseline）**: `test-backend` ジョブ。必須通過ジョブはこれだけではない — 全 hard-gate は §2 の表を参照。
+**基準ゲート（baseline）**: `test-backend` ジョブ。必須通過ジョブはこれだけではない — 全 required チェックは §2 と `.github/quality-gates.json` を参照。
 
 | 項目 | 内容 |
 | ---- | ---- |
@@ -67,16 +67,26 @@
 
 ## 2. 失敗ティア表
 
+**どのチェックがマージを止めるかの唯一の定義は
+[`.github/quality-gates.json`](quality-gates.json)**（#1410）。全 PR で走るチェックは
+`required`（GitHub のブランチ保護 + アプリ内 auto-merge の両方が要求）、
+paths で絞られたチェックは `conditional`（走ったときだけ auto-merge が止まる。
+ブランチ保護には入れない — 報告されない必須コンテキストは永久に pending になる）、
+それ以外は `advisory`（理由と、昇格予定なら `expires` の見直し日を必須）。
+`node scripts/gates/quality-gates.cjs --check` が CI（`rust-check` ジョブ）で
+全名称が実在するジョブ名と一致することを検証し、ブランチ保護は
+`--print-protection <branch>` の出力から設定する。下表は `test-lint.yml` 分の抜粋。
+
 | ジョブ | ティア | マージへの影響 | 目的 |
 | ------ | ------ | -------------- | ---- |
-| `test-backend` | **hard-gate** | ブロックする | ゲートスイートの回帰を検出 + カバレッジ下限 |
-| `route-regression` | **hard-gate** | ブロックする | ルート配線の回帰を検出 |
-| `test-sqlite` | **hard-gate** | ブロックする | SQLite 互換性の維持 |
-| `lint` | **hard-gate** | ブロックする | TypeScript / ESLint / Prettier |
-| `check-frontend` | **hard-gate** | ブロックする | フロントエンド型検査 + 指定テストを `vitest run --coverage` で実行（`vitest.config.ts` の閾値を強制） |
-| `rust-check` | **hard-gate** | ブロックする | Rust フォーマット / Clippy |
-| `rust-check-windows` | **hard-gate** | ブロックする | Windows 上の Rust ビルド検査 |
-| `frozen-install` | **hard-gate** | ブロックする | 全 lockfile が `--frozen-lockfile` でインストールできること |
+| `test-backend` | **required** | ブロックする | ゲートスイートの回帰を検出 + カバレッジ下限 |
+| `test-sqlite` | **required** | ブロックする | SQLite 互換性の維持 |
+| `lint` | **required** | ブロックする | TypeScript / ESLint / Prettier |
+| `check-frontend` | **required** | ブロックする | フロントエンド型検査 + 指定テストを `vitest run --coverage` で実行（`vitest.config.ts` の閾値を強制） |
+| `rust-check` | **required** | ブロックする | Rust フォーマット / Clippy / ルートスクリプトのテスト・docs/ゲート定義の整合 |
+| `rust-check-windows` | **required** | ブロックする | Windows 上の Rust ビルド検査 |
+| `route-regression` | **advisory** | ブロックしない | ルート配線の回帰を検出（全 PR で走るが、ブランチ保護にも auto-merge にも入っていなかった。昇格を見直す） |
+| `frozen-install` | **advisory** | ブロックしない | 全 lockfile が `--frozen-lockfile` でインストールできること（同上） |
 | `test-full-advisory` | **advisory** | ブロックしない | 全スイートの回帰を可視化 |
 | `test-order-check` | **advisory** | ブロックしない | テスト順序依存を検出 |
 

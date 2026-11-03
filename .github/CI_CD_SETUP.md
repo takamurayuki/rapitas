@@ -55,8 +55,12 @@ The test jobs in `test-lint.yml` follow a two-tier strategy:
 
 | Tier | Jobs | Merge impact |
 | ---- | ---- | ------------ |
-| **hard-gate** | `test-backend`, `route-regression`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows`, `frozen-install` | Blocks merge on failure |
-| **advisory** | `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
+| **required** | `test-backend`, `test-sqlite`, `lint`, `check-frontend`, `rust-check`, `rust-check-windows` | Blocks merge on failure |
+| **advisory** | `route-regression`, `frozen-install`, `test-full-advisory`, `test-order-check` | Visible in Step Summary; does **not** block merge |
+
+The tiers above are an excerpt. The single definition of which checks gate a
+merge — across every workflow — is [`.github/quality-gates.json`](quality-gates.json);
+see "Branch Protection" below.
 
 Backend gates are declared in `rapitas-backend/scripts/ci-gates.ts`; each gate's
 file list is a manifest next to it (`ci-gate-tests.txt`, `route-regression-tests.txt`,
@@ -243,7 +247,20 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 ## Best Practices
 
 1. **Version Tagging**: Use semantic versioning (e.g., v1.0.0)
-2. **Branch Protection**: Enable required status checks
+2. **Branch Protection**: Required status checks come from
+   [`.github/quality-gates.json`](quality-gates.json) (#1410), the same file the
+   in-app auto-merge reads (`required` + `conditional` entries). Only `required`
+   entries — checks that run on every PR — go into branch protection: on
+   2026-10-16 `main` required four job names that no longer existed, and GitHub
+   holds an unreported required context at pending, so every PR was BLOCKED.
+   `node scripts/gates/quality-gates.cjs --check` (CI, `rust-check` job) fails
+   when a name matches no job, a required check is path-filtered,
+   `continue-on-error` or `if:`-gated, an advisory entry is past its `expires`
+   date, or a PR job is unclassified. Generate the protection body with
+   `node scripts/gates/quality-gates.cjs --print-protection develop > protection.json`
+   (add `--strict` / `--enforce-admins` to match the branch's current settings),
+   then apply it with `gh api -X PUT repos/<owner>/<repo>/branches/develop/protection --input protection.json`.
+   PUT replaces the whole protection object, so re-add any review rules.
 3. **Regular Updates**: Keep dependencies and tools updated
 4. **Security First**: Address security issues promptly
 5. **Cache Usage**: Leverage caching for faster builds

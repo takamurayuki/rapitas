@@ -1,0 +1,265 @@
+{
+  "$comment": "Single definition of which CI checks gate a merge (#1410). required = runs on every PR and blocks: GitHub branch protection AND the in-app auto-merge. conditional = path-filtered, blocks only when it runs: auto-merge only, NEVER branch protection (an unreported required context is pending forever). advisory = reported, never blocks. `name` must equal the reported check-run name exactly (matrix jobs expand, e.g. 'Build (ubuntu-latest)'). Validated by `node scripts/gates/quality-gates.cjs --check` in CI; branch protection is generated from this file with `--print-protection <branch>`.",
+  "version": 1,
+  "protectedBranches": ["main", "develop"],
+  "alwaysClassify": ["test-lint.yml", "security-scan.yml", "tauri-build.yml"],
+  "checks": [
+    {
+      "name": "Secret scanning",
+      "workflow": "gitleaks.yml",
+      "job": "gitleaks",
+      "mode": "required",
+      "reason": "A leaked credential cannot be un-merged; gitleaks scans every PR."
+    },
+    {
+      "name": "Lint Code",
+      "workflow": "test-lint.yml",
+      "job": "lint",
+      "mode": "required",
+      "reason": "Backend/frontend tsc, eslint, prettier and the repo's docs/boundary checks."
+    },
+    {
+      "name": "Check Frontend",
+      "workflow": "test-lint.yml",
+      "job": "check-frontend",
+      "mode": "required",
+      "reason": "Frontend type check and the required frontend test manifest."
+    },
+    {
+      "name": "Check Rust Code",
+      "workflow": "test-lint.yml",
+      "job": "rust-check",
+      "mode": "required",
+      "reason": "cargo fmt/clippy plus the scripts/**/*.test.cjs, repo-hygiene and docs-drift gates."
+    },
+    {
+      "name": "Check Rust Code (Windows)",
+      "workflow": "test-lint.yml",
+      "job": "rust-check-windows",
+      "mode": "required",
+      "reason": "The desktop app ships on Windows; clippy and cargo test there catch platform-only breakage."
+    },
+    {
+      "name": "Test Backend",
+      "workflow": "test-lint.yml",
+      "job": "test-backend",
+      "mode": "required",
+      "reason": "The backend gate suite (scripts/ci-gate-tests.txt) against PostgreSQL."
+    },
+    {
+      "name": "Test SQLite Compatible Suite",
+      "workflow": "test-lint.yml",
+      "job": "test-sqlite",
+      "mode": "required",
+      "reason": "The desktop build runs on SQLite; this keeps the provider-specific paths green."
+    },
+    {
+      "name": "CodeQL Analysis (javascript)",
+      "workflow": "security-scan.yml",
+      "job": "codeql",
+      "mode": "required",
+      "reason": "PR #769 merged with a new high alert before CodeQL finished (task 950)."
+    },
+    {
+      "name": "CodeQL Analysis (typescript)",
+      "workflow": "security-scan.yml",
+      "job": "codeql",
+      "mode": "required",
+      "reason": "Same matrix job as the javascript leg; both languages must pass."
+    },
+    {
+      "name": "Dependency Security Check",
+      "workflow": "security-scan.yml",
+      "job": "dependency-check",
+      "mode": "required",
+      "reason": "Trivy filesystem scan for known-vulnerable dependencies."
+    },
+    {
+      "name": "NPM Security Audit",
+      "workflow": "security-scan.yml",
+      "job": "npm-audit",
+      "mode": "required",
+      "reason": "npm/pnpm audit against .github/audit-exceptions.json."
+    },
+    {
+      "name": "Rust Security Audit",
+      "workflow": "security-scan.yml",
+      "job": "rust-security",
+      "mode": "required",
+      "reason": "cargo audit for the Tauri crate graph."
+    },
+    {
+      "name": "Build (ubuntu-latest)",
+      "workflow": "tauri-build.yml",
+      "job": "build",
+      "mode": "required",
+      "reason": "Never merge code that does not build into the desktop app."
+    },
+    {
+      "name": "Build (macos-latest)",
+      "workflow": "tauri-build.yml",
+      "job": "build",
+      "mode": "required",
+      "reason": "Release platform; both macOS targets report under this one name."
+    },
+    {
+      "name": "Build (windows-latest)",
+      "workflow": "tauri-build.yml",
+      "job": "build",
+      "mode": "required",
+      "reason": "Primary release platform."
+    },
+    {
+      "name": "Enforce per-file line limits (with ratchet baseline)",
+      "workflow": "file-size.yml",
+      "job": "file-size",
+      "mode": "conditional",
+      "reason": "Path-filtered to source files. The ratchet was decorative until 2026-08-30: nine files crossed the hard limit while PRs merged past a red check."
+    },
+    {
+      "name": "Enforce HACK/FIXME ceilings (ADR-0004)",
+      "workflow": "todos-check.yml",
+      "job": "todos",
+      "mode": "conditional",
+      "reason": "Path-filtered to source files; PR #703 sat 3+ days red on this while the task read completed (task 950)."
+    },
+    {
+      "name": "Lint GitHub Actions workflows",
+      "workflow": "actionlint.yml",
+      "job": "actionlint",
+      "mode": "conditional",
+      "reason": "Runs only when workflow files change; a broken workflow can silently stop every other gate."
+    },
+    {
+      "name": "Lint Markdown files",
+      "workflow": "markdownlint.yml",
+      "job": "markdownlint",
+      "mode": "conditional",
+      "reason": "Runs only when Markdown changes. NOTE: the job is continue-on-error ('advisory until the existing Markdown is brought up to spec'), yet auto-merge has blocked on its failures since before #1410; kept as-is so this change does not alter merge behaviour. Decide one or the other."
+    },
+    {
+      "name": "Quick Build Check",
+      "workflow": "pr-preview.yml",
+      "job": "quick-build",
+      "mode": "conditional",
+      "reason": "Runs only when app code changes; the fast build gate the auto-merge has always waited on."
+    },
+    {
+      "name": "Route Regression",
+      "workflow": "test-lint.yml",
+      "job": "route-regression",
+      "mode": "advisory",
+      "reason": "Runs on every PR but has never been required or auto-merge blocking; promote to required once its green rate on develop is measured.",
+      "expires": "2027-02-01"
+    },
+    {
+      "name": "Frozen Install Verification",
+      "workflow": "test-lint.yml",
+      "job": "frozen-install",
+      "mode": "advisory",
+      "reason": "Proves the committed lockfiles install frozen; runs on every PR but was never made blocking. Candidate for required.",
+      "expires": "2027-02-01"
+    },
+    {
+      "name": "Full Suite (Advisory)",
+      "workflow": "test-lint.yml",
+      "job": "test-full-advisory",
+      "mode": "advisory",
+      "reason": "continue-on-error: the whole backend suite including tests not yet in the gate manifest. Tests graduate into scripts/ci-gate-tests.txt instead of this job becoming required."
+    },
+    {
+      "name": "Test Order Dependency Check",
+      "workflow": "test-lint.yml",
+      "job": "test-order-check",
+      "mode": "advisory",
+      "reason": "continue-on-error until `bun run test:shuffle` passes 10 consecutive develop runs (escalation criterion in the workflow).",
+      "expires": "2027-02-01"
+    },
+    {
+      "name": "Create Release",
+      "workflow": "tauri-build.yml",
+      "job": "release",
+      "mode": "advisory",
+      "reason": "Not a PR gate: runs only on v* tag pushes."
+    },
+    {
+      "name": "Restart Loop Smoke",
+      "workflow": "e2e.yml",
+      "job": "restart-loop-smoke",
+      "mode": "advisory",
+      "reason": "Path-filtered to the backend and never auto-merge blocking; candidate for conditional once its flake rate is known.",
+      "expires": "2027-02-01"
+    },
+    {
+      "name": "Fault Injection E2E",
+      "workflow": "e2e.yml",
+      "job": "fault-injection-e2e",
+      "mode": "advisory",
+      "reason": "continue-on-error: replays fault scenarios through the real recovery paths; informational until its scenarios stabilise.",
+      "expires": "2027-02-01"
+    },
+    {
+      "name": "Knip (frontend)",
+      "workflow": "knip.yml",
+      "job": "knip-frontend",
+      "mode": "advisory",
+      "reason": "continue-on-error: unused-export report, not a correctness gate."
+    },
+    {
+      "name": "Check frontend bundle size",
+      "workflow": "bundle-size.yml",
+      "job": "bundle-size",
+      "mode": "advisory",
+      "reason": "continue-on-error: size trend report."
+    },
+    {
+      "name": "Backend Performance",
+      "workflow": "performance.yml",
+      "job": "backend-performance",
+      "mode": "advisory",
+      "reason": "Measurement report; shared-runner timings are too noisy to block on."
+    },
+    {
+      "name": "Frontend Bundle Size",
+      "workflow": "performance.yml",
+      "job": "frontend-bundle",
+      "mode": "advisory",
+      "reason": "Measurement report; shared-runner timings are too noisy to block on."
+    },
+    {
+      "name": "Post Preview Info",
+      "workflow": "pr-preview.yml",
+      "job": "preview-info",
+      "mode": "advisory",
+      "reason": "Posts a PR comment; not a check of the code."
+    },
+    {
+      "name": "Review dependency changes",
+      "workflow": "dependency-review.yml",
+      "job": "dependency-review",
+      "mode": "advisory",
+      "reason": "Path-filtered to manifests/lockfiles; the blocking vulnerability gates are the NPM/Rust audits and Trivy."
+    },
+    {
+      "name": "Bun Lockfile Check",
+      "workflow": "fix-bun-lock.yml",
+      "job": "check-lock",
+      "mode": "advisory",
+      "reason": "Path-filtered lockfile hygiene; Frozen Install Verification is the stronger check."
+    },
+    {
+      "name": "Verify version is in sync across manifests",
+      "workflow": "version-check.yml",
+      "job": "version-check",
+      "mode": "advisory",
+      "reason": "Path-filtered to version manifests; drift matters at release time, which re-runs it on main."
+    },
+    {
+      "name": "Close issues named by merged PRs",
+      "workflow": "close-linked-issues.yml",
+      "job": "close",
+      "mode": "advisory",
+      "reason": "Post-merge housekeeping on pull_request closed; never runs before a merge."
+    }
+  ]
+}

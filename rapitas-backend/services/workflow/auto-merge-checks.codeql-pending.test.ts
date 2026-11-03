@@ -59,6 +59,6 @@ describe('evaluateAutoMergeChecks — unreported CodeQL', () => {
   });
 
   it('default blocking set still contains the CodeQL checks', () => {
-    expect(blockingChecks().has('CodeQL Analysis (javascript)')).toBe(true);
+    expect(blockingChecks()?.has('CodeQL Analysis (javascript)')).toBe(true);
   });
 });
