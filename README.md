@@ -18,7 +18,6 @@
 </p>
 
 <!-- TODO: 90-second demo GIF/video here — agent picks up a task → research/plan → edits code in a worktree → verification gate runs → PR opened. Single highest-leverage thing to add. -->
-<!-- ![demo](docs/demo.gif) -->
 
 ---
 

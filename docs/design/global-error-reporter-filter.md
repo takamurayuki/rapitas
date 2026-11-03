@@ -247,7 +247,7 @@ browser error / unhandled rejection
 
 ## 10. 将来の拡張 (スコープ外)
 
-- **DB + 管理画面**: `BenignErrorPattern` をデータベースに永続化し、設定ページ UI から動的追加・削除できるようにする。現時点では Prisma スキーマ変更（サーバー再起動必須）コストが高いためスコープ外。実装する場合は `prisma/schema/system.prisma` に `BenignErrorPattern` テーブルを追加し、`routes/system/error-filter-config.ts` で CRUD エンドポイントを設ける。
+- **DB + 管理画面**: `BenignErrorPattern` をデータベースに永続化し、設定ページ UI から動的追加・削除できるようにする。現時点では Prisma スキーマ変更（サーバー再起動必須）コストが高いためスコープ外。実装する場合は `prisma/schema/system.prisma` に `BenignErrorPattern` テーブルを追加し、新設するルートファイル（例: rapitas-backend/routes/system/error-filter-config.ts、未作成）で CRUD エンドポイントを設ける。
 - **バックエンドとの統合**: `cli-output-filter.ts` の `BENIGN_DIAGNOSTIC_PATTERNS`（正規表現・バックエンド専用）と設計を統一することも検討できるが、ライフサイクルが異なるため慎重に判断する。
 
 ---

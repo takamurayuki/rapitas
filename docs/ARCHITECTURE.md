@@ -5,7 +5,8 @@ and a Tauri desktop app. This document is a high-level map of the system —
 **what runs where, and which boundaries matter**. For module-level details,
 read the source under each subproject.
 
-> Last reviewed: 2026-07-03
+> Last reviewed: 2026-11-03. Counts below are approximate snapshots as of that
+> date — the source tree is authoritative.
 
 ---
 
@@ -23,8 +24,9 @@ read the source under each subproject.
 ┌────────────────────────┐   ┌────────────────────────┐
 │  rapitas-frontend      │◄──►  rapitas-backend       │
 │  Next.js 16 / React 19 │   │  Bun + Elysia          │
-│  Tailwind v4           │   │  Prisma + PostgreSQL   │
-│  zustand + SWR         │   │  SSE + Redis           │
+│  Tailwind v4           │   │  Prisma: PostgreSQL    │
+│  zustand + SWR         │   │   (web) / SQLite (desk)│
+│                        │   │  SSE                   │
 │  port 3000             │   │  port 3001             │
 └────────────────────────┘   └───────────┬────────────┘
                                          │
@@ -45,13 +47,20 @@ read the source under each subproject.
 | Backend (Elysia) | `rapitas-backend/index.ts` | Always-on; **must not be restarted casually** (see CLAUDE.md §1) | 3001 |
 | Frontend (Next.js) | `rapitas-frontend` | Dev: HMR via pnpm; Prod: static export when `TAURI_BUILD=true` | 3000 |
 | Desktop shell | `rapitas-desktop/src-tauri` | Spawns backend as a sidecar in production | — |
-| PostgreSQL | external | Managed by user / `dev.js` validates connection | 5432 |
-| Redis (optional) | external | Cache + realtime | 6379 |
+| PostgreSQL | external | Web build only; managed by the user | 5432 |
+| SQLite | file | Desktop build. Dev: `rapitas-desktop/.data/rapitas-dev.db` (set by `dev.js`); release: `rapitas.db` in the Tauri app data dir (`resolve_database_url` in `rapitas-desktop/src-tauri/src/release.rs`) | — |
+| Redis (optional) | external | Only used by `rapitas-backend/services/core/cache-service.ts` when `NODE_ENV=production` (`REDIS_URL`) | 6379 |
 
-The startup orchestrator is **`rapitas-desktop/scripts/dev.js`**. It performs
-zombie-process cleanup, `prisma db push --skip-generate`, `prisma generate`,
-and concurrent backend/frontend launch. **Never** run `prisma generate` or
-`prisma db push` outside of this script during a live agent session.
+The desktop dev orchestrator is **`rapitas-desktop/scripts/dev.js`** (SQLite).
+It pins the primary branch, cleans up stale rapitas processes on 3001/3000,
+regenerates the SQLite Prisma client + init SQL (`bun run db:prepare:sqlite`,
+cached by schema hash), then launches the backend (`bun run dev:stable`) and
+the frontend. The backend applies the init SQL to the SQLite DB on boot
+(`rapitas-backend/config/desktop-sqlite.ts`). The web dev entry
+(`cd rapitas-backend && bun run dev`, i.e. `scripts/dev.ts`) instead runs
+`prisma db push --skip-generate` + `prisma generate` via
+`rapitas-backend/scripts/dev/prisma-sync.ts`. **Never** run `prisma generate`
+or `prisma db push` by hand during a live agent session.
 
 ---
 
@@ -68,22 +77,28 @@ rapitas-backend/
 ├── services/       # Business logic + DB queries
 ├── middleware/     # Auth, CORS, request logging
 ├── schemas/        # TypeBox schemas for input validation
-├── prisma/         # schema/*.prisma (80 models + 1 enum — see §3)
+├── prisma/         # schema/*.prisma (about 100 models — see §3); schema.desktop/ is generated
+├── generated/      # Prisma clients (prisma-postgres / prisma-sqlite), gitignored
 ├── utils/          # Cross-cutting helpers
-├── workers/        # Background jobs (transcription, screenshot, etc.)
-└── tasks/          # Workflow files written by AI agents (research/plan/verify)
+├── workers/        # Worker threads / child processes (agent worker, output parser, whisper, embeddings)
+├── scripts/        # Dev, CI-gate and maintenance scripts
+└── tests/          # Integration / cross-module tests (most unit tests sit next to their source)
 ```
 
-The **routes → services → prisma** layering is intended to be strict, but
-several oversized files violate it (`routes/tasks/tasks.ts` 881 lines,
-`services/agents/claude-code/agent-core.ts` 1012 lines). These should be
-split per `COMPONENT_SPLITTING_POLICY.md`.
+Workflow artifacts (research / question / plan / verify) are **not files on
+disk**: each is a `WorkflowFile` row (history in `WorkflowFileVersion`),
+written through the workflow API.
+
+The **routes → services → prisma** layering is intended to be strict.
+Oversized files are tracked by `scripts/check-large-files.cjs` against a
+ratchet baseline and should be split per
+`.claude/COMPONENT_SPLITTING_POLICY.md`.
 
 ### 2.2 Frontend (`rapitas-frontend/`)
 
 ```
 rapitas-frontend/src/
-├── app/            # Next.js App Router pages (36 top-level routes)
+├── app/            # Next.js App Router pages (about 35 top-level route folders)
 ├── components/     # Shared UI components
 ├── feature/        # Feature folders (calendar, search, tasks, …)
 ├── hooks/          # Custom React hooks
@@ -91,7 +106,8 @@ rapitas-frontend/src/
 ├── contexts/       # React context providers
 ├── lib/            # Pure utilities, API clients
 ├── styles/         # Tailwind v4 entry + globals
-└── i18n/           # Locale config (catalogs in ../../messages/; full en/ja parity, 3904 keys each)
+├── types/, utils/, config/, data/
+└── i18n/           # Locale config (catalogs in rapitas-frontend/messages/: en.json, ja.json + fragments/)
 ```
 
 State management split:
@@ -102,11 +118,13 @@ State management split:
 
 ### 2.3 Desktop (`rapitas-desktop/`)
 
-Tauri 2.10 with the system WebView. The Rust shell only does:
+Tauri 2 with the system WebView. The Rust shell:
 
-1. Spawn the Bun-compiled backend binary as a **sidecar**
-2. Load the statically exported frontend (`out/`)
-3. Provide native integrations (notifications, file system, autoupdate)
+1. Spawns the Bun-compiled backend binary as a **sidecar** (release builds)
+2. Loads the statically exported frontend (`next build` with `output: 'export'`,
+   copied into `rapitas-desktop/public/` by `rapitas-desktop/scripts/ci-build.js`)
+3. Provides native integrations (notifications, global shortcuts, quick
+   capture, terminal, voice, auto-update, extra windows)
 
 There is **no Tauri command wrapping the API** — frontend talks to the backend
 via plain HTTP/SSE on `localhost:3001`.
@@ -116,19 +134,25 @@ via plain HTTP/SSE on `localhost:3001`.
 ## 3. Data model
 
 `rapitas-backend/prisma/schema/` is a `prismaSchemaFolder` layout (see
-[ADR-0006](adr/0006-prisma-schema-folder-split.md)) containing **80 models +
-1 enum** across 11 per-domain files plus `_generators.prisma`. Prisma merges
-them at generate time. They cluster as follows:
+[ADR-0006](adr/0006-prisma-schema-folder-split.md)) containing about **100
+models** across 15 per-domain files plus `_generators.prisma` (as of
+2026-11). Prisma merges them at generate time. The desktop SQLite schema
+(`rapitas-backend/prisma/schema.desktop/`) is generated from it — never
+hand-edit it. The models cluster as follows:
 
 | Sub-domain | Representative models | Notes |
 |---|---|---|
 | **Core tasks** | `Category`, `Theme`, `Project`, `Milestone`, `Task`, `Comment`, `Label` | Hierarchical: Category → Theme → Project → Task → Subtask |
 | **Time tracking** | `TimeEntry`, `PomodoroSession`, `ActivityLog`, `DailyScheduleBlock` | |
-| **Learning** | `ExamGoal`, `LearningGoal`, `Habit`, `HabitLog`, `Resource`, `StudyStreak` | |
-| **AI orchestration** | `AgentSession`, `AgentExecution`, `AgentExecutionLog`, `AIAgentConfig`, `WorkflowQueueItem`, `OrchestraSession` | Multi-provider (Claude/OpenAI/Gemini/Local) |
+| **Notes / resources** | `Note`, `NoteTaskLink`, `Resource` | |
+| **AI orchestration** | `AgentSession`, `AgentExecution`, `AgentExecutionLog`, `AIAgentConfig`, `WorkflowQueueItem`, `OrchestraSession`, `ThemeAutoRun` | Multi-provider (Claude/OpenAI/Gemini/Local) |
+| **Workflow artifacts** | `WorkflowFile`, `WorkflowFileVersion`, `WorkflowTransition`, `WorkflowRoleConfig`, `WorkflowModeConfig` | research/plan/verify live here, not on disk |
 | **Knowledge / memory** | `KnowledgeEntry`, `KnowledgeGraphNode`, `KnowledgeGraphEdge`, `EpisodeMemory`, `MemoryJournalEntry`, `ConsolidationRun` | Long-term agent memory |
 | **GitHub integration** | `GitHubIntegration`, `GitHubPullRequest`, `GitHubPRReview`, `GitHubIssue`, `GitCommit` | Bidirectional sync (planned) |
 | **Self-improvement** | `Experiment`, `Hypothesis`, `CriticReview`, `LearningPattern`, `WorkflowLearningRecord`, `PromptEvolution` | Research/experimental |
+| **PR risk** | `PrRiskConfig`, `PrRiskScore`, `PrOutcome`, … | |
+| **Usage budget** | `UsageBudget`, `UsageBudgetThemeShare`, `UsageClassificationRule` | |
+| **Tenancy** | `Workspace`, `WorkspaceMember`, `CalendarShare` | |
 | **System** | `User`, `UserSession`, `UserSettings`, `Notification`, `ApprovalRequest` | Identity, settings, approvals |
 
 > Layout:
@@ -136,17 +160,21 @@ them at generate time. They cluster as follows:
 > ```
 > rapitas-backend/prisma/schema/
 > ├── _generators.prisma   # generator + datasource
-> ├── core.prisma          # 11 models (Category, Theme, Project, Milestone, Task, …)
-> ├── time.prisma          # 4 models (TimeEntry, PomodoroSession, …)
-> ├── learning.prisma      # 6 models (ExamGoal, Habit, Resource, …)
-> ├── behavior.prisma      # 5 models (UserBehavior, TaskPattern, …)
-> ├── agents.prisma        # 11 models (AgentSession, AgentExecution, …)
-> ├── workflow.prisma      # 7 models (OrchestraSession, WorkflowQueueItem, …)
-> ├── memory.prisma        # 12 models (KnowledgeEntry, KnowledgeGraph*, …)
-> ├── experiments.prisma   # 7 models (Experiment, Hypothesis, …)
-> ├── github.prisma        # 8 models (GitHubIntegration, GitHubPullRequest, …)
-> ├── system.prisma        # 7 models (User, UserSession, …)
-> └── schedule.prisma      # 2 models + 1 enum (ScheduleEvent, PaidLeaveBalance)
+> ├── core.prisma          # Category, Theme, Project, Milestone, Task, Label, …
+> ├── time.prisma          # TimeEntry, PomodoroSession, ActivityLog, DailyScheduleBlock
+> ├── behavior.prisma      # UserBehavior, TaskPattern, …
+> ├── agents.prisma        # AgentSession, AgentExecution, AIAgentConfig, …
+> ├── workflow.prisma      # WorkflowFile, WorkflowQueueItem, OrchestraSession, ThemeAutoRun, …
+> ├── memory.prisma        # KnowledgeEntry, KnowledgeGraph*, EpisodeMemory, …
+> ├── experiments.prisma   # Experiment, Hypothesis, CriticReview, PromptEvolution, …
+> ├── github.prisma        # GitHubIntegration, GitHubPullRequest, GitCommit, …
+> ├── system.prisma        # User, UserSession, UserSettings, Notification, …
+> ├── schedule.prisma      # ScheduleEvent, PaidLeaveBalance, CalendarBusyBlock, … (+ 1 enum)
+> ├── notes.prisma         # Note, NoteTaskLink
+> ├── resources.prisma     # Resource
+> ├── pr-risk.prisma       # PrRiskConfig, PrRiskScore, PrOutcome, …
+> ├── usage-budget.prisma  # UsageBudget, …
+> └── tenancy.prisma       # Workspace, WorkspaceMember, CalendarShare
 > ```
 
 ---
@@ -157,7 +185,7 @@ them at generate time. They cluster as follows:
 
 - **Bun** for `rapitas-backend` (hot-reload + standalone compile for sidecar)
 - **pnpm** for `rapitas-frontend` and `rapitas-desktop` (Next.js + Tauri ecosystem)
-- **npm** for the root workspace (legacy; planned migration — see ADR 0001)
+- **npm** for the root workspace (see ADR 0001)
 
 This is a known source of friction. The mitigation is in
 `scripts/preflight-check.cjs`, which validates all three are installed before
@@ -166,8 +194,10 @@ This is a known source of friction. The mitigation is in
 ### AI agent self-modification loop
 
 The backend exposes a **workflow API** (`/workflow/tasks/{taskId}/files/...`)
-that AI agents — including Claude Code itself — call to write
-`research.md`, `plan.md`, and `verify.md` into `rapitas-backend/tasks/`.
+that AI agents — including Claude Code itself — call to save
+`research.md`, `plan.md`, and `verify.md`. Despite the names these are not
+files: each is a `WorkflowFile` row in the database (prior content moves to
+`WorkflowFileVersion`).
 **This is why CLAUDE.md forbids restarting the backend during a session**:
 the agent would lose its own connection.
 
@@ -181,14 +211,10 @@ consumes them via `hooks/common/useSse.ts` and a shared
 `lib/sse/shared-event-source.ts` (one `EventSource` per channel, shared
 across components to stay under the browser's per-origin connection cap).
 
-A native-`ws` `WebSocketManager`
-(`rapitas-backend/services/communication/websocket-service.ts`, with its own
-tests) also exists in the codebase, but it is **not mounted** in the
-running backend entry point (`rapitas-backend/index.ts`) — its only
-consumer is `index-optimized.ts`, which no `dev`/`start` script runs. So in
-practice there is one live transport (SSE); the `ws` service is dead code
-today, not a second active transport. There is **no** Socket.IO anywhere in
-the repo — see [ADR-0005](adr/0005-realtime-transport.md) for that history.
+SSE is the only realtime transport. An unmounted native-`ws` service and its
+only consumer (an alternate backend entry point no script ran) were deleted
+as dead code. There is **no** Socket.IO anywhere in the repo — see
+[ADR-0005](adr/0005-realtime-transport.md) for that history.
 
 ---
 
@@ -217,7 +243,9 @@ GitHub Actions (`.github/workflows/tauri-build.yml`) builds 4 targets:
 
 The backend is compiled to a standalone binary via `bun build --compile` and
 placed in `rapitas-desktop/src-tauri/binaries/` as a Tauri sidecar. Tauri then
-bundles `.exe`/`.msi`/`.dmg`/`.deb`/`.rpm` artifacts. Releases are triggered
+bundles `.exe`/`.msi`/`.dmg`/`.deb`/`.rpm` artifacts. The frontend is
+statically exported and copied into `rapitas-desktop/public/` (the release
+`frontendDist`). Releases are triggered
 by tags matching `v*`.
 
 ### Web
@@ -235,20 +263,27 @@ the standard Next.js build.
 
 | Gate | Workflow | Status |
 |---|---|---|
-| Backend tests | `test-lint.yml` | Active (no coverage gate) |
-| Frontend tests | `test-lint.yml` | Active (5 named test files only, not the full suite); coverage thresholds configured in `vitest.config.ts` (lines 30% / branches 25% / functions 28% / statements 30%) but CI runs plain `vitest run`, not `--coverage`, so the thresholds are **not currently enforced** |
+| Backend tests | `test-lint.yml` (`Test Backend`) | Runs the `backend-tests` gate (`rapitas-backend/scripts/ci-gates.ts`, file list `rapitas-backend/scripts/ci-gate-tests.txt`) with `--coverage`; the `coverageFloor` (lines / functions) in `ci-gates.ts` is enforced |
+| Route regression | `test-lint.yml` (`Route Regression`) | `route-regression` gate, no coverage |
+| SQLite suite | `test-lint.yml` (`Test SQLite Compatible Suite`) | `sqlite-tests` gate |
+| Full backend suite | `test-lint.yml` (`Full Suite (Advisory)`) | Advisory (`continue-on-error`) |
+| Frontend tests | `test-lint.yml` (`Check Frontend`) | `vitest run --coverage` over a named list of test files (not the full suite); the thresholds in `rapitas-frontend/vitest.config.ts` are enforced for that list |
+| Frozen install | `test-lint.yml` (`Frozen Install Verification`) | Lockfiles must install unchanged |
 | Type check | `test-lint.yml` | `tsc --noEmit` for both apps |
 | Lint / format | `test-lint.yml` | ESLint + Prettier |
-| Rust clippy | `test-lint.yml` | `cargo clippy -- -D warnings` |
+| Rust clippy | `test-lint.yml` (`Check Rust Code`, `Check Rust Code (Windows)`) | `cargo clippy -- -D warnings` |
 | Trivy | `security-scan.yml` | CRITICAL/HIGH on filesystem |
 | CodeQL | `security-scan.yml` | JS/TS |
 | `cargo audit` | `security-scan.yml` | Tauri dependencies |
-| `npm audit` | `security-scan.yml` | Frontend + desktop |
+| `npm audit` | `security-scan.yml` | `pnpm audit` (frontend, desktop) + `bun audit` (backend) |
 | Gitleaks | `gitleaks.yml` | Secret scanning |
 | actionlint | `actionlint.yml` | Workflow YAML lint |
 | Knip | `knip.yml` | Advisory (unused exports/deps) |
 | Bundle size | `bundle-size.yml` | Advisory (per-chunk + total budget) |
 | Version sync | `version-check.yml` | Hard fail if manifests drift |
+| File size | `file-size.yml` | Per-file line limits with a ratchet baseline |
+| HACK/FIXME ceilings | `todos-check.yml` | ADR-0004 |
+| Markdown lint | `markdownlint.yml` | Advisory |
 | Tauri build | `tauri-build.yml` | 4 platforms; tag-driven release |
 
 See also: `.github/CI_CD_SETUP.md`.
@@ -258,21 +293,21 @@ See also: `.github/CI_CD_SETUP.md`.
 ## 7. Open architectural questions
 
 1. **Schema-first vs code-first** for Prisma — currently `db push` based, no
-   migration history. Must move to `prisma migrate` before public release.
-2. **Module ownership** — 80 models split across 11 per-domain files (ADR-0006)
+   migration history (the migrations directory has been removed). ADR-0003 calls
+   for moving to `prisma migrate` before public release.
+2. **Module ownership** — about 100 models split across 15 per-domain files (ADR-0006)
    still lacks CODEOWNERS-by-domain, so cross-domain ownership is unclear.
 3. **AI agent isolation** — agents currently share the same DB. Multi-tenant
    isolation (per-user agents) is unclear.
-4. **Dead `ws` service** — `services/communication/websocket-service.ts` is
-   fully implemented and tested but not mounted in the live `index.ts`; either
-   wire it up for a real use case or delete it so it stops looking active.
-5. **Three runtimes** — see ADR 0001.
+4. **Three runtimes** — see ADR 0001.
 
 ---
 
 ## See also
 
-- `CLAUDE.md` — agent operating constraints (section 1 is non-negotiable)
+- `.claude/CLAUDE.md` — agent operating constraints (section 1 is non-negotiable)
+- `AGENTS.md` — the same constraints for non-Claude agents
 - `docs/adr/` — architecture decision records
-- `COMPONENT_SPLITTING_POLICY.md` — file/dir size limits
-- `FOLDER_ORGANIZATION_POLICY.md` — directory layout rules
+- `.claude/COMPONENT_SPLITTING_POLICY.md` — file size limits
+- `.claude/FOLDER_ORGANIZATION_POLICY.md` — directory layout rules
+- [docs/README.md](README.md) — index of the other docs

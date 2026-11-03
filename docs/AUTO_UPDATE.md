@@ -1,5 +1,14 @@
 # Auto-Update Setup
 
+> **現状: 自動更新は無効化されている (#978)。** `tauri-plugin-updater` は
+> 依存する `zip` crate の脆弱性 (RUSTSEC-2026-0367/-0368/-0369) が上流で
+> 解消されるまで `rapitas-desktop/src-tauri/Cargo.toml` から削除されており、
+> `rapitas-frontend/src/components/common/UpdateBanner.tsx` の
+> `UPDATER_ENABLED` も `false`。復活させるときは、プラグイン依存・
+> capability・`plugins.updater` 設定・`UPDATER_ENABLED` をまとめて戻す
+> (Cargo.toml の NOTE 参照)。以下はその復活後の手順と配布フロー。
+> リリースワークフローは現在も `latest.json` を生成している。
+
 Rapitas デスクトップ版は `tauri-plugin-updater` を使い、GitHub Releases に
 公開された `latest.json` を起動時に取得して新バージョンを検出する。
 
@@ -17,13 +26,16 @@ pnpm dlx @tauri-apps/cli signer generate -w ~/.tauri/rapitas-updater.key
   パスフレーズを設定したなら `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` も。）
 - 公開鍵: コマンド実行時に標準出力されるブロック。これを
   `rapitas-desktop/src-tauri/tauri.conf.json` の
-  `plugins.updater.pubkey` に貼る。
+  `plugins.updater.pubkey` に貼る (このキーは無効化に伴い現在は削除されている)。
 
 ## 2. リリース手順
 
 ```bash
-# main / develop ブランチで
-pnpm version <semver>            # package.json と tauri.conf.json をbump
+# ルートで: ルート package.json の version を設定し、全マニフェスト
+# (rapitas-desktop/package.json, tauri.conf.json, tauri.ci.conf.json, Cargo.toml) に同期
+node scripts/sync-version.cjs <semver>
+git commit -am "chore(repo): release v<semver>"
+git tag v<semver>
 git push --follow-tags
 ```
 

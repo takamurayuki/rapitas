@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# rapitas-frontend
 
-## Getting Started
+The Rapitas web UI: Next.js 16 (App Router) + React 19 + Tailwind CSS v4 +
+TypeScript. It talks to `rapitas-backend` over HTTP/SSE on port 3001; the
+desktop app (`rapitas-desktop`) loads a static export of this package.
 
-First, run the development server:
+For whole-repo setup see [docs/SETUP.md](../docs/SETUP.md); for the system
+map see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
+
+## Run
+
+Start the backend (port 3001) first, then:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm run dev            # next dev on http://127.0.0.1:3000 (clears .next when deps changed)
+pnpm run dev:no-check   # plain next dev, no cache check
+pnpm run dev:clean      # force-clear .next, then dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`predev`, `prebuild` and `pretest` regenerate the i18n message bundle and the
+agents panel registry (`scripts/generate-messages.mjs`,
+`scripts/generate-agents-panels.mjs`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Test and check
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test               # vitest run
+pnpm run test:coverage  # vitest run --coverage (thresholds in vitest.config.ts)
+pnpm exec vitest run src/path/to/file.test.tsx   # one file
+pnpm exec tsc --noEmit
+pnpm run lint           # eslint
+pnpm run prettier:check
+```
 
-## Learn More
+## Build
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm run build          # next build (web)
+pnpm run build:tauri    # TAURI_BUILD=true static export for the desktop app
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Layout (`src/`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Path | Contents |
+| --- | --- |
+| `app/` | App Router routes; page-private code lives in `_components/`, `_hooks/` |
+| `components/` | Shared components (`components/ui/` for reusable primitives) |
+| `feature/` | Feature folders (tasks, calendar, search, …) |
+| `hooks/` | Shared hooks |
+| `stores/` | zustand stores |
+| `contexts/` | React context providers |
+| `lib/` | API clients and pure utilities (`lib/sse/` for the shared SSE client) |
+| `i18n/` | next-intl config; catalogs are in `messages/` (`en.json`, `ja.json`, `fragments/`) |
+| `styles/` | Tailwind entry and global styles |

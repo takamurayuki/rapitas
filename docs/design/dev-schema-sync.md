@@ -26,7 +26,7 @@ layout lives in [ADR-0006](../adr/0006-prisma-schema-folder-split.md).
 
 ---
 
-## Launcher A — backend dev watcher (`scripts/dev.ts` + `dev/watcher.ts`)
+## Launcher A — backend dev watcher (`scripts/dev.ts` + `scripts/dev/watcher.ts`)
 
 Provider resolution (`scripts/dev/prisma-sync.ts → resolveDbProvider`) mirrors
 `prisma.config.ts`: explicit `RAPITAS_DB_PROVIDER` wins; else a `file:`

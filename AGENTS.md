@@ -133,7 +133,7 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 
 3. **テスト・型チェック・lint はメインではなく worktree 内で実行する。** スクリプトを当てた後の worktree は完全にスタンドアロンに動作するため、テスト修正と再実行のループも worktree 内で完結できる。メインのバックエンドサーバー（ポート 3001）には触れない。
 
-4. **Prisma スキーマを worktree 内で変更しない。** 生成物 (`rapitas-backend/src/generated`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
+4. **Prisma スキーマを worktree 内で変更しない。** Prisma Client の生成物 (`rapitas-backend/generated/prisma-postgres` / `rapitas-backend/generated/prisma-sqlite`。出力先は `rapitas-backend/prisma/schema/_generators.prisma` の `output`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
 
 5. **DB を共有していることに注意する。** 統合テストは PostgreSQL を共有するため、複数 worktree 並行で破壊的なテストを走らせない。テスト用に独立した DB が必要な場合は `DATABASE_URL` を実行時に上書きして別スキーマに向ける。
 
