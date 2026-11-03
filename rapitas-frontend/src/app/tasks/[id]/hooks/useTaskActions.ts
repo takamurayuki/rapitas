@@ -120,9 +120,14 @@ export function useTaskActions({
       } catch (err) {
         logger.error(err);
         setTask(previousTask);
+        // NOTE: Reverting alone looked like the button flicking back for no
+        // reason, and a failed "done" left the completion overlay up for a
+        // save that never happened (found by the browser E2E, #1418).
+        if (newStatus === 'done') setShowCompleteOverlay(false);
+        showToast(t('statusUpdateFailed'), 'error');
       }
     },
-    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t, refetchTask],
+    [task, setTask, onTaskUpdated, setShowCompleteOverlay, t, refetchTask, showToast],
   );
 
   const deleteTask = useCallback(async () => {
