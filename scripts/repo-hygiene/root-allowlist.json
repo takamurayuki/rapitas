@@ -1,0 +1,63 @@
+{
+  "_comment": "Files allowed DIRECTLY in the repo root and each package root (#1403). Anything else at these levels fails check-repo-hygiene — that is where agent scratch dumps and logs used to land. Adding a name here is a deliberate act: say why in the PR.",
+  "roots": {
+    "": [
+      ".editorconfig",
+      ".gitattributes",
+      ".gitignore",
+      ".markdownlint.json",
+      ".markdownlintignore",
+      ".nvmrc",
+      ".prettierrc.json",
+      "AGENTS.md",
+      "CODE_OF_CONDUCT.md",
+      "CONTRIBUTING.md",
+      "LICENSE",
+      "Makefile",
+      "README.md",
+      "SECURITY.md",
+      "commitlint.config.js",
+      "eslint-shared.mjs",
+      "eslint.config.mjs",
+      "package-lock.json",
+      "package.json",
+      "tsconfig.base.json"
+    ],
+    "rapitas-backend": [
+      ".env.example",
+      ".gitignore",
+      ".prettierignore",
+      ".prettierrc.json",
+      "README.md",
+      "TYPE_POLICY.md",
+      "bun.lock",
+      "bunfig.toml",
+      "eslint.config.mjs",
+      "global.d.ts",
+      "index.ts",
+      "package.json",
+      "prisma.config.ts",
+      "register-routes.ts",
+      "server-entry.ts",
+      "server-main.ts",
+      "tsconfig.json",
+      "tsconfig.test.json"
+    ],
+    "rapitas-frontend": [
+      ".gitignore",
+      ".prettierignore",
+      ".prettierrc.json",
+      "README.md",
+      "eslint.config.mjs",
+      "knip.json",
+      "next.config.ts",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "postcss.config.mjs",
+      "tsconfig.json",
+      "vitest.config.ts"
+    ],
+    "rapitas-desktop": ["README.md", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"]
+  }
+}

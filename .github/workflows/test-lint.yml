@@ -668,6 +668,14 @@ jobs:
       - name: Test the root script tools
         run: node --test "scripts/**/*.test.cjs"
 
+      # #1403: the tracked tree had 76 files nobody meant to keep — agent
+      # scratch dumps, logs, ignored-but-tracked dirs, one-shot scripts long
+      # after use. Fails on any tracked-but-ignored file, any repo/package
+      # root file off scripts/repo-hygiene/root-allowlist.json, and any
+      # script under a scripts/ dir that nothing references. ~2s.
+      - name: Repo hygiene
+        run: node scripts/repo-hygiene/check-repo-hygiene.cjs
+
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
       # could rot green. This is the desktop side of the step above (root
