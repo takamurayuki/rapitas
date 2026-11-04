@@ -18,7 +18,6 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({ useToast: () => ({ show
 vi.mock('@/components/ui/dialog/ConfirmDialogProvider', () => ({
   useConfirmDialog: () => vi.fn(),
 }));
-vi.mock('../useTaskEdit', () => ({ useTaskEdit: () => ({}) }));
 vi.mock('../useSubtaskManagement', () => ({ useSubtaskManagement: () => ({}) }));
 vi.mock('@/lib/api-client', () => ({ clearApiCache: vi.fn() }));
 vi.mock('@/lib/logger', () => ({

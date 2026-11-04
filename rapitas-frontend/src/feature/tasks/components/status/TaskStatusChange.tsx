@@ -46,6 +46,7 @@ export default function TaskStatusChange({
             : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 bg-white dark:bg-indigo-dark-900 text-zinc-500 dark:text-zinc-400'
         }`}
         title={config.label}
+        aria-pressed={isCurrent}
       >
         <span className={isCurrent ? config.color : ''}>{renderIcon(status)}</span>
         <span className="text-sm font-medium">{config.label}</span>
@@ -71,6 +72,10 @@ export default function TaskStatusChange({
           : `border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-500`
       }`}
       title={config.label}
+      // Icon-only: the state and the name must be readable, not just painted
+      // (the browser E2E, #1418, had to infer "selected" from a CSS class).
+      aria-label={config.label}
+      aria-pressed={isCurrent}
     >
       {renderIcon(status)}
     </button>
