@@ -2,8 +2,9 @@
  * useTaskActions
  *
  * Orchestrates all task-level and subtask-level actions for the task detail page.
- * Delegates task field editing to useTaskEdit and subtask management to
- * useSubtaskManagement. Owns task CRUD (status update, delete, refetch).
+ * Delegates subtask management to useSubtaskManagement. Owns task CRUD
+ * (status update, delete, refetch). Field editing happens inline on the
+ * detail card, not here.
  */
 
 import { useCallback } from 'react';
@@ -13,7 +14,6 @@ import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
-import { useTaskEdit } from './useTaskEdit';
 import { useSubtaskManagement } from './useSubtaskManagement';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useConfirmDialog } from '@/components/ui/dialog/ConfirmDialogProvider';
@@ -53,7 +53,6 @@ export function useTaskActions({
   const { showToast } = useToast();
   const confirm = useConfirmDialog();
 
-  const taskEdit = useTaskEdit({ task, setTask });
   const subtaskManagement = useSubtaskManagement({
     task,
     resolvedTaskId,
@@ -168,9 +167,10 @@ export function useTaskActions({
   // NOTE: duplicateTask was removed 2026-07-14 — the detail-menu 複製 action
   // was dropped in favor of the template flow (テンプレート設定 → 適用).
 
+  // NOTE: The useTaskEdit slice (isEditing/saveTask/edit* fields) was removed
+  // with TaskEditForm — neither was rendered anywhere; the inline editor on the
+  // detail card is the only edit path (found by the browser E2E, #1418).
   return {
-    // Task edit state
-    ...taskEdit,
     // Subtask management state
     ...subtaskManagement,
     // Task CRUD

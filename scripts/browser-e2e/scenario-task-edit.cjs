@@ -11,10 +11,17 @@
 
 const { apiPath, openTask } = require('./fixtures.cjs');
 
-/** A status button counts as selected when it lacks the idle hover style (TaskStatusChange). */
+/**
+ * A status button is selected when it says so: TaskStatusChange exposes
+ * aria-pressed. (This used to infer it from a missing hover class, which any
+ * styling change would have broken silently.)
+ */
 async function isStatusSelected(page, label) {
-  const cls = await page.locator(`#td-info button[title="${label}"]`).first().getAttribute('class');
-  return cls !== null && !cls.includes('hover:bg-zinc-100');
+  const pressed = await page
+    .locator(`#td-info button[title="${label}"]`)
+    .first()
+    .getAttribute('aria-pressed');
+  return pressed === 'true';
 }
 
 /**
@@ -31,7 +38,11 @@ async function installUpdateNoop(page, apiBase, api) {
     const id = new URL(route.request().url()).pathname.split('/').pop();
     if (method === 'PATCH') Object.assign(overlay, JSON.parse(route.request().postData() || '{}'));
     const body = { ...(await api.get(`/tasks/${id}`)), ...overlay };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
   });
 }
 
@@ -69,7 +80,8 @@ module.exports = {
     const editor = page.getByRole('textbox', { name: s.titleAriaLabel });
     await editor.fill(renamed);
     const titlePatch = page.waitForResponse(
-      (r) => apiPath(apiBase, /^\/tasks\/\d+$/)(new URL(r.url())) && r.request().method() === 'PATCH',
+      (r) =>
+        apiPath(apiBase, /^\/tasks\/\d+$/)(new URL(r.url())) && r.request().method() === 'PATCH',
       { timeout: 15_000 },
     );
     await editor.press('Enter');
@@ -85,7 +97,8 @@ module.exports = {
 
     // --- edit status --------------------------------------------------------
     const statusPatch = page.waitForResponse(
-      (r) => apiPath(apiBase, /^\/tasks\/\d+$/)(new URL(r.url())) && r.request().method() === 'PATCH',
+      (r) =>
+        apiPath(apiBase, /^\/tasks\/\d+$/)(new URL(r.url())) && r.request().method() === 'PATCH',
       { timeout: 15_000 },
     );
     await page.locator(`#td-info button[title="${s.statusInProgress}"]`).first().click();

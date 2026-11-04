@@ -9,27 +9,10 @@ import { buildQuickNavSections } from './quick-nav-sections';
 import { useTranslations } from 'next-intl';
 import { openPomodoroFloatWindow } from '@/feature/tasks/pomodoro/pomodoro-float-launcher';
 import type { WorkflowFile } from '@/types';
-import type { Priority } from '@/types';
 
-/** Mirrors the subset of useTaskActions consumed by editing controls. */
+/** The subset of useTaskActions this shell consumes itself. */
 interface TaskEditSlice {
-  isEditing: boolean;
-  startEditing: () => void;
-  saveTask: () => Promise<void>;
-  cancelEditing: () => void;
   deleteTask: () => Promise<void>;
-  editTitle: string;
-  setEditTitle: (v: string) => void;
-  editStatus: string;
-  setEditStatus: (v: string) => void;
-  editDescription: string;
-  setEditDescription: (v: string) => void;
-  editLabelIds: number[];
-  setEditLabelIds: (v: number[]) => void;
-  editPriority: Priority;
-  setEditPriority: (v: Priority) => void;
-  editEstimatedHours: string;
-  setEditEstimatedHours: (v: string) => void;
 }
 
 export interface TaskDetailContentProps {
