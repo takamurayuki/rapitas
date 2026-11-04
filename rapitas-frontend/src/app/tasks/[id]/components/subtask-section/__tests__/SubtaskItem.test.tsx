@@ -92,3 +92,14 @@ describe('SubtaskItem details panel', () => {
     expect(screen.queryByRole('button', { name: /expand|collapse/ })).not.toBeInTheDocument();
   });
 });
+
+describe('SubtaskItem status icon', () => {
+  // Same rule as the task card: the done check matches the green line, not
+  // the darker text green (user request, 2026-11-04).
+  it('完了アイコンは縦線と同じ green-500 で描く', () => {
+    render(<SubtaskItem {...baseProps} subtask={makeSubtask({ status: 'done' })} />);
+    const chip = screen.getByLabelText('statusDone');
+    expect(chip.className).toContain('text-green-500');
+    expect(chip.className).not.toContain('text-green-700');
+  });
+});
