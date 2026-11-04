@@ -13,6 +13,7 @@ import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
+import { inheritWorkspace } from '../tenancy/parent-workspace';
 
 const log = createLogger('subtask-splitter');
 
@@ -355,6 +356,9 @@ export async function createSubtasksFromPlan(
           title: planned.title,
           description: descParts.join('\n') || instructionContent.slice(0, 1000),
           parentId: parentTaskId,
+          // NOTE: The splitter runs with no workspace in context, so the
+          // extension would leave the subtask NULL; take the parent's instead.
+          ...inheritWorkspace(parentTask),
           themeId: parentTask.themeId,
           priority: parentTask.priority,
           status: 'todo',

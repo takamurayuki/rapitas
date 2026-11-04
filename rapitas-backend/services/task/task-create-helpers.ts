@@ -13,6 +13,7 @@ import {
   analyzeTaskComplexityWithLearning,
   type TaskComplexityInput,
 } from '../workflow/complexity-analyzer';
+import { inheritWorkspace } from '../tenancy/parent-workspace';
 import { TASK_FULL_INCLUDE } from './task-mutations';
 import type { CreateTaskInput } from './task-mutations';
 
@@ -44,7 +45,7 @@ export async function createSubtask(
 ) {
   const parentTask = await prisma.task.findUnique({
     where: { id: parentId },
-    select: { id: true },
+    select: { id: true, workspaceId: true },
   });
 
   if (!parentTask) {
@@ -80,6 +81,13 @@ export async function createSubtask(
           ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
           ...(data.subject && { subject: data.subject }),
           parentId,
+          // NOTE: Copied from the parent explicitly — the workspace extension
+          // stamps a workspace only when the request carries one, so a
+          // sessionless request (the agent, a page without its cookie) used to
+          // leave the subtask NULL and invisible to the parent's signed-in
+          // owner. Inside a scoped request the extension overrides this with
+          // the same value, since the parent was found inside that scope.
+          ...inheritWorkspace(parentTask),
           ...(data.projectId && { projectId: data.projectId }),
           ...(data.milestoneId && { milestoneId: data.milestoneId }),
           ...(data.themeId !== undefined && { themeId: data.themeId }),

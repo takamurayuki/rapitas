@@ -14,6 +14,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import {
+  adoptOrphanedSubtasks,
   claimUnownedRows,
   countUnownedRows,
   type BackfillResult,
@@ -45,6 +46,7 @@ export interface TenancyRouteDeps {
   ensureWorkspace?: typeof ensureWorkspaceForUser;
   claim?: (workspaceId: number) => Promise<BackfillResult>;
   onClaimed?: () => void;
+  adoptSubtasks?: typeof adoptOrphanedSubtasks;
 }
 
 /**
@@ -79,6 +81,7 @@ export function createTenancyRoutes(deps: TenancyRouteDeps = {}) {
   const ensureWorkspace = deps.ensureWorkspace ?? ensureWorkspaceForUser;
   const claim = deps.claim ?? claimUnownedRows;
   const onClaimed = deps.onClaimed ?? clearSessionWorkspaceCache;
+  const adoptSubtasks = deps.adoptSubtasks ?? adoptOrphanedSubtasks;
 
   return new Elysia({ prefix: '/tenancy' })
     .get('/status', async () => {
@@ -112,7 +115,13 @@ export function createTenancyRoutes(deps: TenancyRouteDeps = {}) {
           username: t.String({ minLength: 1, maxLength: 50 }),
         }),
       },
-    );
+    )
+
+    .post('/adopt-subtasks', () => {
+      // A subtask's owner is its parent's, so unlike /claim this needs no
+      // username: it only fills in subtasks a sessionless request left unowned.
+      return adoptSubtasks();
+    });
 }
 
 export const tenancyRoutes = createTenancyRoutes();
