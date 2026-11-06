@@ -15,7 +15,7 @@
 - `rapitas-frontend/`: Next.js + TypeScript + Tailwind CSS。Web UI。
 - `rapitas-backend/`: Bun + Elysia + Prisma。Web 版は PostgreSQL、デスクトップ版は SQLite。
 - `rapitas-desktop/`: Tauri 2 desktop shell。`npm run tauri` は SQLite 版バックエンドを使う。
-- `rapitas-manager/`: 管理系ツール。
+- `rapitas-mobile/`: スマホアプリ版（Flutter）。デスクトップ版のバックエンドに接続して操作する。
 - `.claude/`, `docs/`: Claude 向け運用資料や設計メモ。
 
 ## 重要な禁止事項
