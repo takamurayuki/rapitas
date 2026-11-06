@@ -52,4 +52,6 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Test
+        # Run even when Analyze fails so one push reports both kinds of failure.
+        if: ${{ !cancelled() }}
         run: flutter test
