@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Task {
   final String id;
   final String title;
@@ -65,12 +67,12 @@ class Task {
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       title: json['title'] as String,
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'todo',
       priority: json['priority'] as String? ?? 'medium',
-      labels: json['labels'] as List<dynamic>?,
+      labels: _parseLabels(json['labels']),
       estimatedHours: (json['estimatedHours'] as num?)?.toDouble(),
       actualHours: (json['actualHours'] as num?)?.toDouble(),
       dueDate: json['dueDate'] != null
@@ -83,11 +85,11 @@ class Task {
       completedAt: json['completedAt'] != null
           ? DateTime.parse(json['completedAt'] as String)
           : null,
-      parentId: json['parentId'] as String?,
-      themeId: json['themeId'] as String?,
-      projectId: json['projectId'] as String?,
-      milestoneId: json['milestoneId'] as String?,
-      examGoalId: json['examGoalId'] as String?,
+      parentId: json['parentId']?.toString(),
+      themeId: json['themeId']?.toString(),
+      projectId: json['projectId']?.toString(),
+      milestoneId: json['milestoneId']?.toString(),
+      examGoalId: json['examGoalId']?.toString(),
       isDeveloperMode: json['isDeveloperMode'] as bool? ?? false,
       isAiTaskAnalysis: json['isAiTaskAnalysis'] as bool? ?? false,
       agentGenerated: json['agentGenerated'] as bool? ?? false,
@@ -95,8 +97,8 @@ class Task {
       autoExecutable: json['autoExecutable'] as bool? ?? false,
       requireApproval: json['requireApproval'] as String? ?? 'never',
       executionInstructions: json['executionInstructions'] as String?,
-      githubIssueId: json['githubIssueId'] as String?,
-      githubPrId: json['githubPrId'] as String?,
+      githubIssueId: json['githubIssueId']?.toString(),
+      githubPrId: json['githubPrId']?.toString(),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       subtasks: json['subtasks'] != null
@@ -112,7 +114,7 @@ class Task {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'id': _idToJson(id),
       'title': title,
       'description': description,
       'status': status,
@@ -124,11 +126,11 @@ class Task {
       'subject': subject,
       'startedAt': startedAt?.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
-      'parentId': parentId,
-      'themeId': themeId,
-      'projectId': projectId,
-      'milestoneId': milestoneId,
-      'examGoalId': examGoalId,
+      if (parentId != null) 'parentId': _idToJson(parentId),
+      if (themeId != null) 'themeId': _idToJson(themeId),
+      if (projectId != null) 'projectId': _idToJson(projectId),
+      if (milestoneId != null) 'milestoneId': _idToJson(milestoneId),
+      if (examGoalId != null) 'examGoalId': _idToJson(examGoalId),
       'isDeveloperMode': isDeveloperMode,
       'isAiTaskAnalysis': isAiTaskAnalysis,
       'agentGenerated': agentGenerated,
@@ -136,8 +138,8 @@ class Task {
       'autoExecutable': autoExecutable,
       'requireApproval': requireApproval,
       'executionInstructions': executionInstructions,
-      'githubIssueId': githubIssueId,
-      'githubPrId': githubPrId,
+      if (githubIssueId != null) 'githubIssueId': _idToJson(githubIssueId),
+      if (githubPrId != null) 'githubPrId': _idToJson(githubPrId),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'subtasks': subtasks?.map((e) => e.toJson()).toList(),
@@ -221,7 +223,7 @@ class TaskTheme {
 
   factory TaskTheme.fromJson(Map<String, dynamic> json) {
     return TaskTheme(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       name: json['name'] as String,
       color: json['color'] as String?,
     );
@@ -229,9 +231,33 @@ class TaskTheme {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'id': _idToJson(id),
       'name': name,
       'color': color,
     };
   }
+}
+
+/// Backend (Prisma) stores `labels` as a JSON-array string (default "[]"),
+/// while older payloads may already send a list. Accept both.
+List<dynamic>? _parseLabels(dynamic value) {
+  if (value == null) return null;
+  if (value is List) return value;
+  if (value is String) {
+    if (value.trim().isEmpty) return [];
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is List ? decoded : [];
+    } on FormatException {
+      return [];
+    }
+  }
+  return [];
+}
+
+/// Backend IDs are Int. Send numeric strings back as int; leave anything
+/// else (non-numeric string) untouched.
+Object? _idToJson(String? value) {
+  if (value == null) return null;
+  return int.tryParse(value) ?? value;
 }

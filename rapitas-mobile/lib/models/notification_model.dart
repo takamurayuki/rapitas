@@ -23,7 +23,7 @@ class AppNotification {
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       type: json['type'] as String,
       title: json['title'] as String,
       message: json['message'] as String?,

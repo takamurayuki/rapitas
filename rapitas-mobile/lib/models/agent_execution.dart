@@ -44,9 +44,9 @@ class AgentExecution {
 
   factory AgentExecution.fromJson(Map<String, dynamic> json) {
     return AgentExecution(
-      id: json['id'] as String,
-      sessionId: json['sessionId'] as String?,
-      agentConfigId: json['agentConfigId'] as String?,
+      id: json['id'].toString(),
+      sessionId: json['sessionId']?.toString(),
+      agentConfigId: json['agentConfigId']?.toString(),
       command: json['command'] as String?,
       status: json['status'] as String? ?? 'pending',
       output: json['output'] as String?,
@@ -68,7 +68,7 @@ class AgentExecution {
           ? Map<String, dynamic>.from(json['questionDetails'] as Map)
           : null,
       claudeSessionId: json['claudeSessionId'] as String?,
-      taskId: json['taskId'] as String?,
+      taskId: json['taskId']?.toString(),
       task: json['task'] != null
           ? AgentExecutionTask.fromJson(json['task'] as Map<String, dynamic>)
           : null,
@@ -123,7 +123,7 @@ class AgentExecutionTask {
 
   factory AgentExecutionTask.fromJson(Map<String, dynamic> json) {
     return AgentExecutionTask(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       title: json['title'] as String,
     );
   }
