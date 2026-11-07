@@ -313,7 +313,11 @@ class ThemeCategoryGroup {
 
 /// テーマ一覧をカテゴリでグループ化する。
 ///
-/// - カテゴリの並びはテーマ一覧に最初に現れた順（API が sortOrder 順で返す前提）
+/// - グループの並び：
+///   1. カテゴリの sortOrder 昇順（sortOrder が取れているグループ同士。同値は最初に現れた順）
+///   2. sortOrder が無いグループ（カテゴリ情報なし等）はその後ろに、最初に現れた順
+///   3. 「その他」（categoryId = null）は常に最後
+/// - グループ内のテーマ順は入力順を維持
 /// - カテゴリに属さないテーマは最後の1グループ（categoryId = null、「その他」）
 /// - categoryId はあるがカテゴリ情報が無いテーマは「その他」に混ぜず、
 ///   categoryId 単位で別グループにする（category は同じ categoryId の
@@ -341,12 +345,23 @@ List<ThemeCategoryGroup> groupThemesByCategory(List<TaskTheme> themes) {
     if (category != null) categoryByKey.putIfAbsent(key, () => category);
   }
 
+  // List.sort は安定ではないので、出現順（order のインデックス）をタイブレーカーにする
+  final indexed = [for (var i = 0; i < order.length; i++) (index: i, key: order[i])];
+  indexed.sort((a, b) {
+    final sa = categoryByKey[a.key]?.sortOrder;
+    final sb = categoryByKey[b.key]?.sortOrder;
+    if (sa != null && sb != null && sa != sb) return sa.compareTo(sb);
+    if (sa != null && sb == null) return -1;
+    if (sa == null && sb != null) return 1;
+    return a.index.compareTo(b.index);
+  });
+
   return [
-    for (final key in order)
+    for (final entry in indexed)
       ThemeCategoryGroup(
-        categoryId: key,
-        category: categoryByKey[key],
-        themes: List.unmodifiable(themesByKey[key]!),
+        categoryId: entry.key,
+        category: categoryByKey[entry.key],
+        themes: List.unmodifiable(themesByKey[entry.key]!),
       ),
     if (uncategorized.isNotEmpty)
       ThemeCategoryGroup(
