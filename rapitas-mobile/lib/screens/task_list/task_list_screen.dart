@@ -6,6 +6,8 @@ import '../../config/routes.dart';
 import '../../models/task.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/theme_data_provider.dart';
+import '../../utils/color_utils.dart';
 import '../../services/voice_command_parser.dart';
 import '../../utils/constants.dart';
 import '../../widgets/task_card.dart';
@@ -100,6 +102,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(taskFilterProvider);
+    // TaskFilter の == は status / priority / themeId / projectId を比較するので、
+    // themeId だけ指定中でも isFiltered（＝フィルターアイコンの Badge）が立つ
     final isFiltered = filter != const TaskFilter();
 
     return PopScope(
@@ -302,6 +306,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   Widget _buildActiveFilterChips(TaskFilter filter) {
     final status = filter.status;
     final priority = filter.priority;
+    final themeId = filter.themeId;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Align(
@@ -322,19 +327,57 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                 onDeleted: () => _setFilter(filter.copyWith(clearPriority: true)),
                 deleteButtonTooltipMessage: '優先度の絞り込みを解除',
               ),
+            if (themeId != null)
+              InputChip(
+                label: Text(_themeFilterLabel(filter)),
+                onDeleted: () => _setFilter(filter.copyWith(clearThemeId: true)),
+                deleteButtonTooltipMessage: 'テーマの絞り込みを解除',
+              ),
           ],
         ),
       ),
     );
   }
 
+  /// 適用中テーマのラベル。「テーマ：カテゴリ名 › テーマ名」→「テーマ：テーマ名」→「テーマ：指定中」の順に解決する。
+  String _themeFilterLabel(TaskFilter filter) {
+    final themeId = filter.themeId;
+    final themes = ref.watch(themeListProvider).valueOrNull;
+    if (themes != null) {
+      for (final group in groupThemesByCategory(themes)) {
+        for (final theme in group.themes) {
+          if (theme.id != themeId) continue;
+          final categoryName = group.category?.name;
+          return categoryName != null && categoryName.isNotEmpty
+              ? 'テーマ：$categoryName › ${theme.name}'
+              : 'テーマ：${theme.name}';
+        }
+      }
+    }
+    // テーマ一覧が未取得・見つからない場合は、絞り込み結果のタスクが持つテーマ名を使う
+    final tasks = ref.watch(taskListProvider(filter)).valueOrNull;
+    if (tasks != null) {
+      for (final task in tasks) {
+        final theme = task.theme;
+        if (theme != null && theme.id == themeId) return 'テーマ：${theme.name}';
+      }
+    }
+    return 'テーマ：指定中';
+  }
+
   void _showFilterSheet(BuildContext context, WidgetRef ref) {
     final filter = ref.read(taskFilterProvider);
+
+    // テーマセクションのカテゴリ選択（シート内の一時状態）。
+    // シートの builder が再実行されても消えないよう、ここで保持する。
+    // null は「すべて」。初期値はテーマ一覧が届いた時点で決める。
+    String? selectedCategoryKey;
+    var categoryInitialized = false;
 
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return Padding(
+        return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -439,11 +482,60 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              Consumer(
+                builder: (context, ref, _) {
+                  final themesAsync = ref.watch(themeListProvider);
+                  if (themesAsync.isLoading && !themesAsync.hasValue) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
+                    );
+                  }
+                  final themes = themesAsync.valueOrNull;
+                  // 取得失敗・0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
+                  if (themesAsync.hasError || themes == null || themes.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  final groups = groupThemesByCategory(themes);
+                  if (!categoryInitialized) {
+                    categoryInitialized = true;
+                    selectedCategoryKey = _categoryKeyOfTheme(groups, filter.themeId);
+                  }
+                  return StatefulBuilder(
+                    builder: (context, setSheetState) {
+                      return _ThemeFilterSection(
+                        groups: groups,
+                        selectedCategoryKey: selectedCategoryKey,
+                        selectedThemeId: filter.themeId,
+                        onCategorySelected: (key) =>
+                            setSheetState(() => selectedCategoryKey = key),
+                        onThemeSelected: (themeId) {
+                          ref.read(taskFilterProvider.notifier).state = themeId == null
+                              ? filter.copyWith(clearThemeId: true)
+                              : filter.copyWith(themeId: themeId);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ],
           ),
         );
       },
     );
+  }
+
+  /// テーマが属するカテゴリグループのキーを返す。見つからなければ null（「すべて」）
+  static String? _categoryKeyOfTheme(List<ThemeCategoryGroup> groups, String? themeId) {
+    if (themeId == null) return null;
+    for (final group in groups) {
+      if (group.themes.any((t) => t.id == themeId)) {
+        return _ThemeFilterSection.groupKey(group);
+      }
+    }
+    return null;
   }
 
   void _handleVoiceInput(BuildContext context, WidgetRef ref) async {
@@ -521,6 +613,133 @@ class _CenteredMessage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// フィルターシートの「テーマ」セクション。カテゴリチップでテーマ候補を絞り、テーマチップで適用する。
+class _ThemeFilterSection extends StatelessWidget {
+  /// 「その他」グループのキー（カテゴリIDと衝突しない値）
+  static const String _uncategorizedKey = '__uncategorized__';
+
+  static String groupKey(ThemeCategoryGroup group) =>
+      group.categoryId ?? _uncategorizedKey;
+
+  final List<ThemeCategoryGroup> groups;
+
+  /// 選択中カテゴリのキー。null は「すべて」
+  final String? selectedCategoryKey;
+  final String? selectedThemeId;
+  final ValueChanged<String?> onCategorySelected;
+
+  /// テーマ選択時に呼ばれる。null は「指定なし」
+  final ValueChanged<String?> onThemeSelected;
+
+  const _ThemeFilterSection({
+    required this.groups,
+    required this.selectedCategoryKey,
+    required this.selectedThemeId,
+    required this.onCategorySelected,
+    required this.onThemeSelected,
+  });
+
+  String _groupLabel(ThemeCategoryGroup group) {
+    if (group.isUncategorized) return 'その他';
+    final name = group.category?.name;
+    return name != null && name.isNotEmpty ? name : '不明なカテゴリ';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // グループが1つだけならカテゴリで絞る意味がないのでカテゴリ行は出さない
+    final showCategories = groups.length > 1;
+    ThemeCategoryGroup? selectedGroup;
+    if (showCategories && selectedCategoryKey != null) {
+      for (final group in groups) {
+        if (groupKey(group) == selectedCategoryKey) selectedGroup = group;
+      }
+    }
+    final visibleThemes = selectedGroup?.themes ?? [for (final g in groups) ...g.themes];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('テーマ', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        if (showCategories) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              ChoiceChip(
+                label: const Text('すべて'),
+                selected: selectedGroup == null,
+                onSelected: (_) => onCategorySelected(null),
+              ),
+              for (final group in groups)
+                ChoiceChip(
+                  label: _DotLabel(
+                    color: group.category?.color,
+                    text: _groupLabel(group),
+                  ),
+                  selected: identical(group, selectedGroup),
+                  onSelected: (_) => onCategorySelected(groupKey(group)),
+                ),
+            ],
+          ),
+          const Divider(height: 16),
+        ],
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            FilterChip(
+              label: const Text('指定なし'),
+              selected: selectedThemeId == null,
+              onSelected: (_) => onThemeSelected(null),
+            ),
+            for (final theme in visibleThemes)
+              FilterChip(
+                label: _DotLabel(
+                  color: theme.color,
+                  text: theme.taskCount != null
+                      ? '${theme.name}（${theme.taskCount}）'
+                      : theme.name,
+                ),
+                selected: theme.id == selectedThemeId,
+                onSelected: (_) => onThemeSelected(theme.id),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
+/// 色ドット＋テキストのチップラベル。色がパースできなければテキストのみ。
+class _DotLabel extends StatelessWidget {
+  final String? color;
+  final String text;
+
+  const _DotLabel({required this.color, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = ColorUtils.parseColor(color);
+    if (dotColor == null) return Text(text);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(text),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import '../utils/color_utils.dart';
 import '../utils/date_formatter.dart';
 import 'status_badge.dart';
 import 'priority_indicator.dart';
@@ -113,10 +114,7 @@ class TaskCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Chip(
-                    label: Text(
-                      task.theme!.name,
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                    label: _ThemeChipLabel(theme: task.theme!),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
@@ -126,6 +124,32 @@ class TaskCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// テーマチップのラベル。テーマ色がパースできれば名前の左に色ドットを出す。
+class _ThemeChipLabel extends StatelessWidget {
+  final TaskTheme theme;
+
+  const _ThemeChipLabel({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ColorUtils.parseColor(theme.color);
+    final text = Text(theme.name, style: const TextStyle(fontSize: 11));
+    if (color == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        text,
+      ],
     );
   }
 }
