@@ -37,6 +37,7 @@ import {
 } from './services/core/orchestrator-instance';
 
 import { realtimeService } from './services/communication/realtime-service';
+import { exitCodeForShutdown } from './services/process-lifecycle';
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
@@ -306,7 +307,9 @@ const handleProcessSignal = async (signal: string) => {
     log.info('Waiting for socket cleanup...');
     setTimeout(() => {
       log.info('Shutdown complete.');
-      process.exit(0);
+      // NOTE: A crash must not leave with 0 — dev.js reads 0 as a requested stop
+      // and would not restart the backend (exit-policy.ts).
+      process.exit(exitCodeForShutdown(signal));
     }, 500);
   } catch (error) {
     log.error({ err: error }, 'Error during shutdown');
