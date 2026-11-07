@@ -52,6 +52,8 @@ import {
   UI_SOURCE_VALUE,
 } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
 import { wrapAppWithWorkspaceScope } from './services/tenancy/workspace-request-wrapper';
+import { initMobileLinkService } from './services/mobile-link';
+import { createAppForwarder } from './services/mobile-link/forward-to-app';
 
 const app = new Elysia();
 app.onRequest(apiRecoveryRequestGuard);
@@ -182,6 +184,13 @@ listener.listen({
   // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
 log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
+
+// Phone link (#1421): a separate LAN listener that admits only paired devices
+// and forwards them into `app`. The main listener above stays on loopback.
+const mobileLink = initMobileLinkService({
+  forward: createAppForwarder(app, process.env.RAPITAS_API_TOKEN),
+});
+if (!isApiRecoveryMode()) mobileLink.startIfEnabled();
 if (isApiRecoveryMode())
   log.info({ port: listener.server?.port, pid: process.pid }, 'api-recovery-listening');
 
@@ -197,6 +206,8 @@ if (isApiRecoveryMode())
 // then fire mid-teardown, which is exactly how the connections above got
 // orphaned under a PID that no longer exists.
 setServerStopCallback(async () => {
+  // The gateway holds :3002; a restart that left it bound would fail to reopen it.
+  mobileLink.stop();
   await listener.stop(true);
 });
 
@@ -232,6 +243,7 @@ const handleProcessSignal = async (signal: string) => {
       // process.exit() below before the force-close actually completed (and
       // a rejection here would have been an unhandled promise rejection
       // instead of landing in this catch block).
+      mobileLink.stop();
       await listener.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
