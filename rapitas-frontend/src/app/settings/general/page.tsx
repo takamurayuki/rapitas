@@ -10,6 +10,7 @@ import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/lin
 import BackupCard from '../_components/BackupCard';
 import RecentErrorsCard from '../_components/RecentErrorsCard';
 import { UserDatabaseCard } from '../_components/user-database';
+import { MobileLinkCard } from '../_components/mobile-link';
 import Link from 'next/link';
 
 const LOCALE_LABELS: Record<Locale, string> = {
@@ -214,6 +215,7 @@ export default function GeneralSettingsPage() {
 
         <BackupCard />
         <UserDatabaseCard />
+        <MobileLinkCard />
         <RecentErrorsCard />
 
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

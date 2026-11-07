@@ -36,6 +36,7 @@ import calendarSharesCalendarSharesRoute from './calendar-shares/calendar-shares
 import calendarSlotsCalendarSlotsRoute from './calendar-slots/calendar-slots.routes';
 import canaryRoute from './canary.routes';
 import deployRoute from './deploy.routes';
+import mobileLinkMobileLinkRoute from './mobile-link/mobile-link.routes';
 import outageGuidanceRoute from './outage-guidance.routes';
 import tenancyRoute from './tenancy.routes';
 import userDatabaseRoute from './user-database.routes';
@@ -98,6 +99,7 @@ export const systemDomainRoutes = new Elysia()
   .use(calendarSlotsCalendarSlotsRoute)
   .use(canaryRoute)
   .use(deployRoute)
+  .use(mobileLinkMobileLinkRoute)
   .use(outageGuidanceRoute)
   .use(tenancyRoute)
   .use(userDatabaseRoute);

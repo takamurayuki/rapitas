@@ -2,8 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/connection_provider.dart';
+import '../../providers/pairing_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/sse_service.dart';
+import '../pairing/pairing_scanner_screen.dart';
 
 /// 設定画面の「デスクトップとの接続」欄。接続先・トークン・リアルタイム接続の状態・接続テストを扱う。
 class ConnectionSection extends ConsumerWidget {
@@ -17,6 +19,22 @@ class ConnectionSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        ListTile(
+          leading: const Icon(Icons.qr_code_scanner),
+          title: Text(settings.isPaired ? '${settings.desktopName ?? 'デスクトップ'} とつながっています' : 'QRコードでデスクトップとつなぐ'),
+          subtitle: Text(settings.isPaired ? '別のデスクトップにつなぐときも、ここから読み取ります' : 'パソコンの「設定 → 一般 → スマホと連携」に出るQRコードを読み取ります'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<bool>(builder: (_) => const PairingScannerScreen()),
+          ),
+        ),
+        if (settings.isPaired)
+          ListTile(
+            leading: const Icon(Icons.travel_explore),
+            title: const Text('デスクトップを探し直す'),
+            subtitle: const Text('パソコンの IP アドレスが変わってつながらないとき'),
+            onTap: () => _rediscover(context, ref),
+          ),
         ListTile(
           leading: const Icon(Icons.link),
           title: const Text('接続先'),
@@ -51,13 +69,31 @@ class ConnectionSection extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text(
-            '外出先から繋ぐときは、デスクトップ側で RAPITAS_BIND_HOST（例：Tailscale のIP）と '
-            'RAPITAS_API_TOKEN を設定し、同じトークンをここに入れてください。',
+            '接続先とトークンを手入力するのは、QRコードを使えないとき（VPN 経由など）だけで構いません。'
+            '手入力すると、QRコードでつないだ情報は消えます。',
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _rediscover(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final settings = ref.read(connectionSettingsProvider);
+    if (!settings.isPaired) return;
+    messenger.showSnackBar(const SnackBar(content: Text('同じ Wi-Fi のデスクトップを探しています…')));
+    final url = await ref.read(desktopDiscoveryProvider).findBaseUrl(settings.desktopId!);
+    messenger.clearSnackBars();
+    if (url == null) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('見つかりませんでした。パソコンで「スマホと連携」がオンになっているか、同じ Wi-Fi か確認してください'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    await ref.read(connectionSettingsProvider.notifier).updateDiscoveredUrl(url);
+    messenger.showSnackBar(SnackBar(content: Text('見つかりました（$url）'), backgroundColor: Colors.green));
   }
 
   Future<void> _testConnection(BuildContext context, WidgetRef ref) async {
@@ -147,11 +183,11 @@ Future<void> showConnectionDialog(BuildContext context, WidgetRef ref, Connectio
 String connectionErrorMessage(Object error) {
   if (error is DioException) {
     final status = error.response?.statusCode;
-    if (status == 401 || status == 403) return 'トークンが違います。デスクトップの RAPITAS_API_TOKEN と同じ値を入れてください';
+    if (status == 401 || status == 403) return 'このスマホの接続が解除されたか、トークンが違います。QRコードでつなぎ直してください';
     switch (error.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.connectionError:
-        return 'デスクトップに届きません。URL、デスクトップ側の起動状態、RAPITAS_BIND_HOST を確認してください';
+        return 'デスクトップに届きません。同じ Wi-Fi か、パソコンで「スマホと連携」がオンかを確認してください';
       default:
         if (status != null) return '接続できませんでした（HTTP $status）';
     }
@@ -171,7 +207,7 @@ String sseStateLabel(SseConnectionState state) {
     case SseConnectionState.reconnecting:
       return '切断されました。再接続を待っています';
     case SseConnectionState.unauthorized:
-      return 'トークンが違うため接続できません';
+      return '接続が解除されたかトークンが違うため、つながりません。QRコードでつなぎ直してください';
   }
 }
 

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Xcode Cloud: clone 直後に実行される（このファイルの場所と名前は Xcode Cloud の決まり。
+# ci_scripts は .xcworkspace と同じ階層に置く必要がある）。
+#
+# Xcode Cloud の Mac には Flutter も CocoaPods の依存も無いので、ここで用意する。
+# - Flutter stable を取得し、Generated.xcconfig と Podfile を作る（--config-only）
+# - ビルド番号は Xcode Cloud の通し番号を使う。pubspec の +1 のままだと
+#   TestFlight が「同じビルド番号」として2回目以降を受け付けないため
+set -e
+
+cd "$CI_PRIMARY_REPOSITORY_PATH/rapitas-mobile"
+
+git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$HOME/flutter"
+export PATH="$PATH:$HOME/flutter/bin"
+
+flutter precache --ios
+flutter pub get
+flutter build ios --config-only --release --build-number="${CI_BUILD_NUMBER:-1}"
+
+export HOMEBREW_NO_AUTO_UPDATE=1
+command -v pod >/dev/null 2>&1 || brew install cocoapods
+cd ios
+pod install
+
+exit 0
