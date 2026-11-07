@@ -1,0 +1,57 @@
+name: Mobile (Flutter)
+
+# rapitas-mobile (Flutter) had no CI at all: every other check in this repository
+# is green regardless of whether the Dart code compiles. This job is the only
+# thing that verifies it.
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-mobile/**'
+      - '.github/workflows/mobile.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'rapitas-mobile/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+jobs:
+  flutter:
+    name: Check Mobile (Flutter)
+    runs-on: ubuntu-latest
+    # Hang backstop, not a constraint (new job, no history yet). Two blocking checks
+    # hung in unrelated install steps on 2026-10-07 and held merges for over an hour
+    # against GitHub's 6-hour default.
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: rapitas-mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # NOTE: pubspec.lock requires flutter >=3.38.4; stable satisfies it. Pin a
+          # version here if a new stable release starts breaking the build.
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        # Infos are style hints from flutter_lints; errors and warnings fail the job.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        # Run even when Analyze fails so one push reports both kinds of failure.
+        if: ${{ !cancelled() }}
+        run: flutter test

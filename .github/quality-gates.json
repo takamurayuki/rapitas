@@ -131,6 +131,13 @@
       "reason": "Runs only when workflow files change; a broken workflow can silently stop every other gate."
     },
     {
+      "name": "Check Mobile (Flutter)",
+      "workflow": "mobile.yml",
+      "job": "flutter",
+      "mode": "conditional",
+      "reason": "Path-filtered to rapitas-mobile/; the only check that compiles and tests the Flutter app (#1421). Before it existed every check was green whether or not the Dart code built."
+    },
+    {
       "name": "Lint Markdown files",
       "workflow": "markdownlint.yml",
       "job": "markdownlint",
