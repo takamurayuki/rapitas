@@ -1566,6 +1566,28 @@
       "restart": "The switch takes effect after the app restarts.",
       "escapeHatch": "If the app cannot start, RAPITAS_USER_DATABASE=off goes back.",
       "errorPrefix": "That did not work: {error}"
+    },
+    "mobileLinkCard": {
+      "title": "Connect your phone",
+      "description": "View and control this computer's tasks and runs from the Rapitas Mobile app. The phone must be on the same Wi-Fi.",
+      "stateOff": "Off",
+      "stateListening": "On (listening on port {port})",
+      "stateFailed": "Could not turn on: {error}",
+      "enable": "Turn on",
+      "disable": "Turn off",
+      "showQr": "Add a phone (show QR code)",
+      "qrHelp": "Scan this QR code with \"Connect to desktop\" in the phone app.",
+      "qrExpires": "This QR code works until {time} and only once.",
+      "qrAlt": "Pairing QR code",
+      "addresses": "If the phone cannot find this computer: {addresses}",
+      "devicesTitle": "Connected phones",
+      "noDevices": "None yet",
+      "pairedAt": "Added {time}",
+      "lastSeen": "Last seen {time}",
+      "neverSeen": "Not connected yet",
+      "revoke": "Remove",
+      "revokeConfirm": "Remove \"{name}\"? It will no longer be able to control this computer.",
+      "errorPrefix": "Something went wrong: {error}"
     }
   },
   "linkView": {

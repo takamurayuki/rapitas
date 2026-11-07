@@ -1566,6 +1566,28 @@
       "restart": "切り替えはアプリの再起動後に反映されます。",
       "escapeHatch": "起動できなくなった場合は RAPITAS_USER_DATABASE=off で元に戻せます。",
       "errorPrefix": "うまくいきませんでした: {error}"
+    },
+    "mobileLinkCard": {
+      "title": "スマホと連携",
+      "description": "スマホアプリ（Rapitas Mobile）から、このパソコンのタスクや実行状況を見たり操作したりできます。同じ Wi-Fi に接続している必要があります。",
+      "stateOff": "オフ",
+      "stateListening": "オン（ポート {port} で待ち受け中）",
+      "stateFailed": "オンにできませんでした: {error}",
+      "enable": "オンにする",
+      "disable": "オフにする",
+      "showQr": "スマホを追加する（QRコードを表示）",
+      "qrHelp": "スマホアプリの「デスクトップとつなぐ」でこのQRコードを読み取ってください。",
+      "qrExpires": "このQRコードは {time} まで使えます。1回使うと無効になります。",
+      "qrAlt": "ペアリング用のQRコード",
+      "addresses": "見つからないときの接続先: {addresses}",
+      "devicesTitle": "接続しているスマホ",
+      "noDevices": "まだありません",
+      "pairedAt": "登録 {time}",
+      "lastSeen": "最終接続 {time}",
+      "neverSeen": "まだ接続していません",
+      "revoke": "解除",
+      "revokeConfirm": "「{name}」の接続を解除しますか？このスマホからは操作できなくなります。",
+      "errorPrefix": "うまくいきませんでした: {error}"
     }
   },
   "linkView": {
