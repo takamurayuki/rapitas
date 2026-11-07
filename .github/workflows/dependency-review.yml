@@ -58,7 +58,15 @@ jobs:
           # The win32 variants are listed too although they were not in the
           # failing set: this project builds on Windows, so a later lock change
           # would otherwise re-trip the same gate for the same reason.
+          #
+          # pkg:pub/bonsoir (MIT) and pkg:pub/mobile_scanner (BSD-3-Clause) are
+          # permissive; they fail only because the dependency graph reports pub
+          # licences in lower case ("mit", "bsd-3-clause"), which the action
+          # rejects as invalid SPDX (#1421). Exempting them skips a parser bug,
+          # not a policy decision.
           allow-dependencies-licenses: >-
+            pkg:pub/bonsoir,
+            pkg:pub/mobile_scanner,
             pkg:npm/@img/sharp-libvips-darwin-arm64,
             pkg:npm/@img/sharp-libvips-darwin-x64,
             pkg:npm/@img/sharp-libvips-linux-arm,
