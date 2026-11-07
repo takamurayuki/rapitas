@@ -20,7 +20,10 @@ export PATH="$PATH:$HOME/flutter/bin"
 
 flutter precache --ios
 flutter pub get
-flutter build ios --config-only --release --build-number="${CI_BUILD_NUMBER:-1}"
+# NOTE: --no-codesign が必要。付けないと Flutter がキーチェーンから署名用の証明書を探し、
+# 証明書のない Xcode Cloud の準備段階では「No valid code signing certificates were found」で止まる（exit code 1）。
+# ここでは設定ファイルを作るだけで、署名はこの後 Xcode Cloud が行う
+flutter build ios --config-only --release --no-codesign --build-number="${CI_BUILD_NUMBER:-1}"
 
 cd ios
 pod install
