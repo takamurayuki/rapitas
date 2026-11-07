@@ -138,6 +138,13 @@
       "reason": "Path-filtered to rapitas-mobile/; the only check that compiles and tests the Flutter app (#1421). Before it existed every check was green whether or not the Dart code built."
     },
     {
+      "name": "Xcode Cloud post-clone (macOS)",
+      "workflow": "mobile.yml",
+      "job": "ios-post-clone",
+      "mode": "conditional",
+      "reason": "Path-filtered to rapitas-mobile/; runs the Xcode Cloud post-clone script on a clean macOS runner (CocoaPods removed, newest Xcode) and archives unsigned (#1421). Xcode Cloud watches develop but only reports 'exited with code N' without a readable log, so this keeps a build that would fail there out of develop."
+    },
+    {
       "name": "Lint Markdown files",
       "workflow": "markdownlint.yml",
       "job": "markdownlint",
