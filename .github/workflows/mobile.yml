@@ -71,3 +71,23 @@ jobs:
         # Run even when Analyze fails so one push reports both kinds of failure.
         if: ${{ !cancelled() }}
         run: flutter test
+
+  ios-post-clone:
+    # Runs the Xcode Cloud post-clone script exactly as Xcode Cloud does, on a clean
+    # GitHub macOS runner (no signing certificates, fresh Flutter). Xcode Cloud only
+    # reports "ci_post_clone.sh failed (exited with code N)" without a readable log,
+    # so this is where the failing step and its output can be seen.
+    # NOTE: GitHub's macOS image ships CocoaPods, so the "install CocoaPods" step
+    # (code 11) is skipped here, unlike on Xcode Cloud.
+    name: Xcode Cloud post-clone (macOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ci_post_clone.sh
+        env:
+          CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
+          CI_BUILD_NUMBER: ${{ github.run_number }}
+        run: ./rapitas-mobile/ios/ci_scripts/ci_post_clone.sh
