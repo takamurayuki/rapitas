@@ -58,7 +58,9 @@ jobs:
           path: rapitas-mobile/pubspec.lock
 
       - name: Lockfile is committed
-        run: git diff --exit-code -- pubspec.lock
+        # --text: .gitattributes marks *.lock binary, which would hide the diff
+        # that tells you what to commit when this fails.
+        run: git diff --exit-code --text -- pubspec.lock
 
       - name: Analyze
         if: ${{ !cancelled() }}
