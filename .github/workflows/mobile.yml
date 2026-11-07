@@ -47,7 +47,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # The committed pubspec.lock must be what pub resolves, or a phone build
+      # runs dependency versions nobody tested. Upload the resolved file so it
+      # can be committed even without a local Flutter SDK.
+      - name: Upload resolved pubspec.lock
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pubspec-lock
+          path: rapitas-mobile/pubspec.lock
+
+      - name: Lockfile is committed
+        run: git diff --exit-code -- pubspec.lock
+
       - name: Analyze
+        if: ${{ !cancelled() }}
         # Infos are style hints from flutter_lints; errors and warnings fail the job.
         run: flutter analyze --no-fatal-infos
 

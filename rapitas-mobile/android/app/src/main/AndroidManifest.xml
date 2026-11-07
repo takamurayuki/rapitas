@@ -2,6 +2,11 @@
     <!-- デスクトップ版バックエンドへ繋ぐために必要。以前は debug 用マニフェストにしか無く、
          リリースビルドでは一切通信できなかった -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- QR ペアリング用 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- 同じ Wi-Fi のデスクトップを mDNS で探すため（マルチキャストの受信に必要） -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <application
         android:label="Rapitas Mobile"
         android:name="${applicationName}"
