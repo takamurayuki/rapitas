@@ -29,8 +29,8 @@ class ApprovalRequest {
 
   factory ApprovalRequest.fromJson(Map<String, dynamic> json) {
     return ApprovalRequest(
-      id: json['id'] as String,
-      configId: json['configId'] as String?,
+      id: json['id'].toString(),
+      configId: json['configId']?.toString(),
       requestType: json['requestType'] as String?,
       title: json['title'] as String,
       description: json['description'] as String?,
