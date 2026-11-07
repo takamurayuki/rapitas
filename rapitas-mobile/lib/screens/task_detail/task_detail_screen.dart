@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../config/routes.dart';
+import '../../models/task.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/status_badge.dart';
@@ -15,20 +18,45 @@ class TaskDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final taskAsync = ref.watch(taskDetailProvider(taskId));
+    final loadedTask = taskAsync.valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('タスク詳細'),
         actions: [
-          taskAsync.whenOrNull(
-            data: (task) => task.agentExecutable
-                ? IconButton(
-                    icon: const Icon(Icons.play_arrow),
-                    tooltip: 'AIエージェントで実行',
-                    onPressed: () => _executeWithAgent(context, ref),
-                  )
-                : null,
-          ) ?? const SizedBox.shrink(),
+          if (loadedTask != null && loadedTask.agentExecutable)
+            IconButton(
+              icon: const Icon(Icons.play_arrow),
+              tooltip: 'AIエージェントで実行',
+              onPressed: () => _executeWithAgent(context, ref),
+            ),
+          if (loadedTask != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit),
+              tooltip: '編集',
+              onPressed: () => context.push('/tasks/$taskId/edit', extra: loadedTask),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'delete') _deleteTask(context, ref, loadedTask);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 12),
+                      Text(
+                        '削除',
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
       body: taskAsync.when(
@@ -139,6 +167,7 @@ class TaskDetailScreen extends ConsumerWidget {
                         subtitle: Text(
                           AppConstants.statusLabels[subtask.status] ?? subtask.status,
                         ),
+                        onTap: () => _toggleSubtask(context, ref, subtask),
                       ),
                     )),
               ],
@@ -206,6 +235,72 @@ class TaskDetailScreen extends ConsumerWidget {
     await service.updateTask(taskId, {'status': status});
     ref.invalidate(taskDetailProvider(taskId));
     ref.invalidate(taskListProvider);
+  }
+
+  Future<void> _toggleSubtask(BuildContext context, WidgetRef ref, Task subtask) async {
+    final next = subtask.status == 'done' ? 'todo' : 'done';
+    // 画面が破棄されても invalidate できるよう、await の前にコンテナを捕捉する
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      final service = ref.read(taskServiceProvider);
+      await service.updateTask(subtask.id, {'status': next});
+      container.invalidate(taskDetailProvider(taskId));
+      container.invalidate(taskListProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('サブタスクの更新に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteTask(BuildContext context, WidgetRef ref, Task task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('タスクを削除'),
+        content: Text('「${task.title}」を削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    // 画面が破棄されても invalidate できるよう、await の前にコンテナを捕捉する
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      final service = ref.read(taskServiceProvider);
+      await service.deleteTask(taskId);
+      container.invalidate(taskListProvider);
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('タスク「${task.title}」を削除しました')),
+      );
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.tasks);
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('タスクの削除に失敗しました: $e')),
+      );
+    }
   }
 
   Future<void> _executeWithAgent(BuildContext context, WidgetRef ref) async {
