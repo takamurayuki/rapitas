@@ -77,17 +77,49 @@ jobs:
     # GitHub macOS runner (no signing certificates, fresh Flutter). Xcode Cloud only
     # reports "ci_post_clone.sh failed (exited with code N)" without a readable log,
     # so this is where the failing step and its output can be seen.
-    # NOTE: GitHub's macOS image ships CocoaPods, so the "install CocoaPods" step
-    # (code 11) is skipped here, unlike on Xcode Cloud.
+    # After the script it archives the app (unsigned) the way Xcode Cloud's
+    # "Archive - iOS" action does, so a green job means the whole build passes.
     name: Xcode Cloud post-clone (macOS)
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Use the newest installed Xcode
+        # NOTE: Xcode Cloud workflows default to the latest Xcode release; the runner
+        # image defaults to an older one.
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Remove CocoaPods to match Xcode Cloud
+        # NOTE: GitHub's macOS image ships CocoaPods but Xcode Cloud does not, so the
+        # script's "install CocoaPods" step (code 11) only runs once it is gone.
+        run: |
+          sudo gem uninstall cocoapods -aIx 2>/dev/null || true
+          brew uninstall --ignore-dependencies cocoapods 2>/dev/null || true
+          hash -r
+          if command -v pod; then echo "pod is still on PATH"; exit 1; fi
 
       - name: Run ci_post_clone.sh
         env:
           CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
           CI_BUILD_NUMBER: ${{ github.run_number }}
         run: ./rapitas-mobile/ios/ci_scripts/ci_post_clone.sh
+
+      - name: Archive (unsigned) like Xcode Cloud
+        run: |
+          xcodebuild archive \
+            -workspace rapitas-mobile/ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/archive.log" 2>&1 || {
+              grep -E "error:" "$RUNNER_TEMP/archive.log" | sort -u | head -40
+              tail -40 "$RUNNER_TEMP/archive.log"
+              exit 1
+            }
+          tail -5 "$RUNNER_TEMP/archive.log"
