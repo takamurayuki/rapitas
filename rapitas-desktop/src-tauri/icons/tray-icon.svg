@@ -1,20 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#818CF8"/>
-      <stop offset="100%" style="stop-color:#6366F1"/>
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
     </linearGradient>
   </defs>
-  <!-- 角丸背景 -->
   <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <!-- チェックリストアイコン（シンプルで直感的） -->
-  <!-- 1行目: チェックマーク + ライン -->
-  <path d="M15 20l4 4 6-8" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <line x1="30" y1="20" x2="50" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
-  <!-- 2行目: チェックマーク + ライン -->
-  <path d="M15 33l4 4 6-8" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <line x1="30" y1="33" x2="46" y2="33" stroke="white" stroke-width="3" stroke-linecap="round"/>
-  <!-- 3行目: 丸 + ライン（未完了タスク） -->
-  <circle cx="19" cy="46" r="4" stroke="white" stroke-width="3" fill="none"/>
-  <line x1="30" y1="46" x2="42" y2="46" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <g transform="translate(32 32) scale(0.064) translate(-512 -512) rotate(-10 512 512)" fill="#FFFFFF">
+    <path d="M205 266 L277 266 A15 15 0 0 1 292 281 L292 353 A15 15 0 0 1 277 368 L205 368 A15 15 0 0 1 190 353 L190 281 A15 15 0 0 1 205 266 Z"/>
+    <path d="M358 266 L673.49 266 A15 15 0 0 1 686.37 273.3 L729.43 345.3 A15 15 0 0 1 716.55 368 L358 368 A15 15 0 0 1 343 353 L343 281 A15 15 0 0 1 358 266 Z"/>
+    <path d="M205 461 L277 461 A15 15 0 0 1 292 476 L292 548 A15 15 0 0 1 277 563 L205 563 A15 15 0 0 1 190 548 L190 476 A15 15 0 0 1 205 461 Z"/>
+    <path d="M358 461 L775.49 461 A15 15 0 0 1 788.37 468.3 L831.43 540.3 A15 15 0 0 1 818.55 563 L358 563 A15 15 0 0 1 343 548 L343 476 A15 15 0 0 1 358 461 Z"/>
+    <path d="M205 656 L277 656 A15 15 0 0 1 292 671 L292 743 A15 15 0 0 1 277 758 L205 758 A15 15 0 0 1 190 743 L190 671 A15 15 0 0 1 205 656 Z"/>
+    <path d="M358 656 L621.49 656 A15 15 0 0 1 634.37 663.3 L677.43 735.3 A15 15 0 0 1 664.55 758 L358 758 A15 15 0 0 1 343 743 L343 671 A15 15 0 0 1 358 656 Z"/>
+  </g>
 </svg>
