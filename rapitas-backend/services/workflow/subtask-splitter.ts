@@ -98,10 +98,8 @@ export type SplitResult = {
 export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   const lines = planContent.split('\n');
 
-  // Count checklist items
   const checklistItems = lines.filter((l) => /^\s*- \[[ xX]\]/.test(l));
 
-  // Extract file references
   const filePattern = /[\w\-./]+\.[a-zA-Z]{1,10}/g;
   const allFiles = new Set<string>();
   for (const line of lines) {
@@ -350,7 +348,6 @@ export async function createSubtasksFromPlan(
         );
       }
 
-      // Create subtask in DB
       const subtask = await prisma.task.create({
         data: {
           title: planned.title,
@@ -468,7 +465,6 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
     }
   }
 
-  // Last section
   if (currentSection && currentItems.length > 0) {
     order++;
     subtasks.push(buildPlannedSubtask(order, currentSection, currentItems, currentFiles, allFiles));
@@ -544,7 +540,6 @@ function buildInstructionMd(
 
   lines.push('## Context');
   if (researchContent) {
-    // Include first 500 chars of research as context
     lines.push(researchContent.slice(0, 500));
   }
   if (previousSubtaskIds && previousSubtaskIds.length > 0) {
