@@ -35,6 +35,8 @@ class ColorUtils {
         return Colors.grey;
       case 'running':
         return Colors.blue;
+      case 'waiting_for_input':
+        return Colors.orange;
       case 'completed':
         return Colors.green;
       case 'failed':

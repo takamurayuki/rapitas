@@ -39,8 +39,9 @@ final realtimeRefreshProvider = Provider<void>((ref) {
           ref.invalidate(taskListProvider);
           ref.invalidate(taskDetailProvider);
         case RefreshTarget.executions:
-          ref.invalidate(executionListProvider);
-          ref.invalidate(executionDetailProvider);
+          ref.invalidate(executingTasksProvider);
+          ref.invalidate(resumableExecutionsProvider);
+          ref.invalidate(taskExecutionLogsProvider);
         case RefreshTarget.notifications:
           ref.invalidate(notificationListProvider);
         case RefreshTarget.approvals:

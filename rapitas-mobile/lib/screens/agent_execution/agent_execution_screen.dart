@@ -1,20 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task.dart';
+import '../../models/task_execution.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/task_provider.dart';
 import '../../services/voice_command_parser.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/voice_input_sheet.dart';
-import '../../utils/date_formatter.dart';
 import '../../widgets/execution_log_viewer.dart';
 
+/// 実行中のタスクと、中断されて再開できる実行の2セクション。
+/// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
 class AgentExecutionScreen extends ConsumerWidget {
   const AgentExecutionScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final executionsAsync = ref.watch(executionListProvider);
+    final executingAsync = ref.watch(executingTasksProvider);
+    final resumableAsync = ref.watch(resumableExecutionsProvider);
+    final titles = ref.watch(taskTitleLookupProvider);
+
+    // 両方とも取得でき、どちらも空のときだけ全体の空状態にする。
+    // 片方が失敗・読み込み中なら、セクションごとに状態を出す。
+    final executing = executingAsync.valueOrNull;
+    final resumable = resumableAsync.valueOrNull
+        ?.where((e) => e.canResume)
+        .toList();
+    final allEmpty = !executingAsync.hasError &&
+        !resumableAsync.hasError &&
+        executing != null &&
+        resumable != null &&
+        executing.isEmpty &&
+        resumable.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,146 +46,205 @@ class AgentExecutionScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(executionListProvider),
-        child: executionsAsync.when(
-          data: (executions) {
-            if (executions.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.smart_toy_outlined,
-                        size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text('実行履歴はありません'),
-                  ],
-                ),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: executions.length,
-              itemBuilder: (context, index) {
-                final execution = executions[index];
-                return Card(
-                  child: ExpansionTile(
-                    leading: _statusIcon(execution.status),
-                    title: Text(
-                      execution.task?.title ??
-                          execution.command ??
-                          '実行 #${execution.id.substring(0, 8)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Row(
-                      children: [
-                        StatusBadge.execution(status: execution.status),
-                        const SizedBox(width: 8),
-                        Text(
-                          execution.durationText,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        if (execution.tokensUsed != null) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            '${execution.tokensUsed}トークン',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
-                    ),
-                    trailing: execution.isRunning
-                        ? IconButton(
-                            icon: const Icon(Icons.stop, color: Colors.red),
-                            onPressed: () =>
-                                _cancelExecution(context, ref, execution.id),
-                          )
-                        : Text(
-                            DateFormatter.formatRelative(execution.createdAt),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                    children: [
-                      if (execution.hasQuestion)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withOpacity(0.2),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.help, color: Colors.orange),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(execution.question!)),
-                            ],
-                          ),
-                        ),
-                      if (execution.output != null &&
-                          execution.output!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            execution.output!,
-                            style: const TextStyle(
-                                fontFamily: 'monospace', fontSize: 12),
-                          ),
-                        ),
-                      if (execution.errorMessage != null)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          color: Colors.red.withOpacity(0.1),
-                          child: Text(
-                            execution.errorMessage!,
-                            style: const TextStyle(
-                                color: Colors.red, fontSize: 12),
-                          ),
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            if (execution.status == 'interrupted')
-                              TextButton.icon(
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('再開'),
-                                onPressed: () => _resumeExecution(
-                                    context, ref, execution.id),
-                              ),
-                            TextButton.icon(
-                              icon: const Icon(Icons.article),
-                              label: const Text('ログ'),
-                              onPressed: () =>
-                                  _showLogs(context, ref, execution.id),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+        onRefresh: () async {
+          ref.invalidate(taskListProvider);
+          _invalidateExecutions(
+              ProviderScope.containerOf(context, listen: false));
+        },
+        child: allEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 160),
+                  Icon(Icons.smart_toy_outlined, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Center(child: Text('実行中のタスクはありません')),
+                ],
+              )
+            : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(8),
+                children: [
+                  const _SectionTitle('実行中'),
+                  ..._buildSection<ExecutingTask>(
+                    state: executingAsync,
+                    items: executing,
+                    emptyText: '実行中のタスクはありません',
+                    errorText: '実行中のタスクを取得できませんでした',
+                    onRetry: () => ref.invalidate(executingTasksProvider),
+                    itemBuilder: (task) =>
+                        _buildExecutingTile(context, ref, task, titles),
                   ),
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text('実行履歴の取得に失敗しました'),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => ref.invalidate(executionListProvider),
-                  child: const Text('再試行'),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 16),
+                  const _SectionTitle('再開可能'),
+                  ..._buildSection<ResumableExecution>(
+                    state: resumableAsync,
+                    items: resumable,
+                    emptyText: '再開できる実行はありません',
+                    errorText: '再開可能な実行を取得できませんでした',
+                    onRetry: () => ref.invalidate(resumableExecutionsProvider),
+                    itemBuilder: (execution) =>
+                        _buildResumableTile(context, ref, execution, titles),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSection<T>({
+    required AsyncValue<Object?> state,
+    required List<T>? items,
+    required String emptyText,
+    required String errorText,
+    required VoidCallback onRetry,
+    required Widget Function(T item) itemBuilder,
+  }) {
+    if (state.hasError) {
+      return [_SectionError(message: errorText, onRetry: onRetry)];
+    }
+    if (items == null) {
+      return const [
+        Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+    if (items.isEmpty) {
+      return [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(child: Text(emptyText)),
           ),
+        ),
+      ];
+    }
+    return items.map(itemBuilder).toList();
+  }
+
+  Widget _buildExecutingTile(
+    BuildContext context,
+    WidgetRef ref,
+    ExecutingTask task,
+    Map<String, String> titles,
+  ) {
+    final title = taskTitleOrFallback(titles, task.taskId);
+    final elapsed = _elapsedText(task);
+    return Card(
+      child: ListTile(
+        leading: task.isWaitingForInput
+            ? const Icon(Icons.help_outline, color: Colors.orange)
+            : const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Row(
+          children: [
+            StatusBadge.execution(status: task.executionStatus),
+            if (task.isWaitingForInput) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'エージェントが回答を待っています',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.orange),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ] else if (elapsed != null) ...[
+              const SizedBox(width: 8),
+              Text(elapsed, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.stop, color: Colors.red),
+          tooltip: '停止',
+          onPressed: () => _stopExecution(context, ref, task.taskId, title),
+        ),
+        onTap: () => _showLogs(
+          context,
+          title: title,
+          taskId: task.taskId,
+          executionId: task.executionId,
         ),
       ),
     );
+  }
+
+  Widget _buildResumableTile(
+    BuildContext context,
+    WidgetRef ref,
+    ResumableExecution execution,
+    Map<String, String> titles,
+  ) {
+    final title = execution.taskTitle ??
+        taskTitleOrFallback(titles, execution.taskId);
+    final error = execution.errorMessage;
+    final taskId = execution.taskId;
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.pause_circle, color: Colors.amber),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: error != null && error.isNotEmpty
+            ? Text(
+                error,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.red),
+              )
+            : const Text('中断'),
+        trailing: TextButton.icon(
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('再開'),
+          onPressed: () =>
+              _resumeExecution(context, execution.id, taskId: taskId),
+        ),
+        onTap: taskId == null
+            ? null
+            : () => _showLogs(
+                  context,
+                  title: title,
+                  taskId: taskId,
+                  executionId: execution.id,
+                ),
+      ),
+    );
+  }
+
+  /// 経過時間 = それまでのフェーズの累計（activeTimeMs）+ 現在の実行の経過
+  String? _elapsedText(ExecutingTask task) {
+    final startedAt = task.startedAt;
+    if (startedAt == null && task.activeTimeMs == 0) return null;
+    var ms = task.activeTimeMs;
+    if (startedAt != null) {
+      final live = DateTime.now().difference(startedAt).inMilliseconds;
+      if (live > 0) ms += live;
+    }
+    final minutes = ms ~/ 60000;
+    if (minutes < 1) return '1分未満';
+    if (minutes < 60) return '$minutes分経過';
+    return '${minutes ~/ 60}時間${minutes % 60}分経過';
+  }
+
+  /// 実行の状態が変わる操作の後に読み直すもの。
+  ///
+  /// API の await 中に画面が破棄されると WidgetRef は使えなくなるが、
+  /// サーバー側の状態は変わっているのでキャッシュの読み直し自体は必要。
+  /// そのため await の前に控えた ProviderContainer から invalidate する。
+  static void _invalidateExecutions(ProviderContainer container) {
+    container.invalidate(executingTasksProvider);
+    container.invalidate(resumableExecutionsProvider);
+    container.invalidate(taskExecutionLogsProvider);
   }
 
   void _handleVoiceExecution(BuildContext context, WidgetRef ref) async {
@@ -270,13 +347,21 @@ class AgentExecutionScreen extends ConsumerWidget {
 
       if (confirmed != true || !context.mounted) return;
 
-      await ref.read(agentServiceProvider).executeTask(selected.id);
-      ref.invalidate(executionListProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${selected.title}」の実行を開始しました')),
-        );
-      }
+      final container = ProviderScope.containerOf(context, listen: false);
+      final result =
+          await container.read(agentServiceProvider).executeTask(selected.id);
+      _invalidateExecutions(container);
+      // 実行開始（または質問作成）でタスクのステータスも変わる
+      container.invalidate(taskListProvider);
+      container.invalidate(taskDetailProvider(selected.id));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.isAwaitingQuestion
+              ? (result.message ?? '「${selected.title}」の仕様確認の質問を作成しました')
+              : '「${selected.title}」の実行を開始しました'),
+        ),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -286,69 +371,66 @@ class AgentExecutionScreen extends ConsumerWidget {
     }
   }
 
-  Widget _statusIcon(String status) {
-    switch (status) {
-      case 'running':
-        return const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
-      case 'completed':
-        return const Icon(Icons.check_circle, color: Colors.green);
-      case 'failed':
-        return const Icon(Icons.error, color: Colors.red);
-      case 'cancelled':
-        return const Icon(Icons.cancel, color: Colors.orange);
-      case 'interrupted':
-        return const Icon(Icons.pause_circle, color: Colors.amber);
-      default:
-        return const Icon(Icons.hourglass_empty, color: Colors.grey);
-    }
-  }
-
-  Future<void> _cancelExecution(
-      BuildContext context, WidgetRef ref, String id) async {
+  Future<void> _stopExecution(
+    BuildContext context,
+    WidgetRef ref,
+    String taskId,
+    String title,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('実行キャンセル'),
-        content: const Text('この実行をキャンセルしますか？'),
+        title: const Text('実行を停止'),
+        content: Text('「$title」の実行を停止しますか？'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('いいえ')),
           FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('はい')),
+              child: const Text('停止')),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      try {
-        await ref.read(agentServiceProvider).cancelExecution(id);
-        ref.invalidate(executionListProvider);
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('キャンセルに失敗しました: $e')),
-          );
-        }
+    // ダイアログ表示中に画面が破棄されていたら ref は使えない
+    if (confirmed != true || !context.mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      await container.read(agentServiceProvider).stopTaskExecution(taskId);
+      _invalidateExecutions(container);
+      // 停止でタスクのステータスも戻るので一覧も読み直す
+      container.invalidate(taskListProvider);
+      container.invalidate(taskDetailProvider(taskId));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('実行を停止しました')),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('停止に失敗しました: $e')),
+        );
       }
     }
   }
 
   Future<void> _resumeExecution(
-      BuildContext context, WidgetRef ref, String id) async {
+    BuildContext context,
+    String executionId, {
+    required String? taskId,
+  }) async {
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
-      await ref.read(agentServiceProvider).resumeExecution(id);
-      ref.invalidate(executionListProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('実行を再開しました')),
-        );
-      }
+      await container.read(agentServiceProvider).resumeExecution(executionId);
+      _invalidateExecutions(container);
+      container.invalidate(taskListProvider);
+      // タスクが外れた実行（taskId なし）は詳細キャッシュが無いのでスキップ
+      if (taskId != null) container.invalidate(taskDetailProvider(taskId));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('実行を再開しました')),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -358,7 +440,13 @@ class AgentExecutionScreen extends ConsumerWidget {
     }
   }
 
-  void _showLogs(BuildContext context, WidgetRef ref, String id) {
+  void _showLogs(
+    BuildContext context, {
+    required String title,
+    required String taskId,
+    required String executionId,
+  }) {
+    final key = (taskId: taskId, executionId: executionId);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -371,16 +459,27 @@ class AgentExecutionScreen extends ConsumerWidget {
           builder: (context, scrollController) {
             return Consumer(
               builder: (context, ref, _) {
-                final logsAsync = ref.watch(executionLogsProvider(id));
+                final logsAsync = ref.watch(taskExecutionLogsProvider(key));
                 return Column(
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('実行ログ',
-                              style: Theme.of(context).textTheme.titleMedium),
+                          Expanded(
+                            child: Text(
+                              '実行ログ：$title',
+                              style: Theme.of(context).textTheme.titleMedium,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            tooltip: '再読み込み',
+                            onPressed: () =>
+                                ref.invalidate(taskExecutionLogsProvider(key)),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.close),
                             onPressed: () => Navigator.pop(context),
@@ -407,6 +506,52 @@ class AgentExecutionScreen extends ConsumerWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      child: Text(
+        title,
+        style: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+/// セクション単位の取得失敗表示。もう片方のセクションはそのまま出す。
+class _SectionError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _SectionError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16, right: 8),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, size: 20, color: colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+            TextButton(onPressed: onRetry, child: const Text('再試行')),
+          ],
+        ),
+      ),
     );
   }
 }
