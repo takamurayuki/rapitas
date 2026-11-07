@@ -21,6 +21,7 @@ describe('HTTP_STATUS', () => {
     expect(HTTP_STATUS.UNPROCESSABLE_ENTITY).toBe(422);
     expect(HTTP_STATUS.TOO_MANY_REQUESTS).toBe(429);
     expect(HTTP_STATUS.INTERNAL_SERVER_ERROR).toBe(500);
+    expect(HTTP_STATUS.SERVICE_UNAVAILABLE).toBe(503);
   });
 
   test('covers all keys defined in the SSOT', () => {
@@ -37,7 +38,8 @@ describe('HTTP_STATUS', () => {
     expect(keys).toContain('UNPROCESSABLE_ENTITY');
     expect(keys).toContain('TOO_MANY_REQUESTS');
     expect(keys).toContain('INTERNAL_SERVER_ERROR');
-    expect(keys.length).toBe(12);
+    expect(keys).toContain('SERVICE_UNAVAILABLE');
+    expect(keys.length).toBe(13);
   });
 
   test('values are all numbers', () => {
