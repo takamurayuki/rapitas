@@ -214,18 +214,71 @@ class Task {
   }
 }
 
+class TaskCategory {
+  final String id;
+  final String name;
+  final String? color;
+  final String? icon;
+  final int? sortOrder;
+
+  TaskCategory({
+    required this.id,
+    required this.name,
+    this.color,
+    this.icon,
+    this.sortOrder,
+  });
+
+  factory TaskCategory.fromJson(Map<String, dynamic> json) {
+    final color = json['color'];
+    final icon = json['icon'];
+    final sortOrder = json['sortOrder'];
+    return TaskCategory(
+      id: json['id'].toString(),
+      name: json['name']?.toString() ?? '',
+      color: color is String ? color : null,
+      icon: icon is String ? icon : null,
+      sortOrder: sortOrder is num ? sortOrder.toInt() : null,
+    );
+  }
+}
+
 class TaskTheme {
   final String id;
   final String name;
   final String? color;
 
-  TaskTheme({required this.id, required this.name, this.color});
+  /// 所属カテゴリのID。GET /tasks の theme にも含まれる
+  final String? categoryId;
+
+  /// 所属カテゴリ。GET /themes のときだけ含まれる
+  final TaskCategory? category;
+
+  /// テーマに属するタスク数（GET /themes の `_count.tasks`）
+  final int? taskCount;
+
+  TaskTheme({
+    required this.id,
+    required this.name,
+    this.color,
+    this.categoryId,
+    this.category,
+    this.taskCount,
+  });
 
   factory TaskTheme.fromJson(Map<String, dynamic> json) {
+    final category = json['category'];
+    final count = json['_count'];
+    final tasks = count is Map ? count['tasks'] : null;
     return TaskTheme(
       id: json['id'].toString(),
       name: json['name'] as String,
       color: json['color'] as String?,
+      categoryId: json['categoryId']?.toString(),
+      category: category is Map
+          ? TaskCategory.fromJson(Map<String, dynamic>.from(category))
+          : null,
+      taskCount: tasks is num ? tasks.toInt() : null,
     );
   }
 
@@ -236,6 +289,72 @@ class TaskTheme {
       'color': color,
     };
   }
+}
+
+/// テーマ一覧をカテゴリ単位にまとめた1グループ
+class ThemeCategoryGroup {
+  /// グループのキー。null は「その他」（カテゴリ未所属）
+  final String? categoryId;
+
+  /// カテゴリ。categoryId はあるがカテゴリ情報が取れなかった場合は null
+  final TaskCategory? category;
+
+  final List<TaskTheme> themes;
+
+  const ThemeCategoryGroup({
+    required this.categoryId,
+    required this.category,
+    required this.themes,
+  });
+
+  /// 「その他」グループ（カテゴリ未所属のテーマ）か
+  bool get isUncategorized => categoryId == null;
+}
+
+/// テーマ一覧をカテゴリでグループ化する。
+///
+/// - カテゴリの並びはテーマ一覧に最初に現れた順（API が sortOrder 順で返す前提）
+/// - カテゴリに属さないテーマは最後の1グループ（categoryId = null、「その他」）
+/// - categoryId はあるがカテゴリ情報が無いテーマは「その他」に混ぜず、
+///   categoryId 単位で別グループにする（category は同じ categoryId の
+///   他のテーマから取れればそれを使い、取れなければ null）
+List<ThemeCategoryGroup> groupThemesByCategory(List<TaskTheme> themes) {
+  final order = <String>[];
+  final themesByKey = <String, List<TaskTheme>>{};
+  final categoryByKey = <String, TaskCategory>{};
+  final uncategorized = <TaskTheme>[];
+
+  for (final theme in themes) {
+    // キーは categoryId のみ。categoryId が null なら category オブジェクトが
+    // あっても「その他」に入れる（仕様）
+    final key = theme.categoryId;
+    if (key == null) {
+      uncategorized.add(theme);
+      continue;
+    }
+    final list = themesByKey.putIfAbsent(key, () {
+      order.add(key);
+      return <TaskTheme>[];
+    });
+    list.add(theme);
+    final category = theme.category;
+    if (category != null) categoryByKey.putIfAbsent(key, () => category);
+  }
+
+  return [
+    for (final key in order)
+      ThemeCategoryGroup(
+        categoryId: key,
+        category: categoryByKey[key],
+        themes: List.unmodifiable(themesByKey[key]!),
+      ),
+    if (uncategorized.isNotEmpty)
+      ThemeCategoryGroup(
+        categoryId: null,
+        category: null,
+        themes: List.unmodifiable(uncategorized),
+      ),
+  ];
 }
 
 /// Backend (Prisma) stores `labels` as a JSON-array string (default "[]"),
