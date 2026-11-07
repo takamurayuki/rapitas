@@ -40,10 +40,11 @@ class TaskCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 1行目：タイトル（1行省略）＋右端にエージェントアイコン・テーマラベル
               Row(
                 children: [
                   Expanded(
@@ -52,7 +53,7 @@ class TaskCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -61,28 +62,23 @@ class TaskCard extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 8),
                       child: Icon(
                         Icons.smart_toy,
-                        size: 18,
+                        size: 16,
                         color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  if (task.theme != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      // 長いテーマ名でタイトルを圧迫しないよう幅を制限する
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 140),
+                        child: _ThemeChipLabel(theme: task.theme!),
                       ),
                     ),
                 ],
               ),
-              if (task.description != null && task.description!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    task.description!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.6),
-                        ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
+              // 2行目：ステータス＋優先度＋右端に期限
               Row(
                 children: [
                   StatusBadge.task(status: task.status),
@@ -110,16 +106,6 @@ class TaskCard extends StatelessWidget {
                     ),
                 ],
               ),
-              if (task.theme != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Chip(
-                    label: _ThemeChipLabel(theme: task.theme!),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                ),
             ],
           ),
         ),
@@ -128,7 +114,8 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-/// テーマチップのラベル。テーマ色がパースできれば名前の左に色ドットを出す。
+/// テーマラベル（色ドット＋名前）。テーマ色がパースできなければ名前のみ。
+/// 名前は1行省略（親の最大幅に収める）。
 class _ThemeChipLabel extends StatelessWidget {
   final TaskTheme theme;
 
@@ -137,19 +124,39 @@ class _ThemeChipLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = ColorUtils.parseColor(theme.color);
-    final text = Text(theme.name, style: const TextStyle(fontSize: 11));
-    if (color == null) return text;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        text,
-      ],
+    final text = Text(
+      theme.name,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    // 承認済みモックの小さなピル（薄い背景＋細い枠、角丸8）
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (color != null) ...[
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Flexible(child: text),
+        ],
+      ),
     );
   }
 }

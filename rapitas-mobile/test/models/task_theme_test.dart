@@ -8,7 +8,8 @@ TaskTheme _theme(
 }) =>
     TaskTheme(id: id, name: 'theme$id', categoryId: categoryId, category: category);
 
-TaskCategory _category(String id, String name) => TaskCategory(id: id, name: name);
+TaskCategory _category(String id, String name, {int? sortOrder}) =>
+    TaskCategory(id: id, name: name, sortOrder: sortOrder);
 
 void main() {
   group('TaskTheme.fromJson', () {
@@ -83,7 +84,7 @@ void main() {
       expect(groupThemesByCategory([]), isEmpty);
     });
 
-    test('カテゴリはテーマ一覧に最初に現れた順、テーマの順も保つ', () {
+    test('sortOrder が全て無い場合はテーマ一覧に最初に現れた順、テーマの順も保つ', () {
       final work = _category('10', '仕事');
       final study = _category('20', '学習');
       final groups = groupThemesByCategory([
@@ -97,6 +98,67 @@ void main() {
       expect(groups[0].themes.map((t) => t.id), ['1', '3']);
       expect(groups[1].category?.name, '仕事');
       expect(groups[1].themes.map((t) => t.id), ['2']);
+    });
+
+    test('カテゴリの sortOrder 昇順に並べ、グループ内のテーマ順は入力順を保つ', () {
+      final work = _category('10', '仕事', sortOrder: 2);
+      final study = _category('20', '学習', sortOrder: 0);
+      final hobby = _category('30', '趣味', sortOrder: 1);
+      final groups = groupThemesByCategory([
+        _theme('1', categoryId: '10', category: work),
+        _theme('2', categoryId: '20', category: study),
+        _theme('3', categoryId: '30', category: hobby),
+        _theme('4', categoryId: '10', category: work),
+        _theme('5', categoryId: '20', category: study),
+      ]);
+
+      expect(groups.map((g) => g.categoryId), ['20', '30', '10']);
+      expect(groups[0].themes.map((t) => t.id), ['2', '5']);
+      expect(groups[1].themes.map((t) => t.id), ['3']);
+      expect(groups[2].themes.map((t) => t.id), ['1', '4']);
+    });
+
+    test('sortOrder が同値なら最初に現れた順（安定）', () {
+      final a = _category('10', 'A', sortOrder: 1);
+      final b = _category('20', 'B', sortOrder: 1);
+      final c = _category('30', 'C', sortOrder: 1);
+      final d = _category('40', 'D', sortOrder: 0);
+      final groups = groupThemesByCategory([
+        _theme('1', categoryId: '30', category: c),
+        _theme('2', categoryId: '10', category: a),
+        _theme('3', categoryId: '40', category: d),
+        _theme('4', categoryId: '20', category: b),
+      ]);
+
+      expect(groups.map((g) => g.categoryId), ['40', '30', '10', '20']);
+    });
+
+    test('sortOrder が無いグループは sortOrder ありの後ろ（最初に現れた順）、その他は最後', () {
+      final work = _category('10', '仕事', sortOrder: 5);
+      final study = _category('20', '学習', sortOrder: 1);
+      final groups = groupThemesByCategory([
+        _theme('1'),
+        _theme('2', categoryId: '50'),
+        _theme('3', categoryId: '10', category: work),
+        _theme('4', categoryId: '40'),
+        _theme('5', categoryId: '20', category: study),
+      ]);
+
+      expect(groups.map((g) => g.categoryId), ['20', '10', '50', '40', null]);
+      expect(groups.last.isUncategorized, isTrue);
+      expect(groups.last.themes.map((t) => t.id), ['1']);
+    });
+
+    test('その他のテーマが先頭に現れても、その他グループは最後', () {
+      final study = _category('20', '学習', sortOrder: 0);
+      final groups = groupThemesByCategory([
+        _theme('1'),
+        _theme('2'),
+        _theme('3', categoryId: '20', category: study),
+      ]);
+
+      expect(groups.map((g) => g.categoryId), ['20', null]);
+      expect(groups.last.themes.map((t) => t.id), ['1', '2']);
     });
 
     test('categoryId が null のテーマは最後の「その他」グループ', () {

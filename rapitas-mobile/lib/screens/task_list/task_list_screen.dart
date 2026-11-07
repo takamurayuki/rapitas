@@ -368,7 +368,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   void _showFilterSheet(BuildContext context, WidgetRef ref) {
     final filter = ref.read(taskFilterProvider);
 
-    // テーマセクションのカテゴリ選択（シート内の一時状態）。
+    // カテゴリセクションの選択（シート内の一時状態。テーマ候補の絞り込みにだけ使う）。
     // シートの builder が再実行されても消えないよう、ここで保持する。
     // null は「すべて」。初期値はテーマ一覧が届いた時点で決める。
     String? selectedCategoryKey;
@@ -385,6 +385,45 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             children: [
               Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
+              // カテゴリ → テーマ（デスクトップと同じ並び）。この後にステータス・優先度が続く
+              Consumer(
+                builder: (context, ref, _) {
+                  final themesAsync = ref.watch(themeListProvider);
+                  if (themesAsync.isLoading && !themesAsync.hasValue) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
+                    );
+                  }
+                  final themes = themesAsync.valueOrNull;
+                  // 取得失敗・0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
+                  if (themesAsync.hasError || themes == null || themes.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  final groups = groupThemesByCategory(themes);
+                  if (!categoryInitialized) {
+                    categoryInitialized = true;
+                    selectedCategoryKey = _categoryKeyOfTheme(groups, filter.themeId);
+                  }
+                  return StatefulBuilder(
+                    builder: (context, setSheetState) {
+                      return _ThemeFilterSection(
+                        groups: groups,
+                        selectedCategoryKey: selectedCategoryKey,
+                        selectedThemeId: filter.themeId,
+                        onCategorySelected: (key) =>
+                            setSheetState(() => selectedCategoryKey = key),
+                        onThemeSelected: (themeId) {
+                          ref.read(taskFilterProvider.notifier).state = themeId == null
+                              ? filter.copyWith(clearThemeId: true)
+                              : filter.copyWith(themeId: themeId);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
               Text('ステータス', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               Wrap(
@@ -480,45 +519,6 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                     },
                   ),
                 ],
-              ),
-              const SizedBox(height: 16),
-              Consumer(
-                builder: (context, ref, _) {
-                  final themesAsync = ref.watch(themeListProvider);
-                  if (themesAsync.isLoading && !themesAsync.hasValue) {
-                    return const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: LinearProgressIndicator(),
-                    );
-                  }
-                  final themes = themesAsync.valueOrNull;
-                  // 取得失敗・0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
-                  if (themesAsync.hasError || themes == null || themes.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  final groups = groupThemesByCategory(themes);
-                  if (!categoryInitialized) {
-                    categoryInitialized = true;
-                    selectedCategoryKey = _categoryKeyOfTheme(groups, filter.themeId);
-                  }
-                  return StatefulBuilder(
-                    builder: (context, setSheetState) {
-                      return _ThemeFilterSection(
-                        groups: groups,
-                        selectedCategoryKey: selectedCategoryKey,
-                        selectedThemeId: filter.themeId,
-                        onCategorySelected: (key) =>
-                            setSheetState(() => selectedCategoryKey = key),
-                        onThemeSelected: (themeId) {
-                          ref.read(taskFilterProvider.notifier).state = themeId == null
-                              ? filter.copyWith(clearThemeId: true)
-                              : filter.copyWith(themeId: themeId);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  );
-                },
               ),
             ],
           ),
@@ -617,7 +617,8 @@ class _CenteredMessage extends StatelessWidget {
   }
 }
 
-/// フィルターシートの「テーマ」セクション。カテゴリチップでテーマ候補を絞り、テーマチップで適用する。
+/// フィルターシートの「カテゴリ」＋「テーマ」セクション。
+/// カテゴリチップ（シートは閉じない）でテーマ候補を絞り、テーマチップで適用してシートを閉じる。
 class _ThemeFilterSection extends StatelessWidget {
   /// 「その他」グループのキー（カテゴリIDと衝突しない値）
   static const String _uncategorizedKey = '__uncategorized__';
@@ -649,9 +650,42 @@ class _ThemeFilterSection extends StatelessWidget {
     return name != null && name.isNotEmpty ? name : '不明なカテゴリ';
   }
 
+  Widget _themeChip(TaskTheme theme) {
+    return FilterChip(
+      label: _DotLabel(
+        color: theme.color,
+        text: theme.taskCount != null
+            ? '${theme.name}（${theme.taskCount}）'
+            : theme.name,
+      ),
+      selected: theme.id == selectedThemeId,
+      onSelected: (_) => onThemeSelected(theme.id),
+    );
+  }
+
+  Widget _themeWrap(List<Widget> children) {
+    return Wrap(spacing: 8, runSpacing: 4, children: children);
+  }
+
+  /// 「すべて」選択時のカテゴリ小見出し（色ドット＋カテゴリ名）
+  Widget _groupHeading(BuildContext context, ThemeCategoryGroup group) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 6),
+      child: DefaultTextStyle.merge(
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+        child: _DotLabel(color: group.category?.color, text: _groupLabel(group)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // グループが1つだけならカテゴリで絞る意味がないのでカテゴリ行は出さない
+    final titleStyle = Theme.of(context).textTheme.titleSmall;
+    // グループが1つだけならカテゴリで絞る意味がないのでカテゴリセクションは出さない
     final showCategories = groups.length > 1;
     ThemeCategoryGroup? selectedGroup;
     if (showCategories && selectedCategoryKey != null) {
@@ -659,15 +693,41 @@ class _ThemeFilterSection extends StatelessWidget {
         if (groupKey(group) == selectedCategoryKey) selectedGroup = group;
       }
     }
-    final visibleThemes = selectedGroup?.themes ?? [for (final g in groups) ...g.themes];
+    final noThemeChip = FilterChip(
+      label: const Text('指定なし'),
+      selected: selectedThemeId == null,
+      onSelected: (_) => onThemeSelected(null),
+    );
+
+    final List<Widget> themeBody;
+    if (!showCategories) {
+      // グループ1つ：カテゴリ見出しなしでチップのみ
+      themeBody = [
+        _themeWrap([noThemeChip, for (final t in groups.single.themes) _themeChip(t)]),
+      ];
+    } else if (selectedGroup != null) {
+      // カテゴリ選択中：そのグループのテーマだけ（見出しなし）
+      themeBody = [
+        _themeWrap([noThemeChip, for (final t in selectedGroup.themes) _themeChip(t)]),
+      ];
+    } else {
+      // 「すべて」：指定なしを先頭に1つ、その後カテゴリ見出しごとにテーマを並べる
+      themeBody = [
+        _themeWrap([noThemeChip]),
+        for (final group in groups) ...[
+          _groupHeading(context, group),
+          _themeWrap([for (final t in group.themes) _themeChip(t)]),
+        ],
+      ];
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('テーマ', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
         if (showCategories) ...[
+          Text('カテゴリ', style: titleStyle),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -688,30 +748,11 @@ class _ThemeFilterSection extends StatelessWidget {
                 ),
             ],
           ),
-          const Divider(height: 16),
+          const SizedBox(height: 16),
         ],
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            FilterChip(
-              label: const Text('指定なし'),
-              selected: selectedThemeId == null,
-              onSelected: (_) => onThemeSelected(null),
-            ),
-            for (final theme in visibleThemes)
-              FilterChip(
-                label: _DotLabel(
-                  color: theme.color,
-                  text: theme.taskCount != null
-                      ? '${theme.name}（${theme.taskCount}）'
-                      : theme.name,
-                ),
-                selected: theme.id == selectedThemeId,
-                onSelected: (_) => onThemeSelected(theme.id),
-              ),
-          ],
-        ),
+        Text('テーマ', style: titleStyle),
+        const SizedBox(height: 8),
+        ...themeBody,
         const SizedBox(height: 16),
       ],
     );
