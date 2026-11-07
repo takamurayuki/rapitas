@@ -18,6 +18,7 @@ class AppConstants {
   static const Map<String, String> executionStatusLabels = {
     'pending': '待機中',
     'running': '実行中',
+    'waiting_for_input': '入力待ち',
     'completed': '完了',
     'failed': '失敗',
     'cancelled': 'キャンセル',

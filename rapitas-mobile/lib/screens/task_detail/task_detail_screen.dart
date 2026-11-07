@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/routes.dart';
 import '../../models/task.dart';
+import '../../providers/execution_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/status_badge.dart';
@@ -322,22 +323,31 @@ class TaskDetailScreen extends ConsumerWidget {
       ),
     );
 
-    if (confirmed == true) {
-      try {
-        final service = ref.read(agentServiceProvider);
-        await service.executeTask(taskId);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('エージェント実行を開始しました')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('実行に失敗しました: $e')),
-          );
-        }
-      }
+    // ダイアログ表示中に画面が破棄されていたら ref / context は使えない
+    if (confirmed != true || !context.mounted) return;
+    // await 中に画面を離れても、サーバー側の状態は変わるのでキャッシュは読み直す。
+    // そのため WidgetRef ではなく、await 前に控えた container から invalidate する。
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      final service = container.read(agentServiceProvider);
+      final result = await service.executeTask(taskId);
+      container.invalidate(executingTasksProvider);
+      container.invalidate(taskDetailProvider(taskId));
+      container.invalidate(taskListProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          // 仕様が薄い draft タスクは質問を作るだけで止まる（エージェントは未起動）
+          content: Text(result.isAwaitingQuestion
+              ? (result.message ?? '仕様確認の質問を作成しました')
+              : 'エージェント実行を開始しました'),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('実行に失敗しました: $e')),
+      );
     }
   }
 }
