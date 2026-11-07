@@ -3,9 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  bonsoir_windows
   connectivity_plus
   flutter_secure_storage_windows
-  permission_handler_windows
   speech_to_text_windows
 )
 

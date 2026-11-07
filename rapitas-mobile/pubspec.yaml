@@ -35,7 +35,6 @@ dependencies:
 
   # Voice Input
   speech_to_text: ^7.0.0
-  permission_handler: ^11.3.1
 
   # Phone link (#1421): QR pairing and finding the desktop on the LAN
   mobile_scanner: ^7.0.0
