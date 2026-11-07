@@ -10,6 +10,11 @@ set -e
 
 cd "$CI_PRIMARY_REPOSITORY_PATH/rapitas-mobile"
 
+# NOTE: CocoaPods を先に入れる。flutter build ios --config-only は内部で pod install を実行するため、
+# 後から入れると Xcode Cloud（CocoaPods なし）ではここで失敗する（exit code 1）
+export HOMEBREW_NO_AUTO_UPDATE=1
+command -v pod >/dev/null 2>&1 || brew install cocoapods
+
 git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$HOME/flutter"
 export PATH="$PATH:$HOME/flutter/bin"
 
@@ -17,8 +22,6 @@ flutter precache --ios
 flutter pub get
 flutter build ios --config-only --release --build-number="${CI_BUILD_NUMBER:-1}"
 
-export HOMEBREW_NO_AUTO_UPDATE=1
-command -v pod >/dev/null 2>&1 || brew install cocoapods
 cd ios
 pod install
 
