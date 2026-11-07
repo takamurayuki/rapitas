@@ -2031,6 +2031,14 @@ function startBackend(retryCount = 0) {
     //
     // dev.js から見れば意図しない終了はすべてクラッシュである。「どの終了コードなら
     // 死んでよいか」を列挙する設計自体が誤りだった。
+    // NOTE: Exit 0 stays "stopped on purpose" — the startup port retry stops the
+    // backend without isBackendRestarting, so restarting here could double-start
+    // it. The backend exits non-zero on failure (exit-policy.ts); this line only
+    // makes an unexplained clean exit visible instead of silent.
+    if (code === 0 && !isBackendRestarting) {
+      log.warn('Backend exited with code 0 without a restart request — not restarting it.');
+    }
+
     if (code !== 0) {
       const now = Date.now();
       // 古いクラッシュタイムスタンプを除去
@@ -2061,6 +2069,10 @@ function startBackend(retryCount = 0) {
           } catch {
             // ポート未解放でも試行
           }
+          // NOTE: The most common crash right after a merge is a dependency the
+          // pulled code needs but node_modules lacks (2026-11-07: `qrcode`).
+          // Retrying on the same tree crashes the same way; sync it first.
+          if (!runDependencySync('restart')) return;
           startBackend(crashTimestamps.length);
 
           // 起動を試みても、上がったかどうかは別の話。プロセスは残るが
