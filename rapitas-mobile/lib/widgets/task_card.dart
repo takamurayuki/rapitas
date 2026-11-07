@@ -16,8 +16,24 @@ class TaskCard extends StatelessWidget {
     this.onStatusChanged,
   });
 
+  /// 期限の表示色。期限切れ（未完了）は赤系、今日が期限（未完了）は橙系、それ以外はグレー。
+  /// 時刻は落として日単位で比べる。
+  Color _dueDateColor(BuildContext context, DateTime dueDate) {
+    final defaultColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.5);
+    if (task.status == 'done') return defaultColor;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDay = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    if (dueDay.isBefore(today)) return Theme.of(context).colorScheme.error;
+    if (dueDay == today) return Colors.orange;
+    return defaultColor;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dueDate = task.dueDate;
+    final dueDateColor = dueDate != null ? _dueDateColor(context, dueDate) : null;
+
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -72,27 +88,21 @@ class TaskCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   PriorityIndicator(priority: task.priority),
                   const Spacer(),
-                  if (task.dueDate != null)
+                  if (dueDate != null)
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.calendar_today,
                           size: 14,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5),
+                          color: dueDateColor,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          DateFormatter.formatDate(task.dueDate),
+                          DateFormatter.formatDate(dueDate),
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withOpacity(0.5),
+                                    color: dueDateColor,
                                   ),
                         ),
                       ],

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../models/task.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/task_list/task_list_screen.dart';
 import '../screens/task_detail/task_detail_screen.dart';
+import '../screens/task_form/task_form_screen.dart';
 import '../screens/agent_execution/agent_execution_screen.dart';
 import '../screens/approvals/approvals_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
@@ -12,7 +14,9 @@ import '../screens/settings/settings_screen.dart';
 class AppRoutes {
   static const String home = '/';
   static const String tasks = '/tasks';
+  static const String taskNew = '/tasks/new';
   static const String taskDetail = '/tasks/:id';
+  static const String taskEdit = '/tasks/:id/edit';
   static const String executions = '/executions';
   static const String approvals = '/approvals';
   static const String notifications = '/notifications';
@@ -58,6 +62,19 @@ class AppRoutes {
             ),
           ),
         ],
+      ),
+      // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
+      GoRoute(
+        path: taskNew,
+        builder: (context, state) => const TaskFormScreen(),
+      ),
+      GoRoute(
+        path: taskEdit,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra;
+          return TaskFormScreen(taskId: id, task: extra is Task ? extra : null);
+        },
       ),
       GoRoute(
         path: taskDetail,

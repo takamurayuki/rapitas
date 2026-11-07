@@ -6,6 +6,10 @@ import '../../providers/task_provider.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/approval_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/connection_provider.dart';
+import '../../providers/service_providers.dart';
+import '../../services/sse_service.dart';
+import '../../widgets/task_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -32,32 +36,123 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(taskListProvider);
-          ref.invalidate(executionListProvider);
-          ref.invalidate(approvalListProvider);
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      body: Column(
+        children: [
+          const _ConnectionStatusBar(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(taskListProvider);
+                ref.invalidate(executionListProvider);
+                ref.invalidate(approvalListProvider);
+              },
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _SectionHeader(
+                    title: '進行中のタスク',
+                    onSeeAll: () => context.go(AppRoutes.tasks),
+                  ),
+                  _ActiveTasksSection(),
+                  const SizedBox(height: 24),
+                  _SectionHeader(
+                    title: '実行中のエージェント',
+                    onSeeAll: () => context.go(AppRoutes.executions),
+                  ),
+                  _RunningExecutionsSection(),
+                  const SizedBox(height: 24),
+                  _SectionHeader(
+                    title: '保留中の承認',
+                    onSeeAll: () => context.go(AppRoutes.approvals),
+                  ),
+                  _PendingApprovalsSection(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ホーム先頭の細い帯。デスクトップとのリアルタイム接続（SSE）の状態を出し、タップで設定画面へ。
+class _ConnectionStatusBar extends ConsumerWidget {
+  const _ConnectionStatusBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sseState = ref.watch(sseConnectionStateProvider).valueOrNull ?? SseConnectionState.idle;
+    final desktopName = ref.watch(connectionSettingsProvider.select((s) => s.desktopName));
+
+    final (Color dotColor, String label) = switch (sseState) {
+      SseConnectionState.connected => (Colors.green, '接続中（${desktopName ?? 'デスクトップ'}）'),
+      SseConnectionState.connecting => (Colors.orange, '接続しています'),
+      SseConnectionState.reconnecting => (Colors.orange, '再接続しています'),
+      SseConnectionState.unauthorized => (Colors.grey, '未接続（QRコードでつなぎ直してください）'),
+      SseConnectionState.idle => (Colors.grey, '未接続'),
+    };
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      child: InkWell(
+        onTap: () => context.go(AppRoutes.settings),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 16, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// セクションの取得失敗を示す短いエラー行。再試行で該当 provider を読み直す。
+class _SectionErrorRow extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _SectionErrorRow({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16, right: 8),
+        child: Row(
           children: [
-            _SectionHeader(
-              title: '進行中のタスク',
-              onSeeAll: () => context.go(AppRoutes.tasks),
+            Icon(Icons.error_outline, size: 20, color: colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '取得できませんでした',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ),
-            _ActiveTasksSection(),
-            const SizedBox(height: 24),
-            _SectionHeader(
-              title: '実行中のエージェント',
-              onSeeAll: () => context.go(AppRoutes.executions),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('再試行'),
             ),
-            _RunningExecutionsSection(),
-            const SizedBox(height: 24),
-            _SectionHeader(
-              title: '保留中の承認',
-              onSeeAll: () => context.go(AppRoutes.approvals),
-            ),
-            _PendingApprovalsSection(),
           ],
         ),
       ),
@@ -114,17 +209,9 @@ class _ActiveTasksSection extends ConsumerWidget {
         }
         return Column(
           children: tasks.take(5).map((task) {
-            return Card(
-              child: ListTile(
-                title: Text(task.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: task.description != null
-                    ? Text(task.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
-                    : null,
-                trailing: task.agentExecutable
-                    ? Icon(Icons.smart_toy, color: Theme.of(context).colorScheme.primary)
-                    : null,
-                onTap: () => context.push('/tasks/${task.id}'),
-              ),
+            return TaskCard(
+              task: task,
+              onTap: () => context.push('/tasks/${task.id}'),
             );
           }).toList(),
         );
@@ -189,7 +276,9 @@ class _RunningExecutionsSection extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => _SectionErrorRow(
+        onRetry: () => ref.invalidate(executionListProvider),
+      ),
     );
   }
 }
@@ -221,13 +310,16 @@ class _PendingApprovalsSection extends ConsumerWidget {
                     ? Text(approval.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
                     : null,
                 trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.go(AppRoutes.approvals),
               ),
             );
           }).toList(),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => _SectionErrorRow(
+        onRetry: () => ref.invalidate(approvalListProvider),
+      ),
     );
   }
 }
