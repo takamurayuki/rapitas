@@ -43,7 +43,7 @@ class HomeScreen extends ConsumerWidget {
             child: RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(taskListProvider);
-                ref.invalidate(executionListProvider);
+                ref.invalidate(executingTasksProvider);
                 ref.invalidate(approvalListProvider);
               },
               child: ListView(
@@ -242,12 +242,12 @@ class _ActiveTasksSection extends ConsumerWidget {
 class _RunningExecutionsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final executionsAsync = ref.watch(executionListProvider);
+    final executingAsync = ref.watch(executingTasksProvider);
+    final titles = ref.watch(taskTitleLookupProvider);
 
-    return executionsAsync.when(
-      data: (executions) {
-        final running = executions.where((e) => e.isRunning).toList();
-        if (running.isEmpty) {
+    return executingAsync.when(
+      data: (executing) {
+        if (executing.isEmpty) {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(24),
@@ -256,20 +256,24 @@ class _RunningExecutionsSection extends ConsumerWidget {
           );
         }
         return Column(
-          children: running.take(3).map((execution) {
+          children: executing.take(3).map((task) {
             return Card(
               child: ListTile(
-                leading: const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                leading: task.isWaitingForInput
+                    ? const Icon(Icons.help_outline, color: Colors.orange)
+                    : const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                 title: Text(
-                  execution.task?.title ?? execution.command ?? '実行中...',
+                  taskTitleOrFallback(titles, task.taskId),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: Text(execution.durationText),
+                subtitle: Text(task.isWaitingForInput ? '入力待ち' : '実行中'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/tasks/${task.taskId}'),
               ),
             );
           }).toList(),
@@ -277,7 +281,7 @@ class _RunningExecutionsSection extends ConsumerWidget {
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) => _SectionErrorRow(
-        onRetry: () => ref.invalidate(executionListProvider),
+        onRetry: () => ref.invalidate(executingTasksProvider),
       ),
     );
   }
