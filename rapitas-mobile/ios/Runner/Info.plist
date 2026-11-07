@@ -52,6 +52,8 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>同じネットワーク上のデスクトップ版 Rapitas に接続するために使います。</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_rapitas._tcp</string>
