@@ -45,6 +45,13 @@ class AgentExecutionScreen extends ConsumerWidget {
           ),
         ],
       ),
+      // タップで開ける実行導線。音声の単純実行コマンドと同じ経路（todo の実行可能タスク一覧）を使う。
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'execute_task',
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('タスクを実行'),
+        onPressed: () => _showTaskSelectionForExecution(context, ref, '実行'),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(taskListProvider);
@@ -63,7 +70,8 @@ class AgentExecutionScreen extends ConsumerWidget {
               )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(8),
+                // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
                 children: [
                   const _SectionTitle('実行中'),
                   ..._buildSection<ExecutingTask>(

@@ -127,10 +127,12 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Get all tasks (supports incremental fetch via `since` param)
   .get('/', async (context) => {
     const { query } = context;
-    const { projectId, milestoneId, priority, since, dueDateOn } = query as {
+    const { projectId, milestoneId, priority, status, themeId, since, dueDateOn } = query as {
       projectId?: string;
       milestoneId?: string;
       priority?: string;
+      status?: string;
+      themeId?: string;
       since?: string;
       /** Filter to tasks whose dueDate falls on this UTC date (YYYY-MM-DD). */
       dueDateOn?: string;
@@ -141,6 +143,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ...(projectId && { projectId: parseInt(projectId) }),
       ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
       ...(priority && { priority }),
+      ...(status && { status }),
+      ...(themeId && { themeId: parseInt(themeId) }),
       ...(dueDateOn && {
         dueDate: {
           // NOTE: No trailing Z — uses local timezone midnight so JST/local dates match
@@ -671,3 +675,4 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ),
     },
   );
+
