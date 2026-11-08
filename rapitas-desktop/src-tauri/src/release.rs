@@ -4,12 +4,15 @@
 //! `rapitas-backend` binary is shipped as a Tauri sidecar; this module
 //! locates it (dev or release path), copies it into the per-user app data
 //! directory, launches it, forwards stdout/stderr to the host, and shuts
-//! it down when the app exits.
+//! it down when the app exits. A backend exit with code 75 (the "please
+//! restart me" contract, e.g. after POST /deploy/now) is answered with a
+//! fresh spawn, exactly like dev.js does in debug builds.
 //!
 //! Compiled only when `not(debug_assertions)` — see `mod release;` in
 //! `main.rs`. In debug builds the backend is started by `dev.js` instead.
 
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 
@@ -18,8 +21,33 @@ pub struct BackendState {
 }
 
 pub fn setup_sidecar(app: &tauri::App) {
-    let shell = app.shell();
+    let launch = prepare_backend_launch(app);
+    let handle = app.handle().clone();
+    if let Err(err) = spawn_backend(&handle, launch) {
+        panic!("failed to spawn backend: {err}");
+    }
+    println!("Backend started successfully!");
+}
 
+/// Exit code the backend uses to ask its launcher for a restart (same
+/// contract as dev.js / restart-supervisor.ts; e.g. POST /deploy/now).
+const RESTART_EXIT_CODE: i32 = 75;
+
+/// Set by `kill_backend` when the app is quitting so a backend exit that
+/// races the shutdown is never answered with a fresh spawn.
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+
+/// Everything needed to (re)spawn the backend. Resolved once in
+/// `setup_sidecar` (binary located + copied, Prisma engine copied, DB URL
+/// resolved) and reused verbatim for every exit-75 restart.
+struct BackendLaunch {
+    backend_path: std::path::PathBuf,
+    database_url: String,
+    data_dir: String,
+    query_engine_path: Option<std::path::PathBuf>,
+}
+
+fn prepare_backend_launch(app: &tauri::App) -> Arc<BackendLaunch> {
     let backend_filename = if cfg!(target_os = "windows") {
         "rapitas-backend.exe"
     } else if cfg!(target_os = "macos") {
@@ -134,14 +162,38 @@ pub fn setup_sidecar(app: &tauri::App) {
     let database_url = resolve_database_url(&app_data_dir);
     let data_dir = app_data_dir.to_string_lossy().to_string();
 
+    Arc::new(BackendLaunch {
+        backend_path,
+        database_url,
+        data_dir,
+        query_engine_path,
+    })
+}
+
+/// Spawn the backend, store its child in `BackendState`, and watch its
+/// events. On `Terminated` with code 75 (and the app not quitting) the
+/// watcher calls this again, so restarts chain indefinitely.
+///
+/// The state lock is held across the SHUTTING_DOWN check, the spawn and the
+/// store: `kill_backend` sets the flag under the same lock, so a restart can
+/// never slip in after the quit path has already taken and killed the child.
+fn spawn_backend(app: &tauri::AppHandle, launch: Arc<BackendLaunch>) -> Result<(), String> {
+    let state = app.state::<Mutex<BackendState>>();
+    let mut guard = state.lock().unwrap();
+    if SHUTTING_DOWN.load(Ordering::SeqCst) {
+        println!("[Backend] App is shutting down; not spawning backend.");
+        return Ok(());
+    }
+
     // Launch the backend process
-    let mut backend_command = shell
-        .command(backend_path.to_string_lossy().to_string())
+    let mut backend_command = app
+        .shell()
+        .command(launch.backend_path.to_string_lossy().to_string())
         .env("TAURI_BUILD", "true")
         .env("RAPITAS_DB_PROVIDER", "sqlite")
         .env("PORT", "3001")
-        .env("DATABASE_URL", database_url)
-        .env("RAPITAS_DATA_DIR", data_dir)
+        .env("DATABASE_URL", launch.database_url.clone())
+        .env("RAPITAS_DATA_DIR", launch.data_dir.clone())
         .env("FRONTEND_URL", "tauri://localhost")
         .env(
             "CORS_ORIGIN",
@@ -149,18 +201,22 @@ pub fn setup_sidecar(app: &tauri::App) {
         );
     // Explicit engine path — Prisma's own search never resolves inside a bun
     // single-file binary, so point it at the engine we just copied.
-    if let Some(engine) = &query_engine_path {
+    if let Some(engine) = &launch.query_engine_path {
         backend_command = backend_command.env(
             "PRISMA_QUERY_ENGINE_LIBRARY",
             engine.to_string_lossy().to_string(),
         );
     }
 
-    let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
+    let (mut rx, child) = backend_command.spawn().map_err(|err| err.to_string())?;
+    println!("[Backend] Spawned backend (pid {})", child.pid());
 
-    // Store child process handle for cleanup on exit
-    let state = app.state::<Mutex<BackendState>>();
-    state.lock().unwrap().child = Some(child);
+    // Store child process handle for cleanup on exit (replaces the handle of
+    // a backend that just exited with 75, so kill_backend kills the live one)
+    guard.child = Some(child);
+    drop(guard);
+
+    let app = app.clone();
 
     // Forward backend output to logs
     tauri::async_runtime::spawn(async move {
@@ -180,13 +236,28 @@ pub fn setup_sidecar(app: &tauri::App) {
                 }
                 CommandEvent::Terminated(payload) => {
                     println!("[Backend] Terminated with code: {:?}", payload.code);
+                    if payload.code != Some(RESTART_EXIT_CODE) {
+                        // Signal kill (None), clean exit (0) or a crash code:
+                        // not a restart request.
+                        break;
+                    }
+                    if SHUTTING_DOWN.load(Ordering::SeqCst) {
+                        println!("[Backend] Exit code {RESTART_EXIT_CODE} during app shutdown; not restarting.");
+                        break;
+                    }
+                    println!("[Backend] Exit code {RESTART_EXIT_CODE} = restart requested; restarting backend...");
+                    match spawn_backend(&app, launch.clone()) {
+                        Ok(()) => println!("[Backend] Backend restarted."),
+                        Err(err) => eprintln!("[Backend] Restart failed: {err}"),
+                    }
+                    break;
                 }
                 _ => {}
             }
         }
     });
 
-    println!("Backend started successfully!");
+    Ok(())
 }
 
 fn find_backend_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
@@ -287,6 +358,9 @@ fn parse_database_url_line(line: &str) -> Option<String> {
 pub fn kill_backend(app: &tauri::AppHandle) {
     let state = app.state::<Mutex<BackendState>>();
     let mut guard = state.lock().unwrap();
+    // Under the state lock, so an in-flight exit-75 restart either finished
+    // storing its child (killed below) or will see the flag and not spawn.
+    SHUTTING_DOWN.store(true, Ordering::SeqCst);
     if let Some(child) = guard.child.take() {
         let _ = child.kill();
         println!("Backend stopped.");
