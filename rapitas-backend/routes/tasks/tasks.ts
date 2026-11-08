@@ -137,7 +137,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       /** Filter to tasks whose dueDate falls on this UTC date (YYYY-MM-DD). */
       dueDateOn?: string;
     };
-
     const baseWhere = {
       parentId: null,
       ...(projectId && { projectId: parseInt(projectId) }),
@@ -675,4 +674,3 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       ),
     },
   );
-
