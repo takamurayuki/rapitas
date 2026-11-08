@@ -208,9 +208,7 @@ fn spawn_backend(app: &tauri::AppHandle, launch: Arc<BackendLaunch>) -> Result<(
         );
     }
 
-    let (mut rx, child) = backend_command
-        .spawn()
-        .map_err(|err| err.to_string())?;
+    let (mut rx, child) = backend_command.spawn().map_err(|err| err.to_string())?;
     println!("[Backend] Spawned backend (pid {})", child.pid());
 
     // Store child process handle for cleanup on exit (replaces the handle of
@@ -368,4 +366,3 @@ pub fn kill_backend(app: &tauri::AppHandle) {
         println!("Backend stopped.");
     }
 }
-
