@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/pairing_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../services/deploy_service.dart';
 import '../../services/sse_service.dart';
 import '../pairing/pairing_scanner_screen.dart';
 
@@ -66,6 +67,12 @@ class ConnectionSection extends ConsumerWidget {
           trailing: const Icon(Icons.play_arrow),
           onTap: () => _testConnection(context, ref),
         ),
+        ListTile(
+          leading: const Icon(Icons.restart_alt),
+          title: const Text('デスクトップを再起動'),
+          subtitle: const Text('更新の反映や不調のときに、バックエンドを再起動します'),
+          onTap: () => _restartDesktop(context, ref),
+        ),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text(
@@ -105,6 +112,82 @@ class ConnectionSection extends ConsumerWidget {
       messenger.showSnackBar(SnackBar(content: Text(connectionErrorMessage(error)), backgroundColor: Colors.red));
     }
   }
+
+  /// 「デスクトップを再起動」: 事前確認 → 確認ダイアログ → POST /deploy/now。
+  ///
+  /// ref はここで一度だけ読む（await の後に ref を使うと、その間に画面が
+  /// 破棄されていたとき例外になる）。await の後は context.mounted を確かめてから UI を触る。
+  Future<void> _restartDesktop(BuildContext context, WidgetRef ref) async {
+    if (_restartInFlight) return;
+    _restartInFlight = true;
+    try {
+      final service = ref.read(deployServiceProvider);
+      final messenger = ScaffoldMessenger.of(context);
+
+      messenger.showSnackBar(const SnackBar(content: Text('デスクトップの状態を確認しています…')));
+      final DeployStatus status;
+      try {
+        status = await service.getStatus();
+      } on DeployException catch (e) {
+        if (!context.mounted) return;
+        messenger.clearSnackBars();
+        await _showRestartMessage(context, deployReasonMessage(e.reason));
+        return;
+      }
+      if (!context.mounted) return;
+      messenger.clearSnackBars();
+
+      if (!status.ready) {
+        await _showRestartMessage(context, deployReasonMessage(status.reason));
+        return;
+      }
+
+      final ahead = status.aheadCount ?? 0;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('デスクトップを再起動'),
+          content: Text(ahead >= 1 ? '未反映の更新が $ahead 件あります。再起動して反映しますか？' : 'デスクトップのバックエンドを再起動しますか？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('キャンセル')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('再起動する')),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+
+      try {
+        final result = await service.deployNow();
+        if (!context.mounted) return;
+        if (result.deployed) {
+          messenger.showSnackBar(const SnackBar(content: Text('再起動を依頼しました。再接続まで少しお待ちください')));
+        } else {
+          messenger.showSnackBar(SnackBar(content: Text(deployReasonMessage(result.reason)), backgroundColor: Colors.red));
+        }
+      } on DeployException catch (e) {
+        if (!context.mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text(deployReasonMessage(e.reason)), backgroundColor: Colors.red));
+      }
+    } finally {
+      _restartInFlight = false;
+    }
+  }
+}
+
+/// 再起動の確認中・依頼中に、もう一度タップされても二重に走らせないための印
+bool _restartInFlight = false;
+
+Future<void> _showRestartMessage(BuildContext context, String message) {
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('デスクトップを再起動'),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
+      ],
+    ),
+  );
 }
 
 /// 接続先とトークンを編集するダイアログを開く。

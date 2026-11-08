@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../services/task_service.dart';
 import '../services/agent_service.dart';
 import '../services/approval_service.dart';
+import '../services/deploy_service.dart';
 import '../services/notification_service.dart';
 import '../services/sse_service.dart';
 import '../services/theme_service.dart';
@@ -31,6 +32,10 @@ final agentServiceProvider = Provider<AgentService>((ref) {
 
 final approvalServiceProvider = Provider<ApprovalService>((ref) {
   return ApprovalService(ref.watch(apiClientProvider));
+});
+
+final deployServiceProvider = Provider<DeployService>((ref) {
+  return DeployService(ref.watch(apiClientProvider));
 });
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
