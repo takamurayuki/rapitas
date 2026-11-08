@@ -293,7 +293,7 @@ class AgentExecutionScreen extends ConsumerWidget {
       }
 
       final executableTasks =
-          tasks.where((t) => t.agentExecutable || t.isDeveloperMode).toList();
+          tasks.where((t) => t.canExecuteWithAgent).toList();
 
       if (!context.mounted) return;
 

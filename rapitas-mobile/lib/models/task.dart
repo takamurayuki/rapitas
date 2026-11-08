@@ -32,6 +32,17 @@ class Task {
   final List<Task>? subtasks;
   final TaskTheme? theme;
 
+  /// AIエージェントで実行できるか。
+  ///
+  /// デスクトップと同じく実行可否はテーマ側で決まる：テーマが開発指定
+  /// （Theme.isDevelopment）で、作業フォルダ（Theme.workingDirectory）が
+  /// 設定されている場合のみ true。タスク側の agentExecutable /
+  /// isDeveloperMode は通常のデスクトップ利用では立たないので判定に使わない。
+  bool get canExecuteWithAgent =>
+      theme != null &&
+      theme!.isDevelopment &&
+      (theme!.workingDirectory?.isNotEmpty ?? false);
+
   Task({
     required this.id,
     required this.title,
@@ -257,6 +268,12 @@ class TaskTheme {
   /// テーマに属するタスク数（GET /themes の `_count.tasks`）
   final int? taskCount;
 
+  /// 開発テーマか（Theme.isDevelopment）。欠落時は false
+  final bool isDevelopment;
+
+  /// テーマの作業フォルダ（Theme.workingDirectory）。未設定なら null
+  final String? workingDirectory;
+
   TaskTheme({
     required this.id,
     required this.name,
@@ -264,12 +281,16 @@ class TaskTheme {
     this.categoryId,
     this.category,
     this.taskCount,
+    this.isDevelopment = false,
+    this.workingDirectory,
   });
 
   factory TaskTheme.fromJson(Map<String, dynamic> json) {
     final category = json['category'];
     final count = json['_count'];
     final tasks = count is Map ? count['tasks'] : null;
+    final isDevelopment = json['isDevelopment'];
+    final workingDirectory = json['workingDirectory'];
     return TaskTheme(
       id: json['id'].toString(),
       name: json['name'] as String,
@@ -279,6 +300,8 @@ class TaskTheme {
           ? TaskCategory.fromJson(Map<String, dynamic>.from(category))
           : null,
       taskCount: tasks is num ? tasks.toInt() : null,
+      isDevelopment: isDevelopment is bool ? isDevelopment : false,
+      workingDirectory: workingDirectory is String ? workingDirectory : null,
     );
   }
 
