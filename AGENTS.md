@@ -26,6 +26,18 @@
 - Claude 専用の CLI 機能やファイルが Codex/Gemini でも存在すると仮定しない。
 - **git worktree 内で `npm install` / `bun install` / `pnpm install` を実行しない。** 共有された `node_modules` を上書きし、メインチェックアウトと他の worktree を破壊する。依存追加は必ずメインチェックアウトで行う。
 
+## ナレッジベース（ai-dev-kb）
+
+複数プロジェクト共通の推奨手順を `docs/ai-kb/` にコピーして置いている（出典：非公開の ai-dev-kb。出典とコミットは各ファイル先頭に記録）。
+該当する作業では、変更前に対応するガイドを読み、報告にガイド ID と実施結果を書く。
+
+| 作業 | ガイド | rapitas での読み先 |
+| --- | --- | --- |
+| モバイル／フロントエンドが既存 API を呼ぶ変更（特にフィルタ・検索・並び替え） | [KB-G-0001 バックエンド契約を先に確認する](docs/ai-kb/KB-G-0001-backend-contract-first.md) | ルート `rapitas-backend/routes/`、クライアント `rapitas-mobile/lib/services/`・`rapitas-frontend` |
+
+- `docs/ai-kb/` のファイルは編集しない（更新は KB 側で行い、差分を取り込む）。rapitas 固有の補足はこの表の右列に書き、事故の記録は `docs/lessons/` に書く。
+- ガイドが古い・合わないと気づいても作業は止めない。報告に「ガイド不整合」として書く。
+
 ## よく使う検証
 
 作業範囲に応じて必要なものだけ実行する。
