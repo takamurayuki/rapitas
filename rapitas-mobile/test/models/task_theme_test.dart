@@ -77,6 +77,117 @@ void main() {
 
       expect(theme.toJson(), {'id': 3, 'name': '英語', 'color': '#FF0000'});
     });
+
+    test('isDevelopment / workingDirectory を読み取る', () {
+      final theme = TaskTheme.fromJson({
+        'id': 3,
+        'name': 'rapitas',
+        'isDevelopment': true,
+        'workingDirectory': '/home/user/rapitas',
+      });
+
+      expect(theme.isDevelopment, isTrue);
+      expect(theme.workingDirectory, '/home/user/rapitas');
+    });
+
+    test('isDevelopment / workingDirectory が無ければ false / null', () {
+      final theme = TaskTheme.fromJson({'id': 1, 'name': '仕事'});
+
+      expect(theme.isDevelopment, isFalse);
+      expect(theme.workingDirectory, isNull);
+    });
+
+    test('workingDirectory が null なら null・空文字はそのまま保持', () {
+      final nullDir = TaskTheme.fromJson({
+        'id': 1,
+        'name': '仕事',
+        'isDevelopment': false,
+        'workingDirectory': null,
+      });
+      final emptyDir = TaskTheme.fromJson({
+        'id': 2,
+        'name': '開発',
+        'isDevelopment': true,
+        'workingDirectory': '',
+      });
+
+      expect(nullDir.isDevelopment, isFalse);
+      expect(nullDir.workingDirectory, isNull);
+      expect(emptyDir.workingDirectory, '');
+    });
+  });
+
+  group('Task.canExecuteWithAgent', () {
+    Task task({TaskTheme? theme, bool agentExecutable = false, bool isDeveloperMode = false}) =>
+        Task(
+          id: '1',
+          title: 'task',
+          createdAt: DateTime.utc(2026, 11, 1),
+          updatedAt: DateTime.utc(2026, 11, 1),
+          theme: theme,
+          agentExecutable: agentExecutable,
+          isDeveloperMode: isDeveloperMode,
+        );
+
+    TaskTheme theme({bool isDevelopment = false, String? workingDirectory}) => TaskTheme(
+          id: '3',
+          name: 'rapitas',
+          isDevelopment: isDevelopment,
+          workingDirectory: workingDirectory,
+        );
+
+    test('開発指定＋作業フォルダあり → true', () {
+      expect(
+        task(theme: theme(isDevelopment: true, workingDirectory: '/repo')).canExecuteWithAgent,
+        isTrue,
+      );
+    });
+
+    test('開発指定のみ（作業フォルダなし）→ false', () {
+      expect(task(theme: theme(isDevelopment: true)).canExecuteWithAgent, isFalse);
+    });
+
+    test('開発指定＋作業フォルダが空文字 → false', () {
+      expect(
+        task(theme: theme(isDevelopment: true, workingDirectory: '')).canExecuteWithAgent,
+        isFalse,
+      );
+    });
+
+    test('作業フォルダのみ（開発指定なし）→ false', () {
+      expect(task(theme: theme(workingDirectory: '/repo')).canExecuteWithAgent, isFalse);
+    });
+
+    test('テーマなし → false（タスク側フラグが立っていても）', () {
+      expect(
+        task(agentExecutable: true, isDeveloperMode: true).canExecuteWithAgent,
+        isFalse,
+      );
+    });
+
+    test('GET /tasks の行（theme に全列）から判定できる', () {
+      final parsed = Task.fromJson({
+        'id': 545,
+        'title': 'モバイル版の実行ボタン',
+        'agentExecutable': false,
+        'isDeveloperMode': false,
+        'createdAt': '2026-11-01T09:00:00.000Z',
+        'updatedAt': '2026-11-07T09:00:00.000Z',
+        'themeId': 3,
+        'theme': {
+          'id': 3,
+          'name': 'rapitas',
+          'color': '#3366FF',
+          'isDevelopment': true,
+          'workingDirectory': '/home/user/rapitas',
+          'repositoryUrl': null,
+          'defaultBranch': 'develop',
+          'categoryId': null,
+        },
+      });
+
+      expect(parsed.canExecuteWithAgent, isTrue);
+    });
   });
 
   group('groupThemesByCategory', () {

@@ -25,7 +25,7 @@ class TaskDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('タスク詳細'),
         actions: [
-          if (loadedTask != null && loadedTask.agentExecutable)
+          if (loadedTask != null && loadedTask.canExecuteWithAgent)
             IconButton(
               icon: const Icon(Icons.play_arrow),
               tooltip: 'AIエージェントで実行',
@@ -172,7 +172,7 @@ class TaskDetailScreen extends ConsumerWidget {
                       ),
                     )),
               ],
-              if (task.agentExecutable) ...[
+              if (task.canExecuteWithAgent) ...[
                 const SizedBox(height: 24),
                 Card(
                   color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
