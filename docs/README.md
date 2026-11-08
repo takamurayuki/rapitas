@@ -29,6 +29,7 @@ the code is right — fix the document.
 | [pre-commit-guide.md](pre-commit-guide.md) | What the pre-commit hook does |
 | [test-data-driven-guide.md](test-data-driven-guide.md) | Table-driven test patterns for `bun:test` |
 | [../rapitas-backend/docs/pr-endpoint-guard-pattern.md](../rapitas-backend/docs/pr-endpoint-guard-pattern.md) | Pre-checks for PR-operation endpoints |
+| [ai-kb/](ai-kb/) | Cross-project agent guides copied from ai-dev-kb (index in AGENTS.md) |
 
 ## Design notes
 

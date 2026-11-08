@@ -111,6 +111,8 @@ Language: English only. Use imperative mood ("Add", not "Added").
 
 ## 4. WORKFLOW
 
+Before research, check the task against the knowledge-base table in AGENTS.md (「ナレッジベース」) and read any matching guide in docs/ai-kb/.
+
 > **IMPORTANT — orchestrator-driven, single-phase execution.**
 > When the workflow system / auto-run dispatches you, your task prompt names a
 > **role** (researcher / planner / implementer / verifier). You execute **exactly
