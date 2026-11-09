@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
 import '../../providers/rapi_chat_provider.dart';
-import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
-import '../../services/sse_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
 
@@ -68,8 +66,11 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 const double _messageGap = 14;
 
 /// AppBar のタイトルに載せるラピのアバター（円形の白い半透明の土台と、その中の本体）
-const double _titleAvatarBase = 34;
-const double _titleAvatarSize = 28;
+const double _titleAvatarBase = 46;
+const double _titleAvatarSize = 40;
+
+/// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より少し高くする
+const double _rapiToolbarHeight = 66;
 
 /// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
 const double _topFade = 16;
@@ -144,7 +145,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ラピ本人は AppBar のタイトル位置（アバター＋名前＋接続状態）の1か所だけに出し、
+    // ラピ本人は AppBar のタイトル位置（アバター＋その真下の名前）の1か所だけに出し、
     // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
@@ -157,7 +158,11 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     return Scaffold(
       drawer: const AppDrawer(),
       // 会話エリアを広く取るため、ラピはヒーローではなくタイトル欄に置く
-      appBar: AppBar(centerTitle: true, title: const _RapiTitle()),
+      appBar: AppBar(
+        centerTitle: true,
+        toolbarHeight: _rapiToolbarHeight,
+        title: const _RapiTitle(),
+      ),
       body: Column(
         children: [
           _ModeChips(mode: chat.mode, onSelected: _chat.setMode),
@@ -551,23 +556,15 @@ class _ModeChips extends StatelessWidget {
   }
 }
 
-/// AppBar のタイトル：左に円形のアバター、右に名前と接続状態の2行
-class _RapiTitle extends ConsumerWidget {
+/// AppBar のタイトル：円形のアバターと、その真下に小さく名前
+class _RapiTitle extends StatelessWidget {
   const _RapiTitle();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // ホームの接続ステータス帯と同じプロバイダを使う（文言はタイトル用に短い形だけ・端末名は出さない）
-    final sseState = ref.watch(sseConnectionStateProvider).valueOrNull ?? SseConnectionState.idle;
-    final (Color dotColor, String label) = switch (sseState) {
-      SseConnectionState.connected => (Colors.green, '接続中'),
-      SseConnectionState.connecting => (Colors.orange, '接続しています'),
-      SseConnectionState.reconnecting => (Colors.orange, '再接続しています'),
-      SseConnectionState.unauthorized || SseConnectionState.idle => (Colors.grey, '未接続'),
-    };
+  Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return Row(
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // 白の半透明の円に本体を載せ、足元の影ごと円で切る
@@ -580,39 +577,11 @@ class _RapiTitle extends ConsumerWidget {
             child: const RapiAvatar(size: _titleAvatarSize),
           ),
         ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'ラピ',
-                maxLines: 1,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.2),
-              ),
-              const SizedBox(height: 1),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, height: 1.2, color: muted),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        const SizedBox(height: 1),
+        Text(
+          'ラピ',
+          maxLines: 1,
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.2, color: muted),
         ),
       ],
     );
