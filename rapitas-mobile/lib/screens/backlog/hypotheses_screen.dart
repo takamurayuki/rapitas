@@ -6,6 +6,7 @@ import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/centered_message.dart';
 import 'backlog_widgets.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 /// 状態ごとのチップの色
 Color? _statusColor(String status) {
@@ -96,7 +97,7 @@ class _HypothesesScreenState extends ConsumerState<HypothesesScreen> {
     final hypothesesAsync = ref.watch(hypothesisListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('仮説')),
+      appBar: AppBar(title: const Text('仮説'), actions: const [VoiceModeIndicator()]),
       body: VoiceScrollTarget(
         path: '/hypotheses',
         child: RefreshIndicator(

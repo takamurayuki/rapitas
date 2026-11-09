@@ -10,6 +10,7 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/priority_indicator.dart';
 import '../../utils/date_formatter.dart';
 import '../../utils/constants.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -25,6 +26,8 @@ class TaskDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('タスク詳細'),
         actions: [
+          // 読み込み前は右にアイコンが無いので右端用の余白を取る
+          VoiceModeIndicator(trailing: loadedTask == null),
           if (loadedTask != null && loadedTask.canExecuteWithAgent)
             IconButton(
               icon: const Icon(Icons.play_arrow),

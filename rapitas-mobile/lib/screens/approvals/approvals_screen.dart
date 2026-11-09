@@ -6,6 +6,7 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../utils/date_formatter.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class ApprovalsScreen extends ConsumerWidget {
   const ApprovalsScreen({super.key});
@@ -17,8 +18,9 @@ class ApprovalsScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        // NOTE: 音声での承認・却下は全画面共通の左下のボタンから（「2番目を承認」など）
+        // NOTE: 音声での承認・却下は音声操作モードから（聞き取り表示は右端。「2番目を承認」など）
         title: const Text('承認リクエスト'),
+        actions: const [VoiceModeIndicator()],
       ),
       body: VoiceScrollTarget(
         path: '/approvals',

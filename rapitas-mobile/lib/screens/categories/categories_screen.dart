@@ -8,6 +8,7 @@ import '../../services/reorder_orders.dart';
 import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
 import 'category_form_screen.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -108,6 +109,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           ),
           title: const Text('並び替え'),
           actions: [
+            const VoiceModeIndicator(trailing: false),
             TextButton(
               onPressed: _saving ? null : _saveReorder,
               child: _saving
@@ -149,6 +151,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       appBar: AppBar(
         title: const Text('カテゴリ'),
         actions: [
+          const VoiceModeIndicator(trailing: false),
           IconButton(
             icon: const Icon(Icons.swap_vert),
             tooltip: '並び替え',

@@ -108,7 +108,7 @@ class AppDrawer extends ConsumerWidget {
   }
 }
 
-/// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、左下の音声操作の聞き取り表示を隠す。
+/// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、タイトルバーの音声操作の聞き取り表示を隠す。
 /// Scaffold はドロワーを開いている間だけ中身を作るので、作られている間＝出ている間。
 class _HidesVoiceIndicator extends StatefulWidget {
   final Widget child;

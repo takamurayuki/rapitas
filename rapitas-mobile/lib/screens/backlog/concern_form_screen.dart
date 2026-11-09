@@ -5,6 +5,7 @@ import '../../models/backlog.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/backlog_service.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -105,7 +106,7 @@ class _ConcernFormScreenState extends ConsumerState<ConcernFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('新しい懸念')),
+      appBar: AppBar(title: const Text('新しい懸念'), actions: const [VoiceModeIndicator()]),
       body: Form(
         key: _formKey,
         child: ListView(

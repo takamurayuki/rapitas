@@ -6,6 +6,7 @@ import '../../providers/connection_provider.dart';
 import '../../providers/pairing_provider.dart';
 import '../../services/pairing/pairing_payload.dart';
 import '../../services/pairing/pairing_service.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 /// デスクトップの「スマホを追加する」に出る QR コードを読み取り、ペアリングする画面。
 /// 成功すると接続先とトークンを保存して閉じる（戻り値 true）。
@@ -68,7 +69,7 @@ class _PairingScannerScreenState extends ConsumerState<PairingScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('デスクトップとつなぐ')),
+      appBar: AppBar(title: const Text('デスクトップとつなぐ'), actions: const [VoiceModeIndicator()]),
       body: Column(
         children: [
           Expanded(

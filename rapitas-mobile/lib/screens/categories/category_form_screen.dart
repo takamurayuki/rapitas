@@ -5,6 +5,7 @@ import '../../models/task.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../widgets/color_swatch_picker.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -128,7 +129,7 @@ class _PlaceholderScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('カテゴリを編集')),
+      appBar: AppBar(title: const Text('カテゴリを編集'), actions: const [VoiceModeIndicator()]),
       body: child,
     );
   }
@@ -225,7 +226,7 @@ class _CategoryFormState extends ConsumerState<_CategoryForm> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'カテゴリを編集' : '新しいカテゴリ')),
+      appBar: AppBar(title: Text(_isEdit ? 'カテゴリを編集' : '新しいカテゴリ'), actions: const [VoiceModeIndicator()]),
       body: Form(
         key: _formKey,
         child: ListView(

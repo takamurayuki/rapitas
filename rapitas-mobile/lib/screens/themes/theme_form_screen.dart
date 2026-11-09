@@ -7,6 +7,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../widgets/color_dot.dart';
 import '../../widgets/color_swatch_picker.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -148,7 +149,7 @@ class _PlaceholderScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('テーマを編集')),
+      appBar: AppBar(title: const Text('テーマを編集'), actions: const [VoiceModeIndicator()]),
       body: child,
     );
   }
@@ -282,7 +283,7 @@ class _ThemeFormState extends ConsumerState<_ThemeForm> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'テーマを編集' : '新しいテーマ')),
+      appBar: AppBar(title: Text(_isEdit ? 'テーマを編集' : '新しいテーマ'), actions: const [VoiceModeIndicator()]),
       body: Form(
         key: _formKey,
         child: ListView(

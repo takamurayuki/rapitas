@@ -9,6 +9,7 @@ import '../../providers/theme_data_provider.dart';
 import '../../utils/color_utils.dart';
 import '../../utils/constants.dart';
 import '../../utils/date_formatter.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 /// タスク作成・更新 API に送るボディを作る。
 ///
@@ -73,11 +74,11 @@ class TaskFormScreen extends ConsumerWidget {
     return taskAsync.when(
       data: (loaded) => _TaskForm(task: loaded),
       loading: () => Scaffold(
-        appBar: AppBar(title: const Text('タスクを編集')),
+        appBar: AppBar(title: const Text('タスクを編集'), actions: const [VoiceModeIndicator()]),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('タスクを編集')),
+        appBar: AppBar(title: const Text('タスクを編集'), actions: const [VoiceModeIndicator()]),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -219,6 +220,7 @@ class _TaskFormState extends ConsumerState<_TaskForm> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'タスクを編集' : '新しいタスク'),
+        actions: const [VoiceModeIndicator()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

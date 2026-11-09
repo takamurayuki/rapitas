@@ -9,6 +9,7 @@ import '../../providers/theme_data_provider.dart';
 import '../../services/reorder_orders.dart';
 import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -126,6 +127,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
           ),
           title: const Text('並び替え'),
           actions: [
+            const VoiceModeIndicator(trailing: false),
             TextButton(
               onPressed: _saving ? null : _saveReorder,
               child: _saving
@@ -177,6 +179,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
       appBar: AppBar(
         title: const Text('テーマ'),
         actions: [
+          const VoiceModeIndicator(trailing: false),
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             tooltip: 'カテゴリ',

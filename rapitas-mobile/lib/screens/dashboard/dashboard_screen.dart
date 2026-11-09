@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/task_provider.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -10,6 +11,7 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ダッシュボード'),
+        actions: const [VoiceModeIndicator()],
       ),
       body: RefreshIndicator(
         onRefresh: () async {

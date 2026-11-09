@@ -9,6 +9,7 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 /// 実行中のタスクと、中断されて再開できる実行の2セクション。
 /// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
@@ -37,8 +38,9 @@ class AgentExecutionScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        // NOTE: 音声での実行・停止・再開は全画面共通の左下のボタンから（「2番目を停止」など）
+        // NOTE: 音声での実行・停止・再開は音声操作モードから（聞き取り表示は右端。「2番目を停止」など）
         title: const Text('エージェント実行'),
+        actions: const [VoiceModeIndicator()],
       ),
       // タップで開ける実行導線。音声の「実行」と同じく todo の実行可能タスク一覧を使う。
       floatingActionButton: FloatingActionButton.extended(
