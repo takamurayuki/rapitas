@@ -407,6 +407,50 @@ void main() {
       expect(card.error, contains('変更はありませんでした'));
     });
 
+    test('適用の応答が 3xx なら（リダイレクト先で処理されたかもしれない）結果不明にし、再適用させない',
+        () async {
+      for (final code in [301, 302, 304, 307]) {
+        setUpWith({
+          '/assistant/task-update': [
+            _Status(code, const {'success': false, 'error': 'moved'}),
+          ],
+        });
+        await sendChange();
+        final id = cardMessage().id;
+
+        await notifier().applyChange(id);
+
+        var card = cardMessage().change!;
+        expect(card.phase, RapiChangePhase.applyUnknown, reason: '$code');
+        expect(card.canRevert, isFalse);
+        expect(client.sent.where((s) => s.$1 == '/assistant/task-update').length, 1);
+
+        // 押されても task-update を送り直さない
+        await notifier().applyChange(id);
+        card = cardMessage().change!;
+        expect(card.phase, RapiChangePhase.applyUnknown, reason: '$code');
+        expect(client.sent.where((s) => s.$1 == '/assistant/task-update').length, 1);
+      }
+    });
+
+    test('4xx の境界：400 と 499 は未適用（押し直せる）、399 と 500 は結果不明', () async {
+      for (final (code, phase) in [
+        (400, RapiChangePhase.proposed),
+        (499, RapiChangePhase.proposed),
+        (399, RapiChangePhase.applyUnknown),
+        (500, RapiChangePhase.applyUnknown),
+      ]) {
+        setUpWith({
+          '/assistant/task-update': [
+            _Status(code, const {'success': false, 'error': 'x'}),
+          ],
+        });
+        await sendChange();
+        await notifier().applyChange(cardMessage().id);
+        expect(cardMessage().change!.phase, phase, reason: '$code');
+      }
+    });
+
     test('接続できなかった適用は未適用と言い切れるので、押し直せる状態に戻す', () async {
       setUpWith({
         '/assistant/task-update': [

@@ -5,6 +5,8 @@
 //   rapitas-backend/routes/ai/copilot-chat.ts（copilot/chat）
 //   rapitas-backend/routes/ai/assistant-update.routes.ts（update-draft / task-update / revert）
 //   rapitas-backend/routes/ai/assistant-roadmap.routes.ts（roadmap/draft / roadmap/commit）
+//   rapitas-backend/routes/ai/assistant-cleanup.routes.ts（delete-filter / delete-draft / task-delete）
+//   rapitas-backend/routes/tasks/task-trash.routes.ts（task-trash/:id/restore）
 // ID はバックエンドでは Int。アプリ内では Task と同じく文字列で持つ。
 
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
@@ -694,4 +696,208 @@ class RoadmapCommitResult {
   }
 
   bool get stoppedPartway => failedAfter != null;
+}
+
+// ---- 片付け（tidy）----
+// 不要なタスクを削除する。候補の出し方は2つ（条件／文章）で、どちらも一覧を作るだけ。
+// 削除は「画面に出て、チェックが残った id」だけを task-delete（confirmed: true）へ送る。
+// 削除はゴミ箱経由なので、trashId ごとに restore で取り消せる。形はバックエンドが正：
+//   routes/ai/assistant-cleanup.routes.ts（delete-filter / delete-draft / task-delete の入力の検証）
+//   services/assistant/delete-filter.ts（FilterMatch・DeleteFilterResult・FILTERABLE_STATUSES）
+//   services/assistant/delete-proposal.ts（DeleteCandidate・DeleteProposal・CANDIDATE_WINDOW）
+//   services/task/task-deletion.ts（DeletionResult）・routes/tasks/task-trash.routes.ts（restore）
+
+/// task-delete の1回あたりの上限（taskIds の maxItems）
+const int rapiTidyBatchSize = 50;
+
+/// 条件で選べる状態（デスクトップ TaskBulkCleanup.tsx の STATUSES と同じ順）
+const List<String> rapiTidyStatuses = ['cancelled', 'done', 'blocked', 'todo'];
+
+/// 条件の状態の表示名（デスクトップ rapiAvatar.bulk.statusLabel と同じ表記）
+const Map<String, String> rapiTidyStatusLabels = {
+  'cancelled': '中止',
+  'done': '完了',
+  'blocked': 'ブロック',
+  'todo': '未着手',
+};
+
+/// 「最終更新」の選択肢（日数。0 は期間を問わない。デスクトップの AGES と同じ）
+const List<int> rapiTidyAges = [0, 30, 90, 180];
+
+/// 削除の条件（POST /assistant/delete-filter のボディ）
+class TidyFilter {
+  /// テーマ（null ならすべてのテーマ）
+  final String? themeId;
+  final List<String> statuses;
+
+  /// この日数以上更新されていないもの（0 なら期間を問わない）
+  final int days;
+
+  /// 初期値はデスクトップと同じ（中止・90日以上前・すべてのテーマ）
+  const TidyFilter({this.themeId, this.statuses = const ['cancelled'], this.days = 90});
+
+  TidyFilter copyWith({Object? themeId = _unsetTidy, List<String>? statuses, int? days}) =>
+      TidyFilter(
+        themeId: identical(themeId, _unsetTidy) ? this.themeId : themeId as String?,
+        statuses: statuses ?? this.statuses,
+        days: days ?? this.days,
+      );
+
+  /// サーバーは状態が空だと「すべての状態」を対象にするので、空では送らせない（デスクトップと同じ）
+  bool get canPreview => statuses.isNotEmpty;
+
+  Map<String, dynamic> toJson() {
+    final theme = themeId == null ? null : int.tryParse(themeId!);
+    return {
+      if (theme != null) 'themeId': theme,
+      'statuses': statuses.take(10).toList(),
+      if (days > 0) 'updatedBeforeDays': days,
+    };
+  }
+}
+
+const Object _unsetTidy = Object();
+
+/// 片付けの候補1件（条件の該当・文章の提案の両方をこの形で持つ）
+class TidyItem {
+  final String id;
+  final String title;
+  final String status;
+
+  /// 条件の該当：最終更新日時
+  final DateTime? updatedAt;
+
+  /// 文章の提案：消してよいと判断した理由（空のこともある）
+  final String reason;
+
+  const TidyItem({
+    required this.id,
+    required this.title,
+    required this.status,
+    this.updatedAt,
+    this.reason = '',
+  });
+
+  /// delete-filter の matches の1件（{id, title, status, updatedAt}）
+  factory TidyItem.fromMatch(Map<String, dynamic> json) => TidyItem(
+        id: json['id'].toString(),
+        title: _string(json['title']) ?? '',
+        status: _string(json['status']) ?? '',
+        updatedAt: json['updatedAt'] is String ? DateTime.tryParse(json['updatedAt']) : null,
+      );
+
+  /// delete-draft の candidates の1件（{id, title, status, themeId, reason}）
+  factory TidyItem.fromCandidate(Map<String, dynamic> json) => TidyItem(
+        id: json['id'].toString(),
+        title: _string(json['title']) ?? '',
+        status: _string(json['status']) ?? '',
+        reason: (_string(json['reason']) ?? '').trim(),
+      );
+}
+
+/// POST /assistant/delete-filter の結果
+class DeleteFilterResult {
+  /// 該当したもの（更新の古い順・最大500件）
+  final List<TidyItem> matches;
+
+  /// 該当した総数（一覧の件数を超えることがある）
+  final int total;
+
+  /// 総数が一覧に載りきらなかった
+  final bool truncated;
+
+  /// 条件に当たったが保護されているため外した件数
+  final int excludedProtected;
+
+  const DeleteFilterResult({
+    this.matches = const [],
+    this.total = 0,
+    this.truncated = false,
+    this.excludedProtected = 0,
+  });
+
+  factory DeleteFilterResult.fromJson(Map<String, dynamic> json) {
+    final matches = [
+      for (final m in _maps(json['matches']))
+        if (m['id'] is num) TidyItem.fromMatch(m),
+    ];
+    int n(dynamic v, int fallback) => v is num ? v.toInt() : fallback;
+    return DeleteFilterResult(
+      matches: matches,
+      total: n(json['total'], matches.length),
+      truncated: json['truncated'] == true,
+      excludedProtected: n(json['excludedProtected'], 0),
+    );
+  }
+}
+
+/// POST /assistant/delete-draft の結果
+class DeleteDraftResult {
+  /// false なら AI に届かなかった（候補が空なのは「消すものが無い」からではない）
+  final bool available;
+  final List<TidyItem> candidates;
+
+  /// 検討したタスク数（最近更新された最大60件）
+  final int considered;
+
+  /// 判断できなかったこと（最大3件）
+  final List<String> unclear;
+
+  const DeleteDraftResult({
+    this.available = true,
+    this.candidates = const [],
+    this.considered = 0,
+    this.unclear = const [],
+  });
+
+  factory DeleteDraftResult.fromJson(Map<String, dynamic> json) => DeleteDraftResult(
+        available: json['available'] != false,
+        candidates: [
+          for (final c in _maps(json['candidates']))
+            if (c['id'] is num) TidyItem.fromCandidate(c),
+        ],
+        considered: json['considered'] is num ? (json['considered'] as num).toInt() : 0,
+        unclear: _strings(json['unclear']),
+      );
+}
+
+/// task-delete の1件の結果（outcome は deleted / protected / not_found / failed）
+class TaskDeletion {
+  final String taskId;
+  final String outcome;
+
+  /// 削除したときのゴミ箱の行（取り消しに使う。控えが書けなかったときは null）
+  final int? trashId;
+
+  const TaskDeletion({required this.taskId, required this.outcome, this.trashId});
+
+  bool get deleted => outcome == 'deleted';
+}
+
+/// 削除を送った結果。50件ずつ送り、どこかの回が失敗したらそこで止める
+class TaskDeleteRun {
+  /// サーバーが1件ずつ返した結果（送った順）
+  final List<TaskDeletion> results;
+
+  /// 送ったが結果が分からないもの（応答が失われた・5xx・形の異常。サーバーでは削除済みかもしれない）
+  final List<String> unknown;
+
+  /// サーバーが回ごと断ったもの（4xx・2xx の success:false。削除していないと言い切れる）
+  final List<String> rejected;
+
+  /// 途中で止めたため送っていないもの
+  final List<String> unsent;
+
+  const TaskDeleteRun({
+    this.results = const [],
+    this.unknown = const [],
+    this.rejected = const [],
+    this.unsent = const [],
+  });
+
+  List<TaskDeletion> get deleted => [for (final r in results) if (r.deleted) r];
+  List<TaskDeletion> get refused => [for (final r in results) if (!r.deleted) r];
+
+  /// 全件を送り、結果がそろった（一部が保護などで断られていても true）
+  bool get complete => unknown.isEmpty && rejected.isEmpty && unsent.isEmpty;
 }

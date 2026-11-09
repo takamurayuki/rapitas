@@ -557,7 +557,7 @@ void main() {
       expect(paths(), isNot(contains('/assistant/roadmap/commit')));
     });
 
-    test('tidy は従来どおりデスクトップ版の案内', () async {
+    test('tidy はデスクトップ版の案内ではなく片付けカード', () async {
       setUpWith({
         '/assistant/route': [
           {'routed': true, 'intent': 'tidy'}
@@ -566,8 +566,9 @@ void main() {
       notifier().setInput('片付けて');
       await notifier().send();
 
-      final last = container.read(rapiChatProvider).messages.last;
-      expect(last.text, contains('「片付ける」の操作はデスクトップ版で対応しています'));
+      final messages = container.read(rapiChatProvider).messages;
+      expect(messages.any((m) => m.text.contains('デスクトップ版')), isFalse);
+      expect(messages.last.tidy, isNotNull);
     });
   });
 }

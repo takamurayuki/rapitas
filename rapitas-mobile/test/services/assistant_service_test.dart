@@ -164,7 +164,8 @@ void main() {
       expect(state.surveyVisible, isFalse);
     });
 
-    test('デスクトップのみの振り分け先はデスクトップ版の案内を出す', () async {
+    test('tidy に振り分けたら片付けカードを出す（デスクトップ版の案内は出さない。4モードとも対応済み）',
+        () async {
       final client = _FakeApiClient({
         '/assistant/route': {'routed': true, 'intent': 'tidy'},
       });
@@ -173,9 +174,10 @@ void main() {
 
       await notifier.send();
 
-      final last = container.read(rapiChatProvider).messages.last;
-      expect(last.role, RapiRole.system);
-      expect(last.text, contains('デスクトップ版で対応しています'));
+      final messages = container.read(rapiChatProvider).messages;
+      expect(messages.any((m) => m.text.contains('デスクトップ版')), isFalse);
+      expect(messages.last.tidy, isNotNull);
+      expect(messages.last.tidy!.text, '片付けて');
     });
   });
 
