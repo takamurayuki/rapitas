@@ -13,6 +13,7 @@ import '../../widgets/rapi_avatar.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import 'rapi_roadmap_card.dart';
+import 'rapi_tidy_card.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
 //
@@ -20,8 +21,8 @@ import 'rapi_roadmap_card.dart';
 // 守るエージェント。モードの切り替えは置かず、送った文は毎回 /assistant/route で
 // 振り分ける。扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
 // 見守り（一覧の先頭のカード）・変更（変更カード）・計画（計画カード：rapi_roadmap_card.dart）・
-// 相談（タスク選びカード → 相談モード）と、振り分けなしの会話。それ以外の振り分け先（tidy）は
-// 「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
+// 片付け（片付けカード：rapi_tidy_card.dart）・相談（タスク選びカード → 相談モード）と、
+// 振り分けなしの会話（デスクトップの4モードはすべてスマホでも扱う）。
 // 相談モード中は入力欄の上に相談中のタスクの帯を出し、× で抜けられる。
 //
 // NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
@@ -434,6 +435,28 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onRefine: () => _chat.refineRoadmap(m.id),
         onCommit: () => _chat.commitRoadmap(m.id),
         onCancel: () => _chat.cancelRoadmap(m.id),
+        onOpenTasks: _openTaskList,
+      ));
+    }
+
+    final tidy = m.tidy;
+    if (tidy != null) {
+      return _spaced(RapiTidyCardView(
+        key: ValueKey('rapi-tidy-${m.id}'),
+        card: tidy,
+        onHow: (how) => _chat.setTidyHow(m.id, how),
+        onTheme: (themeId) => _chat.setTidyTheme(m.id, themeId),
+        onStatus: (status) => _chat.toggleTidyStatus(m.id, status),
+        onDays: (days) => _chat.setTidyDays(m.id, days),
+        onSearch: () => _chat.searchTidy(m.id),
+        onToggle: (taskId) => _chat.toggleTidyItem(m.id, taskId),
+        onAll: (selected) => _chat.setTidyAll(m.id, selected),
+        onExpand: () => _chat.expandTidy(m.id),
+        onBack: () => _chat.backToTidySetup(m.id),
+        onCancel: () => _chat.cancelTidy(m.id),
+        onDelete: () => _chat.deleteTidy(m.id),
+        onRestore: (trashId) => _chat.restoreTidy(m.id, trashId),
+        onRestoreAll: () => _chat.restoreAllTidy(m.id),
         onOpenTasks: _openTaskList,
       ));
     }

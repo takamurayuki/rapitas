@@ -248,6 +248,145 @@ class AssistantService {
         failedAfter == ids.length;
   }
 
+  // ---- 片付け（tidy）----
+  // 形はバックエンド routes/ai/assistant-cleanup.routes.ts / routes/tasks/task-trash.routes.ts が正：
+  //   POST /assistant/delete-filter {themeId?, statuses?: string[]（最大10）, updatedBeforeDays?}
+  //     → {success: true, matches: [{id, title, status, updatedAt}], total, truncated, excludedProtected}
+  //     （AI を使わずデータベースで絞る。保護されたタスクは外す。一覧は更新の古い順に最大500件）
+  //   POST /assistant/delete-draft {text}（1〜2000字）
+  //     → {success: true, available: true, candidates: [{id, title, status, themeId, reason}],
+  //        considered, unclear} ／ AI 不達は {success: true, available: false, candidates: [], considered}
+  //   POST /assistant/task-delete {confirmed: true, taskIds: number[]（1〜50件）}
+  //     → {success: true, results: [{taskId, outcome: deleted/protected/not_found/failed, trashId?}]}
+  //     （未確認は 400 confirmation_required。1件ずつ削除し、1件の失敗で残りを止めない）
+  //   POST /task-trash/:id/restore（ボディなし）→ {success: true, task} ／
+  //     戻せるものが無い（無い・復元済み・控えが読めない）は 409 {success: false, error: not_restorable}
+  // delete-filter と delete-draft は一覧を作るだけで、何も削除しない。
+
+  /// 条件 [filter] に当たるタスクの一覧（何も削除しない）
+  Future<DeleteFilterResult> deleteFilter(TidyFilter filter) async {
+    final body = _body((await _postOrError('/assistant/delete-filter', filter.toJson())).data);
+    if (body['success'] != true) {
+      throw AssistantException(body['error']?.toString() ?? 'filter_failed');
+    }
+    return DeleteFilterResult.fromJson(body);
+  }
+
+  /// 文 [text] から消してよさそうなタスクを挙げてもらう（何も削除しない）
+  Future<DeleteDraftResult> deleteDraft(String text) async {
+    final body = _body((await _postOrError('/assistant/delete-draft', {'text': text})).data);
+    if (body['success'] != true) {
+      throw AssistantException(body['error']?.toString() ?? 'draft_failed');
+    }
+    return DeleteDraftResult.fromJson(body);
+  }
+
+  /// 1回分（[rapiTidyBatchSize] 件まで）の削除を confirmed: true で送る。
+  ///
+  /// 失敗の分け方は roadmapCommit と同じ：サーバーが断った（4xx・2xx の success:false）なら
+  /// statusCode 付きの [AssistantException]。形が読めない応答は statusCode なしの
+  /// unexpected_response（削除済みかもしれない）。結果に載らなかった id は呼び出し側で不明扱いにする。
+  Future<List<TaskDeletion>> taskDelete(List<String> taskIds) async {
+    final ids = [for (final id in taskIds) int.tryParse(id)];
+    if (ids.isEmpty || ids.length > rapiTidyBatchSize || ids.contains(null)) {
+      throw const AssistantException('invalid_task');
+    }
+    final response =
+        await _postOrError('/assistant/task-delete', {'confirmed': true, 'taskIds': ids});
+    final body = _body(response.data);
+    final success = body['success'];
+    if (success == false) {
+      throw AssistantException(body['error']?.toString() ?? 'delete_failed',
+          statusCode: response.statusCode);
+    }
+    final results = body['results'];
+    if (success != true || results is! List) throw const AssistantException('unexpected_response');
+    const outcomes = {'deleted', 'protected', 'not_found', 'failed'};
+    final sent = ids.toSet();
+    return [
+      for (final r in results)
+        if (r is Map &&
+            r['taskId'] is int &&
+            sent.contains(r['taskId']) &&
+            outcomes.contains(r['outcome']))
+          TaskDeletion(
+            taskId: '${r['taskId']}',
+            outcome: r['outcome'] as String,
+            trashId: r['outcome'] == 'deleted' && r['trashId'] is int ? r['trashId'] as int : null,
+          ),
+    ];
+  }
+
+  /// [taskIds] を [rapiTidyBatchSize] 件ずつ順に削除する（デスクトップ use-delete-filter.ts と同じ）。
+  /// どこかの回が失敗したら、その回は結果不明（断られたなら rejected）にし、残りは送らずに止める。
+  /// success:true でも結果が欠けた（送った id の結果が無い・outcome が未知）回は、欠けた分を
+  /// 結果不明にしてそこで止め、残りは送らない。
+  /// [onProgress] は回が終わるたびに（終えた回数, 全回数）で呼ぶ。
+  Future<TaskDeleteRun> deleteTasks(
+    List<String> taskIds, {
+    void Function(int done, int of)? onProgress,
+  }) async {
+    final ids = taskIds.toSet().toList();
+    final batches = <List<String>>[
+      for (var i = 0; i < ids.length; i += rapiTidyBatchSize)
+        ids.sublist(i, i + rapiTidyBatchSize > ids.length ? ids.length : i + rapiTidyBatchSize),
+    ];
+    final results = <TaskDeletion>[];
+    final unknown = <String>[];
+    final rejected = <String>[];
+    for (var b = 0; b < batches.length; b++) {
+      final batch = batches[b];
+      try {
+        final got = await taskDelete(batch);
+        results.addAll(got);
+        // 結果に載らなかった id（taskDelete が未知の outcome を捨てた分も含む）は、
+        // 削除されたか分からない。結果が欠けた回は失敗した回と同じくそこで止め、残りは送らない。
+        final answered = {for (final r in got) r.taskId};
+        final missing = [for (final id in batch) if (!answered.contains(id)) id];
+        if (missing.isNotEmpty) {
+          unknown.addAll(missing);
+          return TaskDeleteRun(
+            results: results,
+            unknown: unknown,
+            unsent: [for (final later in batches.skip(b + 1)) ...later],
+          );
+        }
+      } catch (e) {
+        if (_rejected(e)) {
+          rejected.addAll(batch);
+        } else {
+          unknown.addAll(batch);
+        }
+        return TaskDeleteRun(
+          results: results,
+          unknown: unknown,
+          rejected: rejected,
+          unsent: [for (final later in batches.skip(b + 1)) ...later],
+        );
+      }
+      onProgress?.call(b + 1, batches.length);
+    }
+    return TaskDeleteRun(results: results, unknown: unknown);
+  }
+
+  /// サーバーが回ごと断った（＝その回は1件も削除していない）と言い切れる失敗か
+  static bool _rejected(Object e) {
+    if (e is! AssistantException) return false;
+    if (e.code == 'invalid_task') return true;
+    final status = e.statusCode;
+    if (status == null) return false;
+    return (status >= 400 && status < 500) || (status >= 200 && status < 300);
+  }
+
+  /// ゴミ箱の [trashId] からタスクを戻す。戻せるものが無ければ 409 の not_restorable。
+  /// 同じ trashId を2回戻しても2回目は not_restorable になるだけなので、押し直してよい
+  Future<void> restoreFromTrash(int trashId) async {
+    final body = _body((await _postOrError('/task-trash/$trashId/restore', const {})).data);
+    if (body['success'] != true) {
+      throw AssistantException(body['error']?.toString() ?? 'restore_failed');
+    }
+  }
+
   /// 4xx/5xx を本文の error 付きの [AssistantException] にして投げる（タイムアウトは従来どおり）
   Future<Response<dynamic>> _postOrError(String path, Object data) async {
     try {

@@ -15,8 +15,8 @@ import 'theme_data_provider.dart';
 // ここで状態へ反映するので捨てられない。
 //
 // NOTE: 永続化はしない。アプリを終了すると会話は消える。
-// NOTE: モード（会話／作る／聞く／見守り／変更／計画）の切り替えは無い。送った文は毎回
-// /assistant/route で振り分け、作成・問い合わせ・見守り・変更・計画はその結果で出し分ける。
+// NOTE: モード（会話／作る／聞く／見守り／変更／計画／片付け）の切り替えは無い。送った文は毎回
+// /assistant/route で振り分け、作成・問い合わせ・見守り・変更・計画・片付けはその結果で出し分ける。
 // 例外は相談（consult）：振り分けで相談になり、タスクを選ぶと「相談モード」に入る。
 // 相談モード中の送信は振り分けを通さず、そのタスクの copilot/chat へ直接送る（抜けるまで）。
 
@@ -158,6 +158,167 @@ class RapiRoadmapCard {
       draft.steps.isNotEmpty;
 }
 
+/// 片付けの候補の出し方。condition（条件で選ぶ：delete-filter）／text（文章で選ぶ：delete-draft）
+enum RapiTidyHow { condition, text }
+
+/// 片付けカードの段階。
+/// setup（出し方と条件を選ぶ）→ searching → listing（候補をチェックで選ぶ）→ deleting → done（結果と取り消し）。
+/// 候補が無かった・出せなかったときは setup に戻して理由を出す。
+enum RapiTidyPhase { setup, searching, listing, deleting, done }
+
+/// 削除したタスク1件の取り消しの状態。
+/// unavailable はサーバーが 409 not_restorable を返した（復元済み・控えが無い）ので押し直させない。
+/// failed は通信の失敗など（押し直してよい：復元済みなら2回目は not_restorable になるだけ）
+enum RapiTidyRestore { idle, restoring, restored, unavailable, failed }
+
+/// 片付け（tidy）カード1枚の状態。カードは発言ごとに持つ（前のカードの「元に戻す」を残すため）
+class RapiTidyCard {
+  /// 振り分けられた発言（文章で選ぶときの依頼文）
+  final String text;
+  final RapiTidyHow how;
+  final TidyFilter filter;
+  final RapiTidyPhase phase;
+
+  /// いま出している候補（画面に出たもの。削除するのはこのうちチェックが残ったものだけ）
+  final List<TidyItem> items;
+  final Set<String> chosen;
+
+  /// 候補をどちらの出し方で出したか（listing 以降の表示に使う）
+  final RapiTidyHow listedBy;
+
+  /// 条件で選んだとき：該当の総数・一覧に載りきらなかったか・保護で外した件数
+  final int total;
+  final bool truncated;
+  final int excludedProtected;
+
+  /// 文章で選んだとき：検討したタスク数と、判断できなかったこと
+  final int considered;
+  final List<String> unclear;
+
+  /// 一覧を全部出しているか（長い一覧は先頭だけ出す）
+  final bool expanded;
+
+  /// 削除の進み具合（終えた回数, 全回数）
+  final (int, int)? progress;
+
+  /// 削除の結果（done）
+  final TaskDeleteRun? run;
+
+  /// 取り消しの状態（trashId ごと）
+  final Map<int, RapiTidyRestore> restores;
+
+  /// setup に出す案内（該当なし・候補を出せなかった など）
+  final String? notice;
+
+  /// カード内に出す失敗の案内
+  final String? error;
+
+  const RapiTidyCard({
+    required this.text,
+    this.how = RapiTidyHow.condition,
+    this.filter = const TidyFilter(),
+    this.phase = RapiTidyPhase.setup,
+    this.items = const [],
+    this.chosen = const {},
+    this.listedBy = RapiTidyHow.condition,
+    this.total = 0,
+    this.truncated = false,
+    this.excludedProtected = 0,
+    this.considered = 0,
+    this.unclear = const [],
+    this.expanded = false,
+    this.progress,
+    this.run,
+    this.restores = const {},
+    this.notice,
+    this.error,
+  });
+
+  RapiTidyCard copyWith({
+    RapiTidyHow? how,
+    TidyFilter? filter,
+    RapiTidyPhase? phase,
+    List<TidyItem>? items,
+    Set<String>? chosen,
+    RapiTidyHow? listedBy,
+    int? total,
+    bool? truncated,
+    int? excludedProtected,
+    int? considered,
+    List<String>? unclear,
+    bool? expanded,
+    Object? progress = _unset,
+    TaskDeleteRun? run,
+    Map<int, RapiTidyRestore>? restores,
+    Object? notice = _unset,
+    Object? error = _unset,
+  }) =>
+      RapiTidyCard(
+        text: text,
+        how: how ?? this.how,
+        filter: filter ?? this.filter,
+        phase: phase ?? this.phase,
+        items: items ?? this.items,
+        chosen: chosen ?? this.chosen,
+        listedBy: listedBy ?? this.listedBy,
+        total: total ?? this.total,
+        truncated: truncated ?? this.truncated,
+        excludedProtected: excludedProtected ?? this.excludedProtected,
+        considered: considered ?? this.considered,
+        unclear: unclear ?? this.unclear,
+        expanded: expanded ?? this.expanded,
+        progress: identical(progress, _unset) ? this.progress : progress as (int, int)?,
+        run: run ?? this.run,
+        restores: restores ?? this.restores,
+        notice: identical(notice, _unset) ? this.notice : notice as String?,
+        error: identical(error, _unset) ? this.error : error as String?,
+      );
+
+  /// 長い一覧で、最初に出す件数（残りは「残りも表示」で出す）
+  static const int previewRows = 20;
+
+  /// 画面に出している候補（畳んでいる間は先頭 [previewRows] 件）
+  List<TidyItem> get visibleItems =>
+      expanded || items.length <= previewRows ? items : items.sublist(0, previewRows);
+
+  /// まだ出していない候補の数
+  int get hiddenCount => items.length - visibleItems.length;
+
+  /// 削除に送る id：画面に出ている候補のうちチェックが残ったもの（候補の順）。
+  /// 畳んで出していない候補は、チェックが付いていても送らない（見ていないものは消さない）
+  List<String> get chosenIds =>
+      [for (final i in visibleItems) if (chosen.contains(i.id)) i.id];
+
+  /// 「削除する」を押せるか
+  bool get canDelete => phase == RapiTidyPhase.listing && chosenIds.isNotEmpty;
+
+  /// 「候補を出す」を押せるか（条件は状態を1つ以上。文章は依頼文がある）
+  bool get canSearch =>
+      phase == RapiTidyPhase.setup &&
+      (how == RapiTidyHow.condition ? filter.canPreview : text.trim().isNotEmpty);
+
+  /// どれかを戻している最中か
+  bool get restoring => restores.values.contains(RapiTidyRestore.restoring);
+
+  /// 取り消しの状態（記録が無ければ idle）
+  RapiTidyRestore restoreOf(int trashId) => restores[trashId] ?? RapiTidyRestore.idle;
+
+  /// まだ戻せる（戻していない・前回失敗した）ゴミ箱の行
+  List<int> get restorable => [
+        for (final d in run?.deleted ?? const <TaskDeletion>[])
+          if (d.trashId case final t?)
+            if (restoreOf(t) == RapiTidyRestore.idle || restoreOf(t) == RapiTidyRestore.failed) t,
+      ];
+
+  /// id から候補の題名を引く（結果の表示用）
+  String titleOf(String id) {
+    for (final i in items) {
+      if (i.id == id) return i.title;
+    }
+    return 'タスク#$id';
+  }
+}
+
 /// 相談（consult）の対象タスク
 class RapiConsultTask {
   final String id;
@@ -212,6 +373,9 @@ class RapiMessage {
   /// 相談のタスク選びカード
   final RapiConsultPicker? consultPicker;
 
+  /// 片付け（tidy）のカード
+  final RapiTidyCard? tidy;
+
   /// 相談スレッドの発言なら、そのタスクの id（一般の会話の履歴には含めない）
   final String? consultTaskId;
 
@@ -230,6 +394,7 @@ class RapiMessage {
     this.change,
     this.roadmap,
     this.consultPicker,
+    this.tidy,
     this.consultTaskId,
     this.taskId,
     this.inHistory = false,
@@ -239,6 +404,7 @@ class RapiMessage {
     RapiChangeCard? change,
     RapiRoadmapCard? roadmap,
     RapiConsultPicker? consultPicker,
+    RapiTidyCard? tidy,
     bool? inHistory,
   }) =>
       RapiMessage(
@@ -250,6 +416,7 @@ class RapiMessage {
         change: change ?? this.change,
         roadmap: roadmap ?? this.roadmap,
         consultPicker: consultPicker ?? this.consultPicker,
+        tidy: tidy ?? this.tidy,
         consultTaskId: consultTaskId,
         taskId: taskId,
         inHistory: inHistory ?? this.inHistory,
@@ -262,6 +429,8 @@ class RapiMessage {
   RapiMessage withRoadmap(RapiRoadmapCard roadmap) => _copy(roadmap: roadmap);
 
   RapiMessage withConsultPicker(RapiConsultPicker picker) => _copy(consultPicker: picker);
+
+  RapiMessage withTidy(RapiTidyCard tidy) => _copy(tidy: tidy);
 }
 
 const Object _unset = Object();
@@ -337,11 +506,6 @@ class RapiChatState {
   /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
   bool get surveyVisible => survey != null || surveyLoading || surveyFailed;
 }
-
-/// まだモバイルで実装していない振り分け先（デスクトップのモード名）
-const Map<String, String> _desktopOnlyIntents = {
-  'tidy': '片付ける',
-};
 
 /// assistant 系の要求がタイムアウトしたときの system メッセージ
 const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
@@ -511,9 +675,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       case 'consult':
         _system(took('タスクについての相談'));
         _askConsultTask(text, userId);
-      case final String intent when _desktopOnlyIntents.containsKey(intent):
-        _system('「${_desktopOnlyIntents[intent]}」の操作はデスクトップ版で対応しています。'
-            'デスクトップの rapitas でラピに頼んでください。');
+      case 'tidy':
+        _system(took('タスクの片付け'));
+        _runTidy(text);
       default:
         // chat と未振り分けは会話として返す
         final reply = await service.chat(text, history: history);
@@ -796,15 +960,20 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   }
 
   /// 適用の失敗が「書き込まれたか分からない」ものか。「適用されていない」と言い切れるのは、
-  /// サーバーが 4xx で断った・2xx で明示的に success:false を返した・送る前に弾いた
+  /// サーバーが 4xx（400〜499）で断った・2xx で明示的に success:false を返した・送る前に弾いた
   /// （invalid_task）・接続自体できなかった（connectionError / connectionTimeout）場合だけ。
-  /// それ以外（受信・送信タイムアウト、5xx、通信の途中切れ、応答の形が読めない
+  /// それ以外（受信・送信タイムアウト、1xx・3xx・5xx、通信の途中切れ、応答の形が読めない
   /// unexpected_response、想定外の例外）はすべて不明扱い。
+  /// 3xx はリダイレクト先で処理されたかもしれず、断られたとは言えない（commit の
+  /// [_commitOutcomeUnknown] と同じ線引き）。
   static bool _applyOutcomeUnknown(Object e) {
     if (e is AssistantException) {
       if (e.code == 'invalid_task') return false;
       final status = e.statusCode;
-      return status == null || status >= 500;
+      if (status == null) return true;
+      // 2xx の AssistantException は taskUpdate が明示的な success:false で投げたもの
+      final rejected = (status >= 400 && status < 500) || (status >= 200 && status < 300);
+      return !rejected;
     }
     if (e is AssistantTimeoutException) {
       return e.type != DioExceptionType.connectionTimeout;
@@ -1036,6 +1205,246 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       return 'この計画の内容は受け付けられませんでした。何も作成していません。';
     }
     return '作成できませんでした。何も作成していません。もう一度試してください。';
+  }
+
+  // ---- 片付け（tidy）----
+  // 振り分けが tidy → 片付けカード。出し方は「条件で選ぶ」（delete-filter。既定、デスクトップと同じ）と
+  // 「文章で選ぶ」（振り分けられた発言をそのまま delete-draft へ）。どちらも一覧を作るだけで、
+  // 候補はすべてチェック済みで出す（デスクトップと同じ。外せる）。「削除する（N件）」で、
+  // 出ている候補のうちチェックが残った id だけを task-delete（confirmed: true）へ50件ずつ送る。
+  // 削除後は trashId ごとに task-trash/:id/restore で戻せる（1件ずつ・まとめて）。
+
+  void _runTidy(String text) {
+    _add((id) => RapiMessage(id: id, role: RapiRole.assistant, tidy: RapiTidyCard(text: text)));
+  }
+
+  RapiTidyCard? _tidyOf(int messageId) {
+    for (final m in state.messages) {
+      if (m.id == messageId) return m.tidy;
+    }
+    return null;
+  }
+
+  void _setTidy(int messageId, RapiTidyCard card) {
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == messageId ? m.withTidy(card) : m,
+    ]);
+  }
+
+  /// setup の間だけ条件・出し方を変えられる
+  void _editTidySetup(int messageId, RapiTidyCard Function(RapiTidyCard) edit) {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.setup) return;
+    _setTidy(messageId, edit(card).copyWith(notice: null, error: null));
+  }
+
+  void setTidyHow(int messageId, RapiTidyHow how) =>
+      _editTidySetup(messageId, (c) => c.copyWith(how: how));
+
+  void setTidyTheme(int messageId, String? themeId) =>
+      _editTidySetup(messageId, (c) => c.copyWith(filter: c.filter.copyWith(themeId: themeId)));
+
+  void toggleTidyStatus(int messageId, String status) => _editTidySetup(messageId, (c) {
+        final now = c.filter.statuses;
+        final next = now.contains(status)
+            ? now.where((s) => s != status).toList()
+            : [for (final s in rapiTidyStatuses) if (s == status || now.contains(s)) s];
+        return c.copyWith(filter: c.filter.copyWith(statuses: next));
+      });
+
+  void setTidyDays(int messageId, int days) =>
+      _editTidySetup(messageId, (c) => c.copyWith(filter: c.filter.copyWith(days: days)));
+
+  /// 「該当するタスクを見る」／「候補を探してもらう」：一覧を作る（何も削除しない）
+  Future<void> searchTidy(int messageId) async {
+    final card = _tidyOf(messageId);
+    if (card == null || !card.canSearch) return;
+    _setTidy(messageId,
+        card.copyWith(phase: RapiTidyPhase.searching, notice: null, error: null));
+    final service = ref.read(assistantServiceProvider);
+    try {
+      if (card.how == RapiTidyHow.condition) {
+        final found = await service.deleteFilter(card.filter);
+        final now = _tidyOf(messageId) ?? card;
+        if (found.matches.isEmpty) {
+          _setTidy(
+              messageId,
+              now.copyWith(
+                phase: RapiTidyPhase.setup,
+                notice: found.excludedProtected > 0
+                    ? '削除できるタスクはありませんでした（当てはまった${found.excludedProtected}件は保護されています）。'
+                    : '該当するタスクはありませんでした。条件をゆるめてみてください。',
+              ));
+          return;
+        }
+        _setTidy(
+            messageId,
+            now.copyWith(
+              phase: RapiTidyPhase.listing,
+              listedBy: RapiTidyHow.condition,
+              items: found.matches,
+              chosen: {for (final m in found.matches) m.id},
+              total: found.total,
+              truncated: found.truncated,
+              excludedProtected: found.excludedProtected,
+              expanded: false,
+            ));
+      } else {
+        final draft = await service.deleteDraft(card.text);
+        final now = _tidyOf(messageId) ?? card;
+        if (draft.candidates.isEmpty) {
+          final window = draft.considered > 0 ? '（最近更新された${draft.considered}件を見ました）' : '';
+          final unclear = draft.unclear.isEmpty ? '' : '\n${draft.unclear.map((u) => '・$u').join('\n')}';
+          _setTidy(
+              messageId,
+              now.copyWith(
+                phase: RapiTidyPhase.setup,
+                notice: draft.available
+                    ? '消してよさそうなタスクは見つかりませんでした$window。'
+                        '言い方を変えて送り直すか、条件で選んでみてください。$unclear'
+                    : '候補を挙げられませんでした（デスクトップ側の AI に届きませんでした）。'
+                        '条件で選ぶほうを試してみてください。',
+              ));
+          return;
+        }
+        _setTidy(
+            messageId,
+            now.copyWith(
+              phase: RapiTidyPhase.listing,
+              listedBy: RapiTidyHow.text,
+              items: draft.candidates,
+              chosen: {for (final c in draft.candidates) c.id},
+              considered: draft.considered,
+              unclear: draft.unclear,
+              expanded: false,
+            ));
+      }
+    } catch (e) {
+      _setTidy(
+        messageId,
+        (_tidyOf(messageId) ?? card).copyWith(
+          phase: RapiTidyPhase.setup,
+          error: e is AssistantTimeoutException
+              ? '応答に時間がかかり、候補を出せませんでした。もう一度試してください。'
+              : '候補を出せませんでした。もう一度試してください。',
+        ),
+      );
+    }
+  }
+
+  /// 候補のチェックを切り替える
+  void toggleTidyItem(int messageId, String taskId) {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.listing) return;
+    if (!card.items.any((i) => i.id == taskId)) return;
+    final chosen = {...card.chosen};
+    if (!chosen.remove(taskId)) chosen.add(taskId);
+    _setTidy(messageId, card.copyWith(chosen: chosen));
+  }
+
+  /// 候補をすべて選ぶ／すべて外す
+  void setTidyAll(int messageId, bool selected) {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.listing) return;
+    _setTidy(messageId,
+        card.copyWith(chosen: selected ? {for (final i in card.items) i.id} : <String>{}));
+  }
+
+  /// 長い一覧を全部出す
+  void expandTidy(int messageId) {
+    final card = _tidyOf(messageId);
+    if (card == null || card.expanded) return;
+    _setTidy(messageId, card.copyWith(expanded: true));
+  }
+
+  /// 「選び直す」：候補を捨てて条件の選択に戻る（何も削除していない）
+  void backToTidySetup(int messageId) {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.listing) return;
+    _setTidy(
+        messageId,
+        card.copyWith(
+            phase: RapiTidyPhase.setup, items: const [], chosen: const {}, expanded: false));
+  }
+
+  /// 「やめる」：削除前のカードを下げる（何も削除していない）
+  void cancelTidy(int messageId) {
+    final phase = _tidyOf(messageId)?.phase;
+    if (phase != RapiTidyPhase.setup && phase != RapiTidyPhase.listing) return;
+    state = state.copyWith(
+        messages: state.messages.where((m) => m.id != messageId).toList());
+  }
+
+  void _refreshAfterTidy() {
+    ref.invalidate(taskListProvider);
+    ref.invalidate(taskDetailProvider);
+  }
+
+  /// 「削除する（N件）」：出ている候補のうちチェックが残ったものだけを、50件ずつ confirmed: true で送る
+  Future<void> deleteTidy(int messageId) async {
+    final card = _tidyOf(messageId);
+    if (card == null || !card.canDelete) return;
+    final ids = card.chosenIds;
+    final batches = (ids.length + rapiTidyBatchSize - 1) ~/ rapiTidyBatchSize;
+    _setTidy(messageId,
+        card.copyWith(phase: RapiTidyPhase.deleting, progress: (0, batches), error: null));
+    TaskDeleteRun run;
+    try {
+      run = await ref.read(assistantServiceProvider).deleteTasks(ids,
+          onProgress: (done, of) =>
+              _setTidy(messageId, (_tidyOf(messageId) ?? card).copyWith(progress: (done, of))));
+    } catch (_) {
+      // deleteTasks は回ごとの失敗を結果に入れて返す。ここに来るのは想定外の失敗だけなので、
+      // 削除されたか分からないものとして扱う（押し直させない）
+      run = TaskDeleteRun(unknown: ids);
+    }
+    _refreshAfterTidy();
+    _setTidy(
+        messageId,
+        (_tidyOf(messageId) ?? card)
+            .copyWith(phase: RapiTidyPhase.done, run: run, progress: null, expanded: false));
+  }
+
+  /// 削除したタスク1件を戻す（[trashId] はその削除のゴミ箱の行）
+  Future<void> restoreTidy(int messageId, int trashId) async {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.done || card.restoring) return;
+    if (!card.restorable.contains(trashId)) return;
+    await _restoreTidy(messageId, [trashId]);
+  }
+
+  /// 削除したものをまとめて戻す（まだ戻していないものを順に）
+  Future<void> restoreAllTidy(int messageId) async {
+    final card = _tidyOf(messageId);
+    if (card == null || card.phase != RapiTidyPhase.done || card.restoring) return;
+    final targets = card.restorable;
+    if (targets.isEmpty) return;
+    await _restoreTidy(messageId, targets);
+  }
+
+  Future<void> _restoreTidy(int messageId, List<int> trashIds) async {
+    void mark(int trashId, RapiTidyRestore r) {
+      final now = _tidyOf(messageId);
+      if (now == null) return;
+      _setTidy(messageId, now.copyWith(restores: {...now.restores, trashId: r}));
+    }
+
+    for (final t in trashIds) {
+      mark(t, RapiTidyRestore.restoring);
+    }
+    final service = ref.read(assistantServiceProvider);
+    for (final t in trashIds) {
+      try {
+        await service.restoreFromTrash(t);
+        mark(t, RapiTidyRestore.restored);
+      } catch (e) {
+        // 409 not_restorable：戻せるものが無い（復元済み・控えが読めない）。押し直しても同じ
+        final gone = e is AssistantException &&
+            (e.code == 'not_restorable' || e.statusCode == 409);
+        mark(t, gone ? RapiTidyRestore.unavailable : RapiTidyRestore.failed);
+      }
+    }
+    _refreshAfterTidy();
   }
 
   // ---- 問い合わせ ----
