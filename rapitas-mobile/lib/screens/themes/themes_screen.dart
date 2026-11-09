@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/task.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
@@ -137,33 +138,36 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
             ),
           ],
         ),
-        body: ReorderableListView.builder(
-          buildDefaultDragHandles: false,
-          padding: const EdgeInsets.only(bottom: 16),
-          itemCount: draft.length,
-          onReorder: _onReorder,
-          itemBuilder: (context, index) {
-            final theme = draft[index];
-            return ListTile(
-              key: ValueKey(theme.id),
-              leading: ColorDot(color: theme.color),
-              minLeadingWidth: 12,
-              title: Text(theme.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                _categoryLabels[theme.categoryId] ?? '不明なカテゴリ',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: ReorderableDragStartListener(
-                index: index,
-                enabled: !_saving,
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.drag_handle),
+        body: VoiceScrollTarget(
+          path: '/themes',
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: draft.length,
+            onReorder: _onReorder,
+            itemBuilder: (context, index) {
+              final theme = draft[index];
+              return ListTile(
+                key: ValueKey(theme.id),
+                leading: ColorDot(color: theme.color),
+                minLeadingWidth: 12,
+                title: Text(theme.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  _categoryLabels[theme.categoryId] ?? '不明なカテゴリ',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            );
-          },
+                trailing: ReorderableDragStartListener(
+                  index: index,
+                  enabled: !_saving,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.drag_handle),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       );
     }
@@ -192,45 +196,48 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(themeListProvider);
-          try {
-            await ref.read(themeListProvider.future);
-          } catch (_) {}
-        },
-        child: themesAsync.when(
-          data: (themes) {
-            if (themes.isEmpty) {
-              return const CenteredMessage(
-                icon: Icons.palette_outlined,
-                message: 'テーマはありません',
-              );
-            }
-            final groups = groupThemesByCategory(themes);
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 16),
-              children: [
-                for (final group in groups) ...[
-                  _CategoryHeading(group: group),
-                  for (final theme in group.themes)
-                    _ThemeTile(
-                      theme: theme,
-                      onTap: () => _openTasks(theme),
-                      onEdit: () => _openEdit(theme),
-                    ),
-                ],
-              ],
-            );
+      body: VoiceScrollTarget(
+        path: '/themes',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(themeListProvider);
+            try {
+              await ref.read(themeListProvider.future);
+            } catch (_) {}
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => CenteredMessage(
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            message: 'テーマの取得に失敗しました',
-            action: ElevatedButton(
-              onPressed: () => ref.invalidate(themeListProvider),
-              child: const Text('再試行'),
+          child: themesAsync.when(
+            data: (themes) {
+              if (themes.isEmpty) {
+                return const CenteredMessage(
+                  icon: Icons.palette_outlined,
+                  message: 'テーマはありません',
+                );
+              }
+              final groups = groupThemesByCategory(themes);
+              return ListView(
+                padding: const EdgeInsets.only(bottom: 16),
+                children: [
+                  for (final group in groups) ...[
+                    _CategoryHeading(group: group),
+                    for (final theme in group.themes)
+                      _ThemeTile(
+                        theme: theme,
+                        onTap: () => _openTasks(theme),
+                        onEdit: () => _openEdit(theme),
+                      ),
+                  ],
+                ],
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => CenteredMessage(
+              icon: Icons.error_outline,
+              iconColor: Colors.red,
+              message: 'テーマの取得に失敗しました',
+              action: ElevatedButton(
+                onPressed: () => ref.invalidate(themeListProvider),
+                child: const Text('再試行'),
+              ),
             ),
           ),
         ),

@@ -9,6 +9,8 @@ import '../../providers/voice_provider.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
+import '../../widgets/voice_fab.dart';
+import '../../widgets/voice_scroll_target.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
 //
@@ -93,6 +95,9 @@ const double _glassButtonTapSize = 48;
 /// 静止時の一覧の上端で、バーの下端から先頭の発言までに空ける余白
 /// （フェードはバーの下端までで終わるので、この余白の中の発言は薄くならない）
 const double _topFade = 16;
+
+/// 一覧の下端の余白。左下の音声コマンドのボタン（小さい FAB 40 + 上下の余白）に最後の発言が隠れないだけ空ける
+const double _listBottomPadding = 60;
 
 class RapiScreen extends ConsumerStatefulWidget {
   const RapiScreen({super.key});
@@ -316,34 +321,49 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       body: Column(
         children: [
           Expanded(
-            // extendBodyBehindAppBar の本文では、MediaQuery の上の余白が
-            // 「ステータスバー＋バーの高さ」になる（＝バーの下端の位置）
-            child: Builder(builder: (context) {
-              final barBottom = MediaQuery.paddingOf(context).top;
-              return GestureDetector(
-                onTap: () => FocusScope.of(context).unfocus(),
-                // 上へ流れた発言がぶつ切りに見えないよう、画面の最上部で透明、
-                // バーの下端で通常の濃さになるようにフェードさせる（バーの裏を通る範囲も含む）
-                child: ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (rect) => LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: const [Colors.transparent, Colors.black],
-                    stops: [
-                      0,
-                      rect.height == 0 ? 0 : (barBottom / rect.height).clamp(0.0, 1.0),
-                    ],
-                  ).createShader(rect),
-                  child: ListView(
-                    controller: _scroll,
-                    // 静止時に先頭の発言がラピに隠れないよう、バーの下端＋余白から並べ始める
-                    padding: EdgeInsets.fromLTRB(16, barBottom + _topFade, 16, 12),
-                    children: items,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: VoiceScrollTarget(
+                    path: '/rapi',
+                    // extendBodyBehindAppBar の本文では、MediaQuery の上の余白が
+                    // 「ステータスバー＋バーの高さ」になる（＝バーの下端の位置）
+                    child: Builder(builder: (context) {
+                      final barBottom = MediaQuery.paddingOf(context).top;
+                      return GestureDetector(
+                        onTap: () => FocusScope.of(context).unfocus(),
+                        // 上へ流れた発言がぶつ切りに見えないよう、画面の最上部で透明、
+                        // バーの下端で通常の濃さになるようにフェードさせる（バーの裏を通る範囲も含む）
+                        child: ShaderMask(
+                          blendMode: BlendMode.dstIn,
+                          shaderCallback: (rect) => LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: const [Colors.transparent, Colors.black],
+                            stops: [
+                              0,
+                              rect.height == 0 ? 0 : (barBottom / rect.height).clamp(0.0, 1.0),
+                            ],
+                          ).createShader(rect),
+                          child: ListView(
+                            controller: _scroll,
+                            // 静止時に先頭の発言がラピに隠れないよう、バーの下端＋余白から並べ始める
+                            padding: EdgeInsets.fromLTRB(16, barBottom + _topFade, 16, _listBottomPadding),
+                            children: items,
+                          ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
-              );
-            }),
+                // 音声コマンド（アプリの操作）の入口。入力欄のマイク（ラピへの発話）とは役割が違う
+                Positioned(
+                  left: 16,
+                  bottom: 10,
+                  child: VoiceFab(onBeforeOpen: _cancelVoice),
+                ),
+              ],
+            ),
           ),
           _Composer(
             controller: _input,

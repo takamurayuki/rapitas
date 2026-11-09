@@ -5,6 +5,7 @@ import '../providers/connection_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/service_providers.dart';
 import '../services/sse_service.dart';
+import 'voice_fab.dart';
 
 // NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → 各画面 → このファイル
 // という import の循環を作らないよう、ここでは routes.dart を import せず文字列で持つ。
@@ -68,28 +69,30 @@ class AppDrawer extends ConsumerWidget {
     final selectedIndex = drawerSelectedIndex(location);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
 
-    return Drawer(
-      child: Column(
-        children: [
-          const _DrawerHeader(),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                for (var i = 0; i < _destinations.length; i++)
-                  ListTile(
-                    leading: Icon(_destinations[i].icon),
-                    title: Text(_destinations[i].label),
-                    selected: i == selectedIndex,
-                    trailing: i == _notificationsIndex && unreadCount > 0
-                        ? Badge(label: Text('$unreadCount'))
-                        : null,
-                    onTap: () => _navigate(context, _destinations[i], i == selectedIndex),
-                  ),
-              ],
+    return _HidesVoiceFab(
+      child: Drawer(
+        child: Column(
+          children: [
+            const _DrawerHeader(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (var i = 0; i < _destinations.length; i++)
+                    ListTile(
+                      leading: Icon(_destinations[i].icon),
+                      title: Text(_destinations[i].label),
+                      selected: i == selectedIndex,
+                      trailing: i == _notificationsIndex && unreadCount > 0
+                          ? Badge(label: Text('$unreadCount'))
+                          : null,
+                      onTap: () => _navigate(context, _destinations[i], i == selectedIndex),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -103,6 +106,34 @@ class AppDrawer extends ConsumerWidget {
     if (isCurrent) return;
     router.push(destination.path);
   }
+}
+
+/// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、左下の音声ボタンを隠す。
+/// Scaffold はドロワーを開いている間だけ中身を作るので、作られている間＝出ている間。
+class _HidesVoiceFab extends StatefulWidget {
+  final Widget child;
+
+  const _HidesVoiceFab({required this.child});
+
+  @override
+  State<_HidesVoiceFab> createState() => _HidesVoiceFabState();
+}
+
+class _HidesVoiceFabState extends State<_HidesVoiceFab> {
+  @override
+  void initState() {
+    super.initState();
+    VoiceFab.drawerOpened();
+  }
+
+  @override
+  void dispose() {
+    VoiceFab.drawerClosed();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// ブランドの紫グラデーションの帯。アプリ名と接続先デスクトップ。
