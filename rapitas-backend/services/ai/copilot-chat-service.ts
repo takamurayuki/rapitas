@@ -280,11 +280,18 @@ async function saveCopilotMessage(
   }
 }
 
-/** Get chat history for a task. */
+/**
+ * Get chat history for a task: the newest `limit` messages, returned oldest first.
+ *
+ * Fetches newest-first and reverses, so a task with more than `limit` messages
+ * keeps its latest exchanges (callers send the tail as conversation context).
+ * `id` breaks ties between messages saved in the same millisecond.
+ */
 export async function getCopilotHistory(taskId: number, limit = 50) {
-  return prisma.copilotMessage.findMany({
+  const newestFirst = await prisma.copilotMessage.findMany({
     where: { taskId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit,
   });
+  return newestFirst.reverse();
 }

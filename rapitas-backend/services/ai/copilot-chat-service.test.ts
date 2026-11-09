@@ -11,10 +11,40 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const mockPrismaCreate = mock(() => Promise.resolve({}));
 const mockTaskFindUnique = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+type StoredMessage = {
+  id: number;
+  taskId: number | null;
+  role: string;
+  content: string;
+  createdAt: Date;
+};
+type OrderBy = Partial<Record<'createdAt' | 'id', 'asc' | 'desc'>>;
+type FindManyArgs = {
+  where: { taskId: number };
+  orderBy: OrderBy | OrderBy[];
+  take?: number;
+};
+let storedMessages: StoredMessage[] = [];
+/** Minimal in-memory findMany honoring where.taskId, orderBy (object or array) and take. */
+const mockPrismaFindMany = mock((args: FindManyArgs) => {
+  const orders = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy];
+  const rows = storedMessages
+    .filter((m) => m.taskId === args.where.taskId)
+    .sort((a, b) => {
+      for (const order of orders) {
+        const [key, dir] = Object.entries(order)[0] as ['createdAt' | 'id', 'asc' | 'desc'];
+        const av = key === 'createdAt' ? a.createdAt.getTime() : a.id;
+        const bv = key === 'createdAt' ? b.createdAt.getTime() : b.id;
+        if (av !== bv) return dir === 'asc' ? av - bv : bv - av;
+      }
+      return 0;
+    });
+  return Promise.resolve(args.take === undefined ? rows : rows.slice(0, args.take));
+});
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
-    copilotMessage: { create: mockPrismaCreate },
+    copilotMessage: { create: mockPrismaCreate, findMany: mockPrismaFindMany },
     task: { findUnique: mockTaskFindUnique },
   },
 }));
@@ -48,9 +78,12 @@ mock.module('./copilot-intent-responder', () => ({
   respondToIntent: mockRespondToIntent,
 }));
 
-const { selectModelTier, sendCopilotMessage } = await import('./copilot-chat-service');
+const { selectModelTier, sendCopilotMessage, getCopilotHistory } =
+  await import('./copilot-chat-service');
 
 beforeEach(() => {
+  storedMessages = [];
+  mockPrismaFindMany.mockClear();
   mockPrismaCreate.mockReset().mockResolvedValue({});
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
   mockGetCachedResponse.mockReset().mockReturnValue(null);
@@ -120,5 +153,62 @@ describe('sendCopilotMessage — Step 0 deterministic intent shortcut', () => {
   it('skips the intent shortcut entirely when there is no taskId', async () => {
     await sendCopilotMessage({ message: 'ステータスは？' });
     expect(mockMatchCopilotIntent).not.toHaveBeenCalled();
+  });
+});
+
+describe('getCopilotHistory — newest messages, oldest first', () => {
+  const seed = (taskId: number, count: number, startId = 1) => {
+    for (let i = 0; i < count; i++) {
+      storedMessages.push({
+        id: startId + i,
+        taskId,
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `m${i + 1}`,
+        createdAt: new Date(Date.UTC(2026, 10, 1, 10, 0, i)),
+      });
+    }
+  };
+
+  it('returns the newest 50 of 60 messages in chronological order', async () => {
+    seed(7, 60);
+    seed(8, 5, 1000); // another task's messages never leak in
+
+    const history = await getCopilotHistory(7);
+
+    expect(history).toHaveLength(50);
+    expect(history.map((m) => m.content)).toEqual(
+      Array.from({ length: 50 }, (_, i) => `m${i + 11}`),
+    );
+    expect(history.at(-1)?.content).toBe('m60');
+  });
+
+  it('returns every message oldest first when there are fewer than the limit', async () => {
+    seed(7, 3);
+
+    const history = await getCopilotHistory(7);
+
+    expect(history.map((m) => m.content)).toEqual(['m1', 'm2', 'm3']);
+  });
+
+  it('keeps insertion order (by id) for messages saved in the same instant', async () => {
+    const at = new Date(Date.UTC(2026, 10, 1, 10));
+    storedMessages.push(
+      { id: 2, taskId: 7, role: 'assistant', content: 'answer', createdAt: at },
+      { id: 1, taskId: 7, role: 'user', content: 'question', createdAt: at },
+    );
+
+    const history = await getCopilotHistory(7, 1);
+    expect(history.map((m) => m.content)).toEqual(['answer']);
+    expect((await getCopilotHistory(7)).map((m) => m.content)).toEqual(['question', 'answer']);
+  });
+
+  it('asks the database for the newest rows (desc) with the limit applied', async () => {
+    await getCopilotHistory(7, 20);
+
+    expect(mockPrismaFindMany).toHaveBeenCalledWith({
+      where: { taskId: 7 },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 20,
+    });
   });
 });

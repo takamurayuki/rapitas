@@ -326,6 +326,32 @@ class CopilotReply {
       );
 }
 
+/// 相談（consult）の過去のやりとり1件（GET /copilot/chat/:taskId/history の messages）。
+/// 形はバックエンド services/ai/copilot-chat-service.ts getCopilotHistory（CopilotMessage 行）が正。
+/// role はサーバーが user / assistant で保存する。それ以外が来たらデスクトップと同じく assistant とみなす。
+class CopilotHistoryMessage {
+  final String id;
+  final bool fromUser;
+  final String content;
+  final DateTime? createdAt;
+
+  const CopilotHistoryMessage({
+    required this.id,
+    required this.fromUser,
+    required this.content,
+    this.createdAt,
+  });
+
+  factory CopilotHistoryMessage.fromJson(Map<String, dynamic> json) => CopilotHistoryMessage(
+        id: json['id']?.toString() ?? '',
+        fromUser: json['role'] == 'user',
+        content: json['content']?.toString() ?? '',
+        createdAt: json['createdAt'] is String
+            ? DateTime.tryParse(json['createdAt'] as String)
+            : null,
+      );
+}
+
 // ---- 変更（change）----
 // 既存タスク1件の 状態／優先度／テーマ／期限 を文で変える。形はバックエンドが正：
 //   services/assistant/task-update.ts（TaskChanges の検証・before/after）
