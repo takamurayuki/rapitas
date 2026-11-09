@@ -215,6 +215,53 @@ class AssistantService {
     }
     return CopilotReply.fromJson(body);
   }
+
+  // ---- 相談（consult）----
+  // タスク1件についての会話。形はバックエンド routes/ai/copilot-chat.ts が正：
+  //   POST /copilot/chat {message, taskId: number, conversationHistory: [{role, content}]}
+  //     → {success: true, content, model, tier, cached}（失敗は {error} だけで success なし）
+  //   GET /copilot/chat/:taskId/history → {messages: [{id, taskId, role, content, createdAt}]}
+  // サーバーは送った発言と返信をそのタスクの履歴として保存する（次に開いたときの history に出る）。
+
+  /// タスク [taskId] についての相談を送る。[history] はそのタスクの相談スレッドの直近
+  /// （role は user / assistant）。今回の [message] はサーバーが末尾に足すので含めない。
+  Future<CopilotReply> copilotChat(
+    String message, {
+    required String taskId,
+    List<Map<String, String>> history = const [],
+  }) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final body = _body((await _postOrError(
+      '/copilot/chat',
+      {
+        'message': message,
+        'taskId': id,
+        'conversationHistory': history,
+      },
+    ))
+        .data);
+    if (body['success'] != true) {
+      throw AssistantException(body['error']?.toString() ?? 'chat_failed');
+    }
+    return CopilotReply.fromJson(body);
+  }
+
+  /// タスク [taskId] の過去の相談（古い順）。
+  ///
+  /// NOTE: サーバーは古い順に最大50件を返す（getCopilotHistory の take: 50）。
+  /// 50件を超えるタスクでは新しい分が欠ける（デスクトップも同じ）。
+  Future<List<CopilotHistoryMessage>> copilotHistory(String taskId) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final body = _body((await _get('/copilot/chat/$id/history')).data);
+    final messages = body['messages'];
+    if (messages is! List) return const [];
+    return [
+      for (final m in messages)
+        if (m is Map) CopilotHistoryMessage.fromJson(Map<String, dynamic>.from(m)),
+    ].where((m) => m.content.isNotEmpty).toList();
+  }
 }
 
 class AssistantException implements Exception {

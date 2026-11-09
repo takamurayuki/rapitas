@@ -18,8 +18,10 @@ import '../../widgets/voice_scroll_target.dart';
 // ラピは汎用チャットボットではなく「ユーザーがやること／ラピがやること」の境界を
 // 守るエージェント。モードの切り替えは置かず、送った文は毎回 /assistant/route で
 // 振り分ける。扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
-// 見守り（一覧の先頭のカード）・変更（変更カード）と、振り分けなしの会話。それ以外の振り分け先
-// （consult/tidy/roadmap）は「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
+// 見守り（一覧の先頭のカード）・変更（変更カード）・相談（タスク選びカード → 相談モード）と、
+// 振り分けなしの会話。それ以外の振り分け先（tidy/roadmap）は「デスクトップ版で対応」と
+// 正直に伝え、会話でごまかさない。
+// 相談モード中は入力欄の上に相談中のタスクの帯を出し、× で抜けられる。
 //
 // NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
 // /rapi は下部タブで、タブを切り替えるとこの画面は破棄されるため。画面に残すのは
@@ -32,6 +34,9 @@ import '../../widgets/voice_scroll_target.dart';
 
 /// 入力欄のヒント文
 const String _placeholder = 'やりたいことをそのまま書いてください';
+
+/// 相談モード中の入力欄のヒント文
+const String _consultPlaceholder = 'このタスクについて相談したいこと';
 
 /// 聞き取り中の入力欄のヒント文
 const String _listeningPlaceholder = '聞き取り中…';
@@ -366,9 +371,20 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
               ],
             ),
           ),
+          if (chat.consultTask case final consult?)
+            _ConsultBand(
+              key: const ValueKey('rapi-consult-band'),
+              title: consult.title,
+              onOpen: () => _openTask(consult.id),
+              onExit: _chat.exitConsult,
+            ),
           _Composer(
             controller: _input,
-            placeholder: _voiceActive ? _listeningPlaceholder : _placeholder,
+            placeholder: _voiceActive
+                ? _listeningPlaceholder
+                : chat.consultTask != null
+                    ? _consultPlaceholder
+                    : _placeholder,
             hasText: chat.input.trim().isNotEmpty,
             sending: chat.sending,
             listening: _voiceActive,
@@ -399,6 +415,21 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onCancel: () => _chat.cancelChange(m.id),
         onRevert: () => _chat.revertChange(m.id),
         onOpen: () => _openTask(change.proposal.taskId),
+      ));
+    }
+
+    final picker = m.consultPicker;
+    if (picker != null) {
+      return _spaced(_ConsultPickerCard(
+        key: ValueKey('rapi-consult-picker-${m.id}'),
+        picker: picker,
+        busy: chat.sending,
+        onChoose: (task) => _chat.chooseConsultTask(m.id, task),
+        onDismiss: () => _chat.dismissConsultPicker(m.id),
+        // 一覧が届くとカードの背が伸びる。カードが末尾なら、伸びた分まで見せる
+        onListLoaded: () {
+          if (ref.read(rapiChatProvider).messages.lastOrNull?.id == m.id) _scrollToEnd();
+        },
       ));
     }
 
@@ -1276,6 +1307,200 @@ class _ChangeCard extends ConsumerWidget {
 
 /// 「今」の値をまだ読めていない印（null は「なし」の意味で使うので別にする）
 const Object _unknown = Object();
+
+/// 相談のタスク選びカード：「どのタスクについて相談しますか」と、保留している発言、
+/// 最近更新されたタスクの一覧（タップで選ぶ）、「やめる」。見た目は下書きカードにそろえる。
+/// 選んだあと・閉じたあとは1行の控えだけ残す。
+class _ConsultPickerCard extends ConsumerWidget {
+  final RapiConsultPicker picker;
+
+  /// 送信中は選べない（保留中の発言と順番が入れ替わらないように）
+  final bool busy;
+  final ValueChanged<RapiConsultTask> onChoose;
+  final VoidCallback onDismiss;
+  final VoidCallback onListLoaded;
+
+  const _ConsultPickerCard({
+    super.key,
+    required this.picker,
+    required this.busy,
+    required this.onChoose,
+    required this.onDismiss,
+    required this.onListLoaded,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    const muted = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
+    const body = Color(0xFF18181B);
+
+    switch (picker.phase) {
+      case RapiConsultPickPhase.chosen:
+        return _SystemNote(text: '「${picker.chosen?.title ?? ''}」について相談します');
+      case RapiConsultPickPhase.closed:
+        return const _SystemNote(text: 'タスクを選ばずに閉じました（この発言は送っていません）');
+      case RapiConsultPickPhase.choosing:
+        break;
+    }
+
+    final tasks = ref.watch(taskListProvider(const TaskFilter()));
+    ref.listen(taskListProvider(const TaskFilter()), (prev, next) {
+      if (next.hasValue && !(prev?.hasValue ?? false)) onListLoaded();
+    });
+    final Widget list = tasks.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: _violetButton),
+          ),
+        ),
+      ),
+      error: (_, __) => Row(
+        children: [
+          const Expanded(child: Text('タスクの一覧を読み込めませんでした', style: muted)),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: _violetButton),
+            onPressed: () => ref.invalidate(taskListProvider(const TaskFilter())),
+            child: const Text('再読み込み'),
+          ),
+        ],
+      ),
+      data: (all) {
+        final candidates = rapiConsultCandidates(all);
+        if (candidates.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('相談できるタスクがまだありません', style: muted),
+          );
+        }
+        return Column(
+          children: [
+            for (final t in candidates)
+              InkWell(
+                key: ValueKey('rapi-consult-task-${t.id}'),
+                borderRadius: BorderRadius.circular(8),
+                onTap: busy ? null : () => onChoose(RapiConsultTask(id: t.id, title: t.title)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14, color: body)),
+                            Text(_statusLabels[t.status] ?? t.status, style: muted),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, size: 18, color: Color(0xFF9CA3AF)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _violetBg,
+        border: Border.all(color: _violetBorder),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('どのタスクについて相談しますか',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelLarge
+                  ?.copyWith(color: _violetButton, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('選ぶと、さっきの発言をそのタスクへの最初の相談として送ります。', style: muted),
+          const SizedBox(height: 6),
+          list,
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const ValueKey('rapi-consult-dismiss'),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF6B7280)),
+              onPressed: onDismiss,
+              child: const Text('やめる'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 相談モード中に入力欄の上へ出す帯：相談中のタスク名（タップで開く）と、抜ける ×
+class _ConsultBand extends StatelessWidget {
+  final String title;
+  final VoidCallback onOpen;
+  final VoidCallback onExit;
+
+  const _ConsultBand({
+    super.key,
+    required this.title,
+    required this.onOpen,
+    required this.onExit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _violetBg,
+          border: Border.all(color: _violetBorder),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.only(left: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.forum_outlined, size: 16, color: _violetButton),
+            const SizedBox(width: 6),
+            const Text('相談中',
+                style: TextStyle(
+                    fontSize: 12, color: _violetButton, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: GestureDetector(
+                onTap: onOpen,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF18181B)),
+                ),
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('rapi-consult-exit'),
+              tooltip: '相談を終える',
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              color: const Color(0xFF6B7280),
+              onPressed: onExit,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// 下部のチャット欄（角丸の入力欄＋右端の丸いボタン）。
 /// 右端のボタンは1つを出し分ける：聞き取り中は赤いマイク（押すと聞き取りを終えて送信）、

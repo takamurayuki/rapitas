@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
+import '../models/task.dart';
 import '../services/assistant_service.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
@@ -15,6 +16,8 @@ import 'task_provider.dart';
 // NOTE: 永続化はしない。アプリを終了すると会話は消える。
 // NOTE: モード（会話／作る／聞く／見守り／変更）の切り替えは無い。送った文は毎回
 // /assistant/route で振り分け、作成・問い合わせ・見守り・変更はその結果で出し分ける。
+// 例外は相談（consult）：振り分けで相談になり、タスクを選ぶと「相談モード」に入る。
+// 相談モード中の送信は振り分けを通さず、そのタスクの copilot/chat へ直接送る（抜けるまで）。
 
 enum RapiRole { user, assistant, system }
 
@@ -76,6 +79,43 @@ class RapiChangeCard {
   bool get canRevert => phase == RapiChangePhase.applied && conflicts.isEmpty;
 }
 
+/// 相談（consult）の対象タスク
+class RapiConsultTask {
+  final String id;
+  final String title;
+
+  const RapiConsultTask({required this.id, required this.title});
+}
+
+/// 相談のタスク選びカードの段階。choosing（選択待ち）→ chosen（選んだ）／closed（選ばずに閉じた）
+enum RapiConsultPickPhase { choosing, chosen, closed }
+
+/// 振り分けが consult になったときに出す「どのタスクについて相談しますか」カード。
+/// 発言 [text] はタスクが決まってから最初の相談として送る（それまでは送らない）。
+class RapiConsultPicker {
+  final String text;
+
+  /// 選ぶ前の発言のメッセージ id（選んだら相談スレッドへ移す）
+  final int utteranceId;
+  final RapiConsultPickPhase phase;
+  final RapiConsultTask? chosen;
+
+  const RapiConsultPicker({
+    required this.text,
+    required this.utteranceId,
+    this.phase = RapiConsultPickPhase.choosing,
+    this.chosen,
+  });
+
+  RapiConsultPicker copyWith({RapiConsultPickPhase? phase, RapiConsultTask? chosen}) =>
+      RapiConsultPicker(
+        text: text,
+        utteranceId: utteranceId,
+        phase: phase ?? this.phase,
+        chosen: chosen ?? this.chosen,
+      );
+}
+
 /// 会話の1件。[draftSlot] は下書きカードの置き場所、[answer] は問い合わせの回答。
 class RapiMessage {
   final int id;
@@ -86,6 +126,12 @@ class RapiMessage {
 
   /// 変更（change）の提案カード
   final RapiChangeCard? change;
+
+  /// 相談のタスク選びカード
+  final RapiConsultPicker? consultPicker;
+
+  /// 相談スレッドの発言なら、そのタスクの id（一般の会話の履歴には含めない）
+  final String? consultTaskId;
 
   /// 起票したタスク（system メッセージから開ける）
   final String? taskId;
@@ -100,30 +146,35 @@ class RapiMessage {
     this.answer,
     this.draftSlot = false,
     this.change,
+    this.consultPicker,
+    this.consultTaskId,
     this.taskId,
     this.inHistory = false,
   });
 
-  RapiMessage withoutHistory() => RapiMessage(
+  RapiMessage _copy({
+    RapiChangeCard? change,
+    RapiConsultPicker? consultPicker,
+    bool? inHistory,
+  }) =>
+      RapiMessage(
         id: id,
         role: role,
         text: text,
         answer: answer,
         draftSlot: draftSlot,
-        change: change,
+        change: change ?? this.change,
+        consultPicker: consultPicker ?? this.consultPicker,
+        consultTaskId: consultTaskId,
         taskId: taskId,
+        inHistory: inHistory ?? this.inHistory,
       );
 
-  RapiMessage withChange(RapiChangeCard change) => RapiMessage(
-        id: id,
-        role: role,
-        text: text,
-        answer: answer,
-        draftSlot: draftSlot,
-        change: change,
-        taskId: taskId,
-        inHistory: inHistory,
-      );
+  RapiMessage withoutHistory() => _copy(inHistory: false);
+
+  RapiMessage withChange(RapiChangeCard change) => _copy(change: change);
+
+  RapiMessage withConsultPicker(RapiConsultPicker picker) => _copy(consultPicker: picker);
 }
 
 const Object _unset = Object();
@@ -148,6 +199,10 @@ class RapiChatState {
   final bool surveyLoading;
   final bool surveyFailed;
 
+  /// 相談モードの対象タスク（null なら通常の振り分け）。相談モード中の送信は振り分けを通さず、
+  /// このタスクの copilot/chat へ直接送る
+  final RapiConsultTask? consultTask;
+
   const RapiChatState({
     required this.messages,
     this.input = '',
@@ -159,6 +214,7 @@ class RapiChatState {
     this.survey,
     this.surveyLoading = false,
     this.surveyFailed = false,
+    this.consultTask,
   });
 
   RapiChatState copyWith({
@@ -172,6 +228,7 @@ class RapiChatState {
     Object? survey = _unset,
     bool? surveyLoading,
     bool? surveyFailed,
+    Object? consultTask = _unset,
   }) =>
       RapiChatState(
         messages: messages ?? this.messages,
@@ -185,6 +242,9 @@ class RapiChatState {
         survey: identical(survey, _unset) ? this.survey : survey as SupervisionSurvey?,
         surveyLoading: surveyLoading ?? this.surveyLoading,
         surveyFailed: surveyFailed ?? this.surveyFailed,
+        consultTask: identical(consultTask, _unset)
+            ? this.consultTask
+            : consultTask as RapiConsultTask?,
       );
 
   /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
@@ -193,7 +253,6 @@ class RapiChatState {
 
 /// まだモバイルで実装していない振り分け先（デスクトップのモード名）
 const Map<String, String> _desktopOnlyIntents = {
-  'consult': 'このタスク',
   'tidy': '片付ける',
   'roadmap': '計画を立てる',
 };
@@ -205,6 +264,16 @@ const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウ
 /// copilot/chat に送る履歴の件数
 const int _historyLimit = 10;
 
+/// 相談のタスク選びカードに出す件数
+const int rapiConsultCandidateLimit = 5;
+
+/// 相談のタスク選びカードの候補：最近更新された順に [rapiConsultCandidateLimit] 件。
+/// 一覧は GET /tasks（親タスクのみ・作成日の新しい順）なので、ここで更新日時の順に並べ直す
+List<Task> rapiConsultCandidates(List<Task> tasks) {
+  final sorted = [...tasks]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  return sorted.take(rapiConsultCandidateLimit).toList();
+}
+
 final rapiChatProvider =
     NotifierProvider<RapiChatNotifier, RapiChatState>(RapiChatNotifier.new);
 
@@ -212,10 +281,15 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   int _nextId = 0;
   Future<void>? _surveyInFlight;
 
+  /// 相談セッションの世代。相談モードに入るたび・抜けるたびに進める。
+  /// 非同期処理（履歴の読み込みなど）のあとで「まだ同じ相談が続いているか」を確かめるのに使う
+  int _consultSession = 0;
+
   @override
   RapiChatState build() {
     _nextId = 0;
     _surveyInFlight = null;
+    _consultSession = 0;
     return RapiChatState(messages: [
       RapiMessage(
         id: _nextId++,
@@ -239,9 +313,16 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   /// 画面からの短い案内（音声入力で送らなかった理由など）を system メッセージで出す
   void notice(String text) => _system(text);
 
-  /// 直近 [_historyLimit] 件の user / assistant の発言（今回の発言は含めない）
-  List<Map<String, String>> _history() {
-    final turns = state.messages
+  /// 一般の会話（taskId なし）の直近 [_historyLimit] 件（今回の発言は含めない。相談スレッドは含めない）
+  List<Map<String, String>> _history() =>
+      _turns(state.messages.where((m) => m.consultTaskId == null));
+
+  /// タスク [taskId] の相談スレッドの直近 [_historyLimit] 件（今回の発言は含めない）
+  List<Map<String, String>> _consultHistory(String taskId) =>
+      _turns(state.messages.where((m) => m.consultTaskId == taskId));
+
+  static List<Map<String, String>> _turns(Iterable<RapiMessage> messages) {
+    final turns = messages
         .where((m) => m.inHistory && m.role != RapiRole.system && m.text.isNotEmpty)
         .map((m) => {
               'role': m.role == RapiRole.user ? 'user' : 'assistant',
@@ -265,34 +346,56 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     final text = state.input.trim();
     if (text.isEmpty || state.sending) return;
 
-    final history = _history();
+    // 選ばれないまま残っているタスク選びカードは閉じる（あとで押して古い発言が送られないように）
+    _closePendingPickers();
+    final consult = state.consultTask;
+    final history = consult == null ? _history() : _consultHistory(consult.id);
     final userId = _nextId;
-    _add((id) => RapiMessage(id: id, role: RapiRole.user, text: text, inHistory: true));
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.user,
+          text: text,
+          inHistory: true,
+          consultTaskId: consult?.id,
+        ));
     // 送った文は自分の発言として並ぶので、欄は送った時点で空にする（応答待ちの間も残さない）。
     // 画面は provider の input に合わせて欄を書き換えるので、タブを往復しても送った文は戻らない
     state = state.copyWith(sending: true, input: '');
 
     try {
-      await _routeAndHandle(text, history);
+      if (consult != null) {
+        // 相談モード中は振り分けを通さず、そのタスクの相談として送る
+        await _sendConsult(consult, text, history);
+      } else {
+        await _routeAndHandle(text, history, userId);
+      }
     } catch (e) {
-      final messages = [...state.messages];
-      final i = messages.indexWhere((m) => m.id == userId);
-      if (i >= 0) messages[i] = messages[i].withoutHistory();
-      // 失敗したら送れなかった文を欄に戻す（直して送り直せる）。
-      // 応答待ちの間に次の文を書き始めていたら、それは消さない（送れなかった文は発言として残っている）
-      state = state.copyWith(
-        messages: messages,
-        input: state.input.trim().isEmpty ? text : null,
-      );
-      _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
+      _sendFailed(e, text, userId);
     } finally {
       state = state.copyWith(sending: false);
     }
   }
 
-  Future<void> _routeAndHandle(String text, List<Map<String, String>> history) async {
+  /// 送れなかった発言を履歴から外し、文を欄に戻して理由を出す
+  void _sendFailed(Object e, String text, int userId) {
+    final messages = [...state.messages];
+    final i = messages.indexWhere((m) => m.id == userId);
+    if (i >= 0) messages[i] = messages[i].withoutHistory();
+    // 失敗したら送れなかった文を欄に戻す（直して送り直せる）。
+    // 応答待ちの間に次の文を書き始めていたら、それは消さない（送れなかった文は発言として残っている）
+    state = state.copyWith(
+      messages: messages,
+      input: state.input.trim().isEmpty ? text : null,
+    );
+    _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
+  }
+
+  Future<void> _routeAndHandle(
+      String text, List<Map<String, String>> history, int userId) async {
     final service = ref.read(assistantServiceProvider);
-    final routed = await service.routeIntent(text);
+    // 相談モード中は true（相談モード中の送信はここを通らないので、効くのはそれ以外の経路）
+    final routed =
+        await service.routeIntent(text, hasOpenTask: state.consultTask != null);
 
     String took(String where) {
       final reason = routed.reason;
@@ -316,6 +419,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       case 'change':
         _system(took('タスクの変更'));
         await _runChangeDraft(text);
+      case 'consult':
+        _system(took('タスクについての相談'));
+        _askConsultTask(text, userId);
       case final String intent when _desktopOnlyIntents.containsKey(intent):
         _system('「${_desktopOnlyIntents[intent]}」の操作はデスクトップ版で対応しています。'
             'デスクトップの rapitas でラピに頼んでください。');
@@ -329,6 +435,140 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
               inHistory: true,
             ));
     }
+  }
+
+  // ---- 相談（consult）----
+  // 振り分けが consult → 「どのタスクについて相談しますか」カード → タスクを選ぶと相談モードに入り、
+  // そのタスクの過去の相談を読み込んでから、保留していた発言を最初の相談として送る。
+  // 相談モード中の送信は振り分けを通さず copilot/chat（taskId 付き・履歴はそのタスクのスレッド分）へ。
+  // 画面の帯の × で抜けると、通常の振り分けに戻る。
+
+  /// 発言 [text] を保留し、タスク選びのカードを出す（発言はまだどこにも送らない）
+  void _askConsultTask(String text, int userId) {
+    // 保留した発言は一般の会話の履歴に入れない（選んだあと相談スレッドへ移す）
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == userId ? m.withoutHistory() : m,
+    ]);
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          consultPicker: RapiConsultPicker(text: text, utteranceId: userId),
+        ));
+  }
+
+  RapiConsultPicker? _pickerOf(int messageId) {
+    for (final m in state.messages) {
+      if (m.id == messageId) return m.consultPicker;
+    }
+    return null;
+  }
+
+  void _setPicker(int messageId, RapiConsultPicker picker) {
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == messageId ? m.withConsultPicker(picker) : m,
+    ]);
+  }
+
+  void _closePendingPickers() {
+    if (!state.messages.any((m) => m.consultPicker?.phase == RapiConsultPickPhase.choosing)) {
+      return;
+    }
+    state = state.copyWith(messages: [
+      for (final m in state.messages)
+        m.consultPicker?.phase == RapiConsultPickPhase.choosing
+            ? m.withConsultPicker(m.consultPicker!.copyWith(phase: RapiConsultPickPhase.closed))
+            : m,
+    ]);
+  }
+
+  /// タスク選びカードの「やめる」：選ばずに閉じる（保留した発言は送らない）
+  void dismissConsultPicker(int messageId) {
+    final picker = _pickerOf(messageId);
+    if (picker == null || picker.phase != RapiConsultPickPhase.choosing) return;
+    _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.closed));
+  }
+
+  /// タスク選びカードでタスクを選んだ：相談モードに入り、保留していた発言を送る
+  Future<void> chooseConsultTask(int messageId, RapiConsultTask task) async {
+    final picker = _pickerOf(messageId);
+    if (picker == null || picker.phase != RapiConsultPickPhase.choosing || state.sending) {
+      return;
+    }
+    _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.chosen, chosen: task));
+    state = state.copyWith(consultTask: task, sending: true);
+    final session = ++_consultSession;
+    var userId = picker.utteranceId;
+    try {
+      await _loadConsultThread(task, session);
+      // 履歴を待つ間に相談を終えていたら（帯の ×）、保留していた発言は送らず、何も並べない
+      if (session != _consultSession) return;
+      // 保留していた発言を、読み込んだ履歴のあと（相談スレッドの末尾）へ移してから送る
+      final history = _consultHistory(task.id);
+      userId = _nextId;
+      state = state.copyWith(
+          messages: state.messages.where((m) => m.id != picker.utteranceId).toList());
+      _add((id) => RapiMessage(
+            id: id,
+            role: RapiRole.user,
+            text: picker.text,
+            inHistory: true,
+            consultTaskId: task.id,
+          ));
+      await _sendConsult(task, picker.text, history);
+    } catch (e) {
+      _sendFailed(e, picker.text, userId);
+    } finally {
+      state = state.copyWith(sending: false);
+    }
+  }
+
+  /// このタスクの過去の相談をスレッドに出す。この会話にもうスレッドがあればそれを使う
+  /// （出し直すと同じやりとりが二重に並ぶため）。読めなくても相談は続ける（デスクトップと同じ）
+  /// [session] は呼び出し時の相談の世代。読み込みを待つ間に相談が終わっていたら何も並べない
+  Future<void> _loadConsultThread(RapiConsultTask task, int session) async {
+    if (state.messages.any((m) => m.consultTaskId == task.id && m.inHistory)) return;
+    final List<CopilotHistoryMessage> past;
+    try {
+      past = await ref.read(assistantServiceProvider).copilotHistory(task.id);
+    } catch (_) {
+      if (session != _consultSession) return;
+      _system('「${task.title}」のこれまでの相談を読み込めませんでした');
+      return;
+    }
+    if (session != _consultSession || past.isEmpty) return;
+    _system('「${task.title}」のこれまでの相談（${past.length}件）');
+    for (final p in past) {
+      _add((id) => RapiMessage(
+            id: id,
+            role: p.fromUser ? RapiRole.user : RapiRole.assistant,
+            text: p.content,
+            inHistory: true,
+            consultTaskId: task.id,
+          ));
+    }
+  }
+
+  Future<void> _sendConsult(
+      RapiConsultTask task, String text, List<Map<String, String>> history) async {
+    final reply = await ref
+        .read(assistantServiceProvider)
+        .copilotChat(text, taskId: task.id, history: history);
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          text: reply.content,
+          inHistory: true,
+          consultTaskId: task.id,
+        ));
+  }
+
+  /// 相談モードを抜ける（帯の ×）。以降の送信は通常の振り分けに戻る
+  void exitConsult() {
+    final task = state.consultTask;
+    if (task == null) return;
+    _consultSession++;
+    state = state.copyWith(consultTask: null);
+    _system('「${task.title}」の相談を終えました');
   }
 
   // ---- タスク作成 ----
