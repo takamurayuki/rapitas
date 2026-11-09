@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
+import '../../providers/connection_provider.dart';
 import '../../providers/rapi_chat_provider.dart';
+import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
+import '../../services/sse_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
 
@@ -49,20 +52,20 @@ const Map<String, String> _statusLabels = {
 const int _maxTextLength = 2000;
 
 const _indigo = Color(0xFF4F46E5);
+/// 聞くの回答カードの地色
 const _bubbleGray = Color(0xFFF4F4F5);
 const _violetBg = Color(0xFFF5F3FF);
 const _violetBorder = Color(0xFFDDD6FE);
 const _violetButton = Color(0xFF7C3AED);
 
-// ラピの吹き出し。デスクトップ SpeechBubble.tsx の BUBBLE_COLORS.light と、
-// RapiAvatarDock.tsx の本文色（light: #1F2937）
-const _speechBg = Color(0xFFFFFFFF);
-const _speechBorder = Color(0xFFE4E4E7);
-const _speechText = Color(0xFF1F2937);
+/// ラピの発言の本文色（デスクトップ RapiAvatarDock.tsx の light 本文色）
+const _rapiText = Color(0xFF1F2937);
 
-/// 発言行のアバターの大きさと、アバターから吹き出し本体までの間隔（尻尾を含む）
-const double _rowAvatarSize = 28;
-const double _rowAvatarGap = 4 + _SpeechBubble.tailLength;
+/// 発言どうしの間隔
+const double _messageGap = 14;
+
+/// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
+const double _topFade = 16;
 
 class RapiScreen extends ConsumerStatefulWidget {
   const RapiScreen({super.key});
@@ -134,43 +137,42 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 挨拶だけの初期状態は、ラピを大きく出してその下に挨拶の吹き出しを置く
-    // （messages は挨拶1件から始まり、送信すると必ず増える）
+    // ラピ本人は会話の上の固定のヒーロー（中央のアバター＋名前＋接続状態）に出し、
+    // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
-    final greetingOnly = chat.messages.length == 1;
     final items = <Widget>[
       if (chat.mode == RapiMode.watch) _buildSurveyCard(context, chat),
-      if (greetingOnly)
-        _GreetingHero(text: chat.messages.first.text)
-      else
-        for (final m in chat.messages) _buildMessage(context, chat, m),
-      if (chat.sending) const _LoadingBubble(),
+      for (final m in chat.messages) _buildMessage(context, chat, m),
+      if (chat.sending) const _ThinkingRow(),
     ];
 
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: const Row(
-          children: [
-            RapiAvatar(size: 36),
-            SizedBox(width: 10),
-            Text('ラピ', style: TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('チャット')),
       body: Column(
         children: [
           _ModeChips(mode: chat.mode, onSelected: _chat.setMode),
           const Divider(height: 1),
+          // スクロールさせず、常に会話の上に見せる
+          const _RapiHero(),
           Expanded(
             child: GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
-              child: ListView(
-                controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                children: items,
+              // 上へ流れた発言がヒーローの真下でぶつ切りに見えないよう、上端を短くフェードさせる
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Colors.transparent, Colors.black],
+                  stops: [0, rect.height == 0 ? 0 : (_topFade / rect.height).clamp(0.0, 1.0)],
+                ).createShader(rect),
+                child: ListView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(16, _topFade, 16, 12),
+                  children: items,
+                ),
               ),
             ),
           ),
@@ -189,31 +191,29 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     if (m.draftSlot) {
       final draft = chat.draft;
       if (draft == null) return const SizedBox.shrink();
-      return _bubbleSpacing(_buildDraftCard(context, chat, draft));
+      return _spaced(_buildDraftCard(context, chat, draft));
     }
     final answer = m.answer;
     if (answer != null) {
-      return _bubbleSpacing(_RapiRow(child: _AskAnswerCard(answer: answer, onOpen: _openTask)));
+      return _spaced(_AskAnswerCard(answer: answer, onOpen: _openTask));
     }
 
     switch (m.role) {
       case RapiRole.user:
-        return _bubbleSpacing(_Bubble(text: m.text, mine: true));
+        return _spaced(_UserMessage(text: m.text));
       case RapiRole.assistant:
-        return _bubbleSpacing(_RapiRow(
-          child: _SpeechBubble(child: _SpeechText(m.text)),
-        ));
+        return _spaced(_RapiMessage(text: m.text));
       case RapiRole.system:
         final taskId = m.taskId;
-        return _bubbleSpacing(_SystemNote(
+        return _spaced(_SystemNote(
           text: m.text,
           onOpen: taskId == null ? null : () => _openTask(taskId),
         ));
     }
   }
 
-  Widget _bubbleSpacing(Widget child) =>
-      Padding(padding: const EdgeInsets.only(bottom: 10), child: child);
+  Widget _spaced(Widget child) =>
+      Padding(padding: const EdgeInsets.only(bottom: _messageGap), child: child);
 
   Widget _buildDraftCard(BuildContext context, RapiChatState chat, TaskDraft draft) {
     // テーマの選択肢：下書きの候補 → 無ければテーマ一覧
@@ -545,189 +545,54 @@ class _ModeChips extends StatelessWidget {
   }
 }
 
-/// ユーザーの発言（藍色・右寄せ）
-class _Bubble extends StatelessWidget {
-  final String text;
-  final bool mine;
-
-  const _Bubble({required this.text, required this.mine});
+/// 会話の上に固定するラピ：中央にアバター、その下に名前と接続状態
+class _RapiHero extends ConsumerWidget {
+  const _RapiHero();
 
   @override
-  Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: mine ? _indigo : _bubbleGray,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: SelectableText(
-            text,
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.45,
-              color: mine ? Colors.white : const Color(0xFF18181B),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // ホームの接続ステータス帯と同じプロバイダ・文言を使う
+    final sseState = ref.watch(sseConnectionStateProvider).valueOrNull ?? SseConnectionState.idle;
+    final desktopName = ref.watch(connectionSettingsProvider.select((s) => s.desktopName));
+    final (Color dotColor, String label) = switch (sseState) {
+      SseConnectionState.connected => (Colors.green, '接続中（${desktopName ?? 'デスクトップ'}）'),
+      SseConnectionState.connecting => (Colors.orange, '接続しています'),
+      SseConnectionState.reconnecting => (Colors.orange, '再接続しています'),
+      SseConnectionState.unauthorized => (Colors.grey, '未接続（QRコードでつなぎ直してください）'),
+      SseConnectionState.idle => (Colors.grey, '未接続'),
+    };
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-/// ラピの発言行：左にラピ、その右に吹き出し（下端揃え）
-class _RapiRow extends StatelessWidget {
-  final Widget child;
-
-  const _RapiRow({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.85 - _rowAvatarSize - _rowAvatarGap;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        const RapiAvatar(size: _rowAvatarSize),
-        const SizedBox(width: _rowAvatarGap),
-        Flexible(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: child,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SpeechText extends StatelessWidget {
-  final String text;
-
-  const _SpeechText(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return SelectableText(
-      text,
-      style: const TextStyle(fontSize: 15, height: 1.45, color: _speechText),
-    );
-  }
-}
-
-/// 尻尾の向き。left は左のラピへ、up は上のラピへ向ける
-enum _TailSide { left, up }
-
-/// ラピの吹き出し（デスクトップ SpeechBubble.tsx の移植）。
-///
-/// 白地＋1px の枠、尻尾はラピの方を向き、尻尾に近い角だけ半径を小さくする
-/// （デスクトップの `14px 14px 5px 14px`。ラピが左にいるので左下が小さい角）。
-/// 尻尾の寸法は TAIL_HALF 9 / TAIL_LENGTH 11。本体と尻尾は一つの輪郭として
-/// 塗ってから枠を引くので、つなぎ目に線が出ない。
-class _SpeechBubble extends StatelessWidget {
-  static const double tailHalf = 9;
-  static const double tailLength = 11;
-
-  final Widget child;
-  final _TailSide tailSide;
-  final EdgeInsets padding;
-
-  const _SpeechBubble({
-    required this.child,
-    this.tailSide = _TailSide.left,
-    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _SpeechBubblePainter(tailSide),
-      child: Padding(padding: padding, child: child),
-    );
-  }
-}
-
-class _SpeechBubblePainter extends CustomPainter {
-  final _TailSide tailSide;
-
-  const _SpeechBubblePainter(this.tailSide);
-
-  static const _big = Radius.circular(14);
-  static const _small = Radius.circular(5);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const half = _SpeechBubble.tailHalf;
-    const len = _SpeechBubble.tailLength;
-    final Path body;
-    final Path tail;
-    switch (tailSide) {
-      case _TailSide.left:
-        body = Path()
-          ..addRRect(RRect.fromRectAndCorners(
-            Offset.zero & size,
-            topLeft: _big,
-            topRight: _big,
-            bottomRight: _big,
-            bottomLeft: _small,
-          ));
-        // 尻尾の先は発言行のアバターの中心の高さ（下端から半分）に向ける
-        final tipY = size.height - _rowAvatarSize / 2;
-        tail = Path()
-          ..moveTo(0.5, tipY - half)
-          ..lineTo(-len, tipY)
-          ..lineTo(0.5, tipY + half)
-          ..close();
-      case _TailSide.up:
-        body = Path()..addRRect(RRect.fromRectAndRadius(Offset.zero & size, _big));
-        final tipX = size.width / 2;
-        tail = Path()
-          ..moveTo(tipX - half, 0.5)
-          ..lineTo(tipX, -len)
-          ..lineTo(tipX + half, 0.5)
-          ..close();
-    }
-    final outline = Path.combine(PathOperation.union, body, tail);
-    canvas.drawPath(outline, Paint()..color = _speechBg);
-    canvas.drawPath(
-      outline,
-      Paint()
-        ..color = _speechBorder
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SpeechBubblePainter oldDelegate) => oldDelegate.tailSide != tailSide;
-}
-
-/// 挨拶だけの初期状態：上部中央にラピ（デスクトップの既定サイズ 88）、その下に挨拶
-class _GreetingHero extends StatelessWidget {
-  final String text;
-
-  const _GreetingHero({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 10),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Column(
         children: [
-          const RapiAvatar(size: 88),
-          // 足元の影（88px で約 9px はみ出す）と尻尾の分だけ空ける
-          const SizedBox(height: 10 + 4 + _SpeechBubble.tailLength),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: _SpeechBubble(
-              tailSide: _TailSide.up,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: _SpeechText(text),
-            ),
+          const RapiAvatar(size: 64),
+          // 足元の影（64px で約 7px はみ出す）の分も空ける
+          const SizedBox(height: 14),
+          const Text(
+            'ラピ',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _rapiText),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: muted),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -735,22 +600,72 @@ class _GreetingHero extends StatelessWidget {
   }
 }
 
-class _LoadingBubble extends StatelessWidget {
-  const _LoadingBubble();
+/// ユーザーの発言：尻尾のない角丸の塊を右寄せ（藍色）
+class _UserMessage extends StatelessWidget {
+  final String text;
+
+  const _UserMessage({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 10),
-      child: _RapiRow(
-        child: _SpeechBubble(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.8;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: _indigo,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: SelectableText(
+            text,
+            style: const TextStyle(fontSize: 15, height: 1.45, color: Colors.white),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// ラピの発言：枠もアバターもない全幅のプレーンテキスト（左右の余白は一覧の 16）
+class _RapiMessage extends StatelessWidget {
+  final String text;
+
+  const _RapiMessage({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SelectableText(
+        text,
+        style: const TextStyle(fontSize: 15, height: 1.6, color: _rapiText),
+      ),
+    );
+  }
+}
+
+/// 送信中の行：小さなスピナー＋「考え中…」
+class _ThinkingRow extends StatelessWidget {
+  const _ThinkingRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: _messageGap),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+          ),
+          const SizedBox(width: 8),
+          Text('考え中…', style: TextStyle(fontSize: 14, color: muted)),
+        ],
       ),
     );
   }
@@ -853,7 +768,7 @@ class _AskAnswerCard extends StatelessWidget {
       }
     }
 
-    // 幅と左のラピは _RapiRow が持つ
+    // カード単体で全幅（下書きカードと同じ）。左にラピは置かない
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
       decoration: BoxDecoration(
