@@ -20,6 +20,8 @@ import '../screens/backlog/concerns_screen.dart';
 import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
 import '../screens/rapi/rapi_screen.dart';
+import '../services/voice_route_tracker.dart';
+import '../widgets/voice_fab.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -45,141 +47,146 @@ class AppRoutes {
   static const String hypotheses = '/hypotheses';
   static const String rapi = '/rapi';
 
-  static final GoRouter router = GoRouter(
-    initialLocation: home,
-    routes: [
-      ShellRoute(
-        builder: (context, state, child) {
-          return ScaffoldWithNavBar(child: child);
-        },
-        routes: [
-          GoRoute(
-            path: home,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: HomeScreen(),
+  static final GoRouter router = createRouter(tracker: appVoiceRouteTracker);
+
+  /// ルーターを作る。[tracker] は音声コマンド用のシート・ダイアログの見張り（テストでは自前のもの）
+  static GoRouter createRouter({required VoiceRouteTracker tracker, String initialLocation = home}) {
+    return GoRouter(
+      initialLocation: initialLocation,
+      observers: [tracker.rootObserver],
+      routes: [
+        ShellRoute(
+          observers: [tracker.shellObserver],
+          builder: (context, state, child) {
+            return ScaffoldWithNavBar(child: child);
+          },
+          routes: [
+            GoRoute(
+              path: home,
+              pageBuilder: (context, state) => const NoTransitionPage(
+                child: HomeScreen(),
+              ),
             ),
-          ),
-          GoRoute(
-            path: tasks,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: TaskListScreen(),
+            GoRoute(
+              path: tasks,
+              pageBuilder: (context, state) => const NoTransitionPage(
+                child: TaskListScreen(),
+              ),
             ),
-          ),
-          GoRoute(
-            path: executions,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: AgentExecutionScreen(),
+            GoRoute(
+              path: executions,
+              pageBuilder: (context, state) => const NoTransitionPage(
+                child: AgentExecutionScreen(),
+              ),
             ),
-          ),
-          GoRoute(
-            path: approvals,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: ApprovalsScreen(),
+            GoRoute(
+              path: approvals,
+              pageBuilder: (context, state) => const NoTransitionPage(
+                child: ApprovalsScreen(),
+              ),
             ),
-          ),
-          // ラピ（常駐エージェント）。下タブの最後
-          GoRoute(
-            path: rapi,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: RapiScreen(),
+            // ラピ（常駐エージェント）。下タブの最後
+            GoRoute(
+              path: rapi,
+              pageBuilder: (context, state) => const NoTransitionPage(
+                child: RapiScreen(),
+              ),
             ),
-          ),
-        ],
-      ),
-      // 設定は下タブから外した（ドロワーから push で開く）。戻るボタンは AppBar に任せる
-      GoRoute(
-        path: settings,
-        builder: (context, state) => const SettingsScreen(),
-      ),
-      // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
-      GoRoute(
-        path: taskNew,
-        builder: (context, state) => const TaskFormScreen(),
-      ),
-      GoRoute(
-        path: taskEdit,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final extra = state.extra;
-          return TaskFormScreen(taskId: id, task: extra is Task ? extra : null);
-        },
-      ),
-      GoRoute(
-        path: taskDetail,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return TaskDetailScreen(taskId: id);
-        },
-      ),
-      GoRoute(
-        path: notifications,
-        builder: (context, state) => const NotificationsScreen(),
-      ),
-      GoRoute(
-        path: dashboard,
-        builder: (context, state) => const DashboardScreen(),
-      ),
-      GoRoute(
-        path: themes,
-        builder: (context, state) => const ThemesScreen(),
-      ),
-      // NOTE: '/themes/new' を '/themes/:id/edit' より先に宣言する（タスク画面と同じく 'new' が id に取られないように）
-      GoRoute(
-        path: themeNew,
-        builder: (context, state) => const ThemeFormScreen(),
-      ),
-      GoRoute(
-        path: themeEdit,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final extra = state.extra;
-          return ThemeFormScreen(
-            themeId: id,
-            theme: extra is TaskTheme ? extra : null,
-          );
-        },
-      ),
-      GoRoute(
-        path: categories,
-        builder: (context, state) => const CategoriesScreen(),
-      ),
-      GoRoute(
-        path: categoryNew,
-        builder: (context, state) => const CategoryFormScreen(),
-      ),
-      GoRoute(
-        path: categoryEdit,
-        builder: (context, state) {
-          final id = state.pathParameters['id']!;
-          final extra = state.extra;
-          return CategoryFormScreen(
-            categoryId: id,
-            category: extra is TaskCategory ? extra : null,
-          );
-        },
-      ),
-      GoRoute(
-        path: ideas,
-        builder: (context, state) => const IdeasScreen(),
-      ),
-      GoRoute(
-        path: ideasNew,
-        builder: (context, state) => const IdeaFormScreen(),
-      ),
-      GoRoute(
-        path: concerns,
-        builder: (context, state) => const ConcernsScreen(),
-      ),
-      GoRoute(
-        path: concernsNew,
-        builder: (context, state) => const ConcernFormScreen(),
-      ),
-      GoRoute(
-        path: hypotheses,
-        builder: (context, state) => const HypothesesScreen(),
-      ),
-    ],
-  );
+          ],
+        ),
+        // 設定は下タブから外した（ドロワーから push で開く）。戻るボタンは AppBar に任せる
+        GoRoute(
+          path: settings,
+          builder: (context, state) => const VoiceFabFrame(child: SettingsScreen()),
+        ),
+        // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
+        GoRoute(
+          path: taskNew,
+          builder: (context, state) => const VoiceFabFrame(child: TaskFormScreen()),
+        ),
+        GoRoute(
+          path: taskEdit,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final extra = state.extra;
+            return VoiceFabFrame(child: TaskFormScreen(taskId: id, task: extra is Task ? extra : null));
+          },
+        ),
+        GoRoute(
+          path: taskDetail,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return VoiceFabFrame(child: TaskDetailScreen(taskId: id));
+          },
+        ),
+        GoRoute(
+          path: notifications,
+          builder: (context, state) => const VoiceFabFrame(child: NotificationsScreen()),
+        ),
+        GoRoute(
+          path: dashboard,
+          builder: (context, state) => const VoiceFabFrame(child: DashboardScreen()),
+        ),
+        GoRoute(
+          path: themes,
+          builder: (context, state) => const VoiceFabFrame(child: ThemesScreen()),
+        ),
+        // NOTE: '/themes/new' を '/themes/:id/edit' より先に宣言する（タスク画面と同じく 'new' が id に取られないように）
+        GoRoute(
+          path: themeNew,
+          builder: (context, state) => const VoiceFabFrame(child: ThemeFormScreen()),
+        ),
+        GoRoute(
+          path: themeEdit,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final extra = state.extra;
+            return VoiceFabFrame(
+              child: ThemeFormScreen(themeId: id, theme: extra is TaskTheme ? extra : null),
+            );
+          },
+        ),
+        GoRoute(
+          path: categories,
+          builder: (context, state) => const VoiceFabFrame(child: CategoriesScreen()),
+        ),
+        GoRoute(
+          path: categoryNew,
+          builder: (context, state) => const VoiceFabFrame(child: CategoryFormScreen()),
+        ),
+        GoRoute(
+          path: categoryEdit,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final extra = state.extra;
+            return VoiceFabFrame(
+              child: CategoryFormScreen(categoryId: id, category: extra is TaskCategory ? extra : null),
+            );
+          },
+        ),
+        GoRoute(
+          path: ideas,
+          builder: (context, state) => const VoiceFabFrame(child: IdeasScreen()),
+        ),
+        GoRoute(
+          path: ideasNew,
+          builder: (context, state) => const VoiceFabFrame(child: IdeaFormScreen()),
+        ),
+        GoRoute(
+          path: concerns,
+          builder: (context, state) => const VoiceFabFrame(child: ConcernsScreen()),
+        ),
+        GoRoute(
+          path: concernsNew,
+          builder: (context, state) => const VoiceFabFrame(child: ConcernFormScreen()),
+        ),
+        GoRoute(
+          path: hypotheses,
+          builder: (context, state) => const VoiceFabFrame(child: HypothesesScreen()),
+        ),
+      ],
+    );
+  }
 }
 
 class ScaffoldWithNavBar extends StatelessWidget {
@@ -200,8 +207,15 @@ class ScaffoldWithNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedIndex = _calculateSelectedIndex(context);
+    final location = GoRouterState.of(context).uri.path;
     return Scaffold(
       body: child,
+      // 音声コマンドの入口（左下）。右下の各画面の FAB とは重ならない。
+      // チャット画面は入力欄があるので、画面側で入力欄の上に置く
+      floatingActionButton: location == AppRoutes.rapi
+          ? null
+          : const VoiceFab(hideOverShellPopups: true),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {

@@ -8,11 +8,12 @@ import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../utils/color_utils.dart';
-import '../../services/voice_command_parser.dart';
+import '../../providers/voice_provider.dart';
+import '../../services/voice_command_flow.dart';
 import '../../utils/constants.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/task_card.dart';
-import '../../widgets/voice_input_sheet.dart';
+import '../../widgets/voice_scroll_target.dart';
 
 class TaskListScreen extends ConsumerStatefulWidget {
   const TaskListScreen({super.key});
@@ -35,10 +36,39 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   AsyncValue<List<Task>>? _searchResults;
 
   @override
+  void initState() {
+    super.initState();
+    // 音声コマンドの「N番目を開く」などは、いま見えている一覧（検索中は検索結果）を対象にする
+    VoiceTaskListHook.visibleTasks = _visibleTasks;
+    // 別の画面から「検索 ◯◯」で来たときは、届いている依頼をここで受け取る
+    WidgetsBinding.instance.addPostFrameCallback((_) => _takeVoiceSearch());
+  }
+
+  @override
   void dispose() {
+    if (VoiceTaskListHook.visibleTasks == _visibleTasks) VoiceTaskListHook.visibleTasks = null;
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<Task>? _visibleTasks() {
+    if (_searchMode) return _searchResults?.valueOrNull ?? const [];
+    return ref.read(taskListProvider(ref.read(taskFilterProvider))).valueOrNull;
+  }
+
+  /// 音声コマンドの「検索 ◯◯」：検索を開いて語句を入れ、すぐ検索する
+  void _takeVoiceSearch() {
+    if (!mounted) return;
+    final query = ref.read(voiceTaskSearchRequestProvider);
+    if (query == null) return;
+    ref.read(voiceTaskSearchRequestProvider.notifier).state = null;
+    _searchController.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    setState(() => _searchMode = true);
+    _searchNow(query);
   }
 
   void _openSearch() {
@@ -106,6 +136,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     // TaskFilter の == は status / priority / themeId / projectId を比較するので、
     // themeId だけ指定中でも isFiltered（＝フィルターアイコンの Badge）が立つ
     final isFiltered = filter != const TaskFilter();
+    ref.listen<String?>(voiceTaskSearchRequestProvider, (_, next) {
+      if (next != null) _takeVoiceSearch();
+    });
 
     return PopScope(
       canPop: !_searchMode,
@@ -117,26 +150,19 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         // 検索モード中は AppBar の「検索を閉じる」ボタンを優先し、ドロワーは出さない
         // （端スワイプで開いてしまうのも防ぐ）
         drawer: _searchMode ? null : const AppDrawer(),
-        body: _searchMode ? _buildSearchBody() : _buildListBody(filter, isFiltered),
+        body: VoiceScrollTarget(
+          path: AppRoutes.tasks,
+          child: _searchMode ? _buildSearchBody() : _buildListBody(filter, isFiltered),
+        ),
         // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
         // 検索モード中は作成用FABを出さない。
+        // NOTE: 音声の入口は全画面共通の左下のボタン（シェル側）に移したので、ここには置かない
         floatingActionButton: _searchMode
             ? null
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FloatingActionButton.small(
-                    heroTag: 'voice_task',
-                    onPressed: () => _handleVoiceInput(context, ref),
-                    child: const Icon(Icons.mic),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'add_task',
-                    onPressed: () => context.push(AppRoutes.taskNew),
-                    child: const Icon(Icons.add),
-                  ),
-                ],
+            : FloatingActionButton(
+                heroTag: 'add_task',
+                onPressed: () => context.push(AppRoutes.taskNew),
+                child: const Icon(Icons.add),
               ),
       ),
     );
@@ -540,38 +566,6 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       }
     }
     return null;
-  }
-
-  void _handleVoiceInput(BuildContext context, WidgetRef ref) async {
-    final command = await VoiceInputSheet.show(
-      context,
-      expectedType: VoiceCommandType.createTask,
-      hint: 'タスクのタイトルを話してください',
-    );
-
-    if (command == null || !context.mounted) return;
-
-    if (command.type == VoiceCommandType.createTask && command.title != null) {
-      try {
-        final service = ref.read(taskServiceProvider);
-        await service.createTask({
-          'title': command.title!,
-          if (command.priority != null) 'priority': command.priority!,
-        });
-        ref.invalidate(taskListProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('タスク「${command.title}」を作成しました')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('タスクの作成に失敗しました: $e')),
-          );
-        }
-      }
-    }
   }
 }
 

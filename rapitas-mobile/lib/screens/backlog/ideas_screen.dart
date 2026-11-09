@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/backlog.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/centered_message.dart';
@@ -59,44 +60,47 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(ideaListProvider);
-          try {
-            await ref.read(ideaListProvider.future);
-          } catch (_) {}
-        },
-        child: ideasAsync.when(
-          data: (ideas) {
-            if (ideas.isEmpty) {
-              return const CenteredMessage(
-                icon: Icons.lightbulb_outline,
-                message: 'アイデアはありません',
-              );
-            }
-            return ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              itemCount: ideas.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final idea = ideas[index];
-                return _IdeaTile(
-                  idea: idea,
-                  deleting: _deleting.contains(idea.id),
-                  onDelete: () => _delete(idea),
-                );
-              },
-            );
+      body: VoiceScrollTarget(
+        path: '/ideas',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(ideaListProvider);
+            try {
+              await ref.read(ideaListProvider.future);
+            } catch (_) {}
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => CenteredMessage(
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            message: 'アイデアの取得に失敗しました',
-            action: ElevatedButton(
-              onPressed: () => ref.invalidate(ideaListProvider),
-              child: const Text('再試行'),
+          child: ideasAsync.when(
+            data: (ideas) {
+              if (ideas.isEmpty) {
+                return const CenteredMessage(
+                  icon: Icons.lightbulb_outline,
+                  message: 'アイデアはありません',
+                );
+              }
+              return ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 16),
+                itemCount: ideas.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final idea = ideas[index];
+                  return _IdeaTile(
+                    idea: idea,
+                    deleting: _deleting.contains(idea.id),
+                    onDelete: () => _delete(idea),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => CenteredMessage(
+              icon: Icons.error_outline,
+              iconColor: Colors.red,
+              message: 'アイデアの取得に失敗しました',
+              action: ElevatedButton(
+                onPressed: () => ref.invalidate(ideaListProvider),
+                child: const Text('再試行'),
+              ),
             ),
           ),
         ),

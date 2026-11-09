@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/backlog.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/centered_message.dart';
@@ -59,44 +60,47 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(concernListProvider);
-          try {
-            await ref.read(concernListProvider.future);
-          } catch (_) {}
-        },
-        child: concernsAsync.when(
-          data: (concerns) {
-            if (concerns.isEmpty) {
-              return const CenteredMessage(
-                icon: Icons.report_problem_outlined,
-                message: '懸念はありません',
-              );
-            }
-            return ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              itemCount: concerns.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final concern = concerns[index];
-                return _ConcernTile(
-                  concern: concern,
-                  deleting: _deleting.contains(concern.id),
-                  onDelete: () => _delete(concern),
-                );
-              },
-            );
+      body: VoiceScrollTarget(
+        path: '/concerns',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(concernListProvider);
+            try {
+              await ref.read(concernListProvider.future);
+            } catch (_) {}
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => CenteredMessage(
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            message: '懸念の取得に失敗しました',
-            action: ElevatedButton(
-              onPressed: () => ref.invalidate(concernListProvider),
-              child: const Text('再試行'),
+          child: concernsAsync.when(
+            data: (concerns) {
+              if (concerns.isEmpty) {
+                return const CenteredMessage(
+                  icon: Icons.report_problem_outlined,
+                  message: '懸念はありません',
+                );
+              }
+              return ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 16),
+                itemCount: concerns.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final concern = concerns[index];
+                  return _ConcernTile(
+                    concern: concern,
+                    deleting: _deleting.contains(concern.id),
+                    onDelete: () => _delete(concern),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => CenteredMessage(
+              icon: Icons.error_outline,
+              iconColor: Colors.red,
+              message: '懸念の取得に失敗しました',
+              action: ElevatedButton(
+                onPressed: () => ref.invalidate(concernListProvider),
+                child: const Text('再試行'),
+              ),
             ),
           ),
         ),

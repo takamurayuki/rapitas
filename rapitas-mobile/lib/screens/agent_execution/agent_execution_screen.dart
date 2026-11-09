@@ -5,9 +5,8 @@ import '../../models/task_execution.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/task_provider.dart';
-import '../../services/voice_command_parser.dart';
 import '../../widgets/status_badge.dart';
-import '../../widgets/voice_input_sheet.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
 
@@ -38,66 +37,63 @@ class AgentExecutionScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
+        // NOTE: 音声での実行・停止・再開は全画面共通の左下のボタンから（「2番目を停止」など）
         title: const Text('エージェント実行'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.mic),
-            tooltip: '音声でタスクを実行',
-            onPressed: () => _handleVoiceExecution(context, ref),
-          ),
-        ],
       ),
-      // タップで開ける実行導線。音声の単純実行コマンドと同じ経路（todo の実行可能タスク一覧）を使う。
+      // タップで開ける実行導線。音声の「実行」と同じく todo の実行可能タスク一覧を使う。
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'execute_task',
         icon: const Icon(Icons.play_arrow),
         label: const Text('タスクを実行'),
         onPressed: () => _showTaskSelectionForExecution(context, ref, '実行'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(taskListProvider);
-          _invalidateExecutions(
-              ProviderScope.containerOf(context, listen: false));
-        },
-        child: allEmpty
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 160),
-                  Icon(Icons.smart_toy_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Center(child: Text('実行中のタスクはありません')),
-                ],
-              )
-            : ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
-                children: [
-                  const _SectionTitle('実行中'),
-                  ..._buildSection<ExecutingTask>(
-                    state: executingAsync,
-                    items: executing,
-                    emptyText: '実行中のタスクはありません',
-                    errorText: '実行中のタスクを取得できませんでした',
-                    onRetry: () => ref.invalidate(executingTasksProvider),
-                    itemBuilder: (task) =>
-                        _buildExecutingTile(context, ref, task, titles),
-                  ),
-                  const SizedBox(height: 16),
-                  const _SectionTitle('再開可能'),
-                  ..._buildSection<ResumableExecution>(
-                    state: resumableAsync,
-                    items: resumable,
-                    emptyText: '再開できる実行はありません',
-                    errorText: '再開可能な実行を取得できませんでした',
-                    onRetry: () => ref.invalidate(resumableExecutionsProvider),
-                    itemBuilder: (execution) =>
-                        _buildResumableTile(context, ref, execution, titles),
-                  ),
-                ],
-              ),
+      body: VoiceScrollTarget(
+        path: '/executions',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(taskListProvider);
+            _invalidateExecutions(
+                ProviderScope.containerOf(context, listen: false));
+          },
+          child: allEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 160),
+                    Icon(Icons.smart_toy_outlined, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Center(child: Text('実行中のタスクはありません')),
+                  ],
+                )
+              : ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
+                  children: [
+                    const _SectionTitle('実行中'),
+                    ..._buildSection<ExecutingTask>(
+                      state: executingAsync,
+                      items: executing,
+                      emptyText: '実行中のタスクはありません',
+                      errorText: '実行中のタスクを取得できませんでした',
+                      onRetry: () => ref.invalidate(executingTasksProvider),
+                      itemBuilder: (task) =>
+                          _buildExecutingTile(context, ref, task, titles),
+                    ),
+                    const SizedBox(height: 16),
+                    const _SectionTitle('再開可能'),
+                    ..._buildSection<ResumableExecution>(
+                      state: resumableAsync,
+                      items: resumable,
+                      emptyText: '再開できる実行はありません',
+                      errorText: '再開可能な実行を取得できませんでした',
+                      onRetry: () => ref.invalidate(resumableExecutionsProvider),
+                      itemBuilder: (execution) =>
+                          _buildResumableTile(context, ref, execution, titles),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -255,22 +251,6 @@ class AgentExecutionScreen extends ConsumerWidget {
     container.invalidate(executingTasksProvider);
     container.invalidate(resumableExecutionsProvider);
     container.invalidate(taskExecutionLogsProvider);
-  }
-
-  void _handleVoiceExecution(BuildContext context, WidgetRef ref) async {
-    final command = await VoiceInputSheet.show(
-      context,
-      expectedType: VoiceCommandType.executeTask,
-      hint: '「実行」と話すか、実行するタスク名を話してください',
-    );
-
-    if (command == null || !context.mounted) return;
-
-    if (command.type == VoiceCommandType.executeTask ||
-        command.type == VoiceCommandType.createTask) {
-      // タスク名で検索して実行候補を表示
-      await _showTaskSelectionForExecution(context, ref, command.rawText);
-    }
   }
 
   Future<void> _showTaskSelectionForExecution(

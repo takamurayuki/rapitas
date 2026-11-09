@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/backlog.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/centered_message.dart';
@@ -96,44 +97,47 @@ class _HypothesesScreenState extends ConsumerState<HypothesesScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('仮説')),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(hypothesisListProvider);
-          try {
-            await ref.read(hypothesisListProvider.future);
-          } catch (_) {}
-        },
-        child: hypothesesAsync.when(
-          data: (hypotheses) {
-            if (hypotheses.isEmpty) {
-              return const CenteredMessage(
-                icon: Icons.science_outlined,
-                message: '仮説はありません\nエージェントが調査・検証の中で記録します',
-              );
-            }
-            return ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              itemCount: hypotheses.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final hypothesis = hypotheses[index];
-                return _HypothesisTile(
-                  hypothesis: hypothesis,
-                  busy: _busy.contains(hypothesis.id),
-                  onSelected: (action) => _onMenu(hypothesis, action),
-                );
-              },
-            );
+      body: VoiceScrollTarget(
+        path: '/hypotheses',
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(hypothesisListProvider);
+            try {
+              await ref.read(hypothesisListProvider.future);
+            } catch (_) {}
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => CenteredMessage(
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            message: '仮説の取得に失敗しました',
-            action: ElevatedButton(
-              onPressed: () => ref.invalidate(hypothesisListProvider),
-              child: const Text('再試行'),
+          child: hypothesesAsync.when(
+            data: (hypotheses) {
+              if (hypotheses.isEmpty) {
+                return const CenteredMessage(
+                  icon: Icons.science_outlined,
+                  message: '仮説はありません\nエージェントが調査・検証の中で記録します',
+                );
+              }
+              return ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 16),
+                itemCount: hypotheses.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final hypothesis = hypotheses[index];
+                  return _HypothesisTile(
+                    hypothesis: hypothesis,
+                    busy: _busy.contains(hypothesis.id),
+                    onSelected: (action) => _onMenu(hypothesis, action),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => CenteredMessage(
+              icon: Icons.error_outline,
+              iconColor: Colors.red,
+              message: '仮説の取得に失敗しました',
+              action: ElevatedButton(
+                onPressed: () => ref.invalidate(hypothesisListProvider),
+                child: const Text('再試行'),
+              ),
             ),
           ),
         ),
