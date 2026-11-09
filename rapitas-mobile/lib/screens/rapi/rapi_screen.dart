@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
 import '../../providers/rapi_chat_provider.dart';
 import '../../providers/theme_data_provider.dart';
+import '../../providers/voice_provider.dart';
+import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
 
@@ -20,9 +22,23 @@ import '../../widgets/rapi_avatar.dart';
 // /rapi は下部タブで、タブを切り替えるとこの画面は破棄されるため。画面に残すのは
 // 入力欄の TextEditingController とスクロールだけ。会話はアプリを終了すると消える。
 // NOTE: routes.dart は import しない（循環を避けるためパスは文字列で書く）。
+// NOTE: 音声入力は入力欄の右のマイクから。聞き取った文を欄に流し込み、聞き取りが
+// 終わったら（無音で自動終了／マイクをもう一度押す）欄の文をそのまま送信する
+// （送信は文字入力と同じ _chat.send を通す）。聞き取りは dictationServiceProvider の
+// ラッパー経由で、画面からは speech_to_text を直接触らない。
 
 /// 入力欄のヒント文
 const String _placeholder = 'やりたいことをそのまま書いてください';
+
+/// 聞き取り中の入力欄のヒント文
+const String _listeningPlaceholder = '聞き取り中…';
+
+// 音声入力で送らなかったときの案内（system メッセージ）
+const String _voicePermissionMessage =
+    'マイクが使えないため、音声入力できませんでした。設定アプリで rapitas のマイクと音声認識を許可してください。';
+const String _voiceUnavailableMessage = 'この端末では音声入力を使えませんでした。';
+const String _voiceEmptyMessage = '声を聞き取れなかったので、送信しませんでした。';
+const String _voiceFailedMessage = '音声をうまく認識できなかったので、送信しませんでした。';
 
 const Map<String, String> _statusLabels = {
   'todo': '未着手',
@@ -37,6 +53,9 @@ const Map<String, String> _statusLabels = {
 const int _maxTextLength = 2000;
 
 const _indigo = Color(0xFF4F46E5);
+
+/// 聞き取り中のマイクボタンの色
+const _listeningRed = Color(0xFFEF4444);
 /// 聞くの回答カードの地色
 const _bubbleGray = Color(0xFFF4F4F5);
 const _violetBg = Color(0xFFF5F3FF);
@@ -82,16 +101,33 @@ class RapiScreen extends ConsumerStatefulWidget {
   ConsumerState<RapiScreen> createState() => _RapiScreenState();
 }
 
+/// 音声入力の段階（starting は権限の確認〜聞き取り開始まで）
+enum _VoicePhase { idle, starting, listening }
+
 class _RapiScreenState extends ConsumerState<RapiScreen> {
   late final TextEditingController _input;
   late final TextEditingController _draftTitle;
   final _scroll = ScrollController();
+
+  // ---- 音声入力 ----
+  // dispose で ref は使えないので、聞き取りのラッパーは最初に取っておく
+  late final DictationService _dictation;
+  late final AppLifecycleListener _lifecycle;
+  _VoicePhase _voice = _VoicePhase.idle;
+
+  /// 聞き取りごとに増やす。止めた／捨てた聞き取りから遅れて届く結果を無視するため
+  int _voiceSession = 0;
+
+  bool get _voiceActive => _voice != _VoicePhase.idle;
 
   RapiChatNotifier get _chat => ref.read(rapiChatProvider.notifier);
 
   @override
   void initState() {
     super.initState();
+    _dictation = ref.read(dictationServiceProvider);
+    // アプリが裏へ回ったら聞き取りを捨てる（iOS の権限ダイアログでも inactive になるので onHide で拾う）
+    _lifecycle = AppLifecycleListener(onHide: _cancelVoice);
     // タブ往復で消えないよう、未送信の入力と編集中の下書きタイトルは provider から復元する
     final saved = ref.read(rapiChatProvider);
     _input = TextEditingController(text: saved.input)..addListener(_onInputChanged);
@@ -106,6 +142,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   @override
   void dispose() {
+    // タブ切り替えで画面が破棄されたら、聞き取りを残さない（送信もしない）
+    _voiceSession++;
+    if (_voiceActive) _dictation.cancel();
+    _lifecycle.dispose();
     _input.removeListener(_onInputChanged);
     _input.dispose();
     _scroll.dispose();
@@ -133,13 +173,98 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final nextLast = next.messages.lastOrNull?.id ?? -1;
     if (nextLast > prevLast) _scrollToEnd();
 
-    // provider が文を書き換えたとき（送信成功で空にする・新しい下書き）だけ欄へ反映する。
+    // provider が文を書き換えたとき（送信で空にする・失敗で戻す・新しい下書き）だけ欄へ反映する。
     // 画面での入力は _onInputChanged で provider へ書き戻しているので、ここでは一致する
     if (_input.text != next.input) _input.text = next.input;
     if (_draftTitle.text != next.draftTitle) _draftTitle.text = next.draftTitle;
   }
 
-  void _openTask(String id) => context.push('/tasks/$id');
+  void _openTask(String id) {
+    _cancelVoice();
+    context.push('/tasks/$id');
+  }
+
+  // ---- 音声入力 ----
+
+  /// マイクボタン：止まっていれば聞き取りを始め、聞き取り中なら終える（終わると送信へ進む）
+  Future<void> _onMicPressed() async {
+    if (_voice == _VoicePhase.listening) {
+      // 確定した結果のあと onEnd が呼ばれ、そこで送信する
+      _dictation.stop();
+      return;
+    }
+    if (_voice == _VoicePhase.starting || ref.read(rapiChatProvider).sending) return;
+
+    final session = ++_voiceSession;
+    FocusScope.of(context).unfocus();
+    setState(() => _voice = _VoicePhase.starting);
+    DictationStartFailure? failure;
+    try {
+      failure = await _dictation.start(
+        onWords: (words) => _onVoiceWords(session, words),
+        onEnd: (end) => _onVoiceEnd(session, end),
+      );
+    } catch (_) {
+      // NOTE: 開始処理が例外を投げても starting のまま固めない（欄が読み取り専用・マイク無反応になる）。
+      // 聞き取りの残りを捨て、「使えない」として案内する
+      if (!mounted || session != _voiceSession) return;
+      _voiceSession++;
+      _dictation.cancel().catchError((_) {});
+      setState(() => _voice = _VoicePhase.idle);
+      _chat.notice(_voiceUnavailableMessage);
+      return;
+    }
+    if (!mounted || session != _voiceSession) return;
+    if (failure != null) {
+      setState(() => _voice = _VoicePhase.idle);
+      _chat.notice(failure == DictationStartFailure.permissionDenied
+          ? _voicePermissionMessage
+          : _voiceUnavailableMessage);
+      return;
+    }
+    if (_voice == _VoicePhase.starting) setState(() => _voice = _VoicePhase.listening);
+  }
+
+  /// 途中経過も含めて、聞き取った全文で入力欄を置き換える（2000字で切る）
+  void _onVoiceWords(int session, String words) {
+    if (!mounted || session != _voiceSession) return;
+    final text = words.length > _maxTextLength ? words.substring(0, _maxTextLength) : words;
+    _input.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  /// 聞き取りが普通に終わり、欄に文があればそのまま送る。空・無音・失敗なら送らずに理由を出す
+  void _onVoiceEnd(int session, DictationEnd end) {
+    if (!mounted || session != _voiceSession) return;
+    // 終わった聞き取りから遅れて結果が届いても、送信で空にした欄へ書き戻さない
+    _voiceSession++;
+    setState(() => _voice = _VoicePhase.idle);
+    // 自動で送るのは普通に終わったときだけ。失敗・無音（no_match / speech_timeout）では送らない。
+    // どちらも途中まで聞き取れた文は欄に残す（確かめて手で送れる）
+    if (end == DictationEnd.failed) {
+      _chat.notice(_voiceFailedMessage);
+      return;
+    }
+    if (end == DictationEnd.noSpeech) {
+      _chat.notice(_voiceEmptyMessage);
+      return;
+    }
+    if (_input.text.trim().isEmpty) {
+      _chat.notice(_voiceEmptyMessage);
+      return;
+    }
+    _chat.send();
+  }
+
+  /// 聞き取りを捨てる（送信しない）。画面遷移・ドロワー・アプリが裏へ回ったとき
+  void _cancelVoice() {
+    if (!_voiceActive) return;
+    _voiceSession++;
+    _dictation.cancel();
+    if (mounted) setState(() => _voice = _VoicePhase.idle);
+  }
 
   // ---- 表示 ----
 
@@ -149,6 +274,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
+    // 上に別の画面が積まれたら聞き取りを止める（build 中は setState できないので次のフレームで）
+    if (_voiceActive && !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _cancelVoice());
+    }
     final items = <Widget>[
       if (chat.surveyVisible) _buildSurveyCard(context, chat),
       for (final m in chat.messages) _buildMessage(context, chat, m),
@@ -159,6 +288,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     return Scaffold(
       drawer: const AppDrawer(),
+      // ドロワーを開いたら聞き取りを止める（そのまま別の画面へ移ることが多い）
+      onDrawerChanged: (opened) {
+        if (opened) _cancelVoice();
+      },
       // 本文をバーの裏側まで伸ばす。上へ流れた発言は、ラピとガラス風ボタンの裏を透けて見えながら流れる
       // （バーは本文より手前に重なるので、ボタンとラピのタップはこれまでどおり効く）
       extendBodyBehindAppBar: true,
@@ -214,9 +347,12 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
           ),
           _Composer(
             controller: _input,
-            placeholder: _placeholder,
-            canSend: !chat.sending && chat.input.trim().isNotEmpty,
+            placeholder: _voiceActive ? _listeningPlaceholder : _placeholder,
+            hasText: chat.input.trim().isNotEmpty,
+            sending: chat.sending,
+            listening: _voiceActive,
             onSend: _chat.send,
+            onMic: _onMicPressed,
           ),
         ],
       ),
@@ -831,23 +967,63 @@ class _AskAnswerCard extends StatelessWidget {
   }
 }
 
-/// 下部のチャット欄（角丸の入力欄＋丸い送信ボタン）
+/// 下部のチャット欄（角丸の入力欄＋右端の丸いボタン）。
+/// 右端のボタンは1つを出し分ける：聞き取り中は赤いマイク（押すと聞き取りを終えて送信）、
+/// 文があれば送信、空ならマイク（押すと聞き取りを始める）
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final String placeholder;
-  final bool canSend;
+  final bool hasText;
+  final bool sending;
+  final bool listening;
   final VoidCallback onSend;
+  final VoidCallback onMic;
 
   const _Composer({
     required this.controller,
     required this.placeholder,
-    required this.canSend,
+    required this.hasText,
+    required this.sending,
+    required this.listening,
     required this.onSend,
+    required this.onMic,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final Widget button;
+    if (listening) {
+      button = _RoundButton(
+        key: const ValueKey('rapi-mic'),
+        tooltip: '聞き取りを終える',
+        color: _listeningRed,
+        halo: true,
+        icon: Icons.mic,
+        iconColor: Colors.white,
+        onTap: onMic,
+      );
+    } else if (hasText) {
+      final canSend = !sending;
+      button = _RoundButton(
+        key: const ValueKey('rapi-send'),
+        tooltip: '送信',
+        color: canSend ? _indigo : scheme.outlineVariant,
+        icon: Icons.arrow_upward,
+        iconColor: Colors.white,
+        onTap: canSend ? onSend : null,
+      );
+    } else {
+      button = _RoundButton(
+        key: const ValueKey('rapi-mic'),
+        tooltip: '音声で入力',
+        color: sending ? scheme.outlineVariant : _indigo.withValues(alpha: 0.1),
+        icon: Icons.mic_none,
+        iconColor: sending ? Colors.white : _indigo,
+        onTap: sending ? null : onMic,
+      );
+    }
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -856,7 +1032,7 @@ class _Composer extends StatelessWidget {
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: scheme.outlineVariant),
+            border: Border.all(color: listening ? _listeningRed.withValues(alpha: 0.5) : scheme.outlineVariant),
           ),
           padding: const EdgeInsets.fromLTRB(16, 4, 6, 4),
           child: Row(
@@ -865,6 +1041,8 @@ class _Composer extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: controller,
+                  // 聞き取り中は認識結果で欄を書き換えるので、手での入力は受けない
+                  readOnly: listening,
                   minLines: 1,
                   maxLines: 5,
                   textInputAction: TextInputAction.newline,
@@ -873,6 +1051,7 @@ class _Composer extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: placeholder,
                     hintMaxLines: 1,
+                    hintStyle: listening ? const TextStyle(color: _listeningRed) : null,
                     // テーマの filled を切る（角丸の枠の中に灰色の箱が出ないように）
                     filled: false,
                     border: InputBorder.none,
@@ -886,21 +1065,57 @@ class _Composer extends StatelessWidget {
               const SizedBox(width: 6),
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
-                child: Material(
-                  color: canSend ? _indigo : scheme.outlineVariant,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: canSend ? onSend : null,
-                    child: const SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Icon(Icons.arrow_upward, color: Colors.white, size: 22),
-                    ),
-                  ),
-                ),
+                child: button,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 入力欄の右端の丸いボタン（直径40）。[halo] は聞き取り中の淡い輪
+class _RoundButton extends StatelessWidget {
+  final String tooltip;
+  final Color color;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback? onTap;
+  final bool halo;
+
+  const _RoundButton({
+    super.key,
+    required this.tooltip,
+    required this.color,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+    this.halo = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: halo
+              ? [BoxShadow(color: _listeningRed.withValues(alpha: 0.2), spreadRadius: 3)]
+              : null,
+        ),
+        child: Material(
+          color: color,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
           ),
         ),
       ),

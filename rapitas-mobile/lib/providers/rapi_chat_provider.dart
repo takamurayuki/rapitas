@@ -162,6 +162,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   void _system(String text, {String? taskId}) =>
       _add((id) => RapiMessage(id: id, role: RapiRole.system, text: text, taskId: taskId));
 
+  /// 画面からの短い案内（音声入力で送らなかった理由など）を system メッセージで出す
+  void notice(String text) => _system(text);
+
   /// 直近 [_historyLimit] 件の user / assistant の発言（今回の発言は含めない）
   List<Map<String, String>> _history() {
     final turns = state.messages
@@ -191,18 +194,22 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     final history = _history();
     final userId = _nextId;
     _add((id) => RapiMessage(id: id, role: RapiRole.user, text: text, inHistory: true));
-    state = state.copyWith(sending: true);
+    // 送った文は自分の発言として並ぶので、欄は送った時点で空にする（応答待ちの間も残さない）。
+    // 画面は provider の input に合わせて欄を書き換えるので、タブを往復しても送った文は戻らない
+    state = state.copyWith(sending: true, input: '');
 
     try {
       await _routeAndHandle(text, history);
-      // 成功したときだけ欄を空にする（失敗時は書いた文を残す）。
-      // 送信中に書き足していたらそれは消さない
-      if (state.input.trim() == text) state = state.copyWith(input: '');
     } catch (e) {
       final messages = [...state.messages];
       final i = messages.indexWhere((m) => m.id == userId);
       if (i >= 0) messages[i] = messages[i].withoutHistory();
-      state = state.copyWith(messages: messages);
+      // 失敗したら送れなかった文を欄に戻す（直して送り直せる）。
+      // 応答待ちの間に次の文を書き始めていたら、それは消さない（送れなかった文は発言として残っている）
+      state = state.copyWith(
+        messages: messages,
+        input: state.input.trim().isEmpty ? text : null,
+      );
       _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
     } finally {
       state = state.copyWith(sending: false);

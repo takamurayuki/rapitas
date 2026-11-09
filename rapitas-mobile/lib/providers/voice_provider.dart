@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
+import '../services/dictation_service.dart';
 import '../services/voice_service.dart';
 import '../services/voice_command_parser.dart';
 
@@ -57,6 +58,11 @@ final voiceServiceProvider = Provider<VoiceService>((ref) {
   final service = VoiceService();
   ref.onDispose(() => service.dispose());
   return service;
+});
+
+/// チャット（ラピ）の音声入力の聞き取り。テストでは偽物に差し替える
+final dictationServiceProvider = Provider<DictationService>((ref) {
+  return SpeechDictationService(ref.watch(voiceServiceProvider));
 });
 
 /// VoiceCommandParserのプロバイダー
