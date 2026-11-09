@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
 import '../services/assistant_service.dart';
@@ -12,10 +13,68 @@ import 'task_provider.dart';
 // ここで状態へ反映するので捨てられない。
 //
 // NOTE: 永続化はしない。アプリを終了すると会話は消える。
-// NOTE: モード（会話／作る／聞く／見守り）の切り替えは無い。送った文は毎回
-// /assistant/route で振り分け、作成・問い合わせ・見守りはその結果で出し分ける。
+// NOTE: モード（会話／作る／聞く／見守り／変更）の切り替えは無い。送った文は毎回
+// /assistant/route で振り分け、作成・問い合わせ・見守り・変更はその結果で出し分ける。
 
 enum RapiRole { user, assistant, system }
+
+/// 変更カードの段階。proposed（確認待ち）→ applying → applied（取り消せる）→ reverting → reverted。
+/// 適用の応答が失われたら applyUnknown（サーバーでは適用済みかもしれないので、再適用させない）。
+/// 取り消しが no_undoable_update（取り消せる記録がない）なら revertUnavailable（取り消しを終える）。
+enum RapiChangePhase {
+  proposed,
+  applying,
+  applied,
+  reverting,
+  reverted,
+  applyUnknown,
+  revertUnavailable,
+}
+
+/// 変更（change）カード1枚の状態。カードは発言ごとに持つ（前のカードの「取り消す」を残すため）
+class RapiChangeCard {
+  final ChangeProposal proposal;
+
+  /// update-draft が検討したタスク数（最近更新された最大60件）
+  final int considered;
+  final RapiChangePhase phase;
+
+  /// 適用した結果（applied 以降）。取り消しの actionId と、実際に変わった項目の前後
+  final TaskUpdateResult? result;
+
+  /// 取り消しが 409 で断られたときの、その後に編集された項目
+  final List<String> conflicts;
+
+  /// カード内に出す失敗の案内
+  final String? error;
+
+  const RapiChangeCard({
+    required this.proposal,
+    this.considered = 0,
+    this.phase = RapiChangePhase.proposed,
+    this.result,
+    this.conflicts = const [],
+    this.error,
+  });
+
+  RapiChangeCard copyWith({
+    RapiChangePhase? phase,
+    TaskUpdateResult? result,
+    List<String>? conflicts,
+    Object? error = _unset,
+  }) =>
+      RapiChangeCard(
+        proposal: proposal,
+        considered: considered,
+        phase: phase ?? this.phase,
+        result: result ?? this.result,
+        conflicts: conflicts ?? this.conflicts,
+        error: identical(error, _unset) ? this.error : error as String?,
+      );
+
+  /// 「取り消す」を押せるか（競合で断られたあとは出さない）
+  bool get canRevert => phase == RapiChangePhase.applied && conflicts.isEmpty;
+}
 
 /// 会話の1件。[draftSlot] は下書きカードの置き場所、[answer] は問い合わせの回答。
 class RapiMessage {
@@ -24,6 +83,9 @@ class RapiMessage {
   final String text;
   final AskAnswer? answer;
   final bool draftSlot;
+
+  /// 変更（change）の提案カード
+  final RapiChangeCard? change;
 
   /// 起票したタスク（system メッセージから開ける）
   final String? taskId;
@@ -37,6 +99,7 @@ class RapiMessage {
     this.text = '',
     this.answer,
     this.draftSlot = false,
+    this.change,
     this.taskId,
     this.inHistory = false,
   });
@@ -47,7 +110,19 @@ class RapiMessage {
         text: text,
         answer: answer,
         draftSlot: draftSlot,
+        change: change,
         taskId: taskId,
+      );
+
+  RapiMessage withChange(RapiChangeCard change) => RapiMessage(
+        id: id,
+        role: role,
+        text: text,
+        answer: answer,
+        draftSlot: draftSlot,
+        change: change,
+        taskId: taskId,
+        inHistory: inHistory,
       );
 }
 
@@ -116,12 +191,11 @@ class RapiChatState {
   bool get surveyVisible => survey != null || surveyLoading || surveyFailed;
 }
 
-/// v1 では実装していない振り分け先（デスクトップのモード名）
+/// まだモバイルで実装していない振り分け先（デスクトップのモード名）
 const Map<String, String> _desktopOnlyIntents = {
   'consult': 'このタスク',
   'tidy': '片付ける',
   'roadmap': '計画を立てる',
-  'change': '変更する',
 };
 
 /// assistant 系の要求がタイムアウトしたときの system メッセージ
@@ -239,6 +313,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         // 読み込み完了を待ち、失敗は send() の失敗処理へ伝える
         // （再読み込みボタンが始めた読み込みがあればそれに合流する）
         await loadSurvey(propagateError: true);
+      case 'change':
+        _system(took('タスクの変更'));
+        await _runChangeDraft(text);
       case final String intent when _desktopOnlyIntents.containsKey(intent):
         _system('「${_desktopOnlyIntents[intent]}」の操作はデスクトップ版で対応しています。'
             'デスクトップの rapitas でラピに頼んでください。');
@@ -309,6 +386,165 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     } finally {
       state = state.copyWith(creating: false);
     }
+  }
+
+  // ---- 変更（change）----
+  // 文 → update-draft の提案カード → 「適用する」で task-update（confirmed: true）→
+  // 「取り消す」で revert。カードのボタンが確認そのもので、確認なしに書き込む道は無い。
+
+  Future<void> _runChangeDraft(String text) async {
+    final draft = await ref.read(assistantServiceProvider).updateDraft(text);
+    final proposal = draft.proposal;
+    if (proposal == null) {
+      // 対象や内容を特定できなかった。理由をラピの返信として出し、言い直してもらう
+      final reasons = draft.unclear.length == 1
+          ? draft.unclear.first
+          : draft.unclear.map((u) => '・$u').join('\n');
+      final window = draft.considered > 0 ? '（最近更新された${draft.considered}件の中から探しました）' : '';
+      _add((id) => RapiMessage(
+            id: id,
+            role: RapiRole.assistant,
+            text: '$reasons$window\n対象のタスク名と変えたい内容を添えて、もう一度送ってください。',
+          ));
+      return;
+    }
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          change: RapiChangeCard(proposal: proposal, considered: draft.considered),
+        ));
+  }
+
+  RapiChangeCard? _changeOf(int messageId) {
+    for (final m in state.messages) {
+      if (m.id == messageId) return m.change;
+    }
+    return null;
+  }
+
+  void _setChange(int messageId, RapiChangeCard change) {
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == messageId ? m.withChange(change) : m,
+    ]);
+  }
+
+  void _refreshTask(String taskId) {
+    ref.invalidate(taskListProvider);
+    ref.invalidate(taskDetailProvider(taskId));
+  }
+
+  /// 「やめる」：確認待ちのカードを下げる（何も書き込んでいない）
+  void cancelChange(int messageId) {
+    if (_changeOf(messageId)?.phase != RapiChangePhase.proposed) return;
+    state = state.copyWith(
+        messages: state.messages.where((m) => m.id != messageId).toList());
+  }
+
+  /// 「適用する」：カードに出ている変更をそのまま confirmed: true で送る
+  Future<void> applyChange(int messageId) async {
+    final card = _changeOf(messageId);
+    if (card == null || card.phase != RapiChangePhase.proposed) return;
+    _setChange(messageId, card.copyWith(phase: RapiChangePhase.applying, error: null));
+    try {
+      final result = await ref
+          .read(assistantServiceProvider)
+          .taskUpdate(card.proposal.taskId, card.proposal.changes);
+      _refreshTask(card.proposal.taskId);
+      _setChange(messageId,
+          (_changeOf(messageId) ?? card).copyWith(phase: RapiChangePhase.applied, result: result));
+    } catch (e) {
+      final now = _changeOf(messageId) ?? card;
+      if (_applyOutcomeUnknown(e)) {
+        // 応答が失われただけで、サーバーでは適用済みのことがある。再適用（古い提案での
+        // 上書き）を避けるため「適用する」は出さず、タスクを開いて確かめてもらう
+        _refreshTask(card.proposal.taskId);
+        _setChange(messageId, now.copyWith(phase: RapiChangePhase.applyUnknown, error: null));
+        return;
+      }
+      _setChange(
+          messageId, now.copyWith(phase: RapiChangePhase.proposed, error: _applyError(e)));
+    }
+  }
+
+  /// 適用の失敗が「書き込まれたか分からない」ものか。「適用されていない」と言い切れるのは、
+  /// サーバーが 4xx で断った・2xx で明示的に success:false を返した・送る前に弾いた
+  /// （invalid_task）・接続自体できなかった（connectionError / connectionTimeout）場合だけ。
+  /// それ以外（受信・送信タイムアウト、5xx、通信の途中切れ、応答の形が読めない
+  /// unexpected_response、想定外の例外）はすべて不明扱い。
+  static bool _applyOutcomeUnknown(Object e) {
+    if (e is AssistantException) {
+      if (e.code == 'invalid_task') return false;
+      final status = e.statusCode;
+      return status == null || status >= 500;
+    }
+    if (e is AssistantTimeoutException) {
+      return e.type != DioExceptionType.connectionTimeout;
+    }
+    if (e is DioException) {
+      return e.type != DioExceptionType.connectionError;
+    }
+    return true;
+  }
+
+  /// 「取り消す」：適用した変更を元に戻す。後から別の編集が入った項目があれば（409）戻さない
+  Future<void> revertChange(int messageId) async {
+    final card = _changeOf(messageId);
+    final result = card?.result;
+    if (card == null || result == null || !card.canRevert) return;
+    _setChange(messageId, card.copyWith(phase: RapiChangePhase.reverting, error: null));
+    try {
+      final reverted =
+          await ref.read(assistantServiceProvider).revertTaskUpdate(result.actionId);
+      final now = _changeOf(messageId) ?? card;
+      if (reverted.reverted) {
+        _refreshTask(card.proposal.taskId);
+        _setChange(messageId, now.copyWith(phase: RapiChangePhase.reverted));
+      } else {
+        _setChange(messageId,
+            now.copyWith(phase: RapiChangePhase.applied, conflicts: reverted.conflicts));
+      }
+    } catch (e) {
+      if (e is AssistantException && e.code == 'no_undoable_update') {
+        // 取り消せる記録がない（前回の取り消しが成功して応答だけ失われた等）。
+        // 押し直しても同じなので、取り消しを終えた状態にしてボタンを下げる
+        _refreshTask(card.proposal.taskId);
+        _setChange(
+            messageId,
+            (_changeOf(messageId) ?? card)
+                .copyWith(phase: RapiChangePhase.revertUnavailable, error: null));
+        return;
+      }
+      final notFound = e is AssistantException && e.statusCode == 404;
+      _setChange(
+        messageId,
+        (_changeOf(messageId) ?? card).copyWith(
+          phase: RapiChangePhase.applied,
+          error: notFound
+              ? '元に戻せませんでした。タスクが見つかりません。'
+              : e is AssistantTimeoutException
+                  ? '応答がなく、元に戻せたか確かめられませんでした。タスクを開いて確認してください。'
+                  : '元に戻せませんでした。もう一度試してください。',
+        ),
+      );
+    }
+  }
+
+  static String _applyError(Object e) {
+    if (e is AssistantTimeoutException) {
+      return '応答がなく、変更できたか確かめられませんでした。タスクを開いて確認してください。';
+    }
+    if (e is AssistantException) {
+      switch (e.code) {
+        case 'not_found':
+          return 'このタスクが見つかりませんでした。削除された可能性があります。';
+        case 'theme_not_found':
+          return '指定のテーマが見つかりませんでした。';
+        case 'no_change':
+          return 'すでにこの内容になっているため、変更はありませんでした。';
+      }
+      if (e.statusCode == 400) return 'この変更内容は受け付けられませんでした。';
+    }
+    return 'うまくいきませんでした。もう一度試してください。';
   }
 
   // ---- 問い合わせ ----
