@@ -5,6 +5,7 @@ import '../models/task.dart';
 import '../services/assistant_service.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
+import 'theme_data_provider.dart';
 
 // ラピの会話状態。
 //
@@ -14,8 +15,8 @@ import 'task_provider.dart';
 // ここで状態へ反映するので捨てられない。
 //
 // NOTE: 永続化はしない。アプリを終了すると会話は消える。
-// NOTE: モード（会話／作る／聞く／見守り／変更）の切り替えは無い。送った文は毎回
-// /assistant/route で振り分け、作成・問い合わせ・見守り・変更はその結果で出し分ける。
+// NOTE: モード（会話／作る／聞く／見守り／変更／計画）の切り替えは無い。送った文は毎回
+// /assistant/route で振り分け、作成・問い合わせ・見守り・変更・計画はその結果で出し分ける。
 // 例外は相談（consult）：振り分けで相談になり、タスクを選ぶと「相談モード」に入る。
 // 相談モード中の送信は振り分けを通さず、そのタスクの copilot/chat へ直接送る（抜けるまで）。
 
@@ -79,6 +80,84 @@ class RapiChangeCard {
   bool get canRevert => phase == RapiChangePhase.applied && conflicts.isEmpty;
 }
 
+/// 計画カードの段階。
+/// questions（質問に答えて作り直す）→ refining → ready（最終確認）→ committing → committed。
+/// サーバーが断ったと言い切れない作成の失敗（通信の失敗・5xx・形の異常など）は commitUnknown
+/// （サーバーでは作成済みかもしれないので、作り直させない）。
+enum RapiRoadmapPhase { questions, refining, ready, committing, committed, commitUnknown }
+
+/// 計画（roadmap）カード1枚の状態。カードは発言ごとに持つ（change カードと同じ）
+class RapiRoadmapCard {
+  /// 依頼の文（作り直しでも同じ文を送る）
+  final String text;
+
+  /// いま画面に出している下書き（作成するのはこの内容そのまま）
+  final RoadmapDraft draft;
+
+  /// 1回目に聞かれた質問。最終形の下書きは質問を返さないので、決めたことを出すために残す
+  final List<RoadmapQuestion> asked;
+
+  /// [asked] の各質問で選んでいる答え（初期値は推奨）
+  final List<String?> answers;
+  final RapiRoadmapPhase phase;
+  final RoadmapCommitResult? result;
+
+  /// カード内に出す失敗の案内
+  final String? error;
+
+  const RapiRoadmapCard({
+    required this.text,
+    required this.draft,
+    this.asked = const [],
+    this.answers = const [],
+    this.phase = RapiRoadmapPhase.ready,
+    this.result,
+    this.error,
+  });
+
+  /// 下書き [draft] から作る。質問があれば推奨を初期選択にして questions から始める
+  factory RapiRoadmapCard.fromDraft(String text, RoadmapDraft draft) => draft.hasQuestions
+      ? RapiRoadmapCard(
+          text: text,
+          draft: draft,
+          asked: draft.questions,
+          answers: [for (final q in draft.questions) q.initialAnswer],
+          phase: RapiRoadmapPhase.questions,
+        )
+      : RapiRoadmapCard(text: text, draft: draft);
+
+  RapiRoadmapCard copyWith({
+    RoadmapDraft? draft,
+    List<RoadmapQuestion>? asked,
+    List<String?>? answers,
+    RapiRoadmapPhase? phase,
+    RoadmapCommitResult? result,
+    Object? error = _unset,
+  }) =>
+      RapiRoadmapCard(
+        text: text,
+        draft: draft ?? this.draft,
+        asked: asked ?? this.asked,
+        answers: answers ?? this.answers,
+        phase: phase ?? this.phase,
+        result: result ?? this.result,
+        error: identical(error, _unset) ? this.error : error as String?,
+      );
+
+  /// 質問と選んだ答え（聞かれた順）
+  List<RoadmapAnswer> get decisions => [
+        for (var i = 0; i < asked.length; i++)
+          RoadmapAnswer(
+              question: asked[i].question, answer: i < answers.length ? answers[i] ?? '' : ''),
+      ];
+
+  /// 「この計画で作成する」を押せるか（作るタスクが無い計画は作らない）
+  bool get canCommit =>
+      phase == RapiRoadmapPhase.ready &&
+      draft.goal.trim().isNotEmpty &&
+      draft.steps.isNotEmpty;
+}
+
 /// 相談（consult）の対象タスク
 class RapiConsultTask {
   final String id;
@@ -127,6 +206,9 @@ class RapiMessage {
   /// 変更（change）の提案カード
   final RapiChangeCard? change;
 
+  /// 計画（roadmap）のカード
+  final RapiRoadmapCard? roadmap;
+
   /// 相談のタスク選びカード
   final RapiConsultPicker? consultPicker;
 
@@ -146,6 +228,7 @@ class RapiMessage {
     this.answer,
     this.draftSlot = false,
     this.change,
+    this.roadmap,
     this.consultPicker,
     this.consultTaskId,
     this.taskId,
@@ -154,6 +237,7 @@ class RapiMessage {
 
   RapiMessage _copy({
     RapiChangeCard? change,
+    RapiRoadmapCard? roadmap,
     RapiConsultPicker? consultPicker,
     bool? inHistory,
   }) =>
@@ -164,6 +248,7 @@ class RapiMessage {
         answer: answer,
         draftSlot: draftSlot,
         change: change ?? this.change,
+        roadmap: roadmap ?? this.roadmap,
         consultPicker: consultPicker ?? this.consultPicker,
         consultTaskId: consultTaskId,
         taskId: taskId,
@@ -173,6 +258,8 @@ class RapiMessage {
   RapiMessage withoutHistory() => _copy(inHistory: false);
 
   RapiMessage withChange(RapiChangeCard change) => _copy(change: change);
+
+  RapiMessage withRoadmap(RapiRoadmapCard roadmap) => _copy(roadmap: roadmap);
 
   RapiMessage withConsultPicker(RapiConsultPicker picker) => _copy(consultPicker: picker);
 }
@@ -254,7 +341,6 @@ class RapiChatState {
 /// まだモバイルで実装していない振り分け先（デスクトップのモード名）
 const Map<String, String> _desktopOnlyIntents = {
   'tidy': '片付ける',
-  'roadmap': '計画を立てる',
 };
 
 /// assistant 系の要求がタイムアウトしたときの system メッセージ
@@ -419,6 +505,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       case 'change':
         _system(took('タスクの変更'));
         await _runChangeDraft(text);
+      case 'roadmap':
+        _system(took('計画づくり'));
+        await _runRoadmapDraft(text);
       case 'consult':
         _system(took('タスクについての相談'));
         _askConsultTask(text, userId);
@@ -785,6 +874,168 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       if (e.statusCode == 400) return 'この変更内容は受け付けられませんでした。';
     }
     return 'うまくいきませんでした。もう一度試してください。';
+  }
+
+  // ---- 計画（roadmap）----
+  // 文 → roadmap/draft の計画カード →（質問があれば）選んで「この内容で作り直す」で
+  // answers 付きの再下書き → 最終確認で「この計画で作成する」→ roadmap/commit（confirmed: true）。
+  // 作るのはカードに出ている下書きそのもの（画面で組み替えない）。
+  // NOTE: デスクトップの締めのノートは作らない（ノートはデスクトップのブラウザ内ストレージにしか
+  // 無く、サーバーに保存先が無い）。commit はノートなしで完結する。
+
+  Future<void> _runRoadmapDraft(String text) async {
+    final draft = await ref.read(assistantServiceProvider).roadmapDraft(text);
+    if (draft == null) {
+      // 作れなかった（空の計画を「やることが無い」と見せない）
+      _add((id) => RapiMessage(
+            id: id,
+            role: RapiRole.assistant,
+            text: 'この依頼からは計画を作れませんでした。目標や期限を添えて、もう一度送ってください。',
+          ));
+      return;
+    }
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          roadmap: RapiRoadmapCard.fromDraft(text, draft),
+        ));
+  }
+
+  RapiRoadmapCard? _roadmapOf(int messageId) {
+    for (final m in state.messages) {
+      if (m.id == messageId) return m.roadmap;
+    }
+    return null;
+  }
+
+  void _setRoadmap(int messageId, RapiRoadmapCard card) {
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == messageId ? m.withRoadmap(card) : m,
+    ]);
+  }
+
+  /// 質問 [index] の答えを [answer] にする（質問に答えている間だけ）
+  void chooseRoadmapAnswer(int messageId, int index, String answer) {
+    final card = _roadmapOf(messageId);
+    if (card == null || card.phase != RapiRoadmapPhase.questions) return;
+    if (index < 0 || index >= card.asked.length) return;
+    final answers = [...card.answers];
+    while (answers.length < card.asked.length) {
+      answers.add(null);
+    }
+    answers[index] = answer;
+    _setRoadmap(messageId, card.copyWith(answers: answers));
+  }
+
+  /// 「この内容で作り直す」：選んだ答えを付けて同じ文でもう一度下書きする
+  Future<void> refineRoadmap(int messageId) async {
+    final card = _roadmapOf(messageId);
+    if (card == null || card.phase != RapiRoadmapPhase.questions) return;
+    _setRoadmap(messageId, card.copyWith(phase: RapiRoadmapPhase.refining, error: null));
+    try {
+      final draft = await ref
+          .read(assistantServiceProvider)
+          .roadmapDraft(card.text, answers: card.decisions);
+      final now = _roadmapOf(messageId) ?? card;
+      if (draft == null) {
+        _setRoadmap(
+            messageId,
+            now.copyWith(
+                phase: RapiRoadmapPhase.questions,
+                error: '計画を作り直せませんでした。もう一度試してください。'));
+        return;
+      }
+      if (draft.hasQuestions) {
+        // まだ聞きたいことがある：新しい質問に入れ替えて、もう一度答えてもらう
+        final next = RapiRoadmapCard.fromDraft(card.text, draft);
+        _setRoadmap(messageId,
+            now.copyWith(draft: draft, asked: next.asked, answers: next.answers,
+                phase: RapiRoadmapPhase.questions, error: null));
+        return;
+      }
+      _setRoadmap(
+          messageId, now.copyWith(draft: draft, phase: RapiRoadmapPhase.ready, error: null));
+    } catch (e) {
+      _setRoadmap(
+        messageId,
+        (_roadmapOf(messageId) ?? card).copyWith(
+          phase: RapiRoadmapPhase.questions,
+          error: e is AssistantTimeoutException
+              ? '応答に時間がかかり、作り直せませんでした。もう一度試してください。'
+              : '計画を作り直せませんでした。もう一度試してください。',
+        ),
+      );
+    }
+  }
+
+  /// 「やめる」：作成前のカードを下げる（何も作っていない）
+  void cancelRoadmap(int messageId) {
+    final phase = _roadmapOf(messageId)?.phase;
+    if (phase != RapiRoadmapPhase.questions && phase != RapiRoadmapPhase.ready) return;
+    state = state.copyWith(
+        messages: state.messages.where((m) => m.id != messageId).toList());
+  }
+
+  void _refreshAfterRoadmap(RapiRoadmapCard card) {
+    ref.invalidate(taskListProvider);
+    // 新しいテーマを作ったかもしれない（テーマの一覧・作成カードの選択肢に出す）
+    if (card.draft.themeChoice.isNew) ref.invalidate(themeListProvider);
+  }
+
+  /// 「この計画で作成する」：カードに出ている計画をそのまま confirmed: true で送る
+  Future<void> commitRoadmap(int messageId) async {
+    final card = _roadmapOf(messageId);
+    if (card == null || !card.canCommit) return;
+    _setRoadmap(messageId, card.copyWith(phase: RapiRoadmapPhase.committing, error: null));
+    try {
+      final result = await ref.read(assistantServiceProvider).roadmapCommit(card.draft);
+      _refreshAfterRoadmap(card);
+      _setRoadmap(
+          messageId,
+          (_roadmapOf(messageId) ?? card)
+              .copyWith(phase: RapiRoadmapPhase.committed, result: result));
+    } catch (e) {
+      final now = _roadmapOf(messageId) ?? card;
+      if (_commitOutcomeUnknown(e)) {
+        // 応答が失われただけで、サーバーでは作成済みのことがある。二重に作らないよう
+        // 「作成する」は出さず、タスク一覧で確かめてもらう
+        _refreshAfterRoadmap(card);
+        _setRoadmap(
+            messageId, now.copyWith(phase: RapiRoadmapPhase.commitUnknown, error: null));
+        return;
+      }
+      _setRoadmap(messageId,
+          now.copyWith(phase: RapiRoadmapPhase.ready, error: _commitError(e)));
+    }
+  }
+
+  /// 作成の失敗が「作られたか分からない」ものか。「作成していない」と言い切れるのは、
+  /// サーバーが明示的に断った場合（4xx＝400〜499、または 2xx で明示的な success:false）だけ。
+  /// それ以外（connectionError / connectionTimeout を含む通信の失敗、タイムアウト、1xx・3xx・5xx、
+  /// 形や辻褄の合わない応答 unexpected_response、想定外の例外）はすべて不明扱い。
+  /// 3xx はリダイレクト先で処理されたかもしれず、断られたとは言えないので不明に倒す。
+  ///
+  /// change の [_applyOutcomeUnknown] より厳しい。送信後に応答を受け取れなかった通信障害も
+  /// connectionError になりうるうえ、commit は冪等ではない（作り直すとテーマ・タスクが
+  /// 二重にできる）。change は同じ値の再適用で、サーバー側に no_change の受け止めがある。
+  static bool _commitOutcomeUnknown(Object e) {
+    if (e is AssistantException) {
+      final status = e.statusCode;
+      if (status == null) return true;
+      // 2xx の AssistantException は roadmapCommit が明示的な success:false で投げたもの
+      final rejected = (status >= 400 && status < 500) || (status >= 200 && status < 300);
+      return !rejected;
+    }
+    return true;
+  }
+
+  static String _commitError(Object e) {
+    // ここに来るのはサーバーが明示的に断ったものだけ（_commitOutcomeUnknown 参照）
+    final status = e is AssistantException ? e.statusCode : null;
+    if (status != null && status >= 400 && status < 500) {
+      return 'この計画の内容は受け付けられませんでした。何も作成していません。';
+    }
+    return '作成できませんでした。何も作成していません。もう一度試してください。';
   }
 
   // ---- 問い合わせ ----

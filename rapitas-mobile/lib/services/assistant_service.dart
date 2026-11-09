@@ -175,6 +175,79 @@ class AssistantService {
     }
   }
 
+  // ---- 計画（roadmap）----
+  // 形はバックエンド routes/ai/assistant-roadmap.routes.ts が正：
+  //   POST /assistant/roadmap/draft {text, answers?: [{question, answer}]（各200字・最大6件）}
+  //     → {success: true, available: false} ／ {success: true, available: true, draft}
+  //     （何も書き込まない。answers 付きの2回目は質問を返さない最終形）
+  //   POST /assistant/roadmap/commit {confirmed: true, goal, themeChoice, projectChoice, steps}
+  //     → {success: true, themeId, projectId, taskIds, failedAfter}
+  //     （AI を通さず、送った計画をそのまま作る。confirmed が無いと 400 confirmation_required）
+  // NOTE: POST /assistant/research（候補の調査）は使わない。結果はデスクトップのノートにしか
+  // 入らず、サーバー側の上限（300秒）がこの受信タイムアウト（120秒）より長いため。
+
+  /// 目標の文から計画の下書きを作る（何も作成しない）。作れなかったら null（available: false）。
+  /// [answers] は1回目の質問への回答（付けると最終形の下書きになる）
+  Future<RoadmapDraft?> roadmapDraft(String text, {List<RoadmapAnswer> answers = const []}) async {
+    final body = _body((await _postOrError('/assistant/roadmap/draft', {
+      'text': text,
+      if (answers.isNotEmpty)
+        'answers': [for (final a in answers.take(rapiRoadmapMaxAnswers)) a.toJson()],
+    }))
+        .data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'draft_failed');
+    }
+    if (body['available'] != true) return null;
+    final draft = body['draft'];
+    if (draft is! Map) throw const AssistantException('unexpected_response');
+    return RoadmapDraft.fromJson(Map<String, dynamic>.from(draft));
+  }
+
+  /// ユーザーが確認した計画 [draft] を、そのまま confirmed: true で作る。
+  ///
+  /// 失敗の分け方：サーバーが断った（4xx・2xx の success:false）なら statusCode 付きの
+  /// [AssistantException]。形が読めない・作成結果として辻褄が合わない応答は statusCode なしの
+  /// unexpected_response（作成済みかもしれないので、呼び出し側は結果不明として扱う）。
+  Future<RoadmapCommitResult> roadmapCommit(RoadmapDraft draft) async {
+    final steps = [for (final s in draft.steps.take(rapiRoadmapMaxSteps)) s.toJson()];
+    final response = await _postOrError('/assistant/roadmap/commit', {
+      'confirmed': true,
+      'goal': draft.goal,
+      'themeChoice': draft.themeChoice.toJson(),
+      'projectChoice': draft.projectChoice.toJson(),
+      'steps': steps,
+    });
+    final body = _body(response.data);
+    final success = body['success'];
+    if (success == false) {
+      throw AssistantException(body['error']?.toString() ?? 'commit_failed',
+          statusCode: response.statusCode);
+    }
+    if (success != true || !_isValidCommitResult(body, steps.length)) {
+      throw const AssistantException('unexpected_response');
+    }
+    return RoadmapCommitResult.fromJson(body);
+  }
+
+  /// 作成結果の形と辻褄を確かめる（バックエンド services/assistant/roadmap-commit.ts の RoadmapResult）。
+  /// - taskIds：要素はすべて整数で、送った手順数 [stepCount] を超えない
+  /// - themeId / projectId：整数か null（キーが無いのも null とみなす）
+  /// - failedAfter：null か整数。整数なら 0 以上・[stepCount] 未満（どれかの手順で止まった）で、
+  ///   作れた件数 taskIds.length と一致する（サーバーは failedAfter = taskIds.length を入れる）
+  static bool _isValidCommitResult(Map<String, dynamic> body, int stepCount) {
+    bool intOrNull(dynamic v) => v == null || v is int;
+    final ids = body['taskIds'];
+    if (ids is! List || ids.any((id) => id is! int) || ids.length > stepCount) return false;
+    if (!intOrNull(body['themeId']) || !intOrNull(body['projectId'])) return false;
+    final failedAfter = body['failedAfter'];
+    if (failedAfter == null) return true;
+    return failedAfter is int &&
+        failedAfter >= 0 &&
+        failedAfter < stepCount &&
+        failedAfter == ids.length;
+  }
+
   /// 4xx/5xx を本文の error 付きの [AssistantException] にして投げる（タイムアウトは従来どおり）
   Future<Response<dynamic>> _postOrError(String path, Object data) async {
     try {

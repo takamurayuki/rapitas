@@ -4,6 +4,7 @@
 //   rapitas-backend/routes/ai/assistant-query.routes.ts（ask / supervision / route）
 //   rapitas-backend/routes/ai/copilot-chat.ts（copilot/chat）
 //   rapitas-backend/routes/ai/assistant-update.routes.ts（update-draft / task-update / revert）
+//   rapitas-backend/routes/ai/assistant-roadmap.routes.ts（roadmap/draft / roadmap/commit）
 // ID はバックエンドでは Int。アプリ内では Task と同じく文字列で持つ。
 
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
@@ -485,4 +486,212 @@ class TaskUpdateRevert {
   const TaskUpdateRevert({this.conflicts = const []});
 
   bool get reverted => conflicts.isEmpty;
+}
+
+// ---- 計画（roadmap）----
+// 目標の文から計画（テーマ／プロジェクトの置き場所・確認の質問・手順）を作り、
+// 確認後にテーマ／プロジェクト／タスクをまとめて作る。形はバックエンドが正：
+//   routes/ai/assistant-roadmap.routes.ts（draft / commit の入力の検証）
+//   services/assistant/roadmap-types.ts（RoadmapDraft）・roadmap-commit.ts（RoadmapResult）
+
+/// 計画の手順の上限（commit の steps の maxItems）
+const int rapiRoadmapMaxSteps = 20;
+
+/// 再下書きに付ける回答の上限（MAX_ROADMAP_QUESTIONS）と、質問・回答それぞれの最大文字数
+const int rapiRoadmapMaxAnswers = 6;
+const int rapiRoadmapAnswerMaxLength = 200;
+
+/// テーマ／プロジェクトの置き場所。kind は existing（既存の [id]）／new（[name] で新規作成）／
+/// none（置かない）。commit にはサーバーが返した形をそのまま返す（画面で組み替えない）
+class RoadmapPlacement {
+  final String kind;
+  final int? id;
+  final String? name;
+  final String? reason;
+
+  const RoadmapPlacement({required this.kind, this.id, this.name, this.reason});
+
+  factory RoadmapPlacement.fromJson(dynamic json) {
+    if (json is! Map) return const RoadmapPlacement(kind: 'none');
+    final kind = json['kind'];
+    final id = json['id'];
+    final parsedId = id is num ? id.toInt() : int.tryParse('$id');
+    final name = _string(json['name']);
+    final reason = _string(json['reason']);
+    // 読めない形は「置かない」に倒す（存在しない id や空の名前で作らせない）
+    if (kind == 'existing' && parsedId != null) {
+      return RoadmapPlacement(kind: 'existing', id: parsedId, name: name);
+    }
+    if (kind == 'new' && name != null && name.trim().isNotEmpty) {
+      return RoadmapPlacement(kind: 'new', name: name, reason: reason);
+    }
+    return RoadmapPlacement(kind: 'none', reason: reason);
+  }
+
+  bool get isNew => kind == 'new';
+  bool get isExisting => kind == 'existing';
+  bool get isNone => kind == 'none';
+
+  /// commit の themeChoice / projectChoice（routes の placement の Union に合う鍵だけ）
+  Map<String, dynamic> toJson() => switch (kind) {
+        'existing' => {'kind': 'existing', 'id': id, if (name != null) 'name': name},
+        'new' => {'kind': 'new', 'name': name, if (reason != null) 'reason': reason},
+        _ => {'kind': 'none', if (reason != null) 'reason': reason},
+      };
+}
+
+/// 確認の質問（選択式）。[recommended] はラピの推奨（選択肢の初期値にする）
+class RoadmapQuestion {
+  final String question;
+  final List<String> options;
+  final String? recommended;
+  final String? recommendedReason;
+
+  const RoadmapQuestion({
+    required this.question,
+    this.options = const [],
+    this.recommended,
+    this.recommendedReason,
+  });
+
+  factory RoadmapQuestion.fromJson(Map<String, dynamic> json) => RoadmapQuestion(
+        question: json['question']?.toString() ?? '',
+        options: _strings(json['options']),
+        recommended: _string(json['recommended']),
+        recommendedReason: _string(json['recommendedReason']),
+      );
+
+  /// 初期選択：推奨（選択肢にあれば）→ 先頭の選択肢 → なし
+  String? get initialAnswer {
+    final r = recommended;
+    if (r != null && r.isNotEmpty && (options.isEmpty || options.contains(r))) return r;
+    return options.isNotEmpty ? options.first : r;
+  }
+}
+
+/// 計画の手順1つ（作成されるタスク1件）。[description] はそのままタスクの説明になる
+class RoadmapStep {
+  final String title;
+  final String description;
+
+  /// 期限（YYYY-MM-DD）。依頼に期限があったときだけ
+  final String? dueDate;
+
+  const RoadmapStep({required this.title, this.description = '', this.dueDate});
+
+  factory RoadmapStep.fromJson(Map<String, dynamic> json) {
+    final due = _string(json['dueDate']);
+    return RoadmapStep(
+      title: json['title']?.toString() ?? '',
+      description: _string(json['description']) ?? '',
+      dueDate: due != null && RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(due) ? due : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'description': description,
+        if (dueDate != null) 'dueDate': dueDate,
+      };
+}
+
+/// POST /assistant/roadmap/draft の下書き（まだ何も作っていない）
+class RoadmapDraft {
+  /// ラピが読み取った目標（読み違いが作成前に分かるように出す）
+  final String goal;
+  final RoadmapPlacement themeChoice;
+  final RoadmapPlacement projectChoice;
+
+  /// 確認の質問。空なら最終形（回答を付けた2回目の下書きは質問を返さない）
+  final List<RoadmapQuestion> questions;
+  final List<RoadmapStep> steps;
+
+  /// 依頼から読み取った期限（YYYY-MM-DD）
+  final String? deadline;
+
+  /// 計画の前提（デスクトップではノートに書く材料。モバイルでは表示だけ）
+  final List<String> assumptions;
+
+  /// 比較の観点（候補を比べる目標のとき）。デスクトップでは候補調査とノートの表に使う
+  final List<String> comparisonAxes;
+
+  const RoadmapDraft({
+    required this.goal,
+    required this.themeChoice,
+    required this.projectChoice,
+    this.questions = const [],
+    this.steps = const [],
+    this.deadline,
+    this.assumptions = const [],
+    this.comparisonAxes = const [],
+  });
+
+  factory RoadmapDraft.fromJson(Map<String, dynamic> json) => RoadmapDraft(
+        goal: json['goal']?.toString() ?? '',
+        themeChoice: RoadmapPlacement.fromJson(json['themeChoice']),
+        projectChoice: RoadmapPlacement.fromJson(json['projectChoice']),
+        questions: [
+          for (final q in _maps(json['questions'])) RoadmapQuestion.fromJson(q),
+        ].where((q) => q.question.isNotEmpty).toList(),
+        steps: [
+          for (final s in _maps(json['steps'])) RoadmapStep.fromJson(s),
+        ].where((s) => s.title.isNotEmpty).take(rapiRoadmapMaxSteps).toList(),
+        deadline: _string(json['deadline']),
+        assumptions: _strings(json['assumptions']),
+        comparisonAxes: _strings(json['comparisonAxes']),
+      );
+
+  /// 確認の質問が残っている（まだ下書きの段階で、作成はできない）
+  bool get hasQuestions => questions.isNotEmpty;
+}
+
+/// 質問と選んだ答え（再下書きの answers の1件）
+class RoadmapAnswer {
+  final String question;
+  final String answer;
+
+  const RoadmapAnswer({required this.question, required this.answer});
+
+  /// サーバーの上限（各200字）に合わせて切る。空の答えは「—」（デスクトップと同じ）
+  Map<String, String> toJson() {
+    String clip(String s) =>
+        s.length > rapiRoadmapAnswerMaxLength ? s.substring(0, rapiRoadmapAnswerMaxLength) : s;
+    final a = answer.trim().isEmpty ? '—' : answer;
+    return {'question': clip(question), 'answer': clip(a)};
+  }
+}
+
+/// POST /assistant/roadmap/commit の結果
+class RoadmapCommitResult {
+  /// タスクを入れたテーマ（なければ null）
+  final int? themeId;
+
+  /// タスクを紐づけたプロジェクト（なければ null）
+  final int? projectId;
+
+  /// 作られたタスク（計画の順）
+  final List<String> taskIds;
+
+  /// 途中で止まったときの、止まるまでに作れた件数（最後まで作れたら null。0 もありうる）
+  final int? failedAfter;
+
+  const RoadmapCommitResult({
+    this.themeId,
+    this.projectId,
+    this.taskIds = const [],
+    this.failedAfter,
+  });
+
+  factory RoadmapCommitResult.fromJson(Map<String, dynamic> json) {
+    int? n(dynamic v) => v is num ? v.toInt() : null;
+    final ids = json['taskIds'];
+    return RoadmapCommitResult(
+      themeId: n(json['themeId']),
+      projectId: n(json['projectId']),
+      taskIds: ids is List ? [for (final id in ids) if (id != null) id.toString()] : const [],
+      failedAfter: n(json['failedAfter']),
+    );
+  }
+
+  bool get stoppedPartway => failedAfter != null;
 }

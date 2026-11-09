@@ -12,15 +12,16 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
+import 'rapi_roadmap_card.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
 //
 // ラピは汎用チャットボットではなく「ユーザーがやること／ラピがやること」の境界を
 // 守るエージェント。モードの切り替えは置かず、送った文は毎回 /assistant/route で
 // 振り分ける。扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
-// 見守り（一覧の先頭のカード）・変更（変更カード）・相談（タスク選びカード → 相談モード）と、
-// 振り分けなしの会話。それ以外の振り分け先（tidy/roadmap）は「デスクトップ版で対応」と
-// 正直に伝え、会話でごまかさない。
+// 見守り（一覧の先頭のカード）・変更（変更カード）・計画（計画カード：rapi_roadmap_card.dart）・
+// 相談（タスク選びカード → 相談モード）と、振り分けなしの会話。それ以外の振り分け先（tidy）は
+// 「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
 // 相談モード中は入力欄の上に相談中のタスクの帯を出し、× で抜けられる。
 //
 // NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
@@ -193,6 +194,11 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   void _openTask(String id) {
     _cancelVoice();
     context.push('/tasks/$id');
+  }
+
+  void _openTaskList() {
+    _cancelVoice();
+    context.go('/tasks');
   }
 
   // ---- 音声入力 ----
@@ -416,6 +422,19 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onCancel: () => _chat.cancelChange(m.id),
         onRevert: () => _chat.revertChange(m.id),
         onOpen: () => _openTask(change.proposal.taskId),
+      ));
+    }
+
+    final roadmap = m.roadmap;
+    if (roadmap != null) {
+      return _spaced(RapiRoadmapCardView(
+        key: ValueKey('rapi-roadmap-${m.id}'),
+        card: roadmap,
+        onAnswer: (i, answer) => _chat.chooseRoadmapAnswer(m.id, i, answer),
+        onRefine: () => _chat.refineRoadmap(m.id),
+        onCommit: () => _chat.commitRoadmap(m.id),
+        onCancel: () => _chat.cancelRoadmap(m.id),
+        onOpenTasks: _openTaskList,
       ));
     }
 
