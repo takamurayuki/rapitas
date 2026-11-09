@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
 import '../../providers/rapi_chat_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../providers/voice_provider.dart';
 import '../../services/dictation_service.dart';
@@ -16,9 +17,9 @@ import '../../widgets/voice_scroll_target.dart';
 //
 // ラピは汎用チャットボットではなく「ユーザーがやること／ラピがやること」の境界を
 // 守るエージェント。モードの切り替えは置かず、送った文は毎回 /assistant/route で
-// 振り分ける。v1 で扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
-// 見守り（一覧の先頭のカード）と、振り分けなしの会話。それ以外の振り分け先
-// （consult/tidy/roadmap/change）は「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
+// 振り分ける。扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
+// 見守り（一覧の先頭のカード）・変更（変更カード）と、振り分けなしの会話。それ以外の振り分け先
+// （consult/tidy/roadmap）は「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
 //
 // NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
 // /rapi は下部タブで、タブを切り替えるとこの画面は破棄されるため。画面に残すのは
@@ -388,6 +389,17 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final answer = m.answer;
     if (answer != null) {
       return _spaced(_AskAnswerCard(answer: answer, onOpen: _openTask));
+    }
+    final change = m.change;
+    if (change != null) {
+      return _spaced(_ChangeCard(
+        key: ValueKey('rapi-change-${m.id}'),
+        card: change,
+        onApply: () => _chat.applyChange(m.id),
+        onCancel: () => _chat.cancelChange(m.id),
+        onRevert: () => _chat.revertChange(m.id),
+        onOpen: () => _openTask(change.proposal.taskId),
+      ));
     }
 
     switch (m.role) {
@@ -986,6 +998,284 @@ class _AskAnswerCard extends StatelessWidget {
     );
   }
 }
+
+/// 変更（change）カード：対象タスク、項目ごとの「今 → 変更後」、理由と、
+/// 「適用する」「やめる」（確認待ち）／「取り消す」（適用後）。見た目は下書きカードにそろえる。
+///
+/// NOTE: update-draft の提案は新しい値だけを持つので、確認待ちの「今」の値は
+/// GET /tasks/:id（taskDetailProvider）から出す（読めない間は変更後の値だけ）。
+/// 適用後は task-update が返した before / after（実際に変わった項目だけ）を出す。
+class _ChangeCard extends ConsumerWidget {
+  final RapiChangeCard card;
+  final VoidCallback onApply;
+  final VoidCallback onCancel;
+  final VoidCallback onRevert;
+  final VoidCallback onOpen;
+
+  const _ChangeCard({
+    super.key,
+    required this.card,
+    required this.onApply,
+    required this.onCancel,
+    required this.onRevert,
+    required this.onOpen,
+  });
+
+  static const _labelStyle = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
+  static const _bodyColor = Color(0xFF18181B);
+  static const _doneGreen = Color(0xFF047857);
+  static const _warnAmber = Color(0xFFB45309);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final proposal = card.proposal;
+    final themes = ref.watch(themeListProvider).valueOrNull ?? const [];
+    final phase = card.phase;
+    final proposed = phase == RapiChangePhase.proposed || phase == RapiChangePhase.applying;
+
+    // 確認待ちの「今」の値（読めた分だけ）
+    final current = proposed
+        ? ref.watch(taskDetailProvider(proposal.taskId)).valueOrNull
+        : null;
+
+    String show(String field, Object? value) {
+      if (value == null) return 'なし';
+      switch (field) {
+        case 'status':
+          return rapiChangeStatusLabels[value] ?? _statusLabels[value] ?? '$value';
+        case 'priority':
+          return rapiPriorityLabels[value] ?? '$value';
+        case 'themeId':
+          final id = '$value';
+          for (final t in themes) {
+            if (t.id == id) return t.name;
+          }
+          if (current?.theme != null && current!.theme!.id == id) return current.theme!.name;
+          return 'テーマ#$id';
+        case 'dueDate':
+          final v = '$value';
+          return v.length >= 10 && v[4] == '-' ? v.substring(0, 10).replaceAll('-', '/') : v;
+      }
+      return '$value';
+    }
+
+    Object? currentValue(String field) {
+      final t = current;
+      if (t == null) return _unknown;
+      switch (field) {
+        case 'status':
+          return t.status;
+        case 'priority':
+          return t.priority;
+        case 'themeId':
+          return t.themeId;
+        case 'dueDate':
+          final d = t.dueDate?.toUtc();
+          return d == null
+              ? null
+              : '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      }
+      return _unknown;
+    }
+
+    // 並べる行：確認待ちは提案の項目、適用後は実際に変わった項目
+    final result = card.result;
+    final List<(String, Object?, Object?)> rows;
+    if (!proposed && result != null && result.after.isNotEmpty) {
+      rows = [
+        for (final f in rapiChangeFields)
+          if (result.after.containsKey(f)) (f, result.before[f], result.after[f]),
+      ];
+    } else {
+      rows = [
+        for (final f in proposal.changes.fields)
+          (f, currentValue(f), proposal.changes.values[f]),
+      ];
+    }
+
+    Widget row((String, Object?, Object?) r) {
+      final (field, before, after) = r;
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+                width: 72, child: Text(rapiChangeFieldLabels[field] ?? field, style: _labelStyle)),
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  if (!identical(before, _unknown)) ...[
+                    TextSpan(
+                        text: show(field, before),
+                        style: const TextStyle(color: Color(0xFF6B7280))),
+                    const TextSpan(text: '  →  ', style: TextStyle(color: Color(0xFF9CA3AF))),
+                  ],
+                  TextSpan(
+                      text: show(field, after),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ]),
+                style: const TextStyle(fontSize: 13, color: _bodyColor),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String heading = switch (phase) {
+      RapiChangePhase.proposed || RapiChangePhase.applying => 'この内容で変更しますか',
+      RapiChangePhase.applied || RapiChangePhase.reverting => '変更しました',
+      RapiChangePhase.reverted => '元に戻しました',
+      RapiChangePhase.applyUnknown => '変更できたか確かめられませんでした',
+      RapiChangePhase.revertUnavailable => '取り消せる記録がありません',
+    };
+    final IconData headingIcon = switch (phase) {
+      RapiChangePhase.reverted => Icons.undo,
+      RapiChangePhase.applyUnknown => Icons.help_outline,
+      RapiChangePhase.revertUnavailable => Icons.info_outline,
+      _ => Icons.check_circle,
+    };
+    final headingColor = phase == RapiChangePhase.applyUnknown ? _warnAmber : _violetButton;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _violetBg,
+        border: Border.all(color: _violetBorder),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (!proposed)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(headingIcon, size: 16, color: headingColor),
+                ),
+              Expanded(
+                child: Text(heading,
+                    style: textTheme.labelLarge
+                        ?.copyWith(color: headingColor, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text('対象', style: _labelStyle),
+          const SizedBox(height: 2),
+          Text(proposal.title,
+              style: const TextStyle(
+                  fontSize: 15, color: _bodyColor, fontWeight: FontWeight.w600, height: 1.4)),
+          const SizedBox(height: 2),
+          for (final r in rows) row(r),
+          if (proposed && proposal.reason.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(proposal.reason, style: _labelStyle),
+            ),
+          if (proposed && card.considered > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('最近更新された${card.considered}件の中から選びました',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+            ),
+          if (phase == RapiChangePhase.reverted)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('変更前の内容に戻しました。',
+                  style: TextStyle(fontSize: 12, color: _doneGreen)),
+            ),
+          if (phase == RapiChangePhase.applyUnknown)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                '応答がなく、この変更が反映されたか確かめられませんでした。反映済みの場合もあるため、'
+                'ここからは適用し直せません。タスクを開いて今の内容を確かめてください。',
+                style: TextStyle(fontSize: 12, color: _warnAmber, height: 1.4),
+              ),
+            ),
+          if (phase == RapiChangePhase.revertUnavailable)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                '既に取り消し済みの可能性があります。今の内容はタスクを開いて確かめてください。',
+                style: TextStyle(fontSize: 12, color: _warnAmber, height: 1.4),
+              ),
+            ),
+          if (card.conflicts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'その後に${card.conflicts.map((f) => '「${rapiChangeFieldLabels[f] ?? f}」').join('')}が'
+                '変更されたため、元に戻せませんでした。今の内容はタスクを開いて確かめてください。',
+                style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4),
+              ),
+            ),
+          if (card.error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(card.error!,
+                  style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
+            ),
+          const SizedBox(height: 12),
+          if (proposed)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _violetButton,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _violetButton.withValues(alpha: 0.4),
+                      disabledForegroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: phase == RapiChangePhase.applying ? null : onApply,
+                    child: Text(phase == RapiChangePhase.applying ? '変更しています…' : '適用する'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF6B7280)),
+                  onPressed: phase == RapiChangePhase.applying ? null : onCancel,
+                  child: const Text('やめる'),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                if (card.canRevert || phase == RapiChangePhase.reverting)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _violetButton,
+                      side: const BorderSide(color: _violetBorder),
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: card.canRevert ? onRevert : null,
+                    icon: const Icon(Icons.undo, size: 18),
+                    label: Text(phase == RapiChangePhase.reverting ? '元に戻しています…' : '取り消す'),
+                  ),
+                const Spacer(),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: _violetButton),
+                  onPressed: onOpen,
+                  child: const Text('タスクを開く'),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「今」の値をまだ読めていない印（null は「なし」の意味で使うので別にする）
+const Object _unknown = Object();
 
 /// 下部のチャット欄（角丸の入力欄＋右端の丸いボタン）。
 /// 右端のボタンは1つを出し分ける：聞き取り中は赤いマイク（押すと聞き取りを終えて送信）、

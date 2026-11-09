@@ -3,6 +3,7 @@
 //   rapitas-backend/routes/ai/assistant-intake.routes.ts（task-draft / task-create）
 //   rapitas-backend/routes/ai/assistant-query.routes.ts（ask / supervision / route）
 //   rapitas-backend/routes/ai/copilot-chat.ts（copilot/chat）
+//   rapitas-backend/routes/ai/assistant-update.routes.ts（update-draft / task-update / revert）
 // ID はバックエンドでは Int。アプリ内では Task と同じく文字列で持つ。
 
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
@@ -323,4 +324,139 @@ class CopilotReply {
         tier: _string(json['tier']),
         cached: json['cached'] == true,
       );
+}
+
+// ---- 変更（change）----
+// 既存タスク1件の 状態／優先度／テーマ／期限 を文で変える。形はバックエンドが正：
+//   services/assistant/task-update.ts（TaskChanges の検証・before/after）
+//   services/assistant/update-proposal.ts（proposal / unclear）
+
+/// ラピが変えられる項目（バックエンド task-update.ts の FIELDS と同じ順）
+const List<String> rapiChangeFields = ['status', 'priority', 'themeId', 'dueDate'];
+
+/// 変更項目の表示名（デスクトップ rapiAvatar.change.field と同じ表記）
+const Map<String, String> rapiChangeFieldLabels = {
+  'status': '状態',
+  'priority': '優先度',
+  'themeId': 'テーマ',
+  'dueDate': '期限',
+};
+
+/// 変更で使う状態の表示名（デスクトップ rapiAvatar.change.value と同じ表記）
+const Map<String, String> rapiChangeStatusLabels = {
+  'todo': '未着手',
+  'in-progress': '進行中',
+  'done': '完了',
+};
+
+/// 変更する項目と新しい値。[values] にはキーがある項目だけが入る
+/// （themeId / dueDate の null は「外す」で、キーが無い＝変えないとは別）。
+/// themeId は数値、dueDate は `YYYY-MM-DD`（サーバーへはそのまま返す）。
+class TaskChanges {
+  final Map<String, Object?> values;
+
+  const TaskChanges(this.values);
+
+  factory TaskChanges.fromJson(Map<String, dynamic> json) => TaskChanges({
+        for (final f in rapiChangeFields)
+          if (json.containsKey(f)) f: json[f],
+      });
+
+  /// 変える項目（表示順）
+  List<String> get fields => [for (final f in rapiChangeFields) if (values.containsKey(f)) f];
+
+  bool get isEmpty => values.isEmpty;
+
+  Map<String, Object?> toJson() => Map<String, Object?>.from(values);
+}
+
+/// POST /assistant/update-draft の提案（まだ何も書き込んでいない）
+class ChangeProposal {
+  final String taskId;
+  final String title;
+  final TaskChanges changes;
+
+  /// なぜそう読んだか（空のこともある）
+  final String reason;
+
+  const ChangeProposal({
+    required this.taskId,
+    required this.title,
+    required this.changes,
+    this.reason = '',
+  });
+
+  factory ChangeProposal.fromJson(Map<String, dynamic> json) => ChangeProposal(
+        taskId: json['taskId'].toString(),
+        title: json['title']?.toString() ?? '',
+        changes: TaskChanges.fromJson(
+            json['changes'] is Map ? Map<String, dynamic>.from(json['changes'] as Map) : const {}),
+        reason: _string(json['reason']) ?? '',
+      );
+}
+
+/// POST /assistant/update-draft の結果。[proposal] か [unclear] のどちらか
+class ChangeDraft {
+  final ChangeProposal? proposal;
+
+  /// 対象や内容を読み取れなかった理由（proposal が無いとき）
+  final List<String> unclear;
+
+  /// 検討したタスク数（最近更新されたものから最大60件。全件ではない）
+  final int considered;
+
+  const ChangeDraft({this.proposal, this.unclear = const [], this.considered = 0});
+
+  factory ChangeDraft.fromJson(Map<String, dynamic> json) {
+    final p = json['proposal'];
+    final considered = json['considered'];
+    final count = considered is num ? considered.toInt() : 0;
+    if (p is Map && p['kind'] == 'proposal') {
+      return ChangeDraft(
+        proposal: ChangeProposal.fromJson(Map<String, dynamic>.from(p)),
+        considered: count,
+      );
+    }
+    final unclear = p is Map ? _strings(p['unclear']) : const <String>[];
+    return ChangeDraft(
+      unclear: unclear.isNotEmpty ? unclear : const ['発話から変更内容を読み取れませんでした。'],
+      considered: count,
+    );
+  }
+}
+
+/// POST /assistant/task-update の適用結果。before / after は実際に変わった項目だけ
+/// （提案と同じ値だった項目はサーバーが書かずに省く）
+class TaskUpdateResult {
+  /// 取り消し（revert）に使う監査の ID
+  final int actionId;
+  final Map<String, Object?> before;
+  final Map<String, Object?> after;
+
+  const TaskUpdateResult({
+    required this.actionId,
+    this.before = const {},
+    this.after = const {},
+  });
+
+  factory TaskUpdateResult.fromJson(Map<String, dynamic> json) {
+    Map<String, Object?> fields(dynamic v) =>
+        v is Map ? Map<String, Object?>.from(v) : const <String, Object?>{};
+    final id = json['actionId'];
+    return TaskUpdateResult(
+      actionId: id is num ? id.toInt() : int.tryParse('$id') ?? 0,
+      before: fields(json['before']),
+      after: fields(json['after']),
+    );
+  }
+}
+
+/// POST /assistant/task-update/revert の結果。[conflicts] が空でなければ取り消していない
+/// （409：ラピの変更のあとに、その項目が別に編集された）
+class TaskUpdateRevert {
+  final List<String> conflicts;
+
+  const TaskUpdateRevert({this.conflicts = const []});
+
+  bool get reverted => conflicts.isEmpty;
 }

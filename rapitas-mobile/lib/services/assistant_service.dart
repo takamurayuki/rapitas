@@ -118,6 +118,83 @@ class AssistantService {
     return SupervisionSurvey.fromJson(_body(response.data));
   }
 
+  // ---- 変更（change）----
+  // update-draft は読むだけ（提案カードを作る）。書き込みは task-update だけで、
+  // ユーザーがカードで確認した変更を confirmed: true で送る。
+
+  /// 文からどのタスクの何を変えるかの提案を受け取る（何も書き込まない）。
+  Future<ChangeDraft> updateDraft(String text) async {
+    final body = _body((await _post('/assistant/update-draft', {'text': text})).data);
+    if (body['success'] != true || body['proposal'] is! Map) {
+      throw AssistantException(body['error']?.toString() ?? 'no_proposal');
+    }
+    return ChangeDraft.fromJson(body);
+  }
+
+  /// ユーザーが確認した変更を適用する。
+  ///
+  /// 失敗は [AssistantException] で、code はサーバーの error（not_found / theme_not_found /
+  /// no_change / 検証エラー文）、statusCode に HTTP の状態（400/404/409）が入る。
+  /// 2xx で明示的に success:false が返ったときも statusCode にその状態（200 など）を入れる
+  /// （サーバーが断ったと分かる失敗）。応答の形が読めないときは statusCode なしの
+  /// unexpected_response（適用されたか分からない失敗）。
+  Future<TaskUpdateResult> taskUpdate(String taskId, TaskChanges changes) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final response = await _postOrError('/assistant/task-update', {
+      'taskId': id,
+      'changes': changes.toJson(),
+      'confirmed': true,
+    });
+    final body = _body(response.data);
+    final success = body['success'];
+    if (success == false) {
+      throw AssistantException(body['error']?.toString() ?? 'update_failed',
+          statusCode: response.statusCode);
+    }
+    if (success != true) throw const AssistantException('unexpected_response');
+    return TaskUpdateResult.fromJson(body);
+  }
+
+  /// 適用した変更を取り消す。その後に別の編集が入った項目があれば（409）取り消さず、
+  /// その項目名（status / priority / themeId / dueDate）を conflicts で返す。
+  Future<TaskUpdateRevert> revertTaskUpdate(int actionId) async {
+    try {
+      final body =
+          _body((await _postOrError('/assistant/task-update/revert', {'actionId': actionId})).data);
+      if (body['success'] != true) {
+        throw AssistantException(body['error']?.toString() ?? 'revert_failed');
+      }
+      return const TaskUpdateRevert();
+    } on AssistantException catch (e) {
+      final conflicts = e.conflicts;
+      if (e.statusCode == 409 && conflicts.isNotEmpty) {
+        return TaskUpdateRevert(conflicts: conflicts);
+      }
+      rethrow;
+    }
+  }
+
+  /// 4xx/5xx を本文の error 付きの [AssistantException] にして投げる（タイムアウトは従来どおり）
+  Future<Response<dynamic>> _postOrError(String path, Object data) async {
+    try {
+      return await _post(path, data);
+    } on DioException catch (e) {
+      final response = e.response;
+      if (e.type != DioExceptionType.badResponse || response == null) rethrow;
+      final body = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
+          : const <String, dynamic>{};
+      throw AssistantException(
+        body['error']?.toString() ?? 'http_${response.statusCode}',
+        statusCode: response.statusCode,
+        conflicts: body['conflicts'] is List
+            ? (body['conflicts'] as List).whereType<String>().toList()
+            : const [],
+      );
+    }
+  }
+
   /// 会話。[history] は直前までのやりとり（role は user / assistant）。
   /// 今回の [message] はサーバー側で末尾に足されるので history に含めない。
   Future<CopilotReply> chat(
@@ -143,10 +220,17 @@ class AssistantService {
 class AssistantException implements Exception {
   final String code;
 
-  const AssistantException(this.code);
+  /// HTTP の失敗応答だったときの状態コード（それ以外は null）
+  final int? statusCode;
+
+  /// task-update/revert の 409 で、その後に編集された項目
+  final List<String> conflicts;
+
+  const AssistantException(this.code, {this.statusCode, this.conflicts = const []});
 
   @override
-  String toString() => 'AssistantException($code)';
+  String toString() =>
+      statusCode == null ? 'AssistantException($code)' : 'AssistantException($code, $statusCode)';
 }
 
 /// assistant 系の要求がタイムアウトした（デスクトップ側の生成が間に合わなかった等）
