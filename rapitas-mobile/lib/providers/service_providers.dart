@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
 import '../services/api_client.dart';
+import '../services/category_service.dart';
 import '../services/task_service.dart';
 import '../services/agent_service.dart';
 import '../services/approval_service.dart';
@@ -44,6 +45,10 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 
 final themeServiceProvider = Provider<ThemeService>((ref) {
   return ThemeService(ref.watch(apiClientProvider));
+});
+
+final categoryServiceProvider = Provider<CategoryService>((ref) {
+  return CategoryService(ref.watch(apiClientProvider));
 });
 
 /// SSE 接続。接続設定が変わるとサービスごと作り直し、新しい接続先へ繋ぎ直す。
