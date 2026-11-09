@@ -43,19 +43,35 @@ class ApiClient {
     _dio.options.baseUrl = _config.baseUrl;
   }
 
+  /// [receiveTimeout] を渡すとこの要求だけ受信タイムアウトを上書きする
+  /// （省略時は BaseOptions の既定 = ApiConfig.receiveTimeout）。
+  static Options? _options(Duration? receiveTimeout) =>
+      receiveTimeout == null ? null : Options(receiveTimeout: receiveTimeout);
+
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
   }) {
-    return _dio.get<T>(path, queryParameters: queryParameters);
+    return _dio.get<T>(
+      path,
+      queryParameters: queryParameters,
+      options: _options(receiveTimeout),
+    );
   }
 
   Future<Response<T>> post<T>(
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
   }) {
-    return _dio.post<T>(path, data: data, queryParameters: queryParameters);
+    return _dio.post<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: _options(receiveTimeout),
+    );
   }
 
   Future<Response<T>> patch<T>(

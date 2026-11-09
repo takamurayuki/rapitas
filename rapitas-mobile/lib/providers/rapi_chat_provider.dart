@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
+import '../services/assistant_service.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
 
@@ -124,6 +125,10 @@ const Map<String, String> _desktopOnlyIntents = {
   'change': '変更する',
 };
 
+/// assistant 系の要求がタイムアウトしたときの system メッセージ
+const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
+    'デスクトップ側の処理が混んでいるかもしれません。もう一度送ってみてください。';
+
 /// copilot/chat に送る履歴の件数
 const int _historyLimit = 10;
 
@@ -208,12 +213,12 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       // 成功したときだけ欄を空にする（失敗時は書いた文を残す）。
       // 送信中に書き足していたらそれは消さない
       if (state.input.trim() == text) state = state.copyWith(input: '');
-    } catch (_) {
+    } catch (e) {
       final messages = [...state.messages];
       final i = messages.indexWhere((m) => m.id == userId);
       if (i >= 0) messages[i] = messages[i].withoutHistory();
       state = state.copyWith(messages: messages);
-      _system('送信に失敗しました');
+      _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
     } finally {
       state = state.copyWith(sending: false);
     }
