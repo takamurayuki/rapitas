@@ -99,7 +99,8 @@ class _ConnectionStatusBar extends ConsumerWidget {
     return Material(
       color: colorScheme.surfaceContainerHighest,
       child: InkWell(
-        onTap: () => context.go(AppRoutes.settings),
+        // NOTE: 設定はシェル外の画面になったので push（go だと戻る手段が無くなる）
+        onTap: () => context.push(AppRoutes.settings),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: Row(

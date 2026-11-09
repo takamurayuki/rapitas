@@ -14,6 +14,11 @@ import '../screens/themes/themes_screen.dart';
 import '../screens/themes/theme_form_screen.dart';
 import '../screens/categories/categories_screen.dart';
 import '../screens/categories/category_form_screen.dart';
+import '../screens/backlog/ideas_screen.dart';
+import '../screens/backlog/idea_form_screen.dart';
+import '../screens/backlog/concerns_screen.dart';
+import '../screens/backlog/concern_form_screen.dart';
+import '../screens/backlog/hypotheses_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -32,6 +37,11 @@ class AppRoutes {
   static const String categories = '/categories';
   static const String categoryNew = '/categories/new';
   static const String categoryEdit = '/categories/:id/edit';
+  static const String ideas = '/ideas';
+  static const String ideasNew = '/ideas/new';
+  static const String concerns = '/concerns';
+  static const String concernsNew = '/concerns/new';
+  static const String hypotheses = '/hypotheses';
 
   static final GoRouter router = GoRouter(
     initialLocation: home,
@@ -65,13 +75,12 @@ class AppRoutes {
               child: ApprovalsScreen(),
             ),
           ),
-          GoRoute(
-            path: settings,
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: SettingsScreen(),
-            ),
-          ),
         ],
+      ),
+      // 設定は下タブから外した（ドロワーから push で開く）。戻るボタンは AppBar に任せる
+      GoRoute(
+        path: settings,
+        builder: (context, state) => const SettingsScreen(),
       ),
       // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
       GoRoute(
@@ -140,6 +149,26 @@ class AppRoutes {
           );
         },
       ),
+      GoRoute(
+        path: ideas,
+        builder: (context, state) => const IdeasScreen(),
+      ),
+      GoRoute(
+        path: ideasNew,
+        builder: (context, state) => const IdeaFormScreen(),
+      ),
+      GoRoute(
+        path: concerns,
+        builder: (context, state) => const ConcernsScreen(),
+      ),
+      GoRoute(
+        path: concernsNew,
+        builder: (context, state) => const ConcernFormScreen(),
+      ),
+      GoRoute(
+        path: hypotheses,
+        builder: (context, state) => const HypothesesScreen(),
+      ),
     ],
   );
 }
@@ -155,7 +184,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
     if (location.startsWith(AppRoutes.tasks)) return 1;
     if (location == AppRoutes.executions) return 2;
     if (location == AppRoutes.approvals) return 3;
-    if (location == AppRoutes.settings) return 4;
     return 0;
   }
 
@@ -180,9 +208,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
             case 3:
               context.go(AppRoutes.approvals);
               break;
-            case 4:
-              context.go(AppRoutes.settings);
-              break;
           }
         },
         destinations: const [
@@ -205,11 +230,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
             icon: Icon(Icons.approval_outlined),
             selectedIcon: Icon(Icons.approval),
             label: '承認',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: '設定',
           ),
         ],
       ),
