@@ -232,24 +232,44 @@ class TaskCategory {
   final String? icon;
   final int? sortOrder;
 
+  /// カテゴリの説明（Category.description）
+  final String? description;
+
+  /// カテゴリのモード（development / learning / both）。未設定なら null
+  final String? mode;
+
+  /// カテゴリに属するテーマ数（GET /categories の `_count.themes`）。
+  /// テーマに埋め込まれたカテゴリ（GET /themes の category）には無いので null
+  final int? themeCount;
+
   TaskCategory({
     required this.id,
     required this.name,
     this.color,
     this.icon,
     this.sortOrder,
+    this.description,
+    this.mode,
+    this.themeCount,
   });
 
   factory TaskCategory.fromJson(Map<String, dynamic> json) {
     final color = json['color'];
     final icon = json['icon'];
     final sortOrder = json['sortOrder'];
+    final description = json['description'];
+    final mode = json['mode'];
+    final count = json['_count'];
+    final themes = count is Map ? count['themes'] : null;
     return TaskCategory(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
       color: color is String ? color : null,
       icon: icon is String ? icon : null,
       sortOrder: sortOrder is num ? sortOrder.toInt() : null,
+      description: description is String ? description : null,
+      mode: mode is String ? mode : null,
+      themeCount: themes is num ? themes.toInt() : null,
     );
   }
 }
@@ -274,6 +294,9 @@ class TaskTheme {
   /// テーマの作業フォルダ（Theme.workingDirectory）。未設定なら null
   final String? workingDirectory;
 
+  /// テーマの説明（Theme.description）。未設定なら null
+  final String? description;
+
   TaskTheme({
     required this.id,
     required this.name,
@@ -283,6 +306,7 @@ class TaskTheme {
     this.taskCount,
     this.isDevelopment = false,
     this.workingDirectory,
+    this.description,
   });
 
   factory TaskTheme.fromJson(Map<String, dynamic> json) {
@@ -291,6 +315,7 @@ class TaskTheme {
     final tasks = count is Map ? count['tasks'] : null;
     final isDevelopment = json['isDevelopment'];
     final workingDirectory = json['workingDirectory'];
+    final description = json['description'];
     return TaskTheme(
       id: json['id'].toString(),
       name: json['name'] as String,
@@ -302,6 +327,7 @@ class TaskTheme {
       taskCount: tasks is num ? tasks.toInt() : null,
       isDevelopment: isDevelopment is bool ? isDevelopment : false,
       workingDirectory: workingDirectory is String ? workingDirectory : null,
+      description: description is String ? description : null,
     );
   }
 

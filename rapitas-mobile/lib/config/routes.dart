@@ -11,6 +11,9 @@ import '../screens/notifications/notifications_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/themes/themes_screen.dart';
+import '../screens/themes/theme_form_screen.dart';
+import '../screens/categories/categories_screen.dart';
+import '../screens/categories/category_form_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -24,6 +27,11 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String settings = '/settings';
   static const String themes = '/themes';
+  static const String themeNew = '/themes/new';
+  static const String themeEdit = '/themes/:id/edit';
+  static const String categories = '/categories';
+  static const String categoryNew = '/categories/new';
+  static const String categoryEdit = '/categories/:id/edit';
 
   static final GoRouter router = GoRouter(
     initialLocation: home,
@@ -96,6 +104,41 @@ class AppRoutes {
       GoRoute(
         path: themes,
         builder: (context, state) => const ThemesScreen(),
+      ),
+      // NOTE: '/themes/new' を '/themes/:id/edit' より先に宣言する（タスク画面と同じく 'new' が id に取られないように）
+      GoRoute(
+        path: themeNew,
+        builder: (context, state) => const ThemeFormScreen(),
+      ),
+      GoRoute(
+        path: themeEdit,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra;
+          return ThemeFormScreen(
+            themeId: id,
+            theme: extra is TaskTheme ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: categories,
+        builder: (context, state) => const CategoriesScreen(),
+      ),
+      GoRoute(
+        path: categoryNew,
+        builder: (context, state) => const CategoryFormScreen(),
+      ),
+      GoRoute(
+        path: categoryEdit,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          final extra = state.extra;
+          return CategoryFormScreen(
+            categoryId: id,
+            category: extra is TaskCategory ? extra : null,
+          );
+        },
       ),
     ],
   );
