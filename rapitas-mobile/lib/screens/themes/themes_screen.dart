@@ -32,8 +32,6 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
 
   bool _saving = false;
 
-  bool get _reordering => _draft != null;
-
   /// 並び替えモードに入る。カテゴリ順→テーマ順に平坦化した並びを下書きにする
   void _startReorder(List<TaskTheme> themes) {
     final groups = groupThemesByCategory(themes);
