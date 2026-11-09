@@ -6,6 +6,7 @@ import '../../services/voice_command_parser.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/voice_input_sheet.dart';
 import '../../utils/date_formatter.dart';
+import '../../widgets/app_drawer.dart';
 
 class ApprovalsScreen extends ConsumerWidget {
   const ApprovalsScreen({super.key});
@@ -15,6 +16,7 @@ class ApprovalsScreen extends ConsumerWidget {
     final approvalsAsync = ref.watch(approvalListProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('承認リクエスト'),
         actions: [

@@ -10,6 +10,7 @@ import '../../providers/theme_data_provider.dart';
 import '../../utils/color_utils.dart';
 import '../../services/voice_command_parser.dart';
 import '../../utils/constants.dart';
+import '../../widgets/app_drawer.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/voice_input_sheet.dart';
 
@@ -113,6 +114,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       },
       child: Scaffold(
         appBar: _searchMode ? _buildSearchAppBar() : _buildAppBar(isFiltered),
+        // 検索モード中は AppBar の「検索を閉じる」ボタンを優先し、ドロワーは出さない
+        // （端スワイプで開いてしまうのも防ぐ）
+        drawer: _searchMode ? null : const AppDrawer(),
         body: _searchMode ? _buildSearchBody() : _buildListBody(filter, isFiltered),
         // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
         // 検索モード中は作成用FABを出さない。

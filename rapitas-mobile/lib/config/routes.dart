@@ -10,6 +10,7 @@ import '../screens/approvals/approvals_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/themes/themes_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -22,6 +23,7 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String dashboard = '/dashboard';
   static const String settings = '/settings';
+  static const String themes = '/themes';
 
   static final GoRouter router = GoRouter(
     initialLocation: home,
@@ -90,6 +92,10 @@ class AppRoutes {
       GoRoute(
         path: dashboard,
         builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: themes,
+        builder: (context, state) => const ThemesScreen(),
       ),
     ],
   );
