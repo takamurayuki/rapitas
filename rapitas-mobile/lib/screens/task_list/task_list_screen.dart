@@ -156,7 +156,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         ),
         // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
         // 検索モード中は作成用FABを出さない。
-        // NOTE: 音声の入口は全画面共通の左下のボタン（シェル側）に移したので、ここには置かない
+        // NOTE: 音声操作は設定の音声操作モード（常時聞き取り）から。聞き取り表示はシェル側の左下
         floatingActionButton: _searchMode
             ? null
             : FloatingActionButton(

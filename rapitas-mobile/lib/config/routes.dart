@@ -21,7 +21,7 @@ import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
 import '../screens/rapi/rapi_screen.dart';
 import '../services/voice_route_tracker.dart';
-import '../widgets/voice_fab.dart';
+import '../widgets/voice_mode_indicator.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -97,92 +97,92 @@ class AppRoutes {
         // 設定は下タブから外した（ドロワーから push で開く）。戻るボタンは AppBar に任せる
         GoRoute(
           path: settings,
-          builder: (context, state) => const VoiceFabFrame(child: SettingsScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: SettingsScreen()),
         ),
         // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
         GoRoute(
           path: taskNew,
-          builder: (context, state) => const VoiceFabFrame(child: TaskFormScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: TaskFormScreen()),
         ),
         GoRoute(
           path: taskEdit,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             final extra = state.extra;
-            return VoiceFabFrame(child: TaskFormScreen(taskId: id, task: extra is Task ? extra : null));
+            return VoiceIndicatorFrame(child: TaskFormScreen(taskId: id, task: extra is Task ? extra : null));
           },
         ),
         GoRoute(
           path: taskDetail,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
-            return VoiceFabFrame(child: TaskDetailScreen(taskId: id));
+            return VoiceIndicatorFrame(child: TaskDetailScreen(taskId: id));
           },
         ),
         GoRoute(
           path: notifications,
-          builder: (context, state) => const VoiceFabFrame(child: NotificationsScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: NotificationsScreen()),
         ),
         GoRoute(
           path: dashboard,
-          builder: (context, state) => const VoiceFabFrame(child: DashboardScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: DashboardScreen()),
         ),
         GoRoute(
           path: themes,
-          builder: (context, state) => const VoiceFabFrame(child: ThemesScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: ThemesScreen()),
         ),
         // NOTE: '/themes/new' を '/themes/:id/edit' より先に宣言する（タスク画面と同じく 'new' が id に取られないように）
         GoRoute(
           path: themeNew,
-          builder: (context, state) => const VoiceFabFrame(child: ThemeFormScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: ThemeFormScreen()),
         ),
         GoRoute(
           path: themeEdit,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             final extra = state.extra;
-            return VoiceFabFrame(
+            return VoiceIndicatorFrame(
               child: ThemeFormScreen(themeId: id, theme: extra is TaskTheme ? extra : null),
             );
           },
         ),
         GoRoute(
           path: categories,
-          builder: (context, state) => const VoiceFabFrame(child: CategoriesScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: CategoriesScreen()),
         ),
         GoRoute(
           path: categoryNew,
-          builder: (context, state) => const VoiceFabFrame(child: CategoryFormScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: CategoryFormScreen()),
         ),
         GoRoute(
           path: categoryEdit,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             final extra = state.extra;
-            return VoiceFabFrame(
+            return VoiceIndicatorFrame(
               child: CategoryFormScreen(categoryId: id, category: extra is TaskCategory ? extra : null),
             );
           },
         ),
         GoRoute(
           path: ideas,
-          builder: (context, state) => const VoiceFabFrame(child: IdeasScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: IdeasScreen()),
         ),
         GoRoute(
           path: ideasNew,
-          builder: (context, state) => const VoiceFabFrame(child: IdeaFormScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: IdeaFormScreen()),
         ),
         GoRoute(
           path: concerns,
-          builder: (context, state) => const VoiceFabFrame(child: ConcernsScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: ConcernsScreen()),
         ),
         GoRoute(
           path: concernsNew,
-          builder: (context, state) => const VoiceFabFrame(child: ConcernFormScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: ConcernFormScreen()),
         ),
         GoRoute(
           path: hypotheses,
-          builder: (context, state) => const VoiceFabFrame(child: HypothesesScreen()),
+          builder: (context, state) => const VoiceIndicatorFrame(child: HypothesesScreen()),
         ),
       ],
     );
@@ -210,11 +210,11 @@ class ScaffoldWithNavBar extends StatelessWidget {
     final location = GoRouterState.of(context).uri.path;
     return Scaffold(
       body: child,
-      // 音声コマンドの入口（左下）。右下の各画面の FAB とは重ならない。
+      // 音声操作モードの聞き取り表示（左下の小さな丸。モードがオフなら出ない）。右下の各画面の FAB とは重ならない。
       // チャット画面は入力欄があるので、画面側で入力欄の上に置く
       floatingActionButton: location == AppRoutes.rapi
           ? null
-          : const VoiceFab(hideOverShellPopups: true),
+          : const VoiceModeIndicator(hideOverShellPopups: true),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,

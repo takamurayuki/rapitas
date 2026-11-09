@@ -5,10 +5,14 @@ import '../services/voice_command_flow.dart';
 
 /// 音声コマンドのシート。開くと聞き取りを始め、解釈・対象の選択・確認・実行・結果までを
 /// この中で見せる（流れは VoiceCommandFlow）。答えは声でもタップでも返せる。
+/// 音声操作モードの常時聞き取りから開くときは、確定した文（[initialText]）を解釈済みの状態から続ける。
 class VoiceInputSheet extends ConsumerStatefulWidget {
   /// 話し始めた画面のパス（コマンドの文脈）
   final String path;
   final VoiceUi ui;
+
+  /// 常時聞き取りで確定した文。あれば聞き取りから始めず、この文の解釈から続ける
+  final String? initialText;
 
   /// 解釈を見せてから画面を操作するまで・成功後に閉じるまでの時間（テストで縮める）
   final Duration actionDelay;
@@ -18,22 +22,24 @@ class VoiceInputSheet extends ConsumerStatefulWidget {
     super.key,
     required this.path,
     required this.ui,
+    this.initialText,
     this.actionDelay = const Duration(milliseconds: 450),
     this.closeDelay = const Duration(milliseconds: 1500),
   });
 
-  /// シートを開く（root の Navigator に積む。下タブのバーより手前に出す）
+  /// シートを開く（root の Navigator に積む。下タブのバーより手前に出す）。閉じたら完了する
   static Future<void> show(
     BuildContext context, {
     required String path,
     required VoiceUi ui,
+    String? initialText,
   }) {
     return showModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => VoiceInputSheet(path: path, ui: ui),
+      builder: (context) => VoiceInputSheet(path: path, ui: ui, initialText: initialText),
     );
   }
 
@@ -62,7 +68,7 @@ class _VoiceInputSheetState extends ConsumerState<VoiceInputSheet>
       closeDelay: widget.closeDelay,
     )..addListener(_onFlowChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _flow.start();
+      if (mounted) _flow.start(initialText: widget.initialText);
     });
   }
 

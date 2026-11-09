@@ -22,6 +22,8 @@ import 'package:rapitas_mobile/services/dictation_service.dart';
 import 'package:rapitas_mobile/services/task_service.dart';
 import 'package:rapitas_mobile/services/theme_service.dart';
 import 'package:rapitas_mobile/services/voice_route_tracker.dart';
+import 'package:rapitas_mobile/widgets/voice_input_sheet.dart';
+import 'package:rapitas_mobile/widgets/voice_mode_host.dart';
 
 /// 聞き取りの偽物。テストから途中結果・終わりを流し込む
 class _FakeDictation implements DictationService {
@@ -230,6 +232,7 @@ void main() {
   late _FakeBacklog backlog;
   late GoRouter router;
   late ProviderContainer container;
+  late VoiceRouteTracker tracker;
 
   Future<void> pumpApp(
     WidgetTester tester,
@@ -244,7 +247,7 @@ void main() {
     agent = _FakeAgent();
     backlog = _FakeBacklog(hypothesisItems);
     rapiChat = _FakeRapiChat();
-    final tracker = VoiceRouteTracker();
+    tracker = VoiceRouteTracker();
     router = AppRoutes.createRouter(tracker: tracker, initialLocation: initialLocation);
     container = ProviderContainer(overrides: [
       dictationServiceProvider.overrideWithValue(dictation),
@@ -271,8 +274,15 @@ void main() {
     }
   }
 
+  /// コマンドシートを開く（音声ボタンは廃止したので、聞き取り表示のタップと同じ口から直接開く）
   Future<void> openSheet(WidgetTester tester) async {
-    await tester.tap(find.byKey(const ValueKey('voice-command-fab')));
+    final navigatorContext = router.routerDelegate.navigatorKey.currentContext!;
+    final ui = AppVoiceUi(
+      router: router,
+      messenger: ScaffoldMessenger.of(navigatorContext),
+      tracker: tracker,
+    );
+    VoiceInputSheet.show(navigatorContext, path: router.state.uri.path, ui: ui);
     await settle(tester);
     expect(dictation.active, isTrue, reason: '開くと聞き取りを始める');
   }
@@ -291,26 +301,13 @@ void main() {
   String location() => router.state.uri.path;
 
   group('入口', () {
-    testWidgets('下タブの画面は左下に音声ボタン。タスク画面の右下の作成ボタンと別の位置', (tester) async {
+    testWidgets('左下の音声ボタンは無い（音声操作モードがオフなら聞き取り表示も出ない）', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
-      final fab = find.byKey(const ValueKey('voice-command-fab'));
-      expect(fab, findsOneWidget);
-      final addFab = find.widgetWithIcon(FloatingActionButton, Icons.add);
-      expect(addFab, findsOneWidget);
-      final voiceRect = tester.getRect(fab);
-      final addRect = tester.getRect(addFab);
-      expect(voiceRect.overlaps(addRect), isFalse);
-      expect(voiceRect.center.dx, lessThan(200));
-      expect(addRect.center.dx, greaterThan(200));
-      // 以前のタスク画面専用の小さいマイクは無くなった
-      expect(find.byIcon(Icons.mic), findsNothing);
-    });
-
-    testWidgets('push で開く画面にも音声ボタンがある', (tester) async {
-      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
-      router.push('/ideas');
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('voice-command-fab')), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-command-fab')), findsNothing);
+      expect(find.byKey(const ValueKey('voice-mode-indicator')), findsNothing);
+      expect(find.byIcon(Icons.settings_voice), findsNothing);
+      // タスク画面の右下の作成ボタンはそのまま
+      expect(find.widgetWithIcon(FloatingActionButton, Icons.add), findsOneWidget);
     });
   });
 

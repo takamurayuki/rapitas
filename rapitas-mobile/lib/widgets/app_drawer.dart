@@ -5,7 +5,7 @@ import '../providers/connection_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/service_providers.dart';
 import '../services/sse_service.dart';
-import 'voice_fab.dart';
+import 'voice_mode_indicator.dart';
 
 // NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → 各画面 → このファイル
 // という import の循環を作らないよう、ここでは routes.dart を import せず文字列で持つ。
@@ -69,7 +69,7 @@ class AppDrawer extends ConsumerWidget {
     final selectedIndex = drawerSelectedIndex(location);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
 
-    return _HidesVoiceFab(
+    return _HidesVoiceIndicator(
       child: Drawer(
         child: Column(
           children: [
@@ -108,27 +108,27 @@ class AppDrawer extends ConsumerWidget {
   }
 }
 
-/// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、左下の音声ボタンを隠す。
+/// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、左下の音声操作の聞き取り表示を隠す。
 /// Scaffold はドロワーを開いている間だけ中身を作るので、作られている間＝出ている間。
-class _HidesVoiceFab extends StatefulWidget {
+class _HidesVoiceIndicator extends StatefulWidget {
   final Widget child;
 
-  const _HidesVoiceFab({required this.child});
+  const _HidesVoiceIndicator({required this.child});
 
   @override
-  State<_HidesVoiceFab> createState() => _HidesVoiceFabState();
+  State<_HidesVoiceIndicator> createState() => _HidesVoiceIndicatorState();
 }
 
-class _HidesVoiceFabState extends State<_HidesVoiceFab> {
+class _HidesVoiceIndicatorState extends State<_HidesVoiceIndicator> {
   @override
   void initState() {
     super.initState();
-    VoiceFab.drawerOpened();
+    VoiceModeIndicator.drawerOpened();
   }
 
   @override
   void dispose() {
-    VoiceFab.drawerClosed();
+    VoiceModeIndicator.drawerClosed();
     super.dispose();
   }
 

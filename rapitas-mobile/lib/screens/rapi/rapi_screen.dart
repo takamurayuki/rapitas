@@ -10,7 +10,7 @@ import '../../providers/voice_provider.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
-import '../../widgets/voice_fab.dart';
+import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
@@ -102,7 +102,7 @@ const double _glassButtonTapSize = 48;
 /// （フェードはバーの下端までで終わるので、この余白の中の発言は薄くならない）
 const double _topFade = 16;
 
-/// 一覧の下端の余白。左下の音声コマンドのボタン（小さい FAB 40 + 上下の余白）に最後の発言が隠れないだけ空ける
+/// 一覧の下端の余白。左下の音声操作の聞き取り表示（40 + 上下の余白）に最後の発言が隠れないだけ空ける
 const double _listBottomPadding = 60;
 
 class RapiScreen extends ConsumerStatefulWidget {
@@ -362,11 +362,12 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     }),
                   ),
                 ),
-                // 音声コマンド（アプリの操作）の入口。入力欄のマイク（ラピへの発話）とは役割が違う
-                Positioned(
+                // 音声操作モードの聞き取り表示（アプリの操作。モードがオフなら出ない）。
+                // 入力欄のマイク（ラピへの発話）とは役割が違い、マイクが動いている間は常時聞き取りが止まる
+                const Positioned(
                   left: 16,
                   bottom: 10,
-                  child: VoiceFab(onBeforeOpen: _cancelVoice),
+                  child: VoiceModeIndicator(),
                 ),
               ],
             ),
