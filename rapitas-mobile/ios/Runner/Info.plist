@@ -61,7 +61,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>デスクトップに表示されたQRコードを読み取って接続するために使います。</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>音声でタスクを入力するときに、マイクの音声を使います。</string>
+	<string>音声でタスクを入力したり、ラピに話しかけたりするときに、マイクの音声を使います。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>音声で入力した内容を文字にするために、音声認識を使います。</string>
 </dict>
