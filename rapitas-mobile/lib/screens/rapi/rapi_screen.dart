@@ -53,15 +53,17 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 /// 発言どうしの間隔
 const double _messageGap = 14;
 
-/// AppBar のタイトルに載せるラピのアバター（土台や円形の切り抜きは付けず、本体をそのまま出す）
-const double _titleAvatarSize = 40;
+/// AppBar のタイトルに載せるラピのアバター（土台や円形の切り抜きは付けず、本体をそのまま出す。
+/// SVG は背景が透過なので、AppBar の地色がそのまま見える）
+const double _titleAvatarSize = 52;
 
 /// 足元の影は本体の箱の下にはみ出して描かれる（assets/rapi_avatar.svg の viewBox 120×134）。
 /// 名前と重ならないよう、影の分まで高さを取る
 const double _titleAvatarHeight = _titleAvatarSize * 134 / 120;
 
-/// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より少し高くする
-const double _rapiToolbarHeight = 66;
+/// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より高くする
+/// （アバター約58 ＋ 間隔1 ＋ 名前12 ≈ 71 に上下の余白を足す）
+const double _rapiToolbarHeight = 76;
 
 /// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
 const double _topFade = 16;
