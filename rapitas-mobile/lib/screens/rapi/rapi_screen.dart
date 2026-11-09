@@ -3,9 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
-import '../../providers/service_providers.dart';
-import '../../providers/task_provider.dart';
+import '../../providers/rapi_chat_provider.dart';
 import '../../providers/theme_data_provider.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/rapi_avatar.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
 //
@@ -15,10 +16,10 @@ import '../../providers/theme_data_provider.dart';
 // それ以外の振り分け先（consult/tidy/roadmap/change）は「デスクトップ版で対応」と
 // 正直に伝え、会話でごまかさない。
 //
-// NOTE: 会話は画面を閉じると消える（永続化しない）。
+// NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
+// /rapi は下部タブで、タブを切り替えるとこの画面は破棄されるため。画面に残すのは
+// 入力欄の TextEditingController とスクロールだけ。会話はアプリを終了すると消える。
 // NOTE: routes.dart は import しない（循環を避けるためパスは文字列で書く）。
-
-enum RapiMode { chat, create, ask, watch }
 
 extension on RapiMode {
   String get label => switch (this) {
@@ -35,14 +36,6 @@ extension on RapiMode {
       };
 }
 
-/// v1 では実装していない振り分け先（デスクトップのモード名）
-const Map<String, String> _desktopOnlyIntents = {
-  'consult': 'このタスク',
-  'tidy': '片付ける',
-  'roadmap': '計画を立てる',
-  'change': '変更する',
-};
-
 const Map<String, String> _statusLabels = {
   'todo': '未着手',
   'in-progress': '進行中',
@@ -55,55 +48,21 @@ const Map<String, String> _statusLabels = {
 /// バックエンドの free text 上限（assistant-intake.routes.ts MAX_TEXT_LENGTH）
 const int _maxTextLength = 2000;
 
-/// copilot/chat に送る履歴の件数
-const int _historyLimit = 10;
-
 const _indigo = Color(0xFF4F46E5);
 const _bubbleGray = Color(0xFFF4F4F5);
 const _violetBg = Color(0xFFF5F3FF);
 const _violetBorder = Color(0xFFDDD6FE);
 const _violetButton = Color(0xFF7C3AED);
-const _rapiGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-);
 
-enum _Role { user, assistant, system }
+// ラピの吹き出し。デスクトップ SpeechBubble.tsx の BUBBLE_COLORS.light と、
+// RapiAvatarDock.tsx の本文色（light: #1F2937）
+const _speechBg = Color(0xFFFFFFFF);
+const _speechBorder = Color(0xFFE4E4E7);
+const _speechText = Color(0xFF1F2937);
 
-/// 会話の1件。[draftSlot] は下書きカードの置き場所、[answer] は聞くモードの回答。
-class _Message {
-  final int id;
-  final _Role role;
-  final String text;
-  final AskAnswer? answer;
-  final bool draftSlot;
-
-  /// 起票したタスク（system メッセージから開ける）
-  final String? taskId;
-
-  /// copilot/chat の履歴に含めるか（挨拶・送信失敗した発言は含めない）
-  final bool inHistory;
-
-  const _Message({
-    required this.id,
-    required this.role,
-    this.text = '',
-    this.answer,
-    this.draftSlot = false,
-    this.taskId,
-    this.inHistory = false,
-  });
-
-  _Message withoutHistory() => _Message(
-        id: id,
-        role: role,
-        text: text,
-        answer: answer,
-        draftSlot: draftSlot,
-        taskId: taskId,
-      );
-}
+/// 発言行のアバターの大きさと、アバターから吹き出し本体までの間隔（尻尾を含む）
+const double _rowAvatarSize = 28;
+const double _rowAvatarGap = 4 + _SpeechBubble.tailLength;
 
 class RapiScreen extends ConsumerStatefulWidget {
   const RapiScreen({super.key});
@@ -113,36 +72,25 @@ class RapiScreen extends ConsumerStatefulWidget {
 }
 
 class _RapiScreenState extends ConsumerState<RapiScreen> {
-  final _input = TextEditingController();
+  late final TextEditingController _input;
+  late final TextEditingController _draftTitle;
   final _scroll = ScrollController();
-  final _draftTitle = TextEditingController();
 
-  RapiMode _mode = RapiMode.chat;
-  final List<_Message> _messages = [];
-  int _nextId = 0;
-  bool _sending = false;
-
-  // 作るモード：いま確認待ちの下書き
-  TaskDraft? _draft;
-  String? _draftThemeId;
-  bool _creating = false;
-
-  // 見守りモード
-  SupervisionSurvey? _survey;
-  bool _surveyLoading = false;
-  bool _surveyFailed = false;
-  Future<void>? _surveyInFlight;
+  RapiChatNotifier get _chat => ref.read(rapiChatProvider.notifier);
 
   @override
   void initState() {
     super.initState();
-    _messages.add(_Message(
-      id: _nextId++,
-      role: _Role.assistant,
-      text: 'ぼくは rapitas 専属のエージェント、ラピです。今日は何をしますか？'
-          'やりたいことを下の欄にそのまま書いてください。',
-    ));
-    _input.addListener(_onInputChanged);
+    // タブ往復で消えないよう、未送信の入力と編集中の下書きタイトルは provider から復元する
+    final saved = ref.read(rapiChatProvider);
+    _input = TextEditingController(text: saved.input)..addListener(_onInputChanged);
+    _draftTitle = TextEditingController(text: saved.draftTitle);
+    // 戻ってきたときは最新の発言が見える位置から始める
+    if (saved.messages.length > 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      });
+    }
   }
 
   @override
@@ -154,17 +102,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     super.dispose();
   }
 
-  void _onInputChanged() => setState(() {});
-
-  // ---- 会話の操作 ----
-
-  void _add(_Message Function(int id) build) {
-    setState(() => _messages.add(build(_nextId++)));
-    _scrollToEnd();
-  }
-
-  void _system(String text, {String? taskId}) =>
-      _add((id) => _Message(id: id, role: _Role.system, text: text, taskId: taskId));
+  void _onInputChanged() => _chat.setInput(_input.text);
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -177,202 +115,17 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     });
   }
 
-  /// 直近 [_historyLimit] 件の user / assistant の発言（今回の発言は含めない）
-  List<Map<String, String>> _history() {
-    final turns = _messages
-        .where((m) => m.inHistory && m.role != _Role.system && m.text.isNotEmpty)
-        .map((m) => {
-              'role': m.role == _Role.user ? 'user' : 'assistant',
-              'content': m.text,
-            })
-        .toList();
-    return turns.length > _historyLimit
-        ? turns.sublist(turns.length - _historyLimit)
-        : turns;
-  }
+  /// provider 側の変化のうち、画面固有の副作用が要るものを拾う
+  void _onChatChanged(RapiChatState? prev, RapiChatState next) {
+    // 発言が足されたら末尾へスクロールする（足されるときは必ず新しい id が末尾に付く）
+    final prevLast = prev?.messages.lastOrNull?.id ?? -1;
+    final nextLast = next.messages.lastOrNull?.id ?? -1;
+    if (nextLast > prevLast) _scrollToEnd();
 
-  void _setMode(RapiMode mode) {
-    if (_mode == mode) return;
-    setState(() => _mode = mode);
-    if (mode == RapiMode.watch) _loadSurvey();
-  }
-
-  // ---- 送信 ----
-
-  Future<void> _send() async {
-    final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
-
-    final history = _history();
-    final userId = _nextId;
-    _add((id) => _Message(id: id, role: _Role.user, text: text, inHistory: true));
-    setState(() => _sending = true);
-
-    try {
-      switch (_mode) {
-        case RapiMode.chat:
-        case RapiMode.watch:
-          // 見守りモードでも送信は会話と同じ振り分けにする（モード切替の手間を増やさない）
-          await _routeAndHandle(text, history);
-        case RapiMode.create:
-          await _runDraft(text);
-        case RapiMode.ask:
-          await _runAsk(text);
-      }
-      if (!mounted) return;
-      // 成功したときだけ欄を空にする（失敗時は書いた文を残す）。
-      // 送信中に書き足していたらそれは消さない
-      if (_input.text.trim() == text) _input.clear();
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        final i = _messages.indexWhere((m) => m.id == userId);
-        if (i >= 0) _messages[i] = _messages[i].withoutHistory();
-      });
-      _system('送信に失敗しました');
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
-  Future<void> _routeAndHandle(String text, List<Map<String, String>> history) async {
-    final service = ref.read(assistantServiceProvider);
-    final routed = await service.routeIntent(text);
-    if (!mounted) return;
-
-    String took(String where) {
-      final reason = routed.reason;
-      return reason != null && reason.isNotEmpty
-          ? '$whereとして受け取りました — $reason'
-          : '$whereとして受け取りました';
-    }
-
-    switch (routed.intent) {
-      case 'create':
-        _setMode(RapiMode.create);
-        _system(took('タスク作成'));
-        await _runDraft(text);
-      case 'ask':
-        _setMode(RapiMode.ask);
-        _system(took('タスクへの問い合わせ'));
-        await _runAsk(text);
-      case 'watch':
-        _system(took('見守り'));
-        // 送信経由は読み込み完了を待ち、失敗は _send() の失敗処理へ伝える
-        // （_setMode が始めた読み込みがあればそれに合流する）
-        _setMode(RapiMode.watch);
-        await _loadSurvey(propagateError: true);
-      case final String intent when _desktopOnlyIntents.containsKey(intent):
-        _system('「${_desktopOnlyIntents[intent]}」の操作はデスクトップ版で対応しています。'
-            'デスクトップの rapitas でラピに頼んでください。');
-      default:
-        // chat と未振り分けは会話として返す
-        final reply = await service.chat(text, history: history);
-        if (!mounted) return;
-        _add((id) => _Message(
-              id: id,
-              role: _Role.assistant,
-              text: reply.content,
-              inHistory: true,
-            ));
-    }
-  }
-
-  // ---- 作るモード ----
-
-  Future<void> _runDraft(String text) async {
-    final draft = await ref.read(assistantServiceProvider).createDraft(text);
-    if (!mounted) return;
-    setState(() {
-      // 下書きは常に1枚。前の下書きは置き換える
-      _messages.removeWhere((m) => m.draftSlot);
-      _draft = draft;
-      _draftThemeId = draft.themeId;
-      _draftTitle.text = draft.title;
-    });
-    _add((id) => _Message(id: id, role: _Role.assistant, draftSlot: true));
-  }
-
-  void _discardDraft() {
-    setState(() {
-      _messages.removeWhere((m) => m.draftSlot);
-      _draft = null;
-      _draftThemeId = null;
-    });
-  }
-
-  Future<void> _createFromDraft() async {
-    final draft = _draft;
-    final themeId = _draftThemeId;
-    final title = _draftTitle.text.trim();
-    if (draft == null || themeId == null || title.isEmpty || _creating) return;
-
-    setState(() => _creating = true);
-    try {
-      final id = await ref.read(assistantServiceProvider).createTask(
-            title: title,
-            themeId: themeId,
-            description: draft.description,
-            priority: draft.priority,
-            dueDate: draft.dueDate,
-            estimatedHours: draft.estimatedHours,
-            acceptanceCriteria: draft.acceptanceCriteria,
-          );
-      if (!mounted) return;
-      ref.invalidate(taskListProvider);
-      // 作成中に別の下書きへ置き換わっていたら、そちらは消さない
-      if (identical(_draft, draft)) _discardDraft();
-      _system('「$title」を起票しました', taskId: id);
-    } catch (_) {
-      if (!mounted) return;
-      _system('起票に失敗しました。もう一度試してください。');
-    } finally {
-      if (mounted) setState(() => _creating = false);
-    }
-  }
-
-  // ---- 聞くモード ----
-
-  Future<void> _runAsk(String text) async {
-    final answer = await ref.read(assistantServiceProvider).ask(text);
-    if (!mounted) return;
-    _add((id) => _Message(id: id, role: _Role.assistant, answer: answer));
-  }
-
-  // ---- 見守りモード ----
-
-  /// 見守りの読み込み。読み込み中に呼ばれたら進行中のものに合流する。
-  /// [propagateError] が false（チップ・再読み込みボタン）なら失敗はカード内表示だけ、
-  /// true（送信経由）なら失敗を呼び出し元へ投げ直す。
-  Future<void> _loadSurvey({bool propagateError = false}) async {
-    final inFlight = _surveyInFlight ??=
-        _fetchSurvey().whenComplete(() => _surveyInFlight = null);
-    if (propagateError) {
-      await inFlight;
-      return;
-    }
-    try {
-      await inFlight;
-    } catch (_) {
-      // カード内の「見に行けませんでした。」で伝える
-    }
-  }
-
-  Future<void> _fetchSurvey() async {
-    setState(() {
-      _surveyLoading = true;
-      _surveyFailed = false;
-    });
-    try {
-      final survey = await ref.read(assistantServiceProvider).getSupervision();
-      if (!mounted) return;
-      setState(() => _survey = survey);
-    } catch (_) {
-      if (mounted) setState(() => _surveyFailed = true);
-      rethrow;
-    } finally {
-      if (mounted) setState(() => _surveyLoading = false);
-    }
+    // provider が文を書き換えたとき（送信成功で空にする・新しい下書き）だけ欄へ反映する。
+    // 画面での入力は _onInputChanged で provider へ書き戻しているので、ここでは一致する
+    if (_input.text != next.input) _input.text = next.input;
+    if (_draftTitle.text != next.draftTitle) _draftTitle.text = next.draftTitle;
   }
 
   void _openTask(String id) => context.push('/tasks/$id');
@@ -381,18 +134,27 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 挨拶だけの初期状態は、ラピを大きく出してその下に挨拶の吹き出しを置く
+    // （messages は挨拶1件から始まり、送信すると必ず増える）
+    final chat = ref.watch(rapiChatProvider);
+    ref.listen(rapiChatProvider, _onChatChanged);
+    final greetingOnly = chat.messages.length == 1;
     final items = <Widget>[
-      if (_mode == RapiMode.watch) _buildSurveyCard(context),
-      for (final m in _messages) _buildMessage(context, m),
-      if (_sending) const _LoadingBubble(),
+      if (chat.mode == RapiMode.watch) _buildSurveyCard(context, chat),
+      if (greetingOnly)
+        _GreetingHero(text: chat.messages.first.text)
+      else
+        for (final m in chat.messages) _buildMessage(context, chat, m),
+      if (chat.sending) const _LoadingBubble(),
     ];
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         titleSpacing: 0,
         title: const Row(
           children: [
-            _RapiAvatar(size: 32),
+            RapiAvatar(size: 36),
             SizedBox(width: 10),
             Text('ラピ', style: TextStyle(fontWeight: FontWeight.w600)),
           ],
@@ -400,7 +162,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       ),
       body: Column(
         children: [
-          _ModeChips(mode: _mode, onSelected: _setMode),
+          _ModeChips(mode: chat.mode, onSelected: _chat.setMode),
           const Divider(height: 1),
           Expanded(
             child: GestureDetector(
@@ -414,30 +176,34 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
           ),
           _Composer(
             controller: _input,
-            placeholder: _mode.placeholder,
-            canSend: !_sending && _input.text.trim().isNotEmpty,
-            onSend: _send,
+            placeholder: chat.mode.placeholder,
+            canSend: !chat.sending && chat.input.trim().isNotEmpty,
+            onSend: _chat.send,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMessage(BuildContext context, _Message m) {
+  Widget _buildMessage(BuildContext context, RapiChatState chat, RapiMessage m) {
     if (m.draftSlot) {
-      final draft = _draft;
+      final draft = chat.draft;
       if (draft == null) return const SizedBox.shrink();
-      return _bubbleSpacing(_buildDraftCard(context, draft));
+      return _bubbleSpacing(_buildDraftCard(context, chat, draft));
     }
     final answer = m.answer;
-    if (answer != null) return _bubbleSpacing(_AskAnswerCard(answer: answer, onOpen: _openTask));
+    if (answer != null) {
+      return _bubbleSpacing(_RapiRow(child: _AskAnswerCard(answer: answer, onOpen: _openTask)));
+    }
 
     switch (m.role) {
-      case _Role.user:
+      case RapiRole.user:
         return _bubbleSpacing(_Bubble(text: m.text, mine: true));
-      case _Role.assistant:
-        return _bubbleSpacing(_Bubble(text: m.text, mine: false));
-      case _Role.system:
+      case RapiRole.assistant:
+        return _bubbleSpacing(_RapiRow(
+          child: _SpeechBubble(child: _SpeechText(m.text)),
+        ));
+      case RapiRole.system:
         final taskId = m.taskId;
         return _bubbleSpacing(_SystemNote(
           text: m.text,
@@ -449,7 +215,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   Widget _bubbleSpacing(Widget child) =>
       Padding(padding: const EdgeInsets.only(bottom: 10), child: child);
 
-  Widget _buildDraftCard(BuildContext context, TaskDraft draft) {
+  Widget _buildDraftCard(BuildContext context, RapiChatState chat, TaskDraft draft) {
     // テーマの選択肢：下書きの候補 → 無ければテーマ一覧
     var options = draft.themeCandidates;
     if (options.isEmpty) {
@@ -457,9 +223,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       options = [for (final t in themes) RapiThemeRef(id: t.id, name: t.name)];
     }
     final selected =
-        options.any((t) => t.id == _draftThemeId) ? _draftThemeId : null;
+        options.any((t) => t.id == chat.draftThemeId) ? chat.draftThemeId : null;
     final canCreate =
-        selected != null && _draftTitle.text.trim().isNotEmpty && !_creating;
+        selected != null && chat.draftTitle.trim().isNotEmpty && !chat.creating;
 
     final textTheme = Theme.of(context).textTheme;
     const labelStyle = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
@@ -503,7 +269,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: _draftTitle,
-            onChanged: (_) => setState(() {}),
+            onChanged: _chat.setDraftTitle,
             style: const TextStyle(fontSize: 15, color: bodyColor),
             decoration: _fieldDecoration('タイトル'),
           ),
@@ -529,7 +295,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                       child: Text(t.name, overflow: TextOverflow.ellipsis),
                     ),
                 ],
-                onChanged: _creating ? null : (v) => setState(() => _draftThemeId = v),
+                onChanged: chat.creating ? null : _chat.setDraftTheme,
               ),
             ),
           ),
@@ -577,14 +343,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: canCreate ? _createFromDraft : null,
-                  child: Text(_creating ? '起票しています…' : 'この内容で作成'),
+                  onPressed: canCreate ? _chat.createFromDraft : null,
+                  child: Text(chat.creating ? '起票しています…' : 'この内容で作成'),
                 ),
               ),
               const SizedBox(width: 8),
               TextButton(
                 style: TextButton.styleFrom(foregroundColor: const Color(0xFF6B7280)),
-                onPressed: _creating ? null : _discardDraft,
+                onPressed: chat.creating ? null : _chat.discardDraft,
                 child: const Text('やめる'),
               ),
             ],
@@ -615,9 +381,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         ),
       );
 
-  Widget _buildSurveyCard(BuildContext context) {
+  Widget _buildSurveyCard(BuildContext context, RapiChatState chat) {
     final scheme = Theme.of(context).colorScheme;
-    final survey = _survey;
+    final survey = chat.survey;
     final muted = TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
 
     final children = <Widget>[
@@ -628,18 +394,18 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           ),
           TextButton.icon(
-            onPressed: _surveyLoading ? null : _loadSurvey,
-            icon: _surveyLoading
+            onPressed: chat.surveyLoading ? null : _chat.loadSurvey,
+            icon: chat.surveyLoading
                 ? const SizedBox(
                     width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh, size: 18),
-            label: Text(_surveyLoading ? '見ています…' : 'もう一度見る'),
+            label: Text(chat.surveyLoading ? '見ています…' : 'もう一度見る'),
           ),
         ],
       ),
     ];
 
-    if (_surveyFailed) {
+    if (chat.surveyFailed) {
       children.add(Text('見に行けませんでした。', style: TextStyle(fontSize: 13, color: scheme.error)));
     } else if (survey != null) {
       children.add(Padding(
@@ -739,30 +505,6 @@ String _formatHours(double h) =>
 
 // ---- 部品 ----
 
-class _RapiAvatar extends StatelessWidget {
-  final double size;
-
-  const _RapiAvatar({required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(shape: BoxShape.circle, gradient: _rapiGradient),
-      alignment: Alignment.center,
-      child: Text(
-        'ラ',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.45,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
 class _ModeChips extends StatelessWidget {
   final RapiMode mode;
   final ValueChanged<RapiMode> onSelected;
@@ -803,6 +545,7 @@ class _ModeChips extends StatelessWidget {
   }
 }
 
+/// ユーザーの発言（藍色・右寄せ）
 class _Bubble extends StatelessWidget {
   final String text;
   final bool mine;
@@ -836,24 +579,177 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// ラピの発言行：左にラピ、その右に吹き出し（下端揃え）
+class _RapiRow extends StatelessWidget {
+  final Widget child;
+
+  const _RapiRow({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.85 - _rowAvatarSize - _rowAvatarGap;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const RapiAvatar(size: _rowAvatarSize),
+        const SizedBox(width: _rowAvatarGap),
+        Flexible(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SpeechText extends StatelessWidget {
+  final String text;
+
+  const _SpeechText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectableText(
+      text,
+      style: const TextStyle(fontSize: 15, height: 1.45, color: _speechText),
+    );
+  }
+}
+
+/// 尻尾の向き。left は左のラピへ、up は上のラピへ向ける
+enum _TailSide { left, up }
+
+/// ラピの吹き出し（デスクトップ SpeechBubble.tsx の移植）。
+///
+/// 白地＋1px の枠、尻尾はラピの方を向き、尻尾に近い角だけ半径を小さくする
+/// （デスクトップの `14px 14px 5px 14px`。ラピが左にいるので左下が小さい角）。
+/// 尻尾の寸法は TAIL_HALF 9 / TAIL_LENGTH 11。本体と尻尾は一つの輪郭として
+/// 塗ってから枠を引くので、つなぎ目に線が出ない。
+class _SpeechBubble extends StatelessWidget {
+  static const double tailHalf = 9;
+  static const double tailLength = 11;
+
+  final Widget child;
+  final _TailSide tailSide;
+  final EdgeInsets padding;
+
+  const _SpeechBubble({
+    required this.child,
+    this.tailSide = _TailSide.left,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SpeechBubblePainter(tailSide),
+      child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class _SpeechBubblePainter extends CustomPainter {
+  final _TailSide tailSide;
+
+  const _SpeechBubblePainter(this.tailSide);
+
+  static const _big = Radius.circular(14);
+  static const _small = Radius.circular(5);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const half = _SpeechBubble.tailHalf;
+    const len = _SpeechBubble.tailLength;
+    final Path body;
+    final Path tail;
+    switch (tailSide) {
+      case _TailSide.left:
+        body = Path()
+          ..addRRect(RRect.fromRectAndCorners(
+            Offset.zero & size,
+            topLeft: _big,
+            topRight: _big,
+            bottomRight: _big,
+            bottomLeft: _small,
+          ));
+        // 尻尾の先は発言行のアバターの中心の高さ（下端から半分）に向ける
+        final tipY = size.height - _rowAvatarSize / 2;
+        tail = Path()
+          ..moveTo(0.5, tipY - half)
+          ..lineTo(-len, tipY)
+          ..lineTo(0.5, tipY + half)
+          ..close();
+      case _TailSide.up:
+        body = Path()..addRRect(RRect.fromRectAndRadius(Offset.zero & size, _big));
+        final tipX = size.width / 2;
+        tail = Path()
+          ..moveTo(tipX - half, 0.5)
+          ..lineTo(tipX, -len)
+          ..lineTo(tipX + half, 0.5)
+          ..close();
+    }
+    final outline = Path.combine(PathOperation.union, body, tail);
+    canvas.drawPath(outline, Paint()..color = _speechBg);
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = _speechBorder
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpeechBubblePainter oldDelegate) => oldDelegate.tailSide != tailSide;
+}
+
+/// 挨拶だけの初期状態：上部中央にラピ（デスクトップの既定サイズ 88）、その下に挨拶
+class _GreetingHero extends StatelessWidget {
+  final String text;
+
+  const _GreetingHero({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 10),
+      child: Column(
+        children: [
+          const RapiAvatar(size: 88),
+          // 足元の影（88px で約 9px はみ出す）と尻尾の分だけ空ける
+          const SizedBox(height: 10 + 4 + _SpeechBubble.tailLength),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: _SpeechBubble(
+              tailSide: _TailSide.up,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: _SpeechText(text),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LoadingBubble extends StatelessWidget {
   const _LoadingBubble();
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: _bubbleGray,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 10),
+      child: _RapiRow(
+        child: _SpeechBubble(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+          ),
         ),
       ),
     );
@@ -906,8 +802,6 @@ class _AskAnswerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const muted = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
     const body = Color(0xFF18181B);
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.85;
-
     final children = <Widget>[];
     if (!answer.available) {
       children.add(const Text('うまく読み取れませんでした。言い方を変えてみてください。',
@@ -959,19 +853,14 @@ class _AskAnswerCard extends StatelessWidget {
       }
     }
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-          decoration: BoxDecoration(
-            color: _bubbleGray,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
-        ),
+    // 幅と左のラピは _RapiRow が持つ
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: _bubbleGray,
+        borderRadius: BorderRadius.circular(12),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 }
@@ -1018,7 +907,11 @@ class _Composer extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: placeholder,
                     hintMaxLines: 1,
+                    // テーマの filled を切る（角丸の枠の中に灰色の箱が出ないように）
+                    filled: false,
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),

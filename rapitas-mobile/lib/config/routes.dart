@@ -77,6 +77,13 @@ class AppRoutes {
               child: ApprovalsScreen(),
             ),
           ),
+          // ラピ（常駐エージェント）。下タブの最後
+          GoRoute(
+            path: rapi,
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: RapiScreen(),
+            ),
+          ),
         ],
       ),
       // 設定は下タブから外した（ドロワーから push で開く）。戻るボタンは AppBar に任せる
@@ -171,11 +178,6 @@ class AppRoutes {
         path: hypotheses,
         builder: (context, state) => const HypothesesScreen(),
       ),
-      // ラピ（常駐エージェント）。下タブの FAB から push で開く
-      GoRoute(
-        path: rapi,
-        builder: (context, state) => const RapiScreen(),
-      ),
     ],
   );
 }
@@ -191,6 +193,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
     if (location.startsWith(AppRoutes.tasks)) return 1;
     if (location == AppRoutes.executions) return 2;
     if (location == AppRoutes.approvals) return 3;
+    if (location == AppRoutes.rapi) return 4;
     return 0;
   }
 
@@ -199,10 +202,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
     final selectedIndex = _calculateSelectedIndex(context);
     return Scaffold(
       body: child,
-      // NOTE: タスク一覧・実行タブは各画面の Scaffold に右下の FAB を持っていて、
-      // ここで右下（endFloat）に置くと重なる。ラピの入口は全タブで左下に固定する。
-      floatingActionButton: const _RapiFab(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
@@ -218,6 +217,9 @@ class ScaffoldWithNavBar extends StatelessWidget {
               break;
             case 3:
               context.go(AppRoutes.approvals);
+              break;
+            case 4:
+              context.go(AppRoutes.rapi);
               break;
           }
         },
@@ -242,48 +244,12 @@ class ScaffoldWithNavBar extends StatelessWidget {
             selectedIcon: Icon(Icons.approval),
             label: '承認',
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// ラピを開くボタン（紫グラデーションの円に「ラ」）
-class _RapiFab extends StatelessWidget {
-  const _RapiFab();
-
-  static const _gradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'ラピ',
-      child: Material(
-        shape: const CircleBorder(),
-        elevation: 6,
-        clipBehavior: Clip.antiAlias,
-        child: Ink(
-          width: 56,
-          height: 56,
-          decoration: const BoxDecoration(gradient: _gradient),
-          child: InkWell(
-            onTap: () => context.push(AppRoutes.rapi),
-            child: const Center(
-              child: Text(
-                'ラ',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'チャット',
           ),
-        ),
+        ],
       ),
     );
   }
