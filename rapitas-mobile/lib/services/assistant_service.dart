@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'api_client.dart';
 import '../models/rapi.dart';
 
@@ -11,6 +12,34 @@ class AssistantService {
 
   AssistantService(this._client);
 
+  /// assistant 系の受信タイムアウト。/assistant/ask などはデスクトップ側のローカル AI
+  /// （Ollama）の生成を待つので、既定の 30 秒では足りないことがある。
+  static const Duration receiveTimeout = Duration(seconds: 120);
+
+  Future<Response<dynamic>> _post(String path, Object data) =>
+      _guard(() => _client.post(path, data: data, receiveTimeout: receiveTimeout));
+
+  Future<Response<dynamic>> _get(String path) =>
+      _guard(() => _client.get(path, receiveTimeout: receiveTimeout));
+
+  /// タイムアウト系の DioException を [AssistantTimeoutException] に包む
+  /// （画面で一般の送信失敗と言い分けるため）。それ以外はそのまま投げる。
+  static Future<Response<dynamic>> _guard(
+      Future<Response<dynamic>> Function() request) async {
+    try {
+      return await request();
+    } on DioException catch (e) {
+      switch (e.type) {
+        case DioExceptionType.receiveTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.connectionTimeout:
+          throw AssistantTimeoutException(e.type);
+        default:
+          rethrow;
+      }
+    }
+  }
+
   static Map<String, dynamic> _body(dynamic data) {
     if (data is Map) return Map<String, dynamic>.from(data);
     throw const AssistantException('unexpected_response');
@@ -18,18 +47,18 @@ class AssistantService {
 
   /// 文の振り分け先を聞く。振り分けられなければ intent が null。
   Future<RoutedIntent> routeIntent(String text, {bool hasOpenTask = false}) async {
-    final response = await _client.post(
+    final response = await _post(
       '/assistant/route',
-      data: {'text': text, 'hasOpenTask': hasOpenTask},
+      {'text': text, 'hasOpenTask': hasOpenTask},
     );
     return RoutedIntent.fromJson(_body(response.data));
   }
 
   /// 文から下書きを作る（何も作成しない）。
   Future<TaskDraft> createDraft(String text) async {
-    final body = _body((await _client.post(
+    final body = _body((await _post(
       '/assistant/task-draft',
-      data: {'text': text},
+      {'text': text},
     ))
         .data);
     final draft = body['draft'];
@@ -55,9 +84,9 @@ class AssistantService {
   }) async {
     final theme = int.tryParse(themeId);
     if (theme == null) throw const AssistantException('invalid_theme');
-    final body = _body((await _client.post(
+    final body = _body((await _post(
       '/assistant/task-create',
-      data: {
+      {
         'confirmed': true,
         'task': {
           'title': title,
@@ -79,13 +108,13 @@ class AssistantService {
 
   /// タスクへの問い合わせに答える（件数はデータベースが数えたもの）。
   Future<AskAnswer> ask(String text) async {
-    final response = await _client.post('/assistant/ask', data: {'text': text});
+    final response = await _post('/assistant/ask', {'text': text});
     return AskAnswer.fromJson(_body(response.data));
   }
 
   /// 見守り：手当てが要るタスクの棚卸し。
   Future<SupervisionSurvey> getSupervision() async {
-    final response = await _client.get('/assistant/supervision');
+    final response = await _get('/assistant/supervision');
     return SupervisionSurvey.fromJson(_body(response.data));
   }
 
@@ -95,9 +124,9 @@ class AssistantService {
     String message, {
     List<Map<String, String>> history = const [],
   }) async {
-    final body = _body((await _client.post(
+    final body = _body((await _post(
       '/copilot/chat',
-      data: {
+      {
         'message': message,
         'taskId': null,
         'conversationHistory': history,
@@ -118,4 +147,14 @@ class AssistantException implements Exception {
 
   @override
   String toString() => 'AssistantException($code)';
+}
+
+/// assistant 系の要求がタイムアウトした（デスクトップ側の生成が間に合わなかった等）
+class AssistantTimeoutException implements Exception {
+  final DioExceptionType type;
+
+  const AssistantTimeoutException(this.type);
+
+  @override
+  String toString() => 'AssistantTimeoutException(${type.name})';
 }

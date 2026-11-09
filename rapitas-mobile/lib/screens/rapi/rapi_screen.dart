@@ -61,6 +61,10 @@ const _violetButton = Color(0xFF7C3AED);
 /// ラピの発言の本文色（デスクトップ RapiAvatarDock.tsx の light 本文色）
 const _rapiText = Color(0xFF1F2937);
 
+/// ラピの発言カードの地色と枠
+const _rapiCardBg = Color(0xFFFFFFFF);
+const _rapiCardBorder = Color(0xFFE4E4E7);
+
 /// 発言どうしの間隔
 const double _messageGap = 14;
 
@@ -629,7 +633,28 @@ class _UserMessage extends StatelessWidget {
   }
 }
 
-/// ラピの発言：枠もアバターもない全幅のプレーンテキスト（左右の余白は一覧の 16）
+/// ラピの発言を載せる白いカード（全幅・尻尾なし・アバターなし。左右の余白は一覧の 16）
+class _RapiCard extends StatelessWidget {
+  final Widget child;
+
+  const _RapiCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: _rapiCardBg,
+        border: Border.all(color: _rapiCardBorder),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// ラピの発言：全幅の白いカードに本文
 class _RapiMessage extends StatelessWidget {
   final String text;
 
@@ -637,8 +662,7 @@ class _RapiMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
+    return _RapiCard(
       child: SelectableText(
         text,
         style: const TextStyle(fontSize: 15, height: 1.6, color: _rapiText),
@@ -647,7 +671,7 @@ class _RapiMessage extends StatelessWidget {
   }
 }
 
-/// 送信中の行：小さなスピナー＋「考え中…」
+/// 送信中の行：ラピの発言と同じ白いカードに、小さなスピナー＋「考え中…」
 class _ThinkingRow extends StatelessWidget {
   const _ThinkingRow();
 
@@ -656,16 +680,18 @@ class _ThinkingRow extends StatelessWidget {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: _messageGap),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
-          ),
-          const SizedBox(width: 8),
-          Text('考え中…', style: TextStyle(fontSize: 14, color: muted)),
-        ],
+      child: _RapiCard(
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
+            ),
+            const SizedBox(width: 8),
+            Text('考え中…', style: TextStyle(fontSize: 14, color: muted)),
+          ],
+        ),
       ),
     );
   }
