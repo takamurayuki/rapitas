@@ -5,6 +5,7 @@ import '../../providers/settings_provider.dart';
 import 'agent_config_accordion.dart';
 import 'connection_section.dart';
 import 'voice_mode_tile.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -17,10 +18,11 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('設定'),
+        actions: const [VoiceModeIndicator()],
       ),
       body: ListView(
-        // 最後の項目まで、左下の音声操作の聞き取り表示（40 + 余白）に隠れずに見えるだけ空ける
-        padding: EdgeInsets.only(bottom: 72 + MediaQuery.paddingOf(context).bottom),
+        // 最後の項目がホームインジケーターに掛からないよう、下端の安全領域＋余白を空ける
+        padding: EdgeInsets.only(bottom: 16 + MediaQuery.paddingOf(context).bottom),
         children: [
           const _SectionTitle('デスクトップとの接続'),
           const ConnectionSection(),

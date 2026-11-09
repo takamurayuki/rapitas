@@ -104,8 +104,8 @@ const double _glassButtonTapSize = 48;
 /// （フェードはバーの下端までで終わるので、この余白の中の発言は薄くならない）
 const double _topFade = 16;
 
-/// 一覧の下端の余白。左下の音声操作の聞き取り表示（40 + 上下の余白）に最後の発言が隠れないだけ空ける
-const double _listBottomPadding = 60;
+/// 一覧の下端の余白（最後の発言と入力欄の間）
+const double _listBottomPadding = 16;
 
 class RapiScreen extends ConsumerStatefulWidget {
   const RapiScreen({super.key});
@@ -330,6 +330,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
             .copyWith(statusBarColor: Colors.transparent),
         leading: const _GlassMenuButton(),
         title: const _RapiTitle(),
+        // 音声操作モードの聞き取り表示（アプリの操作。モードがオフなら出ない）。右端に置き、
+        // 丸の中心は左のガラスのボタンと左右対称（画面端から 28px）。中央のラピとは離れている。
+        // 入力欄のマイク（ラピへの発話）とは役割が違い、マイクが動いている間は常時聞き取りが止まる
+        actions: const [VoiceModeIndicator()],
       ),
       body: Column(
         children: [
@@ -368,13 +372,6 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                       );
                     }),
                   ),
-                ),
-                // 音声操作モードの聞き取り表示（アプリの操作。モードがオフなら出ない）。
-                // 入力欄のマイク（ラピへの発話）とは役割が違い、マイクが動いている間は常時聞き取りが止まる
-                const Positioned(
-                  left: 16,
-                  bottom: 10,
-                  child: VoiceModeIndicator(),
                 ),
               ],
             ),

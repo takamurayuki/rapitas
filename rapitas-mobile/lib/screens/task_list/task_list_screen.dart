@@ -14,6 +14,7 @@ import '../../utils/constants.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/voice_scroll_target.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class TaskListScreen extends ConsumerStatefulWidget {
   const TaskListScreen({super.key});
@@ -156,7 +157,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         ),
         // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
         // 検索モード中は作成用FABを出さない。
-        // NOTE: 音声操作は設定の音声操作モード（常時聞き取り）から。聞き取り表示はシェル側の左下
+        // NOTE: 音声操作は設定の音声操作モード（常時聞き取り）から。聞き取り表示はタイトルバーのアイコンの左隣
         floatingActionButton: _searchMode
             ? null
             : FloatingActionButton(
@@ -172,6 +173,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     return AppBar(
       title: const Text('タスク'),
       actions: [
+        const VoiceModeIndicator(trailing: false),
         IconButton(
           icon: const Icon(Icons.search),
           tooltip: '検索',
@@ -213,6 +215,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         },
       ),
       actions: [
+        // 右にクリアが無いときは右端になるので、右端用の余白を取る
+        VoiceModeIndicator(trailing: _searchController.text.isEmpty),
         if (_searchController.text.isNotEmpty)
           IconButton(
             icon: const Icon(Icons.clear),

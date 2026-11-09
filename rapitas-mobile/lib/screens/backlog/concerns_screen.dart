@@ -7,6 +7,7 @@ import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/centered_message.dart';
 import 'backlog_widgets.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -53,6 +54,7 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
       appBar: AppBar(
         title: const Text('懸念'),
         actions: [
+          const VoiceModeIndicator(trailing: false),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: '懸念を追加',

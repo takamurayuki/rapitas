@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +21,7 @@ import 'package:rapitas_mobile/services/theme_service.dart';
 import 'package:rapitas_mobile/services/voice_mode_listener.dart';
 import 'package:rapitas_mobile/services/voice_route_tracker.dart';
 import 'package:rapitas_mobile/widgets/voice_mode_host.dart';
+import 'package:rapitas_mobile/widgets/voice_mode_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 端末の聞き取りの偽物（常時聞き取り・シート・チャットのマイクが、交通整理を通して共有する）
@@ -316,7 +319,10 @@ void main() {
       await settle(tester);
       expect(listener().isListening, isFalse);
       expect(speech.active, isFalse);
-      expect(indicator, findsNothing, reason: 'キーボード表示中は表示も隠す');
+      // タイトルバーはキーボード表示中も残るので、表示は出したまま「一時停止」になる
+      expect(indicator, findsOneWidget);
+      expect(listener().status, VoiceModeStatus.paused);
+      expect(find.byKey(const ValueKey('voice-mode-dot-paused')), findsOneWidget);
 
       tester.view.resetViewInsets();
       await settle(tester);
@@ -488,29 +494,157 @@ void main() {
       '/dashboard',
     ];
 
-    for (final path in routes) {
-      testWidgets('$path：音声ボタンは無く、聞き取り表示は 40px 以内で右下の FAB・下タブと重ならない', (tester) async {
+    /// 聞き取り表示が入っている AppBar
+    Finder appBarOfIndicator() => find.ancestor(of: indicator, matching: find.byType(AppBar));
+
+    for (final path in [...routes, '/ideas/new', '/concerns/new', '/themes/new', '/categories/new']) {
+      testWidgets('$path：聞き取り表示はタイトルバーの既存アイコンの左隣（無ければ右端）にあり、ほかの要素と重ならない（左下には無い）',
+          (tester) async {
         await pumpApp(tester, path);
         expect(find.byKey(const ValueKey('voice-command-fab')), findsNothing);
         expect(find.byIcon(Icons.settings_voice), findsNothing);
         expect(indicator, findsOneWidget);
+
+        // タイトルバーの中にある（左下の浮いた表示は無くなった）
+        final bar = appBarOfIndicator();
+        expect(bar, findsOneWidget, reason: 'AppBar の中に置く');
+        for (final scaffold in tester.widgetList<Scaffold>(find.byType(Scaffold))) {
+          expect(scaffold.floatingActionButton, isNot(isA<VoiceModeIndicator>()), reason: 'FAB の枠には置かない');
+        }
+
         final rect = tester.getRect(indicator);
-        expect(rect.width, lessThanOrEqualTo(40));
-        expect(rect.height, lessThanOrEqualTo(40));
-        expect(rect.center.dx, lessThan(100), reason: '左下に置く');
+        final screen = tester.getRect(find.byType(MaterialApp).first);
+        final barRect = tester.getRect(bar);
+        final dot = tester.getRect(find.byKey(ValueKey('voice-mode-dot-${listener().status.name}')));
+        expect(rect.width, VoiceModeIndicator.hitSize);
+        expect(rect.height, VoiceModeIndicator.hitSize);
+        expect(dot.width, VoiceModeIndicator.dotSize);
+        final appBar = tester.widget<AppBar>(bar);
+        // actions の先頭に置く。ほかのアクションはすべて表示の右に並び、最後のものは従来どおり画面の右端まで
+        final actions = appBar.actions!;
+        expect(actions.first, isA<VoiceModeIndicator>(), reason: 'actions の先頭');
+        final rest = actions.skip(1).toList();
+        if (rest.isEmpty) {
+          // アイコンの無い画面：右端。丸の中心は画面の右端から 28px
+          expect(rect.center.dx, closeTo(screen.right - 28, 0.01), reason: '右端に置く');
+        } else {
+          final rects = [for (final a in rest) tester.getRect(find.descendant(of: bar, matching: find.byWidget(a)))];
+          for (final r in rects) {
+            expect(r.left, greaterThanOrEqualTo(rect.right), reason: '既存のアイコンは表示の右に並ぶ');
+          }
+          expect(rects.last.right, closeTo(screen.right, 0.01), reason: '既存のアイコンの右端は従来どおり');
+          expect(rect.center.dx, closeTo(rects.first.left - VoiceModeIndicator.slotWidth / 2, 0.01),
+              reason: '先頭のアイコンのすぐ左隣');
+        }
+        // 上下はバーの帯（ステータスバーの下）の中央
+        final toolbar = tester.widget<AppBar>(bar).toolbarHeight ?? kToolbarHeight;
+        expect(rect.center.dy, closeTo(barRect.bottom - toolbar / 2, 0.01));
+        expect(barRect.contains(rect.topLeft) && barRect.contains(rect.bottomRight - const Offset(0.01, 0.01)), isTrue);
+
+        // 同じバーの既存の操作（ボタン類・戻る・ハンバーガー）とタイトルに重ならない。
+        // leading 側（戻る・ハンバーガー・キャンセル）は表示より左、actions 側は右
+        final others = find.descendant(
+          of: bar,
+          matching: find.byWidgetPredicate((w) =>
+              w is IconButton || w is ButtonStyleButton || w is PopupMenuButton || w is BackButton || w is DrawerButton),
+        );
+        for (final element in others.evaluate()) {
+          final box = element.renderObject! as RenderBox;
+          final other = box.localToGlobal(Offset.zero) & box.size;
+          expect(rect.overlaps(other), isFalse, reason: '${element.widget.runtimeType} と重ならない');
+          expect(other.right <= rect.left || other.left >= rect.right, isTrue);
+        }
+        if (appBar.leading != null) {
+          final lead = tester.getRect(find.descendant(of: bar, matching: find.byWidget(appBar.leading!)));
+          expect(lead.right, lessThanOrEqualTo(rect.left), reason: 'leading は従来どおり左');
+        }
+        final title = tester.widget<AppBar>(bar).title;
+        if (title != null) {
+          final titleRect = tester.getRect(find.descendant(of: bar, matching: find.byWidget(title)));
+          expect(rect.overlaps(titleRect), isFalse, reason: 'タイトルと重ならない');
+          expect(titleRect.left, lessThan(rect.left), reason: 'タイトルは従来どおり左');
+        }
         for (final fab in tester.widgetList<FloatingActionButton>(find.byType(FloatingActionButton))) {
           expect(rect.overlaps(tester.getRect(find.byWidget(fab))), isFalse);
-        }
-        final nav = find.byType(NavigationBar);
-        if (nav.evaluate().isNotEmpty) {
-          expect(rect.overlaps(tester.getRect(nav)), isFalse);
         }
       });
     }
 
+    testWidgets('ホーム：ダッシュボードのアイコンは無く、並びは［音声表示・ベル］', (tester) async {
+      await pumpApp(tester, '/');
+      final bar = appBarOfIndicator();
+      expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+      expect(find.byIcon(Icons.dashboard), findsNothing);
+      final actions = tester.widget<AppBar>(bar).actions!;
+      expect(actions, hasLength(2));
+      expect(actions[0], isA<VoiceModeIndicator>());
+      final bell = find.descendant(of: bar, matching: find.byIcon(Icons.notifications_outlined));
+      expect(bell, findsOneWidget);
+      expect(tester.getRect(bell).left, greaterThan(tester.getRect(indicator).right));
+      // ベルの行き先は従来どおり
+      await tester.tap(bell);
+      await settle(tester);
+      expect(location(), AppRoutes.notifications);
+    });
+
+    testWidgets('タスクの検索バー：クリアがあればその左隣、無ければ右端', (tester) async {
+      await pumpApp(tester, '/tasks');
+      await tester.tap(find.byTooltip('検索'));
+      await settle(tester);
+      final screen = tester.getRect(find.byType(MaterialApp).first);
+      expect(tester.getRect(indicator).center.dx, closeTo(screen.right - 28, 0.01));
+      await tester.enterText(find.byType(TextField), 'abc');
+      await settle(tester);
+      final clear = tester.getRect(find.widgetWithIcon(IconButton, Icons.clear));
+      expect(clear.right, closeTo(screen.right, 0.01), reason: 'クリアは従来どおり右端');
+      expect(tester.getRect(indicator).right, lessThanOrEqualTo(clear.left));
+    });
+
+    testWidgets('ラピ画面：アバター・名前・ガラスのボタンと重ならず、ボタンと左右対称', (tester) async {
+      await pumpApp(tester, '/rapi');
+      final rect = tester.getRect(indicator);
+      final bar = tester.widget<AppBar>(appBarOfIndicator());
+      expect(bar.toolbarHeight, 92);
+      final leading = tester.getRect(find.byWidget(bar.leading!));
+      final title = tester.getRect(find.byWidget(bar.title!));
+      final screen = tester.getRect(find.byType(MaterialApp).first);
+      expect(rect.overlaps(leading), isFalse);
+      expect(rect.overlaps(title), isFalse);
+      expect(leading.center.dx - screen.left, closeTo(screen.right - rect.center.dx, 0.01), reason: '左右対称');
+      expect(rect.center.dy, closeTo(leading.center.dy, 0.01), reason: '高さもボタンと揃う');
+      // 入力欄の上（本文）にはもう無い。タイトルバーの中の1つだけ
+      expect(indicator, findsOneWidget);
+    });
+
+    for (final path in ['/', '/rapi', '/settings', '/themes']) {
+      testWidgets('$path：右端の表示をタップするとコマンドシートが開く', (tester) async {
+        await pumpApp(tester, path);
+        await tester.tap(indicator);
+        await settle(tester);
+        expect(sheet, findsOneWidget);
+        expect(listener().status, VoiceModeStatus.working);
+        await tester.tap(find.byKey(const ValueKey('voice-close')));
+        await settle(tester);
+        expect(sheet, findsNothing);
+        expectBackgroundListening();
+      });
+    }
+
+    testWidgets('モードがオフならどの画面のタイトルバーにも出ず、幅も取らない', (tester) async {
+      await pumpApp(tester, '/', modeOn: false);
+      for (final path in routes) {
+        router.go(path);
+        await settle(tester);
+        expect(indicator, findsNothing, reason: path);
+        for (final element in find.byType(VoiceModeIndicator).evaluate()) {
+          expect((element.renderObject! as RenderBox).size.width, 0, reason: '$path：右端に空きを作らない');
+        }
+      }
+    });
+
     testWidgets('開始はできても失敗で終わり続けたら「使えない」表示にし、普通に終われば戻す', (tester) async {
       await pumpApp(tester, '/tasks');
-      final mark = find.descendant(of: indicator, matching: find.byIcon(Icons.mic_off));
+      final mark = find.descendant(of: indicator, matching: find.byKey(const ValueKey('voice-mode-slash')));
       for (var i = 1; i <= 3; i++) {
         expectBackgroundListening();
         speech.end(DictationEnd.failed); // 始まった直後に認識エラーで終わる
@@ -568,6 +702,130 @@ void main() {
       expect(indicator, findsNothing);
     });
   });
+
+  group('ランプ（状態ごとの描画）', () {
+    Future<void> pumpDot(WidgetTester tester, VoiceModeStatus status) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: Center(child: VoiceModeDot(status: status, onTap: () {}))),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    BoxDecoration decorationOf(WidgetTester tester, VoiceModeStatus status) {
+      final box = tester.widget<DecoratedBox>(find
+          .descendant(of: find.byKey(ValueKey('voice-mode-dot-${status.name}')), matching: find.byType(DecoratedBox))
+          .first);
+      return box.decoration as BoxDecoration;
+    }
+
+    const effects = ['voice-mode-breathe', 'voice-mode-ripple', 'voice-mode-spin', 'voice-mode-question', 'voice-mode-slash'];
+    const expected = {
+      VoiceModeStatus.listening: ('voice-mode-breathe', VoiceModeDot.indigo),
+      VoiceModeStatus.hearing: ('voice-mode-ripple', VoiceModeDot.green),
+      VoiceModeStatus.working: ('voice-mode-spin', null),
+      VoiceModeStatus.ignored: ('voice-mode-question', VoiceModeDot.orange),
+      VoiceModeStatus.paused: (null, VoiceModeDot.grey),
+      VoiceModeStatus.unavailable: ('voice-mode-slash', VoiceModeDot.darkGrey),
+    };
+
+    for (final entry in expected.entries) {
+      final status = entry.key;
+      final (effect, color) = entry.value;
+      testWidgets('${status.name}：アイコンを使わず、色と動きだけで表す', (tester) async {
+        await pumpDot(tester, status);
+        final dot = find.byKey(ValueKey('voice-mode-dot-${status.name}'));
+        expect(dot, findsOneWidget);
+        // マイク等のアイコンは一切使わない
+        expect(find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Icon)), findsNothing);
+        for (final icon in [Icons.mic, Icons.mic_none, Icons.mic_off, Icons.graphic_eq, Icons.settings_voice]) {
+          expect(find.byIcon(icon), findsNothing);
+        }
+        // 大きさは従来どおり（丸 30・タップ範囲 40）
+        expect(tester.getSize(dot), const Size.square(VoiceModeIndicator.dotSize));
+        expect(tester.getSize(find.byKey(const ValueKey('voice-mode-indicator'))),
+            const Size.square(VoiceModeIndicator.hitSize));
+        // その状態の動き・印だけがある
+        for (final key in effects) {
+          expect(find.byKey(ValueKey(key)), key == effect ? findsOneWidget : findsNothing, reason: key);
+        }
+        if (color != null) expect(decorationOf(tester, status).color, color);
+        // 「？」以外の文字は出さない
+        final texts = tester.widgetList<Text>(find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Text)));
+        expect(texts.map((t) => t.data), status == VoiceModeStatus.ignored ? ['?'] : isEmpty);
+      });
+    }
+
+    testWidgets('聞き取り中はゆっくり明滅し、一時停止・使えない・？は静止', (tester) async {
+      await pumpDot(tester, VoiceModeStatus.listening);
+      double opacity() => tester.widget<FadeTransition>(find.byKey(const ValueKey('voice-mode-breathe'))).opacity.value;
+      final samples = <double>[];
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        samples.add(opacity());
+      }
+      expect(samples.reduce(math.max), greaterThan(0.9));
+      expect(samples.reduce(math.min), lessThan(0.55));
+      // 速くしない：明るい→暗いに 1 秒以上かける
+      expect(VoiceModeDot.breatheHalf, greaterThanOrEqualTo(const Duration(seconds: 1)));
+      expect(VoiceModeDot.spinCycle, greaterThanOrEqualTo(const Duration(seconds: 1)));
+
+      for (final still in [VoiceModeStatus.paused, VoiceModeStatus.unavailable, VoiceModeStatus.ignored]) {
+        await pumpDot(tester, still);
+        expect(tester.hasRunningAnimations, isFalse, reason: still.name);
+      }
+    });
+
+    testWidgets('実行中は紫の輪、声が届いている間は緑の輪が動き続ける', (tester) async {
+      for (final moving in [VoiceModeStatus.working, VoiceModeStatus.hearing]) {
+        await pumpDot(tester, moving);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(tester.hasRunningAnimations, isTrue, reason: moving.name);
+      }
+    });
+
+    testWidgets('動いている間の描き直しはランプの中だけ（外側は描き直さない）', (tester) async {
+      for (final moving in [VoiceModeStatus.listening, VoiceModeStatus.hearing, VoiceModeStatus.working]) {
+        final outer = _CountingPainter();
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: CustomPaint(
+                painter: outer,
+                child: VoiceModeDot(key: ValueKey(moving), status: moving, onTap: () {}),
+              ),
+            ),
+          ),
+        ));
+        await tester.pump(const Duration(milliseconds: 300));
+        // 動きの部分は RepaintBoundary の内側にある
+        final boundary = find.byKey(const ValueKey('voice-mode-lamp-boundary'));
+        expect(tester.widget(boundary), isA<RepaintBoundary>());
+        final effect = switch (moving) {
+          VoiceModeStatus.listening => 'voice-mode-breathe',
+          VoiceModeStatus.hearing => 'voice-mode-ripple',
+          _ => 'voice-mode-spin',
+        };
+        expect(find.descendant(of: boundary, matching: find.byKey(ValueKey(effect))), findsOneWidget, reason: moving.name);
+        final before = outer.count;
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(tester.hasRunningAnimations, isTrue, reason: moving.name);
+        expect(outer.count, before, reason: '${moving.name}：ランプの外側まで描き直している');
+      }
+    });
+  });
+}
+
+/// 描かれた回数を数える（ランプの外側が描き直されていないかの確認用）
+class _CountingPainter extends CustomPainter {
+  int count = 0;
+
+  @override
+  void paint(Canvas canvas, Size size) => count++;
+
+  @override
+  bool shouldRepaint(_CountingPainter old) => false;
 }
 
 class _DeniedSpeech implements DictationService {

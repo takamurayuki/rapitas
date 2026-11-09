@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/date_formatter.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -14,6 +15,7 @@ class NotificationsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知'),
+        actions: const [VoiceModeIndicator()],
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(notificationListProvider),

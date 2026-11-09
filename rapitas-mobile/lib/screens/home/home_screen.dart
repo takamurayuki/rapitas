@@ -11,6 +11,7 @@ import '../../providers/service_providers.dart';
 import '../../services/sse_service.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/voice_mode_indicator.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Rapitas Mobile'),
         actions: [
+          const VoiceModeIndicator(trailing: false),
           IconButton(
             icon: Badge(
               isLabelVisible: unreadCount > 0,
@@ -31,10 +33,6 @@ class HomeScreen extends ConsumerWidget {
               child: const Icon(Icons.notifications_outlined),
             ),
             onPressed: () => context.push(AppRoutes.notifications),
-          ),
-          IconButton(
-            icon: const Icon(Icons.dashboard_outlined),
-            onPressed: () => context.push(AppRoutes.dashboard),
           ),
         ],
       ),
