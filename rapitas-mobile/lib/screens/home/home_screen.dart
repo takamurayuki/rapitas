@@ -10,6 +10,7 @@ import '../../providers/connection_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/sse_service.dart';
 import '../../widgets/task_card.dart';
+import '../../widgets/app_drawer.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
     final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Rapitas Mobile'),
         actions: [

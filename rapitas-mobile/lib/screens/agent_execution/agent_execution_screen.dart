@@ -9,6 +9,7 @@ import '../../services/voice_command_parser.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/voice_input_sheet.dart';
 import '../../widgets/execution_log_viewer.dart';
+import '../../widgets/app_drawer.dart';
 
 /// 実行中のタスクと、中断されて再開できる実行の2セクション。
 /// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
@@ -35,6 +36,7 @@ class AgentExecutionScreen extends ConsumerWidget {
         resumable.isEmpty;
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('エージェント実行'),
         actions: [
