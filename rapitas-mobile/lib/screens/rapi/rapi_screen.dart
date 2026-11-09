@@ -71,7 +71,8 @@ const double _glassButtonSize = 40;
 /// ガラス風ボタンのタップ領域（標準の最小 48×48。円の外側の余白も押せる）
 const double _glassButtonTapSize = 48;
 
-/// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
+/// 静止時の一覧の上端で、バーの下端から先頭の発言までに空ける余白
+/// （フェードはバーの下端までで終わるので、この余白の中の発言は薄くならない）
 const double _topFade = 16;
 
 class RapiScreen extends ConsumerStatefulWidget {
@@ -154,10 +155,15 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       if (chat.sending) const _ThinkingRow(),
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       drawer: const AppDrawer(),
+      // 本文をバーの裏側まで伸ばす。上へ流れた発言は、ラピとガラス風ボタンの裏を透けて見えながら流れる
+      // （バーは本文より手前に重なるので、ボタンとラピのタップはこれまでどおり効く）
+      extendBodyBehindAppBar: true,
       // 会話エリアを広く取るため、ラピはヒーローではなくタイトル欄に置く。
-      // この画面ではバーの帯に見せないよう、AppBar を透明にしてページの地色と一体にし、
+      // この画面ではバーの帯に見せないよう、AppBar を完全に透明にし、
       // ラピとガラス風ボタンだけが浮いて見えるようにする（スクロール時の色付き・影も消す）
       appBar: AppBar(
         centerTitle: true,
@@ -167,30 +173,44 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         shadowColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        // 地色が透明だと AppBar は「暗い背景」と推定して白い時計・電池を出すため、
+        // ページの明るさに合わせて明示する（ステータスバー自体は透明のまま）
+        systemOverlayStyle: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+            .copyWith(statusBarColor: Colors.transparent),
         leading: const _GlassMenuButton(),
         title: const _RapiTitle(),
       ),
       body: Column(
         children: [
           Expanded(
-            child: GestureDetector(
-              onTap: () => FocusScope.of(context).unfocus(),
-              // 上へ流れた発言がタイトル欄の真下でぶつ切りに見えないよう、上端を短くフェードさせる
-              child: ShaderMask(
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (rect) => LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: const [Colors.transparent, Colors.black],
-                  stops: [0, rect.height == 0 ? 0 : (_topFade / rect.height).clamp(0.0, 1.0)],
-                ).createShader(rect),
-                child: ListView(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(16, _topFade, 16, 12),
-                  children: items,
+            // extendBodyBehindAppBar の本文では、MediaQuery の上の余白が
+            // 「ステータスバー＋バーの高さ」になる（＝バーの下端の位置）
+            child: Builder(builder: (context) {
+              final barBottom = MediaQuery.paddingOf(context).top;
+              return GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                // 上へ流れた発言がぶつ切りに見えないよう、画面の最上部で透明、
+                // バーの下端で通常の濃さになるようにフェードさせる（バーの裏を通る範囲も含む）
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: const [Colors.transparent, Colors.black],
+                    stops: [
+                      0,
+                      rect.height == 0 ? 0 : (barBottom / rect.height).clamp(0.0, 1.0),
+                    ],
+                  ).createShader(rect),
+                  child: ListView(
+                    controller: _scroll,
+                    // 静止時に先頭の発言がラピに隠れないよう、バーの下端＋余白から並べ始める
+                    padding: EdgeInsets.fromLTRB(16, barBottom + _topFade, 16, 12),
+                    children: items,
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
           _Composer(
             controller: _input,
