@@ -104,15 +104,90 @@ void main() {
     });
   });
 
-  group('RapiChatNotifier の送信失敗', () {
-    Future<String> lastSystemText(Object askResult) async {
-      final client = _FakeApiClient({'/assistant/ask': askResult});
-      final container = ProviderContainer(overrides: [
-        assistantServiceProvider.overrideWithValue(AssistantService(client)),
-      ]);
-      addTearDown(container.dispose);
+  ProviderContainer containerFor(_FakeApiClient client) {
+    final container = ProviderContainer(overrides: [
+      assistantServiceProvider.overrideWithValue(AssistantService(client)),
+    ]);
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  group('RapiChatNotifier の振り分け', () {
+    test('振り分けなしは /copilot/chat の会話として返す', () async {
+      final client = _FakeApiClient({
+        '/assistant/route': {'routed': false},
+        '/copilot/chat': {'success': true, 'content': 'こんにちは'},
+      });
+      final container = containerFor(client);
+      final notifier = container.read(rapiChatProvider.notifier)..setInput('やあ');
+
+      await notifier.send();
+
+      final state = container.read(rapiChatProvider);
+      expect(state.messages.last.role, RapiRole.assistant);
+      expect(state.messages.last.text, 'こんにちは');
+      expect(state.input, isEmpty);
+      expect(state.surveyVisible, isFalse);
+    });
+
+    test('watch に振り分けたら見守りを読み込んでカードを出す', () async {
+      final client = _FakeApiClient({
+        '/assistant/route': {'routed': true, 'intent': 'watch'},
+        '/assistant/supervision': {'total': 0, 'categories': []},
+      });
+      final container = containerFor(client);
+      expect(container.read(rapiChatProvider).surveyVisible, isFalse);
       final notifier = container.read(rapiChatProvider.notifier)
-        ..setMode(RapiMode.ask)
+        ..setInput('止まっているものある？');
+
+      await notifier.send();
+
+      final state = container.read(rapiChatProvider);
+      expect(state.survey?.total, 0);
+      expect(state.surveyVisible, isTrue);
+      expect(state.messages.last.text, '見守りとして受け取りました');
+    });
+
+    test('ask に振り分けたら問い合わせの回答を足す', () async {
+      final client = _FakeApiClient({
+        '/assistant/route': {'routed': true, 'intent': 'ask'},
+        '/assistant/ask': {'available': true, 'total': 0, 'rows': []},
+      });
+      final container = containerFor(client);
+      final notifier = container.read(rapiChatProvider.notifier)
+        ..setInput('ブロックされているタスクは？');
+
+      await notifier.send();
+
+      final state = container.read(rapiChatProvider);
+      expect(state.messages.last.answer?.total, 0);
+      expect(state.surveyVisible, isFalse);
+    });
+
+    test('デスクトップのみの振り分け先はデスクトップ版の案内を出す', () async {
+      final client = _FakeApiClient({
+        '/assistant/route': {'routed': true, 'intent': 'tidy'},
+      });
+      final container = containerFor(client);
+      final notifier = container.read(rapiChatProvider.notifier)..setInput('片付けて');
+
+      await notifier.send();
+
+      final last = container.read(rapiChatProvider).messages.last;
+      expect(last.role, RapiRole.system);
+      expect(last.text, contains('デスクトップ版で対応しています'));
+    });
+  });
+
+  group('RapiChatNotifier の送信失敗', () {
+    // ask に振り分けたあとの /assistant/ask が失敗するケース
+    Future<String> lastSystemText(Object askResult) async {
+      final client = _FakeApiClient({
+        '/assistant/route': {'routed': true, 'intent': 'ask'},
+        '/assistant/ask': askResult,
+      });
+      final container = containerFor(client);
+      final notifier = container.read(rapiChatProvider.notifier)
         ..setInput('ブロックされているタスクは？');
 
       await notifier.send();

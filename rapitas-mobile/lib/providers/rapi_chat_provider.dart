@@ -12,12 +12,12 @@ import 'task_provider.dart';
 // ここで状態へ反映するので捨てられない。
 //
 // NOTE: 永続化はしない。アプリを終了すると会話は消える。
-
-enum RapiMode { chat, create, ask, watch }
+// NOTE: モード（会話／作る／聞く／見守り）の切り替えは無い。送った文は毎回
+// /assistant/route で振り分け、作成・問い合わせ・見守りはその結果で出し分ける。
 
 enum RapiRole { user, assistant, system }
 
-/// 会話の1件。[draftSlot] は下書きカードの置き場所、[answer] は聞くモードの回答。
+/// 会話の1件。[draftSlot] は下書きカードの置き場所、[answer] は問い合わせの回答。
 class RapiMessage {
   final int id;
   final RapiRole role;
@@ -55,13 +55,12 @@ const Object _unset = Object();
 
 class RapiChatState {
   final List<RapiMessage> messages;
-  final RapiMode mode;
 
   /// 入力欄の文（未送信）。画面の TextEditingController と同期する
   final String input;
   final bool sending;
 
-  // 作るモード：いま確認待ちの下書き
+  // タスク作成：いま確認待ちの下書き
   final TaskDraft? draft;
   final String? draftThemeId;
 
@@ -69,14 +68,13 @@ class RapiChatState {
   final String draftTitle;
   final bool creating;
 
-  // 見守りモード
+  // 見守り（振り分けで watch になったときに読み込む）
   final SupervisionSurvey? survey;
   final bool surveyLoading;
   final bool surveyFailed;
 
   const RapiChatState({
     required this.messages,
-    this.mode = RapiMode.chat,
     this.input = '',
     this.sending = false,
     this.draft,
@@ -90,7 +88,6 @@ class RapiChatState {
 
   RapiChatState copyWith({
     List<RapiMessage>? messages,
-    RapiMode? mode,
     String? input,
     bool? sending,
     Object? draft = _unset,
@@ -103,7 +100,6 @@ class RapiChatState {
   }) =>
       RapiChatState(
         messages: messages ?? this.messages,
-        mode: mode ?? this.mode,
         input: input ?? this.input,
         sending: sending ?? this.sending,
         draft: identical(draft, _unset) ? this.draft : draft as TaskDraft?,
@@ -115,6 +111,9 @@ class RapiChatState {
         surveyLoading: surveyLoading ?? this.surveyLoading,
         surveyFailed: surveyFailed ?? this.surveyFailed,
       );
+
+  /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
+  bool get surveyVisible => survey != null || surveyLoading || surveyFailed;
 }
 
 /// v1 では実装していない振り分け先（デスクトップのモード名）
@@ -148,7 +147,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         id: _nextId++,
         role: RapiRole.assistant,
         text: 'ぼくは rapitas 専属のエージェント、ラピです。今日は何をしますか？'
-            'やりたいことを下の欄にそのまま書いてください。',
+            'やりたいことを下の欄にそのまま書いてください。'
+            'タスクを作る・状況を聞く・見守りの一覧を見る、といったことも文章で頼めます。',
       ),
     ]);
   }
@@ -182,12 +182,6 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     state = state.copyWith(input: text);
   }
 
-  void setMode(RapiMode mode) {
-    if (state.mode == mode) return;
-    state = state.copyWith(mode: mode);
-    if (mode == RapiMode.watch) loadSurvey();
-  }
-
   // ---- 送信 ----
 
   Future<void> send() async {
@@ -200,16 +194,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     state = state.copyWith(sending: true);
 
     try {
-      switch (state.mode) {
-        case RapiMode.chat:
-        case RapiMode.watch:
-          // 見守りモードでも送信は会話と同じ振り分けにする（モード切替の手間を増やさない）
-          await _routeAndHandle(text, history);
-        case RapiMode.create:
-          await _runDraft(text);
-        case RapiMode.ask:
-          await _runAsk(text);
-      }
+      await _routeAndHandle(text, history);
       // 成功したときだけ欄を空にする（失敗時は書いた文を残す）。
       // 送信中に書き足していたらそれは消さない
       if (state.input.trim() == text) state = state.copyWith(input: '');
@@ -237,18 +222,15 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
 
     switch (routed.intent) {
       case 'create':
-        setMode(RapiMode.create);
         _system(took('タスク作成'));
         await _runDraft(text);
       case 'ask':
-        setMode(RapiMode.ask);
         _system(took('タスクへの問い合わせ'));
         await _runAsk(text);
       case 'watch':
         _system(took('見守り'));
-        // 送信経由は読み込み完了を待ち、失敗は send() の失敗処理へ伝える
-        // （setMode が始めた読み込みがあればそれに合流する）
-        setMode(RapiMode.watch);
+        // 読み込み完了を待ち、失敗は send() の失敗処理へ伝える
+        // （再読み込みボタンが始めた読み込みがあればそれに合流する）
         await loadSurvey(propagateError: true);
       case final String intent when _desktopOnlyIntents.containsKey(intent):
         _system('「${_desktopOnlyIntents[intent]}」の操作はデスクトップ版で対応しています。'
@@ -265,7 +247,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     }
   }
 
-  // ---- 作るモード ----
+  // ---- タスク作成 ----
 
   Future<void> _runDraft(String text) async {
     final draft = await ref.read(assistantServiceProvider).createDraft(text);
@@ -322,17 +304,17 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     }
   }
 
-  // ---- 聞くモード ----
+  // ---- 問い合わせ ----
 
   Future<void> _runAsk(String text) async {
     final answer = await ref.read(assistantServiceProvider).ask(text);
     _add((id) => RapiMessage(id: id, role: RapiRole.assistant, answer: answer));
   }
 
-  // ---- 見守りモード ----
+  // ---- 見守り ----
 
   /// 見守りの読み込み。読み込み中に呼ばれたら進行中のものに合流する。
-  /// [propagateError] が false（チップ・再読み込みボタン）なら失敗はカード内表示だけ、
+  /// [propagateError] が false（カードの再読み込みボタン）なら失敗はカード内表示だけ、
   /// true（送信経由）なら失敗を呼び出し元へ投げ直す。
   Future<void> loadSurvey({bool propagateError = false}) async {
     final inFlight = _surveyInFlight ??=
