@@ -44,6 +44,9 @@ dependencies:
   collection: ^1.18.0
   connectivity_plus: ^6.1.1
 
+  # ラピのアバター（assets/rapi_avatar.svg）
+  flutter_svg: ^2.0.17
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,3 +58,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/rapi_avatar.svg

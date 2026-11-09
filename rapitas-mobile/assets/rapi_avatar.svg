@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="134" viewBox="0 0 120 134">
+  <!--
+    ラピ (idle, light) — static export of rapitas-frontend RapiAvatar.tsx.
+    Values: RAPI_AVATAR_TOKENS (body.light, trackOpacity.light, shadowOpacity.light, eye),
+    RING / BODY / EYES / SHADOW / PLUS geometry, idle eye rx 4.3 / ry 5.8.
+    SMIL animation and the startle CSS are omitted (still image).
+    The character's box is 0 0 120 120 as in the original. The original draws the
+    shadow outside it (overflow: visible); renderers clip to the viewBox, so the
+    viewBox here is extended downward to 134 to keep the shadow (cy 127 + ry 5.5).
+    No coordinate was changed.
+  -->
+  <defs>
+    <clipPath id="rapi-front" clipPathUnits="userSpaceOnUse">
+      <rect x="-30" y="70" width="180" height="60"/>
+    </clipPath>
+    <radialGradient id="rapi-shadow">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.17"/>
+      <stop offset="55%" stop-color="#000000" stop-opacity="0.0935"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 0. shadow -->
+  <ellipse cx="60" cy="127" rx="23" ry="5.5" fill="url(#rapi-shadow)"/>
+
+  <!-- 1. ring (back) -->
+  <g transform="rotate(-18 60 70)">
+    <g>
+      <ellipse cx="60" cy="70" rx="54" ry="17" fill="none" stroke="#6366F1" stroke-width="1" opacity="0.22"/>
+    </g>
+  </g>
+
+  <!-- 2-3. body and eyes -->
+  <circle cx="60" cy="70" r="37" fill="#6366F1"/>
+  <ellipse cx="48" cy="72" rx="4.3" ry="5.8" fill="#FFFFFF"/>
+  <ellipse cx="72" cy="72" rx="4.3" ry="5.8" fill="#FFFFFF"/>
+
+  <!-- 4. ring (front half only) -->
+  <g transform="rotate(-18 60 70)">
+    <g clip-path="url(#rapi-front)">
+      <ellipse cx="60" cy="70" rx="54" ry="17" fill="none" stroke="#6366F1" stroke-width="1" opacity="0.22"/>
+    </g>
+  </g>
+
+  <!-- 5. "+" badge -->
+  <g transform="translate(84 22) rotate(15) scale(0.9)">
+    <rect x="-10" y="-3.6" width="20" height="7.2" rx="3.6" ry="3.6" fill="#6366F1"/>
+    <rect x="-3.6" y="-10" width="7.2" height="20" rx="3.6" ry="3.6" fill="#6366F1"/>
+  </g>
+</svg>
