@@ -54,16 +54,22 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 const double _messageGap = 14;
 
 /// AppBar のタイトルに載せるラピのアバター（土台や円形の切り抜きは付けず、本体をそのまま出す。
-/// SVG は背景が透過なので、AppBar の地色がそのまま見える）
-const double _titleAvatarSize = 52;
+/// SVG は背景が透過なので、ページの地色がそのまま見える）。本体の円は直径約40px
+const double _titleAvatarSize = 64;
 
 /// 足元の影は本体の箱の下にはみ出して描かれる（assets/rapi_avatar.svg の viewBox 120×134）。
 /// 名前と重ならないよう、影の分まで高さを取る
 const double _titleAvatarHeight = _titleAvatarSize * 134 / 120;
 
 /// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より高くする
-/// （アバター約58 ＋ 間隔1 ＋ 名前12 ≈ 71 に上下の余白を足す）
-const double _rapiToolbarHeight = 76;
+/// （アバター約71.5 ＋ 間隔1 ＋ 名前12 ≈ 85 に上下の余白を足す）
+const double _rapiToolbarHeight = 92;
+
+/// ドロワーを開く丸いガラス風ボタンの直径（見た目の円）
+const double _glassButtonSize = 40;
+
+/// ガラス風ボタンのタップ領域（標準の最小 48×48。円の外側の余白も押せる）
+const double _glassButtonTapSize = 48;
 
 /// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
 const double _topFade = 16;
@@ -150,10 +156,18 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     return Scaffold(
       drawer: const AppDrawer(),
-      // 会話エリアを広く取るため、ラピはヒーローではなくタイトル欄に置く
+      // 会話エリアを広く取るため、ラピはヒーローではなくタイトル欄に置く。
+      // この画面ではバーの帯に見せないよう、AppBar を透明にしてページの地色と一体にし、
+      // ラピとガラス風ボタンだけが浮いて見えるようにする（スクロール時の色付き・影も消す）
       appBar: AppBar(
         centerTitle: true,
         toolbarHeight: _rapiToolbarHeight,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: const _GlassMenuButton(),
         title: const _RapiTitle(),
       ),
       body: Column(
@@ -534,6 +548,63 @@ class _RapiTitle extends StatelessWidget {
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.2, color: muted),
         ),
       ],
+    );
+  }
+}
+
+/// この画面の AppBar の leading：ドロワーを開く丸いガラス風ボタン
+/// （半透明の白の円＋明るい白の細い縁＋ごく薄い影の上に ☰）。動作は標準のハンバーガーと同じ。
+/// 見た目の円は直径40だが、IconButton の padded タップ領域で 48×48 を押せるようにする
+/// （余白へのタップは円に回され、波紋は円の中に出る）
+class _GlassMenuButton extends StatelessWidget {
+  const _GlassMenuButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox.square(
+        dimension: _glassButtonTapSize,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // ごく薄い影は円の大きさ（40）に合わせて下に敷く
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x0F000000), // 黒 α0.06
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: SizedBox.square(dimension: _glassButtonSize),
+            ),
+            IconButton(
+              tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+              onPressed: () => Scaffold.of(context).openDrawer(),
+              icon: const Icon(Icons.menu),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.55),
+                foregroundColor: _rapiText,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.9)),
+                shape: const CircleBorder(),
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                fixedSize: const Size.square(_glassButtonSize),
+                minimumSize: const Size.square(_glassButtonSize),
+                maximumSize: const Size.square(_glassButtonSize),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                visualDensity: VisualDensity.standard,
+                elevation: 0,
+                shadowColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
