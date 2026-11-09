@@ -11,30 +11,18 @@ import '../../widgets/rapi_avatar.dart';
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
 //
 // ラピは汎用チャットボットではなく「ユーザーがやること／ラピがやること」の境界を
-// 守るエージェント。モードは専用 API に対応していて、会話モードで送った文は
-// まず /assistant/route で振り分ける。v1 で実装するのは 会話・作る・聞く・見守り。
-// それ以外の振り分け先（consult/tidy/roadmap/change）は「デスクトップ版で対応」と
-// 正直に伝え、会話でごまかさない。
+// 守るエージェント。モードの切り替えは置かず、送った文は毎回 /assistant/route で
+// 振り分ける。v1 で扱う振り分け先は 作成（下書きカード）・問い合わせ（回答カード）・
+// 見守り（一覧の先頭のカード）と、振り分けなしの会話。それ以外の振り分け先
+// （consult/tidy/roadmap/change）は「デスクトップ版で対応」と正直に伝え、会話でごまかさない。
 //
 // NOTE: 会話の状態と送信処理は rapiChatProvider（providers/rapi_chat_provider.dart）が持つ。
 // /rapi は下部タブで、タブを切り替えるとこの画面は破棄されるため。画面に残すのは
 // 入力欄の TextEditingController とスクロールだけ。会話はアプリを終了すると消える。
 // NOTE: routes.dart は import しない（循環を避けるためパスは文字列で書く）。
 
-extension on RapiMode {
-  String get label => switch (this) {
-        RapiMode.chat => '会話',
-        RapiMode.create => '作る',
-        RapiMode.ask => '聞く',
-        RapiMode.watch => '見守り',
-      };
-
-  String get placeholder => switch (this) {
-        RapiMode.chat || RapiMode.watch => 'やりたいことをそのまま書いてください',
-        RapiMode.create => 'やりたいことを書いてください（例: 緊急 アバターを直す 2時間）',
-        RapiMode.ask => '例: ブロックされているタスクは？',
-      };
-}
+/// 入力欄のヒント文
+const String _placeholder = 'やりたいことをそのまま書いてください';
 
 const Map<String, String> _statusLabels = {
   'todo': '未着手',
@@ -65,9 +53,12 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 /// 発言どうしの間隔
 const double _messageGap = 14;
 
-/// AppBar のタイトルに載せるラピのアバター（円形の白い半透明の土台と、その中の本体）
-const double _titleAvatarBase = 46;
+/// AppBar のタイトルに載せるラピのアバター（土台や円形の切り抜きは付けず、本体をそのまま出す）
 const double _titleAvatarSize = 40;
+
+/// 足元の影は本体の箱の下にはみ出して描かれる（assets/rapi_avatar.svg の viewBox 120×134）。
+/// 名前と重ならないよう、影の分まで高さを取る
+const double _titleAvatarHeight = _titleAvatarSize * 134 / 120;
 
 /// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より少し高くする
 const double _rapiToolbarHeight = 66;
@@ -150,7 +141,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
     final items = <Widget>[
-      if (chat.mode == RapiMode.watch) _buildSurveyCard(context, chat),
+      if (chat.surveyVisible) _buildSurveyCard(context, chat),
       for (final m in chat.messages) _buildMessage(context, chat, m),
       if (chat.sending) const _ThinkingRow(),
     ];
@@ -165,12 +156,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       ),
       body: Column(
         children: [
-          _ModeChips(mode: chat.mode, onSelected: _chat.setMode),
-          const Divider(height: 1),
           Expanded(
             child: GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
-              // 上へ流れた発言がモードチップの真下でぶつ切りに見えないよう、上端を短くフェードさせる
+              // 上へ流れた発言がタイトル欄の真下でぶつ切りに見えないよう、上端を短くフェードさせる
               child: ShaderMask(
                 blendMode: BlendMode.dstIn,
                 shaderCallback: (rect) => LinearGradient(
@@ -189,7 +178,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
           ),
           _Composer(
             controller: _input,
-            placeholder: chat.mode.placeholder,
+            placeholder: _placeholder,
             canSend: !chat.sending && chat.input.trim().isNotEmpty,
             onSend: _chat.send,
           ),
@@ -516,47 +505,7 @@ String _formatHours(double h) =>
 
 // ---- 部品 ----
 
-class _ModeChips extends StatelessWidget {
-  final RapiMode mode;
-  final ValueChanged<RapiMode> onSelected;
-
-  const _ModeChips({required this.mode, required this.onSelected});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        children: [
-          for (final m in RapiMode.values)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(m.label),
-                selected: m == mode,
-                showCheckmark: false,
-                selectedColor: _violetBg,
-                side: BorderSide(
-                  color: m == mode ? _violetBorder : Theme.of(context).colorScheme.outlineVariant,
-                ),
-                labelStyle: TextStyle(
-                  fontSize: 13,
-                  color: m == mode ? _violetButton : null,
-                  fontWeight: m == mode ? FontWeight.w600 : FontWeight.normal,
-                ),
-                shape: const StadiumBorder(),
-                onSelected: (_) => onSelected(m),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// AppBar のタイトル：円形のアバターと、その真下に小さく名前
+/// AppBar のタイトル：ラピ本体（足元の影ごと）と、その真下に小さく名前
 class _RapiTitle extends StatelessWidget {
   const _RapiTitle();
 
@@ -567,14 +516,13 @@ class _RapiTitle extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 白の半透明の円に本体を載せ、足元の影ごと円で切る
-        ClipOval(
-          child: Container(
-            width: _titleAvatarBase,
-            height: _titleAvatarBase,
-            color: Colors.white.withValues(alpha: 0.55),
-            alignment: Alignment.center,
-            child: const RapiAvatar(size: _titleAvatarSize),
+        // 本体を足元の影ごとそのまま出す（土台・円形の切り抜きなし）
+        const SizedBox(
+          width: _titleAvatarSize,
+          height: _titleAvatarHeight,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: RapiAvatar(size: _titleAvatarSize),
           ),
         ),
         const SizedBox(height: 1),
