@@ -65,6 +65,14 @@ class ApiClient {
     return _dio.patch<T>(path, data: data);
   }
 
+  /// NOTE: 仮説の状態上書き（PUT /hypotheses/:id/status）のように PUT しか受けない API 用
+  Future<Response<T>> put<T>(
+    String path, {
+    dynamic data,
+  }) {
+    return _dio.put<T>(path, data: data);
+  }
+
   Future<Response<T>> delete<T>(String path) {
     return _dio.delete<T>(path);
   }

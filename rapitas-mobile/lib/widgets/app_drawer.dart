@@ -8,35 +8,34 @@ import '../services/sse_service.dart';
 
 // NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → 各画面 → このファイル
 // という import の循環を作らないよう、ここでは routes.dart を import せず文字列で持つ。
-const String _home = '/';
-const String _tasks = '/tasks';
 const String _themes = '/themes';
+const String _categories = '/categories';
+const String _ideas = '/ideas';
+const String _concerns = '/concerns';
+const String _hypotheses = '/hypotheses';
 const String _dashboard = '/dashboard';
-const String _executions = '/executions';
-const String _approvals = '/approvals';
 const String _notifications = '/notifications';
 const String _settings = '/settings';
 
-/// ドロワーの1項目
+/// ドロワーの1項目。どれもシェル外の画面なので context.push で開く。
 class _DrawerDestination {
   final String label;
   final IconData icon;
   final String path;
 
-  /// true なら context.push（シェル外の画面）、false なら context.go（タブ）
-  final bool push;
-
-  const _DrawerDestination(this.label, this.icon, this.path, {this.push = false});
+  const _DrawerDestination(this.label, this.icon, this.path);
 }
 
+// NOTE: 下タブ（ホーム／タスク／実行／承認）にある画面はここに入れない（重複させない）。
+// ドロワーは下タブ以外の画面への入口。
 const List<_DrawerDestination> _destinations = [
-  _DrawerDestination('ホーム', Icons.home, _home),
-  _DrawerDestination('タスク', Icons.task_alt, _tasks),
-  _DrawerDestination('テーマ', Icons.palette, _themes, push: true),
-  _DrawerDestination('ダッシュボード', Icons.dashboard, _dashboard, push: true),
-  _DrawerDestination('実行', Icons.play_circle_outline, _executions),
-  _DrawerDestination('承認', Icons.fact_check_outlined, _approvals),
-  _DrawerDestination('通知', Icons.notifications_outlined, _notifications, push: true),
+  _DrawerDestination('テーマ', Icons.palette, _themes),
+  _DrawerDestination('カテゴリ', Icons.folder_outlined, _categories),
+  _DrawerDestination('アイデア', Icons.lightbulb_outline, _ideas),
+  _DrawerDestination('懸念', Icons.report_problem_outlined, _concerns),
+  _DrawerDestination('仮説', Icons.science_outlined, _hypotheses),
+  _DrawerDestination('ダッシュボード', Icons.dashboard, _dashboard),
+  _DrawerDestination('通知', Icons.notifications_outlined, _notifications),
   _DrawerDestination('設定', Icons.settings_outlined, _settings),
 ];
 
@@ -45,14 +44,15 @@ const int _notificationsIndex = 6;
 
 /// 現在のパスに対応するドロワー項目のインデックス。該当なしは -1。
 ///
-/// タスクは一覧配下（/tasks/123 など）もタスク項目として扱う（下部ナビと同じ）。
+/// 下タブの画面（/、/tasks 配下、/executions、/approvals）はドロワーに無いので -1。
+/// 一覧の配下（/themes/new、/ideas/new など）は一覧項目として扱わない（完全一致のみ）。
 int drawerSelectedIndex(String location) {
-  if (location == _home) return 0;
-  if (location == _tasks || location.startsWith('$_tasks/')) return 1;
-  if (location == _themes) return 2;
-  if (location == _dashboard) return 3;
-  if (location == _executions) return 4;
-  if (location == _approvals) return 5;
+  if (location == _themes) return 0;
+  if (location == _categories) return 1;
+  if (location == _ideas) return 2;
+  if (location == _concerns) return 3;
+  if (location == _hypotheses) return 4;
+  if (location == _dashboard) return 5;
   if (location == _notifications) return 6;
   if (location == _settings) return 7;
   return -1;
@@ -101,11 +101,7 @@ class AppDrawer extends ConsumerWidget {
     // このドロワーを持つ Scaffold を直接閉じる
     Scaffold.maybeOf(context)?.closeDrawer();
     if (isCurrent) return;
-    if (destination.push) {
-      router.push(destination.path);
-    } else {
-      router.go(destination.path);
-    }
+    router.push(destination.path);
   }
 }
 

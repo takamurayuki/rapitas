@@ -41,6 +41,10 @@ class _FakeApiClient implements ApiClient {
       _respond<T>(path);
 
   @override
+  Future<Response<T>> put<T>(String path, {dynamic data}) async =>
+      _respond<T>(path);
+
+  @override
   Future<Response<T>> delete<T>(String path) async => _respond<T>(path);
 
   @override

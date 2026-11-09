@@ -195,7 +195,12 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(themeListProvider),
+        onRefresh: () async {
+          ref.invalidate(themeListProvider);
+          try {
+            await ref.read(themeListProvider.future);
+          } catch (_) {}
+        },
         child: themesAsync.when(
           data: (themes) {
             if (themes.isEmpty) {

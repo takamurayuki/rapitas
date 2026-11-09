@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
 import '../services/api_client.dart';
+import '../services/backlog_service.dart';
 import '../services/category_service.dart';
 import '../services/task_service.dart';
 import '../services/agent_service.dart';
@@ -49,6 +50,10 @@ final themeServiceProvider = Provider<ThemeService>((ref) {
 
 final categoryServiceProvider = Provider<CategoryService>((ref) {
   return CategoryService(ref.watch(apiClientProvider));
+});
+
+final backlogServiceProvider = Provider<BacklogService>((ref) {
+  return BacklogService(ref.watch(apiClientProvider));
 });
 
 /// SSE 接続。接続設定が変わるとサービスごと作り直し、新しい接続先へ繋ぎ直す。

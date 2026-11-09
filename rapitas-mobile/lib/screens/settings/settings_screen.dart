@@ -4,7 +4,6 @@ import '../../providers/agent_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'agent_config_accordion.dart';
 import 'connection_section.dart';
-import '../../widgets/app_drawer.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -15,7 +14,6 @@ class SettingsScreen extends ConsumerWidget {
     final agentConfigsAsync = ref.watch(agentConfigsProvider);
 
     return Scaffold(
-      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('設定'),
       ),
