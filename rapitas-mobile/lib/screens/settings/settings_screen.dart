@@ -4,6 +4,7 @@ import '../../providers/agent_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'agent_config_accordion.dart';
 import 'connection_section.dart';
+import 'voice_mode_tile.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -18,6 +19,8 @@ class SettingsScreen extends ConsumerWidget {
         title: const Text('設定'),
       ),
       body: ListView(
+        // 最後の項目まで、左下の音声操作の聞き取り表示（40 + 余白）に隠れずに見えるだけ空ける
+        padding: EdgeInsets.only(bottom: 72 + MediaQuery.paddingOf(context).bottom),
         children: [
           const _SectionTitle('デスクトップとの接続'),
           const ConnectionSection(),
@@ -65,6 +68,9 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _selectTheme(context, ref, themeMode),
           ),
+          const Divider(),
+          const _SectionTitle('音声操作'),
+          const VoiceModeTile(),
           const Divider(),
           const _SectionTitle('情報'),
           const ListTile(

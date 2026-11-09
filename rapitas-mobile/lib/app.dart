@@ -5,6 +5,7 @@ import 'config/theme.dart';
 import 'providers/pairing_provider.dart';
 import 'providers/realtime_refresh_provider.dart';
 import 'providers/settings_provider.dart';
+import 'widgets/voice_mode_host.dart';
 
 class RapitasMobileApp extends ConsumerWidget {
   const RapitasMobileApp({super.key});
@@ -24,6 +25,11 @@ class RapitasMobileApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: AppRoutes.router,
+      // 音声操作モードの常時聞き取り（設定でオンにしたときだけ聞く）
+      builder: (context, child) => VoiceModeHost(
+        router: AppRoutes.router,
+        child: child ?? const SizedBox.shrink(),
+      ),
       locale: const Locale('ja', 'JP'),
     );
   }

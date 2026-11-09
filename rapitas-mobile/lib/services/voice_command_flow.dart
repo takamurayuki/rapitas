@@ -26,6 +26,12 @@ import 'voice_command_parser.dart';
 // 答えは声でもタップでも同じ入口（answer）に入る。
 // データの取得・変更は各画面が使っているプロバイダ／サービスをそのまま使う（新しい API は無い）。
 // 画面の移動・シートを閉じる・スナックバーなど、シートの外のことは VoiceUi 経由で行う。
+//
+// 入口は3つ：
+// - start()：シートを開いて聞き取りから始める（聞き取り表示のタップ）
+// - start(initialText:)：音声操作モードの常時聞き取りで確定した文を、解釈済みの状態から続ける（シートあり）
+// - runDirect()：常時聞き取りの文を、シートを開かずにそのまま実行する（移動・スクロール・検索・絞り込みなど）。
+//   途中で聞き返し・確認・選択が要ると分かったら、何も変えずに止めて「シートが要る」と返す
 
 /// シートの段階
 enum VoiceFlowPhase {
@@ -99,6 +105,9 @@ class VoiceTaskListHook {
 class _Stop implements Exception {}
 
 class _Cancelled implements Exception {}
+
+/// シートなしの実行で、聞き返し・確認・選択が要るところまで来た
+class _NeedsSheet implements Exception {}
 
 class _Failure implements Exception {
   final String message;
@@ -182,6 +191,25 @@ class VoiceCommandFlow extends ChangeNotifier {
   /// 「ラピに送るか」にどちらとも取れない答えが続いた回数
   int _rapiAsks = 0;
 
+  /// シートなしで実行している（runDirect）
+  bool _direct = false;
+
+  /// シートを開かずにそのまま実行できるコマンドか（画面の移動・スクロール・検索・絞り込み・開く）。
+  /// データを変えるもの・聞き返しが要るもの・ヘルプはシートで行う。
+  /// NOTE: ここに入っていても、対象の選択や確認が要ると分かったら runDirect がシートへ回す
+  static bool runsDirectly(VoiceCommand command) => const {
+        VoiceCommandType.navigate,
+        VoiceCommandType.back,
+        VoiceCommandType.close,
+        VoiceCommandType.scrollDown,
+        VoiceCommandType.scrollUp,
+        VoiceCommandType.searchTasks,
+        VoiceCommandType.filterTasks,
+        VoiceCommandType.clearFilter,
+        VoiceCommandType.themeTasks,
+        VoiceCommandType.openTask,
+      }.contains(command.type);
+
   bool get isDisposed => _disposed;
 
   /// 声の答えを待っているか（聞き取りが止まっていれば「もう一度話す」を出す）
@@ -189,11 +217,46 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   // ---- シートからの操作 ----
 
-  /// 聞き取りを始める（シートを開いたとき1回）
-  void start() {
+  /// 聞き取りを始める（シートを開いたとき1回）。
+  /// [initialText] があれば、それを聞き取ったコマンドとして解釈から続ける（常時聞き取りの文）
+  void start({String? initialText}) {
     if (_started) return;
     _started = true;
-    _guard(() => _commandTurn());
+    final text = initialText?.trim() ?? '';
+    if (text.isEmpty) {
+      _guard(() => _commandTurn());
+      return;
+    }
+    _guard(() async {
+      _resetCommand();
+      heard = text;
+      _notify();
+      await _handleCommandText(text);
+    });
+  }
+
+  /// 確定した文をシートなしで実行する（音声操作モードの常時聞き取り）。
+  /// 実行し終えた（失敗はスナックバーで出した）なら true。
+  /// 聞き返し・確認・選択が要るなら、データも画面も変えずに false を返す（呼ぶ側がシートを開く）
+  Future<bool> runDirect(String text) async {
+    if (_started) return true;
+    _started = true;
+    _direct = true;
+    heard = text.trim();
+    try {
+      await _handleCommandText(heard);
+    } on _NeedsSheet {
+      return false;
+    } on _Failure catch (e) {
+      ui.showMessage(e.message);
+    } on _Stop {
+      // 破棄された
+    } on _Cancelled {
+      // シートなしで止める操作は無い
+    } catch (e) {
+      ui.showMessage('うまく実行できませんでした: $e');
+    }
+    return true;
   }
 
   /// タップでの答え（候補の番号・はい／いいえ・ラピへ送る）
@@ -260,6 +323,7 @@ class VoiceCommandFlow extends ChangeNotifier {
     List<String> choices = const [],
     bool keepView = false,
   }) async {
+    if (_direct) throw _NeedsSheet();
     if (_disposed || _sheetClosed) throw _Stop();
     if (!keepView) {
       this.phase = phase;
@@ -360,12 +424,16 @@ class VoiceCommandFlow extends ChangeNotifier {
     }
   }
 
-  Future<void> _commandTurn() async {
+  void _resetCommand() {
     interpretation = null;
     note = null;
     unknownText = null;
     helpLines = const [];
     _defaulted = false;
+  }
+
+  Future<void> _commandTurn() async {
+    _resetCommand();
     final text = await _hear(
       phase: VoiceFlowPhase.listening,
       prompt: 'コマンドを話してください（「ヘルプ」で使えるコマンドを表示）',
@@ -405,11 +473,7 @@ class VoiceCommandFlow extends ChangeNotifier {
         return;
       }
     }
-    interpretation = null;
-    note = null;
-    unknownText = null;
-    helpLines = const [];
-    _defaulted = false;
+    _resetCommand();
     await _handleCommandText(text);
   }
 
@@ -992,6 +1056,8 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   /// データを変える操作。結果をシートに出し、成功ならスナックバーにも残して少し後に閉じる
   Future<void> _perform(Future<String> Function() action, {required String failure}) async {
+    // シートなしではデータを変えない（runsDirectly に入れていない操作の守り）
+    if (_direct) throw _NeedsSheet();
     // 取得や確認の待ちの間に閉じられていたら、データは変えない
     _ensureOpen();
     phase = VoiceFlowPhase.running;
@@ -1019,6 +1085,13 @@ class VoiceCommandFlow extends ChangeNotifier {
   /// シートの外の操作（移動・スクロールなど）。解釈を少し見せてからシートを閉じ、操作する。
   /// [act] の戻り値はスナックバーに出す文（null なら出さない）
   Future<void> _outside(String doing, String? Function() act) async {
+    if (_direct) {
+      // シートなし：すぐに操作して、結果だけスナックバーで出す
+      _ensureOpen();
+      final message = act();
+      if (message != null) ui.showMessage(message);
+      return;
+    }
     phase = VoiceFlowPhase.done;
     prompt = doing;
     choices = const [];
