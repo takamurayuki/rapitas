@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
-import '../../providers/connection_provider.dart';
 import '../../providers/rapi_chat_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
@@ -67,6 +66,10 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 
 /// 発言どうしの間隔
 const double _messageGap = 14;
+
+/// AppBar のタイトルに載せるラピのアバター（円形の白い半透明の土台と、その中の本体）
+const double _titleAvatarBase = 34;
+const double _titleAvatarSize = 28;
 
 /// 会話エリア上端のフェードの高さ（一覧の上の余白も同じにして、先頭の発言は薄くならない）
 const double _topFade = 16;
@@ -141,7 +144,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ラピ本人は会話の上の固定のヒーロー（中央のアバター＋名前＋接続状態）に出し、
+    // ラピ本人は AppBar のタイトル位置（アバター＋名前＋接続状態）の1か所だけに出し、
     // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
@@ -153,17 +156,16 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     return Scaffold(
       drawer: const AppDrawer(),
-      appBar: AppBar(title: const Text('チャット')),
+      // 会話エリアを広く取るため、ラピはヒーローではなくタイトル欄に置く
+      appBar: AppBar(centerTitle: true, title: const _RapiTitle()),
       body: Column(
         children: [
           _ModeChips(mode: chat.mode, onSelected: _chat.setMode),
           const Divider(height: 1),
-          // スクロールさせず、常に会話の上に見せる
-          const _RapiHero(),
           Expanded(
             child: GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
-              // 上へ流れた発言がヒーローの真下でぶつ切りに見えないよう、上端を短くフェードさせる
+              // 上へ流れた発言がモードチップの真下でぶつ切りに見えないよう、上端を短くフェードさせる
               child: ShaderMask(
                 blendMode: BlendMode.dstIn,
                 shaderCallback: (rect) => LinearGradient(
@@ -549,57 +551,70 @@ class _ModeChips extends StatelessWidget {
   }
 }
 
-/// 会話の上に固定するラピ：中央にアバター、その下に名前と接続状態
-class _RapiHero extends ConsumerWidget {
-  const _RapiHero();
+/// AppBar のタイトル：左に円形のアバター、右に名前と接続状態の2行
+class _RapiTitle extends ConsumerWidget {
+  const _RapiTitle();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ホームの接続ステータス帯と同じプロバイダ・文言を使う
+    // ホームの接続ステータス帯と同じプロバイダを使う（文言はタイトル用に短い形だけ・端末名は出さない）
     final sseState = ref.watch(sseConnectionStateProvider).valueOrNull ?? SseConnectionState.idle;
-    final desktopName = ref.watch(connectionSettingsProvider.select((s) => s.desktopName));
     final (Color dotColor, String label) = switch (sseState) {
-      SseConnectionState.connected => (Colors.green, '接続中（${desktopName ?? 'デスクトップ'}）'),
+      SseConnectionState.connected => (Colors.green, '接続中'),
       SseConnectionState.connecting => (Colors.orange, '接続しています'),
       SseConnectionState.reconnecting => (Colors.orange, '再接続しています'),
-      SseConnectionState.unauthorized => (Colors.grey, '未接続（QRコードでつなぎ直してください）'),
-      SseConnectionState.idle => (Colors.grey, '未接続'),
+      SseConnectionState.unauthorized || SseConnectionState.idle => (Colors.grey, '未接続'),
     };
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Column(
-        children: [
-          const RapiAvatar(size: 64),
-          // 足元の影（64px で約 7px はみ出す）の分も空ける
-          const SizedBox(height: 14),
-          const Text(
-            'ラピ',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _rapiText),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 白の半透明の円に本体を載せ、足元の影ごと円で切る
+        ClipOval(
+          child: Container(
+            width: _titleAvatarBase,
+            height: _titleAvatarBase,
+            color: Colors.white.withValues(alpha: 0.55),
+            alignment: Alignment.center,
+            child: const RapiAvatar(size: _titleAvatarSize),
           ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+              const Text(
+                'ラピ',
+                maxLines: 1,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, height: 1.2),
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: muted),
-                ),
+              const SizedBox(height: 1),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, height: 1.2, color: muted),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
