@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/api_config.dart';
 import '../services/api_client.dart';
+import '../services/assistant_service.dart';
 import '../services/backlog_service.dart';
 import '../services/category_service.dart';
 import '../services/task_service.dart';
@@ -54,6 +55,11 @@ final categoryServiceProvider = Provider<CategoryService>((ref) {
 
 final backlogServiceProvider = Provider<BacklogService>((ref) {
   return BacklogService(ref.watch(apiClientProvider));
+});
+
+/// ラピ（/assistant/*・/copilot/chat）
+final assistantServiceProvider = Provider<AssistantService>((ref) {
+  return AssistantService(ref.watch(apiClientProvider));
 });
 
 /// SSE 接続。接続設定が変わるとサービスごと作り直し、新しい接続先へ繋ぎ直す。

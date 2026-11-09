@@ -19,6 +19,7 @@ import '../screens/backlog/idea_form_screen.dart';
 import '../screens/backlog/concerns_screen.dart';
 import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
+import '../screens/rapi/rapi_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -42,6 +43,7 @@ class AppRoutes {
   static const String concerns = '/concerns';
   static const String concernsNew = '/concerns/new';
   static const String hypotheses = '/hypotheses';
+  static const String rapi = '/rapi';
 
   static final GoRouter router = GoRouter(
     initialLocation: home,
@@ -169,6 +171,11 @@ class AppRoutes {
         path: hypotheses,
         builder: (context, state) => const HypothesesScreen(),
       ),
+      // ラピ（常駐エージェント）。下タブの FAB から push で開く
+      GoRoute(
+        path: rapi,
+        builder: (context, state) => const RapiScreen(),
+      ),
     ],
   );
 }
@@ -192,6 +199,10 @@ class ScaffoldWithNavBar extends StatelessWidget {
     final selectedIndex = _calculateSelectedIndex(context);
     return Scaffold(
       body: child,
+      // NOTE: タスク一覧・実行タブは各画面の Scaffold に右下の FAB を持っていて、
+      // ここで右下（endFloat）に置くと重なる。ラピの入口は全タブで左下に固定する。
+      floatingActionButton: const _RapiFab(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
@@ -232,6 +243,47 @@ class ScaffoldWithNavBar extends StatelessWidget {
             label: '承認',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ラピを開くボタン（紫グラデーションの円に「ラ」）
+class _RapiFab extends StatelessWidget {
+  const _RapiFab();
+
+  static const _gradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'ラピ',
+      child: Material(
+        shape: const CircleBorder(),
+        elevation: 6,
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          width: 56,
+          height: 56,
+          decoration: const BoxDecoration(gradient: _gradient),
+          child: InkWell(
+            onTap: () => context.push(AppRoutes.rapi),
+            child: const Center(
+              child: Text(
+                'ラ',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
