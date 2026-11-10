@@ -71,6 +71,7 @@ mock.module('./model-discovery', () => ({
 
 mock.module('./model-discovery/tier-classifier', () => ({
   classifyTier: mock(() => 'standard'),
+  observedTier: mock(() => 'standard'),
   inferCostPer1k: mock(() => 0.01),
 }));
 

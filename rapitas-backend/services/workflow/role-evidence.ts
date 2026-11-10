@@ -10,7 +10,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { classifyTier } from '../ai/model-discovery/tier-classifier';
+import { observedTier } from '../ai/model-discovery/tier-classifier';
 import type { ModelTier } from '../ai/model-discovery';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
@@ -188,7 +188,8 @@ export async function getRoleModelOutcomes(
   return Array.from(byModel.entries())
     .map(([modelName, a]) => ({
       modelName,
-      tier: classifyTier(modelName),
+      // Tier the run actually ran as — uncapped, see observedTier.
+      tier: observedTier(modelName),
       samples: a.samples,
       successes: a.successes,
       successRate: a.samples > 0 ? a.successes / a.samples : 0,

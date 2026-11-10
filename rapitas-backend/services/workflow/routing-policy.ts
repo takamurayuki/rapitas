@@ -16,9 +16,9 @@
  * Pure functions only — no I/O — so they are cheap and unit-testable.
  */
 import type { ModelTier } from '../ai/model-discovery';
-
-/** Highest → lowest capability. Index 0 is the strongest tier. */
-const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
+// NOTE: The tier ordering is the model tier table's, so routing floors and the
+// table's placements compare tiers the same way.
+import { TIER_ORDER } from '../ai/model-tier-table/tier-table';
 
 /**
  * Phases that produce or judge code — or produce the PLAN all code follows —
