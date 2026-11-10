@@ -11,11 +11,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { REPAIR_CAUSE, resolveRepairWindowStart } from './verify-self-repair-budget';
-import {
-  classifyRepairCause,
-  type RepairCauseKind,
-  type RepairFindingLike,
-} from './repair-cause';
+import { classifyRepairCause, type RepairCauseKind, type RepairFindingLike } from './repair-cause';
 
 const log = createLogger('workflow:repair-escalation');
 
