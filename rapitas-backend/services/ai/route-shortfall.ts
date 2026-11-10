@@ -14,8 +14,21 @@ import { isSuitableForRole, tierAtLeast } from './model-tier-table/tier-table';
 
 const log = createLogger('smart-model-router');
 
+/**
+ * Which requirement the route missed.
+ * - tier: below the floor.
+ * - role: the tier table does not allow the model in this role (e.g. an
+ *   unregistered or economy model as verifier).
+ * - no_candidates: discovery offered no usable model at all; the route fell
+ *   back to a bare alias nothing vouched for.
+ * - excluded_provider: the only candidates left were from an excluded
+ *   provider (cross-provider review, or the provider that just failed).
+ */
+export type RouteShortfallKind = 'tier' | 'role' | 'no_candidates' | 'excluded_provider';
+
 /** What the route needed and what it got. */
 export interface RouteShortfall {
+  kind: RouteShortfallKind;
   requiredTier: string;
   selectedTier: string;
   /** Human-readable explanation, appended to the route's reason. */
@@ -47,6 +60,8 @@ export function requiredFloor(opts: {
  * @param args.selectedTier - Tier actually selected / 選ばれたティア
  * @param args.model - Model actually selected / 選ばれたモデル
  * @param args.role - Workflow role routed / ロール
+ * @param args.noCandidates - Nothing was usable; bare fallback / 候補ゼロで退避した
+ * @param args.excludedProvider - Excluded provider that was chosen anyway / 除外したのに選ばれたプロバイダ
  * @returns The shortfall, or undefined when the requirement is met / 未達内容
  */
 export function detectShortfall(args: {
@@ -54,10 +69,31 @@ export function detectShortfall(args: {
   selectedTier: string;
   model: string;
   role: string | undefined;
+  /** True when discovery offered nothing and the model is a bare fallback. */
+  noCandidates?: boolean;
+  /** Provider of the chosen model was on the route's exclusion list. */
+  excludedProvider?: string | null;
 }): RouteShortfall | undefined {
   const selected = args.selectedTier as ModelTier;
+  if (args.noCandidates) {
+    return {
+      kind: 'no_candidates',
+      requiredTier: args.requiredTier ?? args.selectedTier,
+      selectedTier: args.selectedTier,
+      reason: `利用可能な候補がない（${args.model} に ${args.selectedTier} として退避）`,
+    };
+  }
+  if (args.excludedProvider) {
+    return {
+      kind: 'excluded_provider',
+      requiredTier: args.requiredTier ?? args.selectedTier,
+      selectedTier: args.selectedTier,
+      reason: `除外したプロバイダ ${args.excludedProvider} 以外に候補がない（${args.model} を使用）`,
+    };
+  }
   if (args.requiredTier && !tierAtLeast(selected, args.requiredTier)) {
     return {
+      kind: 'tier',
       requiredTier: args.requiredTier,
       selectedTier: args.selectedTier,
       reason: `${args.requiredTier} 以上が必要だが、使えるモデルの最上位は ${args.selectedTier}`,
@@ -65,6 +101,7 @@ export function detectShortfall(args: {
   }
   if (args.role && !isSuitableForRole(args.model, args.role)) {
     return {
+      kind: 'role',
       requiredTier: args.requiredTier ?? args.selectedTier,
       selectedTier: args.selectedTier,
       reason: `ティア表で ${args.role} に置けるモデルが使えない（${args.model} を使用）`,
@@ -103,6 +140,7 @@ export function recordShortfall(args: {
     summary: 'モデル選択の要件未達',
     input: {
       role: args.role ?? null,
+      kind: args.shortfall.kind,
       requiredTier: args.shortfall.requiredTier,
       selectedTier: args.shortfall.selectedTier,
       minTierReason: args.minTierReason ?? null,

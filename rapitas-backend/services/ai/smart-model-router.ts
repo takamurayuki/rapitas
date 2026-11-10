@@ -18,7 +18,8 @@ import {
   type ModelTier,
   type Provider,
 } from './model-discovery';
-import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
+import { classifyTier } from './model-discovery/tier-classifier';
+import { estimateCost, type CostEstimate } from './cost-estimate';
 import { TIER_ORDER } from './model-tier-table/tier-table';
 import {
   detectShortfall,
@@ -30,21 +31,9 @@ import { listActiveCooldowns } from './provider-cooldown';
 import { recordDecision } from '../observability/decision-trace';
 import { buildRouteReason, type RouteDriver } from './routing-reason';
 import { getBudgetStatus } from './budget-status';
-import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 import { resolveComplexityScore } from '../workflow/complexity-score';
 
 const log = createLogger('smart-model-router');
-
-/**
- * Per-1K-token cost fallback used when discovery has no entry for a model.
- * The discovery layer is the source of truth — this map only catches the
- * ~edge case where a historical execution references a model id that the
- * provider has since retired.
- */
-const MODEL_COST_RATES: Record<string, number> = {};
-
-/** Tier fallback table mirroring `MODEL_COST_RATES`. Empty by design. */
-const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {};
 
 // NOTE: TIER_ORDER now comes from the model tier table — the one ordering
 // SmartRouter, routing-policy and the jury seats all compare tiers by.
@@ -55,16 +44,6 @@ const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> 
   openai: 'OpenAI',
   gemini: 'Gemini',
   ollama: 'Ollama (ローカル)',
-};
-
-/** Pre-execution cost estimate. */
-export type CostEstimate = {
-  modelId: string;
-  modelTier: string;
-  estimatedTokens: number;
-  estimatedCost: number;
-  confidence: number;
-  basedOnSamples: number;
 };
 
 /** Budget status for the current period. */
@@ -99,78 +78,6 @@ export type RoutingDecision = {
    */
   constraintShortfall?: RouteShortfall;
 };
-
-/**
- * Estimate execution cost for a task based on historical data.
- *
- * @param taskComplexity - Task complexity score (0-100) / タスク複雑度スコア
- * @param modelId - Target model / 対象モデル
- * @returns Cost estimate / コスト見積もり
- */
-export async function estimateCost(taskComplexity: number, modelId: string): Promise<CostEstimate> {
-  // Resolve rate + tier from live discovery first; fall back to the static
-  // table for legacy models that probes do not yet surface, and finally to
-  // the name-based heuristic so unknown ids still produce sane numbers.
-  const { models } = await discoverModels();
-  const discovered = models.find((m) => m.id === modelId);
-  const tier: ModelTier = discovered?.tier ?? MODEL_TIERS[modelId] ?? classifyTier(modelId);
-  const rate =
-    discovered?.costPer1kTokens ?? MODEL_COST_RATES[modelId] ?? inferCostPer1k(modelId, tier);
-
-  // Fetch historical token usage for similar complexity tasks
-  const similarExecutions = await prisma.agentExecution.findMany({
-    where: {
-      ...NOT_REVIEW_COST_ROW,
-      status: 'completed',
-      tokensUsed: { gt: 0 },
-      session: {
-        config: {
-          task: {
-            complexityScore: {
-              gte: Math.max(0, taskComplexity - 15),
-              lte: Math.min(100, taskComplexity + 15),
-            },
-          },
-        },
-      },
-    },
-    select: { tokensUsed: true },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  });
-
-  let estimatedTokens: number;
-  let confidence: number;
-
-  if (similarExecutions.length >= 3) {
-    // Use historical average
-    const avgTokens =
-      similarExecutions.reduce((sum, e) => sum + e.tokensUsed, 0) / similarExecutions.length;
-    estimatedTokens = Math.round(avgTokens);
-    confidence = Math.min(0.9, 0.5 + similarExecutions.length * 0.04);
-  } else {
-    // Heuristic: complexity → token estimate
-    estimatedTokens = Math.round(
-      taskComplexity <= 35
-        ? 5000 + taskComplexity * 100
-        : taskComplexity <= 70
-          ? 10000 + taskComplexity * 200
-          : 20000 + taskComplexity * 500,
-    );
-    confidence = 0.3;
-  }
-
-  const estimatedCost = Math.round((estimatedTokens / 1000) * rate * 1000) / 1000;
-
-  return {
-    modelId,
-    modelTier: tier,
-    estimatedTokens,
-    estimatedCost,
-    confidence,
-    basedOnSamples: similarExecutions.length,
-  };
-}
 
 /**
  * Get the optimal model for a task based on complexity, budget, and history.
@@ -386,6 +293,10 @@ export async function getSmartRoute(
   // release, so this never goes stale the way a pinned versioned id
   // ('claude-sonnet-4-6') did once that release was retired.
   const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'sonnet';
+  // NOTE: The tier is re-resolved from the model actually returned. It used to
+  // stay at the REQUESTED tier on this path, so the bare `sonnet` fallback was
+  // reported as premium and a premium floor read as met (G2 routing1 item 6).
+  if (!selected) recommendedTier = classifyTier(finalModel);
   const costEstimate = await estimateCost(complexity, finalModel);
 
   // The floor is applied last and overrides everything, so it is checked first
@@ -397,11 +308,17 @@ export async function getSmartRoute(
       : budgetPressure
         ? 'budget'
         : 'complexity';
+  // selectBestModel drops an exclusion list that would empty the pool, so the
+  // chosen model may come from a provider the route excluded on purpose.
+  const chosenProvider = selected?.model.provider ?? null;
   const shortfall = detectShortfall({
     requiredTier: requiredFloor(opts),
     selectedTier: recommendedTier,
     model: finalModel,
     role: opts.role,
+    noCandidates: !selected,
+    excludedProvider:
+      chosenProvider && mergedExcludes.includes(chosenProvider) ? chosenProvider : null,
   });
   const baseReason = buildRouteReason({
     tier: recommendedTier,
@@ -483,3 +400,5 @@ export async function getSmartRoute(
 // NOTE: getBudgetStatus moved to budget-status.ts (file-size limit); re-exported
 // so existing imports of it from this module keep working.
 export { getBudgetStatus };
+// NOTE: Moved to cost-estimate.ts (file size); re-exported so existing imports keep working.
+export { estimateCost, type CostEstimate };

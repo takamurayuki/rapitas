@@ -127,6 +127,7 @@ describe('下限を満たせない場合', () => {
       includeAlternatives: false,
     });
     expect(route.constraintShortfall).toEqual({
+      kind: 'tier',
       requiredTier: 'premium',
       selectedTier: 'standard',
       reason: expect.stringContaining('premium'),
@@ -146,5 +147,34 @@ describe('下限を満たせない場合', () => {
     });
     expect(route.constraintShortfall).toBeUndefined();
     expect(decisions.some((d) => d.summary === 'モデル選択の要件未達')).toBe(false);
+  });
+});
+
+describe('候補がない・除外したプロバイダしかない場合', () => {
+  test('discovery が空なら sonnet を premium と名乗らせず、未達と候補ゼロを明示する', async () => {
+    // Nothing reported by any probe.
+    const route = await getSmartRoute(1, {
+      role: 'implementer',
+      minTier: 'premium',
+      includeAlternatives: false,
+    });
+    expect(route.recommendedModel).toBe('sonnet');
+    // The tier is the fallback model's own, from the table — not the request.
+    expect(route.recommendedTier).toBe('standard');
+    expect(route.constraintShortfall?.kind).toBe('no_candidates');
+    expect(route.constraintShortfall?.selectedTier).toBe('standard');
+    expect(route.reason).toContain('要件未達');
+  });
+
+  test('除外したプロバイダしか残らないときは、その旨を未達として返す', async () => {
+    reported.claude = ['opus'];
+    const route = await getSmartRoute(1, {
+      role: 'implementer',
+      minTier: 'premium',
+      excludeProviders: ['claude'],
+      includeAlternatives: false,
+    });
+    expect(route.recommendedModel).toBe('opus');
+    expect(route.constraintShortfall?.kind).toBe('excluded_provider');
   });
 });

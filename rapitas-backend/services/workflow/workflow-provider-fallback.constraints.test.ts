@@ -3,9 +3,9 @@
  *
  * A vendor going down mid-task (quota / auth) re-assigns the phase through the
  * same role routing as a normal run — role, floors and caps included — with
- * the failed provider excluded (追補5 / 修正リストD). Only when role routing
- * itself cannot answer does it fall back to the bare SmartRouter call, and that
- * degraded path is recorded as such.
+ * the failed provider excluded (追補5 / 修正リストD). "Constraints applied" and
+ * "constraints met" are recorded separately, and when role routing itself
+ * cannot answer the switch is REFUSED — never run without floors or caps.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -36,7 +36,17 @@ mock.module('./role-provider-resolver', () => ({
 mock.module('../ai/model-route-stability', () => ({
   invalidateStableRoute: mock(() => Promise.resolve()),
 }));
-let routeResult: { modelId: string; details: Record<string, unknown> } = {
+let routeResult: {
+  modelId: string;
+  details: Record<string, unknown>;
+  routingFailed?: boolean;
+  constraintShortfall?: {
+    kind: string;
+    requiredTier: string;
+    selectedTier: string;
+    reason: string;
+  };
+} = {
   modelId: 'claude-opus-5-5',
   details: { minTier: 'premium', minTierReason: '高リスク領域' },
 };
@@ -107,22 +117,60 @@ describe('途中でのベンダー利用不能', () => {
     const recorded = decisions.find((d) =>
       String(d.summary).startsWith('プロバイダフォールバック'),
     );
-    expect((recorded!.input as Record<string, unknown>).constraintsKept).toBe(true);
+    expect((recorded!.input as Record<string, unknown>).constraintsApplied).toBe(true);
+    expect((recorded!.input as Record<string, unknown>).constraintsMet).toBe(true);
     expect((recorded!.input as Record<string, unknown>).minTier).toBe('premium');
   });
 
-  test('ロール経路が答えられないときだけ素の SmartRouter に落ち、その旨を記録する', async () => {
-    routeResult = { modelId: 'sonnet', details: { fallback: true } };
-    await fallback();
-    expect(getSmartRoute).toHaveBeenCalledTimes(1);
-    expect(
-      (getSmartRoute.mock.calls[0][1] as { excludeProviders: string[] }).excludeProviders,
-    ).toEqual(['openai']);
-    expect((runAgent.mock.calls[0][0] as { modelId: string }).modelId).toBe('bare-fallback');
+  test('ロール経路が失敗したら、制約なしの素の SmartRouter で続行せず、切替を見送る', async () => {
+    routeResult = { modelId: 'sonnet', routingFailed: true, details: { fallback: true } };
+    const result = await fallback();
+    expect(getSmartRoute).not.toHaveBeenCalled();
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(result).toBeNull();
     await new Promise((r) => setTimeout(r, 10)); // the audit record is fire-and-forget
     const recorded = decisions.find((d) =>
       String(d.summary).startsWith('プロバイダフォールバック'),
     );
-    expect((recorded!.input as Record<string, unknown>).constraintsKept).toBe(false);
+    expect((recorded!.input as Record<string, unknown>).constraintsApplied).toBe(false);
+    expect((recorded!.input as Record<string, unknown>).refusedReason).toBe('role_routing_failed');
+  });
+
+  test('制約を渡しても下限未達なら「満たした」とは記録せず、未達を切替先の判断と記録に渡す', async () => {
+    const shortfall = {
+      kind: 'tier',
+      requiredTier: 'premium',
+      selectedTier: 'standard',
+      reason: 'premium 以上が必要だが、使えるモデルの最上位は standard',
+    };
+    routeResult = {
+      modelId: 'claude-sonnet-5-5',
+      details: { minTier: 'premium', constraintShortfall: shortfall },
+      constraintShortfall: shortfall,
+    };
+    await fallback();
+    expect((runAgent.mock.calls[0][0] as { modelId: string }).modelId).toBe('claude-sonnet-5-5');
+    await new Promise((r) => setTimeout(r, 10)); // the audit record is fire-and-forget
+    const input = decisions.find((d) => String(d.summary).startsWith('プロバイダフォールバック'))!
+      .input as Record<string, unknown>;
+    expect(input.constraintsApplied).toBe(true);
+    expect(input.constraintsMet).toBe(false);
+    expect(input.shortfall).toEqual(shortfall);
+  });
+
+  test('除外した（失敗した）プロバイダしか候補がなければ、切替を見送る', async () => {
+    routeResult = {
+      modelId: 'gpt-6.1-sol',
+      details: {},
+      constraintShortfall: {
+        kind: 'excluded_provider',
+        requiredTier: 'premium',
+        selectedTier: 'standard',
+        reason: '除外したプロバイダ openai 以外に候補がない',
+      },
+    };
+    const result = await fallback();
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(result).toBeNull();
   });
 });
