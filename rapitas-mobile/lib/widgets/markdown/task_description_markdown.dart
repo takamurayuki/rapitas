@@ -127,7 +127,6 @@ class TaskDescriptionMarkdown extends StatelessWidget {
   }
 
   Future<void> _openLink(BuildContext context, String? href) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
     final uri = parseLaunchableLink(href);
     var opened = false;
     if (uri != null) {
@@ -138,10 +137,13 @@ class TaskDescriptionMarkdown extends StatelessWidget {
         opened = false;
       }
     }
-    if (!opened) {
-      messenger?.showSnackBar(
-        SnackBar(content: Text('リンクを開けませんでした: ${href ?? ''}')),
-      );
-    }
+    // NOTE: The launcher can stay pending while the user leaves the detail
+    // screen. Without this check a late failure would show the message on the
+    // next screen, or throw once the messenger itself is disposed. The
+    // messenger is therefore looked up only after the await, too.
+    if (opened || !context.mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('リンクを開けませんでした: ${href ?? ''}')),
+    );
   }
 }

@@ -1,6 +1,8 @@
 /// TaskDescriptionMarkdown tests: link handling and theme-derived styles.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -93,6 +95,66 @@ void main() {
       await tester.pump();
       expect(opened, hasLength(1));
       expect(find.textContaining('リンクを開けませんでした'), findsOneWidget);
+    });
+  });
+
+  // The launcher can stay pending while the user leaves the detail screen
+  // (e.g. the OS "open with" sheet). Its late result must not reach whatever
+  // screen is showing by then.
+  group('TaskDescriptionMarkdown links after the screen is closed', () {
+    late Completer<bool> pending;
+
+    /// Opens a detail route holding the Markdown, taps its link and leaves
+    /// the launcher unfinished.
+    Future<void> tapThenLeavePending(WidgetTester tester) async {
+      pending = Completer<bool>();
+      final navigatorKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(MaterialApp(
+        navigatorKey: navigatorKey,
+        home: const Scaffold(body: Text('一覧')),
+      ));
+      navigatorKey.currentState!.push(MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          body: TaskDescriptionMarkdown(
+            data: '[公式サイト](https://example.com)',
+            launcher: (_) => pending.future,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      tapLink(tester, '公式サイト');
+      await tester.pump();
+      navigatorKey.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('一覧'), findsOneWidget);
+    }
+
+    testWidgets('a late false result shows nothing on the previous screen',
+        (tester) async {
+      await tapThenLeavePending(tester);
+      pending.complete(false);
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a late launcher error shows nothing on the previous screen',
+        (tester) async {
+      await tapThenLeavePending(tester);
+      pending.completeError(Exception('no handler'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a late result after the whole app is gone does not throw',
+        (tester) async {
+      await tapThenLeavePending(tester);
+      // Disposes the ScaffoldMessenger the tap handler looked up.
+      await tester.pumpWidget(const SizedBox());
+      pending.complete(false);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   });
 
