@@ -19,8 +19,16 @@ export type SeatTier = 'premium' | 'standard';
 /** The verifier's finding on one disputed finding's grounds. */
 export type FindingVerification = 'holds' | 'refuted' | 'undetermined';
 
-/** Why a review is parked for a human decision (review hold). */
-export type ReviewHoldReason = 'jury_unavailable_high_risk' | 'unresolved_dispute';
+/**
+ * Why a review is parked for a human decision (review hold).
+ * `ineligible_verifier`: the verify verdict came from a model the tier table
+ * does not allow to review, or one below the executor's tier, so it is not
+ * accepted as a verification (verifier-eligibility.ts).
+ */
+export type ReviewHoldReason =
+  | 'jury_unavailable_high_risk'
+  | 'unresolved_dispute'
+  | 'ineligible_verifier';
 
 /** How the two reviewers' results were reconciled. */
 export type DisputeBasis =

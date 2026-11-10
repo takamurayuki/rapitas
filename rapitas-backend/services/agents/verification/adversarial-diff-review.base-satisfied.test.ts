@@ -41,6 +41,14 @@ mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
   resolveBaseRef,
 }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => 'api' }));
+// The host's configured vendors (configured-vendors.ts reads API keys and probes
+// the Claude CLI): fixed here so the seats do not depend on this machine.
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) => ({
+    configured: mode === 'cli' ? ['anthropic'] : ['anthropic', 'google', 'openai'],
+    unconfigured: [],
+  }),
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() => Promise.resolve({ dir: '/wf/1' })),
   readWorkflowFile: mock(() => Promise.resolve('plan content')),
@@ -50,7 +58,11 @@ mock.module('../../memory/timeline', () => ({
 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecution: {
+      findFirst: mock(() => Promise.resolve(null)),
+      // The implementer's run (executor-model.ts): Sonnet, a standard executor.
+      findMany: mock(() => Promise.resolve([{ modelName: 'claude-sonnet-5-5' }])),
+    },
     agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
     task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
   },

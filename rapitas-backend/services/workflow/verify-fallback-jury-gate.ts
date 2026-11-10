@@ -95,6 +95,11 @@ async function runGateLocked(params: {
     return { stop: false, skipped: 'conflict_resolution' };
   }
 
+  // NOTE: The verifier-eligibility hold moved to the caller
+  // (workflow-cli-executor-verify-gate.ts), BEFORE its PR branch: here it ran
+  // only when no PR existed, so an existing-PR re-verify skipped it
+  // (G2 routing1 re-review item 3). By the time this gate runs it has passed.
+
   let worktreePath = params.worktreePath;
   if (!worktreePath) {
     const s = await prisma.agentSession

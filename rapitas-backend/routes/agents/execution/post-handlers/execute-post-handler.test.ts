@@ -13,9 +13,10 @@ const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () 
 const SESSION_CREATED_AT = new Date('2026-08-07T17:04:00Z');
 
 const mockSessionFindUnique = mock(() =>
-  Promise.resolve<{ startedAt: Date | null; createdAt: Date } | null>({
+  Promise.resolve<{ startedAt: Date | null; createdAt: Date; mode: string | null } | null>({
     startedAt: null,
     createdAt: SESSION_CREATED_AT,
+    mode: 'workflow-researcher',
   }),
 );
 const mockSessionUpdate = mock(() => Promise.resolve({}));
@@ -137,9 +138,13 @@ describe('reconcileHardFailure — workflow-progress guard (task 544)', () => {
       unknown,
       number,
       string,
+      unknown,
     ];
     expect(applyArgs[1]).toBe(541);
     expect(applyArgs[2]).toBe('[API]');
+    // The run kind reaches the sync so a workflow task in draft is not marked
+    // done unverified (G2 routing1 re-review 6).
+    expect(applyArgs[3]).toEqual({ sessionMode: 'workflow-researcher' });
     const todoWrites = (mockTaskUpdate.mock.calls as unknown as UpdateCall[]).filter(
       (c) => c[0].data.status === 'todo',
     );

@@ -132,6 +132,13 @@ mock.module('../../config', () => ({
 }));
 mock.module('./transition-recorder', () => ({ recordTransition }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real check in the *.verifier-eligibility.test.ts files.
+let verifierConfirmed = true;
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => verifierConfirmed,
+}));
+
 // NOTE: everything downstream of these three mocks — attemptPrOnlyRecovery,
 // canReviveBlockedPrRetry, isAwaitingRequiredMerge, resolveAutomationPolicy,
 // taskHasLinkedPr, holdForRequiredMerge, isLatestExecutionCancelled — is loaded
@@ -156,6 +163,7 @@ beforeEach(() => {
   taskUpdateCalls.length = 0;
   taskUpdateManyCalls.length = 0;
   recordTransition.mockClear();
+  verifierConfirmed = true;
 });
 
 describe('requeueBlockedTasks — 実装での停止/CAS競合耐性 (task 895, 2nd repair round)', () => {
@@ -192,6 +200,18 @@ describe('requeueBlockedTasks — 実装での停止/CAS競合耐性 (task 895, 
     expect(taskUpdateManyCalls.length).toBe(1); // holdは試みられたがCASで拒否された
     expect(taskUpdateCalls.length).toBe(0); // フルリセットには絶対に到達しない
     expect(row.status).toBe('blocked'); // 行は変化しない
+  });
+
+  test('共通の完了チェックが拒否したら（検証役が未確認など）、フルリセットにも落とさない', async () => {
+    verifierConfirmed = false;
+
+    const retried = await requeueBlockedTasks(NOW);
+
+    expect(retried).toBe(0);
+    expect(taskUpdateCalls.length).toBe(0); // 判定待ちの verdict を捨てるリセットはしない
+    expect(taskUpdateManyCalls.length).toBe(0);
+    expect(row.status).toBe('blocked');
+    expect(row.workflowStatus).toBe('verify_done');
   });
 
   test('正当なケース: 実際にholdのCASが成功し、フルリセットを経由せず再帰復旧が完了する', async () => {

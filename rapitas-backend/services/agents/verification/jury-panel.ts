@@ -21,6 +21,7 @@
  * a real majority over the only jurors this host can actually reach.
  */
 import { getAuxAiMode } from '../../../utils/ai-client';
+import { toCliModelAlias } from '../../../utils/ai-client/cli-model-alias';
 import { DEFAULT_MODELS, type AIProvider } from '../../../utils/ai-client/types';
 
 /** One seat on the panel. */
@@ -73,11 +74,13 @@ const DEFAULT_JURY_MODELS = [
  * this is what the panel dedupes on — otherwise a single voter could hold a
  * majority by itself.
  */
+// NOTE: Delegates to the CLI provider's own mapping instead of a private copy
+// of it. This dedupes on the model an id REACHES on the CLI, not on its tier —
+// tiers come from the model tier table (services/ai/model-tier-table), which
+// is what the two-seat jury (jury-seats.ts) now seats from. This legacy panel
+// is only exercised by its tests.
 function tierOf(modelId: string): keyof typeof JURY_MODEL_IDS {
-  const m = modelId.toLowerCase();
-  if (m.includes('opus')) return 'opus';
-  if (m.includes('sonnet')) return 'sonnet';
-  return 'haiku';
+  return toCliModelAlias(modelId);
 }
 
 /**

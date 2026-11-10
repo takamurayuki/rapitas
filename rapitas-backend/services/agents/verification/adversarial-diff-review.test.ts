@@ -29,6 +29,14 @@ const appendEventMock = mock(() => Promise.resolve({ id: 1 }));
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
 let auxMode: 'api' | 'cli' = 'api';
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => auxMode }));
+// The host's configured vendors (configured-vendors.ts reads API keys and probes
+// the Claude CLI): fixed here so the seats do not depend on this machine.
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) => ({
+    configured: mode === 'cli' ? ['anthropic'] : ['anthropic', 'google', 'openai'],
+    unconfigured: [],
+  }),
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
 const queryEventsMock = mock(async (_o: unknown) => ({ events: [] as unknown[], total: 0 }));
 mock.module('../../memory/timeline', () => ({
@@ -39,7 +47,11 @@ const recordReviewCostMock = mock(async (_p: unknown) => 0);
 mock.module('./review-cost-record', () => ({ recordReviewCost: recordReviewCostMock }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: agentExecutionFindFirst },
+    agentExecution: {
+      findFirst: agentExecutionFindFirst,
+      // The implementer's run (executor-model.ts): Sonnet, a standard executor.
+      findMany: mock(() => Promise.resolve([{ modelName: 'claude-sonnet-5-5' }])),
+    },
     agentExecutionConfig: { findUnique: agentExecutionConfigFindUnique },
     task: { findUnique: taskFindUnique },
   },
@@ -346,10 +358,9 @@ describe('reviewDiffAdversarially', () => {
         >
       ).map((c) => c[0]);
       expect(asked.every((a) => a.provider === 'claude')).toBe(true);
-      expect(asked.map((a) => a.model)).toEqual([
-        'claude-opus-4-20250514',
-        'claude-sonnet-4-20250514',
-      ]);
+      // Resolved through the tier table (current Opus / Sonnet rows); the CLI
+      // still starts them as the `opus` / `sonnet` aliases.
+      expect(asked.map((a) => a.model)).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
       // Blind: both get the identical prompt, so neither sees the other's answer.
       expect(asked[0].messages[0].content).toBe(asked[1].messages[0].content);
       const event = (

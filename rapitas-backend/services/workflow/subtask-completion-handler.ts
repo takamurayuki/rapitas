@@ -16,6 +16,8 @@ import { resolveTaskSubtaskInfo, resolveTaskWithThemeAndCategory } from '../task
 import { resolveAutomationPolicy, resolveLandingMode } from './automation-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
 import { holdForRequiredMerge } from './required-merge-hold';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
+import { buildIntegrationVerify } from './subtask-integration-verify';
 
 const log = createLogger('subtask-completion');
 
@@ -145,7 +147,21 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     }
 
     const allPassed = siblings.every(isSubtaskPassed);
-    const verifyContent = buildIntegrationVerify(parentTask, siblings);
+    const fromWorkflowStatus = parentTask.workflowStatus ?? null;
+    // Subtask success completes the PARENT, so the parent's own verdict must
+    // pass the common completion check first (before its verify.md is rewritten
+    // or anything is published); a refusal leaves the parent where it is.
+    const opts = fromWorkflowStatus ? { fromStatus: fromWorkflowStatus } : {};
+    if (
+      allPassed &&
+      !(await verifierConfirmedForCompletion(parentTask.id, 'subtask_parent', opts))
+    ) {
+      log.warn(
+        `[SubtaskCompletion] Parent #${parentTask.id}: completion check refused — not finalized`,
+      );
+      return;
+    }
+    const verifyContent = buildIntegrationVerify(parentTask, siblings, isSubtaskPassed);
 
     // Write verify.md straight to the parent's workflow artifact (no HTTP round-trip).
     try {
@@ -156,8 +172,6 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
         '[SubtaskCompletion] Failed to write integration verify.md (continuing to finalize status)',
       );
     }
-
-    const fromWorkflowStatus = parentTask.workflowStatus ?? null;
 
     // When the parent must land via a MERGE, the commit/PR pipeline has to run
     // BEFORE the finalize decision: completion then depends on that PR being
@@ -263,50 +277,4 @@ async function runParentAutoCommitAndPR(parentId: number, verifyContent: string)
   } catch (err) {
     log.warn({ err, parentId }, '[SubtaskCompletion] Parent auto-commit/PR failed (non-fatal)');
   }
-}
-
-/**
- * Build integration verify.md content from all subtask results.
- *
- * @param parentTask - The parent task being finalized. / 完了させる親タスク
- * @param subtasks - All sibling subtasks with their statuses. / 全サブタスク
- * @returns Markdown content for the parent's verify.md. / verify.md の内容
- */
-function buildIntegrationVerify(
-  parentTask: { id: number; title: string },
-  subtasks: Array<{ id: number; title: string; status: string; workflowStatus: string | null }>,
-): string {
-  const lines: string[] = [];
-
-  lines.push(`# Integration Verification: ${parentTask.title}`);
-  lines.push('');
-  lines.push(`## Subtask Summary`);
-  lines.push('');
-
-  let allPassed = true;
-
-  for (const st of subtasks) {
-    const passed = isSubtaskPassed(st);
-    lines.push(`- ${passed ? '✅' : '❌'} #${st.id}: ${st.title}`);
-
-    if (!passed) {
-      allPassed = false;
-    }
-  }
-  lines.push('');
-
-  lines.push('## Integration Check');
-  lines.push(`- [${allPassed ? 'x' : ' '}] All subtasks completed successfully`);
-  lines.push('- [ ] No regression in existing functionality');
-  lines.push('- [ ] Integration points between subtasks verified');
-  lines.push('');
-
-  lines.push('## Overall Result');
-  lines.push(
-    allPassed
-      ? 'All subtasks completed. Ready for final review.'
-      : 'Some subtasks have issues. Manual review required.',
-  );
-
-  return lines.join('\n');
 }

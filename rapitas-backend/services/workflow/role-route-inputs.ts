@@ -14,6 +14,9 @@
  */
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile } from './workflow-file-utils';
+import type { Provider } from '../ai/model-discovery/types';
+import type { RouteShortfall } from '../ai/route-shortfall';
+import { raiseFloorToExecutor, REVIEW_ROLES } from './review-floor';
 
 const log = createLogger('role-route-inputs');
 
@@ -31,6 +34,15 @@ export interface RoleRouteResult {
   modelId: string;
   /** Structured log/audit payload describing how it was chosen. */
   details: Record<string, unknown>;
+  /**
+   * Set when the chosen model misses the route's requirement (floor, role
+   * suitability, no candidates, excluded provider). The phase may still run —
+   * that is the caller's decision — but a review role's verdict on such a
+   * model is not accepted as a verification (verifier-eligibility.ts).
+   */
+  constraintShortfall?: RouteShortfall;
+  /** True when routing itself failed and `modelId` is the bare fallback alias. */
+  routingFailed?: boolean;
 }
 
 /** Roles whose routing also inspects plan.md for risky planned file paths. */
@@ -67,6 +79,12 @@ export async function routeModelForRole(opts: {
   taskId: number;
   role: string;
   task: RoleRouteTask;
+  /**
+   * Providers to keep out of this route on top of the role's own preferences —
+   * the provider-failure fallback passes the provider that just failed, so the
+   * re-route keeps every floor and cap of a normal run.
+   */
+  excludeProviders?: Provider[];
 }): Promise<RoleRouteResult> {
   const { taskId, role, task } = opts;
   try {
@@ -93,7 +111,19 @@ export async function routeModelForRole(opts: {
       import('./role-evidence'),
     ]);
 
-    const prefs = await resolveRoleProviderPreferences(role, taskId);
+    const rolePrefs = await resolveRoleProviderPreferences(role, taskId);
+    const prefs = opts.excludeProviders?.length
+      ? {
+          ...rolePrefs,
+          excludeProviders: [
+            ...new Set([...(rolePrefs.excludeProviders ?? []), ...opts.excludeProviders]),
+          ],
+          // A preference for the provider that just failed would be pointless.
+          preferredProvider: opts.excludeProviders.includes(rolePrefs.preferredProvider as Provider)
+            ? undefined
+            : rolePrefs.preferredProvider,
+        }
+      : rolePrefs;
     const queueItem = await WorkflowQueueService.getInstance()
       .findByTaskId(taskId)
       .catch(() => null);
@@ -157,7 +187,7 @@ export async function routeModelForRole(opts: {
       );
     }
 
-    const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
+    const policyFloor = computeMinTierWithReason({
       role,
       taskRetries,
       themeEscalation,
@@ -168,6 +198,13 @@ export async function routeModelForRole(opts: {
       retryCause: queueItem?.errorMessage ?? null,
       premiumJustified: premiumAdvantage?.justified,
     });
+    // A review role judges the implementer's work, so its floor is at least the
+    // executor's tier — the same rule the jury seats follow (G2 routing1 item 4).
+    const reviewFloor = REVIEW_ROLES.has(role)
+      ? await raiseFloorToExecutor(taskId, policyFloor)
+      : null;
+    const minTier = reviewFloor?.tier ?? policyFloor.tier;
+    const minTierReason = reviewFloor?.reason ?? policyFloor.reason;
 
     // NOTE (determinism): pinned per taskId+role+minTier+capTier so a same-phase
     // retry reuses the SAME model instead of silently re-routing. A genuine
@@ -183,8 +220,16 @@ export async function routeModelForRole(opts: {
       includeAlternatives: false,
     });
 
+    const shortfall = route.constraintShortfall;
+    if (shortfall) {
+      log.warn(
+        { taskId, role, model: route.recommendedModel, shortfall },
+        '[role-route-inputs] route misses its requirement — returned to the caller, not hidden',
+      );
+    }
     return {
       modelId: route.recommendedModel,
+      ...(shortfall ? { constraintShortfall: shortfall } : {}),
       details: {
         taskId,
         role,
@@ -205,10 +250,17 @@ export async function routeModelForRole(opts: {
         budgetUnknownReason: budget?.unknownReason ?? null,
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
+        executorModel: reviewFloor?.executor.modelId ?? null,
+        executorVerified: reviewFloor?.executor.verified ?? null,
+        constraintShortfall: shortfall ?? null,
       },
     };
   } catch (err) {
     log.warn({ err, taskId, role }, 'Smart Router failed, falling back to the sonnet alias');
-    return { modelId: 'sonnet', details: { taskId, role, model: 'sonnet', fallback: true } };
+    return {
+      modelId: 'sonnet',
+      routingFailed: true,
+      details: { taskId, role, model: 'sonnet', fallback: true },
+    };
   }
 }

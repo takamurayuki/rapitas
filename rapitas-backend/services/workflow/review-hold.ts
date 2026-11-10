@@ -25,6 +25,7 @@ import { createLogger } from '../../config/logger';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { capFindingsForStorage, type ReviewFinding } from '../agents/verification/review-findings';
 import type { ReviewHoldReason } from '../agents/verification/jury-seat-types';
+import { appendHoldEvent, parseHoldMetadata, type OverrideTarget } from './review-hold-records';
 
 const log = createLogger('workflow:review-hold');
 
@@ -190,50 +191,57 @@ export async function holdFromReview(p: {
   });
 }
 
+/** A review-hold read: held, confirmed not held, or not known (read failed). */
+export type ReviewHoldProbe =
+  | { state: 'held'; hold: ReviewHoldDetails }
+  | { state: 'clear' }
+  | { state: 'unknown' };
+
 /**
- * The details of a task's current review hold, or null when it is not held.
- * Never throws.
- *
+ * Read the current hold, keeping "not held" apart from "could not read" —
+ * completion paths must refuse on `unknown`. Never throws.
  * @param taskId - Task id / タスクID
- * @returns Hold details from the latest hold transition / 保留の内容
+ * @returns The hold, `clear`, or `unknown` on a read failure / 保留・保留なし・確認不能
  */
-export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails | null> {
+export async function probeReviewHold(taskId: number): Promise<ReviewHoldProbe> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       select: { haltReason: true, workflowStatus: true },
     });
     if (task?.haltReason !== REVIEW_HOLD_HALT_REASON || task.workflowStatus !== 'verify_done') {
-      return null;
+      return { state: 'clear' };
     }
     const row = await prisma.workflowTransition.findFirst({
       where: { taskId, cause: REVIEW_HOLD_CAUSE },
       orderBy: { createdAt: 'desc' },
       select: { metadata: true },
     });
-    const m = parseMetadata(row?.metadata);
-    return {
+    const m = parseHoldMetadata(row?.metadata);
+    const hold: ReviewHoldDetails = {
       reason:
-        m.holdReason === 'unresolved_dispute' ? 'unresolved_dispute' : 'jury_unavailable_high_risk',
+        m.holdReason === 'unresolved_dispute' || m.holdReason === 'ineligible_verifier'
+          ? m.holdReason
+          : 'jury_unavailable_high_risk',
       detail: typeof m.detail === 'string' ? m.detail : '',
       findings: Array.isArray(m.findings) ? (m.findings as ReviewFinding[]) : [],
       ...(typeof m.severity === 'number' ? { severity: m.severity } : {}),
     };
-  } catch {
-    return null;
+    return { state: 'held', hold };
+  } catch (err) {
+    log.warn({ err, taskId }, '[review-hold] Hold read failed');
+    return { state: 'unknown' };
   }
 }
 
-function parseMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const v = JSON.parse(raw) as unknown;
-      return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-    } catch {
-      return {};
-    }
-  }
-  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+/**
+ * The current hold, or null when not held OR unreadable (display / resolve callers).
+ * @param taskId - Task id / タスクID
+ * @returns Hold details from the latest hold transition / 保留の内容
+ */
+export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails | null> {
+  const p = await probeReviewHold(taskId);
+  return p.state === 'held' ? p.hold : null;
 }
 
 /**
@@ -245,6 +253,7 @@ function parseMetadata(raw: unknown): Record<string, unknown> {
  * @param p.resolvedBy - Who resolved it (audit) / 解消した人
  * @param p.note - Optional note / 任意のメモ
  * @param p.hold - The hold being resolved / 解消する保留
+ * @param p.target - What an override covers; completion paths honour the override only while it still matches / 上書きの対象
  * @returns True when this call cleared the hold / この呼び出しで解除したら true
  */
 export async function clearReviewHold(p: {
@@ -253,6 +262,7 @@ export async function clearReviewHold(p: {
   resolvedBy: string;
   note?: string;
   hold: ReviewHoldDetails;
+  target?: OverrideTarget;
 }): Promise<boolean> {
   const cleared = await prisma.task
     .updateMany({
@@ -276,6 +286,7 @@ export async function clearReviewHold(p: {
       resolvedBy: p.resolvedBy,
       holdReason: p.hold.reason,
       ...(p.note ? { note: p.note } : {}),
+      ...(p.target ? { binding: p.target } : {}),
     },
   }).catch(() => {});
   await appendHoldEvent('review_hold_resolved', p.taskId, {
@@ -285,26 +296,4 @@ export async function clearReviewHold(p: {
     ...(p.note ? { note: p.note } : {}),
   });
   return true;
-}
-
-/**
- * Timeline copy of the hold and its resolution: the desktop review history
- * reads the timeline (GET /memory/timeline), not WorkflowTransition.
- */
-async function appendHoldEvent(
-  eventType: 'review_hold' | 'review_hold_resolved',
-  taskId: number,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  try {
-    const { appendEvent } = await import('../memory/timeline');
-    await appendEvent({
-      eventType,
-      actorType: eventType === 'review_hold' ? 'system' : 'user',
-      payload: { taskId, ...payload },
-      correlationId: `task-${taskId}`,
-    });
-  } catch (err) {
-    log.warn({ err, taskId, eventType }, '[review-hold] Failed to append timeline event');
-  }
 }

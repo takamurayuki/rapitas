@@ -23,6 +23,7 @@ import {
   type ReviewHoldAction,
   type ReviewHoldDetails,
 } from './review-hold';
+import { readCurrentOverrideTarget, type OverrideTarget } from './review-hold-records';
 
 const log = createLogger('workflow:review-hold-resolve');
 
@@ -69,8 +70,8 @@ export async function resolveReviewHold(p: {
   if (!hold) return { ok: false, reason: 'not_held' };
   // NOTE: The override's binding is resolved BEFORE the hold is cleared, so an
   // override that cannot name what it covers leaves the task held.
-  const binding = p.action === 'override' ? await resolveOverrideBinding(p.taskId) : null;
-  if (binding && 'missing' in binding) {
+  const bound = p.action === 'override' ? await resolveOverrideBinding(p.taskId) : null;
+  if (bound && 'missing' in bound) {
     await recordTransition({
       taskId: p.taskId,
       fromStatus: 'verify_done',
@@ -78,38 +79,39 @@ export async function resolveReviewHold(p: {
       actor: 'user',
       cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
       phase: 'verify',
-      metadata: { resolvedBy: p.resolvedBy, holdReason: hold.reason, reason: binding.missing },
+      metadata: { resolvedBy: p.resolvedBy, holdReason: hold.reason, reason: bound.missing },
     }).catch(() => {});
-    log.warn({ taskId: p.taskId, missing: binding.missing }, '[review-hold] Override refused');
+    log.warn({ taskId: p.taskId, missing: bound.missing }, '[review-hold] Override refused');
     return { ok: false, reason: 'unbound' };
   }
-  if (!(await clearReviewHold({ ...p, hold }))) return { ok: false, reason: 'cas_lost' };
+  if (!(await clearReviewHold({ ...p, hold, ...(bound ? { target: bound.target } : {}) }))) {
+    return { ok: false, reason: 'cas_lost' };
+  }
 
   const verifyContent = (await readWorkflowFile(p.taskId, 'verify').catch(() => null)) ?? '';
-  return binding
-    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, binding, hold)
+  return bound
+    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, bound.binding, hold)
     : acceptHold(p.taskId, hold, verifyContent);
 }
 
-/** The verify.md version + diff an override would cover, or what is missing. */
+/**
+ * The verify.md version + diff an override would cover (for publication) and
+ * the commit-stable target recorded on the resolution (for the completion
+ * paths), or what is missing.
+ */
 async function resolveOverrideBinding(
   taskId: number,
-): Promise<OverrideBinding | { missing: string }> {
-  const [{ readVerifySha256 }, { currentDiffFingerprint }, { resolvePublishWorktree }] =
-    await Promise.all([
-      import('./verify-jury-completion'),
-      import('../agents/verification/review-diff-fingerprint'),
-      import('../../routes/workflow/workflow-auto-commit-binding'),
-    ]);
-  // NOTE: The SAME worktree commit/PR will publish from (latest-active session),
-  // not the newest-created one — binding A and publishing B is what this closes.
-  const worktreePath = await resolvePublishWorktree(taskId);
-  if (!worktreePath) return { missing: '公開処理が使う worktree が見つかりません' };
-  const verifySha256 = await readVerifySha256(taskId);
-  if (!verifySha256) return { missing: 'verify.md の識別子（sha256）を取得できません' };
-  const diffFingerprint = await currentDiffFingerprint(taskId, worktreePath);
+): Promise<{ binding: OverrideBinding; target: OverrideTarget } | { missing: string }> {
+  // NOTE: The target's worktree is the SAME one commit/PR will publish from
+  // (latest-active session), not the newest-created one — binding A and
+  // publishing B is what this closes.
+  const target = await readCurrentOverrideTarget(taskId);
+  if ('missing' in target) return target;
+  const { currentDiffFingerprint } = await import('../agents/verification/review-diff-fingerprint');
+  const diffFingerprint = await currentDiffFingerprint(taskId, target.worktreePath);
   if (!diffFingerprint) return { missing: '差分の識別子（fingerprint）を取得できません' };
-  return { verifySha256, diffFingerprint, worktreePath };
+  const { verifySha256, worktreePath } = target;
+  return { binding: { verifySha256, diffFingerprint, worktreePath }, target };
 }
 
 async function acceptHold(

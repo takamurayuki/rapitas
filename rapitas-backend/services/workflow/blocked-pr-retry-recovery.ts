@@ -18,6 +18,7 @@ import { PR_RETRY_LIGHTWEIGHT_CAUSE } from './blocked-task-policy';
 import { isAwaitingRequiredMerge } from './verify-settle-artifact-recovery';
 import { holdForRequiredMerge } from './required-merge-hold';
 import { isLatestExecutionCancelled } from './publication-cancellation-guard';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
 
 const log = createLogger('workflow:blocked-pr-retry-recovery');
 
@@ -40,6 +41,9 @@ const log = createLogger('workflow:blocked-pr-retry-recovery');
  * - `cas_lost`: the row already moved on to a different state concurrently
  *   (another path completed it, or a stop landed mid-write) — leave it
  *   untouched; a blind reset here would overwrite whatever it moved to.
+ * - `verifier_unconfirmed`: the common completion check refused (verifier not
+ *   confirmed eligible, completion still deferred, or a review hold) — leave
+ *   the row untouched; a full reset would discard the verdict a human must judge.
  * - `failed`: a genuine PR-creation failure — safe for the caller's existing
  *   bounded full-reset fallback to proceed unchanged.
  */
@@ -48,6 +52,7 @@ export type BlockedPrRecoveryOutcome =
   | 'completed'
   | 'declined_stopped'
   | 'cas_lost'
+  | 'verifier_unconfirmed'
   | 'failed';
 
 /**
@@ -118,6 +123,12 @@ export async function canReviveBlockedPrRetry(taskId: number): Promise<boolean> 
  * @returns The outcome — see {@link BlockedPrRecoveryOutcome}. / 結果種別
  */
 export async function attemptPrOnlyRecovery(taskId: number): Promise<BlockedPrRecoveryOutcome> {
+  // Both completion writes below (PR already linked / PR just created) and the
+  // publication itself rest on the verify verdict: the common completion check
+  // runs first, before anything is published or completed.
+  if (!(await verifierConfirmedForCompletion(taskId, 'blocked_pr_retry'))) {
+    return 'verifier_unconfirmed';
+  }
   // Another process may have already landed the PR (e.g. a concurrent manual
   // retry) — avoid a redundant second PR-creation attempt.
   if (await taskHasLinkedPr(taskId)) {

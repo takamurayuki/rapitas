@@ -9,6 +9,8 @@
 import { createLogger } from '../../config/logger';
 import type { WorkflowRole, WorkflowAdvanceResult } from './workflow-types';
 import type { RecoveryAttemptInput } from '../ai/recovery-metrics/recovery-metrics.types';
+import { rerouteWithConstraints } from './workflow-provider-reroute';
+import { recordRerouteDecision } from './workflow-provider-reroute-record';
 
 const log = createLogger('workflow-orchestrator');
 
@@ -113,13 +115,11 @@ export async function tryProviderFallback(args: {
   const [
     { classifyAgentError },
     { markProviderCooldown },
-    { getSmartRoute },
     { findAgentConfigForProvider, agentTypeToProvider },
     { inferProviderFromModelId },
   ] = await Promise.all([
     import('../ai/agent-error-classifier'),
     import('../ai/provider-cooldown'),
-    import('../ai/smart-model-router'),
     import('../ai/agent-fallback'),
     import('./role-provider-resolver'),
   ]);
@@ -190,35 +190,39 @@ export async function tryProviderFallback(args: {
     'Provider failed — retrying with Smart Router fallback',
   );
 
-  // Re-route. Smart Router will now skip cooled-down providers.
+  // Re-route through the SAME role routing a normal run uses, with the failed
+  // provider excluded, so the role's floors and caps (minTier / hardCapTier /
+  // role suitability) survive the switch (追補5, 修正リストD). There is no
+  // unconstrained fallback any more: when role routing cannot answer, the
+  // switch is refused and the original failure stands.
   let alternativeModel: string;
   try {
-    const route = await getSmartRoute(args.taskId, {
-      excludeProviders: [classified.provider],
+    const rerouted = await rerouteWithConstraints(args.taskId, args.role, classified.provider);
+    recordRerouteDecision(args.taskId, {
+      role: args.role,
+      failedProvider: classified.provider,
+      failureReason: classified.reason,
+      previousModel: args.currentConfig.modelId,
+      rerouted,
     });
-    alternativeModel = route.recommendedModel;
-    // Audit trail: record the failure-driven re-route (api_call). Fire-and-forget;
-    // dynamic import mirrors this function's other lazy service imports.
-    const rerouteModel = alternativeModel;
-    void import('../observability/decision-trace')
-      .then(({ recordDecision }) =>
-        recordDecision({
-          taskId: args.taskId,
-          nodeKey: `task${args.taskId}:provider-fallback:${Date.now()}`,
-          kind: 'api_call',
-          summary: `プロバイダフォールバック: ${rerouteModel}`,
-          input: {
-            role: args.role,
-            failedProvider: classified.provider,
-            failureReason: classified.reason,
-            previousModel: args.currentConfig.modelId,
-          },
-          candidates: [{ id: rerouteModel, label: 'フォールバック候補' }],
-          adoptedId: rerouteModel,
-          adoptedReason: `プロバイダ ${classified.provider} が ${classified.reason} で cooldown に入ったための再ルーティング`,
-        }),
-      )
-      .catch(() => {});
+    if (!rerouted.ok) {
+      log.warn(
+        { taskId: args.taskId, role: args.role, reason: rerouted.reason, detail: rerouted.detail },
+        'Provider fallback refused — no replacement that keeps the role constraints',
+      );
+      recordAttempt({ ...base, strategy: 'none', outcome: 'no_candidate' });
+      return null;
+    }
+    if (!rerouted.constraintsMet) {
+      // Runs, like a normal route below its requirement — the gap travels with
+      // the decision record and the run log, and a review role's verdict on
+      // this model is not accepted as verification (verifier-eligibility.ts).
+      log.warn(
+        { taskId: args.taskId, role: args.role, shortfall: rerouted.shortfall },
+        'Provider fallback model misses the role requirement — running, gap recorded',
+      );
+    }
+    alternativeModel = rerouted.modelId;
   } catch (err) {
     log.warn({ err, taskId: args.taskId }, 'Smart Router fallback failed');
     recordAttempt({ ...base, strategy: 'none', outcome: 'no_candidate' });

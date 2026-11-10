@@ -29,6 +29,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { holdForHumanReview, type ReviewHoldDetails } from './review-hold';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
 import {
   publishBindingDrift,
   type PublishBinding,
@@ -52,6 +53,7 @@ export type OverridePublication =
   | 'unverifiable'
   | 'binding_mismatch'
   | 'publication_failed'
+  | 'verifier_unconfirmed'
   | 'already_moved';
 
 /** The worktree + verify.md version + diff a human override was given for. */
@@ -93,6 +95,11 @@ export async function publishAfterReviewOverride(
   // Early, cheap refusal; the commit side repeats this check where it commits.
   const mismatch = await publishBindingDrift(taskId, ctx.binding.worktreePath, ctx.binding);
   if (mismatch) return reHold(taskId, ctx, mismatch);
+  // The override waives the hold it resolved, not the verifier check: a jury
+  // hold is written before the verifier is judged (common completion check).
+  if (!(await verifierConfirmedForCompletion(taskId, 'override_publish'))) {
+    return 'verifier_unconfirmed';
+  }
 
   const { performAutoCommitAndPR, isNoChangeCompletion } =
     await import('../../routes/workflow/workflow-auto-commit');
@@ -216,6 +223,9 @@ export async function publishAfterReviewOverride(
   }
 
   const cause = noChange ? 'verify_no_change_confirmed' : 'verify_passed';
+  if (!(await verifierConfirmedForCompletion(taskId, 'override_publish'))) {
+    return 'verifier_unconfirmed';
+  }
   const completed = await prisma.task
     .updateMany({
       where: { id: taskId, workflowStatus: 'verify_done' },

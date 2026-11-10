@@ -39,7 +39,11 @@ const HOLD = {
 };
 const readReviewHold = mock(async (_id: number): Promise<typeof HOLD | null> => HOLD);
 const clearReviewHold = mock(async (_p: unknown) => true);
-mock.module('./review-hold', () => ({ readReviewHold, clearReviewHold }));
+mock.module('./review-hold', () => ({
+  readReviewHold,
+  probeReviewHold: async () => ({ state: 'clear' }),
+  clearReviewHold,
+}));
 
 const attemptVerifyRepair = mock(
   async (
@@ -75,6 +79,12 @@ mock.module('./verify-jury-completion', () => ({
 mock.module('../agents/verification/review-diff-fingerprint', () => ({
   currentDiffFingerprint: async () => fp,
 }));
+let tree: string | null = 'tree-5';
+const stagedTreeIdentity = mock(async (_cwd: string) => tree);
+mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+  stagedTreeIdentity,
+  committedTreeIdentity: async () => tree,
+}));
 const publishAfterReviewOverride = mock(async (..._a: unknown[]) => 'completed');
 mock.module('./review-hold-publish', () => ({ publishAfterReviewOverride }));
 const registerVerifyCompletion = mock((_id: number, _w: Promise<unknown>) => {});
@@ -86,6 +96,8 @@ beforeEach(() => {
   sessions = [{ worktreePath: '/wt/5', createdAt: 1, lastActivityAt: 1 }];
   sha = 'sha-5';
   fp = 'fp-5';
+  tree = 'tree-5';
+  stagedTreeIdentity.mockClear();
   readReviewHold.mockReset().mockResolvedValue(HOLD);
   clearReviewHold.mockReset().mockResolvedValue(true);
   attemptVerifyRepair.mockReset().mockResolvedValue({ bounced: true, newStatus: 'plan_approved' });
@@ -173,6 +185,12 @@ describe('resolveReviewHold', () => {
       binding: { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' },
       hold: HOLD,
     });
+    // The resolution records the commit-stable target the completion paths
+    // compare against (verify.md sha256 + publish worktree + git tree id).
+    expect(clearReviewHold.mock.calls[0][0]).toMatchObject({
+      target: { verifySha256: 'sha-5', treeId: 'tree-5', worktreePath: '/wt/5' },
+    });
+    expect(stagedTreeIdentity).toHaveBeenCalledWith('/wt/5');
     // Registered in flight so the runner's verify-settle wait sees live work.
     expect(registerVerifyCompletion.mock.calls[0][0]).toBe(5);
     expect(attemptVerifyRepair).not.toHaveBeenCalled();
@@ -181,6 +199,7 @@ describe('resolveReviewHold', () => {
   test.each([
     ['verify.md の sha256', () => (sha = null)],
     ['差分の fingerprint', () => (fp = null)],
+    ['差分の git tree', () => (tree = null)],
   ])('(b) 上書きで %s が取得できなければ、保留を解かず公開もしない', async (_l, unset) => {
     unset();
     const r = await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });

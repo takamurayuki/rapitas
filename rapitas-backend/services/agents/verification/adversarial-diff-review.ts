@@ -196,12 +196,11 @@ export async function reviewDiffAdversarially(params: {
 
     // Two blind reviewers (same prompt, separate calls); the verifier seat
     // only on a disagreement, shown only the disputed findings.
-    const run = await runTwoSeatJury(prompt, {
-      taskTitle,
-      acceptanceCriteria,
-      planContent,
-      diffText,
-    });
+    const run = await runTwoSeatJury(
+      prompt,
+      { taskTitle, acceptanceCriteria, planContent, diffText },
+      { taskId },
+    );
     const jurors = run.result.jurors ?? [];
     seen.jurors = jurors;
     // A fail about a plan item that a sibling PR already put on the base ref can
@@ -240,6 +239,7 @@ export async function reviewDiffAdversarially(params: {
             tokensUsed: j.usage?.tokensUsed,
           })),
           seats: result.seats ?? [],
+          seating: run.seating, // who sat where and why, incl. unmet seats (追補5)
           // Findings of both reviewers, kept on PASS too (minor → recorded
           // only), with the verifier's check on the disputed ones.
           findings: result.findings ?? [],

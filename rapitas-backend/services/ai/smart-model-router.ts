@@ -18,29 +18,25 @@ import {
   type ModelTier,
   type Provider,
 } from './model-discovery';
-import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
+import { classifyTier } from './model-discovery/tier-classifier';
+import { estimateCost, type CostEstimate } from './cost-estimate';
+import { TIER_ORDER } from './model-tier-table/tier-table';
+import {
+  detectShortfall,
+  recordShortfall,
+  requiredFloor,
+  type RouteShortfall,
+} from './route-shortfall';
 import { listActiveCooldowns } from './provider-cooldown';
 import { recordDecision } from '../observability/decision-trace';
 import { buildRouteReason, type RouteDriver } from './routing-reason';
-import { sumAttributedSpend } from '../agents/execution-cost-attribution';
-import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+import { getBudgetStatus } from './budget-status';
 import { resolveComplexityScore } from '../workflow/complexity-score';
 
 const log = createLogger('smart-model-router');
 
-/**
- * Per-1K-token cost fallback used when discovery has no entry for a model.
- * The discovery layer is the source of truth — this map only catches the
- * ~edge case where a historical execution references a model id that the
- * provider has since retired.
- */
-const MODEL_COST_RATES: Record<string, number> = {};
-
-/** Tier fallback table mirroring `MODEL_COST_RATES`. Empty by design. */
-const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {};
-
-/** Highest → lowest capability. Index 0 is the strongest tier. */
-const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
+// NOTE: TIER_ORDER now comes from the model tier table — the one ordering
+// SmartRouter, routing-policy and the jury seats all compare tiers by.
 
 /** Provider label shown in trade-off strings. */
 const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
@@ -48,16 +44,6 @@ const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> 
   openai: 'OpenAI',
   gemini: 'Gemini',
   ollama: 'Ollama (ローカル)',
-};
-
-/** Pre-execution cost estimate. */
-export type CostEstimate = {
-  modelId: string;
-  modelTier: string;
-  estimatedTokens: number;
-  estimatedCost: number;
-  confidence: number;
-  basedOnSamples: number;
 };
 
 /** Budget status for the current period. */
@@ -83,79 +69,15 @@ export type RoutingDecision = {
     tradeoff: string;
   }>;
   costEstimate: CostEstimate;
+  /**
+   * Set when the chosen model does not meet the route's requirement (its tier
+   * floor, or the role's suitability in the tier table) because nothing that
+   * does is usable right now. The route still runs — stopping every phase
+   * would be worse — but the gap is shown in `reason` and recorded, never
+   * silently absorbed (追補5: 黙って基準を下げない).
+   */
+  constraintShortfall?: RouteShortfall;
 };
-
-/**
- * Estimate execution cost for a task based on historical data.
- *
- * @param taskComplexity - Task complexity score (0-100) / タスク複雑度スコア
- * @param modelId - Target model / 対象モデル
- * @returns Cost estimate / コスト見積もり
- */
-export async function estimateCost(taskComplexity: number, modelId: string): Promise<CostEstimate> {
-  // Resolve rate + tier from live discovery first; fall back to the static
-  // table for legacy models that probes do not yet surface, and finally to
-  // the name-based heuristic so unknown ids still produce sane numbers.
-  const { models } = await discoverModels();
-  const discovered = models.find((m) => m.id === modelId);
-  const tier: ModelTier = discovered?.tier ?? MODEL_TIERS[modelId] ?? classifyTier(modelId);
-  const rate =
-    discovered?.costPer1kTokens ?? MODEL_COST_RATES[modelId] ?? inferCostPer1k(modelId, tier);
-
-  // Fetch historical token usage for similar complexity tasks
-  const similarExecutions = await prisma.agentExecution.findMany({
-    where: {
-      ...NOT_REVIEW_COST_ROW,
-      status: 'completed',
-      tokensUsed: { gt: 0 },
-      session: {
-        config: {
-          task: {
-            complexityScore: {
-              gte: Math.max(0, taskComplexity - 15),
-              lte: Math.min(100, taskComplexity + 15),
-            },
-          },
-        },
-      },
-    },
-    select: { tokensUsed: true },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  });
-
-  let estimatedTokens: number;
-  let confidence: number;
-
-  if (similarExecutions.length >= 3) {
-    // Use historical average
-    const avgTokens =
-      similarExecutions.reduce((sum, e) => sum + e.tokensUsed, 0) / similarExecutions.length;
-    estimatedTokens = Math.round(avgTokens);
-    confidence = Math.min(0.9, 0.5 + similarExecutions.length * 0.04);
-  } else {
-    // Heuristic: complexity → token estimate
-    estimatedTokens = Math.round(
-      taskComplexity <= 35
-        ? 5000 + taskComplexity * 100
-        : taskComplexity <= 70
-          ? 10000 + taskComplexity * 200
-          : 20000 + taskComplexity * 500,
-    );
-    confidence = 0.3;
-  }
-
-  const estimatedCost = Math.round((estimatedTokens / 1000) * rate * 1000) / 1000;
-
-  return {
-    modelId,
-    modelTier: tier,
-    estimatedTokens,
-    estimatedCost,
-    confidence,
-    basedOnSamples: similarExecutions.length,
-  };
-}
 
 /**
  * Get the optimal model for a task based on complexity, budget, and history.
@@ -328,6 +250,7 @@ export async function getSmartRoute(
     preferFree: budgetPressure,
     preferredProvider: opts.preferredProvider,
     excludeProviders: mergedExcludes,
+    role: opts.role,
   });
   const recommendedModel = selected?.model.id ?? null;
   if (selected) recommendedTier = selected.tier;
@@ -370,6 +293,10 @@ export async function getSmartRoute(
   // release, so this never goes stale the way a pinned versioned id
   // ('claude-sonnet-4-6') did once that release was retired.
   const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'sonnet';
+  // NOTE: The tier is re-resolved from the model actually returned. It used to
+  // stay at the REQUESTED tier on this path, so the bare `sonnet` fallback was
+  // reported as premium and a premium floor read as met (G2 routing1 item 6).
+  if (!selected) recommendedTier = classifyTier(finalModel);
   const costEstimate = await estimateCost(complexity, finalModel);
 
   // The floor is applied last and overrides everything, so it is checked first
@@ -381,12 +308,35 @@ export async function getSmartRoute(
       : budgetPressure
         ? 'budget'
         : 'complexity';
-  const reason = buildRouteReason({
+  // selectBestModel drops an exclusion list that would empty the pool, so the
+  // chosen model may come from a provider the route excluded on purpose.
+  const chosenProvider = selected?.model.provider ?? null;
+  const shortfall = detectShortfall({
+    requiredTier: requiredFloor(opts),
+    selectedTier: recommendedTier,
+    model: finalModel,
+    role: opts.role,
+    noCandidates: !selected,
+    excludedProvider:
+      chosenProvider && mergedExcludes.includes(chosenProvider) ? chosenProvider : null,
+  });
+  const baseReason = buildRouteReason({
     tier: recommendedTier,
     complexity,
     driver,
     floorReason: opts.minTierReason,
   });
+  const reason = shortfall ? `${baseReason}（要件未達: ${shortfall.reason}）` : baseReason;
+  if (shortfall) {
+    recordShortfall({
+      taskId,
+      role: opts.role,
+      model: finalModel,
+      shortfall,
+      minTierReason: opts.minTierReason,
+      excludedProviders: mergedExcludes,
+    });
+  }
 
   const availableProviders = discovery.providers.filter((p) => p.available).map((p) => p.provider);
   log.info(
@@ -443,74 +393,12 @@ export async function getSmartRoute(
     reason,
     alternativeModels: alternatives,
     costEstimate,
+    ...(shortfall ? { constraintShortfall: shortfall } : {}),
   };
 }
 
-/**
- * Get current budget status for the week.
- *
- * @param weeklyBudget - Weekly budget limit in USD / 週間予算上限（USD）
- * @returns Budget status / 予算状態
- */
-export async function getBudgetStatus(weeklyBudget: number | null = null): Promise<BudgetStatus> {
-  const now = new Date();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - now.getDay());
-  weekStart.setHours(0, 0, 0, 0);
-
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
-
-  const executions = await prisma.agentExecution.findMany({
-    where: {
-      // NOTE: Jury cost rows are deliberately included — review spend is real
-      // subscription consumption and belongs in the weekly budget.
-      status: 'completed',
-      tokensUsed: { gt: 0 },
-      completedAt: { gte: weekStart },
-    },
-    include: { agentConfig: { select: { modelId: true } } },
-  });
-
-  // Resolve per-execution rates from the live discovery cache so retired and
-  // newly-released models alike get a real number.
-  const { models: discoveredForBudget } = await discoverModels();
-  const rateById = new Map(discoveredForBudget.map((m) => [m.id, m.costPer1kTokens ?? 0]));
-  // Each row's OWN increment, not the recorded value: costUsd holds the CLI's
-  // session-cumulative total_cost_usd, so summing the rows of a resumed session
-  // counts its running total again every cycle. Measured 2026-10-13: $523.84
-  // for the week against a real $357.66 over 450 executions. Estimating from
-  // tokens is the fallback only for legacy rows with no recorded cost — that
-  // estimate charges cache reads at full rate and overstates a cache-heavy run
-  // by orders of magnitude.
-  let spent = sumAttributedSpend(executions, (exec) => {
-    const modelId = exec.agentConfig?.modelId || 'default';
-    const rate =
-      rateById.get(modelId) ??
-      MODEL_COST_RATES[modelId] ??
-      inferCostPer1k(modelId, classifyTier(modelId));
-    return (exec.tokensUsed / 1000) * rate;
-  });
-  spent = Math.round(spent * 100) / 100;
-
-  const daysElapsed = Math.max(1, (now.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000));
-  const projectedMonthlySpend = Math.round((spent / daysElapsed) * 30 * 100) / 100;
-
-  const recommendation =
-    weeklyBudget && spent > weeklyBudget * 0.8
-      ? '⚠️ 予算の80%を超えました。ローカルLLMへの切り替えを推奨します'
-      : weeklyBudget && spent > weeklyBudget * 0.5
-        ? '💡 予算の半分を消費。シンプルなタスクにはHaikuやローカルLLMの利用を検討してください'
-        : '✅ 予算内で順調に推移しています';
-
-  return {
-    periodStart: weekStart,
-    periodEnd: weekEnd,
-    budgetLimit: weeklyBudget,
-    spent,
-    remaining: weeklyBudget ? Math.max(0, weeklyBudget - spent) : null,
-    projectedMonthlySpend,
-    executionsThisPeriod: executions.length,
-    recommendation,
-  };
-}
+// NOTE: getBudgetStatus moved to budget-status.ts (file-size limit); re-exported
+// so existing imports of it from this module keep working.
+export { getBudgetStatus };
+// NOTE: Moved to cost-estimate.ts (file size); re-exported so existing imports keep working.
+export { estimateCost, type CostEstimate };

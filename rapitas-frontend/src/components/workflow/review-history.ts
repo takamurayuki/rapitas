@@ -53,7 +53,7 @@ export interface DisplaySeat {
 
 /** Why a review waits for a human (review hold). */
 export interface AwaitingHuman {
-  reason: 'jury_unavailable_high_risk' | 'unresolved_dispute';
+  reason: 'jury_unavailable_high_risk' | 'unresolved_dispute' | 'ineligible_verifier';
   detail: string;
 }
 
@@ -139,11 +139,11 @@ function toAwaitingHuman(raw: unknown): AwaitingHuman | null {
   const o = asRecord(raw);
   if (!o) return null;
   const reason =
-    o.reason === 'unresolved_dispute'
+    o.reason === 'unresolved_dispute' ||
+    o.reason === 'jury_unavailable_high_risk' ||
+    o.reason === 'ineligible_verifier'
       ? o.reason
-      : o.reason === 'jury_unavailable_high_risk'
-        ? o.reason
-        : null;
+      : null;
   return reason ? { reason, detail: str(o.detail) ?? '' } : null;
 }
 

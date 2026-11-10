@@ -28,6 +28,10 @@ let held = true;
 mock.module('./review-hold', () => ({
   readReviewHold: async () =>
     held ? { reason: 'unresolved_dispute', detail: '', findings: [] } : null,
+  probeReviewHold: async () =>
+    held
+      ? { state: 'held', hold: { reason: 'unresolved_dispute', detail: '', findings: [] } }
+      : { state: 'clear' },
 }));
 
 const { waitForVerifyCompletion, deferVerifyItem } =

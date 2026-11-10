@@ -47,6 +47,12 @@ mock.module('../agents/verification/review-diff-fingerprint', () => ({
 const holdForHumanReview = mock(async (_p: Record<string, unknown>) => 'held' as const);
 mock.module('./review-hold', () => ({ holdForHumanReview }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real check in the *.verifier-eligibility.test.ts files.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const { publishAfterReviewOverride } = await import('./review-hold-publish');
 
 const HOLD = {

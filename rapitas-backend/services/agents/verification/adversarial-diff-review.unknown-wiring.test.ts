@@ -58,6 +58,14 @@ mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
 // 'api' seats one juror per provider family, which is what lets a single
 // review carry three different causes at once.
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => 'api' }));
+// The host's configured vendors (configured-vendors.ts reads API keys and probes
+// the Claude CLI): fixed here so the seats do not depend on this machine.
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) => ({
+    configured: mode === 'cli' ? ['anthropic'] : ['anthropic', 'google', 'openai'],
+    unconfigured: [],
+  }),
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() => Promise.resolve({ dir: '/wf/1' })),
   readWorkflowFile: mock(() => Promise.resolve('plan content')),
@@ -74,7 +82,12 @@ mock.module('./base-satisfied-plan-items', () => ({
 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecution: {
+      findFirst: mock(() => Promise.resolve(null)),
+      // The implementer's run (executor-model.ts): a local model — no vendor and
+      // a free tier, so it neither raises a floor nor steers seat independence.
+      findMany: mock(() => Promise.resolve([{ modelName: 'llama3' }])),
+    },
     agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
     task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
   },
