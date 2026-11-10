@@ -9,6 +9,11 @@
  * after a long enough outage plus a restart it fell outside that window
  * (re-review3 P2). Not responsible for the recompute itself
  * (session-cost-totals.ts).
+ *
+ * The position is persisted after every session (session-cost-sweep-cursor.ts)
+ * and the walk wraps at the last id, so boots that each end early still move
+ * it forward and reach every session (re-review4 P2). Once stopped it issues
+ * no further DB call, and the shutdown drain waits for the stage in flight.
  */
 import { createLogger } from '../../config/logger';
 import {
@@ -17,6 +22,7 @@ import {
   scheduleSessionRecompute,
   type SessionTotalsDb,
 } from './session-cost-totals';
+import { createFileSweepCursorStore, type SweepCursorStore } from './session-cost-sweep-cursor';
 
 const log = createLogger('agents:session-cost-sweep');
 
@@ -41,7 +47,7 @@ export interface StoredSessionTotals {
 export interface SessionSweepDb {
   agentSession: {
     findMany(args: {
-      where: { id: { gt: number } };
+      where: { id: { gt: number; lte?: number } };
       orderBy: { id: 'asc' };
       take: number;
       select: { id: true; totalCostUsd: true; totalTokensUsed: true };
@@ -55,6 +61,8 @@ export interface SweepOptions {
   pauseMs?: number;
   retryBaseMs?: number;
   signal?: AbortSignal;
+  /** Where the position survives restarts; defaults to the data-dir file. */
+  cursorStore?: SweepCursorStore;
 }
 
 /** Outcome of a sweep; `completed` is false when it was stopped first. */
@@ -65,21 +73,55 @@ export interface SweepResult {
   completed: boolean;
 }
 
+class SweepStopped extends Error {}
+
+/** `db` whose comparison reads refuse to start once `signal` has aborted. */
+function stopAwareReads(db: SessionTotalsDb, signal: AbortSignal): SessionTotalsDb {
+  const guard = () => {
+    if (signal.aborted) throw new SweepStopped('session sweep stopped');
+  };
+  return {
+    ...db,
+    agentExecution: {
+      findMany: async (args) => {
+        guard();
+        return db.agentExecution.findMany(args);
+      },
+    },
+    agentAction: {
+      findMany: async (args) => {
+        guard();
+        return db.agentAction.findMany(args);
+      },
+    },
+  };
+}
+
 /**
  * Compare a session's stored totals with its usage rows and rewrite (verified)
  * them if they differ. Any failure hands the session to the deferred retry,
  * so a transient error never leaves it stale (re-review3 P2). Never throws.
  *
+ * With `signal`, the stop is checked before each comparison read and again
+ * before the recompute; a stopped repair touches the DB no further and
+ * returns 'stopped' (the persisted cursor has not passed it, so the next boot
+ * redoes it). A recompute already started is finished, since it writes and
+ * then verifies; the shutdown drain waits for it (re-review4 P2).
+ *
  * @param db - Prisma client (or a structural fake) / Prisma クライアント
  * @param s - The session's stored totals / 保存済みの合計
- * @returns 'ok' (already right), 'repaired' or 'deferred' / 結果
+ * @param signal - Stop of the sweep / 走査の停止
+ * @returns 'ok' (already right), 'repaired', 'deferred' or 'stopped' / 結果
  */
 export async function repairSessionIfStale(
   db: SessionTotalsDb,
   s: StoredSessionTotals,
-): Promise<'ok' | 'repaired' | 'deferred'> {
+  signal?: AbortSignal,
+): Promise<'ok' | 'repaired' | 'deferred' | 'stopped'> {
+  if (signal?.aborted) return 'stopped';
   try {
-    const want = await readTotals(db, s.id);
+    const want = await readTotals(signal ? stopAwareReads(db, signal) : db, s.id);
+    if (signal?.aborted) return 'stopped';
     // Matching sessions are not written, so their updatedAt stays put.
     if (Number(s.totalCostUsd) === want.totalCostUsd && s.totalTokensUsed === want.totalTokensUsed) {
       return 'ok';
@@ -87,6 +129,7 @@ export async function repairSessionIfStale(
     // A false result means the verification was deferred (already scheduled).
     return (await recomputeSessionTotals(db, s.id)) ? 'repaired' : 'deferred';
   } catch (err) {
+    if (err instanceof SweepStopped) return 'stopped';
     // recomputeSessionTotals schedules its own retry before throwing; this
     // covers the comparison read, which fails before reaching it. The queue
     // coalesces per session, so scheduling twice is harmless.
@@ -113,7 +156,11 @@ const pause = (ms: number, signal?: AbortSignal) =>
 /**
  * Walk every session by id, batch by batch, repairing stale totals. A failed
  * page read is retried from the same cursor with backoff (never skipped), so
- * the sweep only ends by reaching the last session or by `signal`.
+ * the sweep only ends by completing a lap or by `signal`.
+ *
+ * A lap starts after the persisted cursor, runs to the last id, then wraps to
+ * the start and ends at the cursor it began from; the cursor is saved after
+ * every finished session and reset to 0 when the lap completes.
  *
  * @param db - Prisma client (or a structural fake) / Prisma クライアント
  * @param opts - Batch size, pacing and cancellation / バッチ件数・間隔・中断
@@ -125,14 +172,18 @@ export async function sweepAllSessionTotals(
 ): Promise<SweepResult> {
   const take = opts.batchSize ?? DEFAULT_BATCH_SIZE;
   const retryBase = opts.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+  const store = opts.cursorStore ?? createFileSweepCursorStore();
   const res: SweepResult = { checked: 0, repaired: 0, deferred: 0, completed: false };
-  let cursor = 0;
+  const start = store.read();
+  let cursor = start;
+  // Starting at 0 the first pass is already the whole lap.
+  let wrapped = start === 0;
   let failures = 0;
   while (!opts.signal?.aborted) {
     let page: StoredSessionTotals[];
     try {
       page = await db.agentSession.findMany({
-        where: { id: { gt: cursor } },
+        where: { id: wrapped && start > 0 ? { gt: cursor, lte: start } : { gt: cursor } },
         orderBy: { id: 'asc' },
         take,
         select: { id: true, totalCostUsd: true, totalTokensUsed: true },
@@ -144,16 +195,24 @@ export async function sweepAllSessionTotals(
       continue;
     }
     if (page.length === 0) {
+      if (!wrapped) {
+        wrapped = true;
+        cursor = 0;
+        store.write(0);
+        continue;
+      }
+      store.write(0);
       res.completed = true;
       break;
     }
     for (const s of page) {
-      if (opts.signal?.aborted) break;
-      const outcome = await repairSessionIfStale(db, s);
+      const outcome = await repairSessionIfStale(db, s, opts.signal);
+      if (outcome === 'stopped') break;
       res.checked++;
       if (outcome === 'repaired') res.repaired++;
       if (outcome === 'deferred') res.deferred++;
       cursor = s.id;
+      store.write(cursor);
     }
     await pause(opts.pauseMs ?? DEFAULT_PAUSE_MS, opts.signal);
   }
@@ -200,7 +259,13 @@ export function startBackgroundSessionSweep(
   return handle;
 }
 
-/** Stop the running background sweep, if any (shutdown, before the DB closes). */
-export function stopBackgroundSessionSweep(): void {
-  current?.stop();
+/**
+ * Stop the running background sweep, if any (shutdown, before the DB closes).
+ *
+ * @returns Settles once the stage in flight has finished and the sweep issues no more DB calls / 進行中の段が終わり、DB に触らなくなったら解決する
+ */
+export function stopBackgroundSessionSweep(): Promise<void> {
+  const running = current;
+  running?.stop();
+  return running ? running.done.then(() => undefined) : Promise.resolve();
 }

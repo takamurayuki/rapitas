@@ -191,24 +191,29 @@ export async function recoverSessionTotalsOnBoot(): Promise<number> {
 }
 
 /**
- * Stop the background sweep, then run pending deferred recomputes before the
- * process exits, giving up after `timeoutMs` so a dead DB cannot hold the
- * shutdown. Never throws.
+ * Stop the background sweep and wait for its stage in flight, then run
+ * pending deferred recomputes before the process exits, giving up after
+ * `timeoutMs` (shared by both) so a dead DB cannot hold the shutdown.
+ * Never throws.
  *
  * @param opts.timeoutMs - Time budget of the drain / 待つ上限（ミリ秒）
  */
 export async function drainSessionRecomputesForShutdown(opts: {
   timeoutMs: number;
 }): Promise<void> {
-  // The sweep must not query a DB about to be disconnected; the next boot reruns it.
-  stopBackgroundSessionSweep();
+  // The sweep must not query a DB about to be disconnected, so its stage in
+  // flight is awaited (within the budget) before the drain; the next boot
+  // resumes it from the persisted cursor (re-review4 P2).
+  const sweepStopped = stopBackgroundSessionSweep();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const budget = new Promise<'timeout'>((resolve) => {
     timer = setTimeout(() => resolve('timeout'), opts.timeoutMs);
   });
   try {
     const outcome = await Promise.race([
-      flushPendingSessionRecomputes(SHUTDOWN_MAX_ROUNDS).then(() => 'done' as const),
+      sweepStopped
+        .then(() => flushPendingSessionRecomputes(SHUTDOWN_MAX_ROUNDS))
+        .then(() => 'done' as const),
       budget,
     ]);
     if (outcome === 'timeout') {
