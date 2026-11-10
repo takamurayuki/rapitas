@@ -14,6 +14,19 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		FA1C106A9408FBA20E18BB92 /* RapiHomeScreenChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 973A80AABB418BCC1DCDA44C /* RapiHomeScreenChannel.swift */; };
+		FDC822F52D2F3D6F754B5F69 /* RapiRequestIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C341A77C7A2C848C1E0E85DF /* RapiRequestIntent.swift */; };
+		532ADAAFA2B9F5E422143026 /* RapiNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */; };
+		492F2FA7EC6A38BE0638C799 /* RapiConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */; };
+		7C8485FE8EBAA0CA09E95E59 /* RapiIntentLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */; };
+		B1B2D8B5A172587EAC07ADE5 /* RapiShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CE485EB7CA1C3D855D2334 /* RapiShared.swift */; };
+		D1FF704F9A26FBD775DA1DBC /* RapiShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CE485EB7CA1C3D855D2334 /* RapiShared.swift */; };
+		9315538F9D048FD2B2574F81 /* RapiWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F775807B33AB7571BFF2BA /* RapiWidgetBundle.swift */; };
+		D139870588AB56BC1F04FE09 /* RapiHomeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35A75530C17EC87EA99F5DB /* RapiHomeWidget.swift */; };
+		FA8B6E64BCBC7B2FAE642A9F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 238DEFD9956E257394BC8D24 /* Assets.xcassets */; };
+		980EC3082A0485080B1C93C5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C1FC218A1F8EACF1136A67 /* WidgetKit.framework */; };
+		63ACE08DBB403C5F4B142A02 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 33842D3F45EC1BBC6F068C7A /* SwiftUI.framework */; };
+		E5CA68968D0AD6A3094F6591 /* RapiWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 38F83CF452467F0FDD74FDF4 /* RapiWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,6 +36,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
+		};
+		FBDC7537074EDD5F15D20EA4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3ACCBF9142C5F2140A27060;
+			remoteInfo = RapiWidgetExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -35,6 +55,17 @@
 			files = (
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A9B1D96874EC55B69E42C38E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E5CA68968D0AD6A3094F6591 /* RapiWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -55,6 +86,21 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5D12C8FEA7EE19362E9DE53F /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		973A80AABB418BCC1DCDA44C /* RapiHomeScreenChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiHomeScreenChannel.swift; sourceTree = "<group>"; };
+		C341A77C7A2C848C1E0E85DF /* RapiRequestIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiRequestIntent.swift; sourceTree = "<group>"; };
+		3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiNativeClient.swift; sourceTree = "<group>"; };
+		64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiConnectionStore.swift; sourceTree = "<group>"; };
+		46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiIntentLogic.swift; sourceTree = "<group>"; };
+		54CE485EB7CA1C3D855D2334 /* RapiShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiShared.swift; sourceTree = "<group>"; };
+		08F775807B33AB7571BFF2BA /* RapiWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiWidgetBundle.swift; sourceTree = "<group>"; };
+		B35A75530C17EC87EA99F5DB /* RapiHomeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiHomeWidget.swift; sourceTree = "<group>"; };
+		D480CA019AF1147BA937C253 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		BCD9913D2F7CC91C40760EB0 /* RapiWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RapiWidget.entitlements; sourceTree = "<group>"; };
+		238DEFD9956E257394BC8D24 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		06C1FC218A1F8EACF1136A67 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		33842D3F45EC1BBC6F068C7A /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		38F83CF452467F0FDD74FDF4 /* RapiWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RapiWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +108,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FB5A99EA3D3ABD6E134FB7EC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				63ACE08DBB403C5F4B142A02 /* SwiftUI.framework in Frameworks */,
+				980EC3082A0485080B1C93C5 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +149,9 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				ECA76D9D129A2669FB455B61 /* Shared */,
+				9F78F97300D12117BD863167 /* RapiWidget */,
+				7915B204C57DE5ADED4E2B48 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -102,6 +160,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				38F83CF452467F0FDD74FDF4 /* RapiWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -117,8 +176,51 @@
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				973A80AABB418BCC1DCDA44C /* RapiHomeScreenChannel.swift */,
+				62B40CBF940F1C748DAED599 /* Intents */,
+				5D12C8FEA7EE19362E9DE53F /* Runner.entitlements */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		62B40CBF940F1C748DAED599 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				C341A77C7A2C848C1E0E85DF /* RapiRequestIntent.swift */,
+				3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */,
+				64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */,
+				46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		ECA76D9D129A2669FB455B61 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				54CE485EB7CA1C3D855D2334 /* RapiShared.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		9F78F97300D12117BD863167 /* RapiWidget */ = {
+			isa = PBXGroup;
+			children = (
+				08F775807B33AB7571BFF2BA /* RapiWidgetBundle.swift */,
+				B35A75530C17EC87EA99F5DB /* RapiHomeWidget.swift */,
+				238DEFD9956E257394BC8D24 /* Assets.xcassets */,
+				D480CA019AF1147BA937C253 /* Info.plist */,
+				BCD9913D2F7CC91C40760EB0 /* RapiWidget.entitlements */,
+			);
+			path = RapiWidget;
+			sourceTree = "<group>";
+		};
+		7915B204C57DE5ADED4E2B48 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				06C1FC218A1F8EACF1136A67 /* WidgetKit.framework */,
+				33842D3F45EC1BBC6F068C7A /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -150,16 +252,35 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				A9B1D96874EC55B69E42C38E /* Embed Foundation Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				3D512917872CEA96A1DEAEEE /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C3ACCBF9142C5F2140A27060 /* RapiWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2E5EFC6A523F991DBC3CE16B /* Build configuration list for PBXNativeTarget "RapiWidgetExtension" */;
+			buildPhases = (
+				03FF8C110AFF4796B2B184C6 /* Sources */,
+				FB5A99EA3D3ABD6E134FB7EC /* Frameworks */,
+				680CAB55140777800E442AB7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RapiWidgetExtension;
+			productName = RapiWidgetExtension;
+			productReference = 38F83CF452467F0FDD74FDF4 /* RapiWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -174,6 +295,9 @@
 					331C8080294A63A400263BE5 = {
 						CreatedOnToolsVersion = 14.0;
 						TestTargetID = 97C146ED1CF9000F007C117D;
+					};
+					C3ACCBF9142C5F2140A27060 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
@@ -196,6 +320,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				C3ACCBF9142C5F2140A27060 /* RapiWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -216,6 +341,14 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		680CAB55140777800E442AB7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA8B6E64BCBC7B2FAE642A9F /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,6 +403,22 @@
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				FA1C106A9408FBA20E18BB92 /* RapiHomeScreenChannel.swift in Sources */,
+				FDC822F52D2F3D6F754B5F69 /* RapiRequestIntent.swift in Sources */,
+				532ADAAFA2B9F5E422143026 /* RapiNativeClient.swift in Sources */,
+				492F2FA7EC6A38BE0638C799 /* RapiConnectionStore.swift in Sources */,
+				7C8485FE8EBAA0CA09E95E59 /* RapiIntentLogic.swift in Sources */,
+				B1B2D8B5A172587EAC07ADE5 /* RapiShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		03FF8C110AFF4796B2B184C6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9315538F9D048FD2B2574F81 /* RapiWidgetBundle.swift in Sources */,
+				D139870588AB56BC1F04FE09 /* RapiHomeWidget.swift in Sources */,
+				D1FF704F9A26FBD775DA1DBC /* RapiShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,6 +429,11 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		3D512917872CEA96A1DEAEEE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C3ACCBF9142C5F2140A27060 /* RapiWidgetExtension */;
+			targetProxy = FBDC7537074EDD5F15D20EA4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -361,6 +515,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -541,6 +696,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -564,6 +720,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -579,6 +736,102 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		A847E77F6A90B53D29481787 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = RapiWidget/RapiWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = LW25B2396C;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RapiWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.rapitas.rapitasMobile.RapiWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EF1F8545BB57168B9918BE37 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = RapiWidget/RapiWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = LW25B2396C;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RapiWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.rapitas.rapitasMobile.RapiWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AE647BB1509D8C980CEACBFB /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9740EEB31CF90195004384FC /* Generated.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = RapiWidget/RapiWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = LW25B2396C;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RapiWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.rapitas.rapitasMobile.RapiWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Profile;
 		};
 /* End XCBuildConfiguration section */
 
@@ -609,6 +862,16 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2E5EFC6A523F991DBC3CE16B /* Build configuration list for PBXNativeTarget "RapiWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A847E77F6A90B53D29481787 /* Debug */,
+				EF1F8545BB57168B9918BE37 /* Release */,
+				AE647BB1509D8C980CEACBFB /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
