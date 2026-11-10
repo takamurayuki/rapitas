@@ -29,7 +29,7 @@ const log = createLogger('verification:adversarial-diff-review');
  * reports 'unknown', which is the same state it reaches today when it errors,
  * so the high-risk fail-closed policy below still applies unchanged.
  */
-function jurorTimeoutMs(): number {
+export function jurorTimeoutMs(): number {
   const v = parseInt(process.env.RAPITAS_ADVERSARIAL_JUROR_TIMEOUT_MS ?? '', 10);
   return Number.isFinite(v) && v > 0 ? v : 120_000;
 }

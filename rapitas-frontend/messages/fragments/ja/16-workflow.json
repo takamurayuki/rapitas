@@ -281,7 +281,8 @@
           "verdict": {
             "pass": "レビュー: 合格",
             "fail": "レビュー: 不合格",
-            "unknown": "レビュー: 判定不能"
+            "unknown": "レビュー: 判定不能",
+            "hold": "レビュー: 人間の判断待ち"
           },
           "findingsCount": "指摘 {count}件",
           "severity": {
@@ -293,7 +294,47 @@
           "evidence": "根拠",
           "repro": "再現手順",
           "juror": "陪審員",
-          "noFindings": "指摘はありません"
+          "noFindings": "指摘はありません",
+          "entryLabelTwoSeat": "レビュー ・ {date} ・ {judged}/{total}席",
+          "seat": {
+            "reviewer-1": "レビュー席1",
+            "reviewer-2": "レビュー席2",
+            "verifier": "検証席"
+          },
+          "seatVerdict": {
+            "pass": "合格",
+            "fail": "不合格",
+            "unknown": "応答なし",
+            "checked": "検証済み"
+          },
+          "verification": {
+            "holds": "検証: 根拠が成り立つ",
+            "refuted": "検証: 根拠が成り立たない（採用しない）",
+            "undetermined": "検証: 判定できない"
+          },
+          "verificationNote": "検証席の判断",
+          "awaiting": {
+            "jury_unavailable_high_risk": "レビューが成立せず、高リスクのため人間の判断を待っています",
+            "unresolved_dispute": "判定できない重要な争点があり、人間の判断を待っています"
+          }
+        },
+        "reviewHold": {
+          "title": "レビュー待ちで保留中",
+          "hint": "このタスクは commit / PR の手前で止まっています。指摘を確認して、どちらかを選んでください。",
+          "accept": "指摘を受け入れて修復へ回す",
+          "override": "上書きして先へ進める",
+          "overrideHint": "上書きしても、commit 前の自動検証（lint・型・テスト）は通常どおり実行されます。",
+          "submitting": "処理中…",
+          "failed": "操作に失敗しました。時間をおいて再度お試しください。",
+          "done": {
+            "accept": "修復へ回しました",
+            "override": "先へ進めました（commit / PR を開始）"
+          },
+          "resolved": "保留を解消: {action} ・ {by} ・ {date}",
+          "action": {
+            "accept": "指摘を受け入れ",
+            "override": "上書き"
+          }
         }
       },
       "phaseBreakdown": {

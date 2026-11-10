@@ -145,6 +145,30 @@ async function runGateLocked(params: {
           source: 'cli_epilogue',
         })
       : Promise.resolve();
+  if (review?.verdict === 'hold') {
+    // Same review hold as the HTTP pipeline: no bounce, no commit/PR.
+    const { holdFromReview } = await import('./review-hold');
+    const held = await holdFromReview({
+      taskId,
+      review,
+      source: 'cli_epilogue',
+      fromStatus: currentWfStatus,
+      actor,
+      sessionId,
+    });
+    if (held === 'held') {
+      await complete('stopped');
+      return { stop: true, phaseStatus: 'verify_done' };
+    }
+    // The task moved on meanwhile: neither hold nor commit, report its live status.
+    const live = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    return {
+      stop: true,
+      phaseStatus: (live?.workflowStatus ?? currentWfStatus) as WorkflowAdvanceResult['status'],
+    };
+  }
   if (!review || review.verdict !== 'fail') {
     await complete('passed');
     return { stop: false };

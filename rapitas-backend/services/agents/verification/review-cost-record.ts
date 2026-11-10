@@ -13,7 +13,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { REVIEW_COST_COMMAND } from '../review-cost-rows';
 import { recomputeSessionTotals, type SessionTotalsDb } from '../session-cost-totals';
-import type { JurorVerdict, ReviewVerdict } from './adversarial-diff-review-verdict';
+import type { JurorVerdict, PanelVerdict } from './adversarial-diff-review-verdict';
 
 const log = createLogger('verification:review-cost-record');
 
@@ -28,7 +28,7 @@ const log = createLogger('verification:review-cost-record');
 export async function recordReviewCost(params: {
   taskId: number;
   jurors: JurorVerdict[];
-  verdict: ReviewVerdict;
+  verdict: PanelVerdict;
 }): Promise<number> {
   const answered = params.jurors.filter((j) => j.usage);
   if (answered.length === 0) return 0;
@@ -49,6 +49,8 @@ export async function recordReviewCost(params: {
           output: JSON.stringify({
             kind: REVIEW_COST_COMMAND,
             juror: `${j.provider}:${j.model ?? ''}`,
+            // Seat (role) the call was made in — reviewer-1 / reviewer-2 / verifier.
+            seatId: (j as { seatId?: string }).seatId,
             jurorVerdict: j.verdict,
             panelVerdict: params.verdict,
             findings: j.findings?.length ?? 0,

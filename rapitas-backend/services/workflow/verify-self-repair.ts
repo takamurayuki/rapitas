@@ -365,6 +365,8 @@ export async function hasFreshVerifyRejection(
     VERIFY_NON_CONVERGENCE_CAUSE,
     INVARIANT_NON_CONVERGENCE_CAUSE,
     'verify_pr_not_created',
+    // A review hold owns the next step until a human resolves it.
+    'adversarial_review_awaiting_human',
   ];
   if (!rejectionCauses.includes(last.cause)) return false;
   return Date.now() - last.createdAt.getTime() <= windowMs;

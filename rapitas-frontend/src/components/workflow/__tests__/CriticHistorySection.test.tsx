@@ -240,4 +240,111 @@ describe('CriticHistorySection', () => {
     fireEvent.click(screen.getByRole('button', { name: /measured\.entryLabel/ }));
     expect(screen.getByText('NG 2')).toBeInTheDocument();
   });
+
+  it('shows the two-reviewer seats and the verifier check of a disputed finding', async () => {
+    mockTransitions([], {
+      adversarial_review: [
+        {
+          id: 3,
+          eventType: 'adversarial_review',
+          createdAt: '2026-11-10T03:00:00Z',
+          payload: {
+            form: 'two_seat',
+            verdict: 'pass',
+            jurors: [
+              { seatId: 'reviewer-1', role: 'reviewer', verdict: 'fail' },
+              { seatId: 'reviewer-2', role: 'reviewer', verdict: 'pass' },
+            ],
+            seats: [
+              { seatId: 'reviewer-1', role: 'reviewer', verdict: 'fail' },
+              { seatId: 'reviewer-2', role: 'reviewer', verdict: 'pass' },
+              { seatId: 'verifier', role: 'verifier', verdict: 'pass' },
+            ],
+            findings: [
+              {
+                severity: 'blocker',
+                summary: 'null unchecked',
+                evidence: 'a.ts:1',
+                gating: true,
+                seatId: 'reviewer-1',
+                verification: 'refuted',
+                verificationNote: 'caller filters null',
+              },
+            ],
+          },
+        },
+      ],
+    });
+    render(<CriticHistorySection taskId={8} />);
+    await waitFor(() => {
+      expect(
+        screen.getByText('taskWorkflowSection.criticHistory.jury.verdict.pass'),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /jury\.entryLabelTwoSeat/ }));
+    expect(
+      screen.getByText('taskWorkflowSection.criticHistory.jury.verification.refuted'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('null unchecked')).toHaveClass('line-through');
+    expect(screen.getAllByText(/jury\.seat\.verifier/).length).toBeGreaterThan(0);
+  });
+
+  it('shows a review hold and resolves it with the UI source header', async () => {
+    let held = true;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.endsWith('/review-hold/resolve')) {
+        held = false;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+      }
+      if (url.endsWith('/review-hold')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              held,
+              hold: held
+                ? {
+                    reason: 'unresolved_dispute',
+                    detail: 'verifier could not decide',
+                    findings: [
+                      {
+                        severity: 'blocker',
+                        summary: 'race on save',
+                        evidence: 'b.ts:9',
+                        gating: true,
+                      },
+                    ],
+                  }
+                : null,
+            }),
+        });
+      }
+      void init;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true, events: [], transitions: [] }),
+      });
+    });
+    render(<CriticHistorySection taskId={9} />);
+    await waitFor(() => {
+      expect(
+        screen.getByText('taskWorkflowSection.criticHistory.reviewHold.title'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText('race on save')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'taskWorkflowSection.criticHistory.reviewHold.accept' }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('taskWorkflowSection.criticHistory.reviewHold.done.accept'),
+      ).toBeInTheDocument();
+    });
+    const call = mockFetch.mock.calls.find((c) => String(c[0]).endsWith('/review-hold/resolve'));
+    expect(call?.[1]).toMatchObject({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-Rapitas-Source': 'ui' }),
+      body: JSON.stringify({ action: 'accept' }),
+    });
+  });
 });

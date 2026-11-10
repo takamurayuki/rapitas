@@ -24,6 +24,7 @@ import { recordDecision } from '../observability/decision-trace';
 import { buildRouteReason, type RouteDriver } from './routing-reason';
 import { sumAttributedSpend } from '../agents/execution-cost-attribution';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+import { resolveComplexityScore } from '../workflow/complexity-score';
 
 const log = createLogger('smart-model-router');
 
@@ -238,7 +239,10 @@ export async function getSmartRoute(
     select: { complexityScore: true, title: true, priority: true },
   });
 
-  const complexity = task?.complexityScore || 50;
+  // NOTE: Same resolver as the workflow-mode selection (complexity-score.ts).
+  // `|| 50` used to turn an assessed 0 into 50 here while the mode selection
+  // ran the same task as 0 (lightweight).
+  const complexity = resolveComplexityScore(task?.complexityScore).score;
   const isUrgent = task?.priority === 'urgent' || task?.priority === 'high';
 
   // Check current budget status

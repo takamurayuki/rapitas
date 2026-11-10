@@ -7,6 +7,7 @@
  * API. It is NOT responsible for agent/workflow execution — that path lives under
  * services/agents/claude-code and manages its own process lifecycle.
  */
+import { toCliModelAlias } from './cli-model-alias';
 import { spawn, type ChildProcess } from 'child_process';
 import { tmpdir } from 'os';
 import { createLogger } from '../../config/logger';
@@ -125,20 +126,9 @@ export async function isClaudeCliAvailable(): Promise<boolean> {
   return availabilityPending;
 }
 
-/**
- * Map a full model id (or undefined) to a Claude Code `--model` alias.
- * Unspecified defaults to Haiku — aux calls should stay light on the shared
- * subscription rate limit.
- *
- * @param model - Requested model id, if any / 要求モデルID（任意）
- * @returns CLI model alias / CLIのモデルエイリアス
- */
-function toCliModel(model?: string): string {
-  const m = (model || '').toLowerCase();
-  if (m.includes('opus')) return 'opus';
-  if (m.includes('sonnet')) return 'sonnet';
-  return 'haiku';
-}
+// NOTE: Moved to cli-model-alias.ts so the jury resolves seats with the very
+// mapping the CLI is spawned with (independence check, G2 abc review item 3).
+const toCliModel = toCliModelAlias;
 
 /**
  * Build the spawn environment. Strips Anthropic API credentials so the CLI is

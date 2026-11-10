@@ -8,6 +8,7 @@
  * (that stays in adversarial-diff-review-verdict.ts).
  */
 import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
+import type { FindingVerification } from './jury-seat-types';
 
 /** How bad one finding is. Only blocker/major can fail the review. */
 export type FindingSeverity = 'blocker' | 'major' | 'minor';
@@ -33,6 +34,15 @@ export interface ReviewFinding {
   needsCheck?: boolean;
   /** Which juror reported it (set when findings are merged across the panel). */
   juror?: string;
+  /** Which seat reported it (two-reviewer form: reviewer-1 / reviewer-2). */
+  seatId?: string;
+  /**
+   * The verifier seat's check of this finding's grounds. Set only on findings
+   * that were disputed and sent to the verifier.
+   */
+  verification?: FindingVerification;
+  /** The verifier's one-line reason for `verification`. */
+  verificationNote?: string;
 }
 
 /**

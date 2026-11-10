@@ -22,12 +22,14 @@ import {
   claimPrCreationLock,
   releasePrCreationLock,
 } from '../../services/github/pr-duplicate-guard';
-import type { BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
 import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
+import { syncHarnessIfDrifted } from '../../services/workflow/harness-drift-sync';
+import type { AutoCommitPRResult } from './workflow-auto-commit-types';
 import {
-  syncHarnessIfDrifted,
-  type HarnessDriftSyncResult,
-} from '../../services/workflow/harness-drift-sync';
+  bindingDriftAfterCommit,
+  checkBindingBeforeCommit,
+  type PublishBinding,
+} from './workflow-auto-commit-binding';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 import {
   readHeadRevision,
@@ -44,62 +46,8 @@ import {
 
 const log = createLogger('routes:workflow:auto-commit');
 
-export type AutoCommitPRResult = {
-  requested?: {
-    autoCommit: boolean;
-    autoCreatePR: boolean;
-    autoMergePR: boolean;
-  };
-  autoCommitResult?: {
-    success: boolean;
-    hash?: string;
-    branch?: string;
-    filesChanged?: number;
-    error?: string;
-  };
-  autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
-  /**
-   * Pre-PR base-branch sync outcome (task 573 A). Kept as an INDEPENDENT field —
-   * its detail must never be concatenated into the commit/PR error blob, or
-   * merge wording could trip {@link isNoChangeCompletion} into a false
-   * "no change" completion.
-   */
-  baseSyncResult?: BaseSyncResult;
-  /**
-   * Pre-gate harness sync outcome (2026-09-13): when the task branch predates
-   * the runtime-verification harness, origin/<base> is merged in BEFORE the
-   * gate so the runtime check can run instead of holding as UNVERIFIED. Kept
-   * independent of the error blob for the same reason as baseSyncResult.
-   */
-  harnessSyncResult?: HarnessDriftSyncResult;
-  /**
-   * Pre-save stage (2026-09-13): tamper/secret screen (hard) and plan-scope
-   * (advisory) evaluated on the tree BEFORE it is recorded as a local commit.
-   */
-  preSaveResult?: { ok: boolean; summary: string; secrets: string[]; scopeDetails?: string };
-  /** HEAD the gate (or the post-sync re-gate) verified. */
-  verifiedRevision?: string | null;
-  /** HEAD at publication time; equals verifiedRevision whenever a PR was made. */
-  publishedRevision?: string | null;
-  /** Three-way verdict (task 1099): 'unknown' → draft PR only; 'fail' never reaches PR creation. */
-  verdict?: 'pass' | 'fail' | 'unknown';
-  autoMergeResult?: {
-    success: boolean;
-    mergeStrategy?: string;
-    error?: string;
-    deferred?: boolean;
-  };
-  worktreeCleanupResult?: { success: boolean; worktreePath?: string; error?: string };
-  /**
-   * True when the automated verification gate blocked (the agent's changes have
-   * new lint/type errors). The caller MUST NOT then mark the task completed —
-   * the gate already set it `blocked`.
-   */
-  verificationBlocked?: boolean;
-  /** Infrastructure could not verify correctness; code repair is not justified. */
-  verificationUnverifiable?: boolean;
-  error?: string;
-};
+// NOTE: Moved to workflow-auto-commit-types.ts to keep this file under the size limit.
+export type { AutoCommitPRResult } from './workflow-auto-commit-types';
 
 // Shared classification helpers live in workflow-auto-commit-classify.ts (kept
 // re-exported here so existing importers of this module are unaffected).
@@ -110,11 +58,13 @@ export { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-
  *
  * @param taskId - Task ID that was completed / 完了したタスクID
  * @param verifyContent - Content of verify.md for PR body / PRボディ用verify.mdの内容
+ * @param opts.binding - Review-hold override: publish only this worktree + verify.md + diff / 上書きの対象
  * @returns Result object containing outcomes of each step / 各ステップの結果オブジェクト
  */
 export async function performAutoCommitAndPR(
   taskId: number,
   verifyContent: string,
+  opts: { binding?: PublishBinding } = {},
 ): Promise<AutoCommitPRResult> {
   const result: AutoCommitPRResult = {};
 
@@ -222,6 +172,10 @@ export async function performAutoCommitAndPR(
       // Boundary 2/5 — the last point before this run writes to git (locally).
       if (await publicationAborted(taskId, 'before_commit'))
         return { ...result, error: PUBLICATION_CANCELLED_ERROR };
+      // An override covers one worktree + diff: checked here, by the side that
+      // commits, so a change after the human looked is never recorded.
+      const pre = opts.binding && (await checkBindingBeforeCommit(taskId, gitCwd, opts.binding));
+      if (pre?.drift) return { ...result, bindingMismatch: pre.drift, error: pre.drift };
       const saved = await saveTaskWorkLocally({
         orchestrator,
         gitCwd,
@@ -237,6 +191,10 @@ export async function performAutoCommitAndPR(
         );
         return { ...result, error: `ローカル保存に失敗しました: ${saved.error}` };
       }
+      // Re-check after the commit: a change made while it was being recorded is
+      // in the commit, so it stays local and is never pushed.
+      const after = pre?.stable && (await bindingDriftAfterCommit(gitCwd, pre.stable));
+      if (after) return { ...result, bindingMismatch: after, error: after };
       log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
       await logAutoCommit(
         taskId,

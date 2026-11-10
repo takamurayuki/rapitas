@@ -101,6 +101,8 @@ const markFailed = mock(async () => {});
 mock.module('../../routes/workflow/handlers/file-save/shared', () => ({
   markLatestExecutionFailed: markFailed,
 }));
+const holdForHumanReview = mock(async (_p: Record<string, unknown>): Promise<string> => 'held');
+mock.module('./review-hold', () => ({ holdFromReview: holdForHumanReview }));
 
 const { runFallbackJuryGate } = await import('./verify-fallback-jury-gate');
 const { withTaskJuryGate, recordJuryGateCompletion, JURY_GATE_COMPLETED_EVENT } =
@@ -135,6 +137,51 @@ beforeEach(() => {
   recordTransition.mockClear();
   writeBlockedTask.mockClear();
   markFailed.mockClear();
+  holdForHumanReview.mockReset().mockResolvedValue('held');
+});
+
+describe('runFallbackJuryGate — review hold', () => {
+  test('hold → 保留を書いて verify_done で止め、修復にも commit にも進まない', async () => {
+    review.mockResolvedValueOnce({
+      verdict: 'hold',
+      severity: 70,
+      reasons: ['差分レビューが成立しませんでした'],
+      diffFingerprint: 'fp-A',
+      awaitingHuman: { reason: 'jury_unavailable_high_risk', detail: '高リスク' },
+    } as never);
+    const out = await runFallbackJuryGate(params());
+    expect(out).toEqual({ stop: true, phaseStatus: 'verify_done' });
+    expect(holdForHumanReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 9,
+        fromStatus: 'in_progress',
+        source: 'cli_epilogue',
+        review: expect.objectContaining({
+          awaitingHuman: expect.objectContaining({ reason: 'jury_unavailable_high_risk' }),
+        }),
+      }),
+    );
+    expect(repair).not.toHaveBeenCalled();
+    expect(writeBlockedTask).not.toHaveBeenCalled();
+    expect(completions()).toEqual([
+      expect.objectContaining({ outcome: 'stopped', verdict: 'hold' }),
+    ]);
+  });
+
+  test('保留が書けなければ（タスクが動いた）現状の status を返し、記録も commit もしない', async () => {
+    review.mockResolvedValueOnce({
+      verdict: 'hold',
+      severity: 70,
+      reasons: ['x'],
+      diffFingerprint: 'fp-A',
+    } as never);
+    holdForHumanReview.mockResolvedValueOnce('cas_lost');
+    taskFindUnique.mockResolvedValue({ workflowStatus: 'completed' } as never);
+    const out = await runFallbackJuryGate(params());
+    expect(out.stop).toBe(true);
+    expect(out.phaseStatus).toBe('completed');
+    expect(completions()).toEqual([]);
+  });
 });
 
 describe('runFallbackJuryGate', () => {

@@ -46,8 +46,8 @@ export class JuryGateBusyError extends Error {
   }
 }
 
-/** Which pipeline ran the gate. */
-export type JuryGateSource = 'http_save' | 'cli_epilogue';
+/** Which pipeline ran the gate (human_override = a person overrode a review hold). */
+export type JuryGateSource = 'http_save' | 'cli_epilogue' | 'human_override';
 
 /** What the gate did with the verdict: let commit/PR proceed, or stop it. */
 export type JuryGateOutcome = 'passed' | 'stopped';
