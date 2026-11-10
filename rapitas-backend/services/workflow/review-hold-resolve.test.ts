@@ -56,12 +56,14 @@ mock.module('./transition-recorder', () => ({ recordTransition }));
 mock.module('./workflow-file-utils', () => ({ readWorkflowFile: async () => '# verify' }));
 
 const recordJuryGateCompletion = mock(async (_c: Record<string, unknown>) => {});
+let sha: string | null = 'sha-5';
+let fp: string | null = 'fp-5';
 mock.module('./verify-jury-completion', () => ({
-  readVerifySha256: async () => 'sha-5',
+  readVerifySha256: async () => sha,
   recordJuryGateCompletion,
 }));
 mock.module('../agents/verification/review-diff-fingerprint', () => ({
-  currentDiffFingerprint: async () => 'fp-5',
+  currentDiffFingerprint: async () => fp,
 }));
 const publishAfterReviewOverride = mock(async (..._a: unknown[]) => 'completed');
 mock.module('./review-hold-publish', () => ({ publishAfterReviewOverride }));
@@ -71,6 +73,8 @@ mock.module('./verify-completion-inflight', () => ({ registerVerifyCompletion })
 const { resolveReviewHold } = await import('./review-hold-resolve');
 
 beforeEach(() => {
+  sha = 'sha-5';
+  fp = 'fp-5';
   readReviewHold.mockReset().mockResolvedValue(HOLD);
   clearReviewHold.mockReset().mockResolvedValue(true);
   attemptVerifyRepair.mockReset().mockResolvedValue({ bounced: true, newStatus: 'plan_approved' });
@@ -154,9 +158,31 @@ describe('resolveReviewHold', () => {
       outcome: 'passed',
       source: 'human_override',
     });
-    expect(publishAfterReviewOverride).toHaveBeenCalledWith(5, '# verify');
+    expect(publishAfterReviewOverride).toHaveBeenCalledWith(5, '# verify', {
+      binding: { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' },
+      hold: HOLD,
+    });
     // Registered in flight so the runner's verify-settle wait sees live work.
     expect(registerVerifyCompletion.mock.calls[0][0]).toBe(5);
     expect(attemptVerifyRepair).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['verify.md の sha256', () => (sha = null)],
+    ['差分の fingerprint', () => (fp = null)],
+  ])('(b) 上書きで %s が取得できなければ、保留を解かず公開もしない', async (_l, unset) => {
+    unset();
+    const r = await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    expect(r).toEqual({ ok: false, reason: 'unbound' });
+    expect(clearReviewHold).not.toHaveBeenCalled();
+    expect(recordJuryGateCompletion).not.toHaveBeenCalled();
+    expect(publishAfterReviewOverride).not.toHaveBeenCalled();
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'adversarial_review_override_refused',
+        toStatus: 'verify_done',
+        metadata: expect.objectContaining({ reason: expect.any(String) }),
+      }),
+    );
   });
 });

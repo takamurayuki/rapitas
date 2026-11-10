@@ -15,6 +15,7 @@ import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { writeBlockedTask } from './blocked-task-write';
 import { readWorkflowFile } from './workflow-file-utils';
+import type { OverrideBinding } from './review-hold-publish';
 import { capFindingsForStorage, formatFindingReason } from '../agents/verification/review-findings';
 import {
   clearReviewHold,
@@ -34,7 +35,11 @@ export type ReviewHoldResolution =
       outcome: 'bounced' | 'blocked' | 'publishing' | 'stale';
       workflowStatus?: string;
     }
-  | { ok: false; reason: 'not_held' | 'cas_lost' };
+  /** unbound = the override could not be tied to an identifiable artifact + diff; the hold stays. */
+  | { ok: false; reason: 'not_held' | 'cas_lost' | 'unbound' };
+
+/** Transition cause when an override is refused because it cannot be bound. */
+export const REVIEW_OVERRIDE_REFUSED_CAUSE = 'adversarial_review_override_refused';
 
 /** Repair feedback for an accepted hold, in the same shape as a jury FAIL. */
 export function acceptedHoldReason(hold: ReviewHoldDetails): string {
@@ -62,12 +67,52 @@ export async function resolveReviewHold(p: {
 }): Promise<ReviewHoldResolution> {
   const hold = await readReviewHold(p.taskId);
   if (!hold) return { ok: false, reason: 'not_held' };
+  // NOTE: The override's binding is resolved BEFORE the hold is cleared, so an
+  // override that cannot name what it covers leaves the task held.
+  const binding = p.action === 'override' ? await resolveOverrideBinding(p.taskId) : null;
+  if (binding && 'missing' in binding) {
+    await recordTransition({
+      taskId: p.taskId,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
+      actor: 'user',
+      cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
+      phase: 'verify',
+      metadata: { resolvedBy: p.resolvedBy, holdReason: hold.reason, reason: binding.missing },
+    }).catch(() => {});
+    log.warn({ taskId: p.taskId, missing: binding.missing }, '[review-hold] Override refused');
+    return { ok: false, reason: 'unbound' };
+  }
   if (!(await clearReviewHold({ ...p, hold }))) return { ok: false, reason: 'cas_lost' };
 
   const verifyContent = (await readWorkflowFile(p.taskId, 'verify').catch(() => null)) ?? '';
-  return p.action === 'accept'
-    ? acceptHold(p.taskId, hold, verifyContent)
-    : overrideHold(p.taskId, verifyContent, p.resolvedBy);
+  return binding
+    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, binding, hold)
+    : acceptHold(p.taskId, hold, verifyContent);
+}
+
+/** The verify.md version + diff an override would cover, or what is missing. */
+async function resolveOverrideBinding(
+  taskId: number,
+): Promise<OverrideBinding | { missing: string }> {
+  const [{ readVerifySha256 }, { currentDiffFingerprint }] = await Promise.all([
+    import('./verify-jury-completion'),
+    import('../agents/verification/review-diff-fingerprint'),
+  ]);
+  const session = await prisma.agentSession
+    .findFirst({
+      where: { config: { taskId }, worktreePath: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { worktreePath: true },
+    })
+    .catch(() => null);
+  const worktreePath = session?.worktreePath;
+  if (!worktreePath) return { missing: 'タスクの worktree が見つかりません' };
+  const verifySha256 = await readVerifySha256(taskId);
+  if (!verifySha256) return { missing: 'verify.md の識別子（sha256）を取得できません' };
+  const diffFingerprint = await currentDiffFingerprint(taskId, worktreePath);
+  if (!diffFingerprint) return { missing: '差分の識別子（fingerprint）を取得できません' };
+  return { verifySha256, diffFingerprint, worktreePath };
 }
 
 async function acceptHold(
@@ -116,35 +161,21 @@ async function overrideHold(
   taskId: number,
   verifyContent: string,
   resolvedBy: string,
+  binding: OverrideBinding,
+  hold: ReviewHoldDetails,
 ): Promise<ReviewHoldResolution> {
   // Bind the decision to THIS artifact + diff, like any gate completion: a
   // later verify.md or a changed diff is reviewed again, not waved through.
-  const [{ readVerifySha256, recordJuryGateCompletion }, { currentDiffFingerprint }] =
-    await Promise.all([
-      import('./verify-jury-completion'),
-      import('../agents/verification/review-diff-fingerprint'),
-    ]);
-  const session = await prisma.agentSession
-    .findFirst({
-      where: { config: { taskId }, worktreePath: { not: null } },
-      orderBy: { createdAt: 'desc' },
-      select: { worktreePath: true },
-    })
-    .catch(() => null);
-  const verifySha256 = await readVerifySha256(taskId);
-  const fingerprint = session?.worktreePath
-    ? await currentDiffFingerprint(taskId, session.worktreePath)
-    : null;
-  if (verifySha256 && fingerprint) {
-    await recordJuryGateCompletion({
-      taskId,
-      verifySha256,
-      diffFingerprint: fingerprint,
-      verdict: 'hold',
-      outcome: 'passed',
-      source: 'human_override',
-    });
-  }
+  // Publication re-checks the same binding before it commits anything.
+  const { recordJuryGateCompletion } = await import('./verify-jury-completion');
+  await recordJuryGateCompletion({
+    taskId,
+    verifySha256: binding.verifySha256,
+    diffFingerprint: binding.diffFingerprint,
+    verdict: 'hold',
+    outcome: 'passed',
+    source: 'human_override',
+  });
 
   const [{ publishAfterReviewOverride }, { registerVerifyCompletion }] = await Promise.all([
     import('./review-hold-publish'),
@@ -153,7 +184,7 @@ async function overrideHold(
   // Commit/PR runs the verification gate, git push and `gh pr create` — minutes,
   // not a request's worth. Registered in-flight so the runner's verify-settle
   // wait sees live work instead of a stuck task.
-  const work = publishAfterReviewOverride(taskId, verifyContent).catch((err) =>
+  const work = publishAfterReviewOverride(taskId, verifyContent, { binding, hold }).catch((err) =>
     log.error({ err, taskId }, '[review-hold] Publication after override failed'),
   );
   registerVerifyCompletion(taskId, work);
