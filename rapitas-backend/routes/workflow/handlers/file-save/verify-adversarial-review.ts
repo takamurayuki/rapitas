@@ -302,9 +302,18 @@ async function reviewAndApply(
     } else if (reviewStillFailing) {
       const { attemptVerifyRepair } =
         await import('../../../../services/workflow/verify-self-repair');
-      const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
-        () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
-      );
+      const { juryBounceGrounds } = await import('../../../../services/workflow/repair-cause');
+      // NOTE: routing2a-fix1 — the findings ride on the bounce itself. The
+      // `adversarial_review_failed` row below is written only while the task
+      // is still verify_done, which a committed bounce never is, so routing
+      // used to see every HTTP jury bounce as ungrounded.
+      const repair = await attemptVerifyRepair(
+        taskId,
+        'verify_done',
+        reason,
+        savedContent,
+        juryBounceGrounds(reason, capFindingsForStorage(activeReview.findings)),
+      ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
       // Compare-and-swap: this review runs an LLM jury synchronously and can
       // take a while — a second, faster verify attempt (self-repair round, or
       // a race) can legitimately complete and even merge the task before this

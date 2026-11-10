@@ -217,6 +217,11 @@ describe('runFallbackJuryGate', () => {
       'in_progress',
       expect.stringContaining('差分レビュー不合格'),
       '# verify',
+      // routing2a-fix1: the findings ride on the bounce row; a code bug stays with the implementer.
+      {
+        findings: [expect.objectContaining({ summary: 'bug', evidence: 'a.ts:1' })],
+        route: 'implement',
+      },
     );
     expect(markFailed).toHaveBeenCalled();
     expect(recordTransition).toHaveBeenCalledWith(
@@ -230,6 +235,25 @@ describe('runFallbackJuryGate', () => {
     expect(completions()).toEqual([
       expect.objectContaining({ outcome: 'stopped', verdict: 'fail' }),
     ]);
+  });
+
+  test('a FAIL whose grounded findings all blame the requirement asks for a replan', async () => {
+    review.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 70,
+      reasons: ['[major] 受入基準3が計画と矛盾している（根拠: plan.md:12）'],
+      findings: [
+        {
+          severity: 'major',
+          summary: '受入基準3が計画と矛盾している',
+          evidence: 'plan.md:12',
+          gating: true,
+        },
+      ],
+      diffFingerprint: 'fp-A',
+    });
+    await runFallbackJuryGate(params());
+    expect(repair.mock.calls.at(-1)?.[4]).toMatchObject({ route: 'replan' });
   });
 
   test('a FAIL with repairs exhausted blocks the task instead of committing', async () => {
