@@ -54,10 +54,24 @@ function makeFileLogger() {
 
 /** テスト用の Prisma スタブを生成する。 */
 function makePrisma(overrides: Record<string, unknown> = {}) {
+  const updateMany = mock(async (_args: { data: Record<string, unknown> }) => ({ count: 1 }));
   return {
     agentExecution: {
-      updateMany: mock(async () => ({ count: 1 })),
+      updateMany,
       findUnique: mock(async () => ({ session: { config: { taskId: 99 } } })),
+      // The session's rows as the just-saved execution left them — session
+      // totals are recomputed from these (session-cost-totals.ts).
+      findMany: mock(async () => {
+        const data = updateMany.mock.calls.at(-1)?.[0]?.data ?? {};
+        return [
+          {
+            costUsd: data.costUsd ?? 0,
+            tokensUsed: (data.tokensUsed as number | undefined) ?? 0,
+            claudeSessionId: (data.claudeSessionId as string | null | undefined) ?? null,
+            startedAt: null,
+          },
+        ];
+      }),
     },
     agentSession: {
       update: mock(async () => ({})),
@@ -256,9 +270,10 @@ describe('saveExecutionResult()', () => {
     expect(updateArg.data.costUsd).toBeUndefined();
     expect(updateArg.data.modelName).toBeUndefined();
 
+    // Recomputed from the rows (cumulative CLI totals), not incremented.
     expect(prisma.agentSession.update).toHaveBeenCalledWith({
       where: { id: 2 },
-      data: expect.objectContaining({ totalTokensUsed: { increment: 10 } }),
+      data: expect.objectContaining({ totalTokensUsed: 10 }),
     });
 
     expect(recordWorkflowExecutionMock).toHaveBeenCalledWith(prisma, {
@@ -369,10 +384,11 @@ describe('saveExecutionResult()', () => {
 
     expect(prisma.agentSession.update).toHaveBeenCalledWith({
       where: { id: 2 },
-      data: expect.objectContaining({
-        totalCostUsd: { increment: 1.46 },
-        totalLlmCallCount: { increment: 3 },
-      }),
+      data: expect.objectContaining({ totalLlmCallCount: { increment: 3 } }),
+    });
+    expect(prisma.agentSession.update).toHaveBeenCalledWith({
+      where: { id: 2 },
+      data: expect.objectContaining({ totalCostUsd: 1.46 }),
     });
   });
 

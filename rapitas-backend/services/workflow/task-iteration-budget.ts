@@ -36,6 +36,7 @@ import type {
   IterationBudgetState,
   ResumeCondition,
 } from './task-iteration-budget.types';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('task-iteration-budget');
 
@@ -283,6 +284,7 @@ export async function resolveIterationBudgetForTask(
       getTaskSpendUsdSince(taskId, windowStart),
       prisma.agentExecution.count({
         where: {
+          ...NOT_REVIEW_COST_ROW,
           session: { config: { taskId } },
           OR: [{ startedAt: null }, { startedAt: { gte: windowStart } }],
         },

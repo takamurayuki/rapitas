@@ -94,6 +94,13 @@ mock.module('./pr-in-flight-wait', () => ({
   PR_CREATION_IN_FLIGHT_ERROR: 'PR作成が別プロセスで進行中のためスキップしました',
 }));
 
+// The epilogue jury gate is unit-tested in verify-fallback-jury-gate.test.ts;
+// here only its contract with the caller (stop → no commit/PR) is pinned.
+const fallbackJury = mock(
+  async (_p: unknown): Promise<{ stop: boolean; phaseStatus?: string }> => ({ stop: false }),
+);
+mock.module('./verify-fallback-jury-gate', () => ({ runFallbackJuryGate: fallbackJury }));
+
 const { resolveVerifyPhaseStatus } = await import('./workflow-cli-executor-verify-gate');
 
 /** Minimal passing-verify input: PR already linked, completion gate allows. */
@@ -110,6 +117,7 @@ function params() {
 }
 
 beforeEach(() => {
+  fallbackJury.mockReset().mockResolvedValue({ stop: false });
   linkedPr.mockReset().mockResolvedValue(true);
   preflight.mockReset().mockResolvedValue(undefined);
   autoCommit.mockClear();
@@ -295,4 +303,35 @@ test('CLI preflight prevents committing after a stop request', async () => {
   await expect(resolveVerifyPhaseStatus(params())).rejects.toThrow('stop_not_resumed');
   expect(autoCommit).not.toHaveBeenCalled();
   expect(completeReview).not.toHaveBeenCalled();
+});
+
+describe('resolveVerifyPhaseStatus — 回収経路でも陪審を通す', () => {
+  test('PR 未作成なら commit/PR の前に陪審ゲートを呼ぶ', async () => {
+    linkedPr.mockResolvedValue(false);
+    autoCommit.mockResolvedValueOnce({ autoPRResult: { success: true } } as never);
+    await resolveVerifyPhaseStatus(params());
+    expect(fallbackJury).toHaveBeenCalledTimes(1);
+    expect(fallbackJury.mock.calls[0][0]).toMatchObject({
+      taskId: 895,
+      currentWfStatus: 'verify_done',
+      verifyContent: '# 検証結果',
+      sessionId: 7,
+    });
+    expect(autoCommit).toHaveBeenCalledTimes(1);
+  });
+
+  test('陪審が不合格なら commit/PR も完了もせず、差し戻し先の状態を返す', async () => {
+    linkedPr.mockResolvedValue(false);
+    fallbackJury.mockResolvedValueOnce({ stop: true, phaseStatus: 'plan_approved' });
+    const status = await resolveVerifyPhaseStatus(params());
+    expect(status).toBe('plan_approved');
+    expect(autoCommit).not.toHaveBeenCalled();
+    expect(completeReview).not.toHaveBeenCalled();
+  });
+
+  test('PR が既に紐付いていれば（HTTP 経路で陪審済み）ゲートは呼ばない', async () => {
+    linkedPr.mockResolvedValue(true);
+    await resolveVerifyPhaseStatus(params());
+    expect(fallbackJury).not.toHaveBeenCalled();
+  });
 });

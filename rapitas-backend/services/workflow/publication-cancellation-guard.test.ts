@@ -45,7 +45,8 @@ describe('isLatestExecutionCancelled', () => {
     findFirst.mockResolvedValueOnce({ id: 10, status: 'cancelled' });
     await isLatestExecutionCancelled(895);
     expect(findFirst).toHaveBeenCalledWith({
-      where: { session: { config: { taskId: 895 } } },
+      // Review cost rows (the jury's spend) are never "the latest execution".
+      where: { command: { not: 'adversarial-review' }, session: { config: { taskId: 895 } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true, status: true, startedAt: true },
     });

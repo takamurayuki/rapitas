@@ -201,6 +201,7 @@ export async function runAdversarialDiffReview(params: {
             metadata: {
               severity: activeReview.severity,
               reasons: activeReview.reasons.slice(0, 5),
+              findings: activeReview.findings?.slice(0, 12),
               recoveryOutcome: recovery.reason,
               recoveryExhausted: recovery.reason === 'recovery_already_used',
             },
@@ -308,6 +309,9 @@ export async function runAdversarialDiffReview(params: {
               metadata: {
                 severity: activeReview.severity,
                 reasons: activeReview.reasons.slice(0, 5),
+                // Structured findings (severity / evidence / repro) for the
+                // desktop review history; reasons stay for older readers.
+                findings: activeReview.findings?.slice(0, 12),
               },
               invariantViolation: true,
               invariantMessage: reason,

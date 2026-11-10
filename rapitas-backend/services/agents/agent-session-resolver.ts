@@ -7,6 +7,7 @@
  */
 import type { Prisma } from '../../generated/prisma-postgres';
 import { prisma } from '../../config/database';
+import { NOT_REVIEW_COST_ROW } from './review-cost-rows';
 
 /**
  * Minimal finished-session shape — only the id is needed to target a re-run.
@@ -69,7 +70,9 @@ export async function resolveSessionWithLatestExecution(
   return prisma.agentSession
     .findUnique({
       where: { id: sessionId },
-      include: { agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      include: {
+        agentExecutions: { where: NOT_REVIEW_COST_ROW, orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     })
     .catch(() => null);
 }

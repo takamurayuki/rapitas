@@ -15,6 +15,7 @@ import {
   RECOVERY_CLOCK_SKEW_MS,
   type VerifyChecklistStats,
 } from './supervisor-incident-detectors';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 /** How much of an execution output head is scanned for the cwd line. */
 const OUTPUT_HEAD_CHARS = 4000;
@@ -145,7 +146,7 @@ export async function gatherSupervisorEvidence(task: { id: number }): Promise<Su
     const latestExec = await safeQuery(
       () =>
         prisma.agentExecution.findFirst({
-          where: { session: { config: { taskId: task.id } } },
+          where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId: task.id } } },
           orderBy: { createdAt: 'desc' },
           select: { output: true, completedAt: true, heartbeatAt: true, createdAt: true },
         }),

@@ -28,7 +28,13 @@ mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getD
 let auxMode: 'api' | 'cli' = 'api';
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => auxMode }));
 mock.module('../../workflow/workflow-file-utils', () => ({ resolveWorkflowDir, readWorkflowFile }));
-mock.module('../../memory/timeline', () => ({ appendEvent: appendEventMock }));
+const queryEventsMock = mock(async (_o: unknown) => ({ events: [] as unknown[], total: 0 }));
+mock.module('../../memory/timeline', () => ({
+  appendEvent: appendEventMock,
+  queryEvents: queryEventsMock,
+}));
+const recordReviewCostMock = mock(async (_p: unknown) => 0);
+mock.module('./review-cost-record', () => ({ recordReviewCost: recordReviewCostMock }));
 mock.module('../../../config/database', () => ({
   prisma: {
     agentExecution: { findFirst: agentExecutionFindFirst },
@@ -51,6 +57,14 @@ const {
   JUROR_TIMEOUT_STRIKES,
   JUROR_COOLOFF_MS,
 } = await import('./adversarial-diff-review');
+
+/** A juror reply that fails with one evidenced major finding. */
+const FAIL_REPLY = (severity: number, summary: string) =>
+  JSON.stringify({
+    verdict: 'fail',
+    severity,
+    findings: [{ severity: 'major', summary, evidence: 'a.ts:1' }],
+  });
 
 describe('buildDiffReviewPrompt', () => {
   it('embeds task title, plan, acceptance criteria, and diff text', () => {
@@ -185,14 +199,31 @@ describe('parseReviewVerdict', () => {
     expect(r).toEqual({ verdict: 'pass', severity: 0, reasons: [], judged: true });
   });
 
-  it('parses a clean fail verdict with reasons', () => {
+  // A fail now has to cite an evidenced blocker/major in `findings` (the
+  // integration policy's "根拠必須"); the helper builds that shape.
+  const evidencedFail = (extra: Record<string, unknown> = {}, summary = 'missing edge case') =>
+    JSON.stringify({
+      verdict: 'fail',
+      findings: [{ severity: 'major', summary, evidence: 'src/a.ts:12' }],
+      ...extra,
+    });
+
+  it('parses a clean fail verdict with an evidenced finding', () => {
+    const r = parseReviewVerdict(evidencedFail({ severity: 65 }, 'missing edge case handling'));
+    expect(r.verdict).toBe('fail');
+    expect(r.severity).toBe(65);
+    expect(r.reasons).toEqual(['[major] missing edge case handling（根拠: src/a.ts:12）']);
+    expect(r.findings?.[0]).toMatchObject({ severity: 'major', gating: true });
+    expect(r.judged).toBe(true);
+  });
+
+  it('treats an old reasons-only fail (no findings, no evidence) as unparsable, not a vote', () => {
     const r = parseReviewVerdict(
       '{"verdict":"fail","severity":65,"reasons":["missing edge case handling"]}',
     );
-    expect(r.verdict).toBe('fail');
-    expect(r.severity).toBe(65);
-    expect(r.reasons).toEqual(['missing edge case handling']);
-    expect(r.judged).toBe(true);
+    expect(r.verdict).toBe('unknown');
+    expect(r.unknownReason).toBe('unparsable');
+    expect(r.judged).toBe(false);
   });
 
   it('tolerates prose/code-fences around the JSON object', () => {
@@ -203,7 +234,7 @@ describe('parseReviewVerdict', () => {
   });
 
   it('is case-insensitive on the verdict field', () => {
-    expect(parseReviewVerdict('{"verdict":"FAIL"}').verdict).toBe('fail');
+    expect(parseReviewVerdict(evidencedFail({ verdict: 'FAIL' })).verdict).toBe('fail');
     expect(parseReviewVerdict('{"verdict":"Pass"}').verdict).toBe('pass');
   });
 
@@ -213,8 +244,13 @@ describe('parseReviewVerdict', () => {
     expect(r.judged).toBe(false);
   });
 
-  it('defaults severity to 80 for a fail with no numeric severity', () => {
-    expect(parseReviewVerdict('{"verdict":"fail"}').severity).toBe(80);
+  it('derives severity from the gating finding when the juror gives none', () => {
+    expect(parseReviewVerdict(evidencedFail()).severity).toBe(70);
+    const blocker = JSON.stringify({
+      verdict: 'fail',
+      findings: [{ severity: 'blocker', summary: 'x', evidence: 'a.ts:1' }],
+    });
+    expect(parseReviewVerdict(blocker).severity).toBe(90);
   });
 
   it('defaults severity to 0 for a pass with no numeric severity', () => {
@@ -222,27 +258,26 @@ describe('parseReviewVerdict', () => {
   });
 
   it('clamps severity into [0, 100]', () => {
-    expect(parseReviewVerdict('{"verdict":"fail","severity":500}').severity).toBe(100);
-    expect(parseReviewVerdict('{"verdict":"fail","severity":-50}').severity).toBe(0);
+    expect(parseReviewVerdict(evidencedFail({ severity: 500 })).severity).toBe(100);
+    expect(parseReviewVerdict(evidencedFail({ severity: -50 })).severity).toBe(0);
   });
 
-  it('filters non-string reasons and caps the list at 10', () => {
+  it('filters non-string reasons and caps the list at 10 (pass shape)', () => {
     const reasons = [...Array(15)].map((_, i) => `reason-${i}`);
     const r = parseReviewVerdict(
-      JSON.stringify({ verdict: 'fail', severity: 50, reasons: [1, null, ...reasons] }),
+      JSON.stringify({ verdict: 'pass', severity: 0, reasons: [1, null, ...reasons] }),
     );
     expect(r.reasons).toHaveLength(10);
     expect(r.reasons[0]).toBe('reason-0');
   });
 
   it('defaults reasons to [] when the field is missing or not an array', () => {
-    expect(parseReviewVerdict('{"verdict":"fail","reasons":"oops"}').reasons).toEqual([]);
-    expect(parseReviewVerdict('{"verdict":"fail"}').reasons).toEqual([]);
+    expect(parseReviewVerdict('{"verdict":"pass","reasons":"oops"}').reasons).toEqual([]);
+    expect(parseReviewVerdict('{"verdict":"pass"}').reasons).toEqual([]);
   });
 
   it('extracts the first balanced object even with nested braces before it closes', () => {
-    const text = '{"verdict":"fail","severity":30,"reasons":["uses {curly} in a string"]}';
-    const r = parseReviewVerdict(text);
+    const r = parseReviewVerdict(evidencedFail({ severity: 30 }, 'uses {curly} in a string'));
     expect(r.verdict).toBe('fail');
     expect(r.reasons[0]).toContain('{curly}');
   });
@@ -293,7 +328,7 @@ describe('reviewDiffAdversarially', () => {
     }
   });
 
-  it('CLI mode seats three distinct Claude models, so a majority exists', async () => {
+  it('CLI mode seats three Claude jurors (Opus/Sonnet/Sonnet), so a majority exists', async () => {
     // Measured 2026-10-21: 209 of 209 October reviews had exactly one real
     // voter, because the Gemini and OpenAI seats answered "unavailable in
     // Claude-only auxiliary CLI mode". A panel of one cannot outvote itself,
@@ -308,7 +343,11 @@ describe('reviewDiffAdversarially', () => {
         sendAIMessage.mock.calls as unknown as Array<[{ provider: string; model: string }]>
       ).map((c) => c[0]);
       expect(asked.every((a) => a.provider === 'claude')).toBe(true);
-      expect(new Set(asked.map((a) => a.model)).size).toBe(3);
+      expect(asked.map((a) => a.model).sort()).toEqual([
+        'claude-opus-4-20250514',
+        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-20250514',
+      ]);
       const event = (
         appendEventMock.mock.calls as unknown as Array<
           [{ payload: { jurors: Array<{ provider: string; model?: string; verdict: string }> } }]
@@ -318,7 +357,9 @@ describe('reviewDiffAdversarially', () => {
       // contested-fail rate can be read straight off these rows.
       expect(event.payload.jurors).toHaveLength(3);
       expect(event.payload.jurors.every((j) => j.verdict === 'pass')).toBe(true);
-      expect(new Set(event.payload.jurors.map((j) => j.model)).size).toBe(3);
+      expect(event.payload.jurors.map((j) => j.model).filter((m) => m?.includes('haiku'))).toEqual(
+        [],
+      );
     } finally {
       auxMode = 'api';
     }
@@ -334,6 +375,9 @@ describe('reviewDiffAdversarially', () => {
     agentExecutionConfigFindUnique.mockReset();
     appendEventMock.mockReset();
     appendEventMock.mockResolvedValue({ id: 1 });
+    queryEventsMock.mockReset();
+    queryEventsMock.mockResolvedValue({ events: [], total: 0 });
+    recordReviewCostMock.mockClear();
     getDiff.mockReset();
     getDiff.mockResolvedValue([
       { filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+line' },
@@ -395,7 +439,7 @@ describe('reviewDiffAdversarially', () => {
   it('falls through to the next provider when one returns an unparseable reply', async () => {
     sendAIMessage
       .mockResolvedValueOnce({ content: 'not json at all' })
-      .mockResolvedValueOnce({ content: '{"verdict":"fail","severity":90,"reasons":["bad"]}' });
+      .mockResolvedValueOnce({ content: FAIL_REPLY(90, 'bad') });
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r.verdict).toBe('fail');
     // All 3 jurors are queried in parallel regardless (2 explicit mocks + the
@@ -438,7 +482,7 @@ describe('reviewDiffAdversarially', () => {
       call++;
       return call === 1
         ? new Promise(() => {})
-        : Promise.resolve({ content: '{"verdict":"fail","severity":80,"reasons":["boom"]}' });
+        : Promise.resolve({ content: FAIL_REPLY(80, 'boom') });
     });
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r.judged).toBe(true);
@@ -547,5 +591,118 @@ describe('ジャッジの連続タイムアウトを短絡する', () => {
       recordJurorOutcome('chatgpt', true, NOW);
     }
     expect(jurorIsRested('claude', NOW)).toBe(false);
+  });
+});
+
+describe('reviewDiffAdversarially — findings, inputs and cost (stage 1)', () => {
+  beforeEach(() => {
+    auxMode = 'cli';
+    resetJurorHealth();
+    sendAIMessage.mockReset();
+    appendEventMock.mockClear();
+    queryEventsMock.mockReset();
+    queryEventsMock.mockResolvedValue({ events: [], total: 0 });
+    recordReviewCostMock.mockClear();
+    agentExecutionFindFirst.mockReset();
+    agentExecutionFindFirst.mockResolvedValue(null);
+    taskFindUnique.mockReset();
+    taskFindUnique.mockResolvedValue({
+      title: 'Task',
+      description: 'ユーザーが CSV を出力できる',
+      goals: JSON.stringify(['出力が1秒以内']),
+      constraints: JSON.stringify(['新規依存を入れない']),
+      acceptanceCriteria: null,
+    });
+  });
+  afterEach(() => {
+    auxMode = 'api';
+  });
+
+  it('never reads a jury cost row as the implementer run', async () => {
+    sendAIMessage.mockResolvedValue({ content: '{"verdict":"pass","findings":[]}' });
+    await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
+    expect(agentExecutionFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { command: { not: 'adversarial-review' }, session: { config: { taskId: 3 } } },
+      }),
+    );
+  });
+
+  it('keeps minor findings on a PASS in the timeline event', async () => {
+    sendAIMessage.mockResolvedValue({
+      content: JSON.stringify({
+        verdict: 'pass',
+        findings: [{ severity: 'minor', summary: '命名が曖昧', evidence: 'a.ts:1' }],
+      }),
+      tokensUsed: 10,
+      costUsd: 0.01,
+    });
+    const r = await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
+    expect(r.verdict).toBe('pass');
+    expect(r.findings).toHaveLength(3);
+    const event = (
+      appendEventMock.mock.calls as unknown as Array<[{ payload: Record<string, unknown> }]>
+    ).at(-1)![0];
+    expect(event.payload.findings).toHaveLength(3);
+    expect((event.payload.jurors as Array<{ findings: unknown[] }>)[0].findings).toHaveLength(1);
+  });
+
+  it('records the review cost once per production review, never for dry runs', async () => {
+    sendAIMessage.mockResolvedValue({
+      content: '{"verdict":"pass","findings":[]}',
+      tokensUsed: 10,
+      costUsd: 0.01,
+    });
+    await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
+    expect(recordReviewCostMock).toHaveBeenCalledTimes(1);
+    const arg = recordReviewCostMock.mock.calls[0][0] as {
+      jurors: Array<{ usage?: { costUsd?: number } }>;
+    };
+    expect(arg.jurors.every((j) => j.usage?.costUsd === 0.01)).toBe(true);
+
+    recordReviewCostMock.mockClear();
+    await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt', suppressEventLog: true });
+    expect(recordReviewCostMock).not.toHaveBeenCalled();
+  });
+
+  it('gives the jury the task description/goals/constraints and the RAW measurement', async () => {
+    queryEventsMock.mockResolvedValue({
+      events: [
+        {
+          payload: {
+            measuredAt: '2026-11-10T00:00:00Z',
+            result: {
+              ok: false,
+              verdict: 'fail',
+              summary: 's',
+              changedFiles: [],
+              checks: [
+                { name: 'test', ran: true, ok: false, errorCount: 1, details: 'boom.test.ts' },
+              ],
+            },
+          },
+        },
+      ],
+      total: 1,
+    });
+    readWorkflowFile.mockImplementation(((_id: number, type: string) =>
+      Promise.resolve(
+        type === 'verify' ? '## 総合判定\n✅ 合格\n## 所見\nverifier の推論メモ' : 'plan content',
+      )) as never);
+    sendAIMessage.mockResolvedValue({ content: '{"verdict":"pass","findings":[]}' });
+    await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
+    const prompt = (
+      sendAIMessage.mock.calls as unknown as Array<[{ messages: Array<{ content: string }> }]>
+    )[0][0].messages[0].content;
+    expect(prompt).toContain('ユーザーが CSV を出力できる');
+    expect(prompt).toContain('出力が1秒以内');
+    expect(prompt).toContain('新規依存を入れない');
+    expect(prompt).toContain('test: ❌ 1件');
+    expect(prompt).toContain('boom.test.ts');
+    expect(prompt).toContain('✅ 合格');
+    // Independence: only verify.md's claim line, never the verifier's reasoning.
+    expect(prompt).not.toContain('verifier の推論メモ');
+    readWorkflowFile.mockReset();
+    readWorkflowFile.mockResolvedValue('plan content');
   });
 });

@@ -16,6 +16,7 @@ import { prisma } from '../../config/database';
 import type { Provider } from '../ai/model-discovery';
 import { agentTypeToProvider } from '../ai/agent-fallback';
 import { createLogger } from '../../config/logger';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('role-provider-resolver');
 
@@ -161,6 +162,7 @@ async function hasExecutableAlternativeProvider(upstream: Provider): Promise<boo
 async function getUpstreamProvider(taskId: number): Promise<Provider | null> {
   const recent = await prisma.agentExecution.findFirst({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       session: {
         config: { taskId },
       },

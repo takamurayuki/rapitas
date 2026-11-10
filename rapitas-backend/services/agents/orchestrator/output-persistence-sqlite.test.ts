@@ -26,7 +26,7 @@ test.each(['running', 'idle'])(
     });
     try {
       await db.$executeRawUnsafe(
-        'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, output TEXT, errorMessage TEXT)',
+        "CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', status TEXT, output TEXT, errorMessage TEXT)",
       );
       await db.$executeRawUnsafe(
         "INSERT INTO AgentExecution (id, status, output, errorMessage) VALUES (1, 'cancelled', 'terminal result', NULL)",

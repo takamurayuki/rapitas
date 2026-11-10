@@ -206,6 +206,21 @@ export async function resolveVerifyPhaseStatus(params: {
       // (task 485 false completion). Mirrors the HTTP handler.
       let noChangeCompletion = false;
       if (!prSatisfied) {
+        // NOTE: Same jury the HTTP verify.md save runs, BEFORE commit/PR. A
+        // harvested verify.md (agent never PUT it) used to reach
+        // performAutoCommitAndPR here without any independent review. Skipped
+        // when the HTTP pipeline already judged this exact artifact.
+        const { runFallbackJuryGate } = await import('./verify-fallback-jury-gate');
+        const jury = await runFallbackJuryGate({
+          taskId,
+          currentWfStatus,
+          verifyContent: typeof fileContent === 'string' ? fileContent : '',
+          worktreePath: resolvedWorktreePath,
+          actor: transition.role as TransitionActor,
+          sessionId: session.id,
+        });
+        if (jury.stop)
+          return jury.phaseStatus ?? (currentWfStatus as WorkflowAdvanceResult['status']);
         // No PR yet (e.g. the HTTP save bounced before PR creation). Run the
         // shared commit/PR flow; a pre-existing PR is re-confirmed via
         // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.

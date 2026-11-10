@@ -13,6 +13,7 @@ import {
   saveRequirementReview,
   startRequirementReviewHeartbeat,
 } from './requirement-review-claim';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:requirement-replan');
 
@@ -53,7 +54,7 @@ export async function attemptRequirementReplan(
         const planPolicy = await readReviewedPlanPolicy(tx, task.workflowMode ?? 'comprehensive');
         if (!verify || (planPolicy.includePlan && !plan)) return null;
         const execution = await tx.agentExecution.findFirst({
-          where: { session: { config: { taskId } } },
+          where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
           orderBy: { id: 'desc' },
           select: { id: true },
         });

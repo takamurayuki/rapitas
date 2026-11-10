@@ -50,6 +50,9 @@ export type TimelineEventType =
   | 'memory_retrieval'
   | 'knowledge_effectiveness'
   | 'adversarial_review'
+  // Raw automated-verifier result measured for the verifier — see
+  // verification/verification-measurement-record.ts.
+  | 'verification_measured'
   | 'ideation_calibration'
   | 'retro_review_failed'
   | 'playbook_generated'

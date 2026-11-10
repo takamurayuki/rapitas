@@ -188,6 +188,11 @@ Preserve command exit codes before formatting output: piping a command into tail
         taskText: `${task.title}\n${task.description ?? ''}`,
       }).catch(() => null);
       if (measured) {
+        // NOTE: Kept server-side as raw data so the adversarial jury can read
+        // the measurement without the verifier's own prose (independence).
+        const { recordVerificationMeasurement } =
+          await import('../agents/verification/verification-measurement-record');
+        await recordVerificationMeasurement(taskId, measured).catch(() => {});
         const header =
           language === 'ja'
             ? '# 自動検証の実測結果（worktree で実行済み・GROUND TRUTH）'

@@ -436,6 +436,8 @@ describe('recoverStaleExecutions() — 後継実行による cancelled/interrupt
     // ずれると A と auto-resume が後継の解釈で矛盾する
     expect(prisma.agentExecution.findFirst).toHaveBeenCalledWith({
       where: {
+        // A jury cost row (status completed) is not a successor execution.
+        command: { not: 'adversarial-review' },
         id: { gt: 20 },
         status: { in: ['running', 'pending', 'waiting_for_input', 'completed'] },
         session: { config: { taskId: 1000 } },

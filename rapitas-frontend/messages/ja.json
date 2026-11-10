@@ -3010,7 +3010,46 @@
           "low": "軽微"
         },
         "reasonsCount": "指摘 {count}件",
-        "noReasons": "詳細情報が記録されていません"
+        "recordsCount": "記録 {count}件",
+        "noReasons": "詳細情報が記録されていません",
+        "groups": {
+          "critic": "計画・調査の批評",
+          "measured": "検証済み（テスト等の実測）",
+          "jury": "レビュー済み（陪審による独立レビュー）"
+        },
+        "measured": {
+          "entryLabel": "実測 ・ {date}",
+          "outcome": {
+            "pass": "実測: 合格",
+            "fail": "実測: 失敗",
+            "unverifiable": "実測: 未検証"
+          },
+          "check": {
+            "ok": "OK",
+            "ng": "NG {count}件",
+            "skipped": "対象外",
+            "unverifiable": "実行できず（未検証）"
+          }
+        },
+        "jury": {
+          "entryLabel": "陪審 ・ {date} ・ {judged}/{total}人が判定",
+          "verdict": {
+            "pass": "レビュー: 合格",
+            "fail": "レビュー: 不合格",
+            "unknown": "レビュー: 判定不能"
+          },
+          "findingsCount": "指摘 {count}件",
+          "severity": {
+            "blocker": "致命的",
+            "major": "要修正",
+            "minor": "軽微（記録のみ）"
+          },
+          "needsCheck": "要確認（根拠なし・判定に不使用）",
+          "evidence": "根拠",
+          "repro": "再現手順",
+          "juror": "陪審員",
+          "noFindings": "指摘はありません"
+        }
       },
       "phaseBreakdown": {
         "title": "フェーズ別実行時間",

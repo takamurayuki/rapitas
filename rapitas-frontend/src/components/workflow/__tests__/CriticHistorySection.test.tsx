@@ -23,6 +23,15 @@ const mockT = (key: string, values?: Record<string, string | number>) => {
     return `${values.count} issue(s)`;
   }
   if (key === 'taskWorkflowSection.criticHistory.noReasons') return 'No details were recorded';
+  if (key === 'taskWorkflowSection.criticHistory.recordsCount' && values?.count != null) {
+    return `${values.count} record(s)`;
+  }
+  if (key === 'taskWorkflowSection.criticHistory.measured.check.ng' && values) {
+    return `NG ${values.count}`;
+  }
+  if (key === 'taskWorkflowSection.criticHistory.jury.findingsCount' && values) {
+    return `${values.count} finding(s)`;
+  }
   return key;
 };
 vi.mock('next-intl', () => ({
@@ -35,12 +44,19 @@ vi.mock('@/utils/api', () => ({
 
 const mockFetch = vi.fn();
 
-function mockTransitions(transitions: unknown[]) {
+function mockTransitions(transitions: unknown[], timeline: Record<string, unknown[]> = {}) {
   mockFetch.mockImplementation((url: string) => {
     if (url.includes('/transitions')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ success: true, transitions }),
+      });
+    }
+    if (url.includes('/memory/timeline')) {
+      const type = new URL(url).searchParams.get('eventType') ?? '';
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ events: timeline[type] ?? [], total: 0 }),
       });
     }
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
@@ -158,5 +174,70 @@ describe('CriticHistorySection', () => {
       expect(mockFetch).toHaveBeenCalled();
     });
     expect(container.firstChild).toBeNull();
+  });
+
+  it('shows measured runs and jury reviews as separate groups, with severity and evidence', async () => {
+    mockTransitions([], {
+      verification_measured: [
+        {
+          id: 1,
+          eventType: 'verification_measured',
+          createdAt: '2026-11-10T01:00:00Z',
+          payload: {
+            result: { ok: false, checks: [{ name: 'test', ran: true, ok: false, errorCount: 2 }] },
+          },
+        },
+      ],
+      adversarial_review: [
+        {
+          id: 2,
+          eventType: 'adversarial_review',
+          createdAt: '2026-11-10T02:00:00Z',
+          payload: {
+            verdict: 'fail',
+            jurors: [{ verdict: 'fail' }],
+            findings: [
+              {
+                severity: 'major',
+                summary: 'null check missing',
+                evidence: 'src/a.ts:12',
+                gating: true,
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    render(<CriticHistorySection taskId={7} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('taskWorkflowSection.criticHistory.groups.measured'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText('taskWorkflowSection.criticHistory.groups.jury')).toBeInTheDocument();
+    expect(
+      screen.getByText('taskWorkflowSection.criticHistory.measured.outcome.fail'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('taskWorkflowSection.criticHistory.jury.verdict.fail'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 finding(s)')).toBeInTheDocument();
+    // Mixed kinds are "records", not "issues".
+    expect(screen.getByText('2 record(s)')).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('eventType=adversarial_review&correlationId=task-7'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /jury\.entryLabel/ }));
+    expect(screen.getByText('null check missing')).toBeInTheDocument();
+    expect(screen.getByText('src/a.ts:12')).toBeInTheDocument();
+    expect(
+      screen.getByText('taskWorkflowSection.criticHistory.jury.severity.major'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /measured\.entryLabel/ }));
+    expect(screen.getByText('NG 2')).toBeInTheDocument();
   });
 });

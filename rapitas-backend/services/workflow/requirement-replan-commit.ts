@@ -16,6 +16,7 @@ import type { ReplanReviewResult } from './requirement-replan-review';
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
 import { createLogger } from '../../config/logger';
 import { RequirementReplanHeldError } from '../../middleware/error-handler';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:requirement-replan-commit');
 
@@ -197,7 +198,7 @@ async function commitReviewedDecision(
             select: { content: true },
           }),
           tx.agentExecution.findFirst({
-            where: { session: { config: { taskId } } },
+            where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
             orderBy: { id: 'desc' },
             select: { id: true, status: true, startedAt: true },
           }),

@@ -14,6 +14,7 @@ import { getProjectRoot } from '../../../../config';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import { HTTP_STATUS } from '../../../../utils/common/http-status';
 import { parseId } from '../../../../middleware/error-handler';
+import { NOT_REVIEW_COST_ROW } from '../../../../services/agents/review-cost-rows';
 
 const log = createLogger('routes:agent-execution:respond');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -41,6 +42,7 @@ export const respondRoute = new Elysia().post(
             take: 1,
             include: {
               agentExecutions: {
+                where: NOT_REVIEW_COST_ROW,
                 orderBy: { createdAt: 'desc' },
                 take: 1,
               },

@@ -11,6 +11,7 @@ import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
 import { VERIFY_NON_CONVERGENCE_CAUSE } from '../../../../services/workflow/blocked-task-policy';
+import { NOT_REVIEW_COST_ROW } from '../../../../services/agents/review-cost-rows';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -61,7 +62,9 @@ export async function markLatestExecutionFailed(taskId: number, message: string)
     const session = await prisma.agentSession.findFirst({
       where: { config: { taskId } },
       orderBy: { createdAt: 'desc' },
-      include: { agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      include: {
+        agentExecutions: { where: NOT_REVIEW_COST_ROW, orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     });
     if (!session) return;
     const exec = session.agentExecutions[0];

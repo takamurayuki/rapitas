@@ -12,6 +12,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { classifyTier } from '../ai/model-discovery/tier-classifier';
 import type { ModelTier } from '../ai/model-discovery';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('role-evidence');
 
@@ -113,6 +114,7 @@ export async function getRoleModelOutcomes(
 
   const rows = (await prisma.agentExecution.findMany({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       createdAt: { gte: cutoff },
       modelName: { not: null },
       session: { mode: `workflow-${role}` },

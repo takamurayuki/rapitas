@@ -6,6 +6,7 @@
  * making the logic unit-testable without a live DB connection.
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
+import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -252,7 +253,7 @@ export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number)
   if (task?.workflowStatus === 'awaiting_question') return true;
 
   const latest = await prisma.agentExecution.findFirst({
-    where: { session: { config: { taskId } } },
+    where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
     orderBy: { createdAt: 'desc' },
     select: { question: true },
   });
