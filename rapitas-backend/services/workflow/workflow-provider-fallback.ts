@@ -9,6 +9,7 @@
 import { createLogger } from '../../config/logger';
 import type { WorkflowRole, WorkflowAdvanceResult } from './workflow-types';
 import type { RecoveryAttemptInput } from '../ai/recovery-metrics/recovery-metrics.types';
+import { rerouteWithConstraints } from './workflow-provider-reroute';
 
 const log = createLogger('workflow-orchestrator');
 
@@ -113,13 +114,11 @@ export async function tryProviderFallback(args: {
   const [
     { classifyAgentError },
     { markProviderCooldown },
-    { getSmartRoute },
     { findAgentConfigForProvider, agentTypeToProvider },
     { inferProviderFromModelId },
   ] = await Promise.all([
     import('../ai/agent-error-classifier'),
     import('../ai/provider-cooldown'),
-    import('../ai/smart-model-router'),
     import('../ai/agent-fallback'),
     import('./role-provider-resolver'),
   ]);
@@ -190,13 +189,16 @@ export async function tryProviderFallback(args: {
     'Provider failed — retrying with Smart Router fallback',
   );
 
-  // Re-route. Smart Router will now skip cooled-down providers.
+  // Re-route through the SAME role routing a normal run uses, with the failed
+  // provider excluded, so the role's floors and caps (minTier / hardCapTier /
+  // role suitability) survive the switch (追補5, 修正リストD). The bare
+  // SmartRouter call it replaced dropped every floor — a premium-floored phase
+  // could come back on an economy model. That call remains only as the last
+  // resort when role routing cannot answer, and is recorded as such.
   let alternativeModel: string;
   try {
-    const route = await getSmartRoute(args.taskId, {
-      excludeProviders: [classified.provider],
-    });
-    alternativeModel = route.recommendedModel;
+    const rerouted = await rerouteWithConstraints(args.taskId, args.role, classified.provider);
+    alternativeModel = rerouted.modelId;
     // Audit trail: record the failure-driven re-route (api_call). Fire-and-forget;
     // dynamic import mirrors this function's other lazy service imports.
     const rerouteModel = alternativeModel;
@@ -212,10 +214,16 @@ export async function tryProviderFallback(args: {
             failedProvider: classified.provider,
             failureReason: classified.reason,
             previousModel: args.currentConfig.modelId,
+            constraintsKept: rerouted.constraintsKept,
+            minTier: rerouted.details.minTier ?? null,
+            minTierReason: rerouted.details.minTierReason ?? null,
+            budgetCapTier: rerouted.details.budgetCapTier ?? null,
           },
           candidates: [{ id: rerouteModel, label: 'フォールバック候補' }],
           adoptedId: rerouteModel,
-          adoptedReason: `プロバイダ ${classified.provider} が ${classified.reason} で cooldown に入ったための再ルーティング`,
+          adoptedReason: rerouted.constraintsKept
+            ? `プロバイダ ${classified.provider} が ${classified.reason} で cooldown に入ったための再ルーティング（ロールの制約を維持）`
+            : `プロバイダ ${classified.provider} が ${classified.reason} で cooldown に入ったための再ルーティング（ロール経路が使えず、制約なしの素の選択）`,
         }),
       )
       .catch(() => {});

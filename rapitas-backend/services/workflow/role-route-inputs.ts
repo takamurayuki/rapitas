@@ -14,6 +14,7 @@
  */
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile } from './workflow-file-utils';
+import type { Provider } from '../ai/model-discovery/types';
 
 const log = createLogger('role-route-inputs');
 
@@ -67,6 +68,12 @@ export async function routeModelForRole(opts: {
   taskId: number;
   role: string;
   task: RoleRouteTask;
+  /**
+   * Providers to keep out of this route on top of the role's own preferences —
+   * the provider-failure fallback passes the provider that just failed, so the
+   * re-route keeps every floor and cap of a normal run.
+   */
+  excludeProviders?: Provider[];
 }): Promise<RoleRouteResult> {
   const { taskId, role, task } = opts;
   try {
@@ -93,7 +100,19 @@ export async function routeModelForRole(opts: {
       import('./role-evidence'),
     ]);
 
-    const prefs = await resolveRoleProviderPreferences(role, taskId);
+    const rolePrefs = await resolveRoleProviderPreferences(role, taskId);
+    const prefs = opts.excludeProviders?.length
+      ? {
+          ...rolePrefs,
+          excludeProviders: [
+            ...new Set([...(rolePrefs.excludeProviders ?? []), ...opts.excludeProviders]),
+          ],
+          // A preference for the provider that just failed would be pointless.
+          preferredProvider: opts.excludeProviders.includes(rolePrefs.preferredProvider as Provider)
+            ? undefined
+            : rolePrefs.preferredProvider,
+        }
+      : rolePrefs;
     const queueItem = await WorkflowQueueService.getInstance()
       .findByTaskId(taskId)
       .catch(() => null);
