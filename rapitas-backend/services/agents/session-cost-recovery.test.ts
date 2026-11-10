@@ -25,6 +25,8 @@ import {
   recoverSessionTotals,
   drainSessionRecomputesForShutdown,
   RECOVERY_WINDOW_MS,
+  flushPendingRecoveryRuns,
+  pendingRecoveryRunCount,
   type SessionRecoveryDb,
 } from './session-cost-recovery';
 
@@ -65,6 +67,7 @@ let configId = 0;
 beforeEach(async () => {
   failNextActionRead = false;
   await flushPendingSessionRecomputes();
+  await flushPendingRecoveryRuns();
   await base.agentAction.deleteMany();
   await base.agentExecution.deleteMany();
   await base.agentSession.deleteMany();
@@ -147,6 +150,40 @@ describe('recoverSessionTotals (startup)', () => {
       checked: 0,
       repaired: 0,
     });
+  });
+
+  test('a failed comparison read hands the session to the deferred retry (re-review3 P2)', async () => {
+    // Review repro: the recovery's own read of the stale session fails once.
+    // It used to be logged and skipped: totals stayed 1/100, nothing pending.
+    const s = await sessionWith({ cost: 1, tokens: 100 }, before(60_000));
+    failNextActionRead = true;
+    await recoverSessionTotals(asDb(), { bootTime: BOOT });
+    expect(pendingSessionRecomputeCount()).toBe(1);
+    await flushPendingSessionRecomputes();
+    expect(await totalsOf(s)).toEqual({ cost: 1.5, tokens: 140 });
+  });
+
+  test('a failed session-list read schedules a rerun of the whole recovery (re-review3 P2)', async () => {
+    const s = await sessionWith({ cost: 1, tokens: 100 }, before(60_000));
+    let failList = true;
+    const flaky = {
+      ...asDb(),
+      agentSession: {
+        ...asDb().agentSession,
+        findMany: (args: Parameters<SessionRecoveryDb['agentSession']['findMany']>[0]) => {
+          if (failList) {
+            failList = false;
+            return Promise.reject(new Error('list down'));
+          }
+          return asDb().agentSession.findMany(args);
+        },
+      },
+    } as SessionTotalsDb & SessionRecoveryDb;
+    await recoverSessionTotals(flaky, { bootTime: BOOT });
+    expect(pendingRecoveryRunCount()).toBe(1);
+    await flushPendingRecoveryRuns();
+    expect(pendingRecoveryRunCount()).toBe(0);
+    expect(await totalsOf(s)).toEqual({ cost: 1.5, tokens: 140 });
   });
 
   test('premise of the window: every totals write bumps updatedAt', async () => {

@@ -207,6 +207,19 @@ const retries = createKeyedRetryQueue<number>({
 });
 
 /**
+ * Hand a session to the deferred, verified recompute without trying in-line
+ * first — for callers whose own read of the session failed and that must not
+ * leave it unrepaired (startup recovery, the background sweep).
+ *
+ * @param db - Prisma client (or a structural fake) / Prisma クライアント
+ * @param sessionId - Session to recompute later / 後で再計算するセッション
+ */
+export function scheduleSessionRecompute(db: SessionTotalsDb, sessionId: number): void {
+  // Coalesced per session: the retry re-reads every row.
+  retries.schedule(sessionId, async () => (await recomputeInline(db, sessionId)) === 'contended');
+}
+
+/**
  * Rewrite a session's cost/token totals from its recorded usage, verified
  * against a re-read of it (recomputeInline). If writers keep changing the
  * rows past the in-line attempts, the session stays pending and is retried
@@ -221,9 +234,7 @@ export async function recomputeSessionTotals(
   db: SessionTotalsDb,
   sessionId: number,
 ): Promise<boolean> {
-  // Coalesced per session: the retry re-reads every row.
-  const defer = () =>
-    retries.schedule(sessionId, async () => (await recomputeInline(db, sessionId)) === 'contended');
+  const defer = () => scheduleSessionRecompute(db, sessionId);
   let result: InlineResult;
   try {
     result = await recomputeInline(db, sessionId);

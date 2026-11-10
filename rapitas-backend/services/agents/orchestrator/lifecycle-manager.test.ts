@@ -34,6 +34,16 @@ mock.module('../session-cost-recovery', () => ({
   RECOVERY_WINDOW_MS: 86_400_000,
   recoverSessionTotals: async () => ({ checked: 0, repaired: 0 }),
   recoverSessionTotalsOnBoot: async () => 0,
+  flushPendingRecoveryRuns: async () => {},
+  pendingRecoveryRunCount: () => 0,
+  runBootRecovery: async () => ({
+    checked: 0,
+    repaired: 0,
+    sweep: {
+      done: Promise.resolve({ checked: 0, repaired: 0, deferred: 0, completed: false }),
+      stop: () => {},
+    },
+  }),
   drainSessionRecomputesForShutdown: mockDrain,
 }));
 

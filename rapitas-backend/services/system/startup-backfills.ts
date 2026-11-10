@@ -38,6 +38,8 @@ export async function runStartupBackfills(): Promise<Record<string, number>> {
     labelCategories: await backfillLabelCategories(),
     // Not a migration but the same contract (idempotent, never throws): repairs
     // session totals whose in-memory retry the previous process took with it.
+    // Only the recent window is awaited here; the scan of every session runs
+    // later in the background (session-cost-sweep), so the warm-up stays short.
     sessionTotals: await recoverSessionTotalsOnBoot(),
   };
 }
