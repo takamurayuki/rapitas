@@ -64,41 +64,105 @@ enum RapiPendingReason: String, Codable {
 
 /// アプリに預ける依頼1件。アプリ本体の UserDefaults.standard に JSON 配列で置く
 struct RapiPendingRequest: Codable, Equatable {
+  /// 取り出し（peek）と消去（ack）を突き合わせる番号。Dart 側の重複除けにも使う
+  var id: String
   var text: String
   var createdAt: String
   var reason: RapiPendingReason
+
+  init(id: String = UUID().uuidString, text: String, createdAt: String, reason: RapiPendingReason) {
+    self.id = id
+    self.text = text
+    self.createdAt = createdAt
+    self.reason = reason
+  }
+
+  private enum CodingKeys: String, CodingKey { case id, text, createdAt, reason }
+
+  // NOTE: id のない旧形式（PR #1473 の最初のコミット）も読む。番号は load() で振って書き戻す
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+    text = try c.decode(String.self, forKey: .text)
+    createdAt = try c.decode(String.self, forKey: .createdAt)
+    reason = try c.decodeIfPresent(RapiPendingReason.self, forKey: .reason) ?? .needsConfirmation
+  }
+
+  /// MethodChannel で Dart に渡す形
+  var channelValue: [String: String] {
+    ["id": id, "text": text, "createdAt": createdAt, "reason": reason.rawValue]
+  }
 }
 
 /// 預けた依頼の置き場。拡張は使わないので App Group ではなくアプリ内に置く（design.md §5.4）
 ///
-/// NOTE: shared_preferences は "flutter." で始まるキーしか読まないので、このキーとは混ざらない。
-struct RapiPendingStore {
+/// 取り出しは2段階：peekAll() で読むだけ読み、Dart が自分の保存先に書けたら remove(ids:) で消す。
+/// 読んだ直後に消すと、Dart に渡ってから保存されるまでの間にアプリが終わったとき依頼が失われる。
+///
+/// NOTE: 読み取り→変更→書き戻しは、プロセス内で共通の [lock] で直列にする。App Intent の実行と
+/// MethodChannel の呼び出しは同じ Runner プロセスの別スレッドで重なりうるため（排他がないと、
+/// 追加どうしの上書きや、取り出し中に足された依頼の消去が起きる）。
+/// shared_preferences は "flutter." で始まるキーしか読まないので、このキーとは混ざらない。
+// NOTE: @unchecked の根拠：UserDefaults 自体はスレッド安全で、読み取り→書き戻しはすべて lock の内側
+struct RapiPendingStore: @unchecked Sendable {
   static let key = "rapiPendingRequests"
 
   /// 預ける上限。古いものから捨てる（何度失敗しても溜まり続けないように）
-  static let limit = 20
+  static let defaultLimit = 20
+
+  /// すべての RapiPendingStore で共有する（インスタンスごとに作ると排他にならない）
+  private static let lock = NSLock()
 
   let defaults: UserDefaults
+  var limit: Int = RapiPendingStore.defaultLimit
 
-  /// 預かっている依頼（古い順）
-  func load() -> [RapiPendingRequest] {
+  /// [body] を排他で実行する。中で defaults を読み書きする処理はすべてここを通す
+  private func locked<T>(_ body: () -> T) -> T {
+    Self.lock.lock()
+    defer { Self.lock.unlock() }
+    return body()
+  }
+
+  private func read() -> [RapiPendingRequest] {
     guard let data = defaults.data(forKey: Self.key) else { return [] }
-    return (try? JSONDecoder().decode([RapiPendingRequest].self, from: data)) ?? []
-  }
-
-  /// 依頼を1件足す
-  func append(_ request: RapiPendingRequest) {
-    var all = load()
-    all.append(request)
-    if all.count > Self.limit { all.removeFirst(all.count - Self.limit) }
-    if let data = try? JSONEncoder().encode(all) { defaults.set(data, forKey: Self.key) }
-  }
-
-  /// すべて取り出して消す（MethodChannel の takePendingRequests）
-  func takeAll() -> [RapiPendingRequest] {
-    let all = load()
-    defaults.removeObject(forKey: Self.key)
+    var all = (try? JSONDecoder().decode([RapiPendingRequest].self, from: data)) ?? []
+    if all.contains(where: { $0.id.isEmpty }) {
+      for i in all.indices where all[i].id.isEmpty { all[i].id = UUID().uuidString }
+      write(all)
+    }
     return all
+  }
+
+  private func write(_ all: [RapiPendingRequest]) {
+    if all.isEmpty {
+      defaults.removeObject(forKey: Self.key)
+    } else if let data = try? JSONEncoder().encode(all) {
+      defaults.set(data, forKey: Self.key)
+    }
+  }
+
+  /// 預かっている依頼（古い順）。読むだけで消さない
+  func peekAll() -> [RapiPendingRequest] { locked { read() } }
+
+  /// 依頼を1件足す（同じ id があれば置き換える。通信の前に預け、結果に合わせて理由を書き換えるため）
+  func upsert(_ request: RapiPendingRequest) {
+    locked {
+      var all = read()
+      if let i = all.firstIndex(where: { $0.id == request.id }) {
+        all[i] = request
+      } else {
+        all.append(request)
+        if all.count > limit { all.removeFirst(all.count - limit) }
+      }
+      write(all)
+    }
+  }
+
+  /// [ids] の依頼だけを消す（Dart が受け取って保存し終えた分。MethodChannel の ackPendingRequests）。
+  /// 読んだあとに足された依頼は ids に入っていないので残る
+  func remove(ids: Set<String>) {
+    if ids.isEmpty { return }
+    locked { write(read().filter { !ids.contains($0.id) }) }
   }
 }
 

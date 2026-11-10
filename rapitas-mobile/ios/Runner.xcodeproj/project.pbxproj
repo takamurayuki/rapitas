@@ -19,6 +19,7 @@
 		532ADAAFA2B9F5E422143026 /* RapiNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */; };
 		492F2FA7EC6A38BE0638C799 /* RapiConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */; };
 		7C8485FE8EBAA0CA09E95E59 /* RapiIntentLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */; };
+		D9AB7B5EA4FE393C784FAC7D /* RapiRequestFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B26AAD43E3C05C2075B5F23 /* RapiRequestFlow.swift */; };
 		B1B2D8B5A172587EAC07ADE5 /* RapiShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CE485EB7CA1C3D855D2334 /* RapiShared.swift */; };
 		D1FF704F9A26FBD775DA1DBC /* RapiShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CE485EB7CA1C3D855D2334 /* RapiShared.swift */; };
 		9315538F9D048FD2B2574F81 /* RapiWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F775807B33AB7571BFF2BA /* RapiWidgetBundle.swift */; };
@@ -92,6 +93,7 @@
 		3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiNativeClient.swift; sourceTree = "<group>"; };
 		64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiConnectionStore.swift; sourceTree = "<group>"; };
 		46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiIntentLogic.swift; sourceTree = "<group>"; };
+		2B26AAD43E3C05C2075B5F23 /* RapiRequestFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiRequestFlow.swift; sourceTree = "<group>"; };
 		54CE485EB7CA1C3D855D2334 /* RapiShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiShared.swift; sourceTree = "<group>"; };
 		08F775807B33AB7571BFF2BA /* RapiWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiWidgetBundle.swift; sourceTree = "<group>"; };
 		B35A75530C17EC87EA99F5DB /* RapiHomeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RapiHomeWidget.swift; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 				3B6B87F59A7F6F8C2E2DC5E2 /* RapiNativeClient.swift */,
 				64590F623CF5A17EEAD2D160 /* RapiConnectionStore.swift */,
 				46FE5E1ED30F50705F50CBCC /* RapiIntentLogic.swift */,
+				2B26AAD43E3C05C2075B5F23 /* RapiRequestFlow.swift */,
 			);
 			path = Intents;
 			sourceTree = "<group>";
@@ -408,6 +411,7 @@
 				532ADAAFA2B9F5E422143026 /* RapiNativeClient.swift in Sources */,
 				492F2FA7EC6A38BE0638C799 /* RapiConnectionStore.swift in Sources */,
 				7C8485FE8EBAA0CA09E95E59 /* RapiIntentLogic.swift in Sources */,
+				D9AB7B5EA4FE393C784FAC7D /* RapiRequestFlow.swift in Sources */,
 				B1B2D8B5A172587EAC07ADE5 /* RapiShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

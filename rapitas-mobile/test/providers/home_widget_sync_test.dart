@@ -19,7 +19,10 @@ class _FakeBridge implements HomeScreenBridge {
   Future<void> writeWidgetSnapshot(Map<String, Object?> snapshot) async => written.add(snapshot);
 
   @override
-  Future<List<PendingRapiRequest>> takePendingRequests() async => const [];
+  Future<List<PendingRapiRequest>> peekPendingRequests() async => const [];
+
+  @override
+  Future<void> ackPendingRequests(List<String> ids) async {}
 }
 
 final _created = DateTime(2026, 11, 1);

@@ -9,24 +9,8 @@
 
 import Foundation
 
-enum RapiClientError: Error, Equatable {
-  case unauthorized
-  case offline
-  case timeout
-  /// 2xx 以外の応答、または本文が JSON でない
-  case badResponse(Int)
-
-  /// アプリに預けるときの理由
-  var pendingReason: RapiPendingReason {
-    switch self {
-    case .unauthorized: return .unauthorized
-    case .timeout: return .timeout
-    case .offline, .badResponse: return .offline
-    }
-  }
-}
-
-struct RapiNativeClient {
+// NOTE: RapiClientError と RapiAssistantCalls は RapiRequestFlow.swift（Linux の swift test に入れるため）
+struct RapiNativeClient: RapiAssistantCalls {
   let baseUrl: String
   let token: String?
   var session: URLSession = .shared

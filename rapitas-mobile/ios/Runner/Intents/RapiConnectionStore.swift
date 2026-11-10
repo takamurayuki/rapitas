@@ -16,14 +16,7 @@
 import Foundation
 import Security
 
-/// 接続情報の読み出しの結果
-enum RapiConnectionResult {
-  case ready(baseUrl: String, token: String?)
-  case unpaired
-  /// 端末がロック中でキーチェーンを読めない（kSecAttrAccessibleWhenUnlocked のため）
-  case locked
-}
-
+// NOTE: RapiConnectionResult は RapiRequestFlow.swift（Linux の swift test に入れるため）
 enum RapiConnectionStore {
   static let urlDefaultsKey = "flutter.backendUrl"
   static let keychainService = "flutter_secure_storage_service"

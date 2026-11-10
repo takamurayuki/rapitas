@@ -6,73 +6,24 @@
 // （トークンをアプリの外に出さない。design.md §0・§2.2）。
 //
 // iOS 16 以降、アプリ本体に定義した AppIntent は、アプリのプロセスが UI なしで起動されて実行される。
-// 判断と文面は RapiIntentLogic.swift、通信は RapiNativeClient.swift。
+// 処理の流れは RapiRequestFlow.swift、判断と文面は RapiIntentLogic.swift、通信は RapiNativeClient.swift。
 //
 
 import AppIntents
 import Foundation
 
-/// 依頼1件を処理した結果
-enum RapiRequestOutcome {
-  /// その場で返事を出して終わり
-  case reply(String)
-  /// アプリに預けた。[message] を出し、iOS 17 以降は「開く」を出す
-  case saved(message: String)
-}
-
-/// 「ラピに依頼」の処理の流れ（design.md §5.3）
-enum RapiRequestFlow {
-  /// App Intent は裏での実行時間に限りがある（目安で約30秒。公式に保証された値ではない）ので、
-  /// 振り分けは10秒、全体は25秒で打ち切る。間に合わなければアプリに預ける
-  static let routeTimeout: TimeInterval = 10
-  static let totalBudget: TimeInterval = 25
-  /// 返事の要求に最低限残す時間
-  static let minimumReplyTimeout: TimeInterval = 3
-
-  static func run(
-    _ text: String,
-    defaults: UserDefaults = .standard,
-    now: () -> Date = Date.init
-  ) async -> RapiRequestOutcome {
-    let started = now()
-    let store = RapiPendingStore(defaults: defaults)
-
-    func save(_ reason: RapiPendingReason, message: String) -> RapiRequestOutcome {
-      store.append(RapiPendingRequest(text: text, createdAt: RapiDate.format(now()), reason: reason))
-      return .saved(message: message)
-    }
-
-    let client: RapiNativeClient
-    switch RapiConnectionStore.read(defaults: defaults) {
-    case .unpaired: return save(.unpaired, message: RapiDialogText.failure(.unpaired))
-    case .locked: return save(.locked, message: RapiDialogText.failure(.locked))
-    case .ready(let baseUrl, let token): client = RapiNativeClient(baseUrl: baseUrl, token: token)
-    }
-
-    do {
-      let routed = try await client.route(text, timeout: routeTimeout)
-      guard let decision = RapiRouteDecision.decide(routed) else {
-        return save(.offline, message: RapiDialogText.failure(.offline))
-      }
-      let remaining = max(minimumReplyTimeout, totalBudget - now().timeIntervalSince(started))
-      switch decision {
-      case .chat:
-        let content = try await client.chat(text, timeout: remaining)
-        return .reply(RapiDialogText.chatReply(content))
-      case .ask:
-        let answer = try await client.ask(text, timeout: remaining)
-        guard answer["success"] as? Bool == true else {
-          return save(.offline, message: RapiDialogText.failure(.offline))
-        }
-        return .reply(RapiDialogText.askReply(answer))
-      case .needsApp(let intent):
-        return save(.needsConfirmation, message: RapiDialogText.needsApp(intent: intent))
-      }
-    } catch let error as RapiClientError {
-      return save(error.pendingReason, message: RapiDialogText.failure(error.pendingReason))
-    } catch {
-      return save(.offline, message: RapiDialogText.failure(.offline))
-    }
+extension RapiRequestFlow {
+  /// 本物の預け先・キーチェーン・URLSession で依頼1件を処理する
+  ///
+  /// - Parameter text: 整えた依頼文 / rapiPrepareText の結果
+  /// - Returns: その場の返事か、預けた旨の文面
+  static func runLive(_ text: String) async -> RapiRequestOutcome {
+    await run(
+      text,
+      store: RapiPendingStore(defaults: .standard),
+      connection: { RapiConnectionStore.read(defaults: .standard) },
+      makeClient: { RapiNativeClient(baseUrl: $0, token: $1) }
+    )
   }
 }
 
@@ -95,7 +46,7 @@ struct RapiRequestIntent: AppIntent {
     guard let prepared = rapiPrepareText(text) else {
       throw $text.needsValueError(IntentDialog("ラピに何を頼みますか？"))
     }
-    switch await RapiRequestFlow.run(prepared) {
+    switch await RapiRequestFlow.runLive(prepared) {
     case .reply(let message):
       return .result(dialog: IntentDialog(stringLiteral: message))
     case .saved(let message):

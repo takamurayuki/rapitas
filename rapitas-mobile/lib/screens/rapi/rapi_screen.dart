@@ -512,9 +512,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         return _spaced(_RapiMessage(text: m.text));
       case RapiRole.system:
         final taskId = m.taskId;
+        final draftId = m.externalDraftId;
         return _spaced(_SystemNote(
           text: m.text,
           onOpen: taskId == null ? null : () => _openTask(taskId),
+          // 欄に入っているショートカットの依頼の案内にだけ出す（送った・破棄した依頼の案内には出さない）
+          onDiscard: draftId != null && draftId == chat.activeExternalDraftId && !chat.sending
+              ? _chat.discardExternalDraft
+              : null,
         ));
     }
   }
@@ -997,7 +1002,10 @@ class _SystemNote extends StatelessWidget {
   final String text;
   final VoidCallback? onOpen;
 
-  const _SystemNote({required this.text, this.onOpen});
+  /// ショートカットから届いた依頼を破棄する（欄に入れた依頼の案内のときだけ）
+  final VoidCallback? onDiscard;
+
+  const _SystemNote({required this.text, this.onOpen, this.onDiscard});
 
   @override
   Widget build(BuildContext context) {
@@ -1021,6 +1029,16 @@ class _SystemNote extends StatelessWidget {
                 ),
                 onPressed: onOpen,
                 child: const Text('開く'),
+              ),
+            if (onDiscard != null)
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF6B7280),
+                  visualDensity: VisualDensity.compact,
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                onPressed: onDiscard,
+                child: const Text('この依頼を破棄'),
               ),
           ],
         ),
