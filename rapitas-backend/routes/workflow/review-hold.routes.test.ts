@@ -57,6 +57,20 @@ describe('review-hold routes', () => {
     expect(resolveReviewHold).not.toHaveBeenCalled();
   });
 
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty', 'agent'])(
+    'X-Rapitas-Source: %s（許可リスト外・継承プロパティ）は 403',
+    async (source) => {
+      const res = await post({ action: 'override' }, { 'x-rapitas-source': source });
+      expect(res.status).toBe(403);
+      expect(resolveReviewHold).not.toHaveBeenCalled();
+    },
+  );
+
+  test('X-Rapitas-Source は ui と operator（大文字小文字を問わない）を受理する', async () => {
+    expect((await post({ action: 'accept' }, { 'x-rapitas-source': 'UI' })).status).toBe(200);
+    expect((await post({ action: 'accept' }, { 'x-rapitas-source': 'operator' })).status).toBe(200);
+  });
+
   test('未知の action は 400', async () => {
     const res = await post({ action: 'ship-it' });
     expect(res.status).toBe(400);

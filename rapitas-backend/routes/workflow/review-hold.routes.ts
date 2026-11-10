@@ -19,11 +19,15 @@ import { resolveReviewHold } from '../../services/workflow/review-hold-resolve';
 
 const log = createLogger('routes:review-hold');
 
-/** Who may resolve a hold, and the label recorded for each. */
-const RESOLVE_SOURCE_LABELS: Record<string, string> = {
-  ui: 'ユーザー操作',
-  operator: 'オペレーター代理',
-};
+/**
+ * Who may resolve a hold, and the label recorded for each.
+ * NOTE: A Map, not an object literal — indexing a plain object with the raw
+ * header let inherited keys (`constructor`, `__proto__`) pass as truthy.
+ */
+const RESOLVE_SOURCE_LABELS: ReadonlyMap<string, string> = new Map([
+  ['ui', 'ユーザー操作'],
+  ['operator', 'オペレーター代理'],
+]);
 
 const ACTIONS: ReadonlySet<string> = new Set<ReviewHoldAction>(['accept', 'override']);
 
@@ -48,7 +52,9 @@ const reviewHoldRoutes = new Elysia({ prefix: '/workflow' })
     const headers = ctx.headers as Record<string, string | undefined> | undefined;
     const rawSource = headers?.['x-rapitas-source'];
     const resolvedBy =
-      RESOLVE_SOURCE_LABELS[typeof rawSource === 'string' ? rawSource.toLowerCase() : ''];
+      typeof rawSource === 'string'
+        ? RESOLVE_SOURCE_LABELS.get(rawSource.toLowerCase())
+        : undefined;
     if (!resolvedBy) {
       log.warn(
         { taskId, source: rawSource ?? null },
