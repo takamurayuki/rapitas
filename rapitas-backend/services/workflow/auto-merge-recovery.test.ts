@@ -94,6 +94,12 @@ mock.module('../agents/orchestrator/git-operations/pr/pr-merge-ops', () => ({
   readAuthoritativeMergeState,
 }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real gate in auto-merge-{watcher,recovery}.verifier-eligibility.test.ts.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const { recoverMergedTasks } = await import('./auto-merge-recovery');
 
 beforeEach(() => {

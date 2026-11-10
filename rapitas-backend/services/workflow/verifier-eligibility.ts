@@ -26,6 +26,7 @@ import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 import { findModelEntry, tierAtLeast } from '../ai/model-tier-table/tier-table';
 import type { ExecutorRef } from '../ai/model-tier-table/seat-planner';
 import { REVIEW_ROLES } from './review-floor';
+import type { CompletionCheckSource } from './verifier-completion-check';
 
 const log = createLogger('workflow:verifier-eligibility');
 
@@ -174,7 +175,7 @@ export type EligibilityGateOutcome = 'ok' | 'held' | 'cas_lost' | 'deferred' | '
 export async function holdIfVerifierIneligible(p: {
   taskId: number;
   fromStatus?: string;
-  source: 'http_save' | 'cli_epilogue' | 'manual_settle' | 'runner_recovery';
+  source: 'http_save' | 'cli_epilogue' | 'manual_settle' | CompletionCheckSource;
   sessionId?: number;
   phase?: EligibilityPhase;
 }): Promise<{ outcome: EligibilityGateOutcome; judgement: VerifierEligibility }> {

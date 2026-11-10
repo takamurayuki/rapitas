@@ -16,6 +16,7 @@ import { recordTransition } from './transition-recorder';
 import { resolveAutomationPolicy } from './automation-policy';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { notify } from './auto-merge-notify';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
 import { resolveIntegrationId } from '../github/pr-link';
 import { readAuthoritativeMergeState } from '../agents/orchestrator/git-operations/pr/pr-merge-ops';
 
@@ -145,6 +146,10 @@ async function recoverOne(t: HeldTask): Promise<boolean> {
   // Re-read the stop intent AFTER the network call: a task stopped meanwhile
   // must not be completed, even though its PR did land.
   if (!(await canContinueAutoMerge(t.id))) return false;
+  // NOTE: A merged PR proves the code landed, not that the verify verdict
+  // counted — re-check the verifier and any open deferral; "could not check"
+  // never completes (G2 routing1 re-review 3).
+  if (!(await verifierConfirmedForCompletion(t.id, 'merge_recovery'))) return false;
 
   // Conditional write. Losing this race (a concurrent path completed it, a new
   // run moved the task on, the PR pointer changed) is a no-op, never an

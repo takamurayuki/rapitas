@@ -130,6 +130,12 @@ mock.module('./auto-merge-task-guard', () => ({
   },
 }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real gate in auto-merge-{watcher,recovery}.verifier-eligibility.test.ts.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const { AutoMergeWatcher } = await import('./auto-merge-watcher');
 
 beforeEach(() => {

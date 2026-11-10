@@ -37,7 +37,11 @@ mock.module('./transition-recorder', () => ({ recordTransition: async () => unde
 const holdForHumanReview = mock(
   async (_p: Record<string, unknown>): Promise<'held' | 'cas_lost'> => 'held',
 );
-mock.module('./review-hold', () => ({ readReviewHold: async () => null, holdForHumanReview }));
+mock.module('./review-hold', () => ({
+  REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
+  readReviewHold: async () => null,
+  holdForHumanReview,
+}));
 
 // Task / PR rows read by the recovery: PR #1470 on record, no required merge.
 const updateMany = mock(async (_a: unknown) => ({ count: 1 }));
@@ -47,7 +51,6 @@ mock.module('../../config', () => ({
   prisma: {
     gitHubPullRequest: { findFirst: async () => ({ id: 1470 }) },
     task: { findUnique: async () => ({ githubPrId: 1470 }), updateMany },
-    workflowTransition: { findFirst: workflowTransitionFindFirst },
   },
 }));
 
@@ -64,6 +67,7 @@ mock.module('../../config/database', () => ({
       findFirst: agentExecutionFindFirst,
       findMany: async () => [{ modelName: 'claude-sonnet-5-5' }],
     },
+    workflowTransition: { findFirst: workflowTransitionFindFirst },
   },
 }));
 

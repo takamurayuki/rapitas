@@ -33,6 +33,8 @@ import { notify } from './auto-merge-notify';
 import { findCandidates, type Candidate } from './auto-merge-candidates';
 import { countWithFailClosed } from '../../utils/database/fail-closed-count';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
+import { completeTaskRow } from './auto-merge-completion';
 import { recoverMergedTasks } from './auto-merge-recovery';
 import { evaluatePreMergeGate, RATCHET_CHECK_NAME } from './auto-merge-premerge-gate';
 import { checkBaselineDrift } from './auto-merge-baseline-drift';
@@ -54,24 +56,6 @@ const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
  * genuinely-unresolvable conflict instead of re-filing forever.
  */
 const MAX_CONFLICT_RETRIES = 2;
-
-/**
- * Mark a task row done/completed (idempotent). Used when the watcher is the one
- * that reaches a task's completion point under staged completion.
- */
-async function completeTaskRow(taskId: number): Promise<boolean> {
-  if (!(await canContinueAutoMerge(taskId))) return false;
-  const result = await prisma.task
-    .updateMany({
-      where: { id: taskId, status: { in: ['in-progress', 'in_progress', 'done', 'completed'] } },
-      data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-    })
-    .catch((err) => {
-      log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed');
-      return { count: 0 };
-    });
-  return result.count > 0;
-}
 
 /** Record a terminal auto-merge outcome so the candidate is not reprocessed. */
 async function mark(taskId: number, cause: string, reason: string): Promise<void> {
@@ -391,6 +375,9 @@ export class AutoMergeWatcher {
         return;
       }
 
+      // A merge cannot be undone, so an unconfirmed verifier must not reach it
+      // either — completeTaskRow's re-check would only fire after the fact.
+      if (!(await verifierConfirmedForCompletion(c.taskId, 'merge_watcher'))) return;
       const res = await mergePullRequest(c.cwd, c.prNumber, c.threshold, c.baseBranch, () =>
         canContinueAutoMerge(c.taskId),
       );
