@@ -11,10 +11,33 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { cleanupRootWorkflowFiles } from './workflow-file-utils';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 // NOTE: Same logger name as the executor body — keeps the observed log `name`
 // field identical after the file split.
 const log = createLogger('workflow-cli-executor');
+
+/**
+ * The phase run a deferred `agent_execution_completed` event belongs to: the
+ * session's newest execution that is NOT a jury cost row. The jury runs
+ * before this event on the verify path and records its spend under the same
+ * session; without the filter the event named the cost row and, having no
+ * agentConfig, attributed the run to 'codex' (G2 review item 2).
+ *
+ * @param sessionId - The phase's AgentSession / フェーズのセッション
+ * @returns Execution id and agent type, or null / 実行IDとエージェント種別
+ */
+export async function findCompletionEventExecution(
+  sessionId: number,
+): Promise<{ id: number; agentConfig: { agentType: string } | null } | null> {
+  return prisma.agentExecution
+    .findFirst({
+      where: { sessionId, ...NOT_REVIEW_COST_ROW },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, agentConfig: { select: { agentType: true } } },
+    })
+    .catch(() => null);
+}
 
 /**
  * Run post-execution housekeeping: clean up stray root-level workflow files,
@@ -109,13 +132,7 @@ export async function runPostProcessing(params: {
     // Emit the deferred timeline event now that the artifact is on disk.
     try {
       const { appendEvent } = await import('../memory/timeline');
-      const latestExec = await prisma.agentExecution
-        .findFirst({
-          where: { sessionId: session.id },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true, agentConfig: { select: { agentType: true } } },
-        })
-        .catch(() => null);
+      const latestExec = await findCompletionEventExecution(session.id);
       if (latestExec) {
         await appendEvent({
           eventType: 'agent_execution_completed',

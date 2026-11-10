@@ -47,11 +47,22 @@ export const JURY_MODEL_IDS = {
   haiku: 'claude-3-5-haiku-20241022',
 } as const;
 
-/** Default panel order: a model other than the usual implementer first. */
+/**
+ * Default panel: Opus, Sonnet, Sonnet.
+ *
+ * NOTE: Haiku was dropped from the default (2026-11-10, owner decision) under
+ * the policy "a reviewer is at least as capable as the implementer" — Haiku
+ * sat below the usual Sonnet/Opus implementer, so the quality gate's weakest
+ * seat was its cheapest. Three seats are kept so a majority still exists
+ * (ADR 0008: two voters tie, and a tie breaks to fail). The second Sonnet is
+ * a separate, independent call — the only way to keep three seats without
+ * seating a tier below the implementer. An explicit RAPITAS_JURY_MODELS list
+ * still overrides this and is still deduped by tier.
+ */
 const DEFAULT_JURY_MODELS = [
   JURY_MODEL_IDS.opus,
   JURY_MODEL_IDS.sonnet,
-  JURY_MODEL_IDS.haiku,
+  JURY_MODEL_IDS.sonnet,
 ] as const;
 
 /**
@@ -72,17 +83,20 @@ function tierOf(modelId: string): keyof typeof JURY_MODEL_IDS {
 /**
  * Resolve the configured juror models to distinct model ids.
  *
+ * An explicit list is deduped by the model each id reaches; the default
+ * deliberately seats Sonnet twice (see DEFAULT_JURY_MODELS).
+ *
  * @param raw - `RAPITAS_JURY_MODELS` value (comma separated) / 環境変数の値
- * @returns Distinct model ids in panel order / 重複のないモデルID列
+ * @returns Model ids in panel order / 陪審のモデルID列
  */
 export function juryModelIds(raw: string | undefined = process.env.RAPITAS_JURY_MODELS): string[] {
   const requested = (raw ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  const source = requested.length > 0 ? requested : DEFAULT_JURY_MODELS;
+  if (requested.length === 0) return [...DEFAULT_JURY_MODELS];
   const byTier = new Map<string, string>();
-  for (const id of source) {
+  for (const id of requested) {
     const tier = tierOf(id);
     if (!byTier.has(tier)) byTier.set(tier, JURY_MODEL_IDS[tier]);
   }
@@ -123,11 +137,19 @@ export function buildPanel(args: {
   }
 
   const implementerTier = args.implementerModel ? tierOf(args.implementerModel) : null;
-  const seats = juryModelIds().map((model) => ({
-    provider: 'claude' as AIProvider,
-    model,
-    label: `claude:${tierOf(model)}`,
-  }));
+  // A tier seated twice (the default Sonnet pair) gets `#2` so health
+  // tracking and the recorded votes keep the two calls apart.
+  const seen = new Map<string, number>();
+  const seats = juryModelIds().map((model) => {
+    const tier = tierOf(model);
+    const n = (seen.get(tier) ?? 0) + 1;
+    seen.set(tier, n);
+    return {
+      provider: 'claude' as AIProvider,
+      model,
+      label: n === 1 ? `claude:${tier}` : `claude:${tier}#${n}`,
+    };
+  });
   return [
     ...seats.filter((s) => tierOf(s.model) !== implementerTier),
     ...seats.filter((s) => tierOf(s.model) === implementerTier),

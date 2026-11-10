@@ -54,7 +54,7 @@ beforeEach(async () => {
     'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
     'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
     'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
+    "CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', sessionId INTEGER, status TEXT, startedAt DATETIME)",
     'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
     // The service acquires a durable review claim before any AI call (task 901
     // claim tables) — the isolated schema must carry them like the commit test.

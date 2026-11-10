@@ -35,7 +35,7 @@ beforeEach(async () => {
     'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, absolutePath TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,fileType))',
     'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
     'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME, createdAt DATETIME)',
+    "CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', sessionId INTEGER, status TEXT, startedAt DATETIME, createdAt DATETIME)",
     'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
     'CREATE TABLE WorkflowQueueItem (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, orchestraSessionId INTEGER, themeId INTEGER, status TEXT, currentPhase TEXT, priority INTEGER, dependencies TEXT, retryCount INTEGER DEFAULT 0, maxRetries INTEGER DEFAULT 3, errorMessage TEXT, result TEXT, queuedAt DATETIME DEFAULT CURRENT_TIMESTAMP, startedAt DATETIME, completedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME)',
     'CREATE TABLE WorkflowFileVersion (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fileType TEXT, content TEXT, sha256 TEXT, sizeBytes INTEGER, archivedAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
@@ -128,6 +128,18 @@ test('new execution does not authorize an old verdict', async () => {
   );
   expect(await commit()).toEqual({ committed: false, reason: 'execution_superseded' });
   await unchanged();
+});
+test('a jury cost row recorded after the verdict does not supersede the evaluated execution', async () => {
+  // The adversarial review records its spend as an AgentExecution under the
+  // same session AFTER the run it judged (review-cost-record.ts). It must not
+  // read as "a newer execution" here, or every jury FAIL bounce would be
+  // refused as execution_superseded.
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, command, status, startedAt, createdAt) VALUES (2,1,'adversarial-review','completed',?,?)",
+    new Date(now.getTime() + 1),
+    new Date(now.getTime() + 1),
+  );
+  expect(await commit()).toMatchObject({ committed: true });
 });
 test('canceling execution blocks admission', async () => {
   await db.$executeRawUnsafe("UPDATE AgentExecution SET status='canceling'");

@@ -292,6 +292,12 @@ const handleProcessSignal = async (signal: string) => {
       log.error({ err: error }, 'Error shutting down Agent Worker Manager');
     }
 
+    // Step 4.5: This process's pending session-total retries (routes, review cost)
+    // need the DB, so before Step 5; bounded, and startup recovery covers the rest.
+    const { drainSessionRecomputesForShutdown } =
+      await import('./services/agents/session-cost-recovery');
+    await drainSessionRecomputesForShutdown({ timeoutMs: 2000 });
+
     // Step 5: Close database connection
     log.info('Step 5: Closing database connection...');
     try {

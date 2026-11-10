@@ -20,6 +20,7 @@ import {
   escapeWindowsShellArgForTarget,
 } from '../common/windows-shell-escape';
 import { type AIMessage, type AIResponse } from './types';
+import { cliUsageFields } from './claude-cli-usage';
 import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 import { auxCliCleanup } from './aux-cli-cleanup';
 import { prepareAuxCli } from './aux-cli-launch';
@@ -366,7 +367,14 @@ export async function callClaudeCli(
       result?: string;
       is_error?: boolean;
       subtype?: string;
-      usage?: { input_tokens?: number; output_tokens?: number };
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+      };
+      total_cost_usd?: number;
+      modelUsage?: Record<string, unknown>;
     };
     try {
       parsed = JSON.parse(jsonText);
@@ -381,7 +389,7 @@ export async function callClaudeCli(
       );
     }
     const tokensUsed = (parsed.usage?.input_tokens || 0) + (parsed.usage?.output_tokens || 0);
-    return { content: parsed.result, tokensUsed };
+    return { content: parsed.result, tokensUsed, ...cliUsageFields(parsed) };
   } finally {
     releaseSlot();
   }

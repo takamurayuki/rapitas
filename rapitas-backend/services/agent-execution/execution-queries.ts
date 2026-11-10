@@ -9,6 +9,7 @@ import { PrismaClient } from '../../generated/prisma-postgres';
 import { orchestrator } from '../core/orchestrator-instance';
 import type { AgentExecutionWithExtras } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('agent-execution-service');
 
@@ -48,6 +49,7 @@ export async function getLatestExecution(
 ): Promise<AgentExecutionWithExtras | null> {
   return await prisma.agentExecution.findFirst({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       session: {
         config: {
           taskId: taskId,
@@ -95,6 +97,7 @@ export async function getExecutingTasks(prisma: PrismaClient): Promise<AgentExec
 export async function resetExecutionState(prisma: PrismaClient, taskId: number): Promise<void> {
   const latestExecution = await prisma.agentExecution.findFirst({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       session: {
         config: {
           taskId: taskId,

@@ -129,7 +129,8 @@ function respondSuccess(
   overrides: Partial<{
     result: string;
     is_error: boolean;
-    usage: { input_tokens: number; output_tokens: number };
+    usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number };
+    total_cost_usd: number;
   }> = {},
 ): void {
   const payload = {
@@ -173,6 +174,24 @@ describe('callClaudeCli — success', () => {
     const response = await promise;
     expect(response.content).toBe('hello there');
     expect(response.tokensUsed).toBe(30);
+  });
+
+  test('returns the call cost and token breakdown from the CLI JSON', async () => {
+    // These were dropped before, so no auxiliary call (jury, critic) had a cost.
+    const promise = callClaudeCli('sonnet', [{ role: 'user', content: 'hi' }], undefined, 100);
+    await flush();
+    respondSuccess(spawnedChildren[0], {
+      result: 'ok',
+      total_cost_usd: 0.042,
+      usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 5 },
+    });
+    const response = await promise;
+    expect(response).toMatchObject({
+      costUsd: 0.042,
+      inputTokens: 10,
+      outputTokens: 20,
+      cacheReadInputTokens: 5,
+    });
   });
 
   test('defaults tokensUsed to 0 when usage is absent', async () => {

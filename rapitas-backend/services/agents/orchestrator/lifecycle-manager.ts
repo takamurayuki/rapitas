@@ -8,6 +8,10 @@ import type { PrismaClientInstance, ActiveAgentInfo, ExecutionState } from './ty
 import type { QuestionTimeoutManager } from './question-timeout-manager';
 import { stopAllPreviewSessions } from '../preview/preview-session-manager';
 import { recordTransition } from '../../workflow/transition-recorder';
+import { drainSessionRecomputesForShutdown } from '../session-cost-recovery';
+
+/** Budget for running pending session-total retries before exit (both callers' watchdogs are ≥ 8 s). */
+const SESSION_TOTALS_DRAIN_MS = 2_000;
 
 /**
  * How long a graceful shutdown may take when triggered by an uncaught
@@ -211,6 +215,12 @@ export async function gracefulShutdown(
         logger.error({ err: error }, '[LifecycleManager] Failed to stop server listener');
       }
     }
+
+    // After the agents' final saves (which may leave a retry pending) and after
+    // the listener, so it never delays the port release. The retry queue is
+    // in-memory; what this budget misses, startup recovery repairs
+    // (session-cost-recovery.ts).
+    await drainSessionRecomputesForShutdown({ timeoutMs: SESSION_TOTALS_DRAIN_MS });
   }
 }
 

@@ -61,7 +61,7 @@ beforeEach(async () => {
     'CREATE TABLE WorkflowFile (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER, fileType TEXT, content TEXT, UNIQUE(taskId,fileType))',
     'CREATE TABLE DeveloperModeConfig (workspaceId INTEGER, id INTEGER PRIMARY KEY, taskId INTEGER)',
     'CREATE TABLE AgentSession (workspaceId INTEGER, id INTEGER PRIMARY KEY, configId INTEGER)',
-    'CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, sessionId INTEGER, status TEXT, startedAt DATETIME)',
+    "CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', sessionId INTEGER, status TEXT, startedAt DATETIME)",
     'CREATE TABLE ThemeAutoRun (workspaceId INTEGER, id INTEGER PRIMARY KEY, themeId INTEGER UNIQUE, status TEXT)',
     'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE RequirementReviewClaim (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, snapshotDigest TEXT, requestKey TEXT, status TEXT, claimToken TEXT, ownerInstanceId TEXT, heartbeatAt DATETIME, resultJson TEXT, reason TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,snapshotDigest))',
@@ -620,6 +620,22 @@ test('a new execution invalidates the old empty-diff hold', async () => {
     blockReviewedEmptyDiff(db as unknown as PostgresClient, receipt, 'no_changes'),
   ).rejects.toThrow('execution superseded');
   expect(await db.workflowTransition.count({ where: { cause: 'verify_no_changes' } })).toBe(0);
+});
+
+test('a jury cost row recorded after the receipt does not supersede it', async () => {
+  // The adversarial review runs between the completion review (receipt) and
+  // commit/PR, and records its spend as an AgentExecution under the task's
+  // session (review-cost-record.ts). That row is not a new execution.
+  const receipt = await emptyDiffReceipt();
+  await db.$executeRawUnsafe('INSERT INTO DeveloperModeConfig (id, taskId) VALUES (1,1)');
+  await db.$executeRawUnsafe('INSERT INTO AgentSession (id, configId) VALUES (1,1)');
+  await db.$executeRawUnsafe(
+    "INSERT INTO AgentExecution (id, sessionId, command, status, startedAt) VALUES (1,1,'adversarial-review','completed',?)",
+    new Date(),
+  );
+  await assertReviewedTaskCurrent(db as unknown as PostgresClient, receipt);
+  await blockReviewedEmptyDiff(db as unknown as PostgresClient, receipt, 'no_changes');
+  expect(await db.workflowTransition.count({ where: { cause: 'verify_no_changes' } })).toBe(1);
 });
 
 test('preflight admission reads current evidence without advancing or auditing completion', async () => {

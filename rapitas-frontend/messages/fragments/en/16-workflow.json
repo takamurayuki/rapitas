@@ -255,7 +255,46 @@
           "low": "Low"
         },
         "reasonsCount": "{count} issue(s)",
-        "noReasons": "No details were recorded"
+        "recordsCount": "{count} record(s)",
+        "noReasons": "No details were recorded",
+        "groups": {
+          "critic": "Research / plan critique",
+          "measured": "Verified (measured tests and checks)",
+          "jury": "Reviewed (independent jury)"
+        },
+        "measured": {
+          "entryLabel": "Measured · {date}",
+          "outcome": {
+            "pass": "Measured: pass",
+            "fail": "Measured: fail",
+            "unverifiable": "Measured: unverified"
+          },
+          "check": {
+            "ok": "OK",
+            "ng": "{count} failure(s)",
+            "skipped": "Not applicable",
+            "unverifiable": "Could not run (unverified)"
+          }
+        },
+        "jury": {
+          "entryLabel": "Jury · {date} · {judged}/{total} judged",
+          "verdict": {
+            "pass": "Review: pass",
+            "fail": "Review: fail",
+            "unknown": "Review: no verdict"
+          },
+          "findingsCount": "{count} finding(s)",
+          "severity": {
+            "blocker": "Blocker",
+            "major": "Major",
+            "minor": "Minor (recorded only)"
+          },
+          "needsCheck": "Needs check (no evidence, not counted)",
+          "evidence": "Evidence",
+          "repro": "Repro",
+          "juror": "Juror",
+          "noFindings": "No findings"
+        }
       },
       "phaseBreakdown": {
         "title": "Execution time by phase",

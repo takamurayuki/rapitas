@@ -213,6 +213,13 @@ export function installWorkflowCliExecutorMocks(): void {
     },
   }));
 
+  // The epilogue's jury gate (verify-fallback-jury-gate.ts) has its own unit
+  // tests; these executor fixtures exercise what happens after it passes.
+  mock.module(p('services/workflow/verify-fallback-jury-gate'), () => ({
+    runFallbackJuryGate: mock(() => Promise.resolve({ stop: false })),
+    juryAlreadyRanForCurrentVerify: mock(() => Promise.resolve(false)),
+  }));
+
   mock.module(p('services/memory/timeline'), () => ({
     appendEvent: spies.appendEvent,
     queryEvents: mock(() => Promise.resolve([])),

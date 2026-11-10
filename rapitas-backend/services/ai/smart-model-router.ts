@@ -23,6 +23,7 @@ import { listActiveCooldowns } from './provider-cooldown';
 import { recordDecision } from '../observability/decision-trace';
 import { buildRouteReason, type RouteDriver } from './routing-reason';
 import { sumAttributedSpend } from '../agents/execution-cost-attribution';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('smart-model-router');
 
@@ -103,6 +104,7 @@ export async function estimateCost(taskComplexity: number, modelId: string): Pro
   // Fetch historical token usage for similar complexity tasks
   const similarExecutions = await prisma.agentExecution.findMany({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       status: 'completed',
       tokensUsed: { gt: 0 },
       session: {
@@ -457,6 +459,8 @@ export async function getBudgetStatus(weeklyBudget: number | null = null): Promi
 
   const executions = await prisma.agentExecution.findMany({
     where: {
+      // NOTE: Jury cost rows are deliberately included — review spend is real
+      // subscription consumption and belongs in the weekly budget.
       status: 'completed',
       tokensUsed: { gt: 0 },
       completedAt: { gte: weekStart },

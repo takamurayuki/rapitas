@@ -8,6 +8,7 @@
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
+import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -30,6 +31,7 @@ export async function hasAnyExecution(
 ): Promise<boolean> {
   const row = await prisma.agentExecution.findFirst({
     where: {
+      ...NOT_REVIEW_COST_ROW,
       session: { config: { taskId } },
       // A 'running' execution that predates `since` is still work in flight, not a queue wait.
       ...(since ? { OR: [{ createdAt: { gte: since } }, { status: 'running' }] } : {}),

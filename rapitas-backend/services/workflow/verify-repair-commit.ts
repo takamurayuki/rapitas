@@ -3,6 +3,7 @@ import { saveCommittedRepairFeedback } from './verify-repair-feedback-save';
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { withTaskLifecycleLock } from './task-lifecycle-lock';
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 export interface RepairAdmission {
   taskId: number;
@@ -48,7 +49,7 @@ export async function commitVerifyRepair(
         )
           return { committed: false, reason: 'stale_task' };
         const execution = await tx.agentExecution.findFirst({
-          where: { session: { config: { taskId } } },
+          where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           select: { id: true, status: true, startedAt: true },
         });

@@ -43,6 +43,18 @@ export type AIRequestOptions = {
 export type AIResponse = {
   content: string;
   tokensUsed: number;
+  /**
+   * What the call cost in USD, when the provider reports it. The subscription
+   * CLI's `total_cost_usd` is the plan-equivalent price of a `--print` call —
+   * consumption of the user's subscription, not an API charge.
+   */
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  /** Model that actually answered, when the provider says so. */
+  modelName?: string;
 };
 
 export type ProviderKeyColumn =

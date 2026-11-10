@@ -6,6 +6,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { getAgentConfigAuditLogs, getRecentAuditLogs } from '../../../utils/agent/agent-audit-log';
 import { parseId } from '../../../middleware/error-handler';
+import { NOT_REVIEW_COST_ROW } from '../../../services/agents/review-cost-rows';
 
 /**
  * Safe cast type for AgentExecution fields that exist in DB but are not in Prisma's generated types.
@@ -60,7 +61,10 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
           take: 1,
           include: {
             agentExecutions: {
-              where: executionId ? { id: executionId } : {},
+              // NOTE: Jury cost rows carry no logs; without the filter the
+              // single-execution mode returned the newest one's id/status/output
+              // instead of the run's (G2 review item 2).
+              where: executionId ? { id: executionId } : NOT_REVIEW_COST_ROW,
               orderBy: { createdAt: 'desc' },
               take: singleExecutionMode ? 1 : 50,
               include: {

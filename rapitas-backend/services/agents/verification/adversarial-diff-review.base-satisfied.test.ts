@@ -22,7 +22,18 @@ const getDiff = mock(() =>
 const resolveBaseRef = mock(() => Promise.resolve(baseSha));
 let reasons: string[] = [];
 const sendAIMessage = mock(() =>
-  Promise.resolve({ content: JSON.stringify({ verdict: 'fail', severity: 80, reasons }) }),
+  Promise.resolve({
+    content: JSON.stringify({
+      verdict: 'fail',
+      severity: 80,
+      // Each reason as an evidenced major finding (the juror reply shape).
+      findings: reasons.map((summary) => ({
+        severity: 'major',
+        summary,
+        evidence: '変更ファイル一覧',
+      })),
+    }),
+  }),
 );
 
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
@@ -87,7 +98,7 @@ describe('reviewDiffAdversarially — plan item already on base', () => {
     reasons = ['計画の中核 `src/aux-cli-ownership.ts` の `guardOwner(` が差分に無い'];
     const r = await reviewDiffAdversarially({ taskId: 1196, worktreePath: repo });
     expect(r.verdict).toBe('fail');
-    expect(r.reasons).toEqual(reasons);
+    expect(r.reasons).toEqual(reasons.map((x) => `[major] ${x}（根拠: 変更ファイル一覧）`));
     expect(r.baseSatisfied).toBeUndefined();
   });
 });

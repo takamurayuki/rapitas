@@ -27,6 +27,7 @@ import { logCycleEvent } from '../observability';
 import { ZERO_PROGRESS_THRESHOLD_MS } from './queue-stall-policy';
 import { isTaskTerminalForQueue } from './queue-terminal-task-guard';
 import { checkNoSelectionProgress, resetNoSelectionEpisode } from './auto-run-no-selection-watch';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow-reconciler-zero-progress');
 
@@ -59,7 +60,7 @@ async function lastExecutionOf(
 ): Promise<{ createdAt: Date; status: string } | null> {
   try {
     return await prisma.agentExecution.findFirst({
-      where: { session: { config: { taskId } } },
+      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true, status: true },
     });

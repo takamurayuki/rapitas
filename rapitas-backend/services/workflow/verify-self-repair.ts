@@ -34,6 +34,7 @@ import {
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
 import { buildUnchangedUnresolvedDetail } from './verify-unresolved-issues';
 import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verify-invariant-repair';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -133,7 +134,7 @@ export async function attemptVerifyRepair(
   )
     return { bounced: false, stale: true };
   const evaluatedExecution = await prisma.agentExecution.findFirst({
-    where: { session: { config: { taskId } } },
+    where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { id: true },
   });
