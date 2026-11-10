@@ -10,11 +10,16 @@
  * (role-route-inputs.ts) — routing may still run an ineligible model when
  * nothing eligible is usable; this gate is what keeps that run from passing.
  *
- * The verifier's model is read from its run, newest first:
- *  1. the model the run REPORTED (AgentExecution.modelName, set when it ends);
- *  2. while it is still running (verify.md is usually PUT mid-run), the model
- *     it was launched with: the role's explicit model, else the route pin.
- * No model from either → unverified → held.
+ * Only the model the run REPORTED (AgentExecution.modelName, written when the
+ * run ends) counts. What it was launched with (the role's explicit model, the
+ * route pin) is a plan, not evidence: a run planned as Opus may have fallen
+ * back to another model (G2 routing1 re-review item 5).
+ *  - Still running and not reported yet (verify.md is usually PUT mid-run):
+ *    the decision is DEFERRED — completion is withheld and the run's epilogue
+ *    (or the manual post-run settle) judges again once the model is reported.
+ *  - Ended without a report: unverified → held.
+ *  - Record unreadable: the gate STOPS (held when the hold can be written,
+ *    stopped either way) — "could not check" never allows completion.
  */
 import { createLogger } from '../../config/logger';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
@@ -24,14 +29,25 @@ import { REVIEW_ROLES } from './review-floor';
 
 const log = createLogger('workflow:verifier-eligibility');
 
-/** Must match model-route-stability.ts's EVENT_TYPE and correlation format. */
-const PIN_EVENT_TYPE = 'model_route_pin';
+/** Transition cause of a completion withheld until the verifier's model is reported. */
+export const VERIFIER_ELIGIBILITY_DEFERRED_CAUSE = 'verifier_eligibility_deferred';
+
+/** Run statuses in which a missing modelName only means "not reported YET". */
+const LIVE_RUN_STATUSES = new Set(['pending', 'running', 'waiting_for_input']);
+
+/**
+ * When the check runs: `in_run` = the HTTP verify.md save while the verifier
+ * may still be running; `after_run` = the run has ended and saved its result.
+ */
+export type EligibilityPhase = 'in_run' | 'after_run';
 
 /** Outcome of the eligibility check. */
 export type VerifierEligibility =
   /** No verifier-role run exists (e.g. verify.md written by a human): nothing to judge. */
   | { status: 'no_verifier_run' }
   | { status: 'eligible'; role: string; model: string; executor: ExecutorRef }
+  /** The run is live and has not reported its model yet: judge again after it ends. */
+  | { status: 'unreported'; role: string; model: null; executor: null; reason: string }
   | {
       status: 'ineligible' | 'unverified';
       role: string;
@@ -40,43 +56,25 @@ export type VerifierEligibility =
       /** One-line reason shown on the hold. */
       reason: string;
     }
-  /** The record could not be read; the gate fails open, like the other verify gates. */
-  | { status: 'lookup_failed' };
+  /** The record could not be read; the gate stops. */
+  | { status: 'lookup_failed'; role: null; model: null; executor: null; reason: string };
 
 /** A dated snapshot (`…-20261101`) is judged as the row it snapshots. */
 function entryOf(model: string) {
   return findModelEntry(model) ?? findModelEntry(model.replace(/-\d{8}$/, ''));
 }
 
-async function launchedModel(taskId: number, role: string): Promise<string | null> {
-  const { prisma } = await import('../../config/database');
-  const roleConfig = await prisma.workflowRoleConfig
-    .findFirst({ where: { role }, select: { modelId: true } })
-    .catch(() => null);
-  // Same "explicit model" rule as role-route-inputs' shouldAutoSelectModel.
-  const explicit = roleConfig?.modelId?.trim();
-  if (explicit && explicit !== 'auto') return explicit;
-  const { queryEvents } = await import('../memory/timeline');
-  const { events } = await queryEvents({
-    eventType: PIN_EVENT_TYPE,
-    correlationId: `route_${taskId}_${role}`,
-    limit: 1,
-  });
-  const payload = events[0]?.payload;
-  const parsed = (typeof payload === 'string' ? JSON.parse(payload) : payload) as {
-    decision?: { recommendedModel?: unknown };
-  } | null;
-  const model = parsed?.decision?.recommendedModel;
-  return typeof model === 'string' && model.trim() ? model : null;
-}
-
 /**
  * Judge the newest verifier-role run of a task.
  *
  * @param taskId - Task whose verify.md is being completed / タスクID
+ * @param phase - Whether the run may still be live (default after_run) / 実行中か実行後か
  * @returns The judgement / 判定
  */
-export async function judgeVerifierEligibility(taskId: number): Promise<VerifierEligibility> {
+export async function judgeVerifierEligibility(
+  taskId: number,
+  phase: EligibilityPhase = 'after_run',
+): Promise<VerifierEligibility> {
   try {
     const { prisma } = await import('../../config/database');
     const run = await prisma.agentExecution.findFirst({
@@ -88,12 +86,21 @@ export async function judgeVerifierEligibility(taskId: number): Promise<Verifier
         },
       },
       orderBy: { createdAt: 'desc' },
-      select: { modelName: true, session: { select: { mode: true } } },
+      select: { modelName: true, status: true, session: { select: { mode: true } } },
     });
     if (!run) return { status: 'no_verifier_run' };
     const role = (run.session?.mode ?? 'workflow-verifier').replace(/^workflow-/, '');
-    const model = run.modelName?.trim() || (await launchedModel(taskId, role));
+    const model = run.modelName?.trim();
     if (!model) {
+      if (phase === 'in_run' && LIVE_RUN_STATUSES.has(run.status ?? '')) {
+        return {
+          status: 'unreported',
+          role,
+          model: null,
+          executor: null,
+          reason: `${role} の実行が実際のモデルをまだ報告していない`,
+        };
+      }
       return {
         status: 'unverified',
         role,
@@ -137,38 +144,69 @@ export async function judgeVerifierEligibility(taskId: number): Promise<Verifier
     }
     return { status: 'eligible', role, model, executor };
   } catch (err) {
-    log.warn({ err, taskId }, '[verifier-eligibility] run record unreadable — gate fails open');
-    return { status: 'lookup_failed' };
+    log.warn({ err, taskId }, '[verifier-eligibility] run record unreadable — gate stops');
+    return {
+      status: 'lookup_failed',
+      role: null,
+      model: null,
+      executor: null,
+      reason: '検証役の実行記録を読めず、適格性を確認できない',
+    };
   }
 }
 
+/** What the caller must do: only 'ok' lets the verdict proceed to completion. */
+export type EligibilityGateOutcome = 'ok' | 'held' | 'cas_lost' | 'deferred' | 'unreadable';
+
 /**
- * Hold the task for a human when its verify verdict came from an ineligible
- * or unverified verifier. A no-op for an eligible verifier, no verifier run,
- * or an unreadable record.
+ * Stop the verdict from counting unless its verifier is confirmed eligible:
+ * defer while the model is not reported yet, hold for a human when the
+ * verifier is ineligible / unverified / unreadable. A no-op only for an
+ * eligible verifier or when no verifier run exists.
  *
  * @param p.taskId - Task / タスクID
  * @param p.fromStatus - Workflow status the caller evaluated / 評価時の状態
  * @param p.source - Which gate / どのゲートか
  * @param p.sessionId - Session for the transition record / セッションID
- * @returns 'held' / 'cas_lost' when the verdict must not be used, 'ok' otherwise / 結果
+ * @param p.phase - in_run (HTTP save) or after_run (default) / 実行中か実行後か
+ * @returns 'ok' only when the verdict may be used; anything else means stop / 結果
  */
 export async function holdIfVerifierIneligible(p: {
   taskId: number;
   fromStatus?: string;
-  source: 'http_save' | 'cli_epilogue';
+  source: 'http_save' | 'cli_epilogue' | 'manual_settle';
   sessionId?: number;
-}): Promise<{ outcome: 'ok' | 'held' | 'cas_lost'; judgement: VerifierEligibility }> {
-  const judgement = await judgeVerifierEligibility(p.taskId);
-  if (judgement.status !== 'ineligible' && judgement.status !== 'unverified') {
+  phase?: EligibilityPhase;
+}): Promise<{ outcome: EligibilityGateOutcome; judgement: VerifierEligibility }> {
+  const judgement = await judgeVerifierEligibility(p.taskId, p.phase ?? 'after_run');
+  if (judgement.status === 'eligible' || judgement.status === 'no_verifier_run') {
     return { outcome: 'ok', judgement };
+  }
+  if (judgement.status === 'unreported') {
+    log.info(
+      { taskId: p.taskId, role: judgement.role, source: p.source },
+      '[verifier-eligibility] verifier model not reported yet — completion deferred until the run ends',
+    );
+    const { recordTransition } = await import('./transition-recorder');
+    // Best-effort record: the deferral itself is the stop, not this row.
+    await recordTransition({
+      taskId: p.taskId,
+      fromStatus: p.fromStatus ?? 'verify_done',
+      toStatus: p.fromStatus ?? 'verify_done',
+      actor: 'system',
+      cause: VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+      phase: 'verify',
+      sessionId: p.sessionId,
+      metadata: { verifierRole: judgement.role, source: p.source },
+    }).catch(() => {});
+    return { outcome: 'deferred', judgement };
   }
   log.warn(
     { taskId: p.taskId, ...judgement, source: p.source },
     '[verifier-eligibility] verify verdict is not an eligible verification — holding for a human',
   );
   const { holdForHumanReview } = await import('./review-hold');
-  const outcome = await holdForHumanReview({
+  const held = await holdForHumanReview({
     taskId: p.taskId,
     fromStatus: p.fromStatus,
     reason: 'ineligible_verifier',
@@ -182,6 +220,14 @@ export async function holdIfVerifierIneligible(p: {
       executorModel: judgement.executor?.modelId ?? null,
       executorVerified: judgement.executor?.verified ?? null,
     },
+  }).catch((err: unknown) => {
+    log.warn(
+      { err, taskId: p.taskId },
+      '[verifier-eligibility] hold write failed — still stopping',
+    );
+    return 'cas_lost' as const;
   });
-  return { outcome, judgement };
+  // An unreadable record is a stop even when the hold was written: the caller
+  // must never read it as "checked and fine".
+  return { outcome: judgement.status === 'lookup_failed' ? 'unreadable' : held, judgement };
 }

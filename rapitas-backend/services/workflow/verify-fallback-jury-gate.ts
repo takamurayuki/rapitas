@@ -38,12 +38,7 @@ export interface FallbackJuryOutcome {
   stop: boolean;
   phaseStatus?: WorkflowAdvanceResult['status'];
   /** Why the jury was not run, when it was skipped. */
-  skipped?:
-    | 'already_reviewed'
-    | 'conflict_resolution'
-    | 'no_worktree'
-    | 'gate_busy'
-    | 'ineligible_verifier';
+  skipped?: 'already_reviewed' | 'conflict_resolution' | 'no_worktree' | 'gate_busy';
 }
 
 /**
@@ -100,18 +95,10 @@ async function runGateLocked(params: {
     return { stop: false, skipped: 'conflict_resolution' };
   }
 
-  // Same verifier-eligibility hold as the HTTP save path: a verdict from a
-  // model that may not review never reaches the jury or commit/PR.
-  const { holdIfVerifierIneligible } = await import('./verifier-eligibility');
-  const eligibility = await holdIfVerifierIneligible({
-    taskId,
-    fromStatus: currentWfStatus,
-    source: 'cli_epilogue',
-    sessionId,
-  });
-  if (eligibility.outcome !== 'ok') {
-    return { stop: true, phaseStatus: 'verify_done', skipped: 'ineligible_verifier' };
-  }
+  // NOTE: The verifier-eligibility hold moved to the caller
+  // (workflow-cli-executor-verify-gate.ts), BEFORE its PR branch: here it ran
+  // only when no PR existed, so an existing-PR re-verify skipped it
+  // (G2 routing1 re-review item 3). By the time this gate runs it has passed.
 
   let worktreePath = params.worktreePath;
   if (!worktreePath) {

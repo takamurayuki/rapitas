@@ -43,6 +43,7 @@ function deferred<T>(): {
 
 interface GateOutcome {
   verifyGateBlocked: boolean;
+  completionDeferred?: boolean;
   conflictTask: { title: string | null; githubPrId: number | null } | null;
   isConflictResolutionTask: boolean;
   preferredBaseBranchForVerify: string | null;
@@ -132,6 +133,22 @@ describe('runVerifyPostSaveAutomation — in-flight は完了ゲート〜commit/
     reviewMock.mockClear();
     commitPrMock.mockClear();
     appendEventMock.mockClear();
+  });
+
+  test('検証役の実モデル未報告で先送りされたら、陪審は走らせ commit/PR は止める', async () => {
+    const running = runVerifyPostSaveAutomation(params(701));
+    gate.resolve({ ...GATE_OPEN, completionDeferred: true });
+    await tick();
+    expect(reviewMock).toHaveBeenCalledWith(expect.objectContaining({ verifyGateBlocked: false }));
+    review.resolve({
+      newStatus: 'verify_done',
+      verifyGateBlocked: false,
+      staleVerifyRequest: false,
+    });
+    await tick();
+    expect(commitPrMock).toHaveBeenCalledWith(expect.objectContaining({ verifyGateBlocked: true }));
+    commitPr.resolve({ newStatus: 'verify_done', taskMarkedDone: false, autoCommitPRResult: {} });
+    await running;
   });
 
   test('(d) 正常完了: 完了ゲート実行中から commit/PR 解決まで in-flight を維持し、解決後に解除される', async () => {

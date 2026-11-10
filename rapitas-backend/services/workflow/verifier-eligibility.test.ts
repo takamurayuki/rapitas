@@ -3,15 +3,17 @@
  *
  * verify フェーズを担ったモデルがレビュー不適格（未登録・economy・deprecated・実
  * 行役より下位）なら、その判定を検証として使わせず人間の判断待ちにすることを固
- * 定する。モデルは実行記録の報告値を優先し、実行中は起動時の指定（明示モデル→
- * pin）を使い、どちらもなければ未確認として保留する。
+ * 定する。モデルは実行記録の報告値だけで判定する。起動時の指定（明示モデル・
+ * pin）は実際に動いたモデルの証拠にならないため使わない。実行中で未報告なら完了
+ * 判断を先送り（deferred）し、実行後も未報告なら未確認として保留する。記録を読
+ * めないときも停止する（G2 routing1 再レビュー指摘5・4）。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({ createLogger: () => noopLogger }));
 
-type Run = { modelName: string | null; session: { mode: string } } | null;
+type Run = { modelName: string | null; status?: string; session: { mode: string } } | null;
 let verifierRun: Run = null;
 let implementerRuns: string[] = [];
 let roleConfigModel: string | null = null;
@@ -38,14 +40,19 @@ mock.module('../memory/timeline', () => ({
     total: pinModel ? 1 : 0,
   }),
 }));
-const holdForHumanReview = mock(async (_p: Record<string, unknown>) => 'held' as const);
+const holdForHumanReview = mock(
+  async (_p: Record<string, unknown>): Promise<'held' | 'cas_lost'> => 'held',
+);
 mock.module('./review-hold', () => ({ holdForHumanReview }));
+const recordTransition = mock(async (_p: Record<string, unknown>) => undefined);
+mock.module('./transition-recorder', () => ({ recordTransition }));
 
 const { judgeVerifierEligibility, holdIfVerifierIneligible } =
   await import('./verifier-eligibility');
 
-const run = (modelName: string | null, role = 'verifier'): Run => ({
+const run = (modelName: string | null, role = 'verifier', status = 'completed'): Run => ({
   modelName,
+  status,
   session: { mode: `workflow-${role}` },
 });
 
@@ -55,7 +62,8 @@ beforeEach(() => {
   roleConfigModel = null;
   pinModel = null;
   dbDown = false;
-  holdForHumanReview.mockClear();
+  holdForHumanReview.mockReset().mockResolvedValue('held');
+  recordTransition.mockClear();
 });
 
 describe('judgeVerifierEligibility', () => {
@@ -97,16 +105,27 @@ describe('judgeVerifierEligibility', () => {
     expect(j.status === 'ineligible' && j.role).toBe('auto_verifier');
   });
 
-  test('実行中（報告前）は明示モデル、なければ pin で判定する', async () => {
-    verifierRun = run(null);
-    pinModel = 'claude-haiku-5-5';
-    expect((await judgeVerifierEligibility(1)).status).toBe('ineligible');
+  test('実行中で未報告なら、明示モデルや pin が Opus でも適格にしない（先送り）', async () => {
+    verifierRun = run(null, 'verifier', 'running');
     roleConfigModel = 'claude-opus-5-5';
-    expect((await judgeVerifierEligibility(1)).status).toBe('eligible');
+    pinModel = 'claude-opus-5-5';
+    const j = await judgeVerifierEligibility(1, 'in_run');
+    expect(j.status).toBe('unreported');
   });
 
-  test('モデルが何も分からなければ未確認', async () => {
-    verifierRun = run(null);
+  test('実行後も未報告なら、明示モデルが Opus でも未確認', async () => {
+    verifierRun = run(null, 'verifier', 'post_processing');
+    roleConfigModel = 'claude-opus-5-5';
+    expect((await judgeVerifierEligibility(1, 'after_run')).status).toBe('unverified');
+  });
+
+  test('実行中の判定でも、終わった実行が未報告なら未確認（先送りし続けない）', async () => {
+    verifierRun = run(null, 'verifier', 'completed');
+    expect((await judgeVerifierEligibility(1, 'in_run')).status).toBe('unverified');
+  });
+
+  test('既定は実行後の判定（未報告は未確認）', async () => {
+    verifierRun = run(null, 'verifier', 'running');
     expect((await judgeVerifierEligibility(1)).status).toBe('unverified');
   });
 
@@ -146,10 +165,35 @@ describe('holdIfVerifierIneligible', () => {
     expect(holdForHumanReview).not.toHaveBeenCalled();
   });
 
-  test('記録が読めないときは他の verify ゲートと同じく開いたまま通す', async () => {
+  test('実行中で未報告なら、人間の保留ではなく先送り（完了させない）', async () => {
+    verifierRun = run(null, 'verifier', 'running');
+    pinModel = 'claude-opus-5-5';
+    const r = await holdIfVerifierIneligible({ taskId: 1, source: 'http_save', phase: 'in_run' });
+    expect(r.outcome).toBe('deferred');
+    expect(holdForHumanReview).not.toHaveBeenCalled();
+    expect(recordTransition.mock.calls[0][0].cause).toBe('verifier_eligibility_deferred');
+  });
+
+  test('先送りの記録が書けなくても先送り（停止）を返す', async () => {
+    verifierRun = run(null, 'verifier', 'running');
+    recordTransition.mockRejectedValueOnce(new Error('db down'));
+    const r = await holdIfVerifierIneligible({ taskId: 1, source: 'http_save', phase: 'in_run' });
+    expect(r.outcome).toBe('deferred');
+  });
+
+  test('記録が読めないときは停止する（保留を試み、ok を返さない）', async () => {
     dbDown = true;
     const r = await holdIfVerifierIneligible({ taskId: 1, source: 'http_save' });
     expect(r.judgement.status).toBe('lookup_failed');
-    expect(r.outcome).toBe('ok');
+    expect(r.outcome).not.toBe('ok');
+    expect(holdForHumanReview).toHaveBeenCalledTimes(1);
+    expect(holdForHumanReview.mock.calls[0][0].reason).toBe('ineligible_verifier');
+  });
+
+  test('記録が読めず、保留の書き込みも失敗しても停止を返す', async () => {
+    dbDown = true;
+    holdForHumanReview.mockRejectedValueOnce(new Error('db down'));
+    const r = await holdIfVerifierIneligible({ taskId: 1, source: 'cli_epilogue' });
+    expect(r.outcome).not.toBe('ok');
   });
 });

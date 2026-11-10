@@ -4,7 +4,7 @@ import type { CompletionReviewReceipt } from '../../../../services/workflow/requ
  *
  * Conflict-resolution task detection, the empty-diff completion gate for a
  * passing verify.md (block on first empty diff, complete as 修正不要 on repeat)
- * and the verifier-eligibility hold (verifier-eligibility.ts).
+ * and the verifier-eligibility hold / deferral (verifier-eligibility.ts).
  * Not responsible for the adversarial diff review or commit/PR completion.
  */
 
@@ -24,6 +24,11 @@ const log = createLogger('routes:workflow:handlers:files');
  */
 export interface VerifyCompletionGateOutcome {
   verifyGateBlocked: boolean;
+  /**
+   * The verifier has not reported its actual model yet: the jury may still run,
+   * but commit/PR/completion must wait for the post-run re-judgement.
+   */
+  completionDeferred: boolean;
   conflictTask: { title: string | null; githubPrId: number | null } | null;
   isConflictResolutionTask: boolean;
   preferredBaseBranchForVerify: string | null;
@@ -60,6 +65,7 @@ export async function runVerifyCompletionGate(params: {
   const { taskId, fileType, newStatus, savedContent } = params;
 
   let verifyGateBlocked = false;
+  let completionDeferred = false;
 
   const conflictTask =
     fileType === 'verify' && newStatus === 'verify_done'
@@ -106,17 +112,28 @@ export async function runVerifyCompletionGate(params: {
         { taskId, reason: completionGate.reason },
         '[Workflow] verify passed but no code changes and no justification — blocking until implementation or explicit justification is provided',
       );
-    } else {
-      // A verdict from a model that may not review (tier table) or sits below
-      // the executor is not a verification: hold it for a human instead of
-      // letting it reach the jury and commit/PR (G2 routing1 item 5).
-      const eligibility = await holdIfVerifierIneligible({ taskId, source: 'http_save' });
-      if (eligibility.outcome !== 'ok') verifyGateBlocked = true;
     }
+  }
+
+  // A verdict from a model that may not review (tier table), sits below the
+  // executor, or is not confirmed by the run's report is not a verification:
+  // hold it for a human instead of letting it reach the jury and commit/PR
+  // (G2 routing1 item 5). NOTE: Also for conflict-resolution tasks — their PR
+  // already exists, and a PR existing must not exempt the verdict (re-review
+  // item 3). The save is mid-run, so an unreported model DEFERS completion.
+  if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+    const eligibility = await holdIfVerifierIneligible({
+      taskId,
+      source: 'http_save',
+      phase: 'in_run',
+    });
+    if (eligibility.outcome === 'deferred') completionDeferred = true;
+    else if (eligibility.outcome !== 'ok') verifyGateBlocked = true;
   }
 
   return {
     verifyGateBlocked,
+    completionDeferred,
     conflictTask,
     isConflictResolutionTask,
     preferredBaseBranchForVerify,

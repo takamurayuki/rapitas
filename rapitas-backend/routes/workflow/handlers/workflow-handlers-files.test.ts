@@ -127,6 +127,11 @@ mock.module('../../../services/workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,
 }));
 
+// ---- verifier-eligibility: an eligible, reported verifier (pinned in its own tests) ----
+mock.module('../../../services/workflow/verifier-eligibility', () => ({
+  holdIfVerifierIneligible: async () => ({ outcome: 'ok', judgement: { status: 'eligible' } }),
+}));
+
 // ---- checkWorkflowInvariants mock ----
 const mockCheckInvariants = mock(() => Promise.resolve([] as { code: string; message: string }[]));
 mock.module('../../../services/workflow/workflow-invariants', () => ({

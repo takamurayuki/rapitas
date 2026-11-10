@@ -100,6 +100,10 @@ const fallbackJury = mock(
   async (_p: unknown): Promise<{ stop: boolean; phaseStatus?: string }> => ({ stop: false }),
 );
 mock.module('./verify-fallback-jury-gate', () => ({ runFallbackJuryGate: fallbackJury }));
+// Pinned in workflow-cli-executor-verify-gate.verifier-eligibility.test.ts.
+mock.module('./verifier-eligibility', () => ({
+  holdIfVerifierIneligible: async () => ({ outcome: 'ok', judgement: { status: 'eligible' } }),
+}));
 
 const { resolveVerifyPhaseStatus } = await import('./workflow-cli-executor-verify-gate');
 

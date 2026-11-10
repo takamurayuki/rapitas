@@ -269,6 +269,13 @@ export async function handleSuccessfulExecution(
       { taskId: taskIdNum, mode: session?.mode },
       '[API] Workflow code phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
     );
+    // The verify.md save deferred completion while the model was unreported;
+    // this route has no CLI epilogue to re-judge, so park it for a human.
+    if (session?.mode !== 'workflow-implementer') {
+      const { settleDeferredVerifierEligibility } =
+        await import('../../../../services/workflow/verifier-eligibility-settle');
+      await settleDeferredVerifierEligibility(taskIdNum, sessionId);
+    }
   } else if (await advanceManagedPlanningPhase(taskIdNum)) {
     // Handled inside the helper: a dev-mode run that self-followed CLAUDE.md
     // and stopped after research/plan has been auto-advanced to the next
