@@ -80,6 +80,17 @@ const PASSING_LINE_RE =
 const VERDICT_WORDS_RE =
   /[❌✗✖|*#>\-:：\s()（）「」『』[\]—.、。;]|検証|失敗|一部|全体|総合|最終|判定|結果|ステータス|不合格|未達|実行不可|overall|verdict|status|result|fail(?:ed|ure)?|partial|explicitly|reports?|repair|is|required|a|or|the|verify\.md/gi;
 
+/**
+ * A failing row that only names WHICH check failed ("- テスト: ❌ 失敗",
+ * "| E2E | ❌ 実行不可 |"), not what failed. It summarises the verdict; its
+ * cause is whatever the verify.md states beside it, so counting it as a work
+ * failure would override a stated environment fault (routing2a-fix2).
+ * NOTE: Machine gate rows (`typecheck=NG(3)`) and rows with counts, test
+ * names or symptoms do not match and stay specific failures.
+ */
+const GENERIC_LABEL_LINE_RE =
+  /^[\s|*>#-]*(?:(?:単体|結合|統合|ユニット|回帰|E2E|全体の?)?\s*テスト|e2e|unit(?:\s+tests?)?|integration(?:\s+tests?)?|tests?|ビルド|build|lint|型チェック|typecheck)[\s|:：-]*(?:❌|✗|✖)?[\s|:：-]*(?:失敗|不合格|未達|実行不可|fail(?:ed|ure|s)?|NG)?[\s|。.]*$/i;
+
 /** Prefix the adversarial diff review puts on its repair reason (verify-adversarial-review.ts). */
 const JURY_BOUNCE_PREFIX = '差分レビュー不合格';
 
@@ -151,7 +162,11 @@ function classifyVerdictText(reason: string, verifyContent?: string | null): Rep
     if (PASSING_LINE_RE.test(s)) continue;
     if (describesInfrastructureFault(s)) infrastructure += 1;
     else if (describesRequirementDefect(s)) requirements += 1;
-    else if (FAILING_LINE_RE.test(s) && s.replace(VERDICT_WORDS_RE, '').length > 2) {
+    else if (
+      FAILING_LINE_RE.test(s) &&
+      !GENERIC_LABEL_LINE_RE.test(s) &&
+      s.replace(VERDICT_WORDS_RE, '').length > 2
+    ) {
       workFailures += 1;
     }
   }
