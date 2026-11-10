@@ -183,7 +183,15 @@ async function runGateLocked(params: {
     review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
   }`;
   const { attemptVerifyRepair } = await import('./verify-self-repair');
-  const repair = await attemptVerifyRepair(taskId, currentWfStatus, reason, verifyContent);
+  const { juryBounceGrounds } = await import('./repair-cause');
+  // Grounds ride on the bounce row (see verify-adversarial-review.ts).
+  const repair = await attemptVerifyRepair(
+    taskId,
+    currentWfStatus,
+    reason,
+    verifyContent,
+    juryBounceGrounds(reason, capFindingsForStorage(review.findings)),
+  );
   if (repair.stale) {
     // The workflow moved past the evaluated status meanwhile — neither
     // bounce nor block (same CAS rule as the hard-fail branch), and no

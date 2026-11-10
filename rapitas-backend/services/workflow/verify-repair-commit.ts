@@ -14,7 +14,23 @@ export interface RepairAdmission {
   reason: string;
   verifyContent: string;
   caller: string;
+  /**
+   * Structured findings of the diff review behind this bounce. Stored on the
+   * bounce row itself: the review's own `adversarial_review_failed` row is
+   * written only after this commit and is skipped once the status has moved,
+   * so routing could not see the grounds (routing2a-fix1 item 1).
+   */
+  findings?: unknown[];
+  /**
+   * Where the bounce goes. 'replan' sends the task to the planner
+   * (research_done) when a plan exists; without one there is no planner and
+   * it degrades to the implementer entry. Default 'implement'.
+   */
+  route?: RepairRoute;
 }
+
+/** Where a committed repair sends the task. */
+export type RepairRoute = 'implement' | 'replan';
 
 export type RepairCommit =
   | { committed: false; reason: string }
@@ -118,7 +134,10 @@ export async function commitVerifyRepair(
         });
         if (verify && verify.content !== input.verifyContent)
           return { committed: false, reason: 'stale_verification' };
-        const newStatus = plan ? 'plan_approved' : 'research_done';
+        // A replan without plan.md has no planner to go to (lightweight mode:
+        // research_done IS the implementer entry), so it degrades to implement.
+        const route: RepairRoute = input.route === 'replan' && plan ? 'replan' : 'implement';
+        const newStatus = route === 'replan' || !plan ? 'research_done' : 'plan_approved';
         const updatedAt = new Date(Math.max(Date.now(), input.updatedAt.getTime() + 1));
         const changed = await tx.task.updateMany({
           where: {
@@ -156,6 +175,9 @@ export async function commitVerifyRepair(
               windowStart: windowStart?.toISOString() ?? null,
               // Recovery retains the exact rejection if feedback delivery fails after commit.
               verifyContent: input.verifyContent,
+              route,
+              ...(input.route && input.route !== route ? { requestedRoute: input.route } : {}),
+              ...(input.findings ? { findings: input.findings } : {}),
               resumeReceipt: {
                 updatedAt: updatedAt.toISOString(),
                 workflowStatus: newStatus,

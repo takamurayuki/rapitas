@@ -15,7 +15,7 @@
  * import.
  */
 import { prisma } from '../../config/database';
-import { commitVerifyRepair } from './verify-repair-commit';
+import { commitVerifyRepair, type RepairRoute } from './verify-repair-commit';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import {
@@ -100,6 +100,7 @@ export async function resolveImplementEntryStatus(
  * @param currentStatus - The workflowStatus at the time verify.md was saved / 現在のstatus
  * @param reason - Validator failure summary / 失敗要約
  * @param verifyContent - The rejected verify.md body / 却下されたverify.md
+ * @param grounds - Diff-review findings and route, stored atomically with the bounce / 差し戻しと同時に保存する陪審の指摘と戻し先
  * @returns Whether the workflow was bounced and to which status / 戻したか・戻し先
  */
 export async function attemptVerifyRepair(
@@ -107,6 +108,7 @@ export async function attemptVerifyRepair(
   currentStatus: string | null,
   reason: string,
   verifyContent: string,
+  grounds?: { findings?: unknown[]; route?: RepairRoute },
 ): Promise<VerifyRepairResult> {
   const max = await resolveMaxRepairs();
   if (max === 0) return { bounced: false };
@@ -303,6 +305,10 @@ export async function attemptVerifyRepair(
     reason,
     verifyContent,
     caller,
+    // NOTE: routing2a-fix1 — the grounds must land in the same transaction as
+    // the bounce; see RepairAdmission.findings.
+    findings: grounds?.findings,
+    route: grounds?.route,
   });
   if (!committed.committed) {
     log.info({ taskId, reason: committed.reason }, '[verify-repair] Repair admission held');

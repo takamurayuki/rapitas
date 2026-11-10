@@ -6,8 +6,10 @@
  * signal). Instead be safe by default and let EVIDENCE raise capability:
  *  - role floor      — capability-critical phases never drop below 'standard'
  *  - risk override   — a high-risk verdict from risk-detection.ts forces 'premium'
- *  - failure escalate — each queue retry bumps the floor to 'premium' (a weak
- *                       model that already failed should not run again)
+ *  - failure escalate — each queue retry, and each repair bounce verified as a
+ *                       capability gap (repair-cause.ts), bumps the floor to
+ *                       'premium' (a weak model that already failed should not
+ *                       run again)
  *
  * Not responsible for detecting risk itself (schema/auth/payment/security
  * signal matching) — see risk-detection.ts, whose `detectHighRisk` result
@@ -112,7 +114,8 @@ export function isCapabilityRole(role: string): boolean {
  * @param opts.themeEscalation - Theme-level trouble signal 0-2 (recentThemeEscalation). / テーマ困難度
  * @param opts.riskHigh - Whether detectHighRisk flagged the work. / 高リスクか
  * @param opts.provenTier - Evidence-proven cheaper tier for this role, if any. / 実証済みティア
- * @returns The floor tier plus the rule that set it. / 下限ティアと適用理由
+ * @param opts.capabilityRepairs - Repair bounces of THIS task verified as capability gaps. / 能力不足と判定された差し戻し回数
+ * @returns The floor tier, the rule that set it, and whether the suspended premium suppression would have fired. / 下限ティア・適用理由・抑制停止の有無
  */
 export function computeMinTierWithReason(opts: {
   role: string;
@@ -123,11 +126,17 @@ export function computeMinTierWithReason(opts: {
   retryCause?: string | null;
   /**
    * Recorded verdict on whether premium outperforms standard for this role.
-   * `false` caps any premium floor at standard; `undefined` (no evidence)
-   * keeps the floor as-is.
+   * Suspended (routing2a E, see computeMinTierWithReason): `false` no longer caps the
+   * floor; it is only reported in the reason and `premiumSuppressionSuspended`.
    */
   premiumJustified?: boolean;
-}): { tier: ModelTier | undefined; reason?: string } {
+  /**
+   * Repair bounces of THIS task classified as a verified capability gap
+   * (repair-escalation.ts). The repair loop does not bump the queue's
+   * retryCount, so this is how a bounce counts as a retry.
+   */
+  capabilityRepairs?: number;
+}): { tier: ModelTier | undefined; reason?: string; premiumSuppressionSuspended?: true } {
   let roleFloor: ModelTier | undefined = isCapabilityRole(opts.role) ? 'standard' : undefined;
   if (
     roleFloor &&
@@ -144,6 +153,10 @@ export function computeMinTierWithReason(opts: {
     opts.taskRetries >= 1 && isCapabilityAttributableFailure(opts.retryCause)
       ? 'premium'
       : undefined;
+  // A verify/jury bounce already proved the cause (repair-cause.ts), so it
+  // needs no retryCause check: only capability gaps are counted here.
+  const capabilityRepairs = opts.capabilityRepairs ?? 0;
+  const repairFloor: ModelTier | undefined = capabilityRepairs >= 1 ? 'premium' : undefined;
   const theme = opts.themeEscalation ?? 0;
   // NOTE: Level 2 no longer forces premium — see the doc comment above. Both
   // levels cap at 'standard'; the level is kept in the signature because it
@@ -164,7 +177,7 @@ export function computeMinTierWithReason(opts: {
       ? 'premium'
       : 'standard'
     : undefined;
-  const rawTier = highestTier(roleFloor, retryFloor, themeFloor, riskFloor);
+  const rawTier = highestTier(roleFloor, retryFloor, repairFloor, themeFloor, riskFloor);
 
   // Name the STRONGEST contributor — the one that actually set the floor. Ties
   // resolve to the most specific signal (risk > this task's retry > theme >
@@ -172,20 +185,30 @@ export function computeMinTierWithReason(opts: {
   const candidates: Array<[ModelTier | undefined, string]> = [
     [riskFloor, '高リスク領域(スキーマ/認証/決済/セキュリティ)'],
     [retryFloor, 'このタスクの再試行'],
+    [repairFloor, `検証された能力不足による差し戻し(${capabilityRepairs}回)`],
     [themeFloor, 'テーマの困難度'],
     [roleFloor, `ロール下限(${opts.role})`],
   ];
   const rawReason = candidates.find(([t]) => t !== undefined && t === rawTier)?.[1];
 
-  // An UPGRADE must earn itself the same way a downgrade does. resolveProvenTier
-  // has always answered 'which is the cheapest tier that works?'; nothing ever
-  // checked that paying more bought anything. When the recorded outcomes say
-  // premium has no measured advantage for this role, a premium floor is capped
-  // at standard. `undefined` means insufficient evidence and changes nothing.
+  // NOTE: premium suppression (premiumJustified === false → cap at standard)
+  // is SUSPENDED (routing2a E). Its axis is not a quality measure: the ledger
+  // settles a model_tier decision on AgentExecution.status === 'completed'
+  // (the axis ADR-0009 found to carry no information), and the consistency
+  // checker marks a failed decision "consistent" whenever its reason text
+  // mentions risk — so the verdict depends on wording, not outcomes. It was
+  // capping the risk and retry floors to standard, including the retry that
+  // follows a verified capability bounce. The verdict is still computed and
+  // reported so its would-be effect stays visible in the decision trace.
+  // Re-introduce only with BOTH (see ADR-0009 addendum):
+  //  1. outcomes stratified by role × tier × complexity-score band, and
+  //  2. an outcome-based axis (bounce-inclusive success per ADR-0009, not
+  //     process exit, not reason-text consistency).
   if (rawTier === 'premium' && opts.premiumJustified === false) {
     return {
-      tier: 'standard',
-      reason: rawReason ? `${rawReason}(premium実績なしのためstandardに抑制)` : undefined,
+      tier: rawTier,
+      reason: `${rawReason ?? 'premium下限'}(premium抑制は暫定停止中のため適用せず)`,
+      premiumSuppressionSuspended: true,
     };
   }
   return { tier: rawTier, reason: rawReason };
