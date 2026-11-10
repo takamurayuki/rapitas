@@ -283,8 +283,12 @@ export class WorkflowRunner {
             // Left verify_done (e.g. self-repair bounce) — re-loop for the new phase.
             continue;
           }
-          if (settled === 'deferred') {
-            await deferVerifyItem(this.queue, item.id);
+          if (settled === 'deferred' || settled === 'held') {
+            await deferVerifyItem(
+              this.queue,
+              item.id,
+              settled === 'held' ? 'review_hold' : 'conflict_resolution_pending',
+            );
             this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', 'verify_done');
             break;
           }

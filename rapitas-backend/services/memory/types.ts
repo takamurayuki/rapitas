@@ -56,6 +56,10 @@ export type TimelineEventType =
   // A jury gate finished acting on a verdict, bound to verify.md's sha256 and
   // the reviewed diff — see workflow/verify-jury-completion.ts.
   | 'adversarial_review_gate_completed'
+  // A review could not be settled and the task was held for a human, and the
+  // human's resolution — see workflow/review-hold.ts.
+  | 'review_hold'
+  | 'review_hold_resolved'
   | 'ideation_calibration'
   | 'retro_review_failed'
   | 'playbook_generated'

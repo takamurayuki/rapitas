@@ -31,6 +31,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import type { WorkflowStatus } from './workflow-types';
+import { REVIEW_HOLD_HALT_REASON } from './review-hold';
 
 const log = createLogger('workflow:halt-release');
 
@@ -47,7 +48,7 @@ export const MIN_HYPOTHESIS_CHARS = 10;
 /** Outcome of a release attempt. */
 export type HaltReleaseResult =
   | { ok: true; taskId: number; previousHaltReason: string; toStatus: WorkflowStatus | null }
-  | { ok: false; reason: 'not_found' | 'not_halted' | 'write_failed' };
+  | { ok: false; reason: 'not_found' | 'not_halted' | 'write_failed' | 'review_hold' };
 
 /** The halt columns, which are newer than the generated client (see the scheduler's same cast). */
 interface HaltColumns {
@@ -91,6 +92,10 @@ export async function releaseTaskHalt(
     });
   if (!task) return { ok: false, reason: 'not_found' };
   if (!task.haltReason) return { ok: false, reason: 'not_halted' };
+  // A review hold is resolved by a review decision (accept / override), not
+  // by releasing a cost ceiling: clearing it here would leave a held task at
+  // verify_done with nothing left to publish or repair it.
+  if (task.haltReason === REVIEW_HOLD_HALT_REASON) return { ok: false, reason: 'review_hold' };
 
   const previousHaltReason = task.haltReason;
   const cleared = await taskModel

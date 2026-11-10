@@ -18,6 +18,7 @@ import haltReleaseRoute from './halt-release.routes';
 import phaseTimelineRoute from './phase-timeline.routes';
 import queueSlotReleaseRoute from './queue-slot-release.routes';
 import resumeConditionRoute from './resume-condition.routes';
+import reviewHoldRoute from './review-hold.routes';
 
 export { workflowRoutes } from './core/workflow';
 export { workflowRolesRoutes } from './core/workflow-roles';
@@ -39,4 +40,5 @@ export const workflowDomainRoutes = new Elysia()
   .use(haltReleaseRoute)
   .use(phaseTimelineRoute)
   .use(queueSlotReleaseRoute)
-  .use(resumeConditionRoute);
+  .use(resumeConditionRoute)
+  .use(reviewHoldRoute);

@@ -144,6 +144,26 @@ async function reviewAndApply(
   }).catch(() => null);
   deciding = review;
 
+  if (review?.verdict === 'hold') {
+    // The review could not be settled (high-risk change with no jury, or a
+    // serious dispute the verifier could not decide): neither bounce work
+    // nobody has shown to be wrong, nor commit it — park it for a human.
+    const { holdFromReview } = await import('../../../../services/workflow/review-hold');
+    const held = await holdFromReview({ taskId, review, source: 'http_save' });
+    if (held === 'held') {
+      verifyGateBlocked = true;
+    } else {
+      // The task moved on (or carries another halt) while the review ran:
+      // this request must not act at all, exactly like a stale FAIL.
+      staleVerifyRequest = true;
+      const live = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+        .catch(() => null);
+      if (live?.workflowStatus) newStatus = live.workflowStatus;
+    }
+    return { outcome: { newStatus, verifyGateBlocked, staleVerifyRequest }, deciding };
+  }
+
   if (review?.baseSatisfied?.length && review.verdict !== 'fail') {
     log.info(
       { taskId, paths: review.baseSatisfied.map((s) => s.path) },

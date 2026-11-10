@@ -69,14 +69,31 @@ export interface DeferrableQueue {
  * @param queue - Workflow queue (updateStatus only). / ワークフローキュー
  * @param itemId - Queue item held for the merge. / merge 待ちのキュー項目
  */
-export async function deferVerifyItem(queue: DeferrableQueue, itemId: number): Promise<void> {
+export async function deferVerifyItem(
+  queue: DeferrableQueue,
+  itemId: number,
+  why: 'conflict_resolution_pending' | 'review_hold' = 'conflict_resolution_pending',
+): Promise<void> {
   await queue.updateStatus(itemId, 'completed', {
-    currentPhase: 'awaiting_merge',
+    currentPhase: why === 'review_hold' ? 'awaiting_review' : 'awaiting_merge',
     result: JSON.stringify({
       deferredAt: new Date().toISOString(),
-      reason: 'conflict_resolution_pending',
+      reason: why,
     }),
   });
+}
+
+/**
+ * Whether the task is parked for a human review decision (review-hold.ts).
+ * Lazy and fail-closed to `false`, like the other settle checks.
+ */
+async function isUnderReviewHold(taskId: number): Promise<boolean> {
+  try {
+    const { readReviewHold } = await import('./review-hold');
+    return (await readReviewHold(taskId)) !== null;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -92,12 +109,13 @@ export async function deferVerifyItem(queue: DeferrableQueue, itemId: number): P
  *   phase (e.g. self-repair), `stuck` when it stayed verify_done past the grace
  *   window with no landed evidence (a real, persistent block), `deferred` when
  *   its PR conflicts and a resolver task now needs the slot this wait holds
- *   (the task stays verify_done for the merge watcher). / 判定結果
+ *   (the task stays verify_done for the merge watcher), `held` when it is parked
+ *   for a human review decision (review-hold.ts). / 判定結果
  */
 export async function waitForVerifyCompletion(
   taskId: number,
   signal: AbortSignal,
-): Promise<'completed' | 'moved' | 'stuck' | 'deferred'> {
+): Promise<'completed' | 'moved' | 'stuck' | 'deferred' | 'held'> {
   const deadline = Date.now() + VERIFY_SETTLE_TIMEOUT_MS;
   const hardDeadline = Date.now() + VERIFY_SETTLE_HARD_CAP_MS;
   const mergeDeadline = Date.now() + 90 * 60_000;
@@ -136,6 +154,9 @@ export async function waitForVerifyCompletion(
           recovery.hasConflictResolutionPending(taskId),
       ).catch(() => false);
       if (conflictPending) return 'deferred';
+      // A review hold waits for a human, not for automation: report it as such
+      // instead of a stuck/failed item (the task stays verify_done, held).
+      if (await isUnderReviewHold(taskId)) return 'held';
       if (!(pendingMerge && Date.now() < mergeDeadline)) {
         // Last check before blocking: the registry is an in-memory inference,
         // but a PR row is a fact. Task 658 (task 660) sat unregistered while
