@@ -93,6 +93,48 @@ async function findLandedPullRequest(
 }
 
 /**
+ * Whether the newest verify verdict is confirmed to come from an eligible
+ * verifier (or no verifier run exists), judged again now that the run has
+ * ended. An open deferral — the newest verify save withheld completion because
+ * the model was not reported — also refuses: that save skipped the commit/PR
+ * stage, so the PR on record may not carry the verified work. Any read failure
+ * refuses. An ineligible / unverified verifier is also held for a human
+ * (best-effort; refusing is the stop either way).
+ *
+ * @param taskId - Task about to be completed from its PR / 復旧対象のタスクID
+ * @returns True only when completion may proceed / 完了してよい場合のみ true
+ */
+async function verifierConfirmedEligible(taskId: number): Promise<boolean> {
+  try {
+    const { VERIFIER_ELIGIBILITY_DEFERRED_CAUSE, holdIfVerifierIneligible } =
+      await import('./verifier-eligibility');
+    const latest = await prisma.workflowTransition.findFirst({
+      where: { taskId, cause: { in: ['file_saved:verify', VERIFIER_ELIGIBILITY_DEFERRED_CAUSE] } },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true },
+    });
+    if (latest?.cause === VERIFIER_ELIGIBILITY_DEFERRED_CAUSE) {
+      log.warn({ taskId }, '[VerifySettle] Verify completion still deferred — not completing');
+      return false;
+    }
+    const gate = await holdIfVerifierIneligible({
+      taskId,
+      source: 'runner_recovery',
+      phase: 'after_run',
+    });
+    if (gate.outcome === 'ok') return true;
+    log.warn(
+      { taskId, outcome: gate.outcome, status: gate.judgement.status },
+      '[VerifySettle] Verifier not confirmed eligible — not completing from the PR on record',
+    );
+    return false;
+  } catch (err) {
+    log.warn({ err, taskId }, '[VerifySettle] Eligibility re-check failed — not completing');
+    return false;
+  }
+}
+
+/**
  * Complete a `verify_done` task whose PR already exists, so it is not judged
  * stuck. Compare-and-swap on `workflowStatus: 'verify_done'` — a concurrent
  * completion (the pipeline itself finishing, a duplicate save) wins and this
@@ -113,6 +155,11 @@ export async function recoverFromLandedArtifact(taskId: number): Promise<boolean
     if (policy.autoMergePR) return false;
     const landed = await findLandedPullRequest(taskId);
     if (!landed) return false;
+    // NOTE: A PR on record does not prove the verify verdict counted. The
+    // eligibility gate's stop is not always persisted (unreadable record AND a
+    // failed hold write), so re-check here; "could not check" never completes
+    // (G2 routing1 re-review 2).
+    if (!(await verifierConfirmedEligible(taskId))) return false;
 
     const flipped = await prisma.task.updateMany({
       where: {

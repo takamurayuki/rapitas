@@ -42,7 +42,15 @@ mock.module('../../config', () => ({
   prisma: {
     gitHubPullRequest: { findFirst: findFirstPrMock },
     task: { findUnique: findUniqueTaskMock, updateMany: updateManyMock },
+    workflowTransition: { findFirst: async () => null },
   },
+}));
+
+// Eligibility is fixed as confirmed here; the refusal paths are covered through
+// the real gate in workflow-runner-verify-settle.verifier-eligibility.test.ts.
+mock.module('./verifier-eligibility', () => ({
+  VERIFIER_ELIGIBILITY_DEFERRED_CAUSE: 'verifier_eligibility_deferred',
+  holdIfVerifierIneligible: async () => ({ outcome: 'ok', judgement: { status: 'eligible' } }),
 }));
 
 const recordTransitionMock = mock((_input: { cause: string; metadata?: unknown }) =>

@@ -174,7 +174,7 @@ export type EligibilityGateOutcome = 'ok' | 'held' | 'cas_lost' | 'deferred' | '
 export async function holdIfVerifierIneligible(p: {
   taskId: number;
   fromStatus?: string;
-  source: 'http_save' | 'cli_epilogue' | 'manual_settle';
+  source: 'http_save' | 'cli_epilogue' | 'manual_settle' | 'runner_recovery';
   sessionId?: number;
   phase?: EligibilityPhase;
 }): Promise<{ outcome: EligibilityGateOutcome; judgement: VerifierEligibility }> {
