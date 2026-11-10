@@ -84,6 +84,10 @@ class _FakeSpeech implements DictationService {
 class _FakeTasks implements TaskService {
   final List<Task> tasks;
   int listCalls = 0;
+  int searchCalls = 0;
+
+  /// true の間は検索が失敗する（検索失敗からの「再試行」を見るため）
+  bool failSearch = false;
 
   _FakeTasks(this.tasks);
 
@@ -101,7 +105,11 @@ class _FakeTasks implements TaskService {
   }
 
   @override
-  Future<List<Task>> searchTasks(String query) async => tasks.where((t) => t.title.contains(query)).toList();
+  Future<List<Task>> searchTasks(String query) async {
+    searchCalls++;
+    if (failSearch) throw Exception('search failed');
+    return tasks.where((t) => t.title.contains(query)).toList();
+  }
 
   @override
   Future<Task> getTask(String id) async => tasks.firstWhere((t) => t.id == id);
@@ -187,7 +195,7 @@ void main() {
     SharedPreferences.setMockInitialValues({VoiceCommandModeNotifier.prefsKey: true});
     VoiceOpenedScreens.reset();
     speech = _FakeSpeech()..holdStart = holdStart;
-    tasks = _FakeTasks(taskItems);
+    tasks = _FakeTasks(List.of(taskItems));
     approvals = _FakeApprovals(approvalItems);
     final tracker = VoiceRouteTracker();
     router = AppRoutes.createRouter(tracker: tracker, initialLocation: initialLocation);
@@ -323,6 +331,58 @@ void main() {
         expect(find.text('再読み込みしています'), findsOneWidget);
       });
     }
+
+    testWidgets('検索中の「更新」は、いまの検索語で検索し直す（検索は閉じない）', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
+      await say(tester, '検索 資料');
+      await settle(tester, 5);
+      expect(find.text('資料作成'), findsOneWidget);
+      // 検索の後で増えたタスクが、更新で結果に出ることまで確かめる
+      tasks.tasks.add(_task('2', '資料の確認'));
+      final before = tasks.searchCalls;
+      await say(tester, '更新');
+      await settle(tester, 5);
+      expect(find.text('この画面では更新できません'), findsNothing);
+      expect(find.text('再読み込みしています'), findsOneWidget);
+      expect(tasks.searchCalls, before + 1);
+      expect(find.text('資料の確認'), findsOneWidget);
+      expect(find.byTooltip('検索を閉じる'), findsOneWidget, reason: '検索は開いたまま');
+      expectBackgroundListening();
+    });
+
+    testWidgets('検索に失敗した画面で「再試行」と言うと、ボタンと同じく検索し直す', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
+      tasks.failSearch = true;
+      await say(tester, '検索 資料');
+      await settle(tester, 5);
+      expect(find.text('検索に失敗しました'), findsOneWidget);
+      tasks.failSearch = false;
+      final before = tasks.searchCalls;
+      await say(tester, '再試行');
+      await settle(tester, 5);
+      expect(find.text('この画面では更新できません'), findsNothing);
+      expect(tasks.searchCalls, before + 1);
+      expect(find.text('検索に失敗しました'), findsNothing);
+      expect(find.text('資料作成'), findsOneWidget);
+      expectBackgroundListening();
+    });
+
+    testWidgets('検索語が空の検索中は、更新するものが無いと伝える（一覧の更新にすり替えない）', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
+      await say(tester, '検索 資料');
+      await settle(tester, 5);
+      await tester.tap(find.byTooltip('クリア'));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await settle(tester, 5);
+      final searches = tasks.searchCalls;
+      final lists = tasks.listCalls;
+      await say(tester, '更新');
+      await settle(tester, 5);
+      expect(find.text('この画面では更新できません'), findsOneWidget);
+      expect(tasks.searchCalls, searches);
+      expect(tasks.listCalls, lists);
+      expect(find.byTooltip('検索を閉じる'), findsOneWidget);
+    });
 
     testWidgets('入力フォームでは更新しない（入力中の内容を消さない）と伝える', (tester) async {
       await pumpApp(tester, '/ideas/new');

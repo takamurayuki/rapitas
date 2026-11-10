@@ -125,6 +125,15 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     if (query.isNotEmpty) _searchNow(query);
   }
 
+  /// 検索中の音声「更新」「再試行」の処理。検索語が空のときは null（この画面では更新できない）
+  Future<void> Function()? _voiceRefreshSearch() {
+    if (_searchController.text.trim().isEmpty) return null;
+    return () async {
+      final query = _searchController.text.trim();
+      if (query.isNotEmpty) _searchNow(query);
+    };
+  }
+
   Future<void> _runSearch(String query, int seq) async {
     if (!mounted || seq != _searchSeq) return;
     setState(() => _searchResults = const AsyncLoading<List<Task>>());
@@ -164,6 +173,9 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         drawer: _searchMode ? null : const AppDrawer(),
         body: VoiceScrollTarget(
           path: AppRoutes.tasks,
+          // NOTE: 検索の本文には「引っ張って更新」が無いので、検索中の音声「更新」「再試行」は
+          // ここで現在の検索語の再検索（再試行ボタンと同じ）に向ける。検索語が空なら更新するものは無い。
+          onRefresh: _searchMode ? _voiceRefreshSearch() : null,
           child: _searchMode
               // 検索中は音声の「閉じる」「戻る」で検索を閉じる（タブの画面なので「戻る」の pop は効かない）
               ? VoiceDismissible(onDismiss: _closeSearch, child: _buildSearchBody())
