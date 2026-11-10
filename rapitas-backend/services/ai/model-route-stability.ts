@@ -1,8 +1,8 @@
 /**
  * model-route-stability
  *
- * Pins SmartModelRouter's decision per task+role+minTier for the lifetime of
- * the process, so a same-phase RETRY (a workflow queue re-run, a discovery
+ * Pins SmartModelRouter's decision per task+role+tier constraints (minTier,
+ * capTier, hardCapTier) for up to PIN_TTL_MS, so a same-phase RETRY (a workflow queue re-run, a discovery
  * cache rollover, or a provider briefly flapping in/out of cooldown) does not
  * silently switch the model mid-phase — the same prompt should see the same
  * model. `minTier` is folded into the cache key (not just `taskId:role`) so a
@@ -38,10 +38,17 @@
 import { createLogger } from '../../config/logger';
 import { appendEvent, queryEvents, deleteEvents } from '../memory/timeline';
 import { getSmartRoute, type SmartRouteOptions, type RoutingDecision } from './smart-model-router';
+import { TIER_ORDER, tierAtLeast, type AnyTier } from './model-tier-table/tier-table';
 
 const log = createLogger('ai:model-route-stability');
 
-const routeCache = new Map<string, RoutingDecision>();
+/** One in-memory pin and when it was first pinned (persisted pins keep their original age). */
+interface CachedPin {
+  decision: RoutingDecision;
+  pinnedAt: number;
+}
+
+const routeCache = new Map<string, CachedPin>();
 
 /** Timeline event type holding one pinned route. */
 const EVENT_TYPE = 'model_route_pin';
@@ -70,9 +77,9 @@ const correlation = (taskId: number, role: string) => `route_${taskId}_${role}`;
 async function readPin(
   taskId: number,
   role: string,
-  minTier: string | null | undefined,
-  capTier: string | null | undefined,
-): Promise<RoutingDecision | null> {
+  options: SmartRouteOptions,
+): Promise<CachedPin | null> {
+  const { minTier, capTier, hardCapTier } = options;
   try {
     const { events } = await Promise.race([
       queryEvents({
@@ -88,25 +95,70 @@ async function readPin(
       const payload = (
         typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload
       ) as {
+        role?: string;
         minTier?: string | null;
         capTier?: string | null;
+        hardCapTier?: string | null;
         decision?: RoutingDecision;
       };
+      // The correlation id already names the role; a payload that says
+      // otherwise is foreign and must not be served to this role. Pins
+      // without the field predate it and are trusted to the correlation id.
+      if (payload?.role !== undefined && payload.role !== role) continue;
       // The tiers are part of the identity: a deliberate escalation computes
       // a different minTier, and must re-route rather than reuse this.
       if ((payload?.minTier ?? null) !== (minTier ?? null)) continue;
       if ((payload?.capTier ?? null) !== (capTier ?? null)) continue;
+      // NOTE: hardCapTier joined the identity in routing2a — a task that
+      // crossed its budget used to keep its premium pin for 24 h. A legacy
+      // pin without the field was written uncapped, so it reads as null.
+      if ((payload?.hardCapTier ?? null) !== (hardCapTier ?? null)) continue;
       // Any stored object, not a specific field: what was pinned is
       // whatever getSmartRoute returned, and this module has no business
       // asserting that shape — it only has to give the same one back.
       if (!payload?.decision || typeof payload.decision !== 'object') continue;
-      if (Date.now() - new Date(event.createdAt).getTime() > PIN_TTL_MS) continue;
-      return payload.decision;
+      const pinnedAt = new Date(event.createdAt).getTime();
+      if (isExpired(pinnedAt)) continue;
+      if (!satisfiesConstraints(payload.decision, options)) continue;
+      return { decision: payload.decision, pinnedAt };
     }
   } catch (err) {
     log.debug({ err, taskId, role }, 'pin read failed — routing fresh');
   }
   return null;
+}
+
+/** True once a pin pinned at `pinnedAt` is older than {@link PIN_TTL_MS}. */
+function isExpired(pinnedAt: number): boolean {
+  return !Number.isFinite(pinnedAt) || Date.now() - pinnedAt > PIN_TTL_MS;
+}
+
+const isKnownTier = (tier: unknown): tier is AnyTier =>
+  typeof tier === 'string' && (TIER_ORDER as readonly string[]).includes(tier);
+
+/**
+ * Whether a pinned decision still meets the CURRENT floor and ceiling.
+ *
+ * The key match alone is not enough: a decision pinned while nothing at the
+ * floor was usable (a shortfall) would otherwise be locked in for the TTL,
+ * and a pin that somehow sits above the budget ceiling would keep spending
+ * past it. Mirrors route-shortfall's requiredFloor — the ceiling wins over
+ * the floor — without importing it (that module pulls in the decision
+ * trace, which this fail-open cache must not depend on).
+ */
+function satisfiesConstraints(decision: RoutingDecision, options: SmartRouteOptions): boolean {
+  const { minTier, hardCapTier } = options;
+  if (!minTier && !hardCapTier) return true;
+  if (decision.constraintShortfall) return false;
+  const tier = (decision as { recommendedTier?: unknown }).recommendedTier;
+  // A constrained route cannot vouch for a tier it cannot read; route fresh.
+  if (!isKnownTier(tier)) return false;
+  if (hardCapTier && !tierAtLeast(hardCapTier, tier)) return false;
+  if (minTier) {
+    const floor = hardCapTier && !tierAtLeast(hardCapTier, minTier) ? hardCapTier : minTier;
+    if (!tierAtLeast(tier, floor)) return false;
+  }
+  return true;
 }
 
 // NOTE: capTier joins minTier in the key so an evidence change (a role newly
@@ -117,13 +169,15 @@ function cacheKey(
   role: string,
   minTier?: string | null,
   capTier?: string | null,
+  hardCapTier?: string | null,
 ): string {
-  return `${taskId}:${role}:${minTier ?? 'none'}:${capTier ?? 'none'}`;
+  return `${taskId}:${role}:${minTier ?? 'none'}:${capTier ?? 'none'}:${hardCapTier ?? 'none'}`;
 }
 
 /**
  * Same as {@link getSmartRoute}, but returns a pinned decision for repeat
- * calls with the same taskId+role+minTier within this process.
+ * calls with the same taskId+role+minTier+capTier+hardCapTier, as long as the
+ * pin is inside its TTL and still meets the current floor and ceiling.
  *
  * @param taskId - Task ID being routed. / タスクID
  * @param role - Workflow role driving this route; part of the cache key. / ロール
@@ -135,22 +189,28 @@ export async function getStableSmartRoute(
   role: string,
   options: SmartRouteOptions = {},
 ): Promise<RoutingDecision> {
-  const key = cacheKey(taskId, role, options.minTier, options.capTier);
+  const key = cacheKey(taskId, role, options.minTier, options.capTier, options.hardCapTier);
   const cached = routeCache.get(key);
-  if (cached) return cached;
+  // NOTE: memory used to be served unconditionally, so a long-lived process
+  // kept one pin forever. It now honours the same TTL and constraint check
+  // as the persisted pin.
+  if (cached && !isExpired(cached.pinnedAt) && satisfiesConstraints(cached.decision, options)) {
+    return cached.decision;
+  }
+  if (cached) routeCache.delete(key);
 
   // Only a cold process pays this read, which is exactly the case the
   // persisted pin exists for: the restart that used to lose it.
-  const stored = await readPin(taskId, role, options.minTier, options.capTier);
+  const stored = cached ? null : await readPin(taskId, role, options);
   if (stored) {
     routeCache.set(key, stored);
-    return stored;
+    return stored.decision;
   }
 
   // The role is known here and nowhere below, so pass it down for the audit
   // trail rather than making every caller remember to repeat it.
   const route = await getSmartRoute(taskId, { role, ...options });
-  routeCache.set(key, route);
+  routeCache.set(key, { decision: route, pinnedAt: Date.now() });
   // Not awaited: this process already holds the pin in memory, and the
   // persisted copy only matters after a restart. Blocking a route on a
   // database write would put the store on the hot path of every phase —
@@ -163,6 +223,7 @@ export async function getStableSmartRoute(
       role,
       minTier: options.minTier ?? null,
       capTier: options.capTier ?? null,
+      hardCapTier: options.hardCapTier ?? null,
       decision: route,
     },
     correlationId: correlation(taskId, role),
