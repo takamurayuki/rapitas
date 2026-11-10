@@ -49,12 +49,10 @@ describe('classifyRepairCause', () => {
     }
   });
 
+  // NOTE: 陪審の差し戻しは理由文ではなく根拠つきの指摘で判定する（routing2a-fix1 項目3・4）。
+  // 陪審の要件不備は repair-cause.precision.test.ts で、指摘つきで固定している。
   test('要件・計画の不備は要件不備', () => {
-    for (const reason of [
-      '差分レビュー不合格: 受入基準3が計画と矛盾しており実装では満たせない',
-      '受入基準2が曖昧で検証不能',
-      'plan.md の前提が誤り（存在しない前提）',
-    ]) {
+    for (const reason of ['受入基準2が曖昧で検証不能', 'plan.md の前提が誤り（存在しない前提）']) {
       expect(classifyRepairCause({ reason }).kind).toBe('requirements');
     }
   });

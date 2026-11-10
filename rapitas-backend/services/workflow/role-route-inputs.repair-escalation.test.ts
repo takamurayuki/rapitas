@@ -119,6 +119,42 @@ describe('差し戻しの原因別に格上げを決める', () => {
     expect(r.details.repairCauses).toMatchObject({ unfounded: 1, capability: 0 });
   });
 
+  test('汎用の要約文の差し戻しは、保存済みの verify.md で環境故障と分かれば格上げしない', async () => {
+    transitions = [
+      {
+        cause: 'verify_repair',
+        metadata: JSON.stringify({
+          attempt: 1,
+          reason:
+            'verify.md explicitly reports a failed or partial overall verdict; repair is required.',
+          verifyContent: '## 全体判定\n❌ 検証失敗\n| E2E | ❌ 実行不可 | Playwright が未導入 |',
+        }),
+        createdAt: at(1),
+      },
+    ];
+    const r = await route();
+    expect(optionsOfLastCall().minTier).toBe('standard');
+    expect(r.details.repairCauses).toMatchObject({ infrastructure: 1, capability: 0 });
+  });
+
+  test('差し戻しの行に保存された根拠つきの指摘だけで premium 下限（陪審の行が無くても）', async () => {
+    transitions = [
+      {
+        cause: 'verify_repair',
+        metadata: JSON.stringify({
+          attempt: 1,
+          reason: '差分レビュー不合格: null 経路で例外',
+          findings: [
+            { severity: 'blocker', summary: 'null 経路で例外', evidence: 'a.ts:3', gating: true },
+          ],
+        }),
+        createdAt: at(1),
+      },
+    ];
+    await route();
+    expect(optionsOfLastCall().minTier).toBe('premium');
+  });
+
   test('要件不備による差し戻しでは格上げしない', async () => {
     transitions = [bounce('受入基準2が曖昧で検証不能', 1)];
     const r = await route();

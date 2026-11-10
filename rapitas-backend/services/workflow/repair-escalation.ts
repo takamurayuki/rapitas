@@ -84,10 +84,19 @@ export async function summarizeRepairCauses(taskId: number): Promise<RepairCause
       const paired =
         next?.cause === JURY_FAILED_CAUSE &&
         new Date(next.createdAt).getTime() - bouncedAt <= JURY_ROW_PAIRING_MS;
-      const stored = paired ? parseMetadata(next.metadata).findings : undefined;
+      // Findings stored on the bounce row itself are authoritative
+      // (routing2a-fix1 item 1); the paired jury row is the fallback for
+      // bounces committed before that, and for paths that do not pass them.
+      const stored = Array.isArray(meta.findings)
+        ? meta.findings
+        : paired
+          ? parseMetadata(next.metadata).findings
+          : undefined;
       const findings = Array.isArray(stored) ? (stored as RepairFindingLike[]) : null;
       const reason = typeof meta.reason === 'string' ? meta.reason : '';
-      summary[classifyRepairCause({ reason, findings }).kind] += 1;
+      // The rejected verify.md, for verdicts whose summary is generic (item 2).
+      const verifyContent = typeof meta.verifyContent === 'string' ? meta.verifyContent : null;
+      summary[classifyRepairCause({ reason, findings, verifyContent }).kind] += 1;
     });
   } catch (err) {
     log.debug({ err, taskId }, 'repair history unreadable — no bounce escalation');
