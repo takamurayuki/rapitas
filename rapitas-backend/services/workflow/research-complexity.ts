@@ -77,8 +77,10 @@ export function parseResearchComplexity(markdown: string | null | undefined): nu
  *
  * A report with no readable score selects the mode for the shared default
  * (resolveComplexityScore → 50), the same value SmartRouter uses for a null
- * score, and persists NO complexityScore — the task stays "unassessed" for
- * learning statistics and SmartRouter resolves its null to the same 50.
+ * score, and clears any stored complexityScore to null — the task becomes
+ * "unassessed" for learning statistics and SmartRouter resolves its null to
+ * the same 50 the mode was chosen for. A user-pinned mode is not derived from
+ * the score, so its stored score (e.g. a conflict task's) is left alone.
  *
  * @param taskId - Task whose research just completed. / 調査完了タスクID
  * @param researchContent - research.md body. / research.md 本文
@@ -98,12 +100,15 @@ export async function applyResearchAssessedComplexity(
     })
     .catch(() => null);
 
-  const data: { complexityScore?: number; workflowMode?: string } = {};
+  const data: { complexityScore?: number | null; workflowMode?: string } = {};
   if (resolved.assessed) data.complexityScore = resolved.score;
   let resultingMode: WorkflowMode | null = null;
 
   // Respect a manual override — never clobber a user-pinned mode.
   if (!current?.workflowModeOverride) {
+    // NOTE: A stale stored score would make SmartRouter route on a value the
+    // mode was not chosen for; null resolves to the same default (G2 abc #4).
+    if (!resolved.assessed) data.complexityScore = null;
     const assessedMode = await selectModeByComplexity(resolved.score);
     const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
     if (assessedMode !== currentMode) data.workflowMode = assessedMode;
