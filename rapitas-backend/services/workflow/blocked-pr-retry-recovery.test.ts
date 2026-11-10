@@ -91,6 +91,12 @@ mock.module('./required-merge-hold', () => ({
   AWAITING_REQUIRED_MERGE_CAUSE: 'verify_awaiting_required_merge',
 }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real check in the *.verifier-eligibility.test.ts files.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const { attemptPrOnlyRecovery } = await import('./blocked-pr-retry-recovery');
 
 describe('attemptPrOnlyRecovery', () => {
