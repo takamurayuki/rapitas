@@ -2,7 +2,11 @@
  * apply-task-status-from-workflow テスト
  *
  * workflowStatus → Task.status のマッピング(進行中/完了/draft/読み取り不可)と、
- * DBエラー時にthrowしないこと(UI整合性のための補助処理であり、正当性ゲートではない)。
+ * DBエラー時にthrowしないこと。
+ * in_progress / plan_approved は検証が残っているので done にしないこと、
+ * draft / null で done にする前に共通の完了チェックを通すことも固定する
+ * （G2 routing1 再レビュー5 指摘2：検証未完了のまま done と completedAt を保存し、
+ * 子タスクの成功判定 status === 'done' で成功扱いになり得た）。
  */
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import {
@@ -13,6 +17,10 @@ import {
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
+
+let confirmed = true;
+const verifierConfirmedForCompletion = mock(async (_taskId: number, _source: string) => confirmed);
+mock.module('./verifier-completion-check', () => ({ verifierConfirmedForCompletion }));
 
 type TaskRow = { workflowStatus: string | null; status?: string | null } | null;
 
@@ -38,6 +46,8 @@ beforeEach(() => {
   taskRow = null;
   shouldFailDb = false;
   taskUpdates.length = 0;
+  confirmed = true;
+  verifierConfirmedForCompletion.mockClear();
 });
 
 describe('applyTaskStatusFromWorkflow', () => {
@@ -53,7 +63,9 @@ describe('applyTaskStatusFromWorkflow', () => {
     },
   );
 
-  test.each(['plan_created', 'research_done', 'verify_done'])(
+  // in_progress / plan_approved: the implementation has run but the verify
+  // phase has not — the task is not finished, so it must not read as done.
+  test.each(['plan_created', 'research_done', 'verify_done', 'in_progress', 'plan_approved'])(
     'sets status to in-progress when workflowStatus is %s',
     async (workflowStatus) => {
       taskRow = { workflowStatus };
@@ -63,17 +75,35 @@ describe('applyTaskStatusFromWorkflow', () => {
         where: { id: 1 },
         data: { status: 'in-progress' },
       });
+      expect(taskUpdates[0].data).not.toHaveProperty('completedAt');
     },
   );
 
-  test.each(['in_progress', 'plan_approved', 'completed'])(
-    'sets status to done (with completedAt) when workflowStatus is %s',
+  test('sets status to done (with completedAt) when workflowStatus is completed', async () => {
+    taskRow = { workflowStatus: 'completed' };
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    expect(taskUpdates).toHaveLength(1);
+    expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
+    expect((taskUpdates[0].data as { completedAt: Date }).completedAt).toBeInstanceOf(Date);
+  });
+
+  test.each(['draft', null])(
+    'asks the shared completion check before marking a %s task done',
     async (workflowStatus) => {
       taskRow = { workflowStatus };
-      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
-      expect(taskUpdates).toHaveLength(1);
+      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]');
+      expect(verifierConfirmedForCompletion).toHaveBeenCalledWith(7, 'status_sync');
       expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
-      expect((taskUpdates[0].data as { completedAt: Date }).completedAt).toBeInstanceOf(Date);
+    },
+  );
+
+  test.each(['draft', null])(
+    'does NOT mark a %s task done when the shared completion check refuses',
+    async (workflowStatus) => {
+      taskRow = { workflowStatus };
+      confirmed = false;
+      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]');
+      expect(taskUpdates).toHaveLength(0);
     },
   );
 
