@@ -163,7 +163,12 @@ describe('handleQuestionTimeout — auto-continue', () => {
     });
   });
 
-  test('on success without a further question, marks the task done and the session completed', async () => {
+  // G2 routing1 re-review 5, finding 3: this path wrote status 'done' with no
+  // check that the task is not a workflow task, so a workflow task whose
+  // verify phase had not run could be recorded complete. The continuation's
+  // own epilogue (applyTaskStatusFromWorkflow → shared completion check) now
+  // owns Task.status; this handler only closes the session.
+  test('on success without a further question, leaves Task.status to the continuation epilogue and marks the session completed', async () => {
     executeContinuationInternal.mockImplementationOnce(async () => ({
       success: true,
       waitingForInput: false,
@@ -174,12 +179,7 @@ describe('handleQuestionTimeout — auto-continue', () => {
 
     await handleQuestionTimeout(ctx, 1, 100, generateDefaultResponse);
 
-    expect(taskUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 100 },
-        data: expect.objectContaining({ status: 'done' }),
-      }),
-    );
+    expect(taskUpdate).not.toHaveBeenCalled();
     expect(sessionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 10 },
@@ -257,15 +257,15 @@ describe('handleQuestionTimeout — auto-continue', () => {
     expect(sessionUpdate).not.toHaveBeenCalled();
   });
 
-  test('a task/session update failure after a successful continuation is swallowed', async () => {
+  test('a session update failure after a successful continuation is swallowed', async () => {
     executeContinuationInternal.mockImplementationOnce(async () => ({
       success: true,
       waitingForInput: false,
     }));
-    const taskUpdate = mock(async () => {
+    const sessionUpdate = mock(async () => {
       throw new Error('db down');
     });
-    const ctx = makeCtx({ taskUpdate });
+    const ctx = makeCtx({ sessionUpdate });
 
     await expect(
       handleQuestionTimeout(ctx, 1, 100, generateDefaultResponse),

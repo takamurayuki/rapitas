@@ -12,7 +12,8 @@ const logger = createLogger('timeout-handler');
 
 /**
  * Handles a fired question timeout by auto-generating a default response and resuming execution.
- * On success, marks the task and session as completed. On failure, reverts to 'todo' / 'failed'.
+ * On success, marks the session completed (Task.status is set by the continuation's
+ * epilogue). On failure, reverts to 'todo' / 'failed'.
  *
  * @param ctx - Orchestrator context / オーケストレーターコンテキスト
  * @param executionId - ID of the execution that timed out / タイムアウトした実行ID
@@ -87,14 +88,10 @@ export async function handleQuestionTimeout(
 
       if (result.success && !result.waitingForInput) {
         try {
-          await ctx.prisma.task.update({
-            where: { id: taskId },
-            data: { status: 'done', completedAt: new Date() },
-          });
-          logger.info(
-            `[TimeoutHandler] Task ${taskId} updated to 'done' after timeout auto-continue`,
-          );
-
+          // NOTE: No Task.status write here. This used to set 'done' with no
+          // check that the task is not a workflow task; the continuation's own
+          // epilogue (applyTaskStatusFromWorkflow) already maps workflowStatus
+          // and runs the shared completion check, and a 'done' here overwrote it.
           await ctx.prisma.agentSession.update({
             where: { id: execution.sessionId },
             data: { status: 'completed', completedAt: new Date() },
@@ -102,7 +99,7 @@ export async function handleQuestionTimeout(
         } catch (updateError) {
           logger.error(
             { err: updateError },
-            `[TimeoutHandler] Failed to update task/session status after timeout`,
+            `[TimeoutHandler] Failed to update session status after timeout`,
           );
         }
       } else if (!result.success && !result.waitingForInput) {
