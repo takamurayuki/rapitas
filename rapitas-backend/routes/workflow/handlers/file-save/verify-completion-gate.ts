@@ -2,8 +2,9 @@ import type { CompletionReviewReceipt } from '../../../../services/workflow/requ
 /**
  * FileSave Verify Completion Gate
  *
- * Conflict-resolution task detection and the empty-diff completion gate for a
- * passing verify.md (block on first empty diff, complete as 修正不要 on repeat).
+ * Conflict-resolution task detection, the empty-diff completion gate for a
+ * passing verify.md (block on first empty diff, complete as 修正不要 on repeat)
+ * and the verifier-eligibility hold (verifier-eligibility.ts).
  * Not responsible for the adversarial diff review or commit/PR completion.
  */
 
@@ -12,6 +13,7 @@ import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import { evaluateCompletionGate } from '../../../../services/workflow/completion-gate';
 import { blockReviewedEmptyDiff } from '../../../../services/workflow/reviewed-empty-diff';
+import { holdIfVerifierIneligible } from '../../../../services/workflow/verifier-eligibility';
 import { resolvePreferredBaseBranch } from '../../../../services/task/task-resolver';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -104,6 +106,12 @@ export async function runVerifyCompletionGate(params: {
         { taskId, reason: completionGate.reason },
         '[Workflow] verify passed but no code changes and no justification — blocking until implementation or explicit justification is provided',
       );
+    } else {
+      // A verdict from a model that may not review (tier table) or sits below
+      // the executor is not a verification: hold it for a human instead of
+      // letting it reach the jury and commit/PR (G2 routing1 item 5).
+      const eligibility = await holdIfVerifierIneligible({ taskId, source: 'http_save' });
+      if (eligibility.outcome !== 'ok') verifyGateBlocked = true;
     }
   }
 

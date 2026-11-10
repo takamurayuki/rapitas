@@ -315,7 +315,8 @@
           "verificationNote": "Verifier's reasoning",
           "awaiting": {
             "jury_unavailable_high_risk": "The review could not run and the change is high-risk; waiting for a human decision",
-            "unresolved_dispute": "A serious dispute could not be decided; waiting for a human decision"
+            "unresolved_dispute": "A serious dispute could not be decided; waiting for a human decision",
+            "ineligible_verifier": "The verify verdict came from a model that may not review (not allowed by the tier table, or below the implementer), so it is not counted as a verification; waiting for a human decision"
           }
         },
         "reviewHold": {

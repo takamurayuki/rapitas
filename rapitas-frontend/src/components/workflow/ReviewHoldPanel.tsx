@@ -34,7 +34,9 @@ function toHoldState(raw: Record<string, unknown>): HoldState {
   ]);
   return {
     reason:
-      raw.reason === 'unresolved_dispute' ? 'unresolved_dispute' : 'jury_unavailable_high_risk',
+      raw.reason === 'unresolved_dispute' || raw.reason === 'ineligible_verifier'
+        ? raw.reason
+        : 'jury_unavailable_high_risk',
     detail: typeof raw.detail === 'string' ? raw.detail : '',
     findings: entry?.findings ?? [],
   };

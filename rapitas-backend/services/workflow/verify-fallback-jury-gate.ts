@@ -38,7 +38,12 @@ export interface FallbackJuryOutcome {
   stop: boolean;
   phaseStatus?: WorkflowAdvanceResult['status'];
   /** Why the jury was not run, when it was skipped. */
-  skipped?: 'already_reviewed' | 'conflict_resolution' | 'no_worktree' | 'gate_busy';
+  skipped?:
+    | 'already_reviewed'
+    | 'conflict_resolution'
+    | 'no_worktree'
+    | 'gate_busy'
+    | 'ineligible_verifier';
 }
 
 /**
@@ -93,6 +98,19 @@ async function runGateLocked(params: {
     .catch(() => null);
   if (task?.githubPrId != null && CONFLICT_RESOLUTION_TITLE_RE.test(task.title ?? '')) {
     return { stop: false, skipped: 'conflict_resolution' };
+  }
+
+  // Same verifier-eligibility hold as the HTTP save path: a verdict from a
+  // model that may not review never reaches the jury or commit/PR.
+  const { holdIfVerifierIneligible } = await import('./verifier-eligibility');
+  const eligibility = await holdIfVerifierIneligible({
+    taskId,
+    fromStatus: currentWfStatus,
+    source: 'cli_epilogue',
+    sessionId,
+  });
+  if (eligibility.outcome !== 'ok') {
+    return { stop: true, phaseStatus: 'verify_done', skipped: 'ineligible_verifier' };
   }
 
   let worktreePath = params.worktreePath;

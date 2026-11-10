@@ -214,7 +214,9 @@ export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails 
     const m = parseMetadata(row?.metadata);
     return {
       reason:
-        m.holdReason === 'unresolved_dispute' ? 'unresolved_dispute' : 'jury_unavailable_high_risk',
+        m.holdReason === 'unresolved_dispute' || m.holdReason === 'ineligible_verifier'
+          ? m.holdReason
+          : 'jury_unavailable_high_risk',
       detail: typeof m.detail === 'string' ? m.detail : '',
       findings: Array.isArray(m.findings) ? (m.findings as ReviewFinding[]) : [],
       ...(typeof m.severity === 'number' ? { severity: m.severity } : {}),
