@@ -16,11 +16,18 @@ mock.module('./transition-recorder', () => ({ recordTransition: async () => unde
 mock.module('../memory/timeline', () => ({ appendEvent: async () => undefined }));
 
 let workflowStatus: string | null = 'draft';
+let workflowDisabled = false;
 const taskUpdates: Array<{ where: { id: number }; data: Record<string, unknown> }> = [];
 const prismaMock = {
   task: {
     // Serves both the helper's read and the review-hold read: no hold.
-    findUnique: async () => ({ workflowStatus, status: 'in-progress', haltReason: null }),
+    // ...and workflow-disabled's read (task flag; userSettings is absent → not global).
+    findUnique: async () => ({
+      workflowStatus,
+      status: 'in-progress',
+      haltReason: null,
+      workflowDisabled,
+    }),
     update: async (args: { where: { id: number }; data: Record<string, unknown> }) => {
       taskUpdates.push(args);
       return {};
@@ -38,6 +45,7 @@ const { verifierConfirmedForCompletion } = await import('./verifier-completion-c
 
 beforeEach(() => {
   workflowStatus = 'draft';
+  workflowDisabled = false;
   taskUpdates.length = 0;
 });
 
@@ -67,15 +75,16 @@ test('実行種別を確認できない（undefined）ときは draft を done �
   expect(taskUpdates).toEqual([]);
 });
 
-test.each([null, 'continuation'])(
-  '単発実行（mode %p）の draft は、実物の共通チェックが許可すれば done になる（対照）',
-  async (sessionMode) => {
-    await applyTaskStatusFromWorkflow(prismaMock, 1470, '[test]', { sessionMode });
-    expect(taskUpdates).toHaveLength(1);
-    expect(taskUpdates[0]?.data.status).toBe('done');
-    expect(taskUpdates[0]?.data.completedAt).toBeInstanceOf(Date);
-  },
-);
+// NOTE: The control used to be mode null / 'continuation' with the workflow
+// enabled. Neither proves a single run (G2 routing1 re-review 7); only a
+// disabled workflow does — see apply-task-status-from-workflow.null-mode.test.ts.
+test('単発実行（ワークフロー無効・mode null）の draft は、実物の共通チェックが許可すれば done になる（対照）', async () => {
+  workflowDisabled = true;
+  await applyTaskStatusFromWorkflow(prismaMock, 1470, '[test]', { sessionMode: null });
+  expect(taskUpdates).toHaveLength(1);
+  expect(taskUpdates[0]?.data.status).toBe('done');
+  expect(taskUpdates[0]?.data.completedAt).toBeInstanceOf(Date);
+});
 
 test('ワークフロー実行でも workflowStatus が completed なら done にする（対照）', async () => {
   workflowStatus = 'completed';

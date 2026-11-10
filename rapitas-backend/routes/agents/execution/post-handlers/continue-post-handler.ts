@@ -11,6 +11,9 @@ import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import { updateSessionStatusWithRetry } from '../shared/session-helpers';
+// NOTE: readSessionMode moved to shared/session-mode so the success handler
+// reads the mode the same way (undefined = unknown, never null).
+import { readSessionMode } from '../shared/session-mode';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { isShutdownError } from '../../../../services/agents/agent-worker/shutdown-error';
 import { applyTaskStatusFromWorkflow } from '../../../../services/workflow/apply-task-status-from-workflow';
@@ -37,27 +40,6 @@ export interface HandleContinueResultParams {
   branchName?: string | null;
   workingDirectory: string;
   executionDir: string;
-}
-
-/**
- * Reads the continued session's mode for the task-status sync. A failed read
- * or a missing row yields undefined, which applyTaskStatusFromWorkflow treats
- * as a workflow run (a draft task is then never marked done).
- *
- * @param sessionId - Continued AgentSession id / 継続したセッションID
- * @returns The session mode, null for none, undefined when unknown / セッション種別（不明なら undefined）
- */
-async function readSessionMode(sessionId: number): Promise<string | null | undefined> {
-  try {
-    const session = await prisma.agentSession.findUnique({
-      where: { id: sessionId },
-      select: { mode: true },
-    });
-    return session ? session.mode : undefined;
-  } catch (err) {
-    log.warn({ err, sessionId }, '[continue-execution] Could not read session mode');
-    return undefined;
-  }
 }
 
 /**

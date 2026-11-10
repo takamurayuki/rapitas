@@ -14,6 +14,11 @@ import { createLogger } from '../../../../config/logger';
 import { sendAIMessage } from '../../../../utils/ai-client';
 import { getLocalLLMStatus } from '../../../../services/local-llm';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
+import {
+  isCertainlySingleShotRun,
+  type FinishedRunInfo,
+} from '../../../../services/workflow/finished-run-kind';
+import { verifierConfirmedForCompletion } from '../../../../services/workflow/verifier-completion-check';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -168,12 +173,40 @@ export async function cleanupWorktree(
 }
 
 /**
- * Mark a task done with a completedAt timestamp.
+ * Mark a task done with a completedAt timestamp at the end of the review
+ * pipeline — only when the task may complete: its workflow is `completed`, or
+ * it is in draft/null after a run that is certainly single-shot; and the
+ * shared completion check (verifier eligibility, review hold, deferral) allows
+ * it. A failed read, a withdrawn task or any other state leaves it alone.
  *
  * @param taskId - Task to complete. / 完了させるタスクID
+ * @param run - The finished run's session mode (undefined if unread). / 終了した実行の種別
  */
-export async function markTaskDone(taskId: number): Promise<void> {
+export async function markTaskDone(taskId: number, run: FinishedRunInfo): Promise<void> {
   try {
+    // NOTE: This write used to be unconditional. A workflow implementer run
+    // whose session read failed reached here and completed the task before
+    // its verify phase (G2 routing1 re-review 7).
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { workflowStatus: true, status: true },
+    });
+    if (!task || task.status === 'cancelled' || task.status === 'archived') return;
+    const wf = task.workflowStatus;
+    const mayComplete =
+      wf === 'completed' ||
+      ((!wf || wf === 'draft') && (await isCertainlySingleShotRun(taskId, run.sessionMode)));
+    if (!mayComplete) {
+      log.info(
+        { taskId, workflowStatus: wf, sessionMode: run.sessionMode ?? 'unknown' },
+        'Review pipeline finished but the task may not complete yet — not marking done',
+      );
+      return;
+    }
+    if (!(await verifierConfirmedForCompletion(taskId, 'post_execution_review'))) {
+      log.warn({ taskId }, 'Completion check refused — not marking done');
+      return;
+    }
     await prisma.task.update({
       where: { id: taskId },
       data: { status: 'done', completedAt: new Date() },

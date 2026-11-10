@@ -31,6 +31,8 @@ import { handleExecuteResult } from '../post-handlers/execute-post-handler';
 import { handleManualExecutionError } from '../post-handlers/manual-execution-error';
 import { buildFullInstruction, fetchAnalysisInfo } from '../shared/instruction-builder';
 import { executeSetup } from '../shared/execute-setup';
+import { updateSessionStatusWithRetry } from '../shared/session-helpers';
+import { tagSessionWorkflowRole } from '../shared/session-mode';
 import { resolveTaskForExecution } from '../../../../services/task/task-resolver';
 import { narrowWorkflowMode } from '../../../../services/workflow/workflow-types.guards.generated';
 import { resolveAgentForTask } from '../../../../services/workflow/role-resolver';
@@ -331,12 +333,16 @@ export const executeRoute = new Elysia().post(
       // running). With the mode set, the FE treats researcher/planner/
       // implementer as auto-advancing and keeps following the workflow until it
       // actually completes (verify → PR → done).
-      if (roleAgent?.role) {
-        await prisma.agentSession
-          .update({ where: { id: session.id }, data: { mode: `workflow-${roleAgent.role}` } })
-          .catch((err) =>
-            log.warn({ err, taskIdNum, role: roleAgent.role }, '[API] Failed to set session mode'),
-          );
+      // NOTE: A failed tag used to be a warning and the run went on with mode
+      // null, which the completion writes then read as a single run (G2
+      // routing1 re-review 7). The run is not started without its mode.
+      if (roleAgent?.role && !(await tagSessionWorkflowRole(session.id, roleAgent.role))) {
+        await updateSessionStatusWithRetry(session.id, 'failed', '[API]', 1);
+        context.set.status = 500;
+        return earlyReturn({
+          success: false,
+          error: 'Failed to record the workflow role on the session — execution was not started',
+        });
       }
       if (roleAgent?.agentConfigId) {
         if (resolvedAgentConfigId !== roleAgent.agentConfigId) {

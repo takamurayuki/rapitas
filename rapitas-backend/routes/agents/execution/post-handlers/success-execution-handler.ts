@@ -20,6 +20,7 @@ import { createLogger } from '../../../../config/logger';
 // is slow/locked — the "Request timeout after 30001ms" the user saw.
 const execAsync = promisify(exec);
 import { updateSessionStatusWithRetry } from '../shared/session-helpers';
+import { readSessionMode } from '../shared/session-mode';
 import { reviewAndCommitWorktree } from './post-execution-review';
 import { detectExecutionFailures } from '../shared/execution-output-validator';
 import { isIsolatedWorktree } from '../research/research-output-utils';
@@ -249,10 +250,9 @@ export async function handleSuccessfulExecution(
   // triggered when `verify.md` is saved at the end of the verifier phase.
   // Without this guard, the implementer phase finishes successfully and
   // would create the PR before the verifier had a chance to run, so the
-  // user sees "PR created → 検証フェーズ" ordering.
-  const session = await prisma.agentSession
-    .findUnique({ where: { id: sessionId }, select: { mode: true } })
-    .catch(() => null);
+  // user sees "PR created → 検証フェーズ" ordering. NOTE: an unreadable mode (undefined) read
+  // as null used to send an implementer run to the review pipeline (G2 routing1 re-review 7).
+  const sessionMode = await readSessionMode(sessionId);
   // Only the CODE-producing workflow phases (implementer/verifier) defer their
   // PR to the verify.md handler. A workflow-researcher/planner run via the
   // execute path produces NO code and must still auto-advance to the next phase
@@ -260,18 +260,18 @@ export async function handleSuccessfulExecution(
   // dispatching the implementer (the previous `startsWith('workflow-')` guard
   // wrongly skipped the researcher/planner advance too).
   const isWorkflowCodePhase =
-    session?.mode === 'workflow-implementer' ||
-    session?.mode === 'workflow-verifier' ||
-    session?.mode === 'workflow-auto_verifier';
+    sessionMode === 'workflow-implementer' ||
+    sessionMode === 'workflow-verifier' ||
+    sessionMode === 'workflow-auto_verifier';
 
   if (isWorkflowCodePhase) {
     log.info(
-      { taskId: taskIdNum, mode: session?.mode },
+      { taskId: taskIdNum, mode: sessionMode },
       '[API] Workflow code phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
     );
     // The verify.md save deferred completion while the model was unreported;
     // this route has no CLI epilogue to re-judge, so park it for a human.
-    if (session?.mode !== 'workflow-implementer') {
+    if (sessionMode !== 'workflow-implementer') {
       const { settleDeferredVerifierEligibility } =
         await import('../../../../services/workflow/verifier-eligibility-settle');
       await settleDeferredVerifierEligibility(taskIdNum, sessionId);
@@ -280,9 +280,12 @@ export async function handleSuccessfulExecution(
     // Handled inside the helper: a dev-mode run that self-followed CLAUDE.md
     // and stopped after research/plan has been auto-advanced to the next
     // agent phase. No diff to commit yet, so the review pipeline is skipped.
+  } else if (sessionMode === undefined) {
+    log.warn({ taskId: taskIdNum, sessionId }, '[API] Session mode unknown — skipping PR pipeline');
   } else {
     // Pipeline: AI review → commit → PR → cleanup → mark task done
     reviewAndCommitWorktree({
+      sessionMode,
       taskId: taskIdNum,
       taskTitle,
       sessionId,

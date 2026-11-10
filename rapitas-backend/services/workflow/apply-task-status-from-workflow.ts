@@ -8,6 +8,7 @@
  * in one place instead of drifting between call sites.
  */
 import { createLogger } from '../../config/logger';
+import { isCertainlySingleShotRun, type FinishedRunInfo } from './finished-run-kind';
 
 const log = createLogger('apply-task-status-from-workflow');
 
@@ -23,26 +24,11 @@ const IN_PROGRESS_WORKFLOW_STATUSES = [
   'plan_approved',
 ];
 
-/**
- * What the caller knows about the run that just finished. `sessionMode` is the
- * AgentSession.mode ('workflow-researcher' etc. for a workflow phase run, null
- * or another value for a single-shot run); `undefined` means the caller could
- * not read it, which is treated like a workflow run (never completes).
- */
-export interface FinishedRunInfo {
-  sessionMode: string | null | undefined;
-}
-
-/**
- * Whether the finished run may be a workflow phase run. Unknown counts as one
- * so a failed session read can never let a draft task complete.
- *
- * @param sessionMode - AgentSession.mode of the finished run / 終了した実行のセッション種別
- * @returns true for workflow-* or unknown / ワークフロー実行または不明なら true
- */
-export function mayBeWorkflowRun(sessionMode: string | null | undefined): boolean {
-  return sessionMode === undefined || (sessionMode?.startsWith('workflow-') ?? false);
-}
+// NOTE: mayBeWorkflowRun was removed — it called a null mode single-shot, but a
+// workflow phase whose session-mode write failed also reads back null (G2
+// routing1 re-review 7). finished-run-kind.ts now decides, from the task's
+// workflow-disabled setting.
+export type { FinishedRunInfo };
 
 /**
  * Minimal structural view of the Prisma client this helper needs. Accepted as
@@ -67,11 +53,12 @@ export interface TaskStatusPrismaClient {
  * in_progress / plan_approved) or 'done' (also stamps completedAt).
  *  - completed: done — the workflow already passed its completion gate; this
  *    only aligns Task.status.
- *  - draft or null after a single-shot run (no workflow phases): done only
- *    when the shared completion check (verifierConfirmedForCompletion) allows
- *    it; otherwise the status is left alone.
- *  - draft or null after a workflow phase run (or an unknown run kind): left
- *    alone — the workflow has not reached verify, so it is not complete.
+ *  - draft or null after a run that is certainly single-shot (the workflow is
+ *    disabled for the task — see isCertainlySingleShotRun): done only when
+ *    the shared completion check (verifierConfirmedForCompletion) allows it;
+ *    otherwise the status is left alone.
+ *  - draft or null after any other run (workflow phase, mode null or
+ *    unknown): left alone — the workflow has not reached verify.
  * Failures are logged and swallowed; a failed read or check never marks done.
  *
  * @param prisma - Prisma client to use (injected — see TaskStatusPrismaClient). / 使用するPrismaクライアント
@@ -134,10 +121,10 @@ export async function applyTaskStatusFromWorkflow(
       // NOTE: A workflow run leaves draft before verify, and with no verifier
       // run the shared check allows (no_verifier_run) — so a workflow task in
       // draft used to be marked done unverified (G2 routing1 re-review 6).
-      if (mayBeWorkflowRun(run.sessionMode)) {
+      if (!(await isCertainlySingleShotRun(taskId, run.sessionMode))) {
         log.info(
           { taskId, workflowStatus: wfStatus, sessionMode: run.sessionMode ?? 'unknown' },
-          `${logContext} Workflow run left the task in draft — not marking done`,
+          `${logContext} Run is not certainly single-shot and left the task in draft — not marking done`,
         );
         return;
       }

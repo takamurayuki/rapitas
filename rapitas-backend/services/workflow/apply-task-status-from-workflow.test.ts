@@ -23,7 +23,15 @@ const verifierConfirmedForCompletion = mock(async (_taskId: number, _source: str
 mock.module('./verifier-completion-check', () => ({ verifierConfirmedForCompletion }));
 
 // Most cases exercise the single-shot mapping; workflow runs are pinned in
-// apply-task-status-from-workflow.workflow-draft.test.ts.
+// apply-task-status-from-workflow.workflow-draft.test.ts, and the real
+// run-kind decision (null mode → workflow-disabled setting) in
+// apply-task-status-from-workflow.null-mode.test.ts. Here a null mode stands
+// for a run already confirmed single-shot unless `certainSingleShot` is off.
+let certainSingleShot = true;
+const isCertainlySingleShotRun = mock(
+  async (_taskId: number, mode: string | null | undefined) => certainSingleShot && mode === null,
+);
+mock.module('./finished-run-kind', () => ({ isCertainlySingleShotRun }));
 const SINGLE_SHOT = { sessionMode: null };
 
 type TaskRow = { workflowStatus: string | null; status?: string | null } | null;
@@ -51,7 +59,9 @@ beforeEach(() => {
   shouldFailDb = false;
   taskUpdates.length = 0;
   confirmed = true;
+  certainSingleShot = true;
   verifierConfirmedForCompletion.mockClear();
+  isCertainlySingleShotRun.mockClear();
 });
 
 describe('applyTaskStatusFromWorkflow', () => {
@@ -120,6 +130,15 @@ describe('applyTaskStatusFromWorkflow', () => {
       expect(taskUpdates).toHaveLength(0);
     },
   );
+
+  test('leaves a draft task alone when the run is not certainly single-shot', async () => {
+    taskRow = { workflowStatus: 'draft' };
+    certainSingleShot = false;
+    await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]', SINGLE_SHOT);
+    expect(isCertainlySingleShotRun).toHaveBeenCalledWith(7, null);
+    expect(verifierConfirmedForCompletion).not.toHaveBeenCalled();
+    expect(taskUpdates).toHaveLength(0);
+  });
 
   test('sets status to done when workflowStatus is draft', async () => {
     taskRow = { workflowStatus: 'draft' };

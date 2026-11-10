@@ -5,8 +5,9 @@
  * automatic path that completes a task outside the verify.md save gates
  * themselves — the runner's landed-PR recovery, the merge watcher's merge /
  * CI-green completion and merged-PR recovery, the blocked-task PR retry and
- * evidence correction, the split parent's finalization, and publication after
- * a human override. Not responsible for judging the verifier
+ * evidence correction, the split parent's finalization, publication after a
+ * human override, the status sync after a run and the post-execution review's
+ * completion write. Not responsible for judging the verifier
  * (verifier-eligibility does that) or for the completion write.
  */
 import { prisma } from '../../config/database';
@@ -24,7 +25,8 @@ export type CompletionCheckSource =
   | 'blocked_evidence'
   | 'subtask_parent'
   | 'override_publish'
-  | 'status_sync';
+  | 'status_sync'
+  | 'post_execution_review';
 
 /**
  * Whether a resolution record is a human override of an ineligible-verifier
