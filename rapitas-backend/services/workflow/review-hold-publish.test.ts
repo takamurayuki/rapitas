@@ -246,4 +246,62 @@ describe('publishAfterReviewOverride', () => {
       expect.objectContaining({ cause: 'verify_no_change_confirmed' }),
     );
   });
+
+  test('レビュー再現：既にコミット済み（filesChanged 0）で PR 個別の失敗があれば完了にしない', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+      autoCommitResult: { success: true, filesChanged: 0, alreadyCommitted: true },
+      autoPRResult: { success: false, error: 'GitHub authentication failed' },
+    });
+    expect(await publish()).toBe('pr_not_created');
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_no_change_confirmed' }),
+    );
+  });
+
+  test('PR がリンク済みでも、PR ステップ（push）が失敗していれば完了にしない', async () => {
+    linked = true;
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true, filesChanged: 1 },
+      autoPRResult: { success: false, prNumber: 9, error: '既存 PR #9 への push に失敗しました' },
+    });
+    expect(await publish()).toBe('publication_failed');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  test('マージのステップが失敗していれば完了にしない（watcher への委譲は除く）', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+      autoCommitResult: { success: true, filesChanged: 1 },
+      autoPRResult: { success: true, prNumber: 9 },
+      autoMergeResult: { success: false, error: 'merge rejected' },
+    });
+    expect(await publish()).toBe('publication_failed');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  test('マージを watcher へ委譲しただけ（deferred）なら失敗とみなさない', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+      autoCommitResult: { success: true, filesChanged: 1 },
+      autoPRResult: { success: true, prNumber: 9 },
+      autoMergeResult: { success: false, deferred: true },
+    });
+    expect(await publish()).toBe('completed');
+  });
+
+  test('停止で PR まで進まなかった場合は、PR の再試行へ回さず公開失敗にする', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true, filesChanged: 2 },
+      error: 'タスクが停止されたため、公開処理を中断しました。',
+    });
+    expect(await publish()).toBe('publication_failed');
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_pr_not_created' }),
+    );
+    expect(updateMany).not.toHaveBeenCalled();
+  });
 });

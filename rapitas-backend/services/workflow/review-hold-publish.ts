@@ -16,7 +16,8 @@
  * in the worktree it actually uses. Any mismatch, or an identifier that cannot
  * be read, re-parks the task on the review hold instead of publishing.
  * Completion also requires the requested commit to have succeeded and no
- * stop/error from commit/PR. A stop or error wins over a "no change" reading:
+ * stop/error from commit/PR, overall or from any single step (PR, merge). A
+ * "no change" completion needs a step's own "nothing to publish" report:
  * filesChanged 0 also means "already committed", not "nothing to publish".
  *
  * NOTE: Like blocked-pr-retry-recovery, completion here is a CAS on
@@ -125,12 +126,44 @@ export async function publishAfterReviewOverride(
   const prSatisfied =
     !prRequested || acpr.autoPRResult?.success === true || (await taskHasLinkedPr(taskId));
   const commitSatisfied = !commitRequested || acpr.autoCommitResult?.success === true;
+  // "Nothing to publish" must be CONFIRMED by a step's own report (git's "No
+  // commits between" / "nothing to commit"). NOTE: filesChanged 0 alone is not
+  // a confirmation — it also comes from an already-committed tree, where a
+  // failed PR step (auth, network) still means work was never published. It
+  // is passed only to veto (a commit that changed files is never "no change").
+  const filesChanged = acpr.autoCommitResult?.filesChanged;
   const noChange =
     ((prRequested && !prSatisfied) || !commitSatisfied) &&
     isNoChangeCompletion({
       errorBlob: `${acpr.autoPRResult?.error ?? ''} ${acpr.autoCommitResult?.error ?? ''} ${acpr.error ?? ''}`,
-      filesChanged: acpr.autoCommitResult?.filesChanged,
+      filesChanged: typeof filesChanged === 'number' && filesChanged > 0 ? filesChanged : undefined,
     });
+
+  const blockPublication = async (failure: string): Promise<'publication_failed'> => {
+    await writeBlockedTask(prisma, taskId).catch(() => {});
+    await recordTransition({
+      taskId,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
+      actor: 'system',
+      cause: 'verify_publication_failed',
+      phase: 'verify',
+      metadata: { reason: failure, reviewOverride: true },
+      invariantViolation: true,
+      invariantMessage: '上書き後の commit/PR が成功しなかったため、完了にしません。',
+    }).catch(() => {});
+    log.warn(
+      { taskId, failure },
+      '[review-hold] Publication after override failed — not completed',
+    );
+    return 'publication_failed';
+  };
+
+  // A stop or an overall error is not a publication, even when an earlier PR
+  // is already linked or nothing seems to have changed. Checked BEFORE the
+  // missing-PR branch: a stopped task must not be handed to the PR-only retry.
+  const overall = acpr.requested ? acpr.error : (acpr.error ?? 'commit/PR の結果を取得できません');
+  if (overall) return blockPublication(overall);
 
   if (prRequested && !prSatisfied && !noChange) {
     await writeBlockedTask(prisma, taskId).catch(() => {});
@@ -151,36 +184,20 @@ export async function publishAfterReviewOverride(
     return 'pr_not_created';
   }
 
-  // A stop, an error or a failed requested commit is not a publication, even
-  // when an earlier PR is already linked — never complete on top of it.
-  // NOTE: acpr.error is checked BEFORE the no-change reading: filesChanged 0
-  // also comes from an already-committed tree, so it does not prove there was
-  // nothing to publish, and a stop/publication error must still block.
-  const failure = !acpr.requested
-    ? (acpr.error ?? 'commit/PR の結果を取得できません')
-    : (acpr.error ??
-      (commitSatisfied || noChange
-        ? null
-        : (acpr.autoCommitResult?.error ?? 'コミットに失敗しました')));
-  if (failure) {
-    await writeBlockedTask(prisma, taskId).catch(() => {});
-    await recordTransition({
-      taskId,
-      fromStatus: 'verify_done',
-      toStatus: 'verify_done',
-      actor: 'system',
-      cause: 'verify_publication_failed',
-      phase: 'verify',
-      metadata: { reason: failure, reviewOverride: true },
-      invariantViolation: true,
-      invariantMessage: '上書き後の commit/PR が成功しなかったため、完了にしません。',
-    }).catch(() => {});
-    log.warn(
-      { taskId, failure },
-      '[review-hold] Publication after override failed — not completed',
-    );
-    return 'publication_failed';
-  }
+  // Each step's own failure blocks too: a requested commit that failed, a PR
+  // step that failed (e.g. the push to an already-linked PR), or a merge that
+  // was attempted and failed (a watcher hand-off is `deferred`, not a failure).
+  const stepFailure =
+    (commitSatisfied || noChange
+      ? null
+      : (acpr.autoCommitResult?.error ?? 'コミットに失敗しました')) ??
+    (acpr.autoPRResult?.success === false && !noChange
+      ? (acpr.autoPRResult.error ?? 'PR の作成または更新に失敗しました')
+      : null) ??
+    (acpr.autoMergeResult?.success === false && !acpr.autoMergeResult.deferred
+      ? (acpr.autoMergeResult.error ?? 'マージに失敗しました')
+      : null);
+  if (stepFailure) return blockPublication(stepFailure);
 
   if (!noChange) {
     // Fail closed on an unreadable policy, as every other completion path does.
