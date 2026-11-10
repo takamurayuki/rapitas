@@ -19,13 +19,16 @@ const holdForHumanReview = mock(
   async (_p: Record<string, unknown>): Promise<'held' | 'cas_lost'> => 'held',
 );
 let onHold = false;
-const readReviewHold = mock(async () =>
-  onHold ? { reason: 'ineligible_verifier', detail: '', findings: [] } : null,
+const probeReviewHold = mock(async () =>
+  onHold
+    ? { state: 'held', hold: { reason: 'ineligible_verifier', detail: '', findings: [] } }
+    : { state: 'clear' },
 );
 mock.module('./review-hold', () => ({
   REVIEW_HOLD_CAUSE: 'adversarial_review_awaiting_human',
   REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
-  readReviewHold,
+  readReviewHold: async () => null,
+  probeReviewHold,
   holdForHumanReview,
 }));
 
@@ -87,7 +90,7 @@ beforeEach(() => {
   currentWorktree = '/wt/1471';
   currentTree = 'tree-A';
   verifierLookup.mockClear();
-  readReviewHold.mockClear();
+  probeReviewHold.mockClear();
   stagedTreeIdentity.mockClear();
   holdForHumanReview.mockReset().mockResolvedValue('held');
 });
@@ -95,7 +98,7 @@ beforeEach(() => {
 test('レビューの再現：override の後に再保留されていれば、古い override で完了を許さない', async () => {
   onHold = true;
   expect(await verifierConfirmedForCompletion(1471, 'merge_watcher')).toBe(false);
-  expect(readReviewHold).toHaveBeenCalled();
+  expect(probeReviewHold).toHaveBeenCalled();
 });
 
 test('override の後に保留の作成記録があれば（保留が別経路で外れていても）override を使わない', async () => {

@@ -23,7 +23,8 @@ export type CompletionCheckSource =
   | 'blocked_pr_retry'
   | 'blocked_evidence'
   | 'subtask_parent'
-  | 'override_publish';
+  | 'override_publish'
+  | 'status_sync';
 
 /**
  * Whether a resolution record is a human override of an ineligible-verifier
@@ -63,8 +64,8 @@ async function overrideStillCovers(
  *  - then, unless the newest record is a human override of the ineligible-
  *    verifier hold whose bound target is still current, a verifier that is
  *    not confirmed eligible (held for a human, best-effort).
- * A failure to read the verify records, the override target or the verifier
- * run refuses (readReviewHold itself never throws; it reports "not held").
+ * A failure to read the verify records, the current hold, the override target
+ * or the verifier run refuses.
  *
  * @param taskId - Task about to be completed / 完了させようとしているタスクID
  * @param source - Completion path asking / 問い合わせ元の完了経路
@@ -79,7 +80,7 @@ export async function verifierConfirmedForCompletion(
   try {
     const { VERIFIER_ELIGIBILITY_DEFERRED_CAUSE, holdIfVerifierIneligible } =
       await import('./verifier-eligibility');
-    const { REVIEW_HOLD_CAUSE, REVIEW_HOLD_RESOLVED_CAUSE, readReviewHold } =
+    const { REVIEW_HOLD_CAUSE, REVIEW_HOLD_RESOLVED_CAUSE, probeReviewHold } =
       await import('./review-hold');
     // NOTE: Hold creations are part of the search — a re-hold written after an
     // override (publication's binding mismatch) makes that override stale.
@@ -105,7 +106,16 @@ export async function verifierConfirmedForCompletion(
       );
       return false;
     }
-    if (await readReviewHold(taskId)) return false;
+    // NOTE: probeReviewHold, not readReviewHold — the latter folds a failed
+    // read into "not held", which let a bound override complete a task whose
+    // current hold could not be checked (G2 routing1 re-review 5).
+    const hold = await probeReviewHold(taskId);
+    if (hold.state !== 'clear') {
+      if (hold.state === 'unknown') {
+        log.warn({ taskId, source }, '[completion-check] Review hold unreadable — refusing');
+      }
+      return false;
+    }
     if (
       latest?.cause === REVIEW_HOLD_RESOLVED_CAUSE &&
       (await overrideStillCovers(taskId, source, latest.metadata))

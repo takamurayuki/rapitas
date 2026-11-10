@@ -54,6 +54,7 @@ const holdForHumanReview = mock(
 mock.module('./review-hold', () => ({
   REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
   readReviewHold: async () => null,
+  probeReviewHold: async () => ({ state: 'clear' }),
   holdForHumanReview,
 }));
 const mergePullRequest = mock(async () => ({ success: true, mergeStrategy: 'squash' as const }));

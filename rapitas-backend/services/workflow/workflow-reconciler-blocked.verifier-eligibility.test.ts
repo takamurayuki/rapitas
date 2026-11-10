@@ -34,6 +34,10 @@ mock.module('./review-hold', () => ({
   REVIEW_HOLD_HALT_REASON: 'awaiting_review_decision',
   readReviewHold: async () =>
     onHold ? { reason: 'unresolved_dispute', detail: '', findings: [] } : null,
+  probeReviewHold: async () =>
+    onHold
+      ? { state: 'held', hold: { reason: 'unresolved_dispute', detail: '', findings: [] } }
+      : { state: 'clear' },
   holdForHumanReview,
 }));
 

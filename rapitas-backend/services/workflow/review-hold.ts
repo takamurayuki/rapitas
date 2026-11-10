@@ -191,21 +191,26 @@ export async function holdFromReview(p: {
   });
 }
 
+/** A review-hold read: held, confirmed not held, or not known (read failed). */
+export type ReviewHoldProbe =
+  | { state: 'held'; hold: ReviewHoldDetails }
+  | { state: 'clear' }
+  | { state: 'unknown' };
+
 /**
- * The details of a task's current review hold, or null when it is not held.
- * Never throws.
- *
+ * Read the current hold, keeping "not held" apart from "could not read" —
+ * completion paths must refuse on `unknown`. Never throws.
  * @param taskId - Task id / タスクID
- * @returns Hold details from the latest hold transition / 保留の内容
+ * @returns The hold, `clear`, or `unknown` on a read failure / 保留・保留なし・確認不能
  */
-export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails | null> {
+export async function probeReviewHold(taskId: number): Promise<ReviewHoldProbe> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       select: { haltReason: true, workflowStatus: true },
     });
     if (task?.haltReason !== REVIEW_HOLD_HALT_REASON || task.workflowStatus !== 'verify_done') {
-      return null;
+      return { state: 'clear' };
     }
     const row = await prisma.workflowTransition.findFirst({
       where: { taskId, cause: REVIEW_HOLD_CAUSE },
@@ -213,7 +218,7 @@ export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails 
       select: { metadata: true },
     });
     const m = parseHoldMetadata(row?.metadata);
-    return {
+    const hold: ReviewHoldDetails = {
       reason:
         m.holdReason === 'unresolved_dispute' || m.holdReason === 'ineligible_verifier'
           ? m.holdReason
@@ -222,9 +227,21 @@ export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails 
       findings: Array.isArray(m.findings) ? (m.findings as ReviewFinding[]) : [],
       ...(typeof m.severity === 'number' ? { severity: m.severity } : {}),
     };
-  } catch {
-    return null;
+    return { state: 'held', hold };
+  } catch (err) {
+    log.warn({ err, taskId }, '[review-hold] Hold read failed');
+    return { state: 'unknown' };
   }
+}
+
+/**
+ * The current hold, or null when not held OR unreadable (display / resolve callers).
+ * @param taskId - Task id / タスクID
+ * @returns Hold details from the latest hold transition / 保留の内容
+ */
+export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails | null> {
+  const p = await probeReviewHold(taskId);
+  return p.state === 'held' ? p.hold : null;
 }
 
 /**

@@ -39,7 +39,11 @@ const HOLD = {
 };
 const readReviewHold = mock(async (_id: number): Promise<typeof HOLD | null> => HOLD);
 const clearReviewHold = mock(async (_p: unknown) => true);
-mock.module('./review-hold', () => ({ readReviewHold, clearReviewHold }));
+mock.module('./review-hold', () => ({
+  readReviewHold,
+  probeReviewHold: async () => ({ state: 'clear' }),
+  clearReviewHold,
+}));
 
 const attemptVerifyRepair = mock(
   async (

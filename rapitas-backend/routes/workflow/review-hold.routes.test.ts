@@ -15,7 +15,10 @@ const readReviewHold = mock(
     findings: [],
   }),
 );
-mock.module('../../services/workflow/review-hold', () => ({ readReviewHold }));
+mock.module('../../services/workflow/review-hold', () => ({
+  readReviewHold,
+  probeReviewHold: async () => ({ state: 'clear' }),
+}));
 const resolveReviewHold = mock(
   async (_p: Record<string, unknown>): Promise<Record<string, unknown>> => ({
     ok: true,

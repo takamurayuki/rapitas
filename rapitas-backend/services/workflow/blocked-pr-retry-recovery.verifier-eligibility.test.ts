@@ -40,6 +40,10 @@ mock.module('./review-hold', () => ({
   REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
   readReviewHold: async () =>
     onHold ? { reason: 'ineligible_verifier', detail: '', findings: [] } : null,
+  probeReviewHold: async () =>
+    onHold
+      ? { state: 'held', hold: { reason: 'ineligible_verifier', detail: '', findings: [] } }
+      : { state: 'clear' },
   holdForHumanReview,
 }));
 

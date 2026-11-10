@@ -40,6 +40,7 @@ const holdForHumanReview = mock(
 mock.module('./review-hold', () => ({
   REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
   readReviewHold: async () => null,
+  probeReviewHold: async () => ({ state: 'clear' }),
   holdForHumanReview,
 }));
 
