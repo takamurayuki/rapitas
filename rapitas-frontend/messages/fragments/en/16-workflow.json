@@ -281,7 +281,8 @@
           "verdict": {
             "pass": "Review: pass",
             "fail": "Review: fail",
-            "unknown": "Review: no verdict"
+            "unknown": "Review: no verdict",
+            "hold": "Review: awaiting a human decision"
           },
           "findingsCount": "{count} finding(s)",
           "severity": {
@@ -293,7 +294,47 @@
           "evidence": "Evidence",
           "repro": "Repro",
           "juror": "Juror",
-          "noFindings": "No findings"
+          "noFindings": "No findings",
+          "entryLabelTwoSeat": "Review · {date} · {judged}/{total} seats",
+          "seat": {
+            "reviewer-1": "Reviewer 1",
+            "reviewer-2": "Reviewer 2",
+            "verifier": "Verifier"
+          },
+          "seatVerdict": {
+            "pass": "Pass",
+            "fail": "Fail",
+            "unknown": "No answer",
+            "checked": "Checked"
+          },
+          "verification": {
+            "holds": "Verified: grounds hold",
+            "refuted": "Verified: grounds refuted (dropped)",
+            "undetermined": "Verified: cannot be decided"
+          },
+          "verificationNote": "Verifier's reasoning",
+          "awaiting": {
+            "jury_unavailable_high_risk": "The review could not run and the change is high-risk; waiting for a human decision",
+            "unresolved_dispute": "A serious dispute could not be decided; waiting for a human decision"
+          }
+        },
+        "reviewHold": {
+          "title": "Held for review",
+          "hint": "This task is stopped before commit / PR. Check the findings and choose one.",
+          "accept": "Accept the findings and send to repair",
+          "override": "Override and proceed",
+          "overrideHint": "Overriding still runs the automated checks (lint, types, tests) before commit.",
+          "submitting": "Working…",
+          "failed": "The action failed. Please try again later.",
+          "done": {
+            "accept": "Sent to repair",
+            "override": "Proceeding (commit / PR started)"
+          },
+          "resolved": "Hold resolved: {action} · {by} · {date}",
+          "action": {
+            "accept": "findings accepted",
+            "override": "overridden"
+          }
         }
       },
       "phaseBreakdown": {

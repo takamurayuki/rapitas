@@ -6,8 +6,10 @@
  * the task-detail workflow card, together with the verify-phase record kept
  * in two visibly separate groups: MEASURED runs (検証済み — real lint/type/test
  * results) and the independent JURY review (レビュー済み — findings with
- * severity and evidence). NOT responsible for the transient "being
- * regenerated" banner — that stays in TaskWorkflowSection.
+ * severity and evidence; in the two-reviewer form also the seats, the
+ * verifier's checks and a review hold awaiting a human, with its resolutions).
+ * NOT responsible for the transient "being regenerated" banner — that stays
+ * in TaskWorkflowSection.
  */
 'use client';
 
@@ -30,11 +32,14 @@ import {
 import {
   deriveJuryReviewHistory,
   deriveMeasuredHistory,
+  deriveReviewHoldResolutions,
   type JuryReviewEntry,
   type MeasuredEntry,
   type RawTimelineEvent,
+  type ReviewHoldResolutionEntry,
 } from './review-history';
 import { JuryReviewHistoryItem, MeasuredHistoryItem } from './ReviewHistoryItems';
+import ReviewHoldPanel from './ReviewHoldPanel';
 
 export interface CriticHistorySectionProps {
   taskId: number;
@@ -85,23 +90,29 @@ export default function CriticHistorySection({ taskId }: CriticHistorySectionPro
   const [entries, setEntries] = useState<CriticGateHistoryEntry[]>([]);
   const [measured, setMeasured] = useState<MeasuredEntry[]>([]);
   const [jury, setJury] = useState<JuryReviewEntry[]>([]);
+  const [resolutions, setResolutions] = useState<ReviewHoldResolutionEntry[]>([]);
+  // Bumped after a hold is resolved so the history shows the resolution.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!taskId) {
       setEntries([]);
       setMeasured([]);
       setJury([]);
+      setResolutions([]);
       return;
     }
     let cancelled = false;
     (async () => {
-      const [measuredEvents, juryEvents] = await Promise.all([
+      const [measuredEvents, juryEvents, resolvedEvents] = await Promise.all([
         fetchTaskEvents(taskId, 'verification_measured'),
         fetchTaskEvents(taskId, 'adversarial_review'),
+        fetchTaskEvents(taskId, 'review_hold_resolved'),
       ]);
       if (!cancelled) {
         setMeasured(deriveMeasuredHistory(measuredEvents));
         setJury(deriveJuryReviewHistory(juryEvents));
+        setResolutions(deriveReviewHoldResolutions(resolvedEvents));
       }
     })();
     (async () => {
@@ -121,10 +132,15 @@ export default function CriticHistorySection({ taskId }: CriticHistorySectionPro
     return () => {
       cancelled = true;
     };
-  }, [taskId]);
+  }, [taskId, reloadKey]);
 
+  const holdPanel = (
+    <ReviewHoldPanel taskId={taskId} onResolved={() => setReloadKey((n) => n + 1)} />
+  );
   const total = entries.length + measured.length + jury.length;
-  if (total === 0) return null;
+  // A hold always has a review behind it, but the panel must not depend on
+  // the history fetch having succeeded.
+  if (total === 0) return holdPanel;
   // The critic list keeps its old look when it is the only thing to show.
   const showCriticHeading = entries.length > 0 && measured.length + jury.length > 0;
 
@@ -141,6 +157,7 @@ export default function CriticHistorySection({ taskId }: CriticHistorySectionPro
               : t('taskWorkflowSection.criticHistory.reasonsCount', { count: total })}
           </span>
         </div>
+        {holdPanel}
         {showCriticHeading && (
           <GroupHeading label={t('taskWorkflowSection.criticHistory.groups.critic')} />
         )}
@@ -209,6 +226,16 @@ export default function CriticHistorySection({ taskId }: CriticHistorySectionPro
                 <JuryReviewHistoryItem key={j.id} entry={j} />
               ))}
             </Accordion>
+            {resolutions.map((r) => (
+              <p key={r.id} className="px-4 py-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                {t('taskWorkflowSection.criticHistory.reviewHold.resolved', {
+                  action: t(`taskWorkflowSection.criticHistory.reviewHold.action.${r.action}`),
+                  by: r.resolvedBy ?? '',
+                  date: r.createdAt ? formatDateTime(r.createdAt) : '',
+                })}
+                {r.note ? ` — ${r.note}` : ''}
+              </p>
+            ))}
           </>
         )}
       </div>

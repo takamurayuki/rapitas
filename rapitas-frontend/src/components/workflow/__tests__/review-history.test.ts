@@ -4,7 +4,11 @@
  * タイムラインの `verification_measured`（実測）と `adversarial_review`（陪審）を
  * 表示用に正規化する。findings 以前の古いイベント（reasons のみ）も壊さず読む。
  */
-import { deriveJuryReviewHistory, deriveMeasuredHistory } from '../review-history';
+import {
+  deriveJuryReviewHistory,
+  deriveMeasuredHistory,
+  deriveReviewHoldResolutions,
+} from '../review-history';
 
 describe('deriveJuryReviewHistory', () => {
   it('normalises findings, puts verdict-deciding ones first, and counts who judged', () => {
@@ -125,5 +129,126 @@ describe('deriveMeasuredHistory', () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].outcome).toBe('unverifiable');
+  });
+});
+
+describe('deriveJuryReviewHistory — two-reviewer form', () => {
+  const twoSeat = (over: Record<string, unknown> = {}) => ({
+    id: 9,
+    eventType: 'adversarial_review',
+    createdAt: '2026-11-10T03:00:00Z',
+    payload: {
+      form: 'two_seat',
+      verdict: 'hold',
+      severity: 90,
+      jurors: [
+        { seatId: 'reviewer-1', role: 'reviewer', verdict: 'fail', model: 'opus' },
+        { seatId: 'reviewer-2', role: 'reviewer', verdict: 'pass', model: 'sonnet' },
+        { seatId: 'verifier', role: 'verifier', verdict: 'pass', model: 'opus' },
+      ],
+      seats: [
+        { seatId: 'reviewer-1', role: 'reviewer', verdict: 'fail', model: 'opus' },
+        { seatId: 'reviewer-2', role: 'reviewer', verdict: 'pass', model: 'sonnet' },
+        { seatId: 'verifier', role: 'verifier', verdict: 'pass', model: 'opus' },
+      ],
+      findings: [
+        {
+          severity: 'blocker',
+          summary: 'null 未処理',
+          evidence: 'a.ts:1',
+          gating: true,
+          seatId: 'reviewer-1',
+          verification: 'undetermined',
+          verificationNote: '呼び出し元が差分外',
+        },
+        { severity: 'minor', summary: '命名', seatId: 'reviewer-2' },
+      ],
+      dispute: { basis: 'split', verifierAnswered: true, upheld: 0, refuted: 0, undetermined: 1 },
+      awaitingHuman: { reason: 'unresolved_dispute', detail: '検証席が判定できませんでした' },
+      ...over,
+    },
+  });
+
+  it('reads seats by role, the verifier check per finding, and the human wait', () => {
+    const [entry] = deriveJuryReviewHistory([twoSeat()]);
+    expect(entry.form).toBe('two_seat');
+    expect(entry.verdict).toBe('hold');
+    expect(entry.seats.map((s) => [s.seatId, s.role, s.verdict])).toEqual([
+      ['reviewer-1', 'reviewer', 'fail'],
+      ['reviewer-2', 'reviewer', 'pass'],
+      ['verifier', 'verifier', 'pass'],
+    ]);
+    expect(entry.findings[0]).toMatchObject({
+      seatId: 'reviewer-1',
+      verification: 'undetermined',
+      verificationNote: '呼び出し元が差分外',
+    });
+    expect(entry.findings[1].verification).toBeNull();
+    expect(entry.awaitingHuman).toEqual({
+      reason: 'unresolved_dispute',
+      detail: '検証席が判定できませんでした',
+    });
+    // Seats asked (reviewers), not the verifier, are the "who judged" count.
+    expect(entry.jurorCount).toBe(2);
+    expect(entry.judgedCount).toBe(2);
+  });
+
+  it('a refuted finding is kept on the record but marked as dropped', () => {
+    const [entry] = deriveJuryReviewHistory([
+      twoSeat({
+        verdict: 'pass',
+        awaitingHuman: undefined,
+        findings: [
+          {
+            severity: 'blocker',
+            summary: 'x',
+            evidence: 'a.ts:1',
+            gating: true,
+            seatId: 'reviewer-1',
+            verification: 'refuted',
+          },
+        ],
+      }),
+    ]);
+    expect(entry.verdict).toBe('pass');
+    expect(entry.awaitingHuman).toBeNull();
+    expect(entry.findings[0].verification).toBe('refuted');
+  });
+
+  it('older three-seat events still read as legacy with no seats', () => {
+    const [entry] = deriveJuryReviewHistory([
+      {
+        id: 1,
+        eventType: 'adversarial_review',
+        payload: { verdict: 'pass', jurors: [{ verdict: 'pass' }] },
+      },
+    ]);
+    expect(entry.form).toBe('legacy');
+    expect(entry.seats).toEqual([]);
+    expect(entry.awaitingHuman).toBeNull();
+  });
+});
+
+describe('deriveReviewHoldResolutions', () => {
+  it('reads who resolved a hold and how, oldest first', () => {
+    const rows = deriveReviewHoldResolutions([
+      {
+        id: 2,
+        eventType: 'review_hold_resolved',
+        createdAt: '2026-11-10T05:00:00Z',
+        payload: { action: 'override', resolvedBy: 'ユーザー操作', note: '確認済み' },
+      },
+      {
+        id: 1,
+        eventType: 'review_hold_resolved',
+        createdAt: '2026-11-10T04:00:00Z',
+        payload: { action: 'accept', resolvedBy: 'ユーザー操作' },
+      },
+      { id: 3, eventType: 'adversarial_review', payload: {} },
+    ]);
+    expect(rows.map((r) => [r.action, r.note])).toEqual([
+      ['accept', null],
+      ['override', '確認済み'],
+    ]);
   });
 });

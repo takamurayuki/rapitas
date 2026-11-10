@@ -4,8 +4,11 @@
  * Converts raw timeline events (GET /memory/timeline) into the display model
  * for the task's verification history: MEASURED checks (`verification_measured`,
  * the automated verifier's real lint/type/test run) and the independent JURY
- * review (`adversarial_review`, with structured findings). Pure data
- * transformation only — no fetching or rendering.
+ * review (`adversarial_review`, with structured findings), including the
+ * two-reviewer form (seats by role, the verifier seat's check of disputed
+ * findings, and a human wait), plus resolutions of a review hold
+ * (`review_hold_resolved`). Pure data transformation only — no fetching or
+ * rendering.
  */
 
 /** One row of GET /memory/timeline (payload already JSON-parsed by the API). */
@@ -30,12 +33,40 @@ export interface DisplayFinding {
   gating: boolean;
   /** True for a serious finding recorded without evidence (要確認). */
   needsCheck: boolean;
+  /** Seat that reported it (two-reviewer form): reviewer-1 / reviewer-2. */
+  seatId: string | null;
+  /** The verifier seat's check, set only on disputed findings. */
+  verification: FindingVerification | null;
+  verificationNote: string | null;
+}
+
+export type FindingVerification = 'holds' | 'refuted' | 'undetermined';
+
+/** One seat of a two-reviewer review. */
+export interface DisplaySeat {
+  seatId: string;
+  role: 'reviewer' | 'verifier';
+  verdict: string;
+  model: string | null;
+  unknownReason: string | null;
+}
+
+/** Why a review waits for a human (review hold). */
+export interface AwaitingHuman {
+  reason: 'jury_unavailable_high_risk' | 'unresolved_dispute';
+  detail: string;
 }
 
 /** One production jury review. */
 export interface JuryReviewEntry {
   id: string;
-  verdict: 'pass' | 'fail' | 'unknown';
+  verdict: 'pass' | 'fail' | 'unknown' | 'hold';
+  /** 'two_seat' for the two-reviewer form; 'legacy' for older panel votes. */
+  form: 'two_seat' | 'legacy';
+  /** Seats by role (empty for legacy reviews). */
+  seats: DisplaySeat[];
+  /** Set when the review was handed to a human. */
+  awaitingHuman: AwaitingHuman | null;
   severity: number | null;
   findings: DisplayFinding[];
   /** Reasons from reviews recorded before structured findings existed. */
@@ -80,7 +111,40 @@ function toFinding(raw: unknown): DisplayFinding | null {
     juror: str(o.juror),
     gating: o.gating === true,
     needsCheck: o.needsCheck === true,
+    seatId: str(o.seatId),
+    verification:
+      o.verification === 'holds' ||
+      o.verification === 'refuted' ||
+      o.verification === 'undetermined'
+        ? o.verification
+        : null,
+    verificationNote: str(o.verificationNote),
   };
+}
+
+function toSeat(raw: unknown): DisplaySeat | null {
+  const o = asRecord(raw);
+  const seatId = o && str(o.seatId);
+  if (!o || !seatId) return null;
+  return {
+    seatId,
+    role: o.role === 'verifier' ? 'verifier' : 'reviewer',
+    verdict: str(o.verdict) ?? 'unknown',
+    model: str(o.model),
+    unknownReason: str(o.unknownReason),
+  };
+}
+
+function toAwaitingHuman(raw: unknown): AwaitingHuman | null {
+  const o = asRecord(raw);
+  if (!o) return null;
+  const reason =
+    o.reason === 'unresolved_dispute'
+      ? o.reason
+      : o.reason === 'jury_unavailable_high_risk'
+        ? o.reason
+        : null;
+  return reason ? { reason, detail: str(o.detail) ?? '' } : null;
 }
 
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { blocker: 0, major: 1, minor: 2 };
@@ -103,8 +167,16 @@ export function deriveJuryReviewHistory(events: RawTimelineEvent[]): JuryReviewE
     if (ev.eventType !== 'adversarial_review') return;
     const p = asRecord(ev.payload);
     if (!p) return;
-    const verdict = p.verdict === 'pass' || p.verdict === 'fail' ? p.verdict : 'unknown';
-    const jurors = Array.isArray(p.jurors) ? p.jurors.map(asRecord).filter(Boolean) : [];
+    const verdict =
+      p.verdict === 'pass' || p.verdict === 'fail' || p.verdict === 'hold' ? p.verdict : 'unknown';
+    const form = p.form === 'two_seat' ? 'two_seat' : 'legacy';
+    const seats = (Array.isArray(p.seats) ? p.seats : [])
+      .map(toSeat)
+      .filter((x): x is DisplaySeat => x !== null);
+    // The verifier does not vote, so "who judged" counts reviewer seats only.
+    const jurors = (Array.isArray(p.jurors) ? p.jurors.map(asRecord).filter(Boolean) : []).filter(
+      (j) => j!.role !== 'verifier',
+    );
     const findings = (Array.isArray(p.findings) ? p.findings : [])
       .map(toFinding)
       .filter((f): f is DisplayFinding => f !== null)
@@ -130,6 +202,9 @@ export function deriveJuryReviewHistory(events: RawTimelineEvent[]): JuryReviewE
     out.push({
       id: `jury-${ev.id ?? index}`,
       verdict,
+      form,
+      seats,
+      awaitingHuman: verdict === 'hold' ? toAwaitingHuman(p.awaitingHuman) : null,
       severity: typeof p.severity === 'number' ? p.severity : null,
       findings,
       legacyReasons,
@@ -171,6 +246,40 @@ export function deriveMeasuredHistory(events: RawTimelineEvent[]): MeasuredEntry
       id: `measured-${ev.id ?? index}`,
       outcome: result.unverifiable === true ? 'unverifiable' : result.ok === true ? 'pass' : 'fail',
       checks,
+      createdAt: ev.createdAt ?? null,
+    });
+  });
+  return chronological(out);
+}
+
+/** One human resolution of a review hold. */
+export interface ReviewHoldResolutionEntry {
+  id: string;
+  action: 'accept' | 'override';
+  resolvedBy: string | null;
+  note: string | null;
+  createdAt: string | null;
+}
+
+/**
+ * Normalise `review_hold_resolved` timeline events.
+ *
+ * @param events - Rows from GET /memory/timeline / タイムラインの行
+ * @returns Resolutions, oldest first / 保留の解消（古い順）
+ */
+export function deriveReviewHoldResolutions(
+  events: RawTimelineEvent[],
+): ReviewHoldResolutionEntry[] {
+  const out: ReviewHoldResolutionEntry[] = [];
+  events.forEach((ev, index) => {
+    if (ev.eventType !== 'review_hold_resolved') return;
+    const p = asRecord(ev.payload);
+    if (!p || (p.action !== 'accept' && p.action !== 'override')) return;
+    out.push({
+      id: `hold-resolved-${ev.id ?? index}`,
+      action: p.action,
+      resolvedBy: str(p.resolvedBy),
+      note: str(p.note),
       createdAt: ev.createdAt ?? null,
     });
   });
