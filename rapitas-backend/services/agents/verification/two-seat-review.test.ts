@@ -112,6 +112,39 @@ describe('compareReviewers', () => {
   });
 });
 
+// G2 abc review item 3: independence is judged on the model the call actually
+// ran on, not on the id that was requested.
+describe('compareReviewers — 独立性は解決後のモデルで比べる', () => {
+  test('opus と claude-opus-4-6（CLI ではどちらも --model opus）は同じモデル', () => {
+    const c = compareReviewers([
+      { ...seat('reviewer-1', 'fail', [blocker('a')], 'opus'), resolvedModel: 'opus' },
+      { ...seat('reviewer-2', 'fail', [blocker('b')], 'claude-opus-4-6'), resolvedModel: 'opus' },
+    ]);
+    expect(c.kind).toBe('needs_verification');
+    if (c.kind === 'needs_verification') expect(c.basis).toBe('same_model');
+  });
+
+  test('両席が実際の modelName を返したらそれで比べる（要求名が違っても同一なら独立でない）', () => {
+    const withName = (j: SeatedJuror, modelName: string): SeatedJuror => ({
+      ...j,
+      usage: { tokensUsed: 0, modelName, startedAt: new Date(), durationMs: 1 },
+    });
+    const c = compareReviewers([
+      withName(seat('reviewer-1', 'fail', [blocker('a')], 'claude-opus'), 'claude-opus-4-6'),
+      withName(seat('reviewer-2', 'fail', [blocker('b')], 'claude-sonnet'), 'Claude-Opus-4-6'),
+    ]);
+    expect(c.kind).toBe('needs_verification');
+  });
+
+  test('解決後のモデルが違えば独立（両方不合格で一致）', () => {
+    const c = compareReviewers([
+      { ...seat('reviewer-1', 'fail', [blocker('a')]), resolvedModel: 'opus' },
+      { ...seat('reviewer-2', 'fail', [blocker('b')]), resolvedModel: 'sonnet' },
+    ]);
+    expect(c).toMatchObject({ kind: 'agreed', verdict: 'fail' });
+  });
+});
+
 describe('settleDispute', () => {
   const disputed = [
     { ...blocker('A'), seatId: 'reviewer-1' },

@@ -30,6 +30,20 @@ export interface SeatedJuror extends JurorVerdict {
   seatId: SeatId;
   role: SeatRole;
   tier: SeatTier;
+  /** Model the call ran on after host resolution (CLI: the `--model` alias). */
+  resolvedModel?: string;
+}
+
+/**
+ * The identity two reviewers are compared on. The model each provider REPORTS
+ * having answered wins when both report one; otherwise the host-resolved
+ * model. Never the requested id: `opus` and `claude-opus-4-6` both start the
+ * CLI with `--model opus` (G2 abc review item 3).
+ */
+function modelIdentities(judged: SeatedJuror[]): string[] {
+  const reported = judged.map((j) => j.usage?.modelName?.trim().toLowerCase());
+  if (reported.every(Boolean)) return reported as string[];
+  return judged.map((j) => `${j.provider}:${(j.resolvedModel ?? j.model ?? '').toLowerCase()}`);
 }
 
 /** The verifier's answer for the disputed finding at 1-based `index`. */
@@ -76,7 +90,7 @@ export function compareReviewers(reviewers: SeatedJuror[]): ReviewerComparison {
 
   const failing = judged.filter((r) => r.verdict === 'fail');
   const disputedOf = (rs: SeatedJuror[]) => rs.flatMap(tagged).filter((f) => f.gating);
-  const models = new Set(judged.map((r) => r.model ?? r.provider));
+  const models = new Set(modelIdentities(judged));
   const independent = judged.length === 2 && models.size === 2;
 
   if (independent) {

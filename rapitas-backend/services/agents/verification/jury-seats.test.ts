@@ -51,6 +51,14 @@ describe('assignSeats', () => {
     expect(s.verifier.model).toBe('claude-opus-4-20250514');
   });
 
+  test('CLI ホストでは席に CLI が実際に使うモデル名（--model の値）を持たせる', () => {
+    process.env.RAPITAS_JURY_MODELS = 'opus,claude-opus-4-6,some-unknown-id';
+    const s = assignSeats({ auxMode: 'cli' });
+    expect(s.reviewers.map((r) => r.resolvedModel)).toEqual(['opus', 'opus']);
+    // The CLI provider sends an unrecognised id as haiku.
+    expect(s.verifier.resolvedModel).toBe('haiku');
+  });
+
   test('API ホストでは到達できるプロバイダを席の順に割り当てる', () => {
     const s = assignSeats({ auxMode: 'api', providers: ['gemini', 'chatgpt'] });
     expect(s.reviewers.map((r) => r.provider)).toEqual(['gemini', 'chatgpt']);

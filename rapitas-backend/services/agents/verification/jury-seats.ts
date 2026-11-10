@@ -11,6 +11,7 @@
  * tier is a Claude model alias; with API providers, the reachable providers
  * are assigned in seat order.
  */
+import { toCliModelAlias } from '../../../utils/ai-client/cli-model-alias';
 import { getAuxAiMode } from '../../../utils/ai-client';
 import { DEFAULT_MODELS, type AIProvider } from '../../../utils/ai-client/types';
 import { JURY_MODEL_IDS, type JurorSpec } from './jury-panel';
@@ -24,7 +25,14 @@ export interface SeatDefinition {
 }
 
 /** A defined seat resolved to who actually sits in it. */
-export type SeatAssignment = SeatDefinition & JurorSpec;
+export type SeatAssignment = SeatDefinition &
+  JurorSpec & {
+    /**
+     * The model the call will actually run on (CLI: the `--model` alias), the
+     * identity two seats are compared on for independence.
+     */
+    resolvedModel: string;
+  };
 
 /**
  * The default jury: two blind reviewers and one verifier.
@@ -83,7 +91,7 @@ export function assignSeats(
     const at = (def: SeatDefinition, i: number): SeatAssignment => {
       const provider = providers[i] ?? providers[0];
       const model = DEFAULT_MODELS[provider];
-      return { ...def, provider, model, label: `${provider}:${model}` };
+      return { ...def, provider, model, label: `${provider}:${model}`, resolvedModel: model };
     };
     return { reviewers: [at(r1, 0), at(r2, 1)], verifier: at(v, 0) };
   }
@@ -94,7 +102,13 @@ export function assignSeats(
     .filter(Boolean);
   const at = (def: SeatDefinition, i: number): SeatAssignment => {
     const model = overrides[i] ?? CLI_TIER_MODEL[def.tier];
-    return { ...def, provider: 'claude', model, label: `claude:${aliasOf(model)}` };
+    return {
+      ...def,
+      provider: 'claude',
+      model,
+      label: `claude:${aliasOf(model)}`,
+      resolvedModel: toCliModelAlias(model),
+    };
   };
   return { reviewers: [at(r1, 0), at(r2, 1)], verifier: at(v, 2) };
 }

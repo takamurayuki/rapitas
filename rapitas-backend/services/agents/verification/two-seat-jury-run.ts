@@ -35,9 +35,15 @@ export interface TwoSeatRun {
 
 function seated(
   seat: SeatAssignment,
-  v: Omit<SeatedJuror, 'seatId' | 'role' | 'tier'>,
+  v: Omit<SeatedJuror, 'seatId' | 'role' | 'tier' | 'resolvedModel'>,
 ): SeatedJuror {
-  return { ...v, seatId: seat.seatId, role: seat.role, tier: seat.tier };
+  return {
+    ...v,
+    seatId: seat.seatId,
+    role: seat.role,
+    tier: seat.tier,
+    resolvedModel: seat.resolvedModel,
+  };
 }
 
 function restedSeat(seat: SeatAssignment): SeatedJuror {
