@@ -56,18 +56,52 @@ mock.module('../../services/agents/verification/verification-gate', () => ({
   runVerificationGate: async () => ({ ok: true, result: null, verdict: 'pass' }),
 }));
 
-// The diff identity as the binding check reads it. `duringCommit` lets a test
-// change the tree while the commit is being recorded.
-let currentFp: string | null = 'fp-B';
+// The structured diff as git reports it; the REAL fingerprint is taken over it,
+// so the untracked→committed transition of a new file is exercised for real.
+// `duringCommit` lets a test change the tree while the commit is recorded.
+type DiffFile = { filename: string; status: string; patch?: string };
+const MODIFIED: DiffFile = { filename: 'a.ts', status: 'modified', patch: '-x\n+y\n' };
+// getDiff synthesizes a new UNTRACKED file's patch (no index line, no final
+// newline); once committed the same file comes from `git diff` itself.
+const NEW_UNTRACKED: DiffFile = {
+  filename: 'b.ts',
+  status: 'added',
+  patch:
+    'diff --git a/b.ts b/b.ts\nnew file mode 100644\n--- /dev/null\n+++ b/b.ts\n@@ -0,0 +1,2 @@\n+one\n+two',
+};
+const NEW_COMMITTED: DiffFile = {
+  filename: 'b.ts',
+  status: 'added',
+  patch:
+    'diff --git a/b.ts b/b.ts\nnew file mode 100644\nindex 0000000..5f5fbe7\n--- /dev/null\n+++ b/b.ts\n@@ -0,0 +1,2 @@\n+one\n+two\n',
+};
+let currentFiles: DiffFile[] = [MODIFIED];
 let currentSha: string | null = 'sha-B';
 let duringCommit: (() => void) | null = null;
 const fingerprintCwds: string[] = [];
-mock.module('../../services/agents/verification/review-diff-fingerprint', () => ({
-  currentDiffFingerprint: async (_id: number, cwd: string) => {
+mock.module('../../services/agents/orchestrator/git-operations/core/diff-structured', () => ({
+  getDiff: async (cwd: string) => {
     fingerprintCwds.push(cwd);
-    return currentFp;
+    return currentFiles;
   },
-  fingerprintDiff: () => null,
+  resolveBaseRef: async () => 'origin/develop',
+}));
+const nil = async () => null;
+mock.module('../../services/task/task-resolver', () => ({
+  resolvePreferredBaseBranch: async () => 'develop',
+  resolveTaskWithTheme: nil,
+  resolveTaskWithThemeAndCategory: nil,
+  resolveTaskForExecution: nil,
+  resolveTaskWorkingDirectory: nil,
+  resolveTaskWorkflowState: nil,
+  resolveTaskTitle: nil,
+  resolveTaskThemeId: nil,
+  resolveTaskForComplexityAnalysis: nil,
+  resolveTaskSubtaskInfo: nil,
+  resolveTaskForPlanApproval: nil,
+  resolveTaskForAutoMerge: nil,
+  taskRowConfirmedAbsent: async () => false,
+  resolveTaskForLearning: nil,
 }));
 mock.module('../../services/workflow/verify-jury-completion', () => ({
   readVerifySha256: async () => currentSha,
@@ -139,13 +173,21 @@ mock.module('./workflow-auto-commit-reuse-push', () => ({
 }));
 
 const { performAutoCommitAndPR } = await import('./workflow-auto-commit');
+const { fingerprintDiff } =
+  await import('../../services/agents/verification/review-diff-fingerprint');
 
-const BINDING = { verifySha256: 'sha-B', diffFingerprint: 'fp-B', worktreePath: '/wt/B' };
+const bindingFor = (files: DiffFile[]) => ({
+  verifySha256: 'sha-B',
+  diffFingerprint: fingerprintDiff(files)!,
+  worktreePath: '/wt/B',
+});
+let BINDING = bindingFor([MODIFIED]);
 const run = () => performAutoCommitAndPR(5, '# verify', { binding: BINDING });
 
 beforeEach(() => {
   sessionWorktree = '/wt/B';
-  currentFp = 'fp-B';
+  currentFiles = [MODIFIED];
+  BINDING = bindingFor([MODIFIED]);
   currentSha = 'sha-B';
   duringCommit = null;
   fingerprintCwds.length = 0;
@@ -181,7 +223,7 @@ describe('performAutoCommitAndPR — 上書きの束縛', () => {
   });
 
   test('コミット直前に差分が変わっていれば、コミットしない', async () => {
-    currentFp = 'fp-other';
+    currentFiles = [{ ...MODIFIED, patch: '-x\n+z\n' }];
     const r = await run();
     expect(r.bindingMismatch).toContain('差分');
     expect(commits).toBe(0);
@@ -196,7 +238,7 @@ describe('performAutoCommitAndPR — 上書きの束縛', () => {
   });
 
   test('コミットの最中に差分が変わったら、そのコミットを公開しない', async () => {
-    duringCommit = () => (currentFp = 'fp-other');
+    duringCommit = () => (currentFiles = [MODIFIED, { ...MODIFIED, filename: 'c.ts' }]);
     const r = await run();
     expect(commits).toBe(1);
     expect(r.bindingMismatch).toContain('差分');
@@ -205,10 +247,33 @@ describe('performAutoCommitAndPR — 上書きの束縛', () => {
   });
 
   test('束縛を渡さない従来の呼び出しは、差分の照合をしない', async () => {
-    currentFp = null;
+    currentFiles = [];
     const r = await performAutoCommitAndPR(5, '# verify');
     expect(r.bindingMismatch).toBeUndefined();
     expect(prs).toBe(1);
     expect(fingerprintCwds).toEqual([]);
+  });
+
+  test('未追跡の新規ファイルがコミットで追跡済みになっても、同じ差分として公開する', async () => {
+    // The reviewed diff held b.ts untracked; the commit makes git report it.
+    currentFiles = [MODIFIED, NEW_UNTRACKED];
+    BINDING = bindingFor(currentFiles);
+    duringCommit = () => (currentFiles = [MODIFIED, NEW_COMMITTED]);
+    const r = await run();
+    expect(r.bindingMismatch).toBeUndefined();
+    expect(prs).toBe(1);
+  });
+
+  test('新規ファイルの中身がコミットの最中に変われば、公開しない', async () => {
+    currentFiles = [MODIFIED, NEW_UNTRACKED];
+    BINDING = bindingFor(currentFiles);
+    duringCommit = () =>
+      (currentFiles = [
+        MODIFIED,
+        { ...NEW_COMMITTED, patch: NEW_COMMITTED.patch!.replace('+two', '+TWO') },
+      ]);
+    const r = await run();
+    expect(r.bindingMismatch).toContain('差分');
+    expect(prs).toBe(0);
   });
 });

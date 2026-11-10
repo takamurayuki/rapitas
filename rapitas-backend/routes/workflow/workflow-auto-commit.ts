@@ -25,7 +25,11 @@ import {
 import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
 import { syncHarnessIfDrifted } from '../../services/workflow/harness-drift-sync';
 import type { AutoCommitPRResult } from './workflow-auto-commit-types';
-import { publishBindingDrift, type PublishBinding } from './workflow-auto-commit-binding';
+import {
+  bindingDriftAfterCommit,
+  checkBindingBeforeCommit,
+  type PublishBinding,
+} from './workflow-auto-commit-binding';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 import {
   readHeadRevision,
@@ -170,8 +174,8 @@ export async function performAutoCommitAndPR(
         return { ...result, error: PUBLICATION_CANCELLED_ERROR };
       // An override covers one worktree + diff: checked here, by the side that
       // commits, so a change after the human looked is never recorded.
-      const drift = opts.binding && (await publishBindingDrift(taskId, gitCwd, opts.binding));
-      if (drift) return { ...result, bindingMismatch: drift, error: drift };
+      const pre = opts.binding && (await checkBindingBeforeCommit(taskId, gitCwd, opts.binding));
+      if (pre?.drift) return { ...result, bindingMismatch: pre.drift, error: pre.drift };
       const saved = await saveTaskWorkLocally({
         orchestrator,
         gitCwd,
@@ -189,7 +193,7 @@ export async function performAutoCommitAndPR(
       }
       // Re-check after the commit: a change made while it was being recorded is
       // in the commit, so it stays local and is never pushed.
-      const after = opts.binding && (await publishBindingDrift(taskId, gitCwd, opts.binding));
+      const after = pre?.stable && (await bindingDriftAfterCommit(taskId, gitCwd, pre.stable));
       if (after) return { ...result, bindingMismatch: after, error: after };
       log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
       await logAutoCommit(
