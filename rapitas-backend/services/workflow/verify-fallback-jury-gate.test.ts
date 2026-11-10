@@ -322,3 +322,22 @@ describe('runFallbackJuryGate', () => {
     expect(await runFallbackJuryGate(params())).toEqual({ stop: false });
   });
 });
+
+describe('runFallbackJuryGate — gate wait limit (G2 re-review item 2)', () => {
+  test('when the HTTP gate is still deciding past the wait limit, the epilogue stops (no review, no commit)', async () => {
+    let releaseHttp!: () => void;
+    const http = withTaskJuryGate(9, () => new Promise<void>((r) => (releaseHttp = r)));
+    taskFindUnique.mockResolvedValue({
+      title: 'Add feature',
+      githubPrId: null,
+      workflowStatus: 'verify_done',
+    } as never);
+    const out = await runFallbackJuryGate({ ...params(), gateMaxWaitMs: 10 });
+    expect(out).toEqual({ stop: true, phaseStatus: 'verify_done', skipped: 'gate_busy' });
+    expect(review).not.toHaveBeenCalled();
+    expect(repair).not.toHaveBeenCalled();
+    expect(completions()).toEqual([]);
+    releaseHttp();
+    await http;
+  });
+});

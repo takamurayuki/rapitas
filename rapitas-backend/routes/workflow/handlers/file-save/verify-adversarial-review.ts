@@ -16,6 +16,7 @@ import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from '
 import { capFindingsForStorage } from '../../../../services/agents/verification/review-findings';
 import {
   withTaskJuryGate,
+  JuryGateBusyError,
   readVerifySha256,
   recordJuryGateCompletion,
 } from '../../../../services/workflow/verify-jury-completion';
@@ -45,6 +46,8 @@ type ReviewParams = {
   isConflictResolutionTask: boolean;
   savedContent: string;
   preferredBaseBranchForVerify: string | null;
+  /** Wait limit for the other gate (tests shorten it). */
+  gateMaxWaitMs?: number;
 };
 
 /** The jury verdict that decided the outcome, for the completion record. */
@@ -82,20 +85,38 @@ export async function runAdversarialDiffReview(
   // Serialised with the CLI epilogue's fallback gate, and closed with a
   // completion record bound to verify.md's sha256 + the reviewed diff, written
   // only after this gate has acted (verify-jury-completion.ts).
-  return withTaskJuryGate(params.taskId, async () => {
-    const verifySha256 = await readVerifySha256(params.taskId);
-    const { outcome, deciding } = await reviewAndApply(params);
-    if (!outcome.staleVerifyRequest && deciding?.diffFingerprint && verifySha256) {
-      await recordJuryGateCompletion({
-        taskId: params.taskId,
-        verifySha256,
-        diffFingerprint: deciding.diffFingerprint,
-        verdict: deciding.verdict,
-        outcome: outcome.verifyGateBlocked ? 'stopped' : 'passed',
-        source: 'http_save',
-      });
-    }
-    return outcome;
+  const gated = withTaskJuryGate(
+    params.taskId,
+    async () => {
+      const verifySha256 = await readVerifySha256(params.taskId);
+      const { outcome, deciding } = await reviewAndApply(params);
+      if (!outcome.staleVerifyRequest && deciding?.diffFingerprint && verifySha256) {
+        await recordJuryGateCompletion({
+          taskId: params.taskId,
+          verifySha256,
+          diffFingerprint: deciding.diffFingerprint,
+          verdict: deciding.verdict,
+          outcome: outcome.verifyGateBlocked ? 'stopped' : 'passed',
+          source: 'http_save',
+        });
+      }
+      return outcome;
+    },
+    params.gateMaxWaitMs,
+  );
+  return gated.catch((err: unknown) => {
+    if (!(err instanceof JuryGateBusyError)) throw err;
+    // The other gate is still deciding and owns the outcome. Stale = the
+    // downstream stages skip both rollback and commit/PR for this request.
+    log.warn(
+      { taskId: params.taskId },
+      '[Workflow] Jury gate busy past wait limit — save not acted on',
+    );
+    return {
+      newStatus: params.newStatus,
+      verifyGateBlocked: params.verifyGateBlocked,
+      staleVerifyRequest: true,
+    };
   });
 }
 

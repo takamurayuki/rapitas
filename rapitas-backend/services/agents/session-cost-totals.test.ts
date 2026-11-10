@@ -10,7 +10,7 @@
  * - keep usage recorded outside AgentExecution (AgentAction tokens).
  * Runs against a real SQLite database built from the production init SQL.
  */
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,6 +22,8 @@ import {
   recomputeSessionTotals,
   updateSessionUsage,
   recordSessionActionUsage,
+  flushPendingSessionRecomputes,
+  pendingSessionRecomputeCount,
   type SessionTotalsDb,
 } from './session-cost-totals';
 
@@ -59,6 +61,8 @@ const t = (ms: number) => new Date(1_700_000_000_000 + ms);
 let configId = 0;
 
 beforeEach(async () => {
+  afterRowsRead = undefined;
+  await flushPendingSessionRecomputes();
   await base.agentAction.deleteMany();
   await base.agentExecution.deleteMany();
   await base.agentSession.deleteMany();
@@ -193,6 +197,51 @@ describe('recomputeSessionTotals (real SQLite)', () => {
     await exec(s, 0.2, 50, null, t(1));
     await recomputeSessionTotals(asDb(), s);
     expect(await totals(s)).toEqual({ cost: 0.2, tokens: 350 });
+  });
+
+  test('ABA: another write restoring lastActivityAt cannot let an older total win (re-review item 1)', async () => {
+    // Fixed clock: every `new Date()` in the code under test is t(0), the
+    // session's stored stamp — the reviewer's minimal reproduction.
+    setSystemTime(t(0));
+    try {
+      const s = await newSession();
+      await exec(s, 1.0, 100, null, t(1));
+      // A reads stamp t(0) and the 1-row set. Before A writes: B inserts a
+      // row and recomputes (1.5), then an activity update (updateSessionUsage,
+      // the same path every execution save takes) writes `new Date()` = t(0)
+      // again, restoring the value A compares against.
+      afterRowsRead = async () => {
+        await exec(s, 0.5, 40, null, t(2));
+        await recomputeSessionTotals(asDb(), s);
+        await updateSessionUsage(asDb(), s, { incLlmCalls: 1, recompute: false });
+      };
+      await recomputeSessionTotals(asDb(), s);
+      expect(await totals(s)).toEqual({ cost: 1.5, tokens: 140 });
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('sustained contention never leaves a stale total behind (re-review item 4)', async () => {
+    const s = await newSession();
+    await exec(s, 1.0, 100, null, t(1));
+    // Every read the recompute makes is followed by a competing new row, far
+    // longer than its in-line attempts last — and no later save recomputes.
+    let competing = 12;
+    const compete = async () => {
+      if (competing-- <= 0) return;
+      await exec(s, 0.1, 10, null, t(100 + competing));
+      afterRowsRead = compete;
+    };
+    afterRowsRead = compete;
+    // In-line attempts run out: not verified yet, kept as pending.
+    expect(await recomputeSessionTotals(asDb(), s)).toBe(false);
+    expect(pendingSessionRecomputeCount()).toBe(1);
+    // The recompute itself must guarantee convergence (deferred retry), not
+    // rely on a future save that may never come.
+    await flushPendingSessionRecomputes();
+    expect(pendingSessionRecomputeCount()).toBe(0);
+    expect(await totals(s)).toEqual({ cost: 2.2, tokens: 220 });
   });
 
   test('a missing session is a no-op', async () => {

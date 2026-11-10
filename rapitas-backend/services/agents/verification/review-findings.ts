@@ -43,11 +43,24 @@ export interface ReviewFinding {
 export const MAX_STORED_FINDINGS = 12;
 
 /**
- * Hard bound on findings PARSED from one reply, only to keep a runaway reply
- * from costing unbounded work. Far above any real panel answer; the verdict
- * is decided over everything up to here.
+ * Most findings one reply may carry and still be judged. Far above any real
+ * panel answer; a longer list is not truncated but rejected as an incomplete
+ * reply (see findingsExceedLimit).
  */
-const MAX_PARSED_FINDINGS = 200;
+export const MAX_PARSED_FINDINGS = 200;
+
+/**
+ * Whether a juror's `findings` is too long to judge. Such a reply must be
+ * treated as unreadable ('unknown'), never parsed partially: cutting it at
+ * the limit dropped a 201st evidenced blocker and passed the work (G2
+ * re-review item 3).
+ *
+ * @param raw - The `findings` value from the juror's JSON / 陪審員JSONの findings
+ * @returns True when the list exceeds MAX_PARSED_FINDINGS / 上限超過なら true
+ */
+export function findingsExceedLimit(raw: unknown): boolean {
+  return Array.isArray(raw) && raw.length > MAX_PARSED_FINDINGS;
+}
 
 /** Evidence strings that mean "none" even though the field is filled in. */
 const EMPTY_EVIDENCE_RE = /^(?:なし|無し|不明|n\/?a|none|null|-+|—+|ー+)$/i;
@@ -83,6 +96,8 @@ function normaliseCriterion(raw: unknown): string | undefined {
  */
 export function parseFindings(raw: unknown): ReviewFinding[] | null {
   if (!Array.isArray(raw)) return null;
+  // NOTE: Callers must reject over-limit lists first (findingsExceedLimit);
+  // the cap below only bounds work and would otherwise drop findings.
   const out: ReviewFinding[] = [];
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;

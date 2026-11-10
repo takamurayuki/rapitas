@@ -239,3 +239,38 @@ describe('findings beyond the storage cap still decide the verdict', () => {
     expect(capFindingsForStorage(f.slice(0, 3))).toHaveLength(3);
   });
 });
+
+describe('findings beyond the parse limit (G2 re-review item 3)', () => {
+  const minors200 = Array.from({ length: 200 }, (_, i) => ({
+    severity: 'minor',
+    summary: `nit ${i}`,
+    evidence: `src/n${i}.ts:1`,
+  }));
+  const blocker = { severity: 'blocker', summary: 'data loss', evidence: 'src/db.ts:9' };
+
+  test('200 minor + 1 evidenced blocker (201st) is never a silent pass — the reply is unknown', () => {
+    const v = parseReviewVerdict(
+      JSON.stringify({ verdict: 'pass', findings: [...minors200, blocker] }),
+    );
+    expect(v.verdict).not.toBe('pass');
+    expect(v.verdict).toBe('unknown');
+    expect(v.judged).toBe(false);
+    expect(v.unknownReason).toBe('unparsable');
+  });
+
+  test('exactly at the limit is still judged over every finding', () => {
+    const v = parseReviewVerdict(
+      JSON.stringify({ verdict: 'pass', findings: [...minors200.slice(0, 199), blocker] }),
+    );
+    expect(v.verdict).toBe('fail');
+  });
+
+  test('an over-limit reply does not count as a pass vote in the panel', () => {
+    const over = parseReviewVerdict(
+      JSON.stringify({ verdict: 'pass', findings: [...minors200, blocker] }),
+    );
+    const agg = aggregateJuryVerdicts([{ provider: 'claude', model: 'opus', ...over }]);
+    expect(agg.verdict).toBe('unknown');
+    expect(agg.judged).toBe(false);
+  });
+});

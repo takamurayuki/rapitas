@@ -12,6 +12,7 @@ import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 import type { UnknownReason } from './juror-unknown-reason';
 import {
   parseFindings,
+  findingsExceedLimit,
   capFindingsForStorage,
   formatFindingReason,
   findingSeverityScore,
@@ -150,6 +151,9 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
     let reasons = Array.isArray(obj.reasons)
       ? obj.reasons.filter((r): r is string => typeof r === 'string').slice(0, 10)
       : [];
+    // An over-limit list cannot be judged in full; partial judging could drop
+    // the deciding blocker, so the reply counts as unreadable, not as a vote.
+    if (findingsExceedLimit(obj.findings)) return fail('unknown', 0, []);
     const findings = parseFindings(obj.findings);
 
     if (findings && verdict !== 'unknown') {

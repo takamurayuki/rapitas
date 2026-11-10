@@ -19,6 +19,7 @@ import { writeBlockedTask } from './blocked-task-write';
 import type { WorkflowAdvanceResult } from './workflow-types';
 import {
   withTaskJuryGate,
+  JuryGateBusyError,
   readVerifySha256,
   findJuryGateCompletion,
   recordJuryGateCompletion,
@@ -37,7 +38,7 @@ export interface FallbackJuryOutcome {
   stop: boolean;
   phaseStatus?: WorkflowAdvanceResult['status'];
   /** Why the jury was not run, when it was skipped. */
-  skipped?: 'already_reviewed' | 'conflict_resolution' | 'no_worktree';
+  skipped?: 'already_reviewed' | 'conflict_resolution' | 'no_worktree' | 'gate_busy';
 }
 
 /**
@@ -60,8 +61,22 @@ export async function runFallbackJuryGate(params: {
   worktreePath: string | null;
   actor: TransitionActor;
   sessionId: number;
+  /** Wait limit for the other gate (tests shorten it). */
+  gateMaxWaitMs?: number;
 }): Promise<FallbackJuryOutcome> {
-  return withTaskJuryGate(params.taskId, () => runGateLocked(params));
+  try {
+    return await withTaskJuryGate(params.taskId, () => runGateLocked(params), params.gateMaxWaitMs);
+  } catch (err) {
+    if (!(err instanceof JuryGateBusyError)) throw err;
+    // The other gate is still deciding and owns the outcome: never commit
+    // past it, and never act on the verdict in parallel with it.
+    const live = await prisma.task
+      .findUnique({ where: { id: params.taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    const phaseStatus = (live?.workflowStatus ??
+      params.currentWfStatus) as WorkflowAdvanceResult['status'];
+    return { stop: true, phaseStatus, skipped: 'gate_busy' };
+  }
 }
 
 async function runGateLocked(params: {

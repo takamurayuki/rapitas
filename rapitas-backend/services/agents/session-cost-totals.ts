@@ -18,18 +18,24 @@
  *   ALL rows: a CLI session (`claudeSessionId`) resumed under a NEW
  *   AgentSession continues the chain from the other AgentSession's rows, so
  *   this session is charged only its increment.
- * - The absolute write is compare-and-swap on `lastActivityAt`: a recompute
- *   that read an older row set can never overwrite a newer total.
+ * - Every absolute write is verified against a re-read of the usage rows and
+ *   repeated (in-line, then by a deferred retry) until they agree, so a
+ *   recompute that read an older row set can never leave an older total
+ *   behind (re-review items 1 and 4; see recomputeInline).
  * - Usage recorded outside AgentExecution (AgentAction.tokensUsed) is part of
  *   the total, so a later recompute does not erase it.
  */
 import { attributeIncrementalCosts } from './execution-cost-attribution';
 import { createLogger } from '../../config/logger';
+import { createKeyedRetryQueue } from './keyed-retry-queue';
 
 const log = createLogger('agents:session-cost-totals');
 
-/** CAS retries before giving up (the next recompute repairs the total). */
-const MAX_CAS_ATTEMPTS = 5;
+/** Write-then-verify rounds done in-line before handing over to the deferred retry. */
+const MAX_INLINE_ATTEMPTS = 5;
+/** Backoff of the deferred retry (doubles per retry, capped). */
+const RETRY_BASE_MS = 50;
+const RETRY_MAX_MS = 30_000;
 
 /** One execution row as the recompute reads it. */
 export interface SessionCostRow {
@@ -65,13 +71,9 @@ export interface SessionTotalsDb {
     }): Promise<Array<{ tokensUsed: number | null }>>;
   };
   agentSession: {
-    findUnique(args: {
-      where: { id: number };
-      select: { lastActivityAt: true };
-    }): Promise<{ lastActivityAt: Date } | null>;
     updateMany(args: {
-      where: { id: number; lastActivityAt: Date };
-      data: { totalCostUsd: number; totalTokensUsed: number; lastActivityAt: Date };
+      where: { id: number };
+      data: { totalCostUsd: number; totalTokensUsed: number };
     }): Promise<{ count: number }>;
     update(args: {
       where: { id: number };
@@ -142,39 +144,98 @@ async function readUsage(
   return { rows: [...byId.values()], extraTokens };
 }
 
+type Totals = { totalCostUsd: number; totalTokensUsed: number };
+
+async function readTotals(db: SessionTotalsDb, sessionId: number): Promise<Totals> {
+  const { rows, extraTokens } = await readUsage(db, sessionId);
+  return sessionTotalsFromRows(rows, { sessionId, extraTokens });
+}
+
+const sameTotals = (a: Totals, b: Totals) =>
+  a.totalCostUsd === b.totalCostUsd && a.totalTokensUsed === b.totalTokensUsed;
+
+type InlineResult = 'converged' | 'missing' | 'contended';
+
 /**
- * Rewrite a session's cost/token totals from its recorded usage.
- * Compare-and-swap on `lastActivityAt`: if another writer touched the session
- * between our read and our write, re-read and recompute instead of writing a
- * total built from an older row set.
+ * Write the totals, then re-read the usage they were built from; repeat until
+ * what was written is what the current rows imply.
+ *
+ * Why no version/CAS: totals are a pure function of the usage rows, so the
+ * rows themselves are the only version that matters, and an "ABA" of the rows
+ * is harmless (identical rows ⇒ identical, correct totals). The previous CAS
+ * compared `lastActivityAt`, which eight other paths overwrite with
+ * `new Date()` — within one millisecond that restored the compared value and
+ * let a stale 1.0 replace a newer 1.5 (G2 re-review item 1). A dedicated
+ * version column would need a schema change (prisma generate + server
+ * restart, forbidden from an agent run by CLAUDE.md §1).
+ *
+ * Correctness: the LAST write to the totals is always followed by its
+ * writer's verification read; any usage row added after that read triggers
+ * its own recompute, whose write would come later — so the final value
+ * matches the final rows, provided no writer stops before its write was
+ * verified. Writers that run out of in-line attempts therefore never stop:
+ * they hand over to the deferred retry below (re-review item 4).
+ */
+async function recomputeInline(db: SessionTotalsDb, sessionId: number): Promise<InlineResult> {
+  let totals = await readTotals(db, sessionId);
+  for (let attempt = 0; attempt < MAX_INLINE_ATTEMPTS; attempt++) {
+    const res = await db.agentSession.updateMany({ where: { id: sessionId }, data: totals });
+    if (res.count === 0) return 'missing';
+    const current = await readTotals(db, sessionId);
+    if (sameTotals(current, totals)) return 'converged';
+    totals = current;
+  }
+  return 'contended';
+}
+
+const retries = createKeyedRetryQueue<number>({
+  baseMs: RETRY_BASE_MS,
+  maxMs: RETRY_MAX_MS,
+  onStillPending: (sessionId, n) =>
+    log.warn({ sessionId, retries: n }, '[session-cost] Totals still unverified'),
+  onError: (sessionId, err) =>
+    log.warn({ err, sessionId }, '[session-cost] Deferred recompute failed; retrying'),
+});
+
+/**
+ * Rewrite a session's cost/token totals from its recorded usage, verified
+ * against a re-read of it (recomputeInline). If writers keep changing the
+ * rows past the in-line attempts, the session stays pending and is retried
+ * with backoff until verified — never left to "the next recompute".
  *
  * @param db - Prisma client (or a structural fake) / Prisma クライアント
  * @param sessionId - Session to recompute / 再計算するセッション
- * @returns True when the totals were written / 書き込めたら true
+ * @returns True when the totals were written and verified in-line; false when the session is missing or the verification was deferred / 書き込みと検証が完了したら true（セッション無し・検証を後回しにした場合は false）
  */
 export async function recomputeSessionTotals(
   db: SessionTotalsDb,
   sessionId: number,
 ): Promise<boolean> {
-  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
-    const session = await db.agentSession.findUnique({
-      where: { id: sessionId },
-      select: { lastActivityAt: true },
-    });
-    if (!session) return false;
-    const { rows, extraTokens } = await readUsage(db, sessionId);
-    const totals = sessionTotalsFromRows(rows, { sessionId, extraTokens });
-    // Strictly later than what we read, so a writer that read the same stamp
-    // can never match after we wrote (same-millisecond writes included).
-    const stamp = new Date(Math.max(Date.now(), session.lastActivityAt.getTime() + 1));
-    const res = await db.agentSession.updateMany({
-      where: { id: sessionId, lastActivityAt: session.lastActivityAt },
-      data: { ...totals, lastActivityAt: stamp },
-    });
-    if (res.count > 0) return true;
-  }
-  log.warn({ sessionId }, '[session-cost] Totals not written after repeated concurrent updates');
+  const result = await recomputeInline(db, sessionId);
+  if (result === 'converged') return true;
+  if (result === 'missing') return false;
+  log.warn({ sessionId }, '[session-cost] Totals contended in-line; deferred retry scheduled');
+  // Coalesced per session: the retry re-reads every row.
+  retries.schedule(sessionId, async () => (await recomputeInline(db, sessionId)) === 'contended');
   return false;
+}
+
+/**
+ * Run every pending deferred recompute now (and any it re-schedules) until
+ * none is left. For shutdown hooks and tests; production otherwise relies on
+ * the timers.
+ */
+export async function flushPendingSessionRecomputes(): Promise<void> {
+  await retries.flush();
+}
+
+/**
+ * Number of sessions whose totals are awaiting a deferred, verified recompute.
+ *
+ * @returns Pending session count / 未反映のセッション数
+ */
+export function pendingSessionRecomputeCount(): number {
+  return retries.size();
 }
 
 /**

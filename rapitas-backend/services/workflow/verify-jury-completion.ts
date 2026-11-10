@@ -28,10 +28,23 @@ const COMPLETION_SCAN_LIMIT = 20;
 
 /**
  * Longest a gate waits for the other path's gate on the same task. A jury
- * review is bounded by its juror timeouts; past this the waiter runs its own
- * review (a duplicate review is safe, a deadlocked pipeline is not).
+ * review is bounded by its juror timeouts; past this the waiter STOPS (throws
+ * JuryGateBusyError) instead of running next to a holder that is still
+ * deciding — running anyway let a FAIL bounce and a PASS commit race (G2
+ * re-review item 2). The holder still owns the outcome.
  */
 const DEFAULT_MAX_WAIT_MS = 30 * 60 * 1000;
+
+/** Thrown by withTaskJuryGate when the other gate held the task past the wait limit. */
+export class JuryGateBusyError extends Error {
+  constructor(
+    readonly taskId: number,
+    readonly maxWaitMs: number,
+  ) {
+    super(`Jury gate for task ${taskId} still held after ${maxWaitMs}ms`);
+    this.name = 'JuryGateBusyError';
+  }
+}
 
 /** Which pipeline ran the gate. */
 export type JuryGateSource = 'http_save' | 'cli_epilogue';
@@ -59,10 +72,16 @@ const tails = new Map<number, Promise<void>>();
  * FIFO). Both jury gates live in the backend process, so this is what makes
  * the epilogue wait for an HTTP review that is still deciding.
  *
+ * Exclusive even when a wait expires: the waiter gives up WITHOUT running
+ * `fn`, and its place in the chain still resolves only after the holder, so
+ * a later caller keeps waiting for the holder too. The chain entry is removed
+ * only once everything queued before it has settled.
+ *
  * @param taskId - Task id / タスクID
  * @param fn - The gate body / ゲート本体
- * @param maxWaitMs - Give up waiting after this long and run anyway / 待機上限
+ * @param maxWaitMs - Stop waiting after this long / 待機上限
  * @returns Whatever `fn` returns / fn の戻り値
+ * @throws {JuryGateBusyError} When the previous gate still holds the task after maxWaitMs / 待機上限を超えても先行ゲートが終わらない場合
  */
 export async function withTaskJuryGate<T>(
   taskId: number,
@@ -76,6 +95,9 @@ export async function withTaskJuryGate<T>(
   });
   const tail = previous.then(() => mine);
   tails.set(taskId, tail);
+  void tail.then(() => {
+    if (tails.get(taskId) === tail) tails.delete(taskId);
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timedOut = await Promise.race([
     previous.then(() => false),
@@ -85,16 +107,16 @@ export async function withTaskJuryGate<T>(
   ]);
   clearTimeout(timer);
   if (timedOut) {
-    log.warn(
-      { taskId, maxWaitMs },
-      '[jury-gate] Waited too long for the other gate — running anyway',
-    );
+    // Releasing `mine` keeps the chain intact: `tail` still settles only
+    // after `previous`, so nobody behind us enters while the holder runs.
+    release();
+    log.warn({ taskId, maxWaitMs }, '[jury-gate] Other gate still deciding — stopping this one');
+    throw new JuryGateBusyError(taskId, maxWaitMs);
   }
   try {
     return await fn();
   } finally {
     release();
-    if (tails.get(taskId) === tail) tails.delete(taskId);
   }
 }
 

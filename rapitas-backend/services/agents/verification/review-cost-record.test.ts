@@ -18,8 +18,7 @@ mock.module('../../../config/database', () => ({
   prisma: {
     agentSession: {
       findFirst: sessionFindFirst,
-      // Totals are written compare-and-swap on lastActivityAt (session-cost-totals.ts).
-      findUnique: mock(async () => ({ lastActivityAt: new Date(0) })),
+      // Totals are written then verified against a re-read (session-cost-totals.ts).
       updateMany: sessionUpdate,
     },
     agentExecution: { create: executionCreate, findMany: executionFindMany },
@@ -111,7 +110,7 @@ describe('recordReviewCost', () => {
       ],
     });
     expect(sessionUpdate).toHaveBeenCalledWith({
-      where: { id: 42, lastActivityAt: new Date(0) },
+      where: { id: 42 },
       data: expect.objectContaining({ totalCostUsd: 0.52, totalTokensUsed: 130 }),
     });
   });

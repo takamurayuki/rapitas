@@ -256,3 +256,27 @@ describe('runAdversarialDiffReview — completion record (G2 review item 1)', ()
     expect(completionRecords()).toEqual([]);
   });
 });
+
+describe('runAdversarialDiffReview — gate wait limit (G2 re-review item 2)', () => {
+  test('when the other gate is still deciding past the wait limit, this save stops without reviewing or committing', async () => {
+    const { withTaskJuryGate } =
+      await import('../../../../services/workflow/verify-jury-completion');
+    appendedEvents.length = 0;
+    mockReviewDiffAdversarially.mockReset();
+    mockTaskUpdate.mockClear();
+    let releaseOther!: () => void;
+    const other = withTaskJuryGate(715, () => new Promise<void>((r) => (releaseOther = r)));
+    const out = await runAdversarialDiffReview({ ...buildParams(), gateMaxWaitMs: 10 });
+    // Stale = downstream skips both rollback and commit/PR; the holder decides.
+    expect(out).toEqual({
+      newStatus: 'verify_done',
+      verifyGateBlocked: false,
+      staleVerifyRequest: true,
+    });
+    expect(mockReviewDiffAdversarially).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(completionRecords()).toEqual([]);
+    releaseOther();
+    await other;
+  });
+});
