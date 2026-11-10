@@ -136,8 +136,10 @@ describe('each cause reaches the timeline with its own label', () => {
 });
 
 describe('the pre-registered claim', () => {
+  // NOTE: Two reviewer seats now (claude, gemini in API mode); the verifier is
+  // only asked on a disagreement, so a review where nobody answered has two rows.
   it('reports no unattributed unknown when every juror fails differently', async () => {
-    behaviour = { claude: 'hang', gemini: 'throw', chatgpt: 'garbage' };
+    behaviour = { claude: 'hang', gemini: 'throw' };
     const jurors = await recordedJurors();
     const rows: RecordedJuror[] = jurors.map((j) => ({
       label: j.provider,
@@ -149,21 +151,20 @@ describe('the pre-registered claim', () => {
     // Keyed by reason alone, and the counts sum to the number of unknowns —
     // so an unlabelled path cannot hide inside a neighbour's bucket.
     expect(breakdown.unattributed).toBeUndefined();
-    expect(breakdown).toEqual({ timeout: 1, error: 1, unparsable: 1 });
+    expect(breakdown).toEqual({ timeout: 1, error: 1 });
 
     // Which provider failed which way, since the slide this exists to catch
     // was one provider's unknowns climbing while the others held.
     expect(rows.find((r) => r.label === 'claude')?.unknownReason).toBe('timeout');
     expect(rows.find((r) => r.label === 'gemini')?.unknownReason).toBe('error');
-    expect(rows.find((r) => r.label === 'chatgpt')?.unknownReason).toBe('unparsable');
   });
 
   it('records a full panel that judged nothing, rather than a small panel', async () => {
     behaviour = { claude: 'hang', gemini: 'hang', chatgpt: 'hang' };
     await reviewDiffAdversarially({ taskId: 9001, worktreePath: '/wt/9001' });
     const panel = events.find((e) => e.eventType === 'adversarial_review')?.payload.panel;
-    expect(panel?.planned).toBe(3);
-    expect(panel?.asked).toBe(3);
+    expect(panel?.planned).toBe(2);
+    expect(panel?.asked).toBe(2);
     expect(panel?.judged).toBe(0);
   });
 });

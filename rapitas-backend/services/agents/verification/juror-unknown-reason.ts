@@ -26,7 +26,13 @@ export type UnknownReason =
   /** It answered, but no verdict could be read out of the answer. */
   | 'unparsable'
   /** The gate was switched off, or had no diff to look at. */
-  | 'disabled';
+  | 'disabled'
+  /**
+   * Not asked: the seat is resting after repeated timeouts. The two-reviewer
+   * form records the seat instead of dropping it, so a review that ran on one
+   * reviewer is visibly a single opinion (two-seat-review.ts).
+   */
+  | 'rested';
 
 /** A juror as the timeline records it. */
 export interface RecordedJuror {

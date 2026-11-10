@@ -10,6 +10,7 @@ import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
 import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 
 import type { UnknownReason } from './juror-unknown-reason';
+import type { AwaitingHuman, DisputeSummary, SeatRecord } from './jury-seat-types';
 import {
   parseFindings,
   findingsExceedLimit,
@@ -22,6 +23,12 @@ import {
 export type { ReviewFinding, FindingSeverity } from './review-findings';
 
 export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
+
+/**
+ * The panel-level outcome. `hold` = the review cannot settle it and a human
+ * must decide (review hold); jurors themselves never answer `hold`.
+ */
+export type PanelVerdict = ReviewVerdict | 'hold';
 
 /** One juror's independent verdict (provider = model family). */
 export interface JurorVerdict {
@@ -60,8 +67,13 @@ export interface JurorUsage {
 }
 
 export interface DiffReviewResult {
-  /** 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable. */
-  verdict: ReviewVerdict;
+  /**
+   * 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable
+   * (low risk, proceed); 'hold' = park for a human decision (see awaitingHuman).
+   * NOTE: A caller that only checks `=== 'fail'` would wave a 'hold' through —
+   * both production gates handle it explicitly.
+   */
+  verdict: PanelVerdict;
   /** 0-100; higher = more serious. Only meaningful for 'fail'. */
   severity: number;
   /** Short human-readable reasons (used as self-repair feedback). */
@@ -84,7 +96,20 @@ export interface DiffReviewResult {
    * Lets a later gate tell whether this verdict is about the CURRENT diff.
    */
   diffFingerprint?: string | null;
+  /** 'two_seat' for the two-reviewer form; absent on older recorded reviews. */
+  form?: 'two_seat';
+  /** Every seat by role (reviewer-1, reviewer-2, and the verifier when asked). */
+  seats?: SeatRecord[];
+  /** The verifier step, when the reviewers disagreed. */
+  dispute?: DisputeSummary;
+  /** Present exactly when verdict is 'hold'. */
+  awaitingHuman?: AwaitingHuman;
+  /** The evidence-based risk decision, recorded when the jury was undecided. */
+  unavailableRisk?: { high: boolean; reason: string; source: string; files?: string[] };
 }
+
+/** One juror's parsed reply: a juror never answers 'hold'. */
+export type ParsedJurorReply = Omit<DiffReviewResult, 'verdict'> & { verdict: ReviewVerdict };
 
 /**
  * Whether a "fail" rests on nothing but notes the prompt told the juror must
@@ -112,8 +137,8 @@ export function isNonVerdictOnlyFail(verdict: ReviewVerdict, reasons: string[]):
  * @param text - The judge's raw reply. / ジャッジの応答
  * @returns Parsed verdict. / 解析結果
  */
-export function parseReviewVerdict(text: string | null | undefined): DiffReviewResult {
-  const fail = (verdict: ReviewVerdict, severity: number, reasons: string[]): DiffReviewResult => ({
+export function parseReviewVerdict(text: string | null | undefined): ParsedJurorReply {
+  const fail = (verdict: ReviewVerdict, severity: number, reasons: string[]): ParsedJurorReply => ({
     verdict,
     severity,
     reasons,

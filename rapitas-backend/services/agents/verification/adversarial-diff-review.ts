@@ -1,18 +1,22 @@
 import { parseAcceptanceCriteria } from './review-acceptance-criteria';
 /**
- * Adversarial Diff Review — jury edition
+ * Adversarial Diff Review — two-reviewer form
  *
  * INDEPENDENT adversarial judging of the agent's FINAL diff — distinct from the
- * implementer's self-reported verify.md (which can hallucinate success). Up to
- * three judges from DIFFERENT provider families each score the actual code
- * change against plan.md + acceptance criteria; the verdict is the MAJORITY
- * vote (tie breaks to fail — skeptical default). On FAIL the caller bounces the
- * workflow back to the implementer (self-repair loop).
+ * implementer's self-reported verify.md (which can hallucinate success). Two
+ * blind reviewer seats judge the actual change against plan.md + acceptance
+ * criteria; agreement settles it, and only a disagreement brings in a
+ * non-voting verifier seat that checks the disputed findings' grounds
+ * (two-seat-review.ts). On FAIL the caller bounces the workflow back to the
+ * implementer; on 'hold' it parks the task for a human (review-hold.ts).
  *
- * Availability policy is RISK-GATED: when no judge produced a verdict, low-risk
- * work fails open ('unknown' → proceed) but HIGH-RISK work (schema/auth/payment/
- * security per routing-policy) fails CLOSED — an unavailable jury must not wave
- * through dangerous changes. Read-only; runs no git/tools.
+ * NOTE: This replaced the three-seat majority vote (owner decision 2026-11-10).
+ *
+ * Availability policy is RISK-GATED on EVIDENCE (jury-unavailable-risk.ts):
+ * when no reviewer produced a verdict, or the review errored, low-risk work
+ * proceeds ('unknown') but high-risk work is held for a human ('hold') — an
+ * unavailable jury must not wave through dangerous changes, and must not
+ * bounce work it never judged either. Read-only; runs no git/tools.
  *
  * Research basis (docs/research/autonomous-os-improvement-roadmap.md R1):
  * single LLM judges are near-chance on objective correctness (JudgeBench,
@@ -24,30 +28,19 @@ import { parseAcceptanceCriteria } from './review-acceptance-criteria';
  */
 import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
 import { fingerprintDiff } from './review-diff-fingerprint';
-import { generatedArtifactReason } from './generated-artifact-paths';
-import { buildPanel } from './jury-panel';
+import { buildJuryDiffText } from './jury-diff-text';
 import { summarisePanel } from './juror-unknown-reason';
-import { askJuror, jurorIsRested } from './juror-call';
-import { NOT_REVIEW_COST_ROW } from '../review-cost-rows';
+import { runTwoSeatJury } from './two-seat-jury-run';
 import { readWorkflowFile } from '../../workflow/workflow-file-utils';
-import { detectHighRisk } from '../../workflow/risk-detection';
 import { appendEvent } from '../../memory/timeline';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { resolvePreferredBaseBranch } from '../../task/task-resolver';
-import { mapJurors } from './juror-scheduling';
 import { buildDiffReviewPrompt } from './adversarial-diff-review-prompt';
-import { aggregateJuryVerdicts, type DiffReviewResult } from './adversarial-diff-review-verdict';
+import { decideUnavailableJury, type UnavailableContext } from './jury-unavailable-outcome';
+import type { DiffReviewResult } from './adversarial-diff-review-verdict';
 const log = createLogger('verification:adversarial-diff-review');
 
-/** Max diff characters sent to the judge (keeps token cost bounded). */
-// NOTE: 14000 was too small — a ~260-line multi-file diff silently lost its tail
-// files, and all jurors unanimously (and wrongly) failed the task as
-// "unimplemented" (task 485). Truncation is now explicit per-file with a
-// manifest (buildJuryDiffText); this cap only bounds worst-case token cost.
-const MAX_DIFF_CHARS = 48000;
-/** Minimum patch budget per file so no changed file is entirely invisible. */
-const MIN_FILE_PATCH_CHARS = 1500;
 // NOTE: Prompt text and verdict parsing/aggregation moved to sibling modules
 // (file-size split); re-exported so existing importers keep working.
 export { buildDiffReviewPrompt } from './adversarial-diff-review-prompt';
@@ -58,103 +51,19 @@ export {
 } from './adversarial-diff-review-verdict';
 export type {
   ReviewVerdict,
+  PanelVerdict,
   JurorVerdict,
   DiffReviewResult,
   ReviewFinding,
   FindingSeverity,
 } from './adversarial-diff-review-verdict';
 
-/** One changed file as returned by getDiff (subset used for jury text). */
-export interface JuryDiffFile {
-  filename: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  patch?: string | null;
-}
-
-/**
- * Build the diff text shown to jurors, with TRUNCATION MADE EXPLICIT.
- *
- * The manifest (every changed file + its +/- stats) is always complete; only
- * patch BODIES are budgeted. When a patch is cut, an explicit [省略] marker is
- * inserted and a banner tells jurors not to treat manifest-listed files as
- * unimplemented — silent tail-truncation previously caused unanimous false
- * FAIL verdicts ("file X missing from diff") on large-but-correct diffs.
- *
- * @param files - Structured diff entries. / 構造化差分
- * @param maxChars - Total character budget. / 全体の文字数上限
- * @returns Jury-facing diff text. / 陪審に渡す差分テキスト
- */
-export function buildJuryDiffText(files: JuryDiffFile[], maxChars = MAX_DIFF_CHARS): string {
-  if (files.length === 0) return '';
-  // Mark build artifacts in the manifest. Task 1107 was failed for scope drift
-  // on unrelated keys inside messages/{en,ja}.json — regenerated by
-  // generate-messages.mjs on every pretest, so that churn is the build, not the
-  // agent's scope. Unmarked, scope creep was the only reading available.
-  let anyGenerated = false;
-  const manifest = files
-    .map((f) => {
-      const reason = generatedArtifactReason(f.filename);
-      if (reason) anyGenerated = true;
-      const mark = reason ? `  ← 生成物（${reason}）` : '';
-      return `- ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})${mark}`;
-    })
-    .join('\n');
-  const generatedNote = anyGenerated
-    ? '\n（注: 「生成物」と記した行は生成器が出力するファイルです。本タスクと無関係な既存行が' +
-      '動くのは生成器が走ったためであり、エージェントがスコープを広げたのではありません。' +
-      'これを根拠にスコープ逸脱と判定しないでください。手書きファイルの変更だけで判断してください。）\n'
-    : '';
-  const header = `### 変更ファイル一覧（全${files.length}件 — この一覧は省略なしの完全なもの）\n${manifest}\n${generatedNote}\n### 差分本文\n`;
-
-  let remaining = Math.max(0, maxChars - header.length);
-  const parts: string[] = [];
-  let truncated = false;
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const head = `--- ${f.filename} (${f.status}, +${f.additions}/-${f.deletions})\n`;
-    const patch = f.patch ?? '';
-    // Fair share of what's left, but never starve a file below the floor —
-    // every file must be at least partially visible to the jury.
-    const budget = Math.max(MIN_FILE_PATCH_CHARS, Math.floor(remaining / (files.length - i)));
-    let body = patch;
-    if (patch.length > budget) {
-      body = `${patch.slice(0, budget)}\n…[省略: このファイルの差分は文字数制限で途中までしか表示されていません]`;
-      truncated = true;
-    }
-    parts.push(head + body);
-    remaining = Math.max(0, remaining - (head.length + body.length));
-  }
-
-  const banner = truncated
-    ? '⚠️ 注意: 差分本文は長さ制限により一部省略されています（[省略]マーカー参照）。冒頭の「変更ファイル一覧」は完全です。一覧に載っているファイルの変更が差分本文に見えないことを根拠に「未実装」と判定しないでください。省略部分は一覧の+/-統計と表示されている範囲から判断してください。\n\n'
-    : '';
-  return banner + header + parts.join('\n\n');
-}
+export { buildJuryDiffText, type JuryDiffFile } from './jury-diff-text';
 
 /** Whether the adversarial review is enabled (default ON; set 0/false to skip). */
 export function isAdversarialReviewEnabled(): boolean {
   const v = (process.env.RAPITAS_ADVERSARIAL_REVIEW || '').trim().toLowerCase();
   return v !== '0' && v !== 'false' && v !== 'off';
-}
-
-/**
- * Best-effort: the model the implementer ran, so it judges itself last.
- *
- * NOTE: Excludes the jury's own cost rows — after one review the newest row of
- * the task is a juror's, and reading its modelName would seat a juror model
- * as "the implementer" on the next review.
- */
-async function implementerModelId(taskId: number): Promise<string | null> {
-  const exec = await prisma.agentExecution
-    .findFirst({
-      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
-      orderBy: { createdAt: 'desc' },
-      select: { modelName: true },
-    })
-    .catch(() => null);
-  return exec?.modelName ?? null;
 }
 
 // NOTE: Juror calls, their timeout and the per-provider timeout history moved
@@ -200,16 +109,17 @@ async function loadJuryMeasurementInputs(
 }
 
 /**
- * Run the adversarial diff review for a task with a cross-provider jury.
+ * Run the adversarial diff review for a task with the two-reviewer jury.
  *
- * Availability: 'unknown' when disabled or no diff. When ALL jurors are
- * unavailable, low-risk work fails open ('unknown') but high-risk work
- * (routing-policy detectHighRisk) fails CLOSED with a synthetic 'fail'.
+ * Availability: 'unknown' when disabled or no diff. When no reviewer produced
+ * a verdict, or the review itself errored, the evidence-based risk decides
+ * (decideUnavailableJury): low risk → 'unknown' (proceed, recorded), high
+ * risk → 'hold' (a human decides; never a bounce for work nobody judged).
  *
  * @param params.taskId - Task under review. / 対象タスク
  * @param params.worktreePath - The task's git worktree (diff source). / worktree
  * @param params.suppressEventLog - Skip the `adversarial_review` timeline write (dry-run callers record their own `dry_run_executed` event instead, keeping judge-calibration data free of non-production verdicts). / タイムライン記録を抑止する（ドライラン専用）
- * @returns The aggregated jury verdict. / 陪審の集計判定
+ * @returns The review result. / レビュー結果
  */
 export async function reviewDiffAdversarially(params: {
   taskId: number;
@@ -227,6 +137,9 @@ export async function reviewDiffAdversarially(params: {
     };
   }
 
+  // Filled in as the review proceeds, so an exception still has whatever
+  // evidence was already read for the risk decision.
+  const seen: UnavailableContext = { taskId };
   try {
     // The worktree's ACTUAL fork point, not a guess — resolveBaseRef otherwise
     // tries develop→main→master and takes the first that resolves, which can
@@ -241,12 +154,15 @@ export async function reviewDiffAdversarially(params: {
     const diff = await getDiff(worktreePath, undefined, preferredBaseBranch ?? undefined);
     const diffText = buildJuryDiffText(diff);
     const diffFingerprint = fingerprintDiff(diff);
+    seen.changedFiles = diff.map((f) => f.filename);
+    seen.diffFingerprint = diffFingerprint;
     if (!diffText.trim()) {
       // No code change to review — the completion gate already governs no-op.
       return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
     }
 
     const planContent = (await readWorkflowFile(taskId, 'plan')) ?? '';
+    seen.planContent = planContent;
     const task = await prisma.task
       .findUnique({
         where: { id: taskId },
@@ -259,11 +175,14 @@ export async function reviewDiffAdversarially(params: {
         },
       })
       .catch(() => null);
+    seen.title = task?.title;
+    seen.description = task?.description;
     const acceptanceCriteria = parseAcceptanceCriteria(task?.acceptanceCriteria);
     const measured = await loadJuryMeasurementInputs(taskId, { worktreePath, diffFingerprint });
 
+    const taskTitle = task?.title ?? `task-${taskId}`;
     const prompt = buildDiffReviewPrompt({
-      taskTitle: task?.title ?? `task-${taskId}`,
+      taskTitle,
       taskDescription: task?.description,
       // Same JSON-string-array encoding as acceptanceCriteria.
       goals: parseAcceptanceCriteria(task?.goals),
@@ -275,34 +194,28 @@ export async function reviewDiffAdversarially(params: {
       verifyClaim: measured.verifyClaim,
     });
 
-    // Jury: every juror judges INDEPENDENTLY (no debate — independent votes
-    // measurably beat argumentative protocols). The implementer's own model
-    // is seated last; see jury-panel.ts for why it is never dropped.
-    const order = buildPanel({ implementerModel: await implementerModelId(taskId) });
-    // Skip jurors resting after repeated timeouts — they would only add the
-    // full timeout to this review and answer 'unknown' anyway. If that would
-    // empty the panel, ask everyone: a blind gate is worse than a slow one.
-    const nowMs = Date.now();
-    const awake = order.filter((seat) => !jurorIsRested(seat.label, nowMs));
-    const panel = awake.length > 0 ? awake : order;
-    if (panel.length < order.length) {
-      log.info(
-        { rested: order.filter((seat) => !panel.includes(seat)).map((seat) => seat.label) },
-        '[adversarial-review] Skipping jurors that keep timing out',
-      );
-    }
-    const jurors = await mapJurors(panel, (seat) => askJuror(seat, prompt));
+    // Two blind reviewers (same prompt, separate calls); the verifier seat
+    // only on a disagreement, shown only the disputed findings.
+    const run = await runTwoSeatJury(prompt, {
+      taskTitle,
+      acceptanceCriteria,
+      planContent,
+      diffText,
+    });
+    const jurors = run.result.jurors ?? [];
+    seen.jurors = jurors;
     // A fail about a plan item that a sibling PR already put on the base ref can
     // never be fixed by the diff — drop it deterministically (task 1196).
     const { applyBaseSatisfiedFilter } = await import('./base-satisfied-plan-items');
-    const aggregated = await applyBaseSatisfiedFilter(aggregateJuryVerdicts(jurors), {
+    let result = await applyBaseSatisfiedFilter(run.result, {
       worktreePath,
       preferredBaseBranch,
       planContent,
-      changedFiles: diff.map((f) => f.filename),
+      changedFiles: seen.changedFiles,
     });
+    if (result.verdict === 'unknown') result = await decideUnavailableJury(seen, result);
 
-    // Durable per-juror record for judge-reliability calibration; skipped for
+    // Durable per-seat record for judge-reliability calibration; skipped for
     // dry runs (suppressEventLog) — a dry-run verdict isn't a realized outcome.
     if (!suppressEventLog) {
       void appendEvent({
@@ -310,11 +223,14 @@ export async function reviewDiffAdversarially(params: {
         actorType: 'system',
         payload: {
           taskId,
-          verdict: aggregated.verdict,
-          severity: aggregated.severity,
+          form: 'two_seat',
+          verdict: result.verdict,
+          severity: result.severity,
           jurors: jurors.map((j) => ({
             provider: j.provider,
             model: j.model,
+            seatId: (j as { seatId?: string }).seatId,
+            role: (j as { role?: string }).role,
             verdict: j.verdict,
             severity: j.severity,
             reasons: j.reasons,
@@ -323,22 +239,25 @@ export async function reviewDiffAdversarially(params: {
             costUsd: j.usage?.costUsd,
             tokensUsed: j.usage?.tokensUsed,
           })),
-          // Panel-wide findings, kept on PASS too (minor → recorded only).
-          findings: aggregated.findings ?? [],
+          seats: result.seats ?? [],
+          // Findings of both reviewers, kept on PASS too (minor → recorded
+          // only), with the verifier's check on the disputed ones.
+          findings: result.findings ?? [],
+          dispute: result.dispute,
+          awaitingHuman: result.awaitingHuman,
+          unavailableRisk: result.unavailableRisk,
           // Whether the jury saw a measured verification (independence audit),
           // and whether one existed but was about another diff/worktree.
           measuredInput: measured.measuredVerification != null,
           measurementStale: measured.stale,
           diffFingerprint,
-          // Seats planned vs seats asked. A juror rested after repeated
-          // timeouts is dropped before anyone is asked, so without this the
-          // review reads as a smaller jury that answered in full — which is
-          // exactly how the panel shrank to one voter unnoticed.
+          // Seats planned vs seats asked, so a review that ran on one reviewer
+          // never reads as a full panel.
           panel: summarisePanel({
-            planned: order.map((seat) => ({ label: seat.label })),
-            asked: panel.map((seat) => ({ label: seat.label })),
+            planned: run.planned.map((seat) => ({ label: seat.seatId })),
+            asked: run.asked.map((seat) => ({ label: seat.seatId })),
             jurors: jurors.map((j) => ({
-              label: `${j.provider}:${j.model ?? ''}`,
+              label: (j as { seatId?: string }).seatId ?? `${j.provider}:${j.model ?? ''}`,
               verdict: j.verdict,
               unknownReason: j.unknownReason,
             })),
@@ -346,53 +265,39 @@ export async function reviewDiffAdversarially(params: {
         },
         correlationId: `task-${taskId}`,
       }).catch(() => {});
-      // Spend of this review, as AgentExecution rows under the task's newest
-      // session (dry runs skip it with the event: not a production review).
+      // Spend of this review (verifier included), as AgentExecution rows under
+      // the task's newest session (dry runs skip it with the event).
       const { recordReviewCost } = await import('./review-cost-record');
-      await recordReviewCost({ taskId, jurors, verdict: aggregated.verdict });
+      await recordReviewCost({ taskId, jurors, verdict: result.verdict });
     }
 
-    if (aggregated.verdict !== 'unknown') {
-      log.info(
-        {
-          taskId,
-          verdict: aggregated.verdict,
-          severity: aggregated.severity,
-          votes: jurors.map((j) => `${j.model ?? j.provider}:${j.verdict}`).join(','),
-        },
-        '[adversarial-review] Jury verdict',
-      );
-      return { ...aggregated, diffFingerprint };
-    }
-
-    // No juror produced a verdict — risk-gated availability policy.
-    const risk = detectHighRisk({
-      text: `${task?.title ?? ''}\n${task?.description ?? ''}`,
-      planContent,
-    });
-    if (risk.high) {
-      log.warn(
-        { taskId, riskReason: risk.reason },
-        '[adversarial-review] Jury unavailable on HIGH-RISK change — failing closed',
-      );
-      return {
-        verdict: 'fail',
-        severity: 70,
-        reasons: [
-          '差分レビューのジャッジが利用できませんでした。高リスク変更（スキーマ/認証/決済/セキュリティ）のため安全側でブロックします。ジャッジ復旧後に再検証してください。',
-        ],
-        judged: false,
-        jurors,
-        diffFingerprint,
-      };
-    }
-    log.warn({ taskId }, '[adversarial-review] Jury unavailable on low-risk change — failing open');
-    // Every juror answered 'unknown'; their own reasons are on the rows.
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors, diffFingerprint };
+    log.info(
+      {
+        taskId,
+        verdict: result.verdict,
+        severity: result.severity,
+        seats: (result.seats ?? []).map((s) => `${s.seatId}:${s.verdict}`).join(','),
+      },
+      '[adversarial-review] Review outcome',
+    );
+    return { ...result, diffFingerprint };
   } catch (err) {
     // The gate was on and the pipeline broke — distinct from 'disabled',
-    // which is the operator switching it off.
-    log.warn({ err, taskId }, '[adversarial-review] Review errored — failing open');
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, unknownReason: 'error' };
+    // which is the operator switching it off. Same risk policy as an
+    // unavailable jury, on whatever evidence was read before the error.
+    log.warn({ err, taskId }, '[adversarial-review] Review errored');
+    return decideUnavailableJury(seen, {
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'error',
+    }).catch(() => ({
+      verdict: 'unknown' as const,
+      severity: 0,
+      reasons: [],
+      judged: false,
+      unknownReason: 'error' as const,
+    }));
   }
 }

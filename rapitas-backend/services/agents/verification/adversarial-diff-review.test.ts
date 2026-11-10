@@ -311,7 +311,7 @@ describe('isAdversarialReviewEnabled', () => {
 });
 
 describe('reviewDiffAdversarially', () => {
-  it('CLI mode holds high-risk work when the whole panel is unavailable', async () => {
+  it('CLI mode holds high-risk work for a human when both reviewer seats are unavailable', async () => {
     auxMode = 'cli';
     taskFindUnique.mockResolvedValue({
       title: 'Change login password validation',
@@ -320,48 +320,70 @@ describe('reviewDiffAdversarially', () => {
     sendAIMessage.mockRejectedValue(new Error('Claude unavailable'));
     try {
       const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-      expect(result.verdict).toBe('fail');
+      // NOTE: was a synthetic 'fail' (bounce to the implementer for a diff
+      // nobody judged); now the task is held for a human decision.
+      expect(result.verdict).toBe('hold');
       expect(result.judged).toBe(false);
-      // Every seat is tried before a high-risk change is held: the panel is
-      // three Claude models now, not one provider with two refusals.
-      expect(sendAIMessage).toHaveBeenCalledTimes(3);
+      expect(result.awaitingHuman?.reason).toBe('jury_unavailable_high_risk');
+      // Both reviewer seats are tried before the change is held; the verifier
+      // is only asked on a disagreement.
+      expect(sendAIMessage).toHaveBeenCalledTimes(2);
     } finally {
       auxMode = 'api';
     }
   });
 
-  it('CLI mode seats three Claude jurors (Opus/Sonnet/Sonnet), so a majority exists', async () => {
-    // Measured 2026-10-21: 209 of 209 October reviews had exactly one real
-    // voter, because the Gemini and OpenAI seats answered "unavailable in
-    // Claude-only auxiliary CLI mode". A panel of one cannot outvote itself,
-    // and 51.4% of that voter's fails were contested wherever a second
-    // opinion existed.
+  it('CLI mode seats two blind reviewers (Opus / Sonnet) and asks no verifier when they agree', async () => {
     auxMode = 'cli';
     try {
       const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
       expect(result.verdict).toBe('pass');
-      expect(sendAIMessage).toHaveBeenCalledTimes(3);
+      expect(result.form).toBe('two_seat');
+      expect(sendAIMessage).toHaveBeenCalledTimes(2);
       const asked = (
-        sendAIMessage.mock.calls as unknown as Array<[{ provider: string; model: string }]>
+        sendAIMessage.mock.calls as unknown as Array<
+          [{ provider: string; model: string; messages: Array<{ content: string }> }]
+        >
       ).map((c) => c[0]);
       expect(asked.every((a) => a.provider === 'claude')).toBe(true);
-      expect(asked.map((a) => a.model).sort()).toEqual([
+      expect(asked.map((a) => a.model)).toEqual([
         'claude-opus-4-20250514',
         'claude-sonnet-4-20250514',
-        'claude-sonnet-4-20250514',
       ]);
+      // Blind: both get the identical prompt, so neither sees the other's answer.
+      expect(asked[0].messages[0].content).toBe(asked[1].messages[0].content);
       const event = (
         appendEventMock.mock.calls as unknown as Array<
-          [{ payload: { jurors: Array<{ provider: string; model?: string; verdict: string }> } }]
+          [{ payload: { jurors: Array<{ seatId?: string; role?: string; verdict: string }> } }]
         >
       ).at(-1)![0];
-      // No placeholder seats: every recorded juror actually voted, so the
-      // contested-fail rate can be read straight off these rows.
-      expect(event.payload.jurors).toHaveLength(3);
-      expect(event.payload.jurors.every((j) => j.verdict === 'pass')).toBe(true);
-      expect(event.payload.jurors.map((j) => j.model).filter((m) => m?.includes('haiku'))).toEqual(
-        [],
-      );
+      expect(event.payload.jurors.map((j) => [j.seatId, j.role, j.verdict])).toEqual([
+        ['reviewer-1', 'reviewer', 'pass'],
+        ['reviewer-2', 'reviewer', 'pass'],
+      ]);
+    } finally {
+      auxMode = 'api';
+    }
+  });
+
+  it('asks the verifier only on a disagreement, and a refuted finding is dropped', async () => {
+    auxMode = 'cli';
+    sendAIMessage
+      .mockResolvedValueOnce({ content: FAIL_REPLY(90, 'null 未処理') })
+      .mockResolvedValueOnce({ content: '{"verdict":"pass","findings":[]}' })
+      .mockResolvedValueOnce({
+        content: '{"results":[{"index":1,"status":"refuted","note":"呼び出し元で除外済み"}]}',
+      });
+    try {
+      const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+      expect(sendAIMessage).toHaveBeenCalledTimes(3);
+      const verifierPrompt = (
+        sendAIMessage.mock.calls as unknown as Array<[{ messages: Array<{ content: string }> }]>
+      )[2][0].messages[0].content;
+      expect(verifierPrompt).toContain('null 未処理');
+      expect(r.verdict).toBe('pass');
+      expect(r.findings?.[0]).toMatchObject({ seatId: 'reviewer-1', verification: 'refuted' });
+      expect(r.seats?.map((s) => s.seatId)).toEqual(['reviewer-1', 'reviewer-2', 'verifier']);
     } finally {
       auxMode = 'api';
     }
@@ -427,25 +449,27 @@ describe('reviewDiffAdversarially', () => {
     // toMatchObject rather than toEqual so this doesn't hardcode the jurors[]
     // array's exact contents/order.
     expect(r).toMatchObject({ verdict: 'pass', severity: 0, reasons: [], judged: true });
-    expect(sendAIMessage).toHaveBeenCalledTimes(3);
+    // Two reviewer seats; no verifier when they agree.
+    expect(sendAIMessage).toHaveBeenCalledTimes(2);
   });
 
   it('fails open when every judge provider throws', async () => {
     sendAIMessage.mockRejectedValue(new Error('provider down'));
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r).toMatchObject({ verdict: 'unknown', severity: 0, reasons: [], judged: false });
-    // All 3 configured judge providers were attempted.
-    expect(sendAIMessage).toHaveBeenCalledTimes(3);
+    // Both reviewer seats were attempted; low risk proceeds with the risk recorded.
+    expect(sendAIMessage).toHaveBeenCalledTimes(2);
+    expect(r.unavailableRisk).toMatchObject({ high: false });
   });
 
-  it('falls through to the next provider when one returns an unparseable reply', async () => {
+  it('a single answering reviewer cannot bounce work alone: its fail goes to the verifier', async () => {
     sendAIMessage
       .mockResolvedValueOnce({ content: 'not json at all' })
-      .mockResolvedValueOnce({ content: FAIL_REPLY(90, 'bad') });
+      .mockResolvedValueOnce({ content: FAIL_REPLY(90, 'bad') })
+      .mockResolvedValueOnce({ content: '{"results":[{"index":1,"status":"holds"}]}' });
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r.verdict).toBe('fail');
-    // All 3 jurors are queried in parallel regardless (2 explicit mocks + the
-    // 3rd falls back to the default 'pass' set in beforeEach).
+    expect(r.dispute).toMatchObject({ basis: 'single_reviewer', upheld: 1 });
     expect(sendAIMessage).toHaveBeenCalledTimes(3);
   });
 
@@ -454,13 +478,25 @@ describe('reviewDiffAdversarially', () => {
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     // 'error', not 'disabled': the gate was on and the pipeline broke. The
     // whole point of the field is that those two are not the same event.
-    expect(r).toEqual({
+    // Same evidence-based risk policy as an unavailable jury (low risk here).
+    expect(r).toMatchObject({
       verdict: 'unknown',
       severity: 0,
       reasons: [],
       judged: false,
       unknownReason: 'error',
     });
+    expect(r.unavailableRisk?.high).toBe(false);
+  });
+
+  it('holds a high-risk change for a human when the review pipeline throws', async () => {
+    getDiff.mockRejectedValue(new Error('git blew up'));
+    readWorkflowFile.mockImplementation((_id: number, type: string) =>
+      Promise.resolve(type === 'research' ? '## リスク判定\nリスク: 高\n対象領域: 認証\n' : ''),
+    );
+    const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(r).toMatchObject({ verdict: 'hold', unknownReason: 'error' });
+    expect(r.unavailableRisk?.source).toBe('research_verdict');
   });
 
   it('counts a wedged juror as unknown instead of holding the request open', async () => {
@@ -488,7 +524,10 @@ describe('reviewDiffAdversarially', () => {
     });
     const r = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(r.judged).toBe(true);
-    expect(r.verdict).toBe('fail');
+    // Reviewer-1 wedged, reviewer-2 failed: one opinion, checked by the
+    // verifier (which here answers with the fail JSON → unreadable → a human).
+    expect(r.verdict).toBe('hold');
+    expect(r.seats?.[0]).toMatchObject({ seatId: 'reviewer-1', unknownReason: 'timeout' });
     delete process.env.RAPITAS_ADVERSARIAL_JUROR_TIMEOUT_MS;
   });
 
@@ -521,18 +560,9 @@ describe('reviewDiffAdversarially', () => {
     expect(getDiff).toHaveBeenCalledWith('/wt', undefined, undefined);
   });
 
-  it("orders the implementer's own provider LAST among judge candidates", async () => {
-    // The implementer used claude — the judge should try gemini/chatgpt first.
-    agentExecutionFindFirst.mockResolvedValue({ modelName: 'claude-3-5-sonnet' });
-    const calledProviders: string[] = [];
-    sendAIMessage.mockImplementation((opts: { provider: string }) => {
-      calledProviders.push(opts.provider);
-      return Promise.resolve({ content: '{"verdict":"pass","severity":0,"reasons":[]}' });
-    });
-    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
-    // First call must NOT be 'claude' (the implementer's own provider).
-    expect(calledProviders[0]).not.toBe('claude');
-  });
+  // NOTE: "orders the implementer's own provider LAST" was removed with the
+  // three-seat panel: seats are now roles with fixed tiers (jury-seats.ts), and
+  // vendor-aware seat assignment is the next package's scope.
 
   it('records the adversarial_review timeline event by default (suppressEventLog omitted)', async () => {
     await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
@@ -620,14 +650,13 @@ describe('reviewDiffAdversarially — findings, inputs and cost (stage 1)', () =
     auxMode = 'api';
   });
 
-  it('never reads a jury cost row as the implementer run', async () => {
+  // NOTE: Seats are roles with fixed tiers now, so the review no longer reads
+  // "the implementer's model" from the newest execution at all — which also
+  // means a jury cost row can never be mistaken for the implementer run.
+  it('never reads the newest execution (so never a jury cost row) to seat the jury', async () => {
     sendAIMessage.mockResolvedValue({ content: '{"verdict":"pass","findings":[]}' });
     await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
-    expect(agentExecutionFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { command: { not: 'adversarial-review' }, session: { config: { taskId: 3 } } },
-      }),
-    );
+    expect(agentExecutionFindFirst).not.toHaveBeenCalled();
   });
 
   it('keeps minor findings on a PASS in the timeline event', async () => {
@@ -641,11 +670,12 @@ describe('reviewDiffAdversarially — findings, inputs and cost (stage 1)', () =
     });
     const r = await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
     expect(r.verdict).toBe('pass');
-    expect(r.findings).toHaveLength(3);
+    // One minor finding from each of the two reviewer seats.
+    expect(r.findings).toHaveLength(2);
     const event = (
       appendEventMock.mock.calls as unknown as Array<[{ payload: Record<string, unknown> }]>
     ).at(-1)![0];
-    expect(event.payload.findings).toHaveLength(3);
+    expect(event.payload.findings).toHaveLength(2);
     expect((event.payload.jurors as Array<{ findings: unknown[] }>)[0].findings).toHaveLength(1);
   });
 
