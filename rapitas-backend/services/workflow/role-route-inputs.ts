@@ -45,6 +45,13 @@ export interface RoleRouteResult {
   routingFailed?: boolean;
 }
 
+/**
+ * Roles whose floor counts verified capability bounces as retries. A bounce
+ * rejects the implementer's diff; review roles follow it up through
+ * raiseFloorToExecutor rather than escalating on their own.
+ */
+const REPAIR_ESCALATED_ROLES = new Set(['implementer']);
+
 /** Roles whose routing also inspects plan.md for risky planned file paths. */
 const PLAN_AWARE_ROLES = new Set(['implementer', 'verifier', 'auto_verifier']);
 
@@ -134,6 +141,16 @@ export async function routeModelForRole(opts: {
     // defense in depth.
     const themeEscalation = await recentThemeEscalation(task.themeId ?? null).catch(() => 0);
     const taskRetries = queueItem?.retryCount ?? 0;
+    // The repair loop bounces back to the implementer WITHOUT bumping the
+    // queue's retryCount, so a rejected weak model used to run again on the
+    // same floor and pin. Count the bounces by cause; only verified capability
+    // gaps escalate (infrastructure / requirement / unfounded ones do not).
+    const repairCauses = REPAIR_ESCALATED_ROLES.has(role)
+      ? await import('./repair-escalation')
+          .then((m) => m.summarizeRepairCauses(taskId))
+          .catch(() => null)
+      : null;
+    const capabilityRepairs = repairCauses?.capability ?? 0;
 
     const planContent = PLAN_AWARE_ROLES.has(role)
       ? await readWorkflowFile(taskId, 'plan').catch(() => null)
@@ -162,13 +179,12 @@ export async function routeModelForRole(opts: {
     // and high-risk work, keep their premium floors and never downgrade on
     // history.
     const provenTier =
-      taskRetries === 0 && !riskHigh
+      taskRetries === 0 && capabilityRepairs === 0 && !riskHigh
         ? await resolveProvenTier(role).catch(() => undefined)
         : undefined;
 
-    // Does the RECORD say premium outperforms standard for this role? An
-    // upgrade has to earn itself, the same way resolveProvenTier makes a
-    // downgrade earn itself. undefined = not enough evidence, floor unchanged.
+    // Premium suppression is suspended (routing-policy.ts); the verdict is
+    // still read so the trace shows where it WOULD have capped the floor.
     const premiumAdvantage = await resolvePremiumAdvantage(role).catch(() => undefined);
 
     // Spend backstop (task 658 ran four premium phases for $50.04 unnoticed).
@@ -197,6 +213,7 @@ export async function routeModelForRole(opts: {
       // the previous failure - a spend limit or a timeout could not.
       retryCause: queueItem?.errorMessage ?? null,
       premiumJustified: premiumAdvantage?.justified,
+      capabilityRepairs,
     });
     // A review role judges the implementer's work, so its floor is at least the
     // executor's tier — the same rule the jury seats follow (G2 routing1 item 4).
@@ -206,7 +223,7 @@ export async function routeModelForRole(opts: {
     const minTier = reviewFloor?.tier ?? policyFloor.tier;
     const minTierReason = reviewFloor?.reason ?? policyFloor.reason;
 
-    // NOTE (determinism): pinned per taskId+role+minTier+capTier so a same-phase
+    // NOTE (determinism): pinned per taskId+role+minTier+capTier+hardCapTier so a same-phase
     // retry reuses the SAME model instead of silently re-routing. A genuine
     // escalation/risk/evidence change computes a different key.
     const route = await getStableSmartRoute(taskId, role, {
@@ -239,11 +256,15 @@ export async function routeModelForRole(opts: {
         minTierReason: minTierReason ?? null,
         provenTier: provenTier ?? null,
         taskRetries,
+        repairCauses,
         themeEscalation,
         riskHigh,
         riskReason: riskReason ?? null,
         riskSource: evidence?.source ?? 'task_text_keywords',
         premiumJustified: premiumAdvantage?.justified ?? null,
+        // Suspended for every route; `WouldApply` marks the routes it would have capped.
+        premiumSuppression: 'suspended',
+        premiumSuppressionWouldApply: policyFloor.premiumSuppressionSuspended ?? false,
         taskSpentUsd: budget?.spentUsd ?? null,
         budgetCapTier: budget?.capTier ?? null,
         budgetSpendUnknown: budget?.spendUnknown ?? false,

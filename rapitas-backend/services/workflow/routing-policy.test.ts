@@ -122,8 +122,11 @@ describe('computeMinTier', () => {
     });
   });
 
-  describe('premium 昇格は実績で正当化される必要がある', () => {
-    test('premium に standard を上回る実績が無ければ standard に抑制', () => {
+  describe('premium 昇格の実績判定（抑制は routing2a E で暫定停止）', () => {
+    // NOTE: Used to assert the cap to standard. The suppression is suspended
+    // because its axis (process exit / reason-text consistency) does not
+    // measure quality — see routing-policy.repair-escalation.test.ts.
+    test('premium に standard を上回る実績が無くても premium のまま（停止を理由に残す）', () => {
       const r = computeMinTierWithReason({
         role: 'implementer',
         taskRetries: 1,
@@ -131,8 +134,8 @@ describe('computeMinTier', () => {
         retryCause: 'diff rejected',
         premiumJustified: false,
       });
-      expect(r.tier).toBe('standard');
-      expect(r.reason).toContain('premium実績なし');
+      expect(r.tier).toBe('premium');
+      expect(r.reason).toContain('premium抑制は暫定停止中');
     });
 
     test('実績があれば premium のまま', () => {
