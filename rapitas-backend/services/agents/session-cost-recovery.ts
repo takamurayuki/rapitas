@@ -206,13 +206,23 @@ export async function drainSessionRecomputesForShutdown(opts: {
   // resumes it from the persisted cursor (re-review4 P2).
   const sweepStopped = stopBackgroundSessionSweep();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // NOTE: Promise.race does not cancel the losing continuation, so the
+  // decision to start the flush (and each further flush round) is made
+  // against this flag, inside the budget: once it has run out, nothing new
+  // touches the DB after the drain returns (re-review5 P2). A recompute
+  // already in flight still finishes; cutting it would leave a write unverified.
+  let expired = false;
   const budget = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), opts.timeoutMs);
+    timer = setTimeout(() => {
+      expired = true;
+      resolve('timeout');
+    }, opts.timeoutMs);
   });
   try {
     const outcome = await Promise.race([
       sweepStopped
-        .then(() => flushPendingSessionRecomputes(SHUTDOWN_MAX_ROUNDS))
+        // Checked before the first round too, so a late stop starts no flush.
+        .then(() => flushPendingSessionRecomputes(SHUTDOWN_MAX_ROUNDS, () => expired))
         .then(() => 'done' as const),
       budget,
     ]);

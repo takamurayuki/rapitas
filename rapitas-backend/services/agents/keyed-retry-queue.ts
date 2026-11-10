@@ -27,8 +27,12 @@ export interface KeyedRetryQueueOptions<K> {
 export interface KeyedRetryQueue<K> {
   /** Queue `job` for `key` unless one is already pending (the pending one covers it). */
   schedule(key: K, job: RetryJob): void;
-  /** Run every pending job now, repeating until none is left (or `maxRounds`). */
-  flush(maxRounds?: number): Promise<void>;
+  /**
+   * Run every pending job now, repeating until none is left (or `maxRounds`,
+   * or `shouldStop()` turns true — checked before each round, so a round in
+   * flight finishes but no new one starts).
+   */
+  flush(maxRounds?: number, shouldStop?: () => boolean): Promise<void>;
   /** Number of pending keys. */
   size(): number;
 }
@@ -79,8 +83,8 @@ export function createKeyedRetryQueue<K>(opts: KeyedRetryQueueOptions<K>): Keyed
       pending.set(key, entry);
       arm(key, entry);
     },
-    async flush(maxRounds = 100) {
-      for (let round = 0; round < maxRounds && pending.size > 0; round++) {
+    async flush(maxRounds = 100, shouldStop) {
+      for (let round = 0; round < maxRounds && pending.size > 0 && !shouldStop?.(); round++) {
         await Promise.all([...pending.keys()].map((k) => run(k)));
       }
     },

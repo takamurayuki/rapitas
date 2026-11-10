@@ -259,9 +259,13 @@ export async function recomputeSessionTotals(
  * the timers.
  *
  * @param maxRounds - Upper bound of retry rounds / 再試行の最大ラウンド数
+ * @param shouldStop - Checked before each round; true starts no further round / 各ラウンド前に確認し、true なら次を始めない
  */
-export async function flushPendingSessionRecomputes(maxRounds?: number): Promise<void> {
-  await retries.flush(maxRounds);
+export async function flushPendingSessionRecomputes(
+  maxRounds?: number,
+  shouldStop?: () => boolean,
+): Promise<void> {
+  await retries.flush(maxRounds, shouldStop);
 }
 
 /**

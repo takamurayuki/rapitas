@@ -36,6 +36,21 @@ describe('createKeyedRetryQueue', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
+  test('flush starts no round once shouldStop is true, including the first', async () => {
+    const q = createKeyedRetryQueue<number>({ baseMs: 10_000, maxMs: 10_000 });
+    let stop = false;
+    const job = mock(async () => {
+      stop = true;
+      return true; // still pending, so a further round would run it again
+    });
+    q.schedule(1, job);
+    await q.flush(5, () => stop);
+    expect(job).toHaveBeenCalledTimes(1);
+    await q.flush(5, () => true);
+    expect(job).toHaveBeenCalledTimes(1);
+    expect(q.size()).toBe(1);
+  });
+
   test('runs on its own timer without flush', async () => {
     const q = createKeyedRetryQueue<string>({ baseMs: 5, maxMs: 5 });
     const job = mock(async () => false);

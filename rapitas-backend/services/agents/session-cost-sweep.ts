@@ -99,14 +99,17 @@ function stopAwareReads(db: SessionTotalsDb, signal: AbortSignal): SessionTotals
 
 /**
  * Compare a session's stored totals with its usage rows and rewrite (verified)
- * them if they differ. Any failure hands the session to the deferred retry,
- * so a transient error never leaves it stale (re-review3 P2). Never throws.
+ * them if they differ. Any failure before the stop hands the session to the
+ * deferred retry, so a transient error never leaves it stale (re-review3 P2).
+ * Never throws.
  *
  * With `signal`, the stop is checked before each comparison read and again
  * before the recompute; a stopped repair touches the DB no further and
  * returns 'stopped' (the persisted cursor has not passed it, so the next boot
- * redoes it). A recompute already started is finished, since it writes and
- * then verifies; the shutdown drain waits for it (re-review4 P2).
+ * redoes it). So does a read that fails after the stop: it is not queued for
+ * retry, since an interruption is not a failure (re-review5 P2). A recompute
+ * already started is finished, since it writes and then verifies; the
+ * shutdown drain waits for it (re-review4 P2).
  *
  * @param db - Prisma client (or a structural fake) / Prisma クライアント
  * @param s - The session's stored totals / 保存済みの合計
@@ -130,6 +133,15 @@ export async function repairSessionIfStale(
     return (await recomputeSessionTotals(db, s.id)) ? 'repaired' : 'deferred';
   } catch (err) {
     if (err instanceof SweepStopped) return 'stopped';
+    // NOTE: A read that was in flight at the stop and then failed is an
+    // interruption, not a failure: queueing it would let the shutdown drain
+    // (or the queue's timer) start a recompute after the stop (re-review5 P2).
+    // The cursor has not passed it, so the next sweep redoes it. A recompute
+    // already started has scheduled its own retry before throwing.
+    if (signal?.aborted) {
+      log.debug({ err, sessionId: s.id }, '[session-cost] Repair interrupted by the stop; left to the next sweep');
+      return 'stopped';
+    }
     // recomputeSessionTotals schedules its own retry before throwing; this
     // covers the comparison read, which fails before reaching it. The queue
     // coalesces per session, so scheduling twice is harmless.
