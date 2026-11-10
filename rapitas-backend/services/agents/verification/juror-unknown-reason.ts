@@ -32,7 +32,13 @@ export type UnknownReason =
    * form records the seat instead of dropping it, so a review that ran on one
    * reviewer is visibly a single opinion (two-seat-review.ts).
    */
-  | 'rested';
+  | 'rested'
+  /**
+   * Not asked: no usable model meets the seat's requirement (tier floor,
+   * executor's tier, review suitability in the tier table). Recorded instead
+   * of filling the seat with a lower tier (jury-seats.ts, 追補5).
+   */
+  | 'seat_unmet';
 
 /** A juror as the timeline records it. */
 export interface RecordedJuror {

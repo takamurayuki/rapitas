@@ -346,10 +346,9 @@ describe('reviewDiffAdversarially', () => {
         >
       ).map((c) => c[0]);
       expect(asked.every((a) => a.provider === 'claude')).toBe(true);
-      expect(asked.map((a) => a.model)).toEqual([
-        'claude-opus-4-20250514',
-        'claude-sonnet-4-20250514',
-      ]);
+      // Resolved through the tier table (current Opus / Sonnet rows); the CLI
+      // still starts them as the `opus` / `sonnet` aliases.
+      expect(asked.map((a) => a.model)).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
       // Blind: both get the identical prompt, so neither sees the other's answer.
       expect(asked[0].messages[0].content).toBe(asked[1].messages[0].content);
       const event = (
