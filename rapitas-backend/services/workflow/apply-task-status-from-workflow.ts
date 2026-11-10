@@ -24,6 +24,27 @@ const IN_PROGRESS_WORKFLOW_STATUSES = [
 ];
 
 /**
+ * What the caller knows about the run that just finished. `sessionMode` is the
+ * AgentSession.mode ('workflow-researcher' etc. for a workflow phase run, null
+ * or another value for a single-shot run); `undefined` means the caller could
+ * not read it, which is treated like a workflow run (never completes).
+ */
+export interface FinishedRunInfo {
+  sessionMode: string | null | undefined;
+}
+
+/**
+ * Whether the finished run may be a workflow phase run. Unknown counts as one
+ * so a failed session read can never let a draft task complete.
+ *
+ * @param sessionMode - AgentSession.mode of the finished run / 終了した実行のセッション種別
+ * @returns true for workflow-* or unknown / ワークフロー実行または不明なら true
+ */
+export function mayBeWorkflowRun(sessionMode: string | null | undefined): boolean {
+  return sessionMode === undefined || (sessionMode?.startsWith('workflow-') ?? false);
+}
+
+/**
  * Minimal structural view of the Prisma client this helper needs. Accepted as
  * a parameter (rather than importing a module-level singleton) so callers on
  * either side of the postgres/sqlite dual-client split (ADR-0006) — and their
@@ -46,19 +67,23 @@ export interface TaskStatusPrismaClient {
  * in_progress / plan_approved) or 'done' (also stamps completedAt).
  *  - completed: done — the workflow already passed its completion gate; this
  *    only aligns Task.status.
- *  - draft or null (a single-shot run with no workflow phases): done only when
- *    the shared completion check (verifierConfirmedForCompletion) allows it;
- *    otherwise the status is left alone.
+ *  - draft or null after a single-shot run (no workflow phases): done only
+ *    when the shared completion check (verifierConfirmedForCompletion) allows
+ *    it; otherwise the status is left alone.
+ *  - draft or null after a workflow phase run (or an unknown run kind): left
+ *    alone — the workflow has not reached verify, so it is not complete.
  * Failures are logged and swallowed; a failed read or check never marks done.
  *
  * @param prisma - Prisma client to use (injected — see TaskStatusPrismaClient). / 使用するPrismaクライアント
  * @param taskId - Task whose status should reflect its workflowStatus. / 対象タスク
  * @param logContext - Prefix for log lines (e.g. '[continue-execution]'). / ログ接頭辞
+ * @param run - The finished run's session mode (see FinishedRunInfo). / 終了した実行の種別
  */
 export async function applyTaskStatusFromWorkflow(
   prisma: TaskStatusPrismaClient,
   taskId: number,
   logContext: string,
+  run: FinishedRunInfo,
 ): Promise<void> {
   try {
     // NOTE: A FAILED read must not be conflated with "this task has no
@@ -106,6 +131,16 @@ export async function applyTaskStatusFromWorkflow(
         data: { status: 'done', completedAt: new Date() },
       });
     } else if (!wfStatus || wfStatus === 'draft') {
+      // NOTE: A workflow run leaves draft before verify, and with no verifier
+      // run the shared check allows (no_verifier_run) — so a workflow task in
+      // draft used to be marked done unverified (G2 routing1 re-review 6).
+      if (mayBeWorkflowRun(run.sessionMode)) {
+        log.info(
+          { taskId, workflowStatus: wfStatus, sessionMode: run.sessionMode ?? 'unknown' },
+          `${logContext} Workflow run left the task in draft — not marking done`,
+        );
+        return;
+      }
       const { verifierConfirmedForCompletion } = await import('./verifier-completion-check');
       if (!(await verifierConfirmedForCompletion(taskId, 'status_sync'))) {
         log.warn(

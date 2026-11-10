@@ -58,7 +58,7 @@ export async function reconcileHardFailure(params: {
   const session = await prisma.agentSession
     .findUnique({
       where: { id: sessionId },
-      select: { startedAt: true, createdAt: true, status: true },
+      select: { startedAt: true, createdAt: true, status: true, mode: true },
     })
     .catch(() => null);
   if (!current() || !session || ['cancelled', 'canceled', 'canceling'].includes(session.status))
@@ -95,7 +95,7 @@ export async function reconcileHardFailure(params: {
   const { applyTaskStatusFromWorkflow } =
     await import('../../../../services/workflow/apply-task-status-from-workflow');
   if (!current()) return;
-  await applyTaskStatusFromWorkflow(prisma, taskId, logPrefix);
+  await applyTaskStatusFromWorkflow(prisma, taskId, logPrefix, { sessionMode: session.mode });
   if (!current()) return;
 
   // Keep the original error for auditability — do not swallow it.

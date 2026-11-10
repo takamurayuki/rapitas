@@ -22,6 +22,10 @@ let confirmed = true;
 const verifierConfirmedForCompletion = mock(async (_taskId: number, _source: string) => confirmed);
 mock.module('./verifier-completion-check', () => ({ verifierConfirmedForCompletion }));
 
+// Most cases exercise the single-shot mapping; workflow runs are pinned in
+// apply-task-status-from-workflow.workflow-draft.test.ts.
+const SINGLE_SHOT = { sessionMode: null };
+
 type TaskRow = { workflowStatus: string | null; status?: string | null } | null;
 
 let taskRow: TaskRow = null;
@@ -58,7 +62,7 @@ describe('applyTaskStatusFromWorkflow', () => {
     'leaves a task withdrawn mid-run alone (status %s)',
     async (status) => {
       taskRow = { workflowStatus: 'research_done', status };
-      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
       expect(taskUpdates).toHaveLength(0);
     },
   );
@@ -69,7 +73,7 @@ describe('applyTaskStatusFromWorkflow', () => {
     'sets status to in-progress when workflowStatus is %s',
     async (workflowStatus) => {
       taskRow = { workflowStatus };
-      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+      await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
       expect(taskUpdates).toHaveLength(1);
       expect(taskUpdates[0]).toMatchObject({
         where: { id: 1 },
@@ -81,7 +85,7 @@ describe('applyTaskStatusFromWorkflow', () => {
 
   test('sets status to done (with completedAt) when workflowStatus is completed', async () => {
     taskRow = { workflowStatus: 'completed' };
-    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
     expect(taskUpdates).toHaveLength(1);
     expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
     expect((taskUpdates[0].data as { completedAt: Date }).completedAt).toBeInstanceOf(Date);
@@ -91,7 +95,7 @@ describe('applyTaskStatusFromWorkflow', () => {
     'asks the shared completion check before marking a %s task done',
     async (workflowStatus) => {
       taskRow = { workflowStatus };
-      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]');
+      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]', SINGLE_SHOT);
       expect(verifierConfirmedForCompletion).toHaveBeenCalledWith(7, 'status_sync');
       expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
     },
@@ -102,26 +106,36 @@ describe('applyTaskStatusFromWorkflow', () => {
     async (workflowStatus) => {
       taskRow = { workflowStatus };
       confirmed = false;
-      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]');
+      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]', SINGLE_SHOT);
+      expect(taskUpdates).toHaveLength(0);
+    },
+  );
+
+  test.each(['workflow-researcher', undefined])(
+    'does not even ask the completion check for a draft task after run kind %p',
+    async (sessionMode) => {
+      taskRow = { workflowStatus: 'draft' };
+      await applyTaskStatusFromWorkflow(makePrisma(), 7, '[test]', { sessionMode });
+      expect(verifierConfirmedForCompletion).not.toHaveBeenCalled();
       expect(taskUpdates).toHaveLength(0);
     },
   );
 
   test('sets status to done when workflowStatus is draft', async () => {
     taskRow = { workflowStatus: 'draft' };
-    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
     expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
   });
 
   test('sets status to done when an EXISTING row has no workflowStatus (single-shot run)', async () => {
     taskRow = { workflowStatus: null };
-    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
     expect(taskUpdates[0].data).toMatchObject({ status: 'done' });
   });
 
   test('leaves the status alone when the row does not exist', async () => {
     taskRow = null;
-    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
     expect(taskUpdates).toHaveLength(0);
   });
 
@@ -131,12 +145,14 @@ describe('applyTaskStatusFromWorkflow', () => {
     // 632 — the backend restarted mid-epilogue, the read failed, and a task the
     // adversarial review had REJECTED was silently recorded as complete.
     shouldFailDb = true;
-    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]');
+    await applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT);
     expect(taskUpdates).toHaveLength(0);
   });
 
   test('swallows DB errors instead of throwing', async () => {
     shouldFailDb = true;
-    await expect(applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]')).resolves.toBeUndefined();
+    await expect(
+      applyTaskStatusFromWorkflow(makePrisma(), 1, '[test]', SINGLE_SHOT),
+    ).resolves.toBeUndefined();
   });
 });

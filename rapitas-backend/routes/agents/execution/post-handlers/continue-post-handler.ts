@@ -40,6 +40,27 @@ export interface HandleContinueResultParams {
 }
 
 /**
+ * Reads the continued session's mode for the task-status sync. A failed read
+ * or a missing row yields undefined, which applyTaskStatusFromWorkflow treats
+ * as a workflow run (a draft task is then never marked done).
+ *
+ * @param sessionId - Continued AgentSession id / 継続したセッションID
+ * @returns The session mode, null for none, undefined when unknown / セッション種別（不明なら undefined）
+ */
+async function readSessionMode(sessionId: number): Promise<string | null | undefined> {
+  try {
+    const session = await prisma.agentSession.findUnique({
+      where: { id: sessionId },
+      select: { mode: true },
+    });
+    return session ? session.mode : undefined;
+  } catch (err) {
+    log.warn({ err, sessionId }, '[continue-execution] Could not read session mode');
+    return undefined;
+  }
+}
+
+/**
  * Handles the async result of a continuation execution: updates task/session
  * status and removes the worktree on success.
  *
@@ -63,7 +84,9 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
   }
 
   if (result.success) {
-    await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]');
+    await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]', {
+      sessionMode: await readSessionMode(targetSessionId),
+    });
 
     await updateSessionStatusWithRetry(targetSessionId, 'completed', '[continue-execution]', 3);
 
