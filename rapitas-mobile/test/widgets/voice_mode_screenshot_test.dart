@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/services/voice_mode_listener.dart';
 import 'package:rapitas_mobile/widgets/voice_mode_indicator.dart';
 
-// 聞き取り表示の形の描画確認（スクリーンショット）。ふだんのテストでは何もしない。
+// 聞き取り表示のアイコンの描画確認（スクリーンショット）。ふだんのテストでは何もしない。
 // 撮るとき：VOICE_SCREENSHOT_DIR=<出力先> flutter test test/widgets/voice_mode_screenshot_test.dart
 // 文字（タイトル・説明）を読めるよう、端末にあるフォントを読み込む（VOICE_SCREENSHOT_FONT_DIR で指定。無ければ文字は豆腐）。
 
@@ -46,15 +46,13 @@ void main() {
     });
   }
 
-  testWidgets('聞き取り表示の形を撮る', (tester) async {
+  testWidgets('聞き取り表示のアイコンを撮る', (tester) async {
     final fontDir = Platform.environment['VOICE_SCREENSHOT_FONT_DIR'] ?? '/usr/share/fonts/opentype/noto';
     final flutterRoot = Platform.environment['FLUTTER_ROOT'] ?? '';
     await tester.runAsync(() async {
       await _loadFont('Shot', ['$fontDir/NotoSansCJK-Regular.ttc']);
       await _loadFont('MaterialIcons', ['$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf']);
     });
-    final level = ValueNotifier<double?>(0.75);
-    addTearDown(level.dispose);
     tester.view.physicalSize = const Size(1400, 1100);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -75,7 +73,7 @@ void main() {
                   Center(
                     child: SizedBox(
                       width: VoiceModeIndicator.slotWidth,
-                      child: Center(child: VoiceModeDot(status: status, level: level, onTap: () {})),
+                      child: Center(child: VoiceModeDot(status: status, onTap: () {})),
                     ),
                   ),
                   IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
@@ -115,7 +113,7 @@ void main() {
                       child: Column(children: [
                         Transform.scale(
                           scale: 1.7,
-                          child: VoiceModeDot(status: status, level: level, onTap: () {}),
+                          child: VoiceModeDot(status: status, onTap: () {}),
                         ),
                         const SizedBox(height: 18),
                         Text(caption, style: const TextStyle(fontSize: 11, color: Color(0xFF555555))),
@@ -140,10 +138,10 @@ void main() {
         ),
       ),
     ));
-    // 動く形（明滅・波形・回転）は途中の姿で撮る
+    // 動くもの（明滅・回転）は途中の姿で撮る
     await tester.pump(const Duration(milliseconds: 400));
 
-    // 撮らないときも、全部の形が例外なく描けることは確かめる
+    // 撮らないときも、全部の状態が例外なく描けることは確かめる
     expect(find.byType(VoiceModeDot), findsNWidgets(_states.length * 3));
     if (outDir == null) return;
     Directory(outDir).createSync(recursive: true);

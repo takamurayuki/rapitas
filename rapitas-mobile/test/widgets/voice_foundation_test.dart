@@ -268,7 +268,8 @@ void main() {
       speech.words('たす');
       await settle(tester, 1);
       expect(listener().status, VoiceModeStatus.hearing);
-      expect(find.byKey(const ValueKey('voice-mode-wave')), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-mode-dot-hearing')), findsOneWidget);
+      expect(find.byIcon(Icons.graphic_eq), findsOneWidget);
     });
 
     testWidgets('シートが確認を待つ間は「回答待ち」、答えている間は「声を受け取り中」、実行中は「処理中」', (tester) async {
@@ -279,8 +280,9 @@ void main() {
       await say(tester, '承認');
       expect(sheet, findsOneWidget);
       expect(find.text('「ログイン画面の変更」を承認しますか？'), findsOneWidget);
-      expect(listener().status, VoiceModeStatus.awaiting, reason: '確認待ちは処理中（回る輪）に見せない');
-      expect(find.byKey(const ValueKey('voice-mode-question')), findsOneWidget);
+      expect(listener().status, VoiceModeStatus.awaiting, reason: '確認待ちは処理中（回るアイコン）に見せない');
+      expect(find.byKey(const ValueKey('voice-mode-dot-awaiting')), findsOneWidget);
+      expect(find.byIcon(Icons.help), findsOneWidget);
 
       // シートの聞き取りに言葉が届いている
       speech.words('は');

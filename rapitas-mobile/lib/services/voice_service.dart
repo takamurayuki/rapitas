@@ -1,15 +1,8 @@
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
-import 'sound_level_meter.dart';
 
 class VoiceService {
-  /// [meter]：聞き取り中の音量の受け口（聞き取り表示の波形が見る）。省略時は自前で持つ
-  VoiceService({SoundLevelMeter? meter}) : meter = meter ?? SoundLevelMeter();
-
-  /// 聞き取り中の音量（端末が返す場合だけ値が入る）
-  final SoundLevelMeter meter;
-
   final SpeechToText _speech = SpeechToText();
   bool _isInitialized = false;
 
@@ -50,10 +43,7 @@ class VoiceService {
 
     _errorListener = onError;
     _statusListener = onStatus;
-    meter.clear();
     await _speech.listen(
-      // 端末が音量を返すなら、聞き取り表示の波形をそれに合わせて動かす（返さない端末では一定の動きのまま）
-      onSoundLevelChange: meter.add,
       onResult: onResult,
       localeId: localeId,
       listenFor: listenFor ?? const Duration(seconds: 30),
@@ -66,14 +56,12 @@ class VoiceService {
   }
 
   Future<void> stopListening() async {
-    meter.clear();
     await _speech.stop();
   }
 
   Future<void> cancelListening() async {
     _errorListener = null;
     _statusListener = null;
-    meter.clear();
     await _speech.cancel();
   }
 
@@ -84,11 +72,7 @@ class VoiceService {
 
   void _onError(SpeechRecognitionError error) => _errorListener?.call(error);
 
-  void _onStatus(String status) {
-    // 聞き取りが終わったら音量を消す（最後の値で波形が止まったままにならないように）
-    if (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) meter.clear();
-    _statusListener?.call(status);
-  }
+  void _onStatus(String status) => _statusListener?.call(status);
 
   void dispose() {
     _errorListener = null;
