@@ -20,6 +20,7 @@
 import { backfillWorkflowFilesToDatabase } from '../workflow/workflow-db-backfill';
 import { backfillRapiProfileToDatabase } from './rapi-profile-backfill';
 import { backfillLabelCategories } from './label-category-backfill';
+import { recoverSessionTotalsOnBoot } from '../agents/session-cost-recovery';
 
 /**
  * Run every one-shot migration, in order.
@@ -35,5 +36,8 @@ export async function runStartupBackfills(): Promise<Record<string, number>> {
     workflowFiles: await backfillWorkflowFilesToDatabase(),
     rapiProfile: await backfillRapiProfileToDatabase(),
     labelCategories: await backfillLabelCategories(),
+    // Not a migration but the same contract (idempotent, never throws): repairs
+    // session totals whose in-memory retry the previous process took with it.
+    sessionTotals: await recoverSessionTotalsOnBoot(),
   };
 }

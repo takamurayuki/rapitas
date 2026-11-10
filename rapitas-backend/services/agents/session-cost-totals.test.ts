@@ -36,8 +36,19 @@ const base = new PrismaClient({ datasources: { db: { url: `file:${dbPath}` } } }
 
 // Lets a test run a competing write between a recompute's read and its write.
 let afterRowsRead: (() => Promise<void>) | undefined;
+// Lets a test fail exactly one later execution-row read (a transient DB error).
+let failNextExecRead = false;
 const db = base.$extends({
   query: {
+    agentExecution: {
+      async findMany({ args, query }) {
+        if (failNextExecRead) {
+          failNextExecRead = false;
+          throw new Error('transient read failure');
+        }
+        return query(args);
+      },
+    },
     agentAction: {
       async findMany({ args, query }) {
         const rows = await query(args);
@@ -62,6 +73,7 @@ let configId = 0;
 
 beforeEach(async () => {
   afterRowsRead = undefined;
+  failNextExecRead = false;
   await flushPendingSessionRecomputes();
   await base.agentAction.deleteMany();
   await base.agentExecution.deleteMany();
@@ -242,6 +254,25 @@ describe('recomputeSessionTotals (real SQLite)', () => {
     await flushPendingSessionRecomputes();
     expect(pendingSessionRecomputeCount()).toBe(0);
     expect(await totals(s)).toEqual({ cost: 2.2, tokens: 220 });
+  });
+
+  test('a failed verification read still leaves a deferred retry (re-re-review P1)', async () => {
+    const s = await newSession();
+    await exec(s, 1.0, 100, null, t(1));
+    // The reviewer's order: A reads the 1-row set; B inserts a row and
+    // finishes its recompute (1.5/140); A writes its older 1/100; then only
+    // A's verification read fails.
+    afterRowsRead = async () => {
+      await exec(s, 0.5, 40, null, t(2));
+      await recomputeSessionTotals(asDb(), s);
+      failNextExecRead = true;
+    };
+    await expect(recomputeSessionTotals(asDb(), s)).rejects.toThrow('transient read failure');
+    expect(await totals(s)).toEqual({ cost: 1, tokens: 100 });
+    expect(pendingSessionRecomputeCount()).toBe(1);
+    await flushPendingSessionRecomputes();
+    expect(pendingSessionRecomputeCount()).toBe(0);
+    expect(await totals(s)).toEqual({ cost: 1.5, tokens: 140 });
   });
 
   test('a missing session is a no-op', async () => {

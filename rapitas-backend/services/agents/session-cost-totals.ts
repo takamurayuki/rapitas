@@ -21,7 +21,9 @@
  * - Every absolute write is verified against a re-read of the usage rows and
  *   repeated (in-line, then by a deferred retry) until they agree, so a
  *   recompute that read an older row set can never leave an older total
- *   behind (re-review items 1 and 4; see recomputeInline).
+ *   behind (re-review items 1 and 4; see recomputeInline). A recompute that
+ *   throws is retried the same way; the restart gap of the in-memory retry is
+ *   closed by session-cost-recovery.ts.
  * - Usage recorded outside AgentExecution (AgentAction.tokensUsed) is part of
  *   the total, so a later recompute does not erase it.
  */
@@ -146,7 +148,14 @@ async function readUsage(
 
 type Totals = { totalCostUsd: number; totalTokensUsed: number };
 
-async function readTotals(db: SessionTotalsDb, sessionId: number): Promise<Totals> {
+/**
+ * Totals the session's CURRENT usage rows imply (read only; nothing written).
+ *
+ * @param db - Prisma client (or a structural fake) / Prisma クライアント
+ * @param sessionId - Session to read / 対象セッション
+ * @returns Attributed cost and token totals / 利用行から求めた費用とトークン
+ */
+export async function readTotals(db: SessionTotalsDb, sessionId: number): Promise<Totals> {
   const { rows, extraTokens } = await readUsage(db, sessionId);
   return sessionTotalsFromRows(rows, { sessionId, extraTokens });
 }
@@ -206,17 +215,30 @@ const retries = createKeyedRetryQueue<number>({
  * @param db - Prisma client (or a structural fake) / Prisma クライアント
  * @param sessionId - Session to recompute / 再計算するセッション
  * @returns True when the totals were written and verified in-line; false when the session is missing or the verification was deferred / 書き込みと検証が完了したら true（セッション無し・検証を後回しにした場合は false）
+ * @throws The DB error of the in-line attempt; a deferred retry is scheduled first / その場の試行のDB例外（遅延再試行は登録済み）
  */
 export async function recomputeSessionTotals(
   db: SessionTotalsDb,
   sessionId: number,
 ): Promise<boolean> {
-  const result = await recomputeInline(db, sessionId);
+  // Coalesced per session: the retry re-reads every row.
+  const defer = () =>
+    retries.schedule(sessionId, async () => (await recomputeInline(db, sessionId)) === 'contended');
+  let result: InlineResult;
+  try {
+    result = await recomputeInline(db, sessionId);
+  } catch (err) {
+    // NOTE: An exception can land AFTER this call's (possibly older) write and
+    // before its verification read, so nothing proves the stored totals match
+    // the rows — it must be retried like a contended write (re-re-review P1).
+    log.warn({ err, sessionId }, '[session-cost] Recompute failed; deferred retry scheduled');
+    defer();
+    throw err;
+  }
   if (result === 'converged') return true;
   if (result === 'missing') return false;
   log.warn({ sessionId }, '[session-cost] Totals contended in-line; deferred retry scheduled');
-  // Coalesced per session: the retry re-reads every row.
-  retries.schedule(sessionId, async () => (await recomputeInline(db, sessionId)) === 'contended');
+  defer();
   return false;
 }
 
@@ -224,9 +246,11 @@ export async function recomputeSessionTotals(
  * Run every pending deferred recompute now (and any it re-schedules) until
  * none is left. For shutdown hooks and tests; production otherwise relies on
  * the timers.
+ *
+ * @param maxRounds - Upper bound of retry rounds / 再試行の最大ラウンド数
  */
-export async function flushPendingSessionRecomputes(): Promise<void> {
-  await retries.flush();
+export async function flushPendingSessionRecomputes(maxRounds?: number): Promise<void> {
+  await retries.flush(maxRounds);
 }
 
 /**
