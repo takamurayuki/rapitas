@@ -39,11 +39,27 @@ const holdForHumanReview = mock(
 let onHold = false;
 let transitionDbDown = false;
 mock.module('./review-hold', () => ({
+  REVIEW_HOLD_CAUSE: 'adversarial_review_awaiting_human',
   REVIEW_HOLD_RESOLVED_CAUSE: 'adversarial_review_hold_resolved',
   readReviewHold: async () =>
     onHold ? { reason: 'ineligible_verifier', detail: '', findings: [] } : null,
   holdForHumanReview,
 }));
+
+// The override's bound target as it is now (verify.md sha256 / publish worktree / git tree).
+let currentTree: string | null = 'tree-A';
+mock.module('./verify-jury-completion', () => ({ readVerifySha256: async () => 'sha-A' }));
+mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
+  resolvePublishWorktree: async () => '/wt/1471',
+  publishBindingDrift: async () => null,
+  checkBindingBeforeCommit: async () => ({ drift: null, stable: 'tree-A' }),
+  bindingDriftAfterCommit: async () => null,
+}));
+mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+  stagedTreeIdentity: async () => currentTree,
+  committedTreeIdentity: async () => currentTree,
+}));
+const BINDING = { verifySha256: 'sha-A', treeId: 'tree-A', worktreePath: '/wt/1471' };
 
 type Where = { session?: { mode?: unknown }; cause?: { in?: string[] } };
 let verifierModel: string | null = null;
@@ -112,6 +128,7 @@ beforeEach(() => {
   latestMetadata = null;
   onHold = false;
   transitionDbDown = false;
+  currentTree = 'tree-A';
   verifierLookup.mockClear();
   taskUpdateMany.mockClear();
   holdForHumanReview.mockReset().mockResolvedValue('held');
@@ -162,9 +179,18 @@ test('既に人間の判断待ちで保留中なら、保留を書き直さず�
 test('不適格な検証役の保留を人間が上書きした後なら、再保留せず完了する', async () => {
   verifierModel = null;
   latestVerifyCause = 'adversarial_review_hold_resolved';
-  latestMetadata = { action: 'override', holdReason: 'ineligible_verifier' };
+  latestMetadata = { action: 'override', holdReason: 'ineligible_verifier', binding: BINDING };
   expect(await recoverMergedTasks()).toEqual([1471]);
   expect(holdForHumanReview).not.toHaveBeenCalled();
+});
+
+test('override の後に差分（git tree）が変わっていれば、古い override では完了しない', async () => {
+  verifierModel = null;
+  currentTree = 'tree-B';
+  latestVerifyCause = 'adversarial_review_hold_resolved';
+  latestMetadata = { action: 'override', holdReason: 'ineligible_verifier', binding: BINDING };
+  expect(await recoverMergedTasks()).toEqual([]);
+  expect(taskUpdateMany).not.toHaveBeenCalled();
 });
 
 test('別理由の保留の上書き（陪審の争点）は、検証役の再判定を省かない', async () => {

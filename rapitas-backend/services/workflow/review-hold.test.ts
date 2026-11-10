@@ -232,6 +232,14 @@ describe('clearReviewHold', () => {
     );
   });
 
+  test('上書きの対象（sha256・tree・worktree）を解消記録に残す', async () => {
+    const target = { verifySha256: 'sha-5', treeId: 'tree-5', worktreePath: '/wt/5' };
+    await clearReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u', hold, target });
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ binding: target }) }),
+    );
+  });
+
   test('既に解除済みなら false で、何も記録しない', async () => {
     updateMany.mockResolvedValue({ count: 0 });
     expect(await clearReviewHold({ taskId: 5, action: 'accept', resolvedBy: 'x', hold })).toBe(

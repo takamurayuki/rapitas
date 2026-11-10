@@ -25,6 +25,7 @@ import { createLogger } from '../../config/logger';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { capFindingsForStorage, type ReviewFinding } from '../agents/verification/review-findings';
 import type { ReviewHoldReason } from '../agents/verification/jury-seat-types';
+import { appendHoldEvent, parseHoldMetadata, type OverrideTarget } from './review-hold-records';
 
 const log = createLogger('workflow:review-hold');
 
@@ -211,7 +212,7 @@ export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails 
       orderBy: { createdAt: 'desc' },
       select: { metadata: true },
     });
-    const m = parseMetadata(row?.metadata);
+    const m = parseHoldMetadata(row?.metadata);
     return {
       reason:
         m.holdReason === 'unresolved_dispute' || m.holdReason === 'ineligible_verifier'
@@ -226,18 +227,6 @@ export async function readReviewHold(taskId: number): Promise<ReviewHoldDetails 
   }
 }
 
-function parseMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const v = JSON.parse(raw) as unknown;
-      return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
-    } catch {
-      return {};
-    }
-  }
-  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-}
-
 /**
  * Clear the review hold (CAS on the hold itself) and record who resolved it
  * and how. Only the review hold is cleared — a different halt is untouched.
@@ -247,6 +236,7 @@ function parseMetadata(raw: unknown): Record<string, unknown> {
  * @param p.resolvedBy - Who resolved it (audit) / 解消した人
  * @param p.note - Optional note / 任意のメモ
  * @param p.hold - The hold being resolved / 解消する保留
+ * @param p.target - What an override covers; completion paths honour the override only while it still matches / 上書きの対象
  * @returns True when this call cleared the hold / この呼び出しで解除したら true
  */
 export async function clearReviewHold(p: {
@@ -255,6 +245,7 @@ export async function clearReviewHold(p: {
   resolvedBy: string;
   note?: string;
   hold: ReviewHoldDetails;
+  target?: OverrideTarget;
 }): Promise<boolean> {
   const cleared = await prisma.task
     .updateMany({
@@ -278,6 +269,7 @@ export async function clearReviewHold(p: {
       resolvedBy: p.resolvedBy,
       holdReason: p.hold.reason,
       ...(p.note ? { note: p.note } : {}),
+      ...(p.target ? { binding: p.target } : {}),
     },
   }).catch(() => {});
   await appendHoldEvent('review_hold_resolved', p.taskId, {
@@ -287,26 +279,4 @@ export async function clearReviewHold(p: {
     ...(p.note ? { note: p.note } : {}),
   });
   return true;
-}
-
-/**
- * Timeline copy of the hold and its resolution: the desktop review history
- * reads the timeline (GET /memory/timeline), not WorkflowTransition.
- */
-async function appendHoldEvent(
-  eventType: 'review_hold' | 'review_hold_resolved',
-  taskId: number,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  try {
-    const { appendEvent } = await import('../memory/timeline');
-    await appendEvent({
-      eventType,
-      actorType: eventType === 'review_hold' ? 'system' : 'user',
-      payload: { taskId, ...payload },
-      correlationId: `task-${taskId}`,
-    });
-  } catch (err) {
-    log.warn({ err, taskId, eventType }, '[review-hold] Failed to append timeline event');
-  }
 }
