@@ -23,12 +23,14 @@ mock.module('../observability/decision-trace', () => ({
   maskStringValue: (v) => ({ masked: v, count: 0 }),
 }));
 
+const mockTaskFindUnique = mock(() =>
+  Promise.resolve({ complexityScore: 50, title: 'テストタスク', priority: 'medium' }),
+);
+
 mock.module('../../config/database', () => ({
   prisma: {
     task: {
-      findUnique: mock(() =>
-        Promise.resolve({ complexityScore: 50, title: 'テストタスク', priority: 'medium' }),
-      ),
+      findUnique: mockTaskFindUnique,
     },
     agentExecution: { findMany: mock(() => Promise.resolve([])) },
   },
@@ -50,6 +52,10 @@ mock.module('../../config/logger', () => {
   };
 });
 
+const mockSelectBestModel = mock(() =>
+  Promise.resolve({ model: { id: 'chosen-model', provider: 'claude' }, tier: 'standard' }),
+);
+
 mock.module('./model-discovery', () => ({
   discoverModels: mock(() =>
     Promise.resolve({
@@ -60,9 +66,7 @@ mock.module('./model-discovery', () => ({
       providers: [{ provider: 'claude', available: true }],
     }),
   ),
-  selectBestModel: mock(() =>
-    Promise.resolve({ model: { id: 'chosen-model', provider: 'claude' }, tier: 'standard' }),
-  ),
+  selectBestModel: mockSelectBestModel,
 }));
 
 mock.module('./model-discovery/tier-classifier', () => ({
@@ -125,5 +129,28 @@ describe('getSmartRoute decision-trace instrumentation', () => {
     expect(route.recommendedTier).toBe('standard');
     expect(typeof route.reason).toBe('string');
     expect(route.costEstimate).toBeDefined();
+  });
+});
+
+// The same resolver as the workflow-mode selection (complexity-score.ts): a
+// missing score is the safe default 50, while an ASSESSED 0 is a real score.
+// `complexityScore || 50` used to read 0 as 50 here while the mode selection
+// read it as 0 (lightweight).
+describe('getSmartRoute complexity resolution', () => {
+  const desiredTierFor = async (complexityScore: number | null) => {
+    mockTaskFindUnique.mockImplementationOnce(() =>
+      Promise.resolve({ complexityScore, title: 't', priority: 'medium' }),
+    );
+    mockSelectBestModel.mockClear();
+    await getSmartRoute(3, { includeAlternatives: false });
+    return mockSelectBestModel.mock.calls[0][0].desiredTier;
+  };
+
+  it('treats a missing score as the shared default 50 (standard)', async () => {
+    expect(await desiredTierFor(null)).toBe('standard');
+  });
+
+  it('keeps an assessed 0 as 0 (economy) instead of rewriting it to 50', async () => {
+    expect(await desiredTierFor(0)).toBe('economy');
   });
 });
