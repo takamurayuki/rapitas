@@ -8,9 +8,19 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
 const noop = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({ createLogger: () => noop, logger: noop }));
-mock.module('../../config/database', () => ({
-  prisma: { agentSession: { findFirst: mock(async () => ({ worktreePath: '/wt/5' })) } },
-}));
+// Sessions as the DB would order them: findFirst honours the requested orderBy
+// (and a worktreePath filter) so the test proves WHICH session is chosen.
+type SessionRow = { worktreePath: string | null; createdAt: number; lastActivityAt: number };
+let sessions: SessionRow[] = [];
+const findFirst = mock(
+  async (q: { where?: { worktreePath?: unknown }; orderBy?: Record<string, string> }) => {
+    const key = Object.keys(q.orderBy ?? {})[0] as 'createdAt' | 'lastActivityAt';
+    const rows = q.where?.worktreePath ? sessions.filter((s) => s.worktreePath) : sessions;
+    const top = [...rows].sort((a, b) => b[key] - a[key])[0];
+    return top ? { worktreePath: top.worktreePath } : null;
+  },
+);
+mock.module('../../config/database', () => ({ prisma: { agentSession: { findFirst } } }));
 
 const HOLD = {
   reason: 'unresolved_dispute' as const,
@@ -73,6 +83,7 @@ mock.module('./verify-completion-inflight', () => ({ registerVerifyCompletion })
 const { resolveReviewHold } = await import('./review-hold-resolve');
 
 beforeEach(() => {
+  sessions = [{ worktreePath: '/wt/5', createdAt: 1, lastActivityAt: 1 }];
   sha = 'sha-5';
   fp = 'fp-5';
   readReviewHold.mockReset().mockResolvedValue(HOLD);
@@ -184,5 +195,31 @@ describe('resolveReviewHold', () => {
         metadata: expect.objectContaining({ reason: expect.any(String) }),
       }),
     );
+  });
+
+  test('(b) 上書きは公開処理と同じ「最後に動いたセッション」の worktree に束ねる', async () => {
+    // A was created last, B was active last — commit/PR publishes from B.
+    sessions = [
+      { worktreePath: '/wt/A', createdAt: 9, lastActivityAt: 1 },
+      { worktreePath: '/wt/B', createdAt: 1, lastActivityAt: 9 },
+    ];
+    await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    expect(publishAfterReviewOverride).toHaveBeenCalledWith(
+      5,
+      '# verify',
+      expect.objectContaining({ binding: expect.objectContaining({ worktreePath: '/wt/B' }) }),
+    );
+  });
+
+  test('(b) 公開処理が使うセッションに worktree が無ければ、上書きを受け付けない', async () => {
+    // Publication would fall back to the theme directory — not what was reviewed.
+    sessions = [
+      { worktreePath: '/wt/A', createdAt: 1, lastActivityAt: 1 },
+      { worktreePath: null, createdAt: 2, lastActivityAt: 9 },
+    ];
+    const r = await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    expect(r).toEqual({ ok: false, reason: 'unbound' });
+    expect(clearReviewHold).not.toHaveBeenCalled();
+    expect(publishAfterReviewOverride).not.toHaveBeenCalled();
   });
 });

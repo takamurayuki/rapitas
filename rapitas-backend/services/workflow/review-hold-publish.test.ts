@@ -25,9 +25,13 @@ mock.module('./verify-settle-artifact-recovery', () => ({
 }));
 type Acpr = Record<string, unknown>;
 const performAutoCommitAndPR = mock(async (..._a: unknown[]): Promise<Acpr> => ({}));
+// The REAL classifier: a stub that always says "changed" hid the path where a
+// no-change verdict swallowed a stop/publication error (G2 re-review item 2).
+const { isNoChangeCompletion } =
+  await import('../../routes/workflow/workflow-auto-commit-classify');
 mock.module('../../routes/workflow/workflow-auto-commit', () => ({
   performAutoCommitAndPR,
-  isNoChangeCompletion: () => false,
+  isNoChangeCompletion,
 }));
 const handleVerifyGateBlocked = mock(async (_p: unknown) => ({ newStatus: 'plan_approved' }));
 mock.module('../../routes/workflow/handlers/file-save/verify-commit-pr-gate-blocked', () => ({
@@ -198,5 +202,48 @@ describe('publishAfterReviewOverride', () => {
       autoCommitResult: { success: true, filesChanged: 1 },
     });
     expect(await publish()).toBe('completed');
+  });
+
+  test('上書きの束縛（worktree・sha256・fingerprint）を commit/PR の実行側へ渡す', async () => {
+    await publish();
+    expect(performAutoCommitAndPR).toHaveBeenCalledWith(5, '# verify', { binding: CTX.binding });
+  });
+
+  test('commit/PR の実行側が束縛の不一致を検出したら、完了にせず保留へ戻す', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      bindingMismatch: '上書きした後に差分が変わりました',
+      error: '上書きした後に差分が変わりました',
+    });
+    expect(await publish()).toBe('binding_mismatch');
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(holdForHumanReview).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 5, reason: 'unresolved_dispute', findings: HOLD.findings }),
+    );
+  });
+
+  test('レビュー再現：既にコミット済み（filesChanged 0）でも停止エラーがあれば完了にしない', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
+      autoCommitResult: { success: true, filesChanged: 0, alreadyCommitted: true },
+      error: 'タスクが停止されたため、公開処理を中断しました。',
+    });
+    expect(await publish()).toBe('publication_failed');
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_no_change_confirmed' }),
+    );
+  });
+
+  test('本当に公開する差分が無ければ（エラーなし）no-change として完了', async () => {
+    performAutoCommitAndPR.mockResolvedValue({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true, filesChanged: 0, alreadyCommitted: true },
+      autoPRResult: { success: false, error: 'No commits between develop and feature/t5' },
+    });
+    expect(await publish()).toBe('completed');
+    expect(recordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_no_change_confirmed' }),
+    );
   });
 });

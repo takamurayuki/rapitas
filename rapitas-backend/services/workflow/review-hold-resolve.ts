@@ -95,19 +95,16 @@ export async function resolveReviewHold(p: {
 async function resolveOverrideBinding(
   taskId: number,
 ): Promise<OverrideBinding | { missing: string }> {
-  const [{ readVerifySha256 }, { currentDiffFingerprint }] = await Promise.all([
-    import('./verify-jury-completion'),
-    import('../agents/verification/review-diff-fingerprint'),
-  ]);
-  const session = await prisma.agentSession
-    .findFirst({
-      where: { config: { taskId }, worktreePath: { not: null } },
-      orderBy: { createdAt: 'desc' },
-      select: { worktreePath: true },
-    })
-    .catch(() => null);
-  const worktreePath = session?.worktreePath;
-  if (!worktreePath) return { missing: 'タスクの worktree が見つかりません' };
+  const [{ readVerifySha256 }, { currentDiffFingerprint }, { resolvePublishWorktree }] =
+    await Promise.all([
+      import('./verify-jury-completion'),
+      import('../agents/verification/review-diff-fingerprint'),
+      import('../../routes/workflow/workflow-auto-commit-binding'),
+    ]);
+  // NOTE: The SAME worktree commit/PR will publish from (latest-active session),
+  // not the newest-created one — binding A and publishing B is what this closes.
+  const worktreePath = await resolvePublishWorktree(taskId);
+  if (!worktreePath) return { missing: '公開処理が使う worktree が見つかりません' };
   const verifySha256 = await readVerifySha256(taskId);
   if (!verifySha256) return { missing: 'verify.md の識別子（sha256）を取得できません' };
   const diffFingerprint = await currentDiffFingerprint(taskId, worktreePath);

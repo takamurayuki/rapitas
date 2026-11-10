@@ -10,11 +10,14 @@
  * staged completion holds for the watcher, otherwise the task completes.
  * Not responsible for clearing the hold (review-hold-resolve.ts).
  *
- * The override is bound to the verify.md version and diff the human looked
- * at: publication re-reads both first and, on any mismatch or when either
- * cannot be read, re-parks the task on the review hold instead of publishing.
+ * The override is bound to the worktree, verify.md version and diff the human
+ * looked at. Publication checks them first, and passes the binding to
+ * performAutoCommitAndPR, which checks again right before and after it commits
+ * in the worktree it actually uses. Any mismatch, or an identifier that cannot
+ * be read, re-parks the task on the review hold instead of publishing.
  * Completion also requires the requested commit to have succeeded and no
- * stop/error from commit/PR — a failed local save never completes the task.
+ * stop/error from commit/PR. A stop or error wins over a "no change" reading:
+ * filesChanged 0 also means "already committed", not "nothing to publish".
  *
  * NOTE: Like blocked-pr-retry-recovery, completion here is a CAS on
  * verify_done, not the requirement-replan receipt path: the receipt belongs to
@@ -25,8 +28,10 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { holdForHumanReview, type ReviewHoldDetails } from './review-hold';
-import { readVerifySha256 } from './verify-jury-completion';
-import { currentDiffFingerprint } from '../agents/verification/review-diff-fingerprint';
+import {
+  publishBindingDrift,
+  type PublishBinding,
+} from '../../routes/workflow/workflow-auto-commit-binding';
 import { writeBlockedTask } from './blocked-task-write';
 import { taskHasLinkedPr } from './workflow-cli-executor-helpers';
 import { holdForRequiredMerge } from './required-merge-hold';
@@ -48,29 +53,26 @@ export type OverridePublication =
   | 'publication_failed'
   | 'already_moved';
 
-/** The verify.md version + diff a human override was given for. */
-export interface OverrideBinding {
-  verifySha256: string;
-  diffFingerprint: string;
-  /** Worktree the fingerprint was taken from. */
-  worktreePath: string;
-}
+/** The worktree + verify.md version + diff a human override was given for. */
+export type OverrideBinding = PublishBinding;
 
-/**
- * Whether the task still shows exactly the artifact + diff the override was
- * given for. Null when it does; otherwise the reason (unreadable counts as a
- * mismatch — an override cannot be proven to cover what we cannot identify).
- */
-async function bindingMismatch(taskId: number, b: OverrideBinding): Promise<string | null> {
-  const [sha, fp] = await Promise.all([
-    readVerifySha256(taskId).catch(() => null),
-    currentDiffFingerprint(taskId, b.worktreePath).catch(() => null),
-  ]);
-  if (!sha) return 'verify.md の識別子（sha256）を取得できません';
-  if (!fp) return '差分の識別子（fingerprint）を取得できません';
-  if (sha !== b.verifySha256) return '上書きした後に verify.md が変わりました';
-  if (fp !== b.diffFingerprint) return '上書きした後に差分が変わりました';
-  return null;
+/** Put the task back on the hold it was overridden from, recording why. */
+async function reHold(
+  taskId: number,
+  ctx: { binding: OverrideBinding; hold: ReviewHoldDetails },
+  mismatch: string,
+): Promise<'binding_mismatch'> {
+  await holdForHumanReview({
+    taskId,
+    reason: ctx.hold.reason,
+    detail: `${mismatch}。上書きの対象と一致しないため公開していません。`,
+    findings: ctx.hold.findings,
+    severity: ctx.hold.severity,
+    source: 'review_override_binding',
+    extra: { overrideBinding: ctx.binding, bindingMismatch: mismatch },
+  });
+  log.warn({ taskId, mismatch }, '[review-hold] Override no longer matches — re-held');
+  return 'binding_mismatch';
 }
 
 /**
@@ -87,29 +89,22 @@ export async function publishAfterReviewOverride(
   verifyContent: string,
   ctx: { binding: OverrideBinding; hold: ReviewHoldDetails },
 ): Promise<OverridePublication> {
-  const mismatch = await bindingMismatch(taskId, ctx.binding);
-  if (mismatch) {
-    await holdForHumanReview({
-      taskId,
-      reason: ctx.hold.reason,
-      detail: `${mismatch}。上書きの対象と一致しないため公開していません。`,
-      findings: ctx.hold.findings,
-      severity: ctx.hold.severity,
-      source: 'review_override_binding',
-      extra: { overrideBinding: ctx.binding, bindingMismatch: mismatch },
-    });
-    log.warn({ taskId, mismatch }, '[review-hold] Override no longer matches — re-held');
-    return 'binding_mismatch';
-  }
+  // Early, cheap refusal; the commit side repeats this check where it commits.
+  const mismatch = await publishBindingDrift(taskId, ctx.binding.worktreePath, ctx.binding);
+  if (mismatch) return reHold(taskId, ctx, mismatch);
 
   const { performAutoCommitAndPR, isNoChangeCompletion } =
     await import('../../routes/workflow/workflow-auto-commit');
-  const acpr = await performAutoCommitAndPR(taskId, verifyContent).catch(
+  const acpr = await performAutoCommitAndPR(taskId, verifyContent, {
+    binding: ctx.binding,
+  }).catch(
     (err: unknown) =>
       ({
         error: `commit/PR が例外で終了しました: ${err instanceof Error ? err.message : String(err)}`,
       }) as Awaited<ReturnType<typeof performAutoCommitAndPR>>,
   );
+
+  if (acpr.bindingMismatch) return reHold(taskId, ctx, acpr.bindingMismatch);
 
   if (acpr.verificationBlocked) {
     // Unverifiable: the gate already persisted the blocked task and evidence.
@@ -158,12 +153,15 @@ export async function publishAfterReviewOverride(
 
   // A stop, an error or a failed requested commit is not a publication, even
   // when an earlier PR is already linked — never complete on top of it.
-  const failure = noChange
-    ? null
-    : !acpr.requested
-      ? (acpr.error ?? 'commit/PR の結果を取得できません')
-      : (acpr.error ??
-        (commitSatisfied ? null : (acpr.autoCommitResult?.error ?? 'コミットに失敗しました')));
+  // NOTE: acpr.error is checked BEFORE the no-change reading: filesChanged 0
+  // also comes from an already-committed tree, so it does not prove there was
+  // nothing to publish, and a stop/publication error must still block.
+  const failure = !acpr.requested
+    ? (acpr.error ?? 'commit/PR の結果を取得できません')
+    : (acpr.error ??
+      (commitSatisfied || noChange
+        ? null
+        : (acpr.autoCommitResult?.error ?? 'コミットに失敗しました')));
   if (failure) {
     await writeBlockedTask(prisma, taskId).catch(() => {});
     await recordTransition({
