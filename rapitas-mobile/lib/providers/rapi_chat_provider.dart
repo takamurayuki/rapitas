@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
 import '../models/task.dart';
 import '../services/assistant_service.dart';
+import '../services/home_screen_bridge.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
 import 'theme_data_provider.dart';
@@ -511,6 +512,10 @@ class RapiChatState {
 const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
     'デスクトップ側の処理が混んでいるかもしれません。もう一度送ってみてください。';
 
+/// ショートカットから預かった依頼を入力欄に入れるときの上限
+/// （入力欄と同じ。バックエンドの MAX_TEXT_LENGTH）
+const int rapiMaxExternalDraftLength = 2000;
+
 /// copilot/chat に送る履歴の件数
 const int _historyLimit = 10;
 
@@ -582,6 +587,38 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     return turns.length > _historyLimit
         ? turns.sublist(turns.length - _historyLimit)
         : turns;
+  }
+
+  /// ショートカット「ラピに依頼」から預かった依頼を下書きとして受け取る（送信はしない）。
+  ///
+  /// 入力欄が空なら最後の依頼を欄に入れ、ほかの依頼は案内の中に並べる。書きかけの文があれば
+  /// 消さずに、すべての依頼を案内の中に並べる。
+  ///
+  /// @param requests - 預かった依頼（古い順） / home_screen_bridge.dart の takePendingRequests
+  void receiveExternalDraft(List<PendingRapiRequest> requests) {
+    if (requests.isEmpty) return;
+    final intoInput = state.input.trim().isEmpty;
+    final listed = intoInput ? requests.sublist(0, requests.length - 1) : requests;
+    final failed = requests.any((r) => !r.needsConfirmationOnly);
+    final lines = <String>[
+      intoInput
+          ? 'ショートカットから届いた依頼を入力欄に入れました。送信すると続きを確認できます。'
+          : 'ショートカットから依頼が届きました。書きかけの文はそのままにしています。',
+      if (failed) 'ショートカットからはデスクトップに送れなかったので、ここから送り直してください。',
+      if (listed.isNotEmpty) ...[
+        intoInput ? 'ほかにも届いています：' : '届いた依頼：',
+        for (final r in listed) '・${r.text}',
+      ],
+    ];
+    if (intoInput) {
+      final text = requests.last.text;
+      state = state.copyWith(
+        input: text.length > rapiMaxExternalDraftLength
+            ? text.substring(0, rapiMaxExternalDraftLength)
+            : text,
+      );
+    }
+    _system(lines.join('\n'));
   }
 
   /// 入力欄の文を書き戻す（画面の TextEditingController の変更から呼ぶ）
