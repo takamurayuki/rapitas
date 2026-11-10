@@ -10,6 +10,8 @@
  * import if not mocked first).
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
+// Pure (node:crypto only), safe to import before the mocks below.
+import { fingerprintDiff } from './review-diff-fingerprint';
 
 const getDiff = mock(() =>
   Promise.resolve([{ filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+line' }]),
@@ -665,12 +667,59 @@ describe('reviewDiffAdversarially — findings, inputs and cost (stage 1)', () =
     expect(recordReviewCostMock).not.toHaveBeenCalled();
   });
 
+  // Fingerprint of the default getDiff mock — the diff under review.
+  const reviewedFp = fingerprintDiff([{ filename: 'a.ts', status: 'M', patch: '+line' }]);
+  const failedMeasurement = (target: Record<string, unknown> | undefined) => ({
+    payload: {
+      measuredAt: '2026-11-09T00:00:00Z',
+      target,
+      result: {
+        ok: false,
+        verdict: 'fail',
+        summary: 's',
+        changedFiles: [],
+        checks: [{ name: 'test', ran: true, ok: false, errorCount: 1, details: 'old.test.ts' }],
+      },
+    },
+    createdAt: new Date(),
+  });
+
+  it('never hands the jury a measurement of another diff or worktree as counter-evidence', async () => {
+    // Earlier run measured a FAILING diff; the code was fixed since, and this
+    // review's diff was not measured (verifier skipped). The old failure must
+    // not appear as evidence against the current claim — G2 review item 4.
+    for (const target of [
+      { worktreePath: '/wt', diffFingerprint: 'fp-of-the-old-diff' },
+      // Worktree rebuilt (task 539 recovery): same diff, different worktree.
+      { worktreePath: '/wt-before-rebuild', diffFingerprint: reviewedFp },
+      // Recorded before targets existed.
+      undefined,
+    ]) {
+      sendAIMessage.mockClear();
+      appendEventMock.mockClear();
+      queryEventsMock.mockResolvedValue({ events: [failedMeasurement(target)], total: 1 });
+      sendAIMessage.mockResolvedValue({ content: '{"verdict":"pass","findings":[]}' });
+      await reviewDiffAdversarially({ taskId: 3, worktreePath: '/wt' });
+      const prompt = (
+        sendAIMessage.mock.calls as unknown as Array<[{ messages: Array<{ content: string }> }]>
+      )[0][0].messages[0].content;
+      expect(prompt).not.toContain('old.test.ts');
+      expect(prompt).toContain('実測データなし');
+      const event = (
+        appendEventMock.mock.calls as unknown as Array<[{ payload: Record<string, unknown> }]>
+      ).find((c) => (c[0] as { eventType?: string }).eventType === 'adversarial_review')![0];
+      expect(event.payload.measuredInput).toBe(false);
+      expect(event.payload.measurementStale).toBe(true);
+    }
+  });
+
   it('gives the jury the task description/goals/constraints and the RAW measurement', async () => {
     queryEventsMock.mockResolvedValue({
       events: [
         {
           payload: {
             measuredAt: '2026-11-10T00:00:00Z',
+            target: { worktreePath: '/wt', diffFingerprint: reviewedFp },
             result: {
               ok: false,
               verdict: 'fail',

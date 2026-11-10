@@ -10,6 +10,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { appendEvent } from '../memory/timeline';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:outcome-telemetry');
 
@@ -31,6 +32,25 @@ const RECENT_WINDOW = 10;
 const MIN_SAMPLES = 3;
 
 /**
+ * The model that produced a task's outcome: its newest real run. Jury cost
+ * rows (whose modelName is a juror's) are newer than the run they judged and
+ * would credit the outcome to the reviewer (G2 review item 2).
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Model name, or null / モデル名（無ければ null）
+ */
+export async function findOutcomeModel(taskId: number): Promise<string | null> {
+  const exec = await prisma.agentExecution
+    .findFirst({
+      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
+      orderBy: { createdAt: 'desc' },
+      select: { modelName: true },
+    })
+    .catch(() => null);
+  return exec?.modelName ?? null;
+}
+
+/**
  * Record a task's outcome as a timeline event (observability + future learning).
  * Best-effort — never throws into the caller.
  *
@@ -50,13 +70,7 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
       .count({ where: { taskId, cause: { in: TROUBLE_CAUSES } } })
       .catch(() => 0);
 
-    const exec = await prisma.agentExecution
-      .findFirst({
-        where: { session: { config: { taskId } } },
-        orderBy: { createdAt: 'desc' },
-        select: { modelName: true },
-      })
-      .catch(() => null);
+    const model = await findOutcomeModel(taskId);
 
     const firstTrySuccess = finalStatus === 'completed' && troubleCount === 0;
 
@@ -71,7 +85,7 @@ export async function recordTaskOutcome(taskId: number, finalStatus: string): Pr
         troubleCount,
         workflowMode: task?.workflowMode ?? null,
         complexityScore: task?.complexityScore ?? null,
-        model: exec?.modelName ?? null,
+        model,
       },
       correlationId: `task_${taskId}`,
     });

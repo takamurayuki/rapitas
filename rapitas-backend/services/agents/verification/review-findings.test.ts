@@ -7,7 +7,13 @@
  * but never bounce the work).
  */
 import { describe, expect, test } from 'bun:test';
-import { parseFindings, formatFindingReason, findingSeverityScore } from './review-findings';
+import {
+  parseFindings,
+  formatFindingReason,
+  findingSeverityScore,
+  capFindingsForStorage,
+  MAX_STORED_FINDINGS,
+} from './review-findings';
 import { parseReviewVerdict, aggregateJuryVerdicts } from './adversarial-diff-review-verdict';
 
 describe('parseFindings', () => {
@@ -176,5 +182,60 @@ describe('panel vote with structured findings', () => {
       { provider: 'claude', model: 'sonnet', ...clean },
     ]);
     expect(agg2.verdict).toBe('pass');
+  });
+});
+
+describe('findings beyond the storage cap still decide the verdict', () => {
+  const minors = Array.from({ length: 12 }, (_, i) => ({
+    severity: 'minor',
+    summary: `nit ${i}`,
+    evidence: `src/n${i}.ts:1`,
+  }));
+  const blocker = { severity: 'blocker', summary: 'data loss', evidence: 'src/db.ts:9' };
+
+  test('12 minor + 1 evidenced blocker (13th) is a FAIL — G2 review item 3 reproduction', () => {
+    const v = parseReviewVerdict(
+      JSON.stringify({ verdict: 'pass', findings: [...minors, blocker] }),
+    );
+    expect(v.verdict).toBe('fail');
+    expect(v.severity).toBe(90);
+    expect(v.reasons.some((r) => r.includes('data loss'))).toBe(true);
+    // Storage is bounded, but the deciding finding is the one kept first.
+    expect(v.findings).toHaveLength(MAX_STORED_FINDINGS);
+    expect(v.findings![0]).toMatchObject({ summary: 'data loss', gating: true });
+  });
+
+  test('parseFindings itself no longer drops the 13th finding', () => {
+    expect(parseFindings([...minors, blocker])).toHaveLength(13);
+  });
+
+  test('the panel fails on it too', () => {
+    const j = parseReviewVerdict(
+      JSON.stringify({ verdict: 'pass', findings: [...minors, blocker] }),
+    );
+    const agg = aggregateJuryVerdicts([
+      { provider: 'claude', model: 'opus', ...j },
+      {
+        provider: 'claude',
+        model: 'sonnet',
+        ...parseReviewVerdict('{"verdict":"pass","findings":[]}'),
+      },
+    ]);
+    // 1 fail vs 1 pass → tie → fail, and the blocker survives into the panel record.
+    expect(agg.verdict).toBe('fail');
+    expect(agg.findings!.some((f) => f.summary === 'data loss' && f.gating)).toBe(true);
+  });
+
+  test('capFindingsForStorage keeps gating → 要確認 → rest, original order within rank', () => {
+    const f = parseFindings([
+      ...minors,
+      { severity: 'major', summary: 'unproven' },
+      { severity: 'major', summary: 'm1', evidence: 'a.ts:1' },
+      blocker,
+    ])!;
+    const kept = capFindingsForStorage(f, 4);
+    expect(kept.map((x) => x.summary)).toEqual(['data loss', 'm1', 'unproven', 'nit 0']);
+    expect(capFindingsForStorage(undefined)).toEqual([]);
+    expect(capFindingsForStorage(f.slice(0, 3))).toHaveLength(3);
   });
 });

@@ -75,7 +75,11 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
     },
     agentSession: {
       update: mock(async () => ({})),
+      // Totals are written compare-and-swap on lastActivityAt (session-cost-totals.ts).
+      findUnique: mock(async () => ({ lastActivityAt: new Date(0) })),
+      updateMany: mock(async (_args: unknown) => ({ count: 1 })),
     },
+    agentAction: { findMany: mock(async () => []) },
     gitCommit: {
       create: mock(async () => ({})),
     },
@@ -271,8 +275,8 @@ describe('saveExecutionResult()', () => {
     expect(updateArg.data.modelName).toBeUndefined();
 
     // Recomputed from the rows (cumulative CLI totals), not incremented.
-    expect(prisma.agentSession.update).toHaveBeenCalledWith({
-      where: { id: 2 },
+    expect(prisma.agentSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 2, lastActivityAt: new Date(0) },
       data: expect.objectContaining({ totalTokensUsed: 10 }),
     });
 
@@ -386,8 +390,8 @@ describe('saveExecutionResult()', () => {
       where: { id: 2 },
       data: expect.objectContaining({ totalLlmCallCount: { increment: 3 } }),
     });
-    expect(prisma.agentSession.update).toHaveBeenCalledWith({
-      where: { id: 2 },
+    expect(prisma.agentSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 2, lastActivityAt: new Date(0) },
       data: expect.objectContaining({ totalCostUsd: 1.46 }),
     });
   });

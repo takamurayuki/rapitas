@@ -29,11 +29,29 @@ const mockFindUnique = mock(() =>
 ) as any;
 const mockTaskUpdate = mock(() => Promise.resolve({})) as any;
 const mockUpdateMany = mock(() => Promise.resolve({ count: 1 })) as any;
+// verify.md's sha256 as stored; mutable so a test can re-save mid-review.
+let storedVerifySha: string | null = null;
 const mockPrisma = {
   task: { findUnique: mockFindUnique, update: mockTaskUpdate, updateMany: mockUpdateMany },
   agentSession: { findFirst: mock(() => Promise.resolve({ worktreePath: '/wt/1' })) },
+  workflowFile: {
+    findFirst: mock(() => Promise.resolve(storedVerifySha ? { sha256: storedVerifySha } : null)),
+  },
 };
 mock.module('../../../../config', () => ({ prisma: mockPrisma }));
+
+const appendedEvents: Array<{ eventType: string; payload: Record<string, unknown> }> = [];
+mock.module('../../../../services/memory/timeline', () => ({
+  appendEvent: mock(async (e: { eventType: string; payload: Record<string, unknown> }) => {
+    appendedEvents.push(e);
+    return { id: appendedEvents.length };
+  }),
+  queryEvents: mock(async () => ({ events: [], total: 0 })),
+}));
+const completionRecords = () =>
+  appendedEvents
+    .filter((e) => e.eventType === 'adversarial_review_gate_completed')
+    .map((e) => e.payload);
 
 const transitionCalls: Array<{ cause: string }> = [];
 const mockRecordTransition = mock((args: { cause: string }) => {
@@ -164,5 +182,77 @@ describe('runAdversarialDiffReview — stale-verdict compare-and-swap (task 783)
     );
     expect(staleWarn).toBeDefined();
     expect((staleWarn?.[0] as { reasons?: string[] })?.reasons).toEqual(['実装が空']);
+  });
+});
+
+describe('runAdversarialDiffReview — completion record (G2 review item 1)', () => {
+  beforeEach(() => {
+    appendedEvents.length = 0;
+    storedVerifySha = 'sha-v1';
+    mockFindUnique
+      .mockReset()
+      .mockResolvedValue({ workflowStatus: 'verify_done', updatedAt: new Date(0) });
+    mockAttemptVerifyRepair.mockReset().mockResolvedValue({ bounced: false });
+    mockReviewDiffAdversarially.mockReset();
+  });
+
+  test('a PASS is recorded after the gate, bound to verify.md sha256 and the reviewed diff', async () => {
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'pass',
+      severity: 0,
+      reasons: [],
+      diffFingerprint: 'fp-A',
+    });
+    const out = await runAdversarialDiffReview(buildParams());
+    expect(out.verifyGateBlocked).toBe(false);
+    expect(completionRecords()).toEqual([
+      expect.objectContaining({
+        taskId: 715,
+        verifySha256: 'sha-v1',
+        diffFingerprint: 'fp-A',
+        verdict: 'pass',
+        outcome: 'passed',
+        source: 'http_save',
+      }),
+    ]);
+  });
+
+  test('a FAIL that blocked is recorded as stopped — only after the block was written', async () => {
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 90,
+      reasons: ['x'],
+      diffFingerprint: 'fp-A',
+    });
+    let blockedBeforeRecord = false;
+    mockTaskUpdate.mockImplementationOnce(async () => {
+      blockedBeforeRecord = completionRecords().length === 0;
+      return {};
+    });
+    await runAdversarialDiffReview(buildParams());
+    expect(blockedBeforeRecord).toBe(true);
+    expect(completionRecords()).toEqual([expect.objectContaining({ outcome: 'stopped' })]);
+  });
+
+  test('the sha256 is the one read BEFORE the review (a re-save mid-review is not covered)', async () => {
+    mockReviewDiffAdversarially.mockImplementationOnce(async () => {
+      storedVerifySha = 'sha-v2'; // verify.md re-saved while the jury ran
+      return { verdict: 'pass', severity: 0, reasons: [], diffFingerprint: 'fp-A' };
+    });
+    await runAdversarialDiffReview(buildParams());
+    expect(completionRecords()).toEqual([expect.objectContaining({ verifySha256: 'sha-v1' })]);
+  });
+
+  test('a stale verdict (task moved on) writes no completion record', async () => {
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 90,
+      reasons: ['x'],
+      diffFingerprint: 'fp-A',
+    });
+    mockFindUnique.mockReset().mockResolvedValue({ workflowStatus: 'completed' });
+    const out = await runAdversarialDiffReview(buildParams());
+    expect(out.staleVerifyRequest).toBe(true);
+    expect(completionRecords()).toEqual([]);
   });
 });

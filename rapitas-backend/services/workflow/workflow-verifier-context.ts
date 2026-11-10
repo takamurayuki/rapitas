@@ -17,6 +17,21 @@ import { resolvePreferredBaseBranch } from '../task/task-resolver';
 import { recordContextMetrics } from './workflow-context-metrics';
 import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import type { VerifierTexts } from './workflow-role-prompts';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+
+/** Newest real run of the task (the one whose output is being measured), for audit. */
+async function latestRunExecutionId(taskId: number): Promise<number | null> {
+  try {
+    const row = await prisma.agentExecution.findFirst({
+      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // NOTE: auto_verifier shares the verifier context — both must emit the validator-required
 // headings, AND both must be measured: recordContextMetrics below is called with the
@@ -127,6 +142,9 @@ Preserve command exit codes before formatting output: piping a command into tail
     // NOTE: theme.defaultBranch, not AgentExecutionConfig.targetBranch alone
     // (task 511: that table is empty for the autonomous pipeline).
     const preferredBaseBranchForContext = await resolvePreferredBaseBranch(taskId);
+    // Identity of the diff the measurement below runs on, so the jury only
+    // treats it as evidence about this exact diff (not a later one).
+    let measuredDiffFingerprint: string | null = null;
     try {
       const { getDiff } =
         await import('../agents/orchestrator/git-operations/core/diff-structured');
@@ -135,6 +153,8 @@ Preserve command exit codes before formatting output: piping a command into tail
         undefined,
         preferredBaseBranchForContext,
       ).catch(() => []);
+      const { fingerprintDiff } = await import('../agents/verification/review-diff-fingerprint');
+      measuredDiffFingerprint = fingerprintDiff(records);
       const patches = records
         .map((r) => r.patch)
         .filter((p): p is string => !!p && p.trim().length > 0)
@@ -192,7 +212,11 @@ Preserve command exit codes before formatting output: piping a command into tail
         // the measurement without the verifier's own prose (independence).
         const { recordVerificationMeasurement } =
           await import('../agents/verification/verification-measurement-record');
-        await recordVerificationMeasurement(taskId, measured).catch(() => {});
+        await recordVerificationMeasurement(taskId, measured, {
+          worktreePath: diffSession.worktreePath,
+          diffFingerprint: measuredDiffFingerprint,
+          executionId: await latestRunExecutionId(taskId),
+        }).catch(() => {});
         const header =
           language === 'ja'
             ? '# 自動検証の実測結果（worktree で実行済み・GROUND TRUTH）'

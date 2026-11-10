@@ -34,7 +34,7 @@ export function buildDiffReviewPrompt(p: {
   diffText: string;
   /** Rendered raw automated-verifier result; null/undefined = no measurement on record. */
   measuredVerification?: string | null;
-  /** verify.md's own overall verdict line only (the claim, not its reasoning). */
+  /** verify.md's overall verdict LABEL only (extractVerifyClaim), never its reasoning. */
   verifyClaim?: string | null;
 }): string {
   const ac =
@@ -72,7 +72,7 @@ ${p.diffText}
 ## 自動検証の実測データ（サーバーが worktree で実行した lint / 型 / テスト等の生の結果）
 ${measured}
 
-## verify.md の自己申告（総合判定の行のみ）
+## verify.md の自己申告（総合判定のラベルのみ）
 ${claim}
 
 ## 評価観点（ルーブリック）

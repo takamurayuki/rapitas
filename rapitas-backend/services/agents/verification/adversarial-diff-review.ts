@@ -23,6 +23,7 @@ import { parseAcceptanceCriteria } from './review-acceptance-criteria';
  * realized task outcomes (Weaver, arXiv:2506.18203).
  */
 import { getDiff } from '../orchestrator/git-operations/core/diff-structured';
+import { fingerprintDiff } from './review-diff-fingerprint';
 import { generatedArtifactReason } from './generated-artifact-paths';
 import { buildPanel } from './jury-panel';
 import { summarisePanel } from './juror-unknown-reason';
@@ -169,27 +170,32 @@ export {
 
 /**
  * The measured verification and verify.md's claim for the jury prompt.
+ * Only a measurement taken on THIS worktree and THIS diff is shown; an older
+ * one is history, never counter-evidence against the current claim.
  * Never throws: a missing measurement just means the jury is told so.
  *
  * @param taskId - Task under review / 対象タスク
- * @returns Rendered measurement and claim line (null when absent) / 実測と自己申告
+ * @param target - Worktree and diff fingerprint being reviewed / 審査対象の worktree と差分
+ * @returns Rendered measurement and claim (null when absent), and whether a non-matching one was skipped / 実測と自己申告
  */
 async function loadJuryMeasurementInputs(
   taskId: number,
-): Promise<{ measuredVerification: string | null; verifyClaim: string | null }> {
+  target: { worktreePath: string; diffFingerprint: string | null },
+): Promise<{ measuredVerification: string | null; verifyClaim: string | null; stale: boolean }> {
   try {
-    const { loadLatestMeasurement, renderMeasurementForJury, extractVerifyClaim } =
+    const { loadMeasurementForTarget, renderMeasurementForJury, extractVerifyClaim } =
       await import('./verification-measurement-record');
     const [m, verify] = await Promise.all([
-      loadLatestMeasurement(taskId),
+      loadMeasurementForTarget(taskId, target),
       readWorkflowFile(taskId, 'verify').catch(() => null),
     ]);
     return {
-      measuredVerification: m ? renderMeasurementForJury(m) : null,
+      measuredVerification: m.current ? renderMeasurementForJury(m.current) : null,
       verifyClaim: extractVerifyClaim(verify),
+      stale: m.stale,
     };
   } catch {
-    return { measuredVerification: null, verifyClaim: null };
+    return { measuredVerification: null, verifyClaim: null, stale: false };
   }
 }
 
@@ -234,6 +240,7 @@ export async function reviewDiffAdversarially(params: {
     const preferredBaseBranch = await resolvePreferredBaseBranch(taskId);
     const diff = await getDiff(worktreePath, undefined, preferredBaseBranch ?? undefined);
     const diffText = buildJuryDiffText(diff);
+    const diffFingerprint = fingerprintDiff(diff);
     if (!diffText.trim()) {
       // No code change to review — the completion gate already governs no-op.
       return { verdict: 'unknown', severity: 0, reasons: [], judged: false };
@@ -253,7 +260,7 @@ export async function reviewDiffAdversarially(params: {
       })
       .catch(() => null);
     const acceptanceCriteria = parseAcceptanceCriteria(task?.acceptanceCriteria);
-    const measured = await loadJuryMeasurementInputs(taskId);
+    const measured = await loadJuryMeasurementInputs(taskId, { worktreePath, diffFingerprint });
 
     const prompt = buildDiffReviewPrompt({
       taskTitle: task?.title ?? `task-${taskId}`,
@@ -318,8 +325,11 @@ export async function reviewDiffAdversarially(params: {
           })),
           // Panel-wide findings, kept on PASS too (minor → recorded only).
           findings: aggregated.findings ?? [],
-          // Whether the jury saw a measured verification (independence audit).
+          // Whether the jury saw a measured verification (independence audit),
+          // and whether one existed but was about another diff/worktree.
           measuredInput: measured.measuredVerification != null,
+          measurementStale: measured.stale,
+          diffFingerprint,
           // Seats planned vs seats asked. A juror rested after repeated
           // timeouts is dropped before anyone is asked, so without this the
           // review reads as a smaller jury that answered in full — which is
@@ -352,7 +362,7 @@ export async function reviewDiffAdversarially(params: {
         },
         '[adversarial-review] Jury verdict',
       );
-      return aggregated;
+      return { ...aggregated, diffFingerprint };
     }
 
     // No juror produced a verdict — risk-gated availability policy.
@@ -373,11 +383,12 @@ export async function reviewDiffAdversarially(params: {
         ],
         judged: false,
         jurors,
+        diffFingerprint,
       };
     }
     log.warn({ taskId }, '[adversarial-review] Jury unavailable on low-risk change — failing open');
     // Every juror answered 'unknown'; their own reasons are on the rows.
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors, diffFingerprint };
   } catch (err) {
     // The gate was on and the pipeline broke — distinct from 'disabled',
     // which is the operator switching it off.

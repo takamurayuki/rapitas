@@ -13,11 +13,17 @@ const executionFindMany = mock(async (_a: unknown) => [
   { costUsd: 0.5, tokensUsed: 100, claudeSessionId: 'impl', startedAt: new Date(0) },
   { costUsd: 0.02, tokensUsed: 30, claudeSessionId: null, startedAt: new Date(1) },
 ]);
-const sessionUpdate = mock(async (_a: unknown) => ({}));
+const sessionUpdate = mock(async (_a: unknown) => ({ count: 1 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentSession: { findFirst: sessionFindFirst, update: sessionUpdate },
+    agentSession: {
+      findFirst: sessionFindFirst,
+      // Totals are written compare-and-swap on lastActivityAt (session-cost-totals.ts).
+      findUnique: mock(async () => ({ lastActivityAt: new Date(0) })),
+      updateMany: sessionUpdate,
+    },
     agentExecution: { create: executionCreate, findMany: executionFindMany },
+    agentAction: { findMany: mock(async () => []) },
   },
 }));
 mock.module('../../../config/logger', () => ({
@@ -105,7 +111,7 @@ describe('recordReviewCost', () => {
       ],
     });
     expect(sessionUpdate).toHaveBeenCalledWith({
-      where: { id: 42 },
+      where: { id: 42, lastActivityAt: new Date(0) },
       data: expect.objectContaining({ totalCostUsd: 0.52, totalTokensUsed: 130 }),
     });
   });

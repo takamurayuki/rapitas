@@ -53,6 +53,9 @@ export type TimelineEventType =
   // Raw automated-verifier result measured for the verifier — see
   // verification/verification-measurement-record.ts.
   | 'verification_measured'
+  // A jury gate finished acting on a verdict, bound to verify.md's sha256 and
+  // the reviewed diff — see workflow/verify-jury-completion.ts.
+  | 'adversarial_review_gate_completed'
   | 'ideation_calibration'
   | 'retro_review_failed'
   | 'playbook_generated'

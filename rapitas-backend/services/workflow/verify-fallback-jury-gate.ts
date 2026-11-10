@@ -17,6 +17,14 @@ import { createLogger } from '../../config/logger';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { writeBlockedTask } from './blocked-task-write';
 import type { WorkflowAdvanceResult } from './workflow-types';
+import {
+  withTaskJuryGate,
+  readVerifySha256,
+  findJuryGateCompletion,
+  recordJuryGateCompletion,
+} from './verify-jury-completion';
+import { currentDiffFingerprint } from '../agents/verification/review-diff-fingerprint';
+import { capFindingsForStorage } from '../agents/verification/review-findings';
 
 const log = createLogger('workflow-cli-executor');
 
@@ -33,36 +41,30 @@ export interface FallbackJuryOutcome {
 }
 
 /**
- * Whether the HTTP save pipeline already ran a production jury on the
- * current verify.md (an `adversarial_review` event newer than the artifact).
- *
- * @param taskId - Task id / タスクID
- * @returns True when this verify.md was already judged / 既に審査済みなら true
- */
-export async function juryAlreadyRanForCurrentVerify(taskId: number): Promise<boolean> {
-  const artifact = await prisma.workflowFile
-    .findFirst({ where: { taskId, fileType: 'verify' }, select: { updatedAt: true } })
-    .catch(() => null);
-  if (!artifact) return false;
-  const { queryEvents } = await import('../memory/timeline');
-  const { events } = await queryEvents({
-    eventType: 'adversarial_review',
-    correlationId: `task-${taskId}`,
-    since: artifact.updatedAt,
-    limit: 1,
-  }).catch(() => ({ events: [] as unknown[] }));
-  return events.length > 0;
-}
-
-/**
  * Run the jury before the epilogue's commit/PR, honouring a FAIL like the
  * HTTP pipeline does. Never throws for review errors (they fail open exactly
  * as the jury itself does).
+ *
+ * Reuse rule: a previous gate's verdict is honoured only when its completion
+ * record names this verify.md's sha256 AND the worktree's current diff
+ * fingerprint (verify-jury-completion.ts). The gate runs under the per-task
+ * jury lock, so an HTTP review still deciding is waited for, not raced.
  *
  * @param params - Task, evaluated status, verify.md, worktree, actor/session for transitions / 入力一式
  * @returns Whether the caller must stop, and with which phase status / 呼び出し側が止まるべきか
  */
 export async function runFallbackJuryGate(params: {
+  taskId: number;
+  currentWfStatus: string;
+  verifyContent: string;
+  worktreePath: string | null;
+  actor: TransitionActor;
+  sessionId: number;
+}): Promise<FallbackJuryOutcome> {
+  return withTaskJuryGate(params.taskId, () => runGateLocked(params));
+}
+
+async function runGateLocked(params: {
   taskId: number;
   currentWfStatus: string;
   verifyContent: string;
@@ -76,9 +78,6 @@ export async function runFallbackJuryGate(params: {
     .catch(() => null);
   if (task?.githubPrId != null && CONFLICT_RESOLUTION_TITLE_RE.test(task.title ?? '')) {
     return { stop: false, skipped: 'conflict_resolution' };
-  }
-  if (await juryAlreadyRanForCurrentVerify(taskId)) {
-    return { stop: false, skipped: 'already_reviewed' };
   }
 
   let worktreePath = params.worktreePath;
@@ -94,10 +93,47 @@ export async function runFallbackJuryGate(params: {
   }
   if (!worktreePath) return { stop: false, skipped: 'no_worktree' };
 
+  // The artifact version is read BEFORE the review: a verify.md saved while
+  // the jury runs must not inherit this verdict.
+  const verifySha256 = await readVerifySha256(taskId);
+  const currentFingerprint = await currentDiffFingerprint(taskId, worktreePath);
+  const done =
+    verifySha256 && currentFingerprint
+      ? await findJuryGateCompletion(taskId, {
+          verifySha256,
+          diffFingerprint: currentFingerprint,
+        })
+      : null;
+  if (done?.outcome === 'passed') return { stop: false, skipped: 'already_reviewed' };
+  if (done?.outcome === 'stopped') {
+    // This exact artifact + diff was already rejected and the rejection was
+    // acted on; it owns the next step. Report the live status, never commit.
+    const live = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    const phaseStatus = (live?.workflowStatus ??
+      currentWfStatus) as WorkflowAdvanceResult['status'];
+    return { stop: true, phaseStatus, skipped: 'already_reviewed' };
+  }
+
   const { reviewDiffAdversarially } =
     await import('../agents/verification/adversarial-diff-review');
   const review = await reviewDiffAdversarially({ taskId, worktreePath }).catch(() => null);
-  if (!review || review.verdict !== 'fail') return { stop: false };
+  const complete = (outcome: 'passed' | 'stopped') =>
+    review?.diffFingerprint && verifySha256
+      ? recordJuryGateCompletion({
+          taskId,
+          verifySha256,
+          diffFingerprint: review.diffFingerprint,
+          verdict: review.verdict,
+          outcome,
+          source: 'cli_epilogue',
+        })
+      : Promise.resolve();
+  if (!review || review.verdict !== 'fail') {
+    await complete('passed');
+    return { stop: false };
+  }
 
   const reason = `差分レビュー不合格: ${
     review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
@@ -106,7 +142,8 @@ export async function runFallbackJuryGate(params: {
   const repair = await attemptVerifyRepair(taskId, currentWfStatus, reason, verifyContent);
   if (repair.stale) {
     // The workflow moved past the evaluated status meanwhile — neither
-    // bounce nor block (same CAS rule as the hard-fail branch).
+    // bounce nor block (same CAS rule as the hard-fail branch), and no
+    // completion record: this verdict was not acted on.
     return { stop: true, phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'] };
   }
 
@@ -139,12 +176,13 @@ export async function runFallbackJuryGate(params: {
       metadata: {
         severity: review.severity,
         reasons: review.reasons.slice(0, 5),
-        findings: review.findings?.slice(0, 12),
+        findings: capFindingsForStorage(review.findings),
         source: 'cli_epilogue',
       },
       invariantViolation: true,
       invariantMessage: reason,
     }).catch(() => {});
   }
+  await complete('stopped');
   return { stop: true, phaseStatus };
 }

@@ -35,8 +35,19 @@ export interface ReviewFinding {
   juror?: string;
 }
 
-/** Upper bound on findings kept per juror (bounds timeline payload size). */
-const MAX_FINDINGS = 12;
+/**
+ * Upper bound on findings STORED per juror / per transition (bounds timeline
+ * payload size). Never applied before the verdict is decided — see
+ * capFindingsForStorage.
+ */
+export const MAX_STORED_FINDINGS = 12;
+
+/**
+ * Hard bound on findings PARSED from one reply, only to keep a runaway reply
+ * from costing unbounded work. Far above any real panel answer; the verdict
+ * is decided over everything up to here.
+ */
+const MAX_PARSED_FINDINGS = 200;
 
 /** Evidence strings that mean "none" even though the field is filled in. */
 const EMPTY_EVIDENCE_RE = /^(?:なし|無し|不明|n\/?a|none|null|-+|—+|ー+)$/i;
@@ -97,9 +108,41 @@ export function parseFindings(raw: unknown): ReviewFinding[] | null {
     if (repro) finding.repro = repro;
     if (serious && !evidence && !nonVerdictNote) finding.needsCheck = true;
     out.push(finding);
-    if (out.length >= MAX_FINDINGS) break;
+    if (out.length >= MAX_PARSED_FINDINGS) break;
   }
   return out;
+}
+
+function storageRank(f: ReviewFinding): number {
+  if (f.gating) return f.severity === 'blocker' ? 0 : 1;
+  if (f.needsCheck) return 2;
+  return 3;
+}
+
+/**
+ * Bound a findings list for storage, keeping the ones that decide (or could
+ * decide) the verdict first: gating blocker → gating major → 要確認 → the rest,
+ * original order within each rank. Only for storage/display; the verdict must
+ * already have been computed over the full list.
+ *
+ * NOTE: A plain `slice(0, 12)` once ran BEFORE the gate, so 12 minor notes
+ * followed by one evidenced blocker parsed as pass (G2 review item 3).
+ *
+ * @param findings - Full findings list / 全指摘
+ * @param max - How many to keep / 保持件数
+ * @returns At most `max` findings, most decisive first / 重要度順に上限まで
+ */
+export function capFindingsForStorage(
+  findings: ReadonlyArray<ReviewFinding> | undefined,
+  max = MAX_STORED_FINDINGS,
+): ReviewFinding[] {
+  if (!findings) return [];
+  if (findings.length <= max) return [...findings];
+  return findings
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => storageRank(a.f) - storageRank(b.f) || a.i - b.i)
+    .slice(0, max)
+    .map(({ f }) => f);
 }
 
 /**

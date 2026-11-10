@@ -12,6 +12,7 @@ import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 import type { UnknownReason } from './juror-unknown-reason';
 import {
   parseFindings,
+  capFindingsForStorage,
   formatFindingReason,
   findingSeverityScore,
   type ReviewFinding,
@@ -77,6 +78,11 @@ export interface DiffReviewResult {
    * findings are recorded instead of discarded. Each carries its juror.
    */
   findings?: ReviewFinding[];
+  /**
+   * Fingerprint of the exact diff the jury reviewed (review-diff-fingerprint).
+   * Lets a later gate tell whether this verdict is about the CURRENT diff.
+   */
+  diffFingerprint?: string | null;
 }
 
 /**
@@ -161,7 +167,8 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
       // On fail only the gating findings become repair feedback, so the
       // implementer is not sent chasing minor notes.
       reasons = (verdict === 'fail' ? gating : findings).map(formatFindingReason);
-      return { ...fail(verdict, severity, reasons), findings };
+      // The verdict above saw every finding; only what is kept is bounded.
+      return { ...fail(verdict, severity, reasons), findings: capFindingsForStorage(findings) };
     }
 
     if (isNonVerdictOnlyFail(verdict, reasons)) verdict = 'pass';
