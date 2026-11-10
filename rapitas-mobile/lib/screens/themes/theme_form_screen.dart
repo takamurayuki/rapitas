@@ -7,7 +7,13 @@ import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../widgets/color_dot.dart';
 import '../../widgets/color_swatch_picker.dart';
+import '../../services/voice_opened_screens.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
+
+// NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → この画面 という import の循環を作らないよう文字列で持つ。
+const String _newPath = '/themes/new';
+const String _editPath = '/themes/:id/edit';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -179,9 +185,14 @@ class _ThemeFormState extends ConsumerState<_ThemeForm> {
 
   bool get _isEdit => widget.theme != null;
 
+  /// 声で開いた新規作成か（名前欄に自動でフォーカスしない）
+  bool _openedByVoice = false;
+
   @override
   void initState() {
     super.initState();
+    // 声で開いたときは入力欄にフォーカスしない（常時聞き取りを止めないため。VoiceOpenedScreens）
+    _openedByVoice = !_isEdit && VoiceOpenedScreens.consume(_newPath);
     final theme = widget.theme;
     _nameController = TextEditingController(text: theme?.name ?? '');
     _directoryController =
@@ -284,92 +295,95 @@ class _ThemeFormState extends ConsumerState<_ThemeForm> {
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'テーマを編集' : '新しいテーマ'), actions: const [VoiceModeIndicator()]),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '名前',
-                hintText: 'テーマの名前を入力',
-              ),
-              autofocus: !_isEdit,
-              textInputAction: TextInputAction.next,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? '名前を入力してください'
-                  : null,
-            ),
-            const SizedBox(height: 24),
-            Text('色', style: textTheme.titleSmall),
-            const SizedBox(height: 8),
-            ColorSwatchPicker(
-              selected: _color,
-              onChanged: (value) => setState(() => _color = value),
-            ),
-            const SizedBox(height: 24),
-            if (loadingCategories)
-              const LinearProgressIndicator()
-            else
-              _CategoryDropdown(
-                categories: categories,
-                value: categories.any((c) => c.id == _categoryId)
-                    ? _categoryId
+      body: VoiceScrollTarget(
+        path: _isEdit ? _editPath : _newPath,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '名前',
+                  hintText: 'テーマの名前を入力',
+                ),
+                autofocus: !_isEdit && !_openedByVoice,
+                textInputAction: TextInputAction.next,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? '名前を入力してください'
                     : null,
-                errorText: _submitted && _categoryMissing(categories)
-                    ? (categories.isEmpty
-                        ? 'カテゴリがありません。先にカテゴリを作成してください'
-                        : 'カテゴリを選択してください')
-                    : null,
-                onChanged: (value) => setState(() => _categoryId = value),
               ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('開発テーマ'),
-              subtitle: const Text('AIエージェントで実行するテーマ（作業フォルダも必要）'),
-              value: _isDevelopment,
-              onChanged: (value) => setState(() => _isDevelopment = value),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _directoryController,
-              decoration: const InputDecoration(
-                labelText: '作業フォルダ（任意）',
-                hintText: '例: /Users/me/Projects/app',
-                prefixIcon: Icon(Icons.folder_open),
+              const SizedBox(height: 24),
+              Text('色', style: textTheme.titleSmall),
+              const SizedBox(height: 8),
+              ColorSwatchPicker(
+                selected: _color,
+                onChanged: (value) => setState(() => _color = value),
               ),
-              autocorrect: false,
-              keyboardType: TextInputType.url,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: '説明（任意）',
-                hintText: 'テーマの説明を入力',
-                alignLabelWithHint: true,
+              const SizedBox(height: 24),
+              if (loadingCategories)
+                const LinearProgressIndicator()
+              else
+                _CategoryDropdown(
+                  categories: categories,
+                  value: categories.any((c) => c.id == _categoryId)
+                      ? _categoryId
+                      : null,
+                  errorText: _submitted && _categoryMissing(categories)
+                      ? (categories.isEmpty
+                          ? 'カテゴリがありません。先にカテゴリを作成してください'
+                          : 'カテゴリを選択してください')
+                      : null,
+                  onChanged: (value) => setState(() => _categoryId = value),
+                ),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('開発テーマ'),
+                subtitle: const Text('AIエージェントで実行するテーマ（作業フォルダも必要）'),
+                value: _isDevelopment,
+                onChanged: (value) => setState(() => _isDevelopment = value),
               ),
-              minLines: 3,
-              maxLines: 6,
-            ),
-            const SizedBox(height: 32),
-            FilledButton(
-              onPressed: _saving || loadingCategories
-                  ? null
-                  : () => _save(categories),
-              child: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEdit ? '保存' : '作成'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextField(
+                controller: _directoryController,
+                decoration: const InputDecoration(
+                  labelText: '作業フォルダ（任意）',
+                  hintText: '例: /Users/me/Projects/app',
+                  prefixIcon: Icon(Icons.folder_open),
+                ),
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: '説明（任意）',
+                  hintText: 'テーマの説明を入力',
+                  alignLabelWithHint: true,
+                ),
+                minLines: 3,
+                maxLines: 6,
+              ),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: _saving || loadingCategories
+                    ? null
+                    : () => _save(categories),
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(_isEdit ? '保存' : '作成'),
+              ),
+            ],
+          ),
         ),
       ),
     );

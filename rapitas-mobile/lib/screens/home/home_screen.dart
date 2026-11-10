@@ -12,6 +12,7 @@ import '../../services/sse_service.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -36,41 +37,44 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const _ConnectionStatusBar(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(taskListProvider);
-                ref.invalidate(executingTasksProvider);
-                ref.invalidate(approvalListProvider);
-              },
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _SectionHeader(
-                    title: '進行中のタスク',
-                    onSeeAll: () => context.go(AppRoutes.tasks),
-                  ),
-                  _ActiveTasksSection(),
-                  const SizedBox(height: 24),
-                  _SectionHeader(
-                    title: '実行中のエージェント',
-                    onSeeAll: () => context.go(AppRoutes.executions),
-                  ),
-                  _RunningExecutionsSection(),
-                  const SizedBox(height: 24),
-                  _SectionHeader(
-                    title: '保留中の承認',
-                    onSeeAll: () => context.go(AppRoutes.approvals),
-                  ),
-                  _PendingApprovalsSection(),
-                ],
+      body: VoiceScrollTarget(
+        path: AppRoutes.home,
+        child: Column(
+          children: [
+            const _ConnectionStatusBar(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(taskListProvider);
+                  ref.invalidate(executingTasksProvider);
+                  ref.invalidate(approvalListProvider);
+                },
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _SectionHeader(
+                      title: '進行中のタスク',
+                      onSeeAll: () => context.go(AppRoutes.tasks),
+                    ),
+                    _ActiveTasksSection(),
+                    const SizedBox(height: 24),
+                    _SectionHeader(
+                      title: '実行中のエージェント',
+                      onSeeAll: () => context.go(AppRoutes.executions),
+                    ),
+                    _RunningExecutionsSection(),
+                    const SizedBox(height: 24),
+                    _SectionHeader(
+                      title: '保留中の承認',
+                      onSeeAll: () => context.go(AppRoutes.approvals),
+                    ),
+                    _PendingApprovalsSection(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

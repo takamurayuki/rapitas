@@ -13,6 +13,7 @@ import '../../services/voice_command_flow.dart';
 import '../../utils/constants.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/task_card.dart';
+import '../../widgets/voice_dismissible.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/voice_mode_indicator.dart';
 
@@ -29,6 +30,10 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   bool _searchMode = false;
+
+  /// 声で検索を開いたか。声で開いたときは検索欄に自動でフォーカスしない
+  /// （フォーカスやキーボードが出ると常時聞き取りが止まり、続けて「2番目を開いて」と言えなくなる）
+  bool _searchByVoice = false;
 
   /// 古い検索の結果で新しい結果を上書きしないための通し番号
   int _searchSeq = 0;
@@ -68,12 +73,18 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       text: query,
       selection: TextSelection.collapsed(offset: query.length),
     );
-    setState(() => _searchMode = true);
+    setState(() {
+      _searchMode = true;
+      _searchByVoice = true;
+    });
     _searchNow(query);
   }
 
   void _openSearch() {
-    setState(() => _searchMode = true);
+    setState(() {
+      _searchMode = true;
+      _searchByVoice = false;
+    });
   }
 
   void _closeSearch() {
@@ -153,7 +164,10 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         drawer: _searchMode ? null : const AppDrawer(),
         body: VoiceScrollTarget(
           path: AppRoutes.tasks,
-          child: _searchMode ? _buildSearchBody() : _buildListBody(filter, isFiltered),
+          child: _searchMode
+              // 検索中は音声の「閉じる」「戻る」で検索を閉じる（タブの画面なので「戻る」の pop は効かない）
+              ? VoiceDismissible(onDismiss: _closeSearch, child: _buildSearchBody())
+              : _buildListBody(filter, isFiltered),
         ),
         // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
         // 検索モード中は作成用FABを出さない。
@@ -200,7 +214,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       ),
       title: TextField(
         controller: _searchController,
-        autofocus: true,
+        autofocus: !_searchByVoice,
         textInputAction: TextInputAction.search,
         decoration: const InputDecoration(
           hintText: 'タスクを検索',

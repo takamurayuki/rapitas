@@ -11,6 +11,10 @@ enum VoiceScreen {
   tasks,
   taskDetail,
   taskForm,
+  themeForm,
+  categoryForm,
+  ideaForm,
+  concernForm,
   executions,
   approvals,
   rapi,
@@ -58,8 +62,18 @@ VoiceScreen voiceScreenOf(String path) {
       return VoiceScreen.notifications;
     case '/settings':
       return VoiceScreen.settings;
+    case '/themes/new':
+      return VoiceScreen.themeForm;
+    case '/categories/new':
+      return VoiceScreen.categoryForm;
+    case '/ideas/new':
+      return VoiceScreen.ideaForm;
+    case '/concerns/new':
+      return VoiceScreen.concernForm;
   }
   if (RegExp(r'^/tasks/[^/]+/edit$').hasMatch(p)) return VoiceScreen.taskForm;
+  if (RegExp(r'^/themes/[^/]+/edit$').hasMatch(p)) return VoiceScreen.themeForm;
+  if (RegExp(r'^/categories/[^/]+/edit$').hasMatch(p)) return VoiceScreen.categoryForm;
   if (RegExp(r'^/tasks/[^/]+$').hasMatch(p)) return VoiceScreen.taskDetail;
   return VoiceScreen.other;
 }
@@ -86,6 +100,14 @@ String voiceScreenLabel(String path) {
       return 'タスク詳細';
     case VoiceScreen.taskForm:
       return 'タスクの入力';
+    case VoiceScreen.themeForm:
+      return 'テーマの入力';
+    case VoiceScreen.categoryForm:
+      return 'カテゴリの入力';
+    case VoiceScreen.ideaForm:
+      return 'アイデアの入力';
+    case VoiceScreen.concernForm:
+      return '懸念の入力';
     case VoiceScreen.executions:
       return '実行';
     case VoiceScreen.approvals:
@@ -121,6 +143,7 @@ enum VoiceCommandType {
   close,
   scrollDown,
   scrollUp,
+  refresh,
   help,
   cancel,
   // ---- 承認 ----
@@ -237,6 +260,8 @@ class VoiceCommand {
         return '下にスクロール';
       case VoiceCommandType.scrollUp:
         return '上にスクロール';
+      case VoiceCommandType.refresh:
+        return '更新';
       case VoiceCommandType.help:
         return 'ヘルプ';
       case VoiceCommandType.cancel:
@@ -463,6 +488,13 @@ class VoiceCommandParser {
 
   static const String _verbDo = r'(?:して|する|します|しよう)?';
 
+  // NOTE: 文全体に当てる（「◯◯を更新」のような将来の項目変更コマンドとぶつからないよう、目的語は画面・一覧だけ）
+  static final RegExp _refreshPattern = RegExp(
+    r'^(?:(?:画面|一覧|リスト|この画面|表示)(?:を)?)?'
+    r'(?:更新|再読み込み|再読込|読み込み直(?:す|して)|読み込みなお(?:す|して)|読み直(?:す|して)|リロード|リフレッシュ|再試行|最新にする|最新にして|最新の状態にして)'
+    r'(?:して|する|します)?$',
+  );
+
   /// テキストを解析して VoiceCommand を返す。[screen] は話したときの画面
   VoiceCommand parse(String text, {VoiceScreen screen = VoiceScreen.other}) {
     final t = _Text(text);
@@ -492,6 +524,8 @@ class VoiceCommandParser {
     if (RegExp(r'^(?:上|うえ)(?:に|へ)?(?:スクロール|スクロールして)$|^スクロールアップ$').hasMatch(s)) {
       return cmd(VoiceCommandType.scrollUp);
     }
+    // 引っ張って更新・「再試行」ボタンの代わり（どの画面でも同じ意味）
+    if (_refreshPattern.hasMatch(s)) return cmd(VoiceCommandType.refresh);
 
     // ---- 絞り込み・検索（タスク一覧へ移って適用する） ----
     if (RegExp(r'^(?:フィルター?|絞り込み)(?:を)?(?:解除|クリア|リセット|外して|外す|なし|消して|やめて)(?:して)?$')
@@ -908,7 +942,7 @@ List<String> voiceHelpFor(VoiceScreen screen) {
   const common = [
     '「タスク」「承認」「ホーム」など画面の名前（＋「を開いて」）：画面の移動',
     '「テーマ」「カテゴリ」「アイデア」「懸念」「仮説」「ダッシュボード」「通知」「設定」も開けます',
-    '「戻る」「閉じる」「下にスクロール」「上にスクロール」',
+    '「戻る」「閉じる」「下にスクロール」「上にスクロール」「更新」',
     '「タスクを作成」「アイデアを作成」「懸念を作成」',
     '「検索 ◯◯」「フィルタ 進行中」「フィルタを解除」「◯◯（テーマ名）のタスク」',
     '途中で「キャンセル」「やめる」：その流れを止める',
@@ -929,6 +963,13 @@ List<String> voiceHelpFor(VoiceScreen screen) {
       here = const ['「作成」：懸念を登録する', '「2番目を削除」（確認あり）'];
     case VoiceScreen.hypotheses:
       here = const ['「2番目を立証にする」「反証にする」「保留にする」「検証待ちに戻す」', '「2番目を削除」（確認あり）'];
+    case VoiceScreen.taskForm:
+    case VoiceScreen.themeForm:
+    case VoiceScreen.categoryForm:
+    case VoiceScreen.ideaForm:
+    case VoiceScreen.concernForm:
+      // TODO: 項目の口述（「タイトルは◯◯」）と「保存」は未対応。入っている間は画面の移動・スクロールだけ
+      here = const ['入力欄の中身はまだ声で入れられません（入力欄をタップして入力してください）', '「戻る」：入力をやめて前の画面へ'];
     case VoiceScreen.rapi:
       here = const ['ラピへの発話は入力欄のマイクを使ってください（このボタンはアプリの操作用です）'];
     default:

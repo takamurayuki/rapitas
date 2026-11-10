@@ -3,12 +3,20 @@ import '../services/dictation_coordinator.dart';
 import '../services/dictation_service.dart';
 import '../services/voice_command_parser.dart';
 import '../services/voice_mode_listener.dart';
+import '../services/sound_level_meter.dart';
 import '../services/voice_route_tracker.dart';
 import '../services/voice_service.dart';
 
+/// 聞き取り中の音量（聞き取り表示の波形が見る）。端末の聞き取りと表示の両方が同じものを使う
+final soundLevelMeterProvider = Provider<SoundLevelMeter>((ref) {
+  final meter = SoundLevelMeter();
+  ref.onDispose(meter.dispose);
+  return meter;
+});
+
 /// VoiceServiceのプロバイダー
 final voiceServiceProvider = Provider<VoiceService>((ref) {
-  final service = VoiceService();
+  final service = VoiceService(meter: ref.watch(soundLevelMeterProvider));
   ref.onDispose(() => service.dispose());
   return service;
 });

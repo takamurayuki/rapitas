@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/voice_provider.dart';
 import '../services/voice_command_flow.dart';
+import '../services/voice_mode_listener.dart';
 
 /// 音声コマンドのシート。開くと聞き取りを始め、解釈・対象の選択・確認・実行・結果までを
 /// この中で見せる（流れは VoiceCommandFlow）。答えは声でもタップでも返せる。
@@ -51,6 +52,7 @@ class _VoiceInputSheetState extends ConsumerState<VoiceInputSheet>
     with SingleTickerProviderStateMixin {
   late final VoiceCommandFlow _flow;
   late final AnimationController _pulse;
+  late final VoiceModeListener _modeListener;
   bool _attached = false;
 
   @override
@@ -67,6 +69,8 @@ class _VoiceInputSheetState extends ConsumerState<VoiceInputSheet>
       actionDelay: widget.actionDelay,
       closeDelay: widget.closeDelay,
     )..addListener(_onFlowChanged);
+    // タイトルバーの聞き取り表示に、このシートが処理中か答えを待っているかを伝える
+    _modeListener = ref.read(voiceModeListenerProvider)..trackFlow(_flow);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _flow.start(initialText: widget.initialText);
     });
@@ -87,6 +91,7 @@ class _VoiceInputSheetState extends ConsumerState<VoiceInputSheet>
   @override
   void dispose() {
     _flow.removeListener(_onFlowChanged);
+    _modeListener.untrackFlow(_flow);
     _flow.dispose();
     _pulse.dispose();
     super.dispose();

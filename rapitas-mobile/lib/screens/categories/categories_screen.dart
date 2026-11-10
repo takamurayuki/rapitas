@@ -9,6 +9,10 @@ import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
 import 'category_form_screen.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
+
+// NOTE: パスは AppRoutes.categories と同じ値（routes.dart との import の循環を避けて文字列で持つ）
+const String _path = '/categories';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -122,26 +126,29 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             ),
           ],
         ),
-        body: ReorderableListView.builder(
-          buildDefaultDragHandles: false,
-          padding: const EdgeInsets.only(bottom: 16),
-          itemCount: draft.length,
-          onReorder: _onReorder,
-          itemBuilder: (context, index) {
-            final category = draft[index];
-            return _CategoryTile(
-              key: ValueKey(category.id),
-              category: category,
-              trailing: ReorderableDragStartListener(
-                index: index,
-                enabled: !_saving,
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(Icons.drag_handle),
+        body: VoiceScrollTarget(
+          path: _path,
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: draft.length,
+            onReorder: _onReorder,
+            itemBuilder: (context, index) {
+              final category = draft[index];
+              return _CategoryTile(
+                key: ValueKey(category.id),
+                category: category,
+                trailing: ReorderableDragStartListener(
+                  index: index,
+                  enabled: !_saving,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.drag_handle),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       );
     }
@@ -166,41 +173,44 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(categoryListProvider),
-        child: categoriesAsync.when(
-          data: (categories) {
-            if (categories.isEmpty) {
-              return const CenteredMessage(
-                icon: Icons.folder_outlined,
-                message: 'カテゴリはありません',
-              );
-            }
-            final sorted = sortCategoriesByOrder(categories);
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 16),
-              children: [
-                for (final category in sorted)
-                  _CategoryTile(
-                    category: category,
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'カテゴリを編集',
-                      onPressed: () => _openEdit(category),
+      body: VoiceScrollTarget(
+        path: _path,
+        child: RefreshIndicator(
+          onRefresh: () async => ref.invalidate(categoryListProvider),
+          child: categoriesAsync.when(
+            data: (categories) {
+              if (categories.isEmpty) {
+                return const CenteredMessage(
+                  icon: Icons.folder_outlined,
+                  message: 'カテゴリはありません',
+                );
+              }
+              final sorted = sortCategoriesByOrder(categories);
+              return ListView(
+                padding: const EdgeInsets.only(bottom: 16),
+                children: [
+                  for (final category in sorted)
+                    _CategoryTile(
+                      category: category,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'カテゴリを編集',
+                        onPressed: () => _openEdit(category),
+                      ),
+                      onTap: () => _openEdit(category),
                     ),
-                    onTap: () => _openEdit(category),
-                  ),
-              ],
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, __) => CenteredMessage(
-            icon: Icons.error_outline,
-            iconColor: Colors.red,
-            message: 'カテゴリの取得に失敗しました',
-            action: ElevatedButton(
-              onPressed: () => ref.invalidate(categoryListProvider),
-              child: const Text('再試行'),
+                ],
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => CenteredMessage(
+              icon: Icons.error_outline,
+              iconColor: Colors.red,
+              message: 'カテゴリの取得に失敗しました',
+              action: ElevatedButton(
+                onPressed: () => ref.invalidate(categoryListProvider),
+                child: const Text('再試行'),
+              ),
             ),
           ),
         ),
