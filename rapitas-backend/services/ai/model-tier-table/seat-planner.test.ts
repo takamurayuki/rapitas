@@ -142,14 +142,31 @@ describe('planSeats', () => {
 });
 
 describe('executorRefOf', () => {
-  test('登録モデルは表の行に、未登録モデルは保守的なティアに解決する', () => {
+  test('登録モデルは表の行に、未登録モデルは名前のティア（上限なし）に解決する', () => {
     expect(executorRefOf('opus')).toEqual({
       modelId: 'claude-opus-5-5',
       vendor: 'anthropic',
       tier: 'premium',
+      verified: true,
     });
-    // Unregistered but flagship-looking: capped at standard.
-    expect(executorRefOf('claude-opus-4-20250514')?.tier).toBe('standard');
-    expect(executorRefOf('')).toBeNull();
+    // Unregistered but flagship-looking: NOT capped. The standard cap is a
+    // placement rule; on an executor it would lower its reviewers' floor.
+    expect(executorRefOf('claude-opus-4-20250514').tier).toBe('premium');
+  });
+
+  test('モデルが分からない実行役は未確認とし、premium とみなす', () => {
+    expect(executorRefOf('')).toEqual({
+      modelId: null,
+      vendor: null,
+      tier: 'premium',
+      verified: false,
+    });
+    const plan = planSeats({
+      requirements: SEATS,
+      candidates: seatableEntries({ vendors: ['anthropic'], cliOnly: true }),
+      executor: executorRefOf(null),
+    });
+    // Reviewer-2 is not allowed down to standard on an unknown executor.
+    expect(plan.seats.find((s) => s.seatId === 'reviewer-2')!.requiredTier).toBe('premium');
   });
 });

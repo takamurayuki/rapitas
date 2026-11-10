@@ -10,7 +10,9 @@
  */
 import { createLogger } from '../../../config/logger';
 import { assignSeats, type JurySeating, type SeatAssignment } from './jury-seats';
-import { resolveExecutorModel } from '../../ai/model-tier-table/executor-model';
+import { resolveExecutor } from '../../ai/model-tier-table/executor-model';
+import { resolveConfiguredVendors } from '../../ai/model-tier-table/configured-vendors';
+import { getAuxAiMode } from '../../../utils/ai-client';
 import { askJuror, jurorIsRested } from './juror-call';
 import { mapJurors } from './juror-scheduling';
 import { askVerifier, buildVerifierPrompt } from './verifier-seat';
@@ -40,11 +42,15 @@ export interface TwoSeatRun {
 export interface SeatingSummary {
   mode: JurySeating['plan']['mode'];
   executorModel: string | null;
+  /** False when no implementer run confirmed the executor (floors assume premium). */
+  executorVerified: boolean;
   seats: Array<{
     seatId: string;
     model: string;
     requiredTier: string;
     independence: string;
+    /** Set when RAPITAS_JURY_MODELS chose this seat's model. */
+    overridden?: boolean;
   }>;
   shortfalls: JurySeating['plan']['shortfalls'];
   unavailable: JurySeating['unavailable'];
@@ -53,12 +59,14 @@ export interface SeatingSummary {
 function summariseSeating(seating: JurySeating): SeatingSummary {
   return {
     mode: seating.plan.mode,
-    executorModel: seating.plan.executor?.modelId ?? null,
+    executorModel: seating.plan.executor.modelId,
+    executorVerified: seating.plan.executor.verified,
     seats: seating.plan.seats.map((s) => ({
       seatId: s.seatId,
       model: s.entry.modelId,
       requiredTier: s.requiredTier,
       independence: s.independence,
+      ...(s.overridden ? { overridden: true } : {}),
     })),
     shortfalls: seating.plan.shortfalls,
     unavailable: seating.unavailable,
@@ -85,7 +93,8 @@ function recordSeatShortfalls(taskId: number | undefined, seating: JurySeating):
         summary: '陪審の席の要件未達',
         input: {
           mode: seating.plan.mode,
-          executorModel: seating.plan.executor?.modelId ?? null,
+          executorModel: seating.plan.executor.modelId,
+          executorVerified: seating.plan.executor.verified,
           shortfalls: seating.plan.shortfalls,
           unavailable: seating.unavailable,
         },
@@ -146,8 +155,14 @@ export async function runTwoSeatJury(
   inputs: VerifierInputs,
   opts: { taskId?: number } = {},
 ): Promise<TwoSeatRun> {
-  const executorModel = opts.taskId === undefined ? null : await resolveExecutorModel(opts.taskId);
-  const seating = assignSeats({ executorModel });
+  // The executor comes from the implementer's run records and the vendors from
+  // this host's configuration — never assumed (G2 routing1 review items 2, 3).
+  const auxMode = getAuxAiMode();
+  const [executor, vendors] = await Promise.all([
+    resolveExecutor(opts.taskId),
+    resolveConfiguredVendors(auxMode),
+  ]);
+  const seating = assignSeats({ auxMode, vendors, executor });
   recordSeatShortfalls(opts.taskId, seating);
   const { reviewers, verifier } = seating;
   const now = Date.now();

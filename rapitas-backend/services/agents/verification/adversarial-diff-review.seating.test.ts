@@ -19,13 +19,31 @@ const sendAIMessage = mock((_o: unknown) =>
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({ getDiff }));
 let auxMode: 'api' | 'cli' = 'cli';
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => auxMode }));
+/** What this host is configured for (configured-vendors.ts), per test. */
+let apiKeys: Array<'anthropic' | 'openai' | 'google'> = ['anthropic', 'google', 'openai'];
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) =>
+    mode === 'cli'
+      ? { configured: ['anthropic'], unconfigured: [] }
+      : {
+          configured: apiKeys,
+          unconfigured: (['anthropic', 'google', 'openai'] as const)
+            .filter((v) => !apiKeys.includes(v))
+            .map((vendor) => ({ vendor, reason: 'API キーが設定されていない' })),
+        },
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() => Promise.resolve({ dir: '/wf/1' })),
   readWorkflowFile: mock(() => Promise.resolve('plan content')),
 }));
 
-/** The implementer's pinned route, as model-route-stability writes it. */
+/**
+ * The implementer's pinned route, as model-route-stability writes it — the
+ * PLAN, which the seats must not trust over what actually ran.
+ */
 let implementerPin: string | null = null;
+/** Models the implementer's runs reported (AgentExecution.modelName), newest first. */
+let implementerRuns: string[] = [];
 const appendEventMock = mock((_e: unknown) => Promise.resolve({ id: 1 }));
 mock.module('../../memory/timeline', () => ({
   appendEvent: appendEventMock,
@@ -53,7 +71,10 @@ mock.module('../../observability/decision-trace', () => ({
 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecution: {
+      findFirst: mock(() => Promise.resolve(null)),
+      findMany: mock(async () => implementerRuns.map((modelName) => ({ modelName }))),
+    },
     agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
     task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
   },
@@ -77,7 +98,13 @@ type ReviewEvent = {
       mode: string;
       executorModel: string | null;
       seats: Array<{ seatId: string; model: string; requiredTier: string; independence: string }>;
-      shortfalls: Array<{ seatId: string; requiredTier: string; reason: string }>;
+      executorVerified: boolean;
+      shortfalls: Array<{
+        seatId: string;
+        requiredTier: string;
+        reason: string;
+        override?: string;
+      }>;
       unavailable: Array<{ vendor: string; reason: string }>;
     };
     jurors: Array<{ seatId?: string; unknownReason?: string }>;
@@ -94,6 +121,8 @@ beforeEach(() => {
   appendEventMock.mockClear();
   decisions.length = 0;
   implementerPin = null;
+  implementerRuns = [];
+  apiKeys = ['anthropic', 'google', 'openai'];
   auxMode = 'cli';
   resetJurorHealth();
   __resetCooldowns();
@@ -101,11 +130,12 @@ beforeEach(() => {
 });
 afterEach(() => {
   __resetCooldowns();
+  delete process.env.RAPITAS_JURY_MODELS;
 });
 
 describe('陪審の席の組み替え（ティア表 × 使えるベンダー）', () => {
   it('Claude だけ: 実行役が premium なら両レビュー席を premium にし、記録に残す', async () => {
-    implementerPin = 'opus';
+    implementerRuns = ['claude-opus-5-5'];
     const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(result.verdict).toBe('pass');
     expect(asked().map((a) => a.model)).toEqual(['claude-opus-5-5', 'claude-opus-5-5']);
@@ -119,7 +149,7 @@ describe('陪審の席の組み替え（ティア表 × 使えるベンダー）
 
   it('両ベンダー（API）: レビュー席1は実行役と別系統で問い合わせる', async () => {
     auxMode = 'api';
-    implementerPin = 'claude-sonnet-5-5';
+    implementerRuns = ['claude-sonnet-5-5'];
     await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     const first = asked()[0];
     expect(first.provider).not.toBe('claude');
@@ -131,7 +161,7 @@ describe('陪審の席の組み替え（ティア表 × 使えるベンダー）
 
   it('API で OpenAI がクォータ枯渇: 残ったベンダーで制約を保って組み直し、止まらない', async () => {
     auxMode = 'api';
-    implementerPin = 'claude-sonnet-5-5';
+    implementerRuns = ['claude-sonnet-5-5'];
     markProviderCooldown('openai', 'quota');
     const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(result.verdict).toBe('pass');
@@ -143,7 +173,7 @@ describe('陪審の席の組み替え（ティア表 × 使えるベンダー）
   });
 
   it('Claude CLI が使えない（Codex だけ）: 席を下げずに未充足とし、表示と記録を残す', async () => {
-    implementerPin = 'gpt-6.1-sol';
+    implementerRuns = ['gpt-6.1-sol'];
     markProviderCooldown('claude', 'auth');
     const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(sendAIMessage).not.toHaveBeenCalled();
@@ -158,6 +188,58 @@ describe('陪審の席の組み替え（ティア表 × 使えるベンダー）
       'verifier',
     ]);
     expect(event.payload.jurors.map((j) => j.unknownReason)).toEqual(['seat_unmet', 'seat_unmet']);
+    expect(decisions.some((d) => d.summary === '陪審の席の要件未達')).toBe(true);
+  });
+
+  it('実行役は pin ではなく実行記録から求める: 明示指定の Opus で実装 → レビュー席2も premium', async () => {
+    // An explicitly configured model never goes through the router, so there
+    // is no pin at all; the run record still says Opus.
+    implementerPin = null;
+    implementerRuns = ['claude-opus-5-5'];
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(asked().map((a) => a.model)).toEqual(['claude-opus-5-5', 'claude-opus-5-5']);
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.executorModel).toBe('claude-opus-5-5');
+    expect(seating.executorVerified).toBe(true);
+  });
+
+  it('pin と実行記録が食い違えば実行記録を採る（pin は Sonnet、実際は Opus）', async () => {
+    implementerPin = 'claude-sonnet-5-5';
+    implementerRuns = ['claude-opus-5-5'];
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(lastReviewEvent().payload.seating!.executorModel).toBe('claude-opus-5-5');
+    expect(asked().every((a) => a.model === 'claude-opus-5-5')).toBe(true);
+  });
+
+  it('実行記録がなければ実行役は未確認とし、premium とみなして下限を決める', async () => {
+    implementerPin = 'claude-sonnet-5-5';
+    implementerRuns = [];
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.executorVerified).toBe(false);
+    expect(seating.executorModel).toBeNull();
+    expect(seating.seats.every((s) => s.requiredTier === 'premium')).toBe(true);
+  });
+
+  it('API キーのないベンダーには問い合わせない（Anthropic だけ設定済み）', async () => {
+    auxMode = 'api';
+    apiKeys = ['anthropic'];
+    implementerRuns = ['claude-sonnet-5-5'];
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(asked().every((a) => a.provider === 'claude')).toBe(true);
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.unavailable.map((u) => u.vendor).sort()).toEqual(['google', 'openai']);
+  });
+
+  it('RAPITAS_JURY_MODELS=haiku,haiku,haiku でも実行役 Opus なら Haiku に問い合わせず、記録は実際と一致する', async () => {
+    process.env.RAPITAS_JURY_MODELS = 'haiku,haiku,haiku';
+    implementerRuns = ['claude-opus-5-5'];
+    const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(sendAIMessage).not.toHaveBeenCalled();
+    expect(result.verdict).not.toBe('pass');
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.seats).toEqual([]);
+    expect(seating.shortfalls.map((s) => s.override)).toEqual(['haiku', 'haiku', 'haiku']);
     expect(decisions.some((d) => d.summary === '陪審の席の要件未達')).toBe(true);
   });
 });

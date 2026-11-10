@@ -24,6 +24,7 @@ export {
 export {
   executorRefOf,
   planSeats,
+  UNVERIFIED_EXECUTOR,
   type ExecutorRef,
   type PlannedSeat,
   type SeatIndependence,
@@ -32,5 +33,6 @@ export {
   type SeatShortfall,
 } from './seat-planner';
 export { usableVendorsAmong, type VendorAvailability } from './usable-vendors';
-export { resolveExecutorModel } from './executor-model';
+export { resolveConfiguredVendors, type ConfiguredVendors } from './configured-vendors';
+export { resolveExecutor, resolveExecutorModel } from './executor-model';
 export type { ModelTierEntry, ModelVendor, RoleSuitability, TableTier } from './tier-table-types';

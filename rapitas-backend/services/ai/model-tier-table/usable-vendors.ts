@@ -1,10 +1,10 @@
 /**
  * model-tier-table/usable-vendors
  *
- * Narrows a route's vendors to the ones usable right now (追補5: 利用状況):
- * a vendor whose provider is in cooldown after a quota, rate-limit or
- * authentication failure is temporarily unusable. Not responsible for knowing
- * which vendors are configured — the caller's route says that.
+ * Narrows the CONFIGURED vendors (configured-vendors.ts: API keys / Claude
+ * CLI) to the ones usable right now (追補5: 利用状況): a vendor whose provider
+ * is in cooldown after a quota, rate-limit or authentication failure is
+ * temporarily unusable. Not responsible for reading the configuration.
  *
  * NOTE: Deliberately does not run model discovery. Discovery spawns CLI
  * probes; the review path runs synchronously inside a file-save request and
@@ -13,31 +13,39 @@
  */
 import { listActiveCooldowns } from '../provider-cooldown';
 import { vendorOfProvider, type ModelVendor } from './tier-table';
+import type { ConfiguredVendors } from './configured-vendors';
 
 /** Usable vendors plus why the others are not. */
 export interface VendorAvailability {
   usable: ModelVendor[];
-  /** Route vendors temporarily unusable, with the cooldown reason (quota / auth …). */
+  /** Vendors not usable: not configured, or in cooldown (quota / auth …). */
   unavailable: Array<{ vendor: ModelVendor; reason: string }>;
 }
 
 /**
- * Split a route's vendors into usable and temporarily unusable.
+ * Split the configured vendors into usable and temporarily unusable.
  *
- * @param routeVendors - Vendors the route can reach when healthy / 経路で届くベンダー
+ * @param configured - Vendors set up on this host, in route order / 設定済みのベンダー
+ * @param unconfigured - Vendors not set up, with the reason / 未設定のベンダー
  * @returns Usable vendors, route order kept / 使えるベンダー
  */
-export function usableVendorsAmong(routeVendors: readonly ModelVendor[]): VendorAvailability {
+export function usableVendorsAmong(
+  configured: readonly ModelVendor[],
+  unconfigured: ConfiguredVendors['unconfigured'] = [],
+): VendorAvailability {
   const cooled = new Map<ModelVendor, string>();
   for (const c of listActiveCooldowns()) {
     const vendor = vendorOfProvider(c.provider);
     if (vendor) cooled.set(vendor, c.reason);
   }
-  const route = [...new Set(routeVendors)];
+  const route = [...new Set(configured)];
   return {
     usable: route.filter((v) => !cooled.has(v)),
-    unavailable: route
-      .filter((v) => cooled.has(v))
-      .map((vendor) => ({ vendor, reason: cooled.get(vendor)! })),
+    unavailable: [
+      ...unconfigured,
+      ...route
+        .filter((v) => cooled.has(v))
+        .map((vendor) => ({ vendor, reason: cooled.get(vendor)! })),
+    ],
   };
 }

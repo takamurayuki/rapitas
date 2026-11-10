@@ -14,9 +14,11 @@
 import { toCliModelAlias } from '../../../utils/ai-client/cli-model-alias';
 import { getAuxAiMode } from '../../../utils/ai-client';
 import type { AIProvider } from '../../../utils/ai-client/types';
+import type { ConfiguredVendors } from '../../ai/model-tier-table/configured-vendors';
 import {
   executorRefOf,
   planSeats,
+  type ExecutorRef,
   type PlannedSeat,
   type SeatIndependence,
   type SeatPlan,
@@ -67,7 +69,7 @@ export type SeatAssignment = SeatDefinition &
  * two-seat-review.ts's same_model rule). Neither sits below `standard`, per
  * "a reviewer is at least as capable as the usual implementer". The verifier
  * decides disputes, so it takes the top tier. Each floor is further raised to
- * the executor's tier when the executor is known.
+ * the executor's tier; an executor no run record confirms counts as premium.
  */
 export const DEFAULT_SEATS: readonly SeatDefinition[] = [
   { seatId: 'reviewer-1', role: 'reviewer', tier: 'premium' },
@@ -94,8 +96,6 @@ export const JURY_SEAT_REQUIREMENTS: readonly SeatRequirement[] = DEFAULT_SEATS.
   independentOf: INDEPENDENT_OF[d.seatId],
 }));
 
-const API_PROVIDERS: AIProvider[] = ['claude', 'gemini', 'chatgpt'];
-
 const PROVIDER_OF_VENDOR: Record<ModelVendor, AIProvider> = {
   anthropic: 'claude',
   openai: 'chatgpt',
@@ -108,7 +108,7 @@ export interface JurySeating {
   verifier: SeatAssignment;
   /** The planner's full answer: mode, per-seat independence, shortfalls. */
   plan: SeatPlan;
-  /** Route vendors left out because they are temporarily unusable. */
+  /** Vendors left out: not configured on this host, or in cooldown. */
   unavailable: VendorAvailability['unavailable'];
 }
 
@@ -142,37 +142,63 @@ function unmetSeat(def: SeatDefinition, reason: string): SeatAssignment {
   return { ...def, provider: 'claude', model: '', label: id, resolvedModel: id, unmet: reason };
 }
 
+/** Seat ids in RAPITAS_JURY_MODELS order. */
+const OVERRIDE_ORDER: readonly SeatId[] = ['reviewer-1', 'reviewer-2', 'verifier'];
+
+function readOverrides(): Record<string, string> {
+  const models = (process.env.RAPITAS_JURY_MODELS ?? '').split(',').map((s) => s.trim());
+  const out: Record<string, string> = {};
+  OVERRIDE_ORDER.forEach((seatId, i) => {
+    if (models[i]) out[seatId] = models[i];
+  });
+  return out;
+}
+
 /**
  * Resolve the seats for one review.
  *
- * `RAPITAS_JURY_MODELS` (comma separated, CLI host) still overrides the models
- * by seat order: reviewer-1, reviewer-2, verifier; a seat with no entry keeps
- * its planned model. An explicit override is the operator's choice and is not
- * re-checked against the table.
+ * `vendors` is the host's configured set (configured-vendors.ts); cooldowns
+ * are layered on here. Without it nothing is configured and every seat is
+ * unmet — a caller that forgets it must not get a jury of vendors it never
+ * checked. `providers` is a shorthand that declares those providers
+ * configured (tests, callers that already checked).
+ *
+ * `RAPITAS_JURY_MODELS` (comma separated, CLI host) overrides the models by
+ * seat order: reviewer-1, reviewer-2, verifier. An override is held to the same
+ * requirements as the planner's choice (floor ≥ executor, review suitability,
+ * usable vendor and CLI route); one that fails leaves its seat unmet. The plan
+ * returned is what actually sits, overrides included.
  *
  * @param args.auxMode - Auxiliary AI mode (default: current) / 補助AIのモード
- * @param args.providers - Reachable providers for API mode / APIモードのプロバイダ
- * @param args.executorModel - Model that implemented the change, if known / 実行役のモデル
+ * @param args.vendors - Vendors configured on this host / 設定済みのベンダー
+ * @param args.providers - Shorthand: these providers are configured / 設定済みとみなすプロバイダ
+ * @param args.executor - The executor, resolved from its runs / 実行役
+ * @param args.executorModel - Shorthand for `executor` from a model id / 実行役のモデル
  * @returns Seats, the plan behind them, and unusable vendors / 席の割り当て
  */
 export function assignSeats(
   args: {
     auxMode?: ReturnType<typeof getAuxAiMode>;
+    vendors?: ConfiguredVendors;
     providers?: AIProvider[];
+    executor?: ExecutorRef;
     executorModel?: string | null;
   } = {},
 ): JurySeating {
   const auxMode = args.auxMode ?? getAuxAiMode();
   const cli = auxMode === 'cli';
+  const declared: ConfiguredVendors = args.vendors ?? {
+    configured: (args.providers ?? [])
+      .map((p) => vendorOfProvider(p))
+      .filter((v): v is ModelVendor => v !== null),
+    unconfigured: [],
+  };
   // NOTE: In CLI aux mode every juror call goes through the Claude Code CLI
-  // (sendAIMessage ignores the provider there), so Anthropic is the only
-  // vendor this host can seat, whatever else is configured.
-  const routeVendors: ModelVendor[] = cli
-    ? ['anthropic']
-    : (args.providers?.length ? args.providers : API_PROVIDERS)
-        .map((p) => vendorOfProvider(p))
-        .filter((v): v is ModelVendor => v !== null);
-  const availability = usableVendorsAmong(routeVendors);
+  // (sendAIMessage ignores the provider there), so only Anthropic can sit.
+  const configured = cli
+    ? declared.configured.filter((v) => v === 'anthropic')
+    : declared.configured;
+  const availability = usableVendorsAmong(configured, declared.unconfigured);
   const candidates = seatableEntries({ vendors: availability.usable, cliOnly: cli });
   // Keep the route's vendor order as the planner's last tiebreak.
   candidates.sort(
@@ -181,26 +207,11 @@ export function assignSeats(
   const plan = planSeats({
     requirements: JURY_SEAT_REQUIREMENTS,
     candidates,
-    executor: executorRefOf(args.executorModel),
+    executor: args.executor ?? executorRefOf(args.executorModel),
+    overrides: cli ? readOverrides() : undefined,
   });
 
-  const overrides = cli
-    ? (process.env.RAPITAS_JURY_MODELS ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : [];
-  const resolve = (def: SeatDefinition, i: number): SeatAssignment => {
-    const override = overrides[i];
-    if (override) {
-      return {
-        ...def,
-        provider: 'claude',
-        model: override,
-        label: `claude:${toCliModelAlias(override)}`,
-        resolvedModel: toCliModelAlias(override),
-      };
-    }
+  const resolve = (def: SeatDefinition): SeatAssignment => {
     const planned = plan.seats.find((s) => s.seatId === def.seatId);
     if (planned) return seated(def, planned, cli);
     const shortfall = plan.shortfalls.find((s) => s.seatId === def.seatId);
@@ -208,8 +219,8 @@ export function assignSeats(
   };
   const [r1, r2, v] = DEFAULT_SEATS;
   return {
-    reviewers: [resolve(r1, 0), resolve(r2, 1)],
-    verifier: resolve(v, 2),
+    reviewers: [resolve(r1), resolve(r2)],
+    verifier: resolve(v),
     plan,
     unavailable: availability.unavailable,
   };

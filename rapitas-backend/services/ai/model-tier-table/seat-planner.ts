@@ -7,7 +7,7 @@
  * caller supplies the usable rows, and records/displays the shortfalls this
  * returns. Not responsible for asking the seats.
  */
-import { classifyTier } from '../model-discovery/tier-classifier';
+import { UNVERIFIED_EXECUTOR, type ExecutorRef } from './executor-ref';
 import {
   costPer1kOf,
   findModelEntry,
@@ -19,6 +19,10 @@ import {
   type ModelVendor,
   type TableTier,
 } from './tier-table';
+
+// NOTE: The executor reference moved to executor-ref.ts (file size); re-exported
+// here so existing imports keep working.
+export { executorRefOf, UNVERIFIED_EXECUTOR, type ExecutorRef } from './executor-ref';
 
 /** A seat as the organisation defines it — no vendor, no model. */
 export interface SeatRequirement {
@@ -32,13 +36,6 @@ export interface SeatRequirement {
    * than each of them is preferred, in this order.
    */
   independentOf: readonly string[];
-}
-
-/** The model that did the work being reviewed, when known. */
-export interface ExecutorRef {
-  modelId: string;
-  vendor: ModelVendor | null;
-  tier: AnyTier;
 }
 
 /**
@@ -59,6 +56,8 @@ export interface PlannedSeat {
   independence: SeatIndependence;
   /** True when kept from the previous plan rather than re-chosen. */
   kept: boolean;
+  /** True when the operator's override (RAPITAS_JURY_MODELS) chose this model. */
+  overridden?: boolean;
 }
 
 /** One seat that could not be filled without lowering its requirement. */
@@ -68,6 +67,8 @@ export interface SeatShortfall {
   requiredTier: TableTier;
   /** Human-readable reason (shown and recorded; 黙って基準を下げない). */
   reason: string;
+  /** The operator's override that was refused, when that is the cause. */
+  override?: string;
 }
 
 /** The whole assignment. */
@@ -75,43 +76,18 @@ export interface SeatPlan {
   /** cross_vendor when ≥2 vendors are usable, single_vendor for one, none for zero. */
   mode: 'cross_vendor' | 'single_vendor' | 'none';
   vendors: ModelVendor[];
-  executor: ExecutorRef | null;
+  executor: ExecutorRef;
   seats: PlannedSeat[];
   shortfalls: SeatShortfall[];
 }
 
 /**
- * Describe the executor for planning from a model id.
- *
- * A registered id takes its row's canonical id, vendor and tier (so the alias
- * `sonnet` and `claude-sonnet-5-5` are the same model). An unregistered id
- * keeps the classifier's (already capped) tier and a name-inferred vendor.
- *
- * @param modelId - Model the executor ran, if known / 実行役のモデルID
- * @returns Executor reference, or null when unknown / 不明なら null
- */
-export function executorRefOf(modelId: string | null | undefined): ExecutorRef | null {
-  if (!modelId?.trim()) return null;
-  const entry = findModelEntry(modelId);
-  if (entry) return { modelId: entry.modelId, vendor: entry.vendor, tier: entry.tier };
-  const m = modelId.toLowerCase();
-  const vendor: ModelVendor | null = /claude|opus|sonnet|haiku|fable|mythos/.test(m)
-    ? 'anthropic'
-    : /gpt|codex|^o\d\b/.test(m)
-      ? 'openai'
-      : /gemini/.test(m)
-        ? 'google'
-        : null;
-  return { modelId, vendor, tier: classifyTier(modelId) };
-}
-
-/**
  * Floor for a seat: its own tier, raised to the executor's — a reviewer is at
  * least as capable as the model whose work it judges. A local (free) executor
- * raises nothing.
+ * raises nothing; an unverified one counts as premium.
  */
-function requiredTierOf(req: SeatRequirement, executor: ExecutorRef | null): TableTier {
-  if (!executor || executor.tier === 'free') return req.minTier;
+function requiredTierOf(req: SeatRequirement, executor: ExecutorRef): TableTier {
+  if (executor.tier === 'free') return req.minTier;
   return strongerTier<AnyTier>(req.minTier, executor.tier) as TableTier;
 }
 
@@ -122,13 +98,11 @@ function canSit(entry: ModelTierEntry, required: TableTier): boolean {
 /** Vendors (and models) of the parties a seat should be independent of. */
 function refsOf(
   req: SeatRequirement,
-  executor: ExecutorRef | null,
+  executor: ExecutorRef,
   filled: Map<string, PlannedSeat>,
 ): Array<{ vendor: ModelVendor | null; modelId: string | null }> {
   return req.independentOf.map((ref) => {
-    if (ref === 'executor') {
-      return { vendor: executor?.vendor ?? null, modelId: executor?.modelId ?? null };
-    }
+    if (ref === 'executor') return { vendor: executor.vendor, modelId: executor.modelId };
     const seat = filled.get(ref);
     return { vendor: seat?.entry.vendor ?? null, modelId: seat?.entry.modelId ?? null };
   });
@@ -173,16 +147,46 @@ function independenceOf(entry: ModelTierEntry, refs: ReturnType<typeof refsOf>):
 }
 
 /**
+ * Why an operator's override may not take a seat, or null when it may. The
+ * override is held to the very rules the planner applies (floor, review
+ * suitability, usable vendor/route), so an environment variable can never
+ * seat what the planner would refuse.
+ */
+function overrideRefusal(
+  override: string,
+  required: TableTier,
+  usableIds: ReadonlySet<string>,
+): { entry: ModelTierEntry | null; reason: string | null } {
+  const entry = findModelEntry(override);
+  if (!entry) return { entry, reason: `上書き指定 ${override} はティア表に登録がない` };
+  if (!usableIds.has(entry.modelId)) {
+    return { entry, reason: `上書き指定 ${override} は使えるベンダー・経路にない` };
+  }
+  if (!canSit(entry, required)) {
+    return {
+      entry,
+      reason: `上書き指定 ${override}（${entry.tier}）は ${required} 以上でレビューに置けるモデルではない`,
+    };
+  }
+  return { entry, reason: null };
+}
+
+/**
  * Plan the review seats.
  *
  * When `previous` is given (a vendor became unusable mid-task), every previous
  * seat whose model is still usable and still meets its floor is KEPT; only the
  * seats that lost their model are re-chosen, under the same requirements.
  *
+ * An `overrides` entry replaces the choice for its seat only when it meets
+ * the same requirements; otherwise the seat is UNMET (never the planner's
+ * pick in disguise, never the override below its floor).
+ *
  * @param args.requirements - Seats in fill order / 席の要件（埋める順）
  * @param args.candidates - Rows usable right now (vendor available, route reachable) / いま使える行
  * @param args.executor - The model whose work is reviewed, if known / 実行役のモデル
  * @param args.previous - The plan in effect, to keep stable seats / 現行の割り当て
+ * @param args.overrides - Operator's per-seat model choice / 運用者の席ごとの指定
  * @returns The assignment and any unmet seats / 割り当てと未充足の席
  */
 export function planSeats(args: {
@@ -190,8 +194,10 @@ export function planSeats(args: {
   candidates: readonly ModelTierEntry[];
   executor: ExecutorRef | null;
   previous?: SeatPlan | null;
+  overrides?: Readonly<Record<string, string>>;
 }): SeatPlan {
-  const { requirements, candidates, executor } = args;
+  const { requirements, candidates } = args;
+  const executor = args.executor ?? UNVERIFIED_EXECUTOR;
   const vendors = [...new Set(candidates.map((c) => c.vendor))];
   const usableIds = new Set(candidates.map((c) => c.modelId));
   const filled = new Map<string, PlannedSeat>();
@@ -200,6 +206,31 @@ export function planSeats(args: {
   for (const req of requirements) {
     const requiredTier = requiredTierOf(req, executor);
     const refs = refsOf(req, executor, filled);
+
+    const override = args.overrides?.[req.seatId];
+    if (override) {
+      const { entry, reason } = overrideRefusal(override, requiredTier, usableIds);
+      if (reason || !entry) {
+        shortfalls.push({
+          seatId: req.seatId,
+          role: req.role,
+          requiredTier,
+          reason: reason ?? override,
+          override,
+        });
+      } else {
+        filled.set(req.seatId, {
+          seatId: req.seatId,
+          role: req.role,
+          requiredTier,
+          entry,
+          independence: independenceOf(entry, refs),
+          kept: false,
+          overridden: true,
+        });
+      }
+      continue;
+    }
 
     const prior = args.previous?.seats.find((s) => s.seatId === req.seatId);
     if (prior && usableIds.has(prior.entry.modelId) && canSit(prior.entry, requiredTier)) {
