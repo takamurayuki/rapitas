@@ -98,7 +98,7 @@ mock.module('./transition-recorder', () => ({ recordTransition }));
 const writeBlockedTask = mock(async () => {});
 mock.module('./blocked-task-write', () => ({ writeBlockedTask }));
 const markFailed = mock(async () => {});
-mock.module('../../routes/workflow/handlers/file-save/shared', () => ({
+mock.module('./publish/mark-latest-execution-failed', () => ({
   markLatestExecutionFailed: markFailed,
 }));
 const holdForHumanReview = mock(async (_p: Record<string, unknown>): Promise<string> => 'held');

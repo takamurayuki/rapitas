@@ -5,6 +5,7 @@
  * still decides, a missing PR still blocks, a requested merge still waits.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import type { OverridePublisher } from './publish/override-publisher';
 
 const noop = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({ createLogger: () => noop, logger: noop }));
@@ -29,14 +30,13 @@ const performAutoCommitAndPR = mock(async (..._a: unknown[]): Promise<Acpr> => (
 // no-change verdict swallowed a stop/publication error (G2 re-review item 2).
 const { isNoChangeCompletion } =
   await import('../../routes/workflow/workflow-auto-commit-classify');
-mock.module('../../routes/workflow/workflow-auto-commit', () => ({
+const handleVerifyGateBlocked = mock(async (_p: unknown) => ({ newStatus: 'plan_approved' }));
+// Injected by the route in production (services must not import routes).
+const PUBLISHER = {
   performAutoCommitAndPR,
   isNoChangeCompletion,
-}));
-const handleVerifyGateBlocked = mock(async (_p: unknown) => ({ newStatus: 'plan_approved' }));
-mock.module('../../routes/workflow/handlers/file-save/verify-commit-pr-gate-blocked', () => ({
   handleVerifyGateBlocked,
-}));
+} as unknown as OverridePublisher;
 
 let currentSha: string | null = 'sha-5';
 let currentFp: string | null = 'fp-5';
@@ -65,7 +65,7 @@ const CTX = {
   binding: { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' },
   hold: HOLD,
 };
-const publish = () => publishAfterReviewOverride(5, '# verify', CTX);
+const publish = () => publishAfterReviewOverride(5, '# verify', CTX, PUBLISHER);
 
 beforeEach(() => {
   currentSha = 'sha-5';

@@ -30,10 +30,8 @@ import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { holdForHumanReview, type ReviewHoldDetails } from './review-hold';
 import { verifierConfirmedForCompletion } from './verifier-completion-check';
-import {
-  publishBindingDrift,
-  type PublishBinding,
-} from '../../routes/workflow/workflow-auto-commit-binding';
+import { publishBindingDrift, type PublishBinding } from './publish/workflow-auto-commit-binding';
+import type { OverridePublisher } from './publish/override-publisher';
 import { writeBlockedTask } from './blocked-task-write';
 import { taskHasLinkedPr } from './workflow-cli-executor-helpers';
 import { holdForRequiredMerge } from './required-merge-hold';
@@ -85,12 +83,14 @@ async function reHold(
  * @param verifyContent - The verify.md body / verify.md 本文
  * @param ctx.binding - Artifact + diff the override covers / 上書きの対象
  * @param ctx.hold - The hold that was overridden (re-parked on mismatch) / 上書きされた保留
+ * @param publisher - Commit/PR operations, injected by the route / commit/PR 処理（route から注入）
  * @returns How it ended / 結果
  */
 export async function publishAfterReviewOverride(
   taskId: number,
   verifyContent: string,
   ctx: { binding: OverrideBinding; hold: ReviewHoldDetails },
+  publisher: OverridePublisher,
 ): Promise<OverridePublication> {
   // Early, cheap refusal; the commit side repeats this check where it commits.
   const mismatch = await publishBindingDrift(taskId, ctx.binding.worktreePath, ctx.binding);
@@ -101,8 +101,9 @@ export async function publishAfterReviewOverride(
     return 'verifier_unconfirmed';
   }
 
-  const { performAutoCommitAndPR, isNoChangeCompletion } =
-    await import('../../routes/workflow/workflow-auto-commit');
+  // NOTE: Injected, not imported — the implementations live in routes/, which
+  // services must not import (services-must-not-import-routes).
+  const { performAutoCommitAndPR, isNoChangeCompletion, handleVerifyGateBlocked } = publisher;
   const acpr = await performAutoCommitAndPR(taskId, verifyContent, {
     binding: ctx.binding,
   }).catch(
@@ -117,8 +118,6 @@ export async function publishAfterReviewOverride(
   if (acpr.verificationBlocked) {
     // Unverifiable: the gate already persisted the blocked task and evidence.
     if (acpr.verificationUnverifiable) return 'unverifiable';
-    const { handleVerifyGateBlocked } =
-      await import('../../routes/workflow/handlers/file-save/verify-commit-pr-gate-blocked');
     await handleVerifyGateBlocked({
       taskId,
       gateReason: acpr.error ?? '自動検証に失敗しました（lint/型/テスト/スコープ）。',

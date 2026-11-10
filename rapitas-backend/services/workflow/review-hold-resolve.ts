@@ -16,6 +16,7 @@ import { recordTransition } from './transition-recorder';
 import { writeBlockedTask } from './blocked-task-write';
 import { readWorkflowFile } from './workflow-file-utils';
 import type { OverrideBinding } from './review-hold-publish';
+import type { OverridePublisher } from './publish/override-publisher';
 import { capFindingsForStorage, formatFindingReason } from '../agents/verification/review-findings';
 import {
   clearReviewHold,
@@ -58,6 +59,7 @@ export function acceptedHoldReason(hold: ReviewHoldDetails): string {
  * @param p.action - accept | override / 解消操作
  * @param p.resolvedBy - Who resolved it (audit label) / 解消した人
  * @param p.note - Optional note / 任意のメモ
+ * @param p.publisher - Commit/PR operations an override publishes with (from the route) / 上書き時の commit/PR 処理
  * @returns What happened / 結果
  */
 export async function resolveReviewHold(p: {
@@ -65,6 +67,7 @@ export async function resolveReviewHold(p: {
   action: ReviewHoldAction;
   resolvedBy: string;
   note?: string;
+  publisher: OverridePublisher;
 }): Promise<ReviewHoldResolution> {
   const hold = await readReviewHold(p.taskId);
   if (!hold) return { ok: false, reason: 'not_held' };
@@ -84,13 +87,16 @@ export async function resolveReviewHold(p: {
     log.warn({ taskId: p.taskId, missing: bound.missing }, '[review-hold] Override refused');
     return { ok: false, reason: 'unbound' };
   }
-  if (!(await clearReviewHold({ ...p, hold, ...(bound ? { target: bound.target } : {}) }))) {
+  const { publisher, ...resolution } = p;
+  if (
+    !(await clearReviewHold({ ...resolution, hold, ...(bound ? { target: bound.target } : {}) }))
+  ) {
     return { ok: false, reason: 'cas_lost' };
   }
 
   const verifyContent = (await readWorkflowFile(p.taskId, 'verify').catch(() => null)) ?? '';
   return bound
-    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, bound.binding, hold)
+    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, bound.binding, hold, publisher)
     : acceptHold(p.taskId, hold, verifyContent);
 }
 
@@ -126,8 +132,7 @@ async function acceptHold(
   );
   if (repair.stale) return { ok: true, action: 'accept', outcome: 'stale' };
 
-  const { markLatestExecutionFailed } =
-    await import('../../routes/workflow/handlers/file-save/shared');
+  const { markLatestExecutionFailed } = await import('./publish/mark-latest-execution-failed');
   await markLatestExecutionFailed(taskId, reason).catch(() => {});
   const bounced = repair.bounced && !!repair.newStatus;
   if (!bounced) await writeBlockedTask(prisma, taskId).catch(() => {});
@@ -162,6 +167,7 @@ async function overrideHold(
   resolvedBy: string,
   binding: OverrideBinding,
   hold: ReviewHoldDetails,
+  publisher: OverridePublisher,
 ): Promise<ReviewHoldResolution> {
   // Bind the decision to THIS artifact + diff, like any gate completion: a
   // later verify.md or a changed diff is reviewed again, not waved through.
@@ -183,9 +189,12 @@ async function overrideHold(
   // Commit/PR runs the verification gate, git push and `gh pr create` — minutes,
   // not a request's worth. Registered in-flight so the runner's verify-settle
   // wait sees live work instead of a stuck task.
-  const work = publishAfterReviewOverride(taskId, verifyContent, { binding, hold }).catch((err) =>
-    log.error({ err, taskId }, '[review-hold] Publication after override failed'),
-  );
+  const work = publishAfterReviewOverride(
+    taskId,
+    verifyContent,
+    { binding, hold },
+    publisher,
+  ).catch((err) => log.error({ err, taskId }, '[review-hold] Publication after override failed'));
   registerVerifyCompletion(taskId, work);
   log.info({ taskId, resolvedBy }, '[review-hold] Hold overridden — publishing');
   return { ok: true, action: 'override', outcome: 'publishing', workflowStatus: 'verify_done' };

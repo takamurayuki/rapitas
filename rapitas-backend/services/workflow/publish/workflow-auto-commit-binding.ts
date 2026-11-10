@@ -35,7 +35,7 @@ export interface PublishBinding {
  * @returns Worktree path or null / worktree のパス（無ければ null）
  */
 export async function resolvePublishWorktree(taskId: number): Promise<string | null> {
-  const { prisma } = await import('../../config/database');
+  const { prisma } = await import('../../../config/database');
   const session = await prisma.agentSession
     .findFirst({
       where: { config: { taskId } },
@@ -63,8 +63,8 @@ export async function publishBindingDrift(
 ): Promise<string | null> {
   if (gitCwd !== b.worktreePath) return '公開に使う worktree が上書きの対象と異なります';
   const [{ readVerifySha256 }, { currentDiffFingerprint }] = await Promise.all([
-    import('../../services/workflow/verify-jury-completion'),
-    import('../../services/agents/verification/review-diff-fingerprint'),
+    import('../verify-jury-completion'),
+    import('../../agents/verification/review-diff-fingerprint'),
   ]);
   const [sha, fp] = await Promise.all([
     readVerifySha256(taskId).catch(() => null),

@@ -74,8 +74,8 @@ export async function readCurrentOverrideTarget(
     const [{ readVerifySha256 }, { resolvePublishWorktree }, { stagedTreeIdentity }] =
       await Promise.all([
         import('./verify-jury-completion'),
-        import('../../routes/workflow/workflow-auto-commit-binding'),
-        import('../../routes/workflow/workflow-auto-commit-tree-identity'),
+        import('./publish/workflow-auto-commit-binding'),
+        import('./publish/workflow-auto-commit-tree-identity'),
       ]);
     // NOTE: The SAME worktree commit/PR publishes from (latest-active session).
     const worktreePath = await resolvePublishWorktree(taskId);
