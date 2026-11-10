@@ -53,13 +53,13 @@ mock.module('./review-hold', () => ({
 // The override's bound target as it is now (verify.md sha256 / publish worktree / git tree).
 let currentTree: string | null = 'tree-A';
 mock.module('./verify-jury-completion', () => ({ readVerifySha256: async () => 'sha-A' }));
-mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
+mock.module('./publish/workflow-auto-commit-binding', () => ({
   resolvePublishWorktree: async () => '/wt/1471',
   publishBindingDrift: async () => null,
   checkBindingBeforeCommit: async () => ({ drift: null, stable: 'tree-A' }),
   bindingDriftAfterCommit: async () => null,
 }));
-mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+mock.module('./publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity: async () => currentTree,
   committedTreeIdentity: async () => currentTree,
 }));

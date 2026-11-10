@@ -2,18 +2,14 @@
  * FileSave Shared Helpers
  *
  * Cross-stage helpers for the workflow file-save pipeline: the latest-execution
- * failure marker and the per-status allowed-file-type table.
+ * failure marker (re-exported from services) and the per-status allowed-file-type table.
  * Not responsible for any pipeline stage logic itself.
  */
 
 import { prisma } from '../../../../config';
-import { createLogger } from '../../../../config/logger';
 import type { WorkflowFileType } from '../../core/workflow-helpers';
 import type { WorkflowStatus } from '../../../../services/workflow/workflow-types';
 import { VERIFY_NON_CONVERGENCE_CAUSE } from '../../../../services/workflow/blocked-task-policy';
-import { NOT_REVIEW_COST_ROW } from '../../../../services/agents/review-cost-rows';
-
-const log = createLogger('routes:workflow:handlers:files');
 
 /** Max age for a non-convergence transition to count as "just recorded by this call". */
 const CUTOFF_RECENCY_WINDOW_MS = 10_000;
@@ -46,45 +42,10 @@ export async function wasNonConvergenceCutoffJustRecorded(taskId: number): Promi
   return Date.now() - last.createdAt.getTime() <= CUTOFF_RECENCY_WINDOW_MS;
 }
 
-/**
- * Marks a task's latest agent execution (and session) failed with a reason.
- *
- * When a verify is rejected (validation or the automated gate) the task is set
- * `blocked`, but the agent's execution row stays `completed` — so the execution
- * log viewer shows 「完了」 while the task is blocked (the confusing status gap).
- * Aligning the execution/session to `failed` closes that gap.
- *
- * @param taskId - Task whose latest execution to fail / 対象タスク
- * @param message - Failure reason shown in the viewer / 失敗理由
- */
-export async function markLatestExecutionFailed(taskId: number, message: string): Promise<void> {
-  try {
-    const session = await prisma.agentSession.findFirst({
-      where: { config: { taskId } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        agentExecutions: { where: NOT_REVIEW_COST_ROW, orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-    });
-    if (!session) return;
-    const exec = session.agentExecutions[0];
-    if (exec && exec.status !== 'failed') {
-      await prisma.agentExecution
-        .update({
-          where: { id: exec.id },
-          data: { status: 'failed', errorMessage: message, completedAt: new Date() },
-        })
-        .catch(() => {});
-    }
-    if (session.status !== 'failed') {
-      await prisma.agentSession
-        .update({ where: { id: session.id }, data: { status: 'failed', errorMessage: message } })
-        .catch(() => {});
-    }
-  } catch (err) {
-    log.warn({ err, taskId }, '[Workflow] Failed to mark latest execution failed');
-  }
-}
+// NOTE: Moved to services/workflow/publish so services can call it without
+// importing routes; re-exported here so the file-save stages (and the tests
+// that mock './shared') keep their import path.
+export { markLatestExecutionFailed } from '../../../../services/workflow/publish/mark-latest-execution-failed';
 
 /**
  * Per-status whitelist of workflow file types a save may target.

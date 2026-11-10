@@ -8,6 +8,7 @@
  * 一致する間だけ有効。実物の共通チェック・verifier-eligibility を通す。
  */
 import { beforeEach, expect, mock, test } from 'bun:test';
+import type { OverridePublisher } from './publish/override-publisher';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -30,15 +31,17 @@ const performAutoCommitAndPR = mock(async (..._a: unknown[]) => {
     autoPRResult: { success: true },
   };
 });
-mock.module('../../routes/workflow/workflow-auto-commit', () => ({
+// Injected by the route in production (services must not import routes).
+const PUBLISHER = {
   performAutoCommitAndPR,
   isNoChangeCompletion,
-}));
+  handleVerifyGateBlocked: async () => ({}),
+} as unknown as OverridePublisher;
 mock.module('./verify-jury-completion', () => ({ readVerifySha256: async () => 'sha-5' }));
 mock.module('../agents/verification/review-diff-fingerprint', () => ({
   currentDiffFingerprint: async () => 'fp-5',
 }));
-mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
+mock.module('./publish/workflow-auto-commit-binding', () => ({
   resolvePublishWorktree: async () => '/wt/5',
   publishBindingDrift: async () => null,
   checkBindingBeforeCommit: async () => ({ drift: null, stable: 'tree-5' }),
@@ -46,7 +49,7 @@ mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
 }));
 let treeAfterPublish = 'tree-5';
 let published = false;
-mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+mock.module('./publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity: async () => (published ? treeAfterPublish : 'tree-5'),
   committedTreeIdentity: async () => 'tree-5',
 }));
@@ -89,10 +92,15 @@ const { publishAfterReviewOverride } = await import('./review-hold-publish');
 
 const BINDING = { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' };
 const publish = (reason: 'unresolved_dispute' | 'ineligible_verifier') =>
-  publishAfterReviewOverride(5, '# verify', {
-    binding: BINDING,
-    hold: { reason, detail: '', findings: [] },
-  });
+  publishAfterReviewOverride(
+    5,
+    '# verify',
+    {
+      binding: BINDING,
+      hold: { reason, detail: '', findings: [] },
+    },
+    PUBLISHER,
+  );
 
 beforeEach(() => {
   verifierModel = null;

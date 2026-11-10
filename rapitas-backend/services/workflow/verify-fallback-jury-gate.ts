@@ -199,8 +199,7 @@ async function runGateLocked(params: {
     return { stop: true, phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'] };
   }
 
-  const { markLatestExecutionFailed } =
-    await import('../../routes/workflow/handlers/file-save/shared');
+  const { markLatestExecutionFailed } = await import('./publish/mark-latest-execution-failed');
   await markLatestExecutionFailed(taskId, reason);
   let phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
   if (repair.bounced && repair.newStatus) {

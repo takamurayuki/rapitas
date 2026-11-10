@@ -15,13 +15,13 @@ mock.module('../../config/logger', () => ({
 mock.module('./transition-recorder', () => ({ recordTransition: async () => undefined }));
 mock.module('../memory/timeline', () => ({ appendEvent: async () => undefined }));
 mock.module('./verify-jury-completion', () => ({ readVerifySha256: async () => 'sha-A' }));
-mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
+mock.module('./publish/workflow-auto-commit-binding', () => ({
   resolvePublishWorktree: async () => '/wt/1471',
   publishBindingDrift: async () => null,
   checkBindingBeforeCommit: async () => ({ drift: null, stable: 'tree-A' }),
   bindingDriftAfterCommit: async () => null,
 }));
-mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+mock.module('./publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity: async () => 'tree-A',
   committedTreeIdentity: async () => 'tree-A',
 }));

@@ -36,14 +36,14 @@ let currentSha: string | null = 'sha-A';
 let currentWorktree: string | null = '/wt/1471';
 let currentTree: string | null = 'tree-A';
 mock.module('./verify-jury-completion', () => ({ readVerifySha256: async () => currentSha }));
-mock.module('../../routes/workflow/workflow-auto-commit-binding', () => ({
+mock.module('./publish/workflow-auto-commit-binding', () => ({
   resolvePublishWorktree: async () => currentWorktree,
   publishBindingDrift: async () => null,
   checkBindingBeforeCommit: async () => ({ drift: null, stable: 'tree-A' }),
   bindingDriftAfterCommit: async () => null,
 }));
 const stagedTreeIdentity = mock(async (_cwd: string) => currentTree);
-mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+mock.module('./publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity,
   committedTreeIdentity: async () => currentTree,
 }));
