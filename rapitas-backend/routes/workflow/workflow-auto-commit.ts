@@ -193,7 +193,7 @@ export async function performAutoCommitAndPR(
       }
       // Re-check after the commit: a change made while it was being recorded is
       // in the commit, so it stays local and is never pushed.
-      const after = pre?.stable && (await bindingDriftAfterCommit(taskId, gitCwd, pre.stable));
+      const after = pre?.stable && (await bindingDriftAfterCommit(gitCwd, pre.stable));
       if (after) return { ...result, bindingMismatch: after, error: after };
       log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
       await logAutoCommit(
