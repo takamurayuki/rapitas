@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/routes.dart';
 import 'config/theme.dart';
+import 'providers/home_widget_sync_provider.dart';
 import 'providers/pairing_provider.dart';
+import 'providers/pending_request_provider.dart';
 import 'providers/realtime_refresh_provider.dart';
 import 'providers/settings_provider.dart';
 import 'widgets/voice_mode_host.dart';
@@ -17,6 +19,10 @@ class RapitasMobileApp extends ConsumerWidget {
     ref.watch(realtimeRefreshProvider);
     // ペアリングしたデスクトップの IP が変わったら、LAN 上で探し直して接続先を更新する
     ref.watch(desktopRelocatorProvider);
+    // ホーム画面ウィジェットへ、承認待ち・実行中・今日のタスクのスナップショットを書き出す（iOS のみ）
+    ref.watch(homeWidgetSyncProvider);
+    // ショートカットが預けた依頼の取り込みと、裏へ回る直前のウィジェットの書き出し（iOS のみ）
+    ref.watch(homeScreenLifecycleProvider);
 
     return MaterialApp.router(
       title: 'Rapitas Mobile',

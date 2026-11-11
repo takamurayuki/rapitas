@@ -7,6 +7,7 @@ import '../../providers/rapi_chat_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../providers/voice_provider.dart';
+import '../../services/compose_requests.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
@@ -108,7 +109,10 @@ const double _topFade = 16;
 const double _listBottomPadding = 16;
 
 class RapiScreen extends ConsumerStatefulWidget {
-  const RapiScreen({super.key});
+  /// 入力欄へのフォーカス要求の窓口（ディープリンクとショートカット。テストでは自前のもの）
+  final ComposeRequests? composeRequests;
+
+  const RapiScreen({super.key, this.composeRequests});
 
   @override
   ConsumerState<RapiScreen> createState() => _RapiScreenState();
@@ -121,6 +125,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   late final TextEditingController _input;
   late final TextEditingController _draftTitle;
   final _scroll = ScrollController();
+
+  /// 入力欄のフォーカス。ウィジェットやショートカットから開いたとき、ここに当ててキーボードを出す
+  final _inputFocus = FocusNode();
+  late final ComposeRequests _compose;
 
   // ---- 音声入力 ----
   // dispose で ref は使えないので、聞き取りのラッパーは最初に取っておく
@@ -145,6 +153,12 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final saved = ref.read(rapiChatProvider);
     _input = TextEditingController(text: saved.input)..addListener(_onInputChanged);
     _draftTitle = TextEditingController(text: saved.draftTitle);
+    _compose = widget.composeRequests ?? appComposeRequests;
+    _compose.listenable.addListener(_onComposeSignal);
+    // コールドスタートでは、ルーターの redirect がこの画面より先に要求を出している
+    if (_compose.hasPending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onComposeRequested());
+    }
     // 戻ってきたときは最新の発言が見える位置から始める
     if (saved.messages.length > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -159,6 +173,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     _voiceSession++;
     if (_voiceActive) _dictation.cancel();
     _lifecycle.dispose();
+    _compose.listenable.removeListener(_onComposeSignal);
+    _inputFocus.dispose();
     _input.removeListener(_onInputChanged);
     _input.dispose();
     _scroll.dispose();
@@ -167,6 +183,21 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   }
 
   void _onInputChanged() => _chat.setInput(_input.text);
+
+  /// 要求はルーターの redirect の途中で届くので、その場では触らず次のフレームで処理する
+  void _onComposeSignal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onComposeRequested());
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  /// 入力欄へのフォーカス要求を受け取る。聞き取り中は欄が読み取り専用なので、聞き取りを捨ててから当てる
+  void _onComposeRequested() {
+    if (!mounted || !_compose.take()) return;
+    _cancelVoice();
+    // 文の末尾にカーソルを置く（預かった依頼が入っていれば、そのまま書き足せる）
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
+    _inputFocus.requestFocus();
+  }
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -385,6 +416,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
             ),
           _Composer(
             controller: _input,
+            focusNode: _inputFocus,
             placeholder: _voiceActive
                 ? _listeningPlaceholder
                 : chat.consultTask != null
@@ -480,9 +512,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         return _spaced(_RapiMessage(text: m.text));
       case RapiRole.system:
         final taskId = m.taskId;
+        final draftId = m.externalDraftId;
         return _spaced(_SystemNote(
           text: m.text,
           onOpen: taskId == null ? null : () => _openTask(taskId),
+          // 欄に入っているショートカットの依頼の案内にだけ出す（送った・破棄した依頼の案内には出さない）
+          onDiscard: draftId != null && draftId == chat.activeExternalDraftId && !chat.sending
+              ? _chat.discardExternalDraft
+              : null,
         ));
     }
   }
@@ -965,7 +1002,10 @@ class _SystemNote extends StatelessWidget {
   final String text;
   final VoidCallback? onOpen;
 
-  const _SystemNote({required this.text, this.onOpen});
+  /// ショートカットから届いた依頼を破棄する（欄に入れた依頼の案内のときだけ）
+  final VoidCallback? onDiscard;
+
+  const _SystemNote({required this.text, this.onOpen, this.onDiscard});
 
   @override
   Widget build(BuildContext context) {
@@ -989,6 +1029,16 @@ class _SystemNote extends StatelessWidget {
                 ),
                 onPressed: onOpen,
                 child: const Text('開く'),
+              ),
+            if (onDiscard != null)
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF6B7280),
+                  visualDensity: VisualDensity.compact,
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                onPressed: onDiscard,
+                child: const Text('この依頼を破棄'),
               ),
           ],
         ),
@@ -1547,6 +1597,7 @@ class _ConsultBand extends StatelessWidget {
 /// 文があれば送信、空ならマイク（押すと聞き取りを始める）
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode focusNode;
   final String placeholder;
   final bool hasText;
   final bool sending;
@@ -1556,6 +1607,7 @@ class _Composer extends StatelessWidget {
 
   const _Composer({
     required this.controller,
+    required this.focusNode,
     required this.placeholder,
     required this.hasText,
     required this.sending,
@@ -1615,7 +1667,9 @@ class _Composer extends StatelessWidget {
             children: [
               Expanded(
                 child: TextField(
+                  key: const ValueKey('rapi-input'),
                   controller: controller,
+                  focusNode: focusNode,
                   // 聞き取り中は認識結果で欄を書き換えるので、手での入力は受けない
                   readOnly: listening,
                   minLines: 1,
