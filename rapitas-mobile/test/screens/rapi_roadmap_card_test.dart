@@ -157,7 +157,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('rapi-roadmap-commit')));
     await tester.pumpAndSettle();
 
-    expect(identical(assistant.committed.single, _final), isTrue);
+    // カードの条件を何も変えていなければ、送る計画は下書きと同じ中身（条件の採否・直しは
+    // confirmedDraft で各手順に反映する。rapi_criteria_edit_test.dart 参照）
+    final sent = assistant.committed.single;
+    expect(sent.goal, _final.goal);
+    expect([for (final s in sent.steps) s.toJson()], [for (final s in _final.steps) s.toJson()]);
     expect(find.text('計画を作成しました'), findsOneWidget);
     expect(find.text('タスクを2件作成しました。'), findsOneWidget);
     expect(find.text('テーマ：「英語学習」を新しく作りました'), findsOneWidget);

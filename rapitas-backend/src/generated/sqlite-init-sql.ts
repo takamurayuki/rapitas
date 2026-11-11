@@ -438,6 +438,7 @@ CREATE TABLE "Task" (
     "goals" TEXT,
     "constraints" TEXT,
     "acceptanceCriteria" TEXT,
+    "userAcceptanceChecks" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" DATETIME,
@@ -1444,6 +1445,20 @@ CREATE TABLE "AssistantAction" (
 );
 
 -- CreateTable
+CREATE TABLE "TaskCompanion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "origin" TEXT NOT NULL,
+    "sourceActionId" INTEGER,
+    "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastDigestTransitionId" INTEGER,
+    "closedAt" DATETIME,
+    "closedReason" TEXT,
+    "retrospectiveNoteId" INTEGER
+);
+
+-- CreateTable
 CREATE TABLE "Workspace" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "slug" TEXT NOT NULL,
@@ -2433,6 +2448,15 @@ CREATE INDEX "AssistantAction_createdAt_idx" ON "AssistantAction"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "AssistantAction_workspaceId_idx" ON "AssistantAction"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskCompanion_taskId_key" ON "TaskCompanion"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskCompanion_closedAt_idx" ON "TaskCompanion"("closedAt");
+
+-- CreateIndex
+CREATE INDEX "TaskCompanion_workspaceId_idx" ON "TaskCompanion"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Workspace_slug_key" ON "Workspace"("slug");

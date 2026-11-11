@@ -167,6 +167,41 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'stop-what-was-started',
   },
+  {
+    // Re-reads completion criteria the user edited on a confirmation card:
+    // who checks each (jury / person), vague wording, the score. Writes
+    // nothing; the create / commit that follows is what is confirmed.
+    id: 'criteria.review',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // Reads a consultation sentence and the task's companion row, and
+    // proposes starting or stopping — the card the user confirms. Writes
+    // nothing, so it needs no confirmation of its own.
+    id: 'companion.draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // "伴走して" on a task ラピ did not create (companion design 4.3, Q1).
+    // Writes one TaskCompanion row and asks first, because it changes what
+    // she will keep reporting on. Undone by companion.stop below.
+    id: 'companion.start',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'stop-what-was-started',
+  },
+  {
+    // Closes the row (closedAt), never deletes it: when and why she stopped
+    // watching is part of the task's history.
+    id: 'companion.stop',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'restore-previous-values',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */

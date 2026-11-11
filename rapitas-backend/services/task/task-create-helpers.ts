@@ -19,6 +19,18 @@ import type { CreateTaskInput } from './task-mutations';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
+/**
+ * The one TaskCompanion call made here. Typed locally so this file does not
+ * depend on the generated client having been regenerated for the model yet.
+ */
+interface CompanionInsertClient {
+  taskCompanion: {
+    create(args: {
+      data: { taskId: number; origin: string; workspaceId?: number };
+    }): Promise<unknown>;
+  };
+}
+
 const logger = createLogger('task-create-helpers');
 
 function titleEqualsFilter(title: string) {
@@ -134,32 +146,55 @@ export async function createParentTask(
   labelIds: number[] | undefined,
   data: Omit<CreateTaskInput, 'title' | 'parentId' | 'labelIds'>,
 ) {
-  const task = await prisma.task.create({
-    data: {
-      title,
-      ...(data.description && { description: data.description }),
-      status: data.status ?? 'todo',
-      priority: data.priority ?? 'medium',
-      ...(data.labels && { labels: data.labels }),
-      ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
-      ...(data.actualHours && { actualHours: data.actualHours }),
-      ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
-      ...(data.subject && { subject: data.subject }),
-      ...(data.projectId && { projectId: data.projectId }),
-      ...(data.milestoneId && { milestoneId: data.milestoneId }),
-      ...(data.themeId !== undefined && { themeId: data.themeId }),
-      ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
-      ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
-      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
-      ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
-      ...(data.constraints &&
-        data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
-      ...(data.acceptanceCriteria &&
-        data.acceptanceCriteria.length > 0 && {
-          acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
-        }),
-    },
-  });
+  const taskData = {
+    title,
+    ...(data.description && { description: data.description }),
+    status: data.status ?? 'todo',
+    priority: data.priority ?? 'medium',
+    ...(data.labels && { labels: data.labels }),
+    ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
+    ...(data.actualHours && { actualHours: data.actualHours }),
+    ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
+    ...(data.subject && { subject: data.subject }),
+    ...(data.projectId && { projectId: data.projectId }),
+    ...(data.milestoneId && { milestoneId: data.milestoneId }),
+    ...(data.themeId !== undefined && { themeId: data.themeId }),
+    ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
+    ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+    // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+    ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+    ...(data.constraints &&
+      data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+    ...(data.acceptanceCriteria &&
+      data.acceptanceCriteria.length > 0 && {
+        acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+      }),
+    // NOTE: Only when there are some, so every other caller's insert is
+    // unchanged and an older task simply has no value (no migration).
+    ...(data.userAcceptanceChecks &&
+      data.userAcceptanceChecks.length > 0 && {
+        userAcceptanceChecks: JSON.stringify(data.userAcceptanceChecks),
+      }),
+  };
+
+  const companion = data.companion;
+  const task = companion
+    ? // NOTE: One transaction holding exactly the two inserts, so a task ラピ
+      // accompanies never exists without its TaskCompanion row (design 4.3).
+      // Nothing else runs inside it — the global-client writes below
+      // (behaviour, complexity) stay outside, so SQLite's single writer is
+      // never waited on from within. The row is not a nested write because
+      // it has no foreign key to Task (it must outlive a deleted task, see
+      // task-deletion.ts), and an explicit insert is also what lets it carry
+      // the task's workspace: nested writes bypass the workspace extension.
+      await prisma.$transaction(async (tx) => {
+        const created = await tx.task.create({ data: taskData });
+        await (tx as unknown as CompanionInsertClient).taskCompanion.create({
+          data: { taskId: created.id, origin: companion.origin, ...inheritWorkspace(created) },
+        });
+        return created;
+      })
+    : await prisma.task.create({ data: taskData });
 
   if (labelIds && labelIds.length > 0) {
     await prisma.taskLabel.createMany({

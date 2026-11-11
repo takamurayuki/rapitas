@@ -34,6 +34,10 @@ const mockPrisma = {
   notification: {
     create: mock(() => Promise.resolve({ id: 1 })),
   },
+  // The delete closes companion rows in the same transaction (design 4.3).
+  taskCompanion: {
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -140,6 +144,10 @@ function resetAllMocks() {
     fn(mockPrisma),
   );
   mockPrisma.notification.create.mockResolvedValue({ id: 1 });
+  // The delete's companion close walks subtasks and updates rows; mockReset
+  // leaves both returning undefined.
+  mockPrisma.task.findMany.mockResolvedValue([]);
+  mockPrisma.taskCompanion.updateMany.mockResolvedValue({ count: 0 });
   removeWorktree.mockReset();
   // NOTE: removeWorktree now returns Promise<boolean> (実際に削除できたか) —
   // tasks.ts DELETE ハンドラは `if (!removed) continue;` で偽値ならDB更新を

@@ -76,7 +76,7 @@ describe('POST /assistant/task-update', () => {
   test('without confirmation: 400, nothing written, refusal recorded', async () => {
     const r = await post('/task-update', {
       taskId: 5,
-      changes: { status: 'done' },
+      changes: { status: 'in-progress' },
       confirmed: false,
     });
     expect(r.status).toBe(400);
@@ -87,15 +87,15 @@ describe('POST /assistant/task-update', () => {
   test('confirmed: applies and records before/after for undo', async () => {
     const r = await post('/task-update', {
       taskId: 5,
-      changes: { status: 'done' },
+      changes: { status: 'in-progress' },
       confirmed: true,
     });
     expect(r.status).toBe(200);
-    expect(row.status).toBe('done');
-    expect(r.body).toMatchObject({ before: { status: 'todo' }, after: { status: 'done' } });
+    expect(row.status).toBe('in-progress');
+    expect(r.body).toMatchObject({ before: { status: 'todo' }, after: { status: 'in-progress' } });
     expect(JSON.parse(actions[0].resultJson as string)).toEqual({
       before: { status: 'todo' },
-      after: { status: 'done' },
+      after: { status: 'in-progress' },
     });
   });
 
@@ -113,7 +113,7 @@ describe('POST /assistant/task-update', () => {
     row = null;
     const r = await post('/task-update', {
       taskId: 5,
-      changes: { status: 'done' },
+      changes: { status: 'in-progress' },
       confirmed: true,
     });
     expect(r.status).toBe(404);
@@ -146,7 +146,7 @@ describe('POST /assistant/task-update/revert', () => {
   });
 
   test('refuses an action that is not an executed task.update', async () => {
-    await post('/task-update', { taskId: 5, changes: { status: 'done' }, confirmed: false });
+    await post('/task-update', { taskId: 5, changes: { status: 'in-progress' }, confirmed: false });
     const r = await post('/task-update/revert', { actionId: 1 });
     expect(r.status).toBe(404);
   });

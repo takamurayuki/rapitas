@@ -81,6 +81,7 @@ class AssistantService {
     String? dueDate,
     double? estimatedHours,
     List<String> acceptanceCriteria = const [],
+    List<String> userAcceptanceChecks = const [],
   }) async {
     final theme = int.tryParse(themeId);
     if (theme == null) throw const AssistantException('invalid_theme');
@@ -96,6 +97,8 @@ class AssistantService {
           if (dueDate != null) 'dueDate': dueDate,
           if (estimatedHours != null) 'estimatedHours': estimatedHours,
           if (acceptanceCriteria.isNotEmpty) 'acceptanceCriteria': acceptanceCriteria,
+          // 本人が確かめる条件（サーバーが判定し直して userAcceptanceChecks の列へ）
+          if (userAcceptanceChecks.isNotEmpty) 'userAcceptanceChecks': userAcceptanceChecks,
         },
       },
     ))
@@ -173,6 +176,67 @@ class AssistantService {
       }
       rethrow;
     }
+  }
+
+  // ---- 伴走（companion）----
+  // 形はバックエンド routes/ai/assistant-companion.routes.ts が正：
+  //   POST /assistant/companion/draft {text, taskId?}（何も書き込まない）
+  //     → {matched:false} ／ {matched, action, needsTask:true} ／ {matched, action, unavailable?, proposal}
+  //   POST /assistant/companion/start|stop {taskId, confirmed:true}（確認カードのボタンからだけ呼ぶ）
+
+  /// 発言が「伴走して」「伴走をやめて」かを聞き、そうなら確認カードの材料を受け取る。
+  /// 404（タスクが無い）は code: not_found の [AssistantException]。
+  Future<RapiCompanionDraft> companionDraft(String text, {String? taskId}) async {
+    final id = taskId == null ? null : int.tryParse(taskId);
+    if (taskId != null && id == null) throw const AssistantException('invalid_task');
+    final body = _body((await _postOrError('/assistant/companion/draft', {
+      'text': text,
+      if (id != null) 'taskId': id,
+    }))
+        .data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'draft_failed');
+    }
+    return RapiCompanionDraft.fromJson(body);
+  }
+
+  /// 確認カードで押された伴走の開始・終了を、confirmed: true で送る。
+  /// 断られたら（409 already_active / not_active / task_done、404 など）その code の
+  /// [AssistantException]（statusCode 付き）。
+  Future<void> companionApply(RapiCompanionAction action, String taskId) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final path = action == RapiCompanionAction.start ? 'start' : 'stop';
+    final response =
+        await _postOrError('/assistant/companion/$path', {'taskId': id, 'confirmed': true});
+    final body = _body(response.data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'companion_failed',
+          statusCode: response.statusCode);
+    }
+    if (body['success'] != true) throw const AssistantException('unexpected_response');
+  }
+
+  /// カードで直した完了条件 [criteria] を、サーバーに判定し直してもらう（何も書き込まない）。
+  /// POST /assistant/criteria/review {title, description?, criteria}
+  ///   → {success: true, items: [{text, verifier, vague?, supplemented?, generic?}], quality, kind}
+  /// サーバーの判定が正（確定時も同じ規則で2列に分ける）。
+  Future<({List<RapiCriterionItem> items, RapiCriteriaQuality? quality})> reviewCriteria({
+    required String title,
+    String? description,
+    required List<String> criteria,
+  }) async {
+    final body = _body((await _post('/assistant/criteria/review', {
+      'title': title.trim().isEmpty ? 'タスク' : title.trim(),
+      if (description != null && description.isNotEmpty) 'description': description,
+      'criteria': criteria.take(10).toList(),
+    }))
+        .data);
+    if (body['success'] != true) throw const AssistantException('unexpected_response');
+    return (
+      items: rapiCriterionItems(body['items']),
+      quality: RapiCriteriaQuality.fromJson(body['quality']),
+    );
   }
 
   // ---- 計画（roadmap）----

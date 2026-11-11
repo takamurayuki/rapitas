@@ -15,6 +15,9 @@
  * it belongs to — so "make a theme" and "make a project" are two decisions
  * the plan answers separately.
  *
+ * Each task is created together with its TaskCompanion row (one insert), so
+ * when the loop stops partway every task it did make is still accompanied.
+ *
  * Partial failure is reported rather than hidden. Half a roadmap is worse
  * than none if the caller cannot tell which half: they would have to read
  * the plan against the backlog to find out what is missing.
@@ -36,6 +39,17 @@ export type ApprovedPlacement =
 export interface ApprovedStep {
   title: string;
   description: string;
+  /**
+   * What done means for this step, as the user approved it. Written to
+   * `Task.acceptanceCriteria` — the column the jury, the self-check and the
+   * landing classifier read — not only into the description's checklist.
+   */
+  acceptanceCriteria: string[];
+  /**
+   * The approved checks only the person can make, written to
+   * `Task.userAcceptanceChecks` and never to the jury's column (design 4.1 案1).
+   */
+  userAcceptanceChecks?: string[];
   /** When it should be finished, as the approved plan dated it (YYYY-MM-DD). */
   dueDate?: string;
 }
@@ -113,6 +127,11 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
         ...(step.dueDate ? { dueDate: step.dueDate } : {}),
         ...(themeId !== null ? { themeId } : {}),
         ...(projectId !== null ? { projectId } : {}),
+        acceptanceCriteria: step.acceptanceCriteria,
+        ...(step.userAcceptanceChecks?.length
+          ? { userAcceptanceChecks: step.userAcceptanceChecks }
+          : {}),
+        companion: { origin: 'roadmap_commit' },
       });
       if (task) taskIds.push(task.id);
     } catch (err) {

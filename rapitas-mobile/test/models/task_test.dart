@@ -84,6 +84,46 @@ void main() {
       expect(task.dueDate, DateTime.parse('2026-11-10T00:00:00.000Z'));
     });
 
+    // Companion stage 1: what the task detail shows under 完了条件 / いまの段階.
+    test('reads acceptanceCriteria stored as a JSON string, and the stage fields', () {
+      final task = Task.fromJson({
+        ..._backendTaskRow(),
+        'acceptanceCriteria': '["A が通る"," ","B が出る"]',
+        'workflowStatus': 'plan_created',
+        'haltReason': 'budget_time_exceeded',
+      });
+
+      expect(task.acceptanceCriteria, ['A が通る', 'B が出る']);
+      expect(task.workflowStatus, 'plan_created');
+      expect(task.haltReason, 'budget_time_exceeded');
+    });
+
+    test('reads userAcceptanceChecks apart from acceptanceCriteria; absent reads as empty', () {
+      final task = Task.fromJson({
+        ..._backendTaskRow(),
+        'acceptanceCriteria': '["A が通る"]',
+        'userAcceptanceChecks': '["本人が見て確かめる"]',
+      });
+      expect(task.acceptanceCriteria, ['A が通る']);
+      expect(task.userAcceptanceChecks, ['本人が見て確かめる']);
+      expect(Task.fromJson(_backendTaskRow()).userAcceptanceChecks, isEmpty);
+      expect(Task.fromJson(task.toJson()).userAcceptanceChecks, ['本人が見て確かめる']);
+    });
+
+    test('missing, null or malformed criteria and stage fields read as empty', () {
+      for (final raw in <dynamic>[null, '', 'not json', '{"a":1}', 3]) {
+        final task = Task.fromJson({
+          ..._backendTaskRow(),
+          'acceptanceCriteria': raw,
+          'workflowStatus': null,
+          'haltReason': '',
+        });
+        expect(task.acceptanceCriteria, isEmpty, reason: '$raw');
+        expect(task.workflowStatus, isNull);
+        expect(task.haltReason, isNull);
+      }
+    });
+
     test('decodes labels stored as a JSON string', () {
       final task = Task.fromJson(_backendTaskRow());
 

@@ -128,6 +128,11 @@ model Task {
   goals                 String?       // JSON array of goal strings (Phase 2 structured spec)
   constraints           String?       // JSON array of constraint strings
   acceptanceCriteria    String?       // JSON array of acceptance-criteria strings
+  /// JSON array of completion checks only the person can make ("本人が確かめる",
+  /// companion design 4.1 案1). Kept apart from acceptanceCriteria so the jury,
+  /// self-check, landing classifier and replanning — which read only that
+  /// column — never judge a diff against something no diff can show.
+  userAcceptanceChecks  String?
   developerModeConfig   DeveloperModeConfig?
   taskAnalysisConfig    TaskAnalysisConfig?
   agentExecutionConfig  AgentExecutionConfig?

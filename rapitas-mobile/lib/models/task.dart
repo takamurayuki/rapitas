@@ -32,6 +32,19 @@ class Task {
   final List<Task>? subtasks;
   final TaskTheme? theme;
 
+  /// 完了条件（Task.acceptanceCriteria。DB では JSON 文字列の配列）。陪審はこれで判定する
+  final List<String> acceptanceCriteria;
+
+  /// 本人が確かめる完了条件（Task.userAcceptanceChecks。設計 4.1 案1）。陪審は判定に使わない。
+  /// 列ができる前のタスク・古いサーバーでは空
+  final List<String> userAcceptanceChecks;
+
+  /// ワークフローの段階（draft / research_done / … / completed）。ワークフローに乗っていなければ null
+  final String? workflowStatus;
+
+  /// 自動の上限などで止まったときの理由コード（止まっていなければ null）
+  final String? haltReason;
+
   /// AIエージェントで実行できるか。
   ///
   /// デスクトップと同じく実行可否はテーマ側で決まる：テーマが開発指定
@@ -74,6 +87,10 @@ class Task {
     required this.updatedAt,
     this.subtasks,
     this.theme,
+    this.acceptanceCriteria = const [],
+    this.userAcceptanceChecks = const [],
+    this.workflowStatus,
+    this.haltReason,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -120,8 +137,33 @@ class Task {
       theme: json['theme'] != null
           ? TaskTheme.fromJson(json['theme'] as Map<String, dynamic>)
           : null,
+      acceptanceCriteria: _parseStringList(json['acceptanceCriteria']),
+      userAcceptanceChecks: _parseStringList(json['userAcceptanceChecks']),
+      workflowStatus: _nonEmpty(json['workflowStatus']),
+      haltReason: _nonEmpty(json['haltReason']),
     );
   }
+
+  /// JSON 文字列の配列（DB の保存形）でも配列そのものでも受ける。読めなければ空
+  static List<String> _parseStringList(dynamic raw) {
+    dynamic value = raw;
+    if (value is String) {
+      if (value.trim().isEmpty) return const [];
+      try {
+        value = jsonDecode(value);
+      } catch (_) {
+        return const [];
+      }
+    }
+    if (value is! List) return const [];
+    return [
+      for (final v in value)
+        if (v is String && v.trim().isNotEmpty) v.trim(),
+    ];
+  }
+
+  static String? _nonEmpty(dynamic raw) =>
+      raw is String && raw.trim().isNotEmpty ? raw : null;
 
   Map<String, dynamic> toJson() {
     return {
@@ -155,6 +197,10 @@ class Task {
       'updatedAt': updatedAt.toIso8601String(),
       'subtasks': subtasks?.map((e) => e.toJson()).toList(),
       'theme': theme?.toJson(),
+      'acceptanceCriteria': acceptanceCriteria,
+      if (userAcceptanceChecks.isNotEmpty) 'userAcceptanceChecks': userAcceptanceChecks,
+      if (workflowStatus != null) 'workflowStatus': workflowStatus,
+      if (haltReason != null) 'haltReason': haltReason,
     };
   }
 
@@ -221,6 +267,10 @@ class Task {
       updatedAt: updatedAt ?? this.updatedAt,
       subtasks: subtasks ?? this.subtasks,
       theme: theme ?? this.theme,
+      acceptanceCriteria: acceptanceCriteria,
+      userAcceptanceChecks: userAcceptanceChecks,
+      workflowStatus: workflowStatus,
+      haltReason: haltReason,
     );
   }
 }

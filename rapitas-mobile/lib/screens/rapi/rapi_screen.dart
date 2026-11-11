@@ -11,8 +11,10 @@ import '../../services/compose_requests.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
+import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
+import 'rapi_companion_card.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_tidy_card.dart';
 
@@ -463,6 +465,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onAnswer: (i, answer) => _chat.chooseRoadmapAnswer(m.id, i, answer),
         onRefine: () => _chat.refineRoadmap(m.id),
         onCommit: () => _chat.commitRoadmap(m.id),
+        onToggleCriterion: (step, i) => _chat.toggleRoadmapCriterion(m.id, step, i),
+        onEditCriterion: (step, i, text) => _chat.editRoadmapCriterion(m.id, step, i, text),
         onCancel: () => _chat.cancelRoadmap(m.id),
         onOpenTasks: _openTaskList,
       ));
@@ -487,6 +491,17 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onRestore: (trashId) => _chat.restoreTidy(m.id, trashId),
         onRestoreAll: () => _chat.restoreAllTidy(m.id),
         onOpenTasks: _openTaskList,
+      ));
+    }
+
+    final companion = m.companion;
+    if (companion != null) {
+      return _spaced(RapiCompanionCardView(
+        key: ValueKey('rapi-companion-${m.id}'),
+        card: companion,
+        onApply: () => _chat.applyCompanion(m.id),
+        onCancel: () => _chat.cancelCompanion(m.id),
+        onOpen: () => _openTask(companion.proposal.taskId),
       ));
     }
 
@@ -536,8 +551,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     }
     final selected =
         options.any((t) => t.id == chat.draftThemeId) ? chat.draftThemeId : null;
-    final canCreate =
-        selected != null && chat.draftTitle.trim().isNotEmpty && !chat.creating;
+    final canCreate = selected != null &&
+        chat.draftTitle.trim().isNotEmpty &&
+        !chat.creating &&
+        chat.draftSelectedCriteria.isNotEmpty;
 
     final textTheme = Theme.of(context).textTheme;
     const labelStyle = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
@@ -597,7 +614,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                 value: selected,
                 isExpanded: true,
                 dropdownColor: Colors.white,
-                style: const TextStyle(fontSize: 14, color: bodyColor),
+                // NOTE: テーマの文字設定から作る。fontFamily の無い TextStyle を渡すと、
+                // DropdownButton は継承した文字設定を丸ごと置き換える（キャプチャで豆腐になった）
+                style: textTheme.bodyMedium?.copyWith(fontSize: 14, color: bodyColor) ??
+                    const TextStyle(fontSize: 14, color: bodyColor),
                 hint: const Text('テーマを選んでください',
                     style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
                 items: [
@@ -623,14 +643,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
               draft.estimatedHours != null ? '${_formatHours(draft.estimatedHours!)}時間' : '未設定'),
           if (draft.description != null && draft.description != draft.title)
             row('説明', draft.description!),
-          if (draft.acceptanceCriteria.isNotEmpty) ...[
+          if (chat.draftCriteria.items.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('完了条件', style: labelStyle),
-            for (final c in draft.acceptanceCriteria)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text('・$c', style: const TextStyle(fontSize: 13, color: bodyColor)),
-              ),
+            // 段B：1件ずつ採否・文言・判定者・言い換えの案、下に採点
+            RapiCriteriaList(
+              edit: chat.draftCriteria,
+              onToggle: chat.creating ? null : _chat.toggleDraftCriterion,
+              onEdit: chat.creating ? null : _chat.editDraftCriterion,
+            ),
           ],
           if (draft.unclear.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1426,7 +1446,10 @@ class _ConsultPickerCard extends ConsumerWidget {
 
     switch (picker.phase) {
       case RapiConsultPickPhase.chosen:
-        return _SystemNote(text: '「${picker.chosen?.title ?? ''}」について相談します');
+        return _SystemNote(
+            text: picker.companion != null
+                ? '「${picker.chosen?.title ?? ''}」の伴走について確かめます'
+                : '「${picker.chosen?.title ?? ''}」について相談します');
       case RapiConsultPickPhase.closed:
         return const _SystemNote(text: 'タスクを選ばずに閉じました（この発言は送っていません）');
       case RapiConsultPickPhase.choosing:
@@ -1509,13 +1532,22 @@ class _ConsultPickerCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('どのタスクについて相談しますか',
+          Text(
+              switch (picker.companion) {
+                RapiCompanionAction.start => 'どのタスクを伴走しますか',
+                RapiCompanionAction.stop => 'どのタスクの伴走をやめますか',
+                null => 'どのタスクについて相談しますか',
+              },
               style: Theme.of(context)
                   .textTheme
                   .labelLarge
                   ?.copyWith(color: _violetButton, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('選ぶと、さっきの発言をそのタスクへの最初の相談として送ります。', style: muted),
+          Text(
+              picker.companion != null
+                  ? '選ぶと確認カードを出します（まだ変更しません）。'
+                  : '選ぶと、さっきの発言をそのタスクへの最初の相談として送ります。',
+              style: muted),
           const SizedBox(height: 6),
           list,
           Align(

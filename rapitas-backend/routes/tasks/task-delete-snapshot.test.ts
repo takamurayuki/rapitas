@@ -20,28 +20,34 @@ mock.module('../../services/task/task-trash', () => ({
   },
 }));
 
-mock.module('../../config/database', () => ({
-  prisma: new Proxy(
-    {},
-    {
-      get: (_t, model: string) =>
-        new Proxy(
-          {},
-          {
-            get: (_t2, method: string) => async () => {
-              const call = `${model}.${String(method)}`;
-              if (call === 'task.findUnique') return { id: 1, isProtected };
-              if (call === 'task.delete') {
-                order.push('delete');
-                return { id: 1 };
-              }
-              if (method === 'findMany') return [];
-              return null;
+const fakePrisma: Record<string, unknown> = new Proxy(
+  {},
+  {
+    get: (_t, model: string) =>
+      // The delete runs inside a transaction with the companion close.
+      model === '$transaction'
+        ? (fn: (tx: unknown) => Promise<unknown>) => fn(fakePrisma)
+        : new Proxy(
+            {},
+            {
+              get: (_t2, method: string) => async () => {
+                const call = `${model}.${String(method)}`;
+                if (call === 'task.findUnique') return { id: 1, isProtected };
+                if (call === 'task.delete') {
+                  order.push('delete');
+                  return { id: 1 };
+                }
+                if (method === 'findMany') return [];
+                if (method === 'updateMany') return { count: 0 };
+                return null;
+              },
             },
-          },
-        ),
-    },
-  ),
+          ),
+  },
+);
+
+mock.module('../../config/database', () => ({
+  prisma: fakePrisma,
   ensureDatabaseConnection: async () => {},
 }));
 

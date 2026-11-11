@@ -35,6 +35,16 @@ import {
   type ApprovedPlacement,
 } from '../../services/assistant';
 import { MAX_TEXT_LENGTH } from './assistant-intake.routes';
+import {
+  criteriaFromDescription,
+  normalizeCriteria,
+  splitByVerifier,
+  descriptionForJury,
+  ACCEPTANCE_CRITERIA_REQUIRED,
+  MAX_CRITERIA,
+  MAX_CRITERION_LENGTH,
+} from '../../services/assistant/criteria-proposal';
+import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
 /** A placement as the payload states it, before it is trusted as a plan. */
 const placement = t.Union([
@@ -117,14 +127,59 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
         throw err;
       }
 
+      // Every step must carry criteria before anything is created. A client
+      // that predates the field still sends the description it showed, whose
+      // `## 完了条件` checklist is the same approved text.
+      //
+      // Both arrays are re-split by the server's rules (design 4.1 案1): the
+      // jury's go to acceptanceCriteria, the person's to userAcceptanceChecks.
+      //
+      // NOTE: The stored description's `## 完了条件` is re-composed from the
+      // jury's criteria alone, every time. The jury, the workflow agents and
+      // replanning read the description verbatim, so a person's check left in
+      // its checklist reached the jury's prompt even with the columns split
+      // (review fix3 item 1). The person's checks live in their column only;
+      // the task screen shows them from there.
+      const steps = body.steps.map((step) => {
+        const listed = criteriaFromDescription(step.description);
+        const sent = normalizeCriteria([
+          ...(step.acceptanceCriteria ?? []),
+          ...(step.userAcceptanceChecks ?? []),
+        ]);
+        const confirmed = sent.length ? sent : listed;
+        const split = splitByVerifier({
+          title: step.title,
+          description: step.description,
+          proposed: confirmed,
+        });
+        return {
+          ...step,
+          description: descriptionForJury(step.description, split, { section: 'always' }),
+          acceptanceCriteria: split.acceptanceCriteria,
+          userAcceptanceChecks: split.userAcceptanceChecks,
+          confirmedCount: confirmed.length,
+        };
+      });
+      const lacking = steps.flatMap((step, i) => (step.confirmedCount ? [] : [i]));
+      if (lacking.length > 0) {
+        await recordAction({
+          capabilityId: 'roadmap.commit',
+          status: 'refused',
+          args: { goal: body.goal, steps: body.steps.length, stepsWithoutCriteria: lacking },
+          errorMessage: ACCEPTANCE_CRITERIA_REQUIRED,
+        });
+        set.status = 400;
+        return { success: false, error: ACCEPTANCE_CRITERIA_REQUIRED, steps: lacking };
+      }
+
       const result = await commitRoadmap({
         goal: body.goal,
         themeChoice: body.themeChoice as ApprovedPlacement,
         projectChoice: body.projectChoice as ApprovedPlacement,
-        steps: body.steps,
+        steps: steps.map(({ confirmedCount: _count, ...step }) => step),
       });
 
-      await recordAction({
+      const actionId = await recordAction({
         capabilityId: 'roadmap.commit',
         status: result.failedAfter === null ? 'executed' : 'failed',
         args: { goal: body.goal, steps: body.steps.length },
@@ -133,6 +188,11 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
           ? {}
           : { errorMessage: `stopped after ${result.failedAfter}` }),
       });
+      // Best-effort pointer from each row to this act; the rows themselves
+      // were written with their tasks.
+      await linkCompanionSource(prisma as unknown as CompanionDb, result.taskIds, actionId).catch(
+        () => undefined,
+      );
 
       return { success: true, ...result };
     },
@@ -159,6 +219,16 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
             // Character classes carry no backslash and cannot fail this way,
             // which is why the rest of the schemas in this repo use them.
             dueDate: t.Optional(t.String({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' })),
+            // Optional in the schema so an older client is read from its
+            // description instead of rejected outright; required in effect.
+            acceptanceCriteria: t.Optional(
+              t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
+            ),
+            // The person's checks, sent apart by a client that shows the
+            // split. Re-split by the server either way.
+            userAcceptanceChecks: t.Optional(
+              t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
+            ),
           }),
           { minItems: 0, maxItems: 20 },
         ),

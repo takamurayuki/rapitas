@@ -57,6 +57,9 @@ mock.module('../../services/assistant/action-log', () => ({
 
 const { assistantRoadmapRoutes } = await import('./assistant-roadmap.routes');
 
+/** Criteria every step carries since companion stage 1. */
+const DONE = { acceptanceCriteria: ['終わったと確かめられる'] };
+
 /** The smallest plan the route will accept, minus the steps. */
 const PLAN = {
   confirmed: true,
@@ -84,7 +87,7 @@ beforeEach(() => {
 describe('committing a plan whose steps carry dates', () => {
   test('accepts a real date and creates the tasks', async () => {
     const { status } = await commit([
-      { title: '職務経歴書を作る', description: 'A4 1枚', dueDate: '2026-11-04' },
+      { title: '職務経歴書を作る', description: 'A4 1枚', dueDate: '2026-11-04', ...DONE },
     ]);
     expect(status).toBe(200);
     expect(committed).toHaveLength(1);
@@ -93,9 +96,9 @@ describe('committing a plan whose steps carry dates', () => {
 
   test('accepts every step of a dated plan, not just the first', async () => {
     const { status } = await commit([
-      { title: '職務経歴書を作る', description: '', dueDate: '2026-11-04' },
-      { title: '15社に応募する', description: '', dueDate: '2027-01-19' },
-      { title: '面接の練習', description: '', dueDate: '2026-12-01' },
+      { title: '職務経歴書を作る', description: '', dueDate: '2026-11-04', ...DONE },
+      { title: '15社に応募する', description: '', dueDate: '2027-01-19', ...DONE },
+      { title: '面接の練習', description: '', dueDate: '2026-12-01', ...DONE },
     ]);
     expect(status).toBe(200);
     expect(committed[0]?.steps).toHaveLength(3);
@@ -121,7 +124,7 @@ describe('committing a plan whose steps carry dates', () => {
   });
 
   test('leaves an undated step alone', async () => {
-    const { status } = await commit([{ title: '情報収集', description: '' }]);
+    const { status } = await commit([{ title: '情報収集', description: '', ...DONE }]);
     expect(status).toBe(200);
     expect(committed).toHaveLength(1);
   });

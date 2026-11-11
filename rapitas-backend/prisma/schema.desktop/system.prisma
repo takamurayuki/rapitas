@@ -258,3 +258,37 @@ model AssistantAction {
   @@index([createdAt])
   @@index([workspaceId])
 }
+
+/// A task ラピ is seeing through to completion (companion design, stage 1).
+/// One row per task, written explicitly when ラピ creates the task or the user
+/// asks her to accompany one — never inferred from AssistantAction, which
+/// keeps roadmap-created tasks only inside resultJson and would miss them.
+/// A helper table of the task DB, not conversation state: "accompanied" means
+/// a row exists and closedAt is null. Created in the same write as the task
+/// (nested create), so a task ラピ made can never exist without its row.
+model TaskCompanion {
+  id                     Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId            Int?
+  /// Deliberately NOT a foreign key to Task: a deleted task's row is closed
+  /// (closedReason='task_deleted') and kept as history, which a cascade would
+  /// erase. task-deletion.ts closes it in the same transaction as the delete;
+  /// task-create-helpers.ts inserts it in the same transaction as the task.
+  /// @references Task.id
+  taskId                 Int       @unique
+  // task_create | roadmap_commit | manual
+  origin                 String
+  /// The AssistantAction that started it, when there was one.
+  sourceActionId         Int?
+  startedAt              DateTime  @default(now())
+  /// The last WorkflowTransition ラピ reported on; a display cursor that can
+  /// be rebuilt from WorkflowTransition, not a source of truth.
+  lastDigestTransitionId Int?
+  closedAt               DateTime?
+  // done | stopped_by_user | task_deleted
+  closedReason           String?
+  retrospectiveNoteId    Int?
+
+  @@index([closedAt])
+  @@index([workspaceId])
+}

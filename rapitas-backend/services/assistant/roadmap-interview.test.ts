@@ -46,6 +46,7 @@ mock.module('../system/rapi-profile-store', () => ({
 }));
 
 const { draftRoadmap, composeDescription, MAX_ROADMAP_QUESTIONS } = await import('./roadmap-draft');
+const { criteriaFromDescription } = await import('./criteria-proposal');
 
 const WORLD = { themes: [{ id: 1, name: 'rapitas', description: null }], projects: [] };
 
@@ -135,18 +136,109 @@ describe('a description someone can act on', () => {
     expect(plan?.steps[0]?.description).toContain('- [ ] A4 1枚');
   });
 
-  test('keeps a plain description when that is all it gave', async () => {
+  test('keeps a plain description, adding a derived criterion when it lists none', async () => {
+    // Companion stage 1: every step reaches the card with criteria, so a bare
+    // description gains one (derived from the title) rather than none.
     const plan = await refine({
       steps: [{ title: 'やる', description: '前からある形' }],
     });
-    expect(plan?.steps[0]?.description).toBe('前からある形');
+    const body = plan?.steps[0]?.description ?? '';
+    expect(body.startsWith('前からある形\n\n## 完了条件\n- [ ] ')).toBe(true);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(3);
+    expect(plan?.steps[0]?.acceptanceCriteria[0]).toContain('「やる」');
   });
 
-  test('says nothing rather than an empty heading when done is missing', async () => {
+  test('a plain description that already lists three criteria is kept as it is', async () => {
+    const legacy =
+      '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている\n- [ ] 二枚目が無い\n- [ ] 印刷できる';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    expect(plan?.steps[0]?.description).toBe(legacy);
+    expect(plan?.steps[0]?.acceptanceCriteria).toEqual([
+      '一枚にまとまっている',
+      '二枚目が無い',
+      '印刷できる',
+    ]);
+  });
+
+  test('eight listed: the column keeps seven and the description shows the same seven (fix2 item 1)', async () => {
+    // The review's reproduction: the text kept 8 while the column held 7.
+    const eight = Array.from({ length: 8 }, (_, i) => `条件${i + 1}が一覧に出る`);
+    const legacy = `前からある形\n\n## 完了条件\n${eight.map((c) => `- [ ] ${c}`).join('\n')}`;
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    expect(step?.acceptanceCriteria).toEqual(eight.slice(0, 7));
+    expect(step?.description.match(/## 完了条件/g)).toHaveLength(1);
+    expect(step?.description).toContain('前からある形');
+    expect(step?.description).not.toContain('条件8が一覧に出る');
+    // What the card shows is what the column holds, item for item.
+    expect(criteriaFromDescription(step?.description)).toEqual(step?.acceptanceCriteria);
+    expect(step?.criteriaItems?.map((i) => i.text)).toEqual(step?.acceptanceCriteria);
+  });
+
+  test('a duplicate in the listed criteria is dropped from the description too', async () => {
+    const legacy =
+      '前からある形\n\n## 完了条件\n- [ ] 一つ目\n- [ ] 一つ目\n- [ ] 二つ目\n- [ ] 三つ目';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    expect(step?.acceptanceCriteria).toEqual(['一つ目', '二つ目', '三つ目']);
+    // The raw text, not re-read through the normaliser that would hide a
+    // duplicate (fix3 item 3).
+    expect(step?.description.split('\n')).toEqual([
+      '前からある形',
+      '',
+      '## 完了条件',
+      '- [ ] 一つ目',
+      '- [ ] 二つ目',
+      '- [ ] 三つ目',
+    ]);
+  });
+
+  test('A／B／C／A: the description is three lines, as the column and the card are (fix3 item 3)', async () => {
+    const legacy = '前からある形\n\n## 完了条件\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] A';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    const lines = (step?.description ?? '').split('\n').filter((l) => l.startsWith('- [ ] '));
+    expect(lines).toEqual(['- [ ] A', '- [ ] B', '- [ ] C']);
+    expect(step?.acceptanceCriteria).toEqual(['A', 'B', 'C']);
+    expect(step?.criteriaItems?.map((i) => i.text)).toEqual(['A', 'B', 'C']);
+  });
+
+  test('ten done items in the structured shape: description and column agree at seven', async () => {
+    const done = Array.from({ length: 10 }, (_, i) => `項目${i + 1}が保存される`);
+    const plan = await refine({ steps: [{ title: 'やる', action: '手を動かす', done }] });
+    const step = plan?.steps[0];
+    expect(step?.acceptanceCriteria).toHaveLength(7);
+    expect(criteriaFromDescription(step?.description)).toEqual(step?.acceptanceCriteria);
+  });
+
+  test('a description listing fewer than three is re-composed with the supplements, once', async () => {
+    const legacy = '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    expect(step?.acceptanceCriteria).toHaveLength(3);
+    expect(step?.acceptanceCriteria[0]).toBe('一枚にまとまっている');
+    expect(step?.description.match(/## 完了条件/g)).toHaveLength(1);
+    for (const c of step?.acceptanceCriteria ?? [])
+      expect(step?.description).toContain(`- [ ] ${c}`);
+    expect(step?.criteriaItems?.map((i) => !!i.supplemented)).toEqual([false, true, true]);
+    expect(typeof step?.criteriaQuality?.score).toBe('number');
+  });
+
+  test('never an empty heading: missing done gets a derived criterion', async () => {
     const plan = await refine({ steps: [{ title: 'やる', action: '手を動かす' }] });
     const body = plan?.steps[0]?.description ?? '';
     expect(body).toContain('手を動かす');
-    expect(body).not.toContain('完了条件');
+    expect(body).toMatch(/## 完了条件\n- \[ \] 「やる」/);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(3);
+  });
+
+  test('the column-bound criteria are exactly the ticked lines', async () => {
+    const plan = await refine();
+    const step = plan?.steps[0];
+    for (const c of step?.acceptanceCriteria ?? []) {
+      expect(step?.description).toContain(`- [ ] ${c}`);
+    }
+    expect(step?.acceptanceCriteria.length).toBeGreaterThan(0);
   });
 
   test('composes the same way wherever it is called from', () => {

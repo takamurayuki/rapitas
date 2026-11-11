@@ -9,6 +9,10 @@
 //   rapitas-backend/routes/tasks/task-trash.routes.ts（task-trash/:id/restore）
 // ID はバックエンドでは Int。アプリ内では Task と同じく文字列で持つ。
 
+import 'rapi_companion.dart';
+export 'rapi_companion.dart';
+export 'rapi_criteria_edit.dart';
+
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
 const Map<String, String> rapiPriorityLabels = {
   'urgent': '緊急',
@@ -83,8 +87,18 @@ class TaskDraft {
   /// テーマを選んだ理由（AI が読んだときだけ）
   final String? themeReason;
 
-  /// 完了条件（AI が読んだときだけ。パターン推定では空）
+  /// 完了条件。サーバーは必ず1件以上付けて返す（AI が出さなかったときはタイトルから作った仮の案）
   final List<String> acceptanceCriteria;
+
+  /// 完了条件がラピの仮の案（AI が出さなかったのでタイトルから作った）か
+  final bool acceptanceCriteriaFallback;
+
+  /// 完了条件1件ずつの見せ方（誰が確かめるか・確かめにくい言葉・ラピが補ったか）。
+  /// [acceptanceCriteria] と同じ順。古いサーバーは返さないので空のことがある
+  final List<RapiCriterionItem> criteriaItems;
+
+  /// 完了条件の採点（spec-quality-checker）。古いサーバーは返さない
+  final RapiCriteriaQuality? criteriaQuality;
 
   /// ラピが判断できなかったこと
   final List<String> unclear;
@@ -103,6 +117,9 @@ class TaskDraft {
     this.missing = const [],
     this.themeReason,
     this.acceptanceCriteria = const [],
+    this.acceptanceCriteriaFallback = false,
+    this.criteriaItems = const [],
+    this.criteriaQuality,
     this.unclear = const [],
     this.source,
   });
@@ -121,6 +138,9 @@ class TaskDraft {
       missing: _strings(json['missing']),
       themeReason: _string(json['themeReason']),
       acceptanceCriteria: _strings(json['acceptanceCriteria']),
+      acceptanceCriteriaFallback: json['acceptanceCriteriaFallback'] == true,
+      criteriaItems: rapiCriterionItems(json['acceptanceCriteriaItems']),
+      criteriaQuality: RapiCriteriaQuality.fromJson(json['criteriaQuality']),
       unclear: _strings(json['unclear']),
       source: source,
     );
@@ -140,9 +160,18 @@ class TaskDraft {
         missing: missing,
         themeReason: themeReason,
         acceptanceCriteria: acceptanceCriteria,
+        acceptanceCriteriaFallback: acceptanceCriteriaFallback,
+        criteriaItems: criteriaItems,
+        criteriaQuality: criteriaQuality,
         unclear: unclear,
         source: source,
       );
+
+  /// カードに並べる完了条件。項目の情報が無い（古いサーバー）ときは文だけで作る
+  List<RapiCriterionItem> get criteriaRows =>
+      criteriaItems.length == acceptanceCriteria.length && criteriaItems.isNotEmpty
+          ? criteriaItems
+          : [for (final c in acceptanceCriteria) RapiCriterionItem(text: c)];
 }
 
 /// POST /assistant/ask の回答の1行（タスク）
@@ -579,7 +608,55 @@ class RoadmapStep {
   /// 期限（YYYY-MM-DD）。依頼に期限があったときだけ
   final String? dueDate;
 
-  const RoadmapStep({required this.title, this.description = '', this.dueDate});
+  /// 完了条件（説明文の「## 完了条件」と同じもの）。commit でタスクの完了条件の列に入る
+  final List<String> acceptanceCriteria;
+
+  /// 完了条件1件ずつの見せ方（表示だけ。commit では送らない）
+  final List<RapiCriterionItem> criteriaItems;
+
+  /// 完了条件の採点（spec-quality-checker）。表示だけ。古いサーバーは返さない
+  final RapiCriteriaQuality? criteriaQuality;
+
+  /// 確定した「本人が確かめる」条件（commit で送る。サーバーが判定し直して userAcceptanceChecks へ）
+  final List<String> userAcceptanceChecks;
+
+  const RoadmapStep({
+    required this.title,
+    this.description = '',
+    this.dueDate,
+    this.acceptanceCriteria = const [],
+    this.criteriaItems = const [],
+    this.criteriaQuality,
+    this.userAcceptanceChecks = const [],
+  });
+
+  /// カードに並べる完了条件。項目の情報が無い（古いサーバー）ときは文だけで作る
+  List<RapiCriterionItem> get criteriaRows =>
+      criteriaItems.length == acceptanceCriteria.length && criteriaItems.isNotEmpty
+          ? criteriaItems
+          : [for (final c in acceptanceCriteria) RapiCriterionItem(text: c)];
+
+  /// 説明文から「## 完了条件」の節を除いたもの（条件はカードの一覧で別に出すので、二重に見せない）
+  String get descriptionWithoutCriteria => description
+      .replaceFirst(RegExp(r'^##\s*完了条件\s*$[\s\S]*?(?=^#{1,6}\s|(?![\s\S]))', multiLine: true), '')
+      .trim();
+
+  /// カードで確定した条件で送る形にした手順（陪審の条件 [jury] と本人の条件 [user]）。
+  /// 説明文の「## 完了条件」は陪審の条件だけで作り直す。説明文は陪審にそのまま渡るので、
+  /// 本人の条件は書かない（本人の条件は userAcceptanceChecks の列だけに入る。サーバーも同じ形で保存する）
+  RoadmapStep withConfirmed({required List<String> jury, required List<String> user}) =>
+      RoadmapStep(
+        title: title,
+        description: [
+          if (descriptionWithoutCriteria.isNotEmpty) descriptionWithoutCriteria,
+          if (jury.isNotEmpty) ['## 完了条件', for (final c in jury) '- [ ] $c'].join('\n'),
+        ].join('\n\n'),
+        dueDate: dueDate,
+        acceptanceCriteria: jury,
+        criteriaItems: criteriaItems,
+        criteriaQuality: criteriaQuality,
+        userAcceptanceChecks: user,
+      );
 
   factory RoadmapStep.fromJson(Map<String, dynamic> json) {
     final due = _string(json['dueDate']);
@@ -587,6 +664,9 @@ class RoadmapStep {
       title: json['title']?.toString() ?? '',
       description: _string(json['description']) ?? '',
       dueDate: due != null && RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(due) ? due : null,
+      acceptanceCriteria: _strings(json['acceptanceCriteria']),
+      criteriaItems: rapiCriterionItems(json['criteriaItems']),
+      criteriaQuality: RapiCriteriaQuality.fromJson(json['criteriaQuality']),
     );
   }
 
@@ -594,6 +674,10 @@ class RoadmapStep {
         'title': title,
         'description': description,
         if (dueDate != null) 'dueDate': dueDate,
+        // カードで採った条件（外した条件は含めない）。説明文の「## 完了条件」と違えば、
+        // サーバーが確定した条件で説明文を作り直す
+        if (acceptanceCriteria.isNotEmpty) 'acceptanceCriteria': acceptanceCriteria,
+        if (userAcceptanceChecks.isNotEmpty) 'userAcceptanceChecks': userAcceptanceChecks,
       };
 }
 
@@ -712,6 +796,10 @@ const int rapiTidyBatchSize = 50;
 
 /// 条件で選べる状態（デスクトップ TaskBulkCleanup.tsx の STATUSES と同じ順）
 const List<String> rapiTidyStatuses = ['cancelled', 'done', 'blocked', 'todo'];
+
+/// ラピ経由で「完了」を書こうとしたときにサーバーが返す error（409）。
+/// 完了の判定は完了ゲートと陪審が行い、手で完了にするのはタスク画面から
+const String rapiDoneNotAllowedCode = 'done_not_allowed_via_assistant';
 
 /// 条件の状態の表示名（デスクトップ rapiAvatar.bulk.statusLabel と同じ表記）
 const Map<String, String> rapiTidyStatusLabels = {

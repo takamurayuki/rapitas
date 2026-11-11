@@ -13,6 +13,7 @@ import '../../utils/constants.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
+import '../../widgets/task_companion_sections.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -114,6 +115,17 @@ class TaskDetailScreen extends ConsumerWidget {
                   // form deliberately stay plain text.
                   TaskDescriptionMarkdown(data: task.description!),
                 ],
+                // ラピ伴走化 第1段階：何をもって完了とするかと、いまどこにいるか（どちらも DB の値）
+                const SizedBox(height: 24),
+                TaskAcceptanceCriteriaSection(
+                  criteria: task.acceptanceCriteria,
+                  userChecks: task.userAcceptanceChecks,
+                ),
+                const SizedBox(height: 24),
+                TaskStageSection(
+                  workflowStatus: task.workflowStatus,
+                  haltReason: task.haltReason,
+                ),
                 const SizedBox(height: 24),
                 Card(
                   child: Padding(
