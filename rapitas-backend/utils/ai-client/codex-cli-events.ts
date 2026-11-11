@@ -34,8 +34,15 @@ export interface CodexRunSummary {
   text: string | null;
   /** True only when a turn completed, none failed, and an answer exists. */
   succeeded: boolean;
-  /** Best available failure text (turn.failed > error event > warning). */
+  /**
+   * The failure reason the CLI reported in the event stream (turn.failed >
+   * top-level error event), or null — also null on a failure the stream did
+   * not explain. Warnings and canned defaults are NOT folded in here, so a
+   * caller can still prefer stderr (see describeCodexFailure).
+   */
   failureMessage: string | null;
+  /** True when a `turn.completed` event was seen. */
+  turnCompleted: boolean;
   usage: CodexUsage | null;
   /** Non-fatal `item.completed` error items, kept for logging. */
   warnings: string[];
@@ -122,13 +129,38 @@ export function parseCodexJsonl(stdout: string): CodexRunSummary {
   return {
     text: answered ? text : null,
     succeeded,
-    failureMessage: succeeded
-      ? null
-      : (turnFailed ??
-        lastError ??
-        warnings[warnings.length - 1] ??
-        (turnCompleted ? 'Codex CLI returned no answer' : 'Codex CLI did not complete a turn')),
+    failureMessage: succeeded ? null : (turnFailed ?? lastError),
+    turnCompleted,
     usage,
     warnings,
   };
+}
+
+/** stderr beyond this is cut from the front: the CLI prints the reason last. */
+const STDERR_TAIL_CHARS = 1000;
+
+/**
+ * The diagnostic text for a failed run, in order of trust: the structured
+ * reason from the event stream, then stderr, then the last warning item, then
+ * a canned default.
+ *
+ * NOTE: stderr must come before the defaults (routing2b G2 finding 2): with an
+ * empty stdout the CLI reports "Not logged in" / "usage limit … try again at"
+ * only on stderr, and that text is what the cooldown classifier reads. It also
+ * comes before warning items, which every run emits (unknown `-c features.*`
+ * keys) and which never explain a failure.
+ *
+ * @param summary - Parsed stdout / 解析済みの標準出力
+ * @param stderr - Raw stderr of the same run / 同じ実行の標準エラー出力
+ * @returns Non-empty failure text / 失敗理由（空でない）
+ */
+export function describeCodexFailure(summary: CodexRunSummary, stderr: string): string {
+  if (summary.failureMessage) return summary.failureMessage;
+  const err = stderr.trim();
+  if (err) return err.length > STDERR_TAIL_CHARS ? err.slice(-STDERR_TAIL_CHARS) : err;
+  const warning = summary.warnings[summary.warnings.length - 1];
+  if (warning) return warning;
+  return summary.turnCompleted
+    ? 'Codex CLI returned no answer'
+    : 'Codex CLI did not complete a turn';
 }

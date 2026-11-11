@@ -14,6 +14,14 @@
  * browser / app features switched off with `-c features.*=false`, and a
  * prompt preamble telling the model not to run anything.
  *
+ * ChatGPT-only (owner decision 1) is enforced on EVERY call, not just at the
+ * availability probe: `codex login status` is re-read right before `exec`,
+ * and `exec` is pinned with `forced_login_method="chatgpt"` (routing2b G2
+ * finding 1 — a CODEX_HOME switched to an API key after the first probe).
+ *
+ * NOTE: The argv / env builders live in codex-cli-args.ts and are re-exported
+ * here, so existing importers and mocks of this module keep working.
+ *
  * NOTE: The provider is not re-exported from index.ts (many tests mock that
  * barrel with a fixed export list); index.ts imports it lazily.
  */
@@ -21,112 +29,27 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLogger } from '../../config/logger';
-import { buildSanitizedSpawnEnv } from '../agent/sanitize-cli-env';
-import { resolveCliPathAsync } from '../common/cli-path-resolver';
 import { CodexCliUnavailableError } from './cli-errors';
-import { parseCodexJsonl } from './codex-cli-events';
+import {
+  buildCodexAuxArgs,
+  buildCodexAuxEnv,
+  CODEX_AUX_PREAMBLE,
+  codexPath,
+  resolveCodexTimeoutMs,
+} from './codex-cli-args';
+import { describeCodexFailure, parseCodexJsonl } from './codex-cli-events';
 import { runCodexProcess } from './codex-cli-runner';
-import { DEFAULT_CLI_TIMEOUT_MS, MAX_CLI_TIMEOUT_MS } from './claude-cli-timeouts';
 import { guardPromptSize } from './prompt-size-guard';
 import type { AIMessage, AIResponse } from './types';
 
+export {
+  buildCodexAuxArgs,
+  buildCodexAuxEnv,
+  CODEX_AUX_DISABLED_FEATURES,
+  CODEX_AUX_PREAMBLE,
+} from './codex-cli-args';
+
 const log = createLogger('ai-client:codex-cli');
-/**
- * Features switched off for every auxiliary call. Passed with `-c`, which
- * ignores (with a warning item) a key an older/newer CLI does not know —
- * `--disable <name>` instead aborts with "Unknown feature flag".
- */
-export const CODEX_AUX_DISABLED_FEATURES = [
-  'shell_tool',
-  'unified_exec',
-  'code_mode_host',
-  'browser_use',
-  'in_app_browser',
-  'computer_use',
-  'apps',
-  'plugins',
-  'hooks',
-] as const;
-
-/** Told to the model first; not enforceable, the flags above are the guard. */
-export const CODEX_AUX_PREAMBLE =
-  'You are answering as a text-only assistant. Do not run any commands, do not read or ' +
-  'write any files, and do not use any tools. Base your answer only on the text below.';
-
-function codexPath(): Promise<string> {
-  const isWindows = process.platform === 'win32';
-  return resolveCliPathAsync(process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'));
-}
-
-/** Base cap per call; `RAPITAS_AUX_AI_CODEX_TIMEOUT_MS`, else the Claude CLI's. */
-function baseTimeoutMs(): number {
-  const v = Number(process.env.RAPITAS_AUX_AI_CODEX_TIMEOUT_MS);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_CLI_TIMEOUT_MS;
-}
-
-/** Same rule as resolveCliTimeoutMs: callers may only lengthen, up to the max. */
-function resolveCodexTimeoutMs(requestedMs?: number): number {
-  const base = baseTimeoutMs();
-  if (typeof requestedMs !== 'number' || !Number.isFinite(requestedMs) || requestedMs <= base) {
-    return base;
-  }
-  return Math.min(requestedMs, MAX_CLI_TIMEOUT_MS);
-}
-
-/**
- * Arguments for one auxiliary call.
- *
- * @param model - Model id for `-m` (the tier table's id) / モデルID
- * @param cwd - Empty working directory / 空の作業ディレクトリ
- * @returns argv for the Codex CLI / CLI の引数
- */
-export function buildCodexAuxArgs(model: string | undefined, cwd: string): string[] {
-  const effort = process.env.RAPITAS_AUX_AI_CODEX_EFFORT?.trim();
-  return [
-    '--ask-for-approval',
-    'never',
-    'exec',
-    '--json',
-    '--ephemeral',
-    '--skip-git-repo-check',
-    '--ignore-user-config',
-    '--ignore-rules',
-    '--sandbox',
-    'read-only',
-    '-C',
-    cwd,
-    ...CODEX_AUX_DISABLED_FEATURES.flatMap((f) => ['-c', `features.${f}=false`]),
-    '-c',
-    'web_search="disabled"',
-    ...(effort && /^[a-z]+$/.test(effort) ? ['-c', `model_reasoning_effort="${effort}"`] : []),
-    ...(model ? ['-m', model] : []),
-    // Prompt on stdin: no shell quoting of the review text on any platform.
-    '-',
-  ];
-}
-
-/**
- * Spawn environment: secrets stripped, and the API key removed on purpose so
- * the CLI must use its ChatGPT login (owner decision 2026-11-11, mirroring the
- * Claude provider's ANTHROPIC_* removal). CODEX_HOME (the login) is kept.
- *
- * @returns Sanitised environment / サニタイズ済みの環境変数
- */
-export function buildCodexAuxEnv(): NodeJS.ProcessEnv {
-  const env = buildSanitizedSpawnEnv({ FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' });
-  // buildSanitizedSpawnEnv always keeps ANTHROPIC_* for the agent runners; the
-  // Codex call needs none of it.
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('ANTHROPIC_') || key === 'OPENAI_API_KEY' || key === 'CODEX_API_KEY') {
-      delete env[key];
-    }
-  }
-  if (process.platform === 'win32') {
-    env.LANG = 'en_US.UTF-8';
-    env.CHCP = '65001';
-  }
-  return env;
-}
 
 function combinePrompt(messages: AIMessage[], systemPrompt?: string): string {
   const system = systemPrompt || messages.find((m) => m.role === 'system')?.content || '';
@@ -179,6 +102,7 @@ export async function callCodexCli(
   await acquireSlot();
   let cwd: string | null = null;
   try {
+    await assertChatgptLogin();
     cwd = await mkdtemp(join(tmpdir(), 'rapitas-codex-aux-'));
     const result = await runCodexProcess({
       codexPath: await codexPath(),
@@ -190,9 +114,11 @@ export async function callCodexCli(
     });
     const summary = parseCodexJsonl(result.stdout);
     if (result.code !== 0 || !summary.succeeded || summary.text === null) {
-      const reason = (summary.failureMessage ?? result.stderr.trim()) || 'no output';
+      const reason = describeCodexFailure(summary, result.stderr);
+      // The tail is kept: a quota line ends with the "try again at" time.
+      const shown = reason.length > 300 ? `…${reason.slice(-300)}` : reason;
       throw new CodexCliUnavailableError(
-        `Codex CLI ${result.code === 0 ? 'failed' : `exited ${result.code}`}: ${reason.slice(0, 300)}`,
+        `Codex CLI ${result.code === 0 ? 'failed' : `exited ${result.code}`}: ${shown}`,
       );
     }
     const usage = summary.usage;
@@ -231,31 +157,56 @@ const LOGIN_RECHECK_MS = 5 * 60_000;
 let statusCache: { status: CodexCliStatus; until: number } | null = null;
 let statusPending: Promise<CodexCliStatus> | null = null;
 
+/** Runs a short CLI query. The caller must already hold a slot. */
+async function probe(args: string[]) {
+  const cwd = await mkdtemp(join(tmpdir(), 'rapitas-codex-probe-'));
+  try {
+    return await runCodexProcess({
+      codexPath: await codexPath(),
+      args,
+      cwd,
+      env: buildCodexAuxEnv(),
+      stdin: '',
+      timeoutMs: 10_000,
+    });
+  } finally {
+    await rm(cwd, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** `codex login status` read fresh; never 'missing' (the binary ran or not). */
+async function readLoginStatus(): Promise<Exclude<CodexCliStatus, 'missing'>> {
+  const login = await probe(['login', 'status']).catch(() => null);
+  const text = login ? `${login.stdout}\n${login.stderr}` : '';
+  if (!login || login.code !== 0 || /not logged in/i.test(text)) return 'not_logged_in';
+  // An API-key login would bill the paid API, which the owner ruled out.
+  return /chatgpt/i.test(text) ? 'ready' : 'not_chatgpt_login';
+}
+
+/**
+ * Refuse the call unless CODEX_HOME is on a ChatGPT login right now. A refusal
+ * also replaces the memoised 'ready', so seat planning stops offering the
+ * Codex seat without waiting for a restart. The message contains "not logged
+ * in" on purpose: the classifier reads it as auth, so the juror cooldown
+ * (juror-cli-cooldown.ts) cools openai.
+ */
+async function assertChatgptLogin(): Promise<void> {
+  const status = await readLoginStatus();
+  if (status === 'ready') return;
+  statusCache = { status, until: Date.now() + LOGIN_RECHECK_MS };
+  throw new CodexCliUnavailableError(
+    status === 'not_chatgpt_login'
+      ? 'Codex CLI not logged in with ChatGPT (an API-key login is configured); refused'
+      : 'Codex CLI not logged in with ChatGPT (no login); refused',
+  );
+}
+
 async function probeStatus(): Promise<CodexCliStatus> {
-  const probe = async (args: string[]) => {
-    const cwd = await mkdtemp(join(tmpdir(), 'rapitas-codex-probe-'));
-    try {
-      return await runCodexProcess({
-        codexPath: await codexPath(),
-        args,
-        cwd,
-        env: buildCodexAuxEnv(),
-        stdin: '',
-        timeoutMs: 10_000,
-      });
-    } finally {
-      await rm(cwd, { recursive: true, force: true }).catch(() => {});
-    }
-  };
   await acquireSlot();
   try {
     const version = await probe(['--version']).catch(() => null);
     if (!version || version.code !== 0) return 'missing';
-    const login = await probe(['login', 'status']).catch(() => null);
-    const text = login ? `${login.stdout}\n${login.stderr}` : '';
-    if (!login || login.code !== 0 || /not logged in/i.test(text)) return 'not_logged_in';
-    // An API-key login would bill the paid API, which the owner ruled out.
-    return /chatgpt/i.test(text) ? 'ready' : 'not_chatgpt_login';
+    return await readLoginStatus();
   } finally {
     releaseSlot();
   }
@@ -264,6 +215,8 @@ async function probeStatus(): Promise<CodexCliStatus> {
 /**
  * Whether the Codex CLI runs and is logged in with ChatGPT. A found binary
  * is remembered for the process; a missing login is re-checked every 5 min.
+ * A remembered 'ready' is only a seating hint — every call re-checks the
+ * login and downgrades this status when it changed.
  *
  * @returns The CLI's status / CLI の状態
  */

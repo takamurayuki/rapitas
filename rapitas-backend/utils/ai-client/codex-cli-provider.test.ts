@@ -111,6 +111,10 @@ const ok = (text: string) =>
     }),
   ].join('\n');
 
+// Every call re-reads the login before `exec` (G2 finding 1), so each call
+// script starts with this probe answer.
+const LOGIN_OK: Script = { stdout: 'Logged in using ChatGPT' };
+
 beforeEach(() => {
   scripts = [];
   spawned.length = 0;
@@ -188,7 +192,7 @@ describe('buildCodexAuxEnv', () => {
 
 describe('callCodexCli', () => {
   test('answers from the last agent message, in an empty directory removed afterwards', async () => {
-    scripts = [{ stdout: ok('{"verdict":"pass"}') }];
+    scripts = [LOGIN_OK, { stdout: ok('{"verdict":"pass"}') }];
     const res = await callCodexCli(
       'gpt-6.1-sol',
       [{ role: 'user', content: 'DIFF' }],
@@ -204,18 +208,21 @@ describe('callCodexCli', () => {
       modelName: 'gpt-6.1-sol',
     });
     expect(res.costUsd).toBeUndefined();
-    const { args, options, child } = spawned[0];
-    expect(cwdSeenAtSpawn[0]).toEqual({ exists: true, entries: 0 });
+    expect(spawned[0].args).toEqual(['login', 'status']);
+    const { args, options, child } = spawned[1];
+    expect(cwdSeenAtSpawn[1]).toEqual({ exists: true, entries: 0 });
     expect(args).toContain(String(options.cwd));
     expect(existsSync(String(options.cwd))).toBe(false);
     expect(child.stdinText.startsWith(CODEX_AUX_PREAMBLE)).toBe(true);
     expect(child.stdinText).toContain('Be skeptical.');
     expect(child.stdinText).toContain('DIFF');
-    expect(untrackCalls).toEqual([5151]);
+    // Both the login probe and the exec child are tracked and untracked.
+    expect(untrackCalls).toEqual([5151, 5151]);
   });
 
   test('a failed turn throws vendor openai with the CLI reason', async () => {
     scripts = [
+      LOGIN_OK,
       {
         code: 1,
         stdout: JSON.stringify({
@@ -236,19 +243,19 @@ describe('callCodexCli', () => {
   });
 
   test('exit 0 without an answer is still a failure', async () => {
-    scripts = [{ stdout: JSON.stringify({ type: 'turn.completed', usage: {} }) }];
+    scripts = [LOGIN_OK, { stdout: JSON.stringify({ type: 'turn.completed', usage: {} }) }];
     await expect(
       callCodexCli('gpt-6-astra', [{ role: 'user', content: 'x' }], undefined, 1),
     ).rejects.toThrow('returned no answer');
   });
 
   test('times out, stops the child and removes the directory', async () => {
-    scripts = [{ hang: true }];
+    scripts = [LOGIN_OK, { hang: true }];
     await expect(
       callCodexCli('gpt-6-astra', [{ role: 'user', content: 'x' }], undefined, 1),
     ).rejects.toThrow('timed out after 150ms');
-    expect(spawned[0].child.kill).toHaveBeenCalled();
-    expect(existsSync(String(spawned[0].options.cwd))).toBe(false);
+    expect(spawned[1].child.kill).toHaveBeenCalled();
+    expect(existsSync(String(spawned[1].options.cwd))).toBe(false);
   });
 });
 

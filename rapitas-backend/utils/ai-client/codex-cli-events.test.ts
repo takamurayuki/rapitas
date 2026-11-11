@@ -6,7 +6,7 @@
  * of a completed turn with an answer fails closed.
  */
 import { describe, expect, test } from 'bun:test';
-import { parseCodexJsonl } from './codex-cli-events';
+import { describeCodexFailure, parseCodexJsonl } from './codex-cli-events';
 
 const lines = (...events: unknown[]) => events.map((e) => JSON.stringify(e)).join('\n');
 
@@ -53,7 +53,8 @@ describe('parseCodexJsonl', () => {
     const s = parseCodexJsonl(lines({ type: 'turn.completed', usage: { input_tokens: 1 } }));
     expect(s.succeeded).toBe(false);
     expect(s.text).toBeNull();
-    expect(s.failureMessage).toBe('Codex CLI returned no answer');
+    expect(s.failureMessage).toBeNull();
+    expect(describeCodexFailure(s, '')).toBe('Codex CLI returned no answer');
   });
 
   test('an answer without a completed turn fails closed', () => {
@@ -61,7 +62,8 @@ describe('parseCodexJsonl', () => {
       lines({ type: 'item.completed', item: { type: 'agent_message', text: 'half' } }),
     );
     expect(s.succeeded).toBe(false);
-    expect(s.failureMessage).toBe('Codex CLI did not complete a turn');
+    expect(s.failureMessage).toBeNull();
+    expect(describeCodexFailure(s, '')).toBe('Codex CLI did not complete a turn');
   });
 
   test('blank answers, non-JSON lines and unknown events are ignored', () => {
@@ -78,5 +80,24 @@ describe('parseCodexJsonl', () => {
     // The whitespace message replaces the real one as "last", so no answer.
     expect(s.succeeded).toBe(false);
     expect(s.usage).toEqual({ inputTokens: 0, cachedInputTokens: 0, outputTokens: 2 });
+  });
+
+  test('describeCodexFailure: structured reason > stderr > warning > default', () => {
+    const empty = parseCodexJsonl('');
+    // The G2 reproduction: stdout empty, the reason only on stderr.
+    expect(describeCodexFailure(empty, 'Not logged in. Run codex login.\n')).toBe(
+      'Not logged in. Run codex login.',
+    );
+    const structured = parseCodexJsonl(lines({ type: 'error', message: 'from the stream' }));
+    expect(describeCodexFailure(structured, 'from stderr')).toBe('from the stream');
+    const warned = parseCodexJsonl(
+      lines({ type: 'item.completed', item: { type: 'error', message: 'w' } }),
+    );
+    expect(describeCodexFailure(warned, 'from stderr')).toBe('from stderr');
+    expect(describeCodexFailure(warned, '  ')).toBe('w');
+    // A long stderr keeps its end, where the CLI prints the reason.
+    const long = `${'x'.repeat(5000)}\nYou've hit your usage limit. Try again at 3:05 PM.`;
+    expect(describeCodexFailure(empty, long).endsWith('Try again at 3:05 PM.')).toBe(true);
+    expect(describeCodexFailure(empty, long).length).toBe(1000);
   });
 });
