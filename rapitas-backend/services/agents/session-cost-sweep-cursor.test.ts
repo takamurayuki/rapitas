@@ -44,7 +44,9 @@ describe('createFileSweepCursorStore', () => {
     process.env.RAPITAS_DATA_DIR = join(dir, 'data');
     try {
       createFileSweepCursorStore().write(9);
-      expect(createFileSweepCursorStore(join(dir, 'data', '.session-cost-sweep-cursor')).read()).toBe(9);
+      expect(
+        createFileSweepCursorStore(join(dir, 'data', '.session-cost-sweep-cursor')).read(),
+      ).toBe(9);
     } finally {
       if (prev === undefined) delete process.env.RAPITAS_DATA_DIR;
       else process.env.RAPITAS_DATA_DIR = prev;

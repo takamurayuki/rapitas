@@ -45,14 +45,22 @@ describe('sweep position across restarts (re-review4 P2-1)', () => {
   });
 
   /** One short boot: stopped when it reaches its (perBoot+1)-th session. */
-  const shortBoot = async (f: Fake, cursorStore: ReturnType<typeof createMemorySweepCursorStore>, perBoot: number) => {
+  const shortBoot = async (
+    f: Fake,
+    cursorStore: ReturnType<typeof createMemorySweepCursorStore>,
+    perBoot: number,
+  ) => {
     const ac = new AbortController();
     let seen = 0;
     f.state.reads = [];
     f.state.beforeRead = () => {
       if (++seen > perBoot) ac.abort();
     };
-    const res = await sweepAllSessionTotals(asSweepDb(f), { ...FAST, cursorStore, signal: ac.signal });
+    const res = await sweepAllSessionTotals(asSweepDb(f), {
+      ...FAST,
+      cursorStore,
+      signal: ac.signal,
+    });
     return { res, done: f.state.reads.slice(0, perBoot) };
   };
 

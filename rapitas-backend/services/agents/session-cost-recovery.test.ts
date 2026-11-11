@@ -138,7 +138,10 @@ describe('recoverSessionTotals (startup)', () => {
 
   test('scope: sessions last written more than the window before the latest write are not read', async () => {
     const recent = await sessionWith({ cost: 1, tokens: 100 }, before(60_000));
-    const old = await sessionWith({ cost: 1, tokens: 100 }, before(60_000 + RECOVERY_WINDOW_MS + 1));
+    const old = await sessionWith(
+      { cost: 1, tokens: 100 },
+      before(60_000 + RECOVERY_WINDOW_MS + 1),
+    );
     const res = await recoverSessionTotals(asDb(), { bootTime: BOOT });
     expect(res).toEqual({ checked: 1, repaired: 1 });
     expect(await totalsOf(recent)).toEqual({ cost: 1.5, tokens: 140 });

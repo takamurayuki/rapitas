@@ -126,7 +126,10 @@ export async function repairSessionIfStale(
     const want = await readTotals(signal ? stopAwareReads(db, signal) : db, s.id);
     if (signal?.aborted) return 'stopped';
     // Matching sessions are not written, so their updatedAt stays put.
-    if (Number(s.totalCostUsd) === want.totalCostUsd && s.totalTokensUsed === want.totalTokensUsed) {
+    if (
+      Number(s.totalCostUsd) === want.totalCostUsd &&
+      s.totalTokensUsed === want.totalTokensUsed
+    ) {
       return 'ok';
     }
     // A false result means the verification was deferred (already scheduled).
@@ -139,7 +142,10 @@ export async function repairSessionIfStale(
     // The cursor has not passed it, so the next sweep redoes it. A recompute
     // already started has scheduled its own retry before throwing.
     if (signal?.aborted) {
-      log.debug({ err, sessionId: s.id }, '[session-cost] Repair interrupted by the stop; left to the next sweep');
+      log.debug(
+        { err, sessionId: s.id },
+        '[session-cost] Repair interrupted by the stop; left to the next sweep',
+      );
       return 'stopped';
     }
     // recomputeSessionTotals schedules its own retry before throwing; this
