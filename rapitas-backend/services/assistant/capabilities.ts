@@ -168,6 +168,15 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'stop-what-was-started',
   },
   {
+    // Re-reads completion criteria the user edited on a confirmation card:
+    // who checks each (jury / person), vague wording, the score. Writes
+    // nothing; the create / commit that follows is what is confirmed.
+    id: 'criteria.review',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
     // Reads a consultation sentence and the task's companion row, and
     // proposes starting or stopping — the card the user confirms. Writes
     // nothing, so it needs no confirmation of its own.

@@ -154,6 +154,38 @@ describe('createParentTask with a companion', () => {
     },
   );
 
+  test('the person’s checks go to their own column; the jury’s readers never see them (fix2 item 5)', async () => {
+    const db = createMemoryDb();
+    await createParentTask(db.client as never, 'parent', undefined, {
+      acceptanceCriteria: ['API が 200 を返す'],
+      userAcceptanceChecks: ['本人が画面を見て納得できる'],
+      companion: { origin: 'task_create' },
+    });
+    const task = db.tables.Task[0];
+    expect(task.acceptanceCriteria).toBe(JSON.stringify(['API が 200 を返す']));
+    expect(task.userAcceptanceChecks).toBe(JSON.stringify(['本人が画面を見て納得できる']));
+    // The existing readers (self-check, review, convergence) read only the
+    // jury's column, unchanged — the person's check is not in their input.
+    const { parseAcceptanceCriteria: selfCheck } =
+      await import('../agents/verification/acceptance-self-check');
+    const { parseAcceptanceCriteria: review } =
+      await import('../agents/verification/review-acceptance-criteria');
+    const { parseAcceptanceCriteria: convergence } = await import('../workflow/verify-convergence');
+    for (const read of [selfCheck, review, convergence]) {
+      expect(read(task.acceptanceCriteria as string)).toEqual(['API が 200 を返す']);
+    }
+  });
+
+  test('no person’s checks: the column is not written (older tasks look the same)', async () => {
+    const db = createMemoryDb();
+    await createParentTask(db.client as never, 'parent', undefined, {
+      acceptanceCriteria: ['終わっている'],
+      userAcceptanceChecks: [],
+      companion: { origin: 'task_create' },
+    });
+    expect('userAcceptanceChecks' in db.tables.Task[0]).toBe(false);
+  });
+
   test('the row carries the task workspace even with no workspace in context', async () => {
     // A sessionless caller (the agent, a backfill) still writes the task's
     // own workspace onto the row; the extension is not there to stamp it.

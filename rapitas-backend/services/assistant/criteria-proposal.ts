@@ -17,49 +17,39 @@
  * - A score from the existing `spec-quality-checker`, plus the vague-term
  *   findings, so the card can show how solid the definition of done is.
  *
- * The verifier mark is shown, not stored: every confirmed criterion still goes
- * to `Task.acceptanceCriteria`. Whether "本人が確かめる" items get their own
- * column (`userAcceptanceChecks`, design 4.1 案1 / Q2) is the user's decision
- * and is deliberately not made here.
+ * The verifier mark decides where a confirmed criterion is stored (design 4.1
+ * 案1, Q2 approved 2026-11-12): {@link splitByVerifier} sends the jury's to
+ * `Task.acceptanceCriteria` — the only column the jury, self-check, landing
+ * classifier and replanning read — and the person's to
+ * `Task.userAcceptanceChecks`. The server's split is the one that counts; the
+ * card's tags come from {@link reviewCriteria}, the same rules.
  *
- * Also reads the `## 完了条件` checklist a roadmap step description carries,
- * for clients that send only the description.
+ * The `## 完了条件` checklist of a roadmap step description is read in
+ * `criteria-text.ts` (re-exported here, with `normalizeCriteria`).
  *
  * Pure — no database, no model. Not responsible for refusing a write; the
  * routes do that.
  */
 import { checkSpecQuality } from '../intake/spec-quality-checker';
+import { normalizeCriteria, MAX_CRITERION_LENGTH } from './criteria-text';
 import { classifyVerifier, findVagueTerm, type CriterionVerifier } from './criteria-wording';
+import {
+  detectTaskKind,
+  supplementCandidates,
+  type SupplementCandidate,
+  type TaskKind,
+} from './criteria-supplement';
 
 export { classifyVerifier, findVagueTerm, type CriterionVerifier } from './criteria-wording';
-
-/** Matches the route schemas: each criterion ≤ 500 chars, at most 10. */
-export const MAX_CRITERIA = 10;
-export const MAX_CRITERION_LENGTH = 500;
-
-/** The error a create/commit without criteria is refused with (HTTP 400). */
-export const ACCEPTANCE_CRITERIA_REQUIRED = 'acceptance_criteria_required';
-
-/**
- * Trim, drop blanks and duplicates, and bound a criteria list.
- *
- * @param raw - Whatever was proposed or sent / 提案・送信された値
- * @returns The usable criteria, in their original order / 使える完了条件（順序維持）
- */
-export function normalizeCriteria(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item !== 'string') continue;
-    const text = item.trim().slice(0, MAX_CRITERION_LENGTH);
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    out.push(text);
-    if (out.length >= MAX_CRITERIA) break;
-  }
-  return out;
-}
+export { detectTaskKind, type TaskKind } from './criteria-supplement';
+export {
+  normalizeCriteria,
+  criteriaFromDescription,
+  withoutCriteriaSection,
+  MAX_CRITERIA,
+  MAX_CRITERION_LENGTH,
+  ACCEPTANCE_CRITERIA_REQUIRED,
+} from './criteria-text';
 
 /** How many criteria a proposal aims for (design 段B: 3〜7). */
 export const MIN_PROPOSED_CRITERIA = 3;
@@ -73,6 +63,11 @@ export interface ProposedCriterion {
   vague?: { term: string; suggestion: string };
   /** True when ラピ added it to reach the minimum, rather than the reader proposing it. */
   supplemented?: boolean;
+  /**
+   * True for a sentence ラピ wrote without enough material to be specific. It
+   * is always the person's to check, and the card asks for it to be reworded.
+   */
+  generic?: boolean;
 }
 
 /** How solid the proposed definition of done is. */
@@ -95,6 +90,8 @@ export interface CriteriaProposal {
   fallback: boolean;
   /** How many items ラピ added to reach {@link MIN_PROPOSED_CRITERIA}. */
   supplemented: number;
+  /** What sort of task the wording reads as; picks the supplement sentences. */
+  kind: TaskKind;
   quality: CriteriaQuality;
 }
 
@@ -106,34 +103,6 @@ export interface CriteriaProposalInput {
   description?: string | null;
   goals?: unknown;
   constraints?: unknown;
-}
-
-/** Bounded, quoted task name for the sentences ラピ writes herself. */
-function taskName(title: string): string {
-  return title.trim().slice(0, 120) || 'このタスク';
-}
-
-/**
- * Checkable sentences built from the task itself, used to reach the minimum.
- *
- * Goals and constraints first (they are what the user said), then sentences
- * the jury can check from the diff, then one the person checks. Each names
- * the task, so no two tasks share the same definition of done.
- *
- * @param input - The task's own fields / タスク自身の項目
- * @returns Candidate criteria, most specific first / 補う完了条件の候補
- */
-function supplementCandidates(input: CriteriaProposalInput): string[] {
-  const name = taskName(input.title);
-  const goals = normalizeCriteria(parseList(input.goals));
-  const constraints = normalizeCriteria(parseList(input.constraints));
-  return [
-    ...goals.map((g) => `目標「${g}」が達成されたことを、変更内容または成果物で示せる`),
-    ...constraints.map((c) => `制約「${c}」を守っている（変更内容で確かめられる）`),
-    `「${name}」の成果物（変更・文書など）ができていて、どこにあるかを示せる`,
-    `「${name}」に関係しない既存の機能やデータを壊していない（関連するテストや確認手順が通る）`,
-    `「${name}」の結果を本人が実際に見て、求めていたものだと確かめられる`,
-  ];
 }
 
 /** A JSON-array string, an array, or nothing — the shapes the spec columns use. */
@@ -148,6 +117,61 @@ function parseList(value: unknown): unknown[] {
   }
 }
 
+/** The task fields the verifier and the supplements are read from. */
+function context(input: CriteriaProposalInput) {
+  const goals = normalizeCriteria(parseList(input.goals));
+  const constraints = normalizeCriteria(parseList(input.constraints));
+  const base = { title: input.title, description: input.description, goals, constraints };
+  const kind = detectTaskKind(base);
+  const candidates = new Map<string, SupplementCandidate>(
+    supplementCandidates(base, kind).map((c) => [c.text.slice(0, MAX_CRITERION_LENGTH), c]),
+  );
+  return { kind, candidates };
+}
+
+type Context = ReturnType<typeof context>;
+
+/** One criterion with its verifier mark and, if vague, the hint. */
+function describe(text: string, ctx: Context, supplemented: boolean): ProposedCriterion {
+  // A sentence ラピ wrote keeps the verifier it was written for; anything
+  // else (the reader's, the user's own rewording) is classified by its words.
+  const own = ctx.candidates.get(text);
+  const vague = findVagueTerm(text);
+  return {
+    text,
+    verifier: own?.verifier ?? classifyVerifier(text, ctx.kind),
+    ...(vague ? { vague } : {}),
+    ...(supplemented ? { supplemented: true } : {}),
+    ...(own?.generic ? { generic: true } : {}),
+  };
+}
+
+/** The checker's score and the vague / generic findings for a set of items. */
+function qualityOf(input: CriteriaProposalInput, items: ProposedCriterion[]): CriteriaQuality {
+  const spec = checkSpecQuality({
+    description: input.description ?? null,
+    goals: input.goals ?? null,
+    constraints: input.constraints ?? null,
+    acceptanceCriteria: items.map((i) => i.text),
+  });
+  const vague = items.filter((i) => i.vague);
+  const generic = items.filter((i) => i.generic);
+  return {
+    score: spec.score,
+    isAdequate: spec.isAdequate,
+    vagueCount: vague.length,
+    reasons: [
+      ...spec.reasons,
+      ...vague.map((i) => `「${i.text}」の「${i.vague!.term}」は確かめにくい言葉です。`),
+      ...(generic.length > 0
+        ? [
+            `タスクの内容から具体的な条件を作れなかったため、${generic.length}件は仮の文です。何ができたら終わりかが分かる文に直してください。`,
+          ]
+        : []),
+    ],
+  };
+}
+
 /**
  * Build the proposal the confirmation card shows (design 段B).
  *
@@ -156,52 +180,65 @@ function parseList(value: unknown): unknown[] {
  */
 export function proposeCriteria(input: CriteriaProposalInput): CriteriaProposal {
   const proposed = normalizeCriteria(input.proposed).slice(0, MAX_PROPOSED_CRITERIA);
-  const items: ProposedCriterion[] = proposed.map((text) => describe(text, false));
+  const ctx = context(input);
+  const items: ProposedCriterion[] = proposed.map((text) => describe(text, ctx, false));
 
   const taken = new Set(proposed);
-  for (const text of supplementCandidates(input)) {
+  for (const text of ctx.candidates.keys()) {
     if (items.length >= MIN_PROPOSED_CRITERIA) break;
-    const bounded = text.slice(0, MAX_CRITERION_LENGTH);
-    if (taken.has(bounded)) continue;
-    taken.add(bounded);
-    items.push(describe(bounded, true));
+    if (taken.has(text)) continue;
+    taken.add(text);
+    items.push(describe(text, ctx, true));
   }
 
-  const criteria = items.map((i) => i.text);
-  const spec = checkSpecQuality({
-    description: input.description ?? null,
-    goals: input.goals ?? null,
-    constraints: input.constraints ?? null,
-    acceptanceCriteria: criteria,
-  });
-  const vague = items.filter((i) => i.vague);
-  const reasons = [
-    ...spec.reasons,
-    ...vague.map((i) => `「${i.text}」の「${i.vague!.term}」は確かめにくい言葉です。`),
-  ];
-
   return {
-    criteria,
+    criteria: items.map((i) => i.text),
     items,
     fallback: proposed.length === 0,
     supplemented: items.length - proposed.length,
-    quality: {
-      score: spec.score,
-      isAdequate: spec.isAdequate,
-      vagueCount: vague.length,
-      reasons,
-    },
+    kind: ctx.kind,
+    quality: qualityOf(input, items),
   };
 }
 
-/** One criterion with its verifier mark and, if vague, the hint. */
-function describe(text: string, supplemented: boolean): ProposedCriterion {
-  const vague = findVagueTerm(text);
+/**
+ * Re-read criteria the user has edited, removed or kept, without adding any.
+ *
+ * What the card calls after an edit, so the tags and the score it shows are
+ * the server's — the same rules {@link splitByVerifier} applies on confirm.
+ *
+ * @param input - The task fields, with `proposed` = the criteria as they now stand / 現在の完了条件と材料
+ * @returns The items and the score, plus the task's kind / 判定者・曖昧語・採点
+ */
+export function reviewCriteria(input: CriteriaProposalInput): {
+  items: ProposedCriterion[];
+  kind: TaskKind;
+  quality: CriteriaQuality;
+} {
+  const texts = normalizeCriteria(input.proposed);
+  const ctx = context(input);
+  const items = texts.map((text) => describe(text, ctx, ctx.candidates.has(text)));
+  return { items, kind: ctx.kind, quality: qualityOf(input, items) };
+}
+
+/**
+ * Split confirmed criteria into the jury's and the person's (design 4.1 案1).
+ *
+ * The server decides, with the same rules the card's tags came from; which
+ * array a client put a criterion in is not trusted, so an older client that
+ * sends everything as `acceptanceCriteria` is split the same way.
+ *
+ * @param input - The task fields, with `proposed` = every confirmed criterion / 確定した完了条件と材料
+ * @returns `acceptanceCriteria` (jury) and `userAcceptanceChecks` (person), order kept / 2列の値
+ */
+export function splitByVerifier(input: CriteriaProposalInput): {
+  acceptanceCriteria: string[];
+  userAcceptanceChecks: string[];
+} {
+  const { items } = reviewCriteria(input);
   return {
-    text,
-    verifier: classifyVerifier(text),
-    ...(vague ? { vague } : {}),
-    ...(supplemented ? { supplemented: true } : {}),
+    acceptanceCriteria: items.filter((i) => i.verifier === 'jury').map((i) => i.text),
+    userAcceptanceChecks: items.filter((i) => i.verifier === 'user').map((i) => i.text),
   };
 }
 
@@ -220,42 +257,4 @@ export function ensureProposedCriteria(
 ): { criteria: string[]; fallback: boolean } {
   const out = proposeCriteria({ title, proposed });
   return { criteria: out.criteria, fallback: out.fallback };
-}
-
-/** `## 完了条件` (the heading roadmap-resolve writes) up to the next heading. */
-const CRITERIA_SECTION = /^##\s*完了条件\s*$([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/m;
-const CHECKLIST_ITEM = /^\s*[-*]\s*(?:\[[ xX]\]\s*)?(.+?)\s*$/;
-
-/**
- * Read the checklist under a description's `## 完了条件` heading.
- *
- * Only that heading: it is the one `composeDescription` writes, so the text the
- * user approved on the roadmap card is exactly what this reads back.
- *
- * @param description - A task description / タスク説明文
- * @returns The listed criteria, or empty / 列挙された完了条件（無ければ空）
- */
-export function criteriaFromDescription(description: string | undefined): string[] {
-  if (!description) return [];
-  const section = CRITERIA_SECTION.exec(description);
-  if (!section) return [];
-  const items = section[1]
-    .split('\n')
-    .map((line) => CHECKLIST_ITEM.exec(line)?.[1])
-    .filter((item): item is string => !!item);
-  return normalizeCriteria(items);
-}
-
-/**
- * A description with its `## 完了条件` section taken out.
- *
- * Used when the criteria a step ends up with differ from the checklist it was
- * sent with (supplemented to the minimum), so the description can be
- * re-composed and the column and the text the user reads stay the same.
- *
- * @param description - A task description / タスク説明文
- * @returns The description without that section, trimmed / 完了条件節を除いた説明文
- */
-export function withoutCriteriaSection(description: string): string {
-  return description.replace(CRITERIA_SECTION, '').trim();
 }

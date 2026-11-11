@@ -138,12 +138,15 @@ describe('POST /assistant/task-draft always proposes criteria', () => {
       acceptanceCriteria: [],
     });
     const { json } = await post('task-draft', { text: '健康診断を予約する' });
-    // Three checkable sentences built from the task, not one generic line.
+    // Three checkable sentences fitting a booking, not software boilerplate
+    // (fix2 item 3): a booking has no diff, so all three are the person's.
     expect(json.draft.acceptanceCriteria).toHaveLength(3);
-    for (const c of json.draft.acceptanceCriteria) expect(c).toContain('健康診断を予約する');
+    expect(json.draft.acceptanceCriteria[0]).toContain('健康診断を予約する');
+    for (const c of json.draft.acceptanceCriteria) expect(c).not.toMatch(/既存の機能|テスト/);
+    expect(json.draft.acceptanceCriteria.some((c: string) => c.includes('予約番号'))).toBe(true);
     expect(json.draft.acceptanceCriteriaFallback).toBe(true);
     expect(json.draft.acceptanceCriteriaItems.map((i: { verifier: string }) => i.verifier)).toEqual(
-      ['jury', 'jury', 'user'],
+      ['user', 'user', 'user'],
     );
   });
 

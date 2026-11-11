@@ -6,7 +6,8 @@
  * not the state (companion design ch.0). Besides the task's own fields,
  * subtasks, comments and shared knowledge, it carries what ラピ needs to answer
  * "完了条件は？" and "今どこ？" from the DB rather than from memory: the
- * acceptance criteria, the workflow status, any halt reason, and the last five
+ * acceptance criteria, the checks only the person makes (userAcceptanceChecks,
+ * listed apart), the workflow status, any halt reason, and the last five
  * workflow transitions (companion stage 1, item 3).
  *
  * Not responsible for choosing a model or caching — see copilot-chat-service.
@@ -115,13 +116,28 @@ export async function buildTaskContext(taskId: number): Promise<string> {
     );
   }
   const criteria = parseCriteriaColumn(task.acceptanceCriteria);
+  // NOTE: Read through a widened type — the column is new (design 4.1 案1)
+  // and a client generated before it does not declare it. Listed apart and
+  // labelled: these are the person's to check, never what the jury judges.
+  const userChecks = parseCriteriaColumn(
+    (task as { userAcceptanceChecks?: string | null }).userAcceptanceChecks,
+  );
   parts.push(
     criteria.length > 0
       ? `完了条件（タスクに登録されているもの。陪審はこれで判定する）:\n${criteria
           .map((c, i) => `${i + 1}. ${c}`)
           .join('\n')}`
-      : '完了条件: 登録されていません',
+      : userChecks.length > 0
+        ? '完了条件（陪審が判定するもの）: 登録されていません（本人が確かめる条件だけがあります）'
+        : '完了条件: 登録されていません',
   );
+  if (userChecks.length > 0) {
+    parts.push(
+      `本人が確かめる条件（陪審は判定しない。本人が結果を見て確かめる）:\n${userChecks
+        .map((c, i) => `${i + 1}. ${c}`)
+        .join('\n')}`,
+    );
+  }
 
   const transitions = await recentTransitions(taskId);
   if (transitions.length > 0) {

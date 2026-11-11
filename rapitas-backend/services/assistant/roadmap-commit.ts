@@ -45,6 +45,11 @@ export interface ApprovedStep {
    * landing classifier read — not only into the description's checklist.
    */
   acceptanceCriteria: string[];
+  /**
+   * The approved checks only the person can make, written to
+   * `Task.userAcceptanceChecks` and never to the jury's column (design 4.1 案1).
+   */
+  userAcceptanceChecks?: string[];
   /** When it should be finished, as the approved plan dated it (YYYY-MM-DD). */
   dueDate?: string;
 }
@@ -123,6 +128,9 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
         ...(themeId !== null ? { themeId } : {}),
         ...(projectId !== null ? { projectId } : {}),
         acceptanceCriteria: step.acceptanceCriteria,
+        ...(step.userAcceptanceChecks?.length
+          ? { userAcceptanceChecks: step.userAcceptanceChecks }
+          : {}),
         companion: { origin: 'roadmap_commit' },
       });
       if (task) taskIds.push(task.id);

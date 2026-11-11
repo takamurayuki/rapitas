@@ -169,6 +169,12 @@ export async function createParentTask(
       data.acceptanceCriteria.length > 0 && {
         acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
       }),
+    // NOTE: Only when there are some, so every other caller's insert is
+    // unchanged and an older task simply has no value (no migration).
+    ...(data.userAcceptanceChecks &&
+      data.userAcceptanceChecks.length > 0 && {
+        userAcceptanceChecks: JSON.stringify(data.userAcceptanceChecks),
+      }),
   };
 
   const companion = data.companion;

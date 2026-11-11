@@ -438,6 +438,7 @@ CREATE TABLE "Task" (
     "goals" TEXT,
     "constraints" TEXT,
     "acceptanceCriteria" TEXT,
+    "userAcceptanceChecks" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" DATETIME,

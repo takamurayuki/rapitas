@@ -64,6 +64,12 @@ export interface CreateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  /**
+   * Checks only the person can make ("本人が確かめる", design 4.1 案1), kept out
+   * of `acceptanceCriteria` so the jury's input stays diff-checkable. Written
+   * by ラピ's create and roadmap commit; top-level tasks only.
+   */
+  userAcceptanceChecks?: string[];
   /** SearchMiss ID to link on creation — bridges gap resolution flow. */
   searchMissId?: number;
   /**

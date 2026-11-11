@@ -122,6 +122,38 @@ describe('buildTaskContext', () => {
     expect(ctx).not.toContain('停止中');
   });
 
+  it('lists the person’s checks apart from the jury’s criteria (fix2 item 5)', async () => {
+    taskRow = {
+      ...(taskRow as object),
+      userAcceptanceChecks: JSON.stringify(['本人が画面で入れることを確かめる']),
+    };
+    const ctx = await buildTaskContext(1);
+    const jury = ctx.indexOf('完了条件（タスクに登録されているもの。陪審はこれで判定する）');
+    const user = ctx.indexOf('本人が確かめる条件（陪審は判定しない');
+    expect(jury).toBeGreaterThanOrEqual(0);
+    expect(user).toBeGreaterThan(jury);
+    expect(ctx.slice(user)).toContain('1. 本人が画面で入れることを確かめる');
+    // Not numbered among the jury's criteria.
+    expect(ctx.slice(jury, user)).not.toContain('本人が画面で入れることを確かめる');
+  });
+
+  it('a task with only the person’s checks says the jury has none, not that there are none', async () => {
+    taskRow = {
+      ...(taskRow as object),
+      acceptanceCriteria: null,
+      userAcceptanceChecks: JSON.stringify(['予約番号が確認メールに残っている']),
+    };
+    const ctx = await buildTaskContext(1);
+    expect(ctx).not.toContain('完了条件: 登録されていません');
+    expect(ctx).toContain('本人が確かめる条件だけがあります');
+    expect(ctx).toContain('予約番号が確認メールに残っている');
+  });
+
+  it('an older task without the column reads as before', async () => {
+    const ctx = await buildTaskContext(1);
+    expect(ctx).not.toContain('本人が確かめる条件');
+  });
+
   it('keeps the rest of the context when the transitions cannot be read', async () => {
     transitionsFail = true;
     const ctx = await buildTaskContext(1);

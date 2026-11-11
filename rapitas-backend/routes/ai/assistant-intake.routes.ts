@@ -35,8 +35,12 @@ import {
 } from '../../services/assistant';
 import {
   proposeCriteria,
+  reviewCriteria,
+  splitByVerifier,
   normalizeCriteria,
   ACCEPTANCE_CRITERIA_REQUIRED,
+  MAX_CRITERIA,
+  MAX_CRITERION_LENGTH,
 } from '../../services/assistant/criteria-proposal';
 import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
@@ -142,8 +146,20 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
 
       // Server-side, not left to the card: a task filed without criteria is
       // judged against nothing the user agreed to (`criteria_missing`).
-      const acceptanceCriteria = normalizeCriteria(body.task.acceptanceCriteria);
-      if (acceptanceCriteria.length === 0) {
+      // Both arrays are read and re-split here by the server's own rules
+      // (design 4.1 案1): which array a client used is not trusted, so the
+      // person's checks never reach the jury's column, and an older client
+      // sending everything as acceptanceCriteria is split the same way.
+      const confirmedCriteria = normalizeCriteria([
+        ...(body.task.acceptanceCriteria ?? []),
+        ...(body.task.userAcceptanceChecks ?? []),
+      ]);
+      const { acceptanceCriteria, userAcceptanceChecks } = splitByVerifier({
+        title: body.task.title,
+        description: body.task.description,
+        proposed: confirmedCriteria,
+      });
+      if (confirmedCriteria.length === 0) {
         await recordAction({
           capabilityId: 'task.create',
           status: 'refused',
@@ -168,6 +184,7 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           // these are the ones that survived the confirmation card, not the
           // ones a model produced unseen.
           acceptanceCriteria,
+          userAcceptanceChecks,
           companion: { origin: 'task_create' },
         });
 
@@ -176,7 +193,11 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           status: 'executed',
           args: body.task,
           taskId: task?.id,
-          result: { id: task?.id },
+          result: {
+            id: task?.id,
+            acceptanceCriteria: acceptanceCriteria.length,
+            userAcceptanceChecks: userAcceptanceChecks.length,
+          },
         });
         if (task) {
           // Best-effort: the row exists either way; this only says which act
@@ -212,6 +233,33 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           dueDate: t.Optional(t.String()),
           estimatedHours: t.Optional(t.Number()),
           acceptanceCriteria: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
+          userAcceptanceChecks: t.Optional(t.Array(t.String({ maxLength: 500 }), { maxItems: 10 })),
+        }),
+      }),
+    },
+  )
+
+  .post(
+    '/criteria/review',
+    ({ body }) => {
+      // Read-only and called after each edit on a confirmation card, so the
+      // tags and score it shows are the server's (the same rules the create
+      // and commit split by). No audit row: an edit is not an act, and the
+      // confirmed create/commit records what was finally agreed.
+      assertCapabilityAllowed('criteria.review', { confirmed: false });
+      const review = reviewCriteria({
+        title: body.title,
+        description: body.description,
+        proposed: body.criteria,
+      });
+      return { success: true, ...review };
+    },
+    {
+      body: t.Object({
+        title: t.String({ minLength: 1, maxLength: 500 }),
+        description: t.Optional(t.String({ maxLength: 20000 })),
+        criteria: t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), {
+          maxItems: MAX_CRITERIA,
         }),
       }),
     },

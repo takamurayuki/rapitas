@@ -144,6 +144,11 @@ export function resolvePlacement(
   return fallback === 'none' ? { kind: 'none', reason } : { kind: 'new', name: '', reason };
 }
 
+/** Same strings in the same order. */
+function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
 /**
  * Keep the steps that could actually become a task.
  *
@@ -178,16 +183,22 @@ export function resolveSteps(
       // ones built from its title (design 段B), written into the description
       // too, so the column and the text the user reads agree.
       const legacy = action ? undefined : (asText(step.description, MAX_BODY) ?? '');
+      const listed = action ? done : criteriaFromDescription(legacy);
       const proposed = proposeCriteria({
         title,
-        proposed: action ? done : criteriaFromDescription(legacy),
+        proposed: listed,
         description: action ?? legacy,
       });
+      // NOTE: Re-composed whenever the criteria set differs from the listed
+      // one for ANY reason — supplemented to three, cut to seven, a duplicate
+      // or blank dropped — not only when supplemented. Keeping the old text
+      // when 8 were listed showed 8 while the column held 7, so a criterion
+      // the user approved silently vanished (review fix2 item 1).
       const description = action
         ? composeDescription(action, proposed.criteria)
-        : proposed.supplemented > 0
-          ? composeDescription(withoutCriteriaSection(legacy ?? ''), proposed.criteria)
-          : (legacy ?? '');
+        : sameList(listed, proposed.criteria)
+          ? (legacy ?? '')
+          : composeDescription(withoutCriteriaSection(legacy ?? ''), proposed.criteria);
 
       const due = asDayCount(step.dueInDays);
       // Dates only mean something relative to a deadline. Without one the

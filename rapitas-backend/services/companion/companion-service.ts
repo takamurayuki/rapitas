@@ -230,9 +230,6 @@ export interface CompanionDeletionDb {
   };
 }
 
-/** Subtask nesting deeper than this is not something the UI can make. */
-const MAX_SUBTASK_DEPTH = 32;
-
 /**
  * Close the companion rows of a task about to be deleted, and of every
  * subtask its delete will cascade to (Task.parentId is onDelete: Cascade).
@@ -253,7 +250,12 @@ export async function closeCompanionsForDeletion(
   const doomed = [taskId];
   const seen = new Set(doomed);
   let frontier = [taskId];
-  for (let depth = 0; depth < MAX_SUBTASK_DEPTH && frontier.length > 0; depth++) {
+  // NOTE: Walked to the end, with no depth cap. Creation imposes no nesting
+  // limit, so a cap here would silently leave open rows under the deepest
+  // subtasks the cascade still deletes (review fix2 item 4). `seen` makes a
+  // parentId cycle terminate: every id is expanded at most once, so the walk
+  // takes at most one query per level of the real tree.
+  while (frontier.length > 0) {
     const children = await tx.task.findMany({
       where: { parentId: { in: frontier } },
       select: { id: true },

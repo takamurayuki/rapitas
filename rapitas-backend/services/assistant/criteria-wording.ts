@@ -7,7 +7,11 @@
  * Heuristics for the confirmation card; the user decides. Pure.
  */
 
-/** Who is expected to check a criterion (shown on the card; not stored). */
+/**
+ * Who is expected to check a criterion. Decides the column a confirmed
+ * criterion is written to: 'jury' → `Task.acceptanceCriteria`, 'user' →
+ * `Task.userAcceptanceChecks` (design 4.1 案1, approved 2026-11-12).
+ */
 export type CriterionVerifier = 'jury' | 'user';
 
 /**
@@ -60,13 +64,19 @@ const USER_VERIFIED =
 /**
  * Who would check this criterion.
  *
- * A heuristic for the card, not a ruling: the user decides on the card, and
- * the mark is not stored (design 4.1 Q2 is still open).
+ * A heuristic; the card shows it and the user can reword the criterion. For an
+ * errand (a booking, a payment …) there is no diff for the jury to read, so
+ * every criterion is the person's whatever its wording.
  *
  * @param text - One criterion / 完了条件1件
- * @returns 'user' for judgement calls only the person can make, otherwise 'jury' / 判定者
+ * @param kind - The task's kind, when known / タスクの種類（分かる場合）
+ * @returns 'user' for what only the person can check, otherwise 'jury' / 判定者
  */
-export function classifyVerifier(text: string): CriterionVerifier {
+export function classifyVerifier(
+  text: string,
+  kind?: 'software' | 'errand' | 'unknown',
+): CriterionVerifier {
+  if (kind === 'errand') return 'user';
   return USER_VERIFIED.test(text) ? 'user' : 'jury';
 }
 

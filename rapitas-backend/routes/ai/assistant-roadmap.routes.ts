@@ -38,10 +38,13 @@ import { MAX_TEXT_LENGTH } from './assistant-intake.routes';
 import {
   criteriaFromDescription,
   normalizeCriteria,
+  splitByVerifier,
+  withoutCriteriaSection,
   ACCEPTANCE_CRITERIA_REQUIRED,
   MAX_CRITERIA,
   MAX_CRITERION_LENGTH,
 } from '../../services/assistant/criteria-proposal';
+import { composeDescription } from '../../services/assistant/roadmap-resolve';
 import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
 /** A placement as the payload states it, before it is trusted as a plan. */
@@ -128,14 +131,38 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
       // Every step must carry criteria before anything is created. A client
       // that predates the field still sends the description it showed, whose
       // `## 完了条件` checklist is the same approved text.
+      //
+      // Both arrays are re-split by the server's rules (design 4.1 案1): the
+      // jury's go to acceptanceCriteria, the person's to userAcceptanceChecks.
+      // When the confirmed set differs from the description's checklist (the
+      // user removed or reworded one on the card), the checklist is
+      // re-composed so the task's text and its columns say the same thing.
       const steps = body.steps.map((step) => {
-        const sent = normalizeCriteria(step.acceptanceCriteria);
+        const listed = criteriaFromDescription(step.description);
+        const sent = normalizeCriteria([
+          ...(step.acceptanceCriteria ?? []),
+          ...(step.userAcceptanceChecks ?? []),
+        ]);
+        const confirmed = sent.length ? sent : listed;
+        const split = splitByVerifier({
+          title: step.title,
+          description: withoutCriteriaSection(step.description),
+          proposed: confirmed,
+        });
+        const same =
+          listed.length === confirmed.length && listed.every((c, i) => c === confirmed[i]);
         return {
           ...step,
-          acceptanceCriteria: sent.length ? sent : criteriaFromDescription(step.description),
+          description:
+            same || confirmed.length === 0
+              ? step.description
+              : composeDescription(withoutCriteriaSection(step.description), confirmed),
+          acceptanceCriteria: split.acceptanceCriteria,
+          userAcceptanceChecks: split.userAcceptanceChecks,
+          confirmedCount: confirmed.length,
         };
       });
-      const lacking = steps.flatMap((step, i) => (step.acceptanceCriteria.length ? [] : [i]));
+      const lacking = steps.flatMap((step, i) => (step.confirmedCount ? [] : [i]));
       if (lacking.length > 0) {
         await recordAction({
           capabilityId: 'roadmap.commit',
@@ -151,7 +178,7 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
         goal: body.goal,
         themeChoice: body.themeChoice as ApprovedPlacement,
         projectChoice: body.projectChoice as ApprovedPlacement,
-        steps,
+        steps: steps.map(({ confirmedCount: _count, ...step }) => step),
       });
 
       const actionId = await recordAction({
@@ -197,6 +224,11 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
             // Optional in the schema so an older client is read from its
             // description instead of rejected outright; required in effect.
             acceptanceCriteria: t.Optional(
+              t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
+            ),
+            // The person's checks, sent apart by a client that shows the
+            // split. Re-split by the server either way.
+            userAcceptanceChecks: t.Optional(
               t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
             ),
           }),

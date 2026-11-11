@@ -96,3 +96,47 @@ describe('deleting a task closes its companion rows and keeps them', () => {
     expect(rowFor(1)).toMatchObject({ closedAt: null });
   });
 });
+
+describe('a deep subtask chain is walked to the end (review fix2 item 4)', () => {
+  /** Tasks 101..(100+n) in one line: each is the parent of the next. */
+  function seedChain(n: number) {
+    db = createMemoryDb();
+    for (let i = 1; i <= n; i++) {
+      db.tables.Task.push({
+        id: 100 + i,
+        title: `level ${i}`,
+        parentId: i === 1 ? null : 100 + i - 1,
+        isProtected: false,
+        workspaceId: 4,
+      });
+      db.tables.TaskCompanion.push({
+        id: i,
+        taskId: 100 + i,
+        origin: 'roadmap_commit',
+        workspaceId: 4,
+        closedAt: null,
+        closedReason: null,
+      });
+    }
+  }
+
+  test('34 tasks in a straight line: deleting the top closes all 34 rows', async () => {
+    // The review's reproduction: a 32-level cap stopped at the first 33.
+    seedChain(34);
+    const result = await deleteTaskWithTrash(101, 'user');
+    expect(result.outcome).toBe('deleted');
+    expect(db.tables.Task).toHaveLength(0);
+    const open = db.tables.TaskCompanion.filter((r) => r.closedAt === null);
+    expect(open.map((r) => r.taskId)).toEqual([]);
+    expect(db.tables.TaskCompanion.every((r) => r.closedReason === 'task_deleted')).toBe(true);
+    expect(db.tables.TaskCompanion).toHaveLength(34);
+  });
+
+  test('100 levels deep: the deepest row is closed too', async () => {
+    seedChain(100);
+    await deleteTaskWithTrash(101, 'user');
+    expect(db.tables.TaskCompanion.find((r) => r.taskId === 200)).toMatchObject({
+      closedReason: 'task_deleted',
+    });
+  });
+});
