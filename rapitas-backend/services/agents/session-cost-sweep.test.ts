@@ -84,7 +84,12 @@ afterAll(async () => {
 const BOOT = new Date('2026-11-10T09:00:00Z');
 const before = (ms: number) => new Date(BOOT.getTime() - ms);
 // A fresh in-memory cursor per test, so no test touches the real data dir.
-let FAST = { batchSize: 2, pauseMs: 0, retryBaseMs: 1, cursorStore: createMemorySweepCursorStore() };
+let FAST = {
+  batchSize: 2,
+  pauseMs: 0,
+  retryBaseMs: 1,
+  cursorStore: createMemorySweepCursorStore(),
+};
 let configId = 0;
 
 beforeEach(async () => {

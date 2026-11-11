@@ -66,8 +66,7 @@ export interface SessionRecoveryDb {
 const recoveryRuns = createKeyedRetryQueue<'window'>({
   baseMs: 1_000,
   maxMs: 60_000,
-  onError: (_k, err) =>
-    log.warn({ err }, '[session-cost] Startup recovery rerun failed; retrying'),
+  onError: (_k, err) => log.warn({ err }, '[session-cost] Startup recovery rerun failed; retrying'),
 });
 
 type RecoveryDb = SessionTotalsDb & SessionRecoveryDb;

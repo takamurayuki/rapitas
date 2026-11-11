@@ -68,7 +68,10 @@ export function fakeDb(n: number) {
       }) {
         state.calls++;
         await maybeHold('write', args.where.id);
-        stored.set(args.where.id, { cost: args.data.totalCostUsd, tokens: args.data.totalTokensUsed });
+        stored.set(args.where.id, {
+          cost: args.data.totalCostUsd,
+          tokens: args.data.totalTokensUsed,
+        });
         return { count: 1 };
       },
       async update() {
@@ -87,7 +90,14 @@ export function fakeDb(n: number) {
         }
         await maybeHold('read', id);
         return [
-          { id: id * 10, sessionId: id, costUsd: 1.5, tokensUsed: 140, claudeSessionId: null, startedAt: new Date(0) },
+          {
+            id: id * 10,
+            sessionId: id,
+            costUsd: 1.5,
+            tokensUsed: 140,
+            claudeSessionId: null,
+            startedAt: new Date(0),
+          },
         ];
       },
     },
@@ -111,7 +121,8 @@ export type Fake = ReturnType<typeof fakeDb>;
  * @param f - The fake / 偽の DB
  * @returns The same object, typed for the sweep / 走査用に型付けした同じオブジェクト
  */
-export const asSweepDb = (f: Fake) => f.db as unknown as Parameters<typeof sweepAllSessionTotals>[0];
+export const asSweepDb = (f: Fake) =>
+  f.db as unknown as Parameters<typeof sweepAllSessionTotals>[0];
 
 /** Sweep options that make a test run without waiting. */
 export const FAST = { batchSize: 2, pauseMs: 0, retryBaseMs: 1 };

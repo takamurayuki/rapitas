@@ -21,7 +21,15 @@ import {
   scheduleSessionRecompute,
   type SessionTotalsDb,
 } from './session-cost-totals';
-import { asSweepDb, fakeDb, FAST, STALE, tick, until, type Kind } from './session-cost-sweep.test-helpers';
+import {
+  asSweepDb,
+  fakeDb,
+  FAST,
+  STALE,
+  tick,
+  until,
+  type Kind,
+} from './session-cost-sweep.test-helpers';
 
 afterEach(async () => {
   await drainSessionRecomputesForShutdown({ timeoutMs: 200 });
