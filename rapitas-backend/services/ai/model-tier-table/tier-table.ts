@@ -175,13 +175,33 @@ export function isSuitableForRole(modelId: string, role: string | null | undefin
   return entry.roles[column];
 }
 
+/** Which subscription CLI reaches a row on a CLI host. */
+export type CliRoute = 'claude' | 'codex';
+
+/**
+ * The CLI route that reaches a row, or null when no CLI route is confirmed.
+ * Decided by the row's vendor: Anthropic rows through the Claude Code CLI's
+ * alias, OpenAI rows through the Codex CLI's model id. Google has no
+ * auxiliary CLI route.
+ *
+ * @param entry - Table row / 表の行
+ * @returns The route, or null / CLI 経路（無ければ null）
+ */
+export function cliRouteOf(entry: ModelTierEntry): CliRoute | null {
+  if (entry.vendor === 'anthropic') return entry.cliAlias !== null ? 'claude' : null;
+  if (entry.vendor === 'openai') return entry.codexCliModel !== null ? 'codex' : null;
+  return null;
+}
+
 /**
  * Current rows a seat may be filled from.
  *
  * @param opts.vendors - Vendors usable right now / いま使えるベンダー
- * @param opts.cliOnly - Only rows reachable through the Claude Code CLI / CLI経路のみ
+ * @param opts.cliOnly - Only rows a subscription CLI (Claude Code or Codex) reaches / CLI経路のある行のみ
  * @returns Current rows, table order / 表の順の行
  */
+// NOTE: cliOnly used to mean "Claude Code alias only"; since routing2b an
+// OpenAI row with a confirmed Codex CLI model also qualifies (cliRouteOf).
 export function seatableEntries(opts: {
   vendors: Iterable<ModelVendor>;
   cliOnly?: boolean;
@@ -189,7 +209,7 @@ export function seatableEntries(opts: {
   const vendors = new Set(opts.vendors);
   return MODEL_TIER_TABLE.filter(
     (e) =>
-      e.status === 'current' && vendors.has(e.vendor) && (!opts.cliOnly || e.cliAlias !== null),
+      e.status === 'current' && vendors.has(e.vendor) && (!opts.cliOnly || cliRouteOf(e) !== null),
   );
 }
 

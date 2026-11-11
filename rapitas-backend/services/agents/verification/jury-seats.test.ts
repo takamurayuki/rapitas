@@ -195,7 +195,9 @@ describe('assignSeats — API ホスト', () => {
     expect(s.reviewers[0].tier).toBe('premium');
     // The cheapest premium that may review — Opus, not the costlier Fable.
     expect(s.reviewers[0].model).toBe('claude-opus-5-5');
-    expect(s.unavailable).toEqual([{ vendor: 'openai', reason: 'quota' }]);
+    expect(s.unavailable).toEqual([
+      { vendor: 'openai', reason: 'quota', resumeAt: expect.any(String) },
+    ]);
   });
 
   test('到達できるプロバイダを独立性の優先順に割り当てる', () => {

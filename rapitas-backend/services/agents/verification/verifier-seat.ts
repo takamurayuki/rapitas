@@ -21,6 +21,7 @@ import type { FindingCheck } from './two-seat-review';
 import type { JurorUsage } from './adversarial-diff-review-verdict';
 import type { UnknownReason } from './juror-unknown-reason';
 import { jurorTimeoutMs, recordJurorOutcome } from './juror-call';
+import { coolVendorAfterJurorFailure } from './juror-cli-cooldown';
 
 const log = createLogger('verification:verifier-seat');
 
@@ -160,6 +161,7 @@ export async function askVerifier(
       sendAIMessage({
         provider: seat.provider,
         model: seat.model,
+        ...(seat.cliRoute ? { cliRoute: seat.cliRoute } : {}),
         systemPrompt: 'You are a careful verifier who checks claims against code evidence.',
         maxTokens: 2000,
         messages: [{ role: 'user', content: prompt }],
@@ -192,6 +194,8 @@ export async function askVerifier(
     ]);
   } catch (err) {
     log.warn({ err, seat: seat.label }, '[verifier-seat] Verifier failed');
+    // Quota/auth on the seat's CLI cools that vendor for the next review.
+    coolVendorAfterJurorFailure(err, seat.model);
     return { checks: null, unknownReason: 'error' };
   } finally {
     if (timer) clearTimeout(timer);

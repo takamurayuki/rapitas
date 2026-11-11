@@ -4,14 +4,16 @@
  * The vendors this host is actually set up to call for an auxiliary review,
  * read from the real configuration: in API mode, the providers with an API key
  * (UserSettings, or CLAUDE_API_KEY for Claude — the same lookup the API call
- * itself uses, credentials.getApiKeyForProvider); in CLI mode,
- * Anthropic only when the Claude Code CLI is installed and answers. Cooldowns
+ * itself uses, credentials.getApiKeyForProvider); in CLI mode, Anthropic when
+ * the Claude Code CLI answers and OpenAI when the Codex CLI answers and is
+ * logged in with ChatGPT (routing2b). Google has no CLI route. Cooldowns
  * (quota / rate limit / auth failures) are layered on top by
  * usable-vendors.ts. Not responsible for choosing seats.
  *
- * NOTE: The CLI check proves the binary runs (`claude --version`, memoised for
- * the process), not that its login is valid — the CLI has no cheap auth probe.
- * An auth failure on a real call puts the provider in cooldown, which
+ * NOTE: The Claude check proves the binary runs (`claude --version`, memoised
+ * for the process), not that its login is valid — that CLI has no cheap auth
+ * probe. The Codex check also reads `codex login status`. An auth failure on a
+ * real juror call puts the vendor in cooldown (juror-cli-cooldown.ts), which
  * usable-vendors.ts then removes.
  */
 import { createLogger } from '../../../config/logger';
@@ -50,23 +52,7 @@ export async function resolveConfiguredVendors(auxMode: AuxAiMode): Promise<Conf
       })),
     };
   }
-  if (auxMode === 'cli') {
-    // NOTE: CLI aux mode sends every call through the Claude Code CLI
-    // (sendAIMessage ignores the provider there), so Anthropic is the only
-    // vendor this host can seat, and only when that CLI runs.
-    const available = await import('../../../utils/ai-client/claude-cli-provider')
-      .then((m) => m.isClaudeCliAvailable())
-      .catch((err) => {
-        log.warn({ err }, 'Claude CLI availability check failed — treating it as unavailable');
-        return false;
-      });
-    return available
-      ? { configured: ['anthropic'], unconfigured: [] }
-      : {
-          configured: [],
-          unconfigured: [{ vendor: 'anthropic', reason: 'Claude CLI が見つからない・起動しない' }],
-        };
-  }
+  if (auxMode === 'cli') return resolveCliVendors();
 
   const configured: ModelVendor[] = [];
   const unconfigured: ConfiguredVendors['unconfigured'] = [];
@@ -78,5 +64,49 @@ export async function resolveConfiguredVendors(auxMode: AuxAiMode): Promise<Conf
     if (key) configured.push(vendor);
     else unconfigured.push({ vendor, reason: 'API キーが設定されていない' });
   }
+  return { configured, unconfigured };
+}
+
+/** Why the Codex CLI is not seatable, by its probed status. */
+const CODEX_UNCONFIGURED_REASON: Record<string, string> = {
+  missing: 'Codex CLI が見つからない・起動しない',
+  not_logged_in: 'Codex CLI に ChatGPT でログインしていない',
+  not_chatgpt_login:
+    'Codex CLI が API キーでログインしている（補助には ChatGPT ログインだけを使う）',
+};
+
+/**
+ * CLI mode: each subscription CLI that answers. Claude comes first — the
+ * planner's last tiebreak is this route order.
+ */
+async function resolveCliVendors(): Promise<ConfiguredVendors> {
+  const [claude, codex] = await Promise.all([
+    import('../../../utils/ai-client/claude-cli-provider')
+      .then((m) => m.isClaudeCliAvailable())
+      .catch((err) => {
+        log.warn({ err }, 'Claude CLI availability check failed — treating it as unavailable');
+        return false;
+      }),
+    // Lazy, like the Claude check: tests that mock ai-client modules with a
+    // fixed export list never load the Codex provider through here.
+    import('../../../utils/ai-client/codex-cli-provider')
+      .then((m) => m.getCodexCliStatus())
+      .catch((err) => {
+        log.warn({ err }, 'Codex CLI availability check failed — treating it as unavailable');
+        return 'missing' as const;
+      }),
+  ]);
+  const configured: ModelVendor[] = [];
+  const unconfigured: ConfiguredVendors['unconfigured'] = [];
+  if (claude) configured.push('anthropic');
+  else unconfigured.push({ vendor: 'anthropic', reason: 'Claude CLI が見つからない・起動しない' });
+  if (codex === 'ready') configured.push('openai');
+  else {
+    unconfigured.push({
+      vendor: 'openai',
+      reason: CODEX_UNCONFIGURED_REASON[codex] ?? CODEX_UNCONFIGURED_REASON.missing,
+    });
+  }
+  unconfigured.push({ vendor: 'google', reason: 'CLI の補助経路が無い（Gemini）' });
   return { configured, unconfigured };
 }

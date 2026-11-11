@@ -11,6 +11,7 @@ import { createLogger } from '../../../config/logger';
 import type { JurorSpec } from './jury-panel';
 import type { UnknownReason } from './juror-unknown-reason';
 import { parseReviewVerdict, type JurorVerdict } from './adversarial-diff-review-verdict';
+import { coolVendorAfterJurorFailure } from './juror-cli-cooldown';
 
 const log = createLogger('verification:adversarial-diff-review');
 
@@ -121,6 +122,7 @@ export async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVe
       sendAIMessage({
         provider,
         model,
+        ...(seat.cliRoute ? { cliRoute: seat.cliRoute } : {}),
         systemPrompt: 'You are a meticulous, skeptical senior code reviewer.',
         // Structured findings (severity/evidence/repro per item) need more
         // room than the old one-line reasons did.
@@ -164,6 +166,9 @@ export async function askJuror(seat: JurorSpec, prompt: string): Promise<JurorVe
     return verdict;
   } catch (err) {
     log.warn({ err, juror: label }, '[adversarial-review] Juror failed');
+    // Quota/auth on the seat's CLI cools that vendor for the next review
+    // (routing2b); the verdict itself stays 'unknown' as before.
+    coolVendorAfterJurorFailure(err, model);
     return unknownFor('error');
   } finally {
     // Without this the pending timer keeps the event loop (and in tests, the

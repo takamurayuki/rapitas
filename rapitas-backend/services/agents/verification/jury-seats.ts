@@ -25,6 +25,7 @@ import {
   type SeatRequirement,
 } from '../../ai/model-tier-table/seat-planner';
 import {
+  cliRouteOf,
   seatableEntries,
   vendorOfProvider,
   type ModelVendor,
@@ -47,8 +48,9 @@ export interface SeatDefinition {
 export type SeatAssignment = SeatDefinition &
   JurorSpec & {
     /**
-     * The model the call will actually run on (CLI: the `--model` alias), the
-     * identity two seats are compared on for independence.
+     * The model the call will actually run on (Claude CLI: the `--model`
+     * alias; Codex CLI: the `-m` id), the identity two seats are compared on
+     * for independence.
      */
     resolvedModel: string;
     /** How this seat's independence is secured (別系統 or 文脈分離＋反証レンズ). */
@@ -115,10 +117,32 @@ export interface JurySeating {
 function seated(def: SeatDefinition, planned: PlannedSeat, cli: boolean): SeatAssignment {
   const { entry } = planned;
   if (cli) {
+    // NOTE: The CLI route follows the row's VENDOR (routing2b). This used to
+    // send every row through the Claude CLI, so an OpenAI row would have been
+    // recorded — and asked — as `haiku` (toCliModelAlias maps unknown ids
+    // there), and astra/sol would have compared as one model.
+    const route = cliRouteOf(entry);
+    if (route === 'codex' && entry.codexCliModel) {
+      return {
+        ...def,
+        provider: 'chatgpt',
+        cliRoute: 'codex',
+        model: entry.codexCliModel,
+        label: `codex:${entry.codexCliModel}`,
+        resolvedModel: entry.codexCliModel,
+        independence: planned.independence,
+      };
+    }
+    if (route !== 'claude') {
+      // seatableEntries({cliOnly}) never offers such a row; refuse rather
+      // than guess a route.
+      return unmetSeat(def, `${entry.modelId} に CLI の経路がない`);
+    }
     const alias = entry.cliAlias ?? toCliModelAlias(entry.modelId);
     return {
       ...def,
       provider: 'claude',
+      cliRoute: 'claude',
       model: entry.modelId,
       label: `claude:${alias}`,
       resolvedModel: toCliModelAlias(entry.modelId),
@@ -164,7 +188,8 @@ function readOverrides(): Record<string, string> {
  * configured (tests, callers that already checked).
  *
  * `RAPITAS_JURY_MODELS` (comma separated, CLI host) overrides the models by
- * seat order: reviewer-1, reviewer-2, verifier. An override is held to the same
+ * seat order: reviewer-1, reviewer-2, verifier. OpenAI ids are accepted when
+ * the Codex CLI is configured. An override is held to the same
  * requirements as the planner's choice (floor ≥ executor, review suitability,
  * usable vendor and CLI route); one that fails leaves its seat unmet. The plan
  * returned is what actually sits, overrides included.
@@ -193,12 +218,11 @@ export function assignSeats(
       .filter((v): v is ModelVendor => v !== null),
     unconfigured: [],
   };
-  // NOTE: In CLI aux mode every juror call goes through the Claude Code CLI
-  // (sendAIMessage ignores the provider there), so only Anthropic can sit.
-  const configured = cli
-    ? declared.configured.filter((v) => v === 'anthropic')
-    : declared.configured;
-  const availability = usableVendorsAmong(configured, declared.unconfigured);
+  // NOTE: The CLI host used to keep Anthropic only (every call went to the
+  // Claude CLI). Since routing2b each seat names its CLI (cliRoute), so any
+  // configured vendor with a CLI route may sit; seatableEntries({cliOnly})
+  // drops rows no CLI reaches (Google, Fable).
+  const availability = usableVendorsAmong(declared.configured, declared.unconfigured);
   const candidates = seatableEntries({ vendors: availability.usable, cliOnly: cli });
   // Keep the route's vendor order as the planner's last tiebreak.
   candidates.sort(
