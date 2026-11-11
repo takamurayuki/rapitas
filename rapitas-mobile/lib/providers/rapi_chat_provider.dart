@@ -136,7 +136,10 @@ class RapiRoadmapCard {
   /// カード内に出す失敗の案内
   final String? error;
 
-  const RapiRoadmapCard({
+  /// 手順ごとの完了条件の編集状態（[draft] の steps と同じ順。設計 段B の「採否・文言」）
+  final List<RapiCriteriaEdit> stepCriteria;
+
+  RapiRoadmapCard({
     required this.text,
     required this.draft,
     this.asked = const [],
@@ -144,7 +147,14 @@ class RapiRoadmapCard {
     this.phase = RapiRoadmapPhase.ready,
     this.result,
     this.error,
-  });
+    List<RapiCriteriaEdit>? stepCriteria,
+  }) : stepCriteria = stepCriteria ?? criteriaOf(draft);
+
+  /// 下書きの手順それぞれの、初めの編集状態（サーバーの判定と採点のまま）
+  static List<RapiCriteriaEdit> criteriaOf(RoadmapDraft draft) => [
+        for (final s in draft.steps)
+          RapiCriteriaEdit(items: s.criteriaRows, quality: s.criteriaQuality),
+      ];
 
   /// 下書き [draft] から作る。質問があれば推奨を初期選択にして questions から始める
   factory RapiRoadmapCard.fromDraft(String text, RoadmapDraft draft) => draft.hasQuestions
@@ -164,6 +174,7 @@ class RapiRoadmapCard {
     RapiRoadmapPhase? phase,
     RoadmapCommitResult? result,
     Object? error = _unset,
+    List<RapiCriteriaEdit>? stepCriteria,
   }) =>
       RapiRoadmapCard(
         text: text,
@@ -173,6 +184,33 @@ class RapiRoadmapCard {
         phase: phase ?? this.phase,
         result: result ?? this.result,
         error: identical(error, _unset) ? this.error : error as String?,
+        // 下書きが入れ替わったら（作り直し）、条件の編集も新しい手順から始め直す
+        stepCriteria: stepCriteria ?? (draft != null ? null : this.stepCriteria),
+      );
+
+  /// 手順 [index] の完了条件の編集状態を [edit] にしたカード
+  RapiRoadmapCard withStepCriteria(int index, RapiCriteriaEdit edit) => copyWith(
+        stepCriteria: [
+          for (var i = 0; i < stepCriteria.length; i++) i == index ? edit : stepCriteria[i],
+        ],
+      );
+
+  /// commit で送る計画：各手順の条件を、カードで採った・直したものにする（陪審／本人の2列）
+  RoadmapDraft get confirmedDraft => RoadmapDraft(
+        goal: draft.goal,
+        themeChoice: draft.themeChoice,
+        projectChoice: draft.projectChoice,
+        questions: draft.questions,
+        steps: [
+          for (var i = 0; i < draft.steps.length; i++)
+            i < stepCriteria.length
+                ? draft.steps[i].withConfirmed(
+                    jury: stepCriteria[i].selectedJury, user: stepCriteria[i].selectedUser)
+                : draft.steps[i],
+        ],
+        deadline: draft.deadline,
+        assumptions: draft.assumptions,
+        comparisonAxes: draft.comparisonAxes,
       );
 
   /// 質問と選んだ答え（聞かれた順）
@@ -186,7 +224,9 @@ class RapiRoadmapCard {
   bool get canCommit =>
       phase == RapiRoadmapPhase.ready &&
       draft.goal.trim().isNotEmpty &&
-      draft.steps.isNotEmpty;
+      draft.steps.isNotEmpty &&
+      // どの手順にも完了条件が1つ以上残っている（サーバーは無い手順があると全体を断る）
+      stepCriteria.every((c) => c.items.isEmpty || c.selected.isNotEmpty);
 }
 
 /// 片付けの候補の出し方。condition（条件で選ぶ：delete-filter）／text（文章で選ぶ：delete-draft）
@@ -506,8 +546,8 @@ class RapiChatState {
   /// 下書きカードのタイトル欄の文（編集中の値）
   final String draftTitle;
 
-  /// 下書きの完了条件のうち、ユーザーが外したものの番号（0 始まり。設計 段B の「採否」）
-  final Set<int> draftExcludedCriteria;
+  /// 下書きの完了条件の編集状態（設計 段B の「採否・文言」）。下書きが無ければ空
+  final RapiCriteriaEdit draftCriteria;
   final bool creating;
 
   // 見守り（振り分けで watch になったときに読み込む）
@@ -530,7 +570,7 @@ class RapiChatState {
     this.draft,
     this.draftThemeId,
     this.draftTitle = '',
-    this.draftExcludedCriteria = const {},
+    this.draftCriteria = const RapiCriteriaEdit(),
     this.creating = false,
     this.survey,
     this.surveyLoading = false,
@@ -546,7 +586,7 @@ class RapiChatState {
     Object? draft = _unset,
     Object? draftThemeId = _unset,
     String? draftTitle,
-    Set<int>? draftExcludedCriteria,
+    RapiCriteriaEdit? draftCriteria,
     bool? creating,
     Object? survey = _unset,
     bool? surveyLoading,
@@ -562,7 +602,7 @@ class RapiChatState {
         draftThemeId:
             identical(draftThemeId, _unset) ? this.draftThemeId : draftThemeId as String?,
         draftTitle: draftTitle ?? this.draftTitle,
-        draftExcludedCriteria: draftExcludedCriteria ?? this.draftExcludedCriteria,
+        draftCriteria: draftCriteria ?? this.draftCriteria,
         creating: creating ?? this.creating,
         survey: identical(survey, _unset) ? this.survey : survey as SupervisionSurvey?,
         surveyLoading: surveyLoading ?? this.surveyLoading,
@@ -575,14 +615,8 @@ class RapiChatState {
             : activeExternalDraftId as String?,
       );
 
-  /// 作成時に送る完了条件（外したものを除く。並びは提案のまま）
-  List<String> get draftSelectedCriteria {
-    final all = draft?.acceptanceCriteria ?? const <String>[];
-    return [
-      for (var i = 0; i < all.length; i++)
-        if (!draftExcludedCriteria.contains(i)) all[i],
-    ];
-  }
+  /// 作成時に送る完了条件（外したものを除く。並びはカードのまま。直した文は直した文で）
+  List<String> get draftSelectedCriteria => draft == null ? const [] : draftCriteria.selected;
 
   /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
   bool get surveyVisible => survey != null || surveyLoading || surveyFailed;
@@ -1099,7 +1133,11 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       draft: draft,
       draftThemeId: draft.themeId,
       draftTitle: draft.title,
-      draftExcludedCriteria: const {},
+      draftCriteria: RapiCriteriaEdit(
+        items: draft.criteriaRows,
+        quality: draft.criteriaQuality,
+        fallback: draft.acceptanceCriteriaFallback,
+      ),
     );
     _add((id) => RapiMessage(id: id, role: RapiRole.assistant, draftSlot: true));
   }
@@ -1113,10 +1151,50 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
 
   /// 下書きの完了条件 [index] を採る／外す（作成時に送るのは採ったものだけ）
   void toggleDraftCriterion(int index) {
-    if (state.creating) return;
-    final next = {...state.draftExcludedCriteria};
-    if (!next.remove(index)) next.add(index);
-    state = state.copyWith(draftExcludedCriteria: next);
+    if (state.creating || state.draft == null) return;
+    _setDraftCriteria(state.draftCriteria.toggled(index));
+  }
+
+  /// 下書きの完了条件 [index] の文言を [text] に直す（判定と採点はサーバーに問い合わせ直す）
+  void editDraftCriterion(int index, String text) {
+    if (state.creating || state.draft == null) return;
+    _setDraftCriteria(state.draftCriteria.rewritten(index, text));
+  }
+
+  void _setDraftCriteria(RapiCriteriaEdit next) {
+    if (identical(next, state.draftCriteria)) return;
+    final draft = state.draft;
+    state = state.copyWith(draftCriteria: next);
+    _reviewCriteria(
+      edit: next,
+      title: state.draftTitle,
+      description: draft?.description,
+      read: () => identical(state.draft, draft) ? state.draftCriteria : null,
+      write: (e) => state = state.copyWith(draftCriteria: e),
+    );
+  }
+
+  /// [edit] の採った条件をサーバーに判定し直してもらい、版が変わっていなければ当てる
+  /// （起票カード・計画カード共通。サーバーの判定が正）
+  Future<void> _reviewCriteria({
+    required RapiCriteriaEdit edit,
+    required String title,
+    String? description,
+    required RapiCriteriaEdit? Function() read,
+    required void Function(RapiCriteriaEdit) write,
+  }) async {
+    final selected = edit.selected;
+    if (selected.isEmpty) return;
+    try {
+      final r = await ref
+          .read(assistantServiceProvider)
+          .reviewCriteria(title: title, description: description, criteria: selected);
+      final now = read();
+      if (now != null) write(now.applyReview(edit.revision, r.items, r.quality));
+    } catch (_) {
+      final now = read();
+      if (now != null) write(now.reviewFailedAt(edit.revision));
+    }
   }
 
   void discardDraft() {
@@ -1124,7 +1202,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       messages: state.messages.where((m) => !m.draftSlot).toList(),
       draft: null,
       draftThemeId: null,
-      draftExcludedCriteria: const {},
+      draftCriteria: const RapiCriteriaEdit(),
     );
   }
 
@@ -1133,6 +1211,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     final themeId = state.draftThemeId;
     final title = state.draftTitle.trim();
     final criteria = state.draftSelectedCriteria;
+    final picked = state.draftCriteria;
     // サーバーは完了条件の無い作成を断る（400）。1件も採っていなければ送らない
     if (draft == null || themeId == null || title.isEmpty || state.creating || criteria.isEmpty) {
       return;
@@ -1147,7 +1226,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
             priority: draft.priority,
             dueDate: draft.dueDate,
             estimatedHours: draft.estimatedHours,
-            acceptanceCriteria: criteria,
+            // カードのタグどおりに2列で送る（サーバーが同じ規則で分け直す。設計 4.1 案1）
+            acceptanceCriteria: picked.selectedJury,
+            userAcceptanceChecks: picked.selectedUser,
           );
       ref.invalidate(taskListProvider);
       // 作成中に別の下書きへ置き換わっていたら、そちらは消さない
@@ -1561,6 +1642,41 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     }
   }
 
+  /// 計画の手順 [step] の完了条件 [index] を採る／外す（最終確認の間だけ）
+  void toggleRoadmapCriterion(int messageId, int step, int index) =>
+      _editRoadmapCriteria(messageId, step, (e) => e.toggled(index));
+
+  /// 計画の手順 [step] の完了条件 [index] の文言を [text] に直す（最終確認の間だけ）
+  void editRoadmapCriterion(int messageId, int step, int index, String text) =>
+      _editRoadmapCriteria(messageId, step, (e) => e.rewritten(index, text));
+
+  void _editRoadmapCriteria(
+      int messageId, int step, RapiCriteriaEdit Function(RapiCriteriaEdit) change) {
+    final card = _roadmapOf(messageId);
+    if (card == null || card.phase != RapiRoadmapPhase.ready) return;
+    if (step < 0 || step >= card.stepCriteria.length) return;
+    final next = change(card.stepCriteria[step]);
+    if (identical(next, card.stepCriteria[step])) return;
+    _setRoadmap(messageId, card.withStepCriteria(step, next));
+    final draft = card.draft;
+    final s = draft.steps[step];
+    _reviewCriteria(
+      edit: next,
+      title: s.title,
+      description: s.descriptionWithoutCriteria,
+      read: () {
+        final now = _roadmapOf(messageId);
+        return now != null && identical(now.draft, draft) && step < now.stepCriteria.length
+            ? now.stepCriteria[step]
+            : null;
+      },
+      write: (e) {
+        final now = _roadmapOf(messageId);
+        if (now != null) _setRoadmap(messageId, now.withStepCriteria(step, e));
+      },
+    );
+  }
+
   /// 「やめる」：作成前のカードを下げる（何も作っていない）
   void cancelRoadmap(int messageId) {
     final phase = _roadmapOf(messageId)?.phase;
@@ -1581,7 +1697,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     if (card == null || !card.canCommit) return;
     _setRoadmap(messageId, card.copyWith(phase: RapiRoadmapPhase.committing, error: null));
     try {
-      final result = await ref.read(assistantServiceProvider).roadmapCommit(card.draft);
+      final result = await ref.read(assistantServiceProvider).roadmapCommit(card.confirmedDraft);
       _refreshAfterRoadmap(card);
       _setRoadmap(
           messageId,

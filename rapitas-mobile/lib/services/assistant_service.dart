@@ -81,6 +81,7 @@ class AssistantService {
     String? dueDate,
     double? estimatedHours,
     List<String> acceptanceCriteria = const [],
+    List<String> userAcceptanceChecks = const [],
   }) async {
     final theme = int.tryParse(themeId);
     if (theme == null) throw const AssistantException('invalid_theme');
@@ -96,6 +97,8 @@ class AssistantService {
           if (dueDate != null) 'dueDate': dueDate,
           if (estimatedHours != null) 'estimatedHours': estimatedHours,
           if (acceptanceCriteria.isNotEmpty) 'acceptanceCriteria': acceptanceCriteria,
+          // 本人が確かめる条件（サーバーが判定し直して userAcceptanceChecks の列へ）
+          if (userAcceptanceChecks.isNotEmpty) 'userAcceptanceChecks': userAcceptanceChecks,
         },
       },
     ))
@@ -212,6 +215,28 @@ class AssistantService {
           statusCode: response.statusCode);
     }
     if (body['success'] != true) throw const AssistantException('unexpected_response');
+  }
+
+  /// カードで直した完了条件 [criteria] を、サーバーに判定し直してもらう（何も書き込まない）。
+  /// POST /assistant/criteria/review {title, description?, criteria}
+  ///   → {success: true, items: [{text, verifier, vague?, supplemented?, generic?}], quality, kind}
+  /// サーバーの判定が正（確定時も同じ規則で2列に分ける）。
+  Future<({List<RapiCriterionItem> items, RapiCriteriaQuality? quality})> reviewCriteria({
+    required String title,
+    String? description,
+    required List<String> criteria,
+  }) async {
+    final body = _body((await _post('/assistant/criteria/review', {
+      'title': title.trim().isEmpty ? 'タスク' : title.trim(),
+      if (description != null && description.isNotEmpty) 'description': description,
+      'criteria': criteria.take(10).toList(),
+    }))
+        .data);
+    if (body['success'] != true) throw const AssistantException('unexpected_response');
+    return (
+      items: rapiCriterionItems(body['items']),
+      quality: RapiCriteriaQuality.fromJson(body['quality']),
+    );
   }
 
   // ---- 計画（roadmap）----

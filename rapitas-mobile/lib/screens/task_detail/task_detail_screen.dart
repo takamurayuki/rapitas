@@ -117,7 +117,10 @@ class TaskDetailScreen extends ConsumerWidget {
                 ],
                 // ラピ伴走化 第1段階：何をもって完了とするかと、いまどこにいるか（どちらも DB の値）
                 const SizedBox(height: 24),
-                TaskAcceptanceCriteriaSection(criteria: task.acceptanceCriteria),
+                TaskAcceptanceCriteriaSection(
+                  criteria: task.acceptanceCriteria,
+                  userChecks: task.userAcceptanceChecks,
+                ),
                 const SizedBox(height: 24),
                 TaskStageSection(
                   workflowStatus: task.workflowStatus,

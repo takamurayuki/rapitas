@@ -465,6 +465,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onAnswer: (i, answer) => _chat.chooseRoadmapAnswer(m.id, i, answer),
         onRefine: () => _chat.refineRoadmap(m.id),
         onCommit: () => _chat.commitRoadmap(m.id),
+        onToggleCriterion: (step, i) => _chat.toggleRoadmapCriterion(m.id, step, i),
+        onEditCriterion: (step, i, text) => _chat.editRoadmapCriterion(m.id, step, i, text),
         onCancel: () => _chat.cancelRoadmap(m.id),
         onOpenTasks: _openTaskList,
       ));
@@ -612,7 +614,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                 value: selected,
                 isExpanded: true,
                 dropdownColor: Colors.white,
-                style: const TextStyle(fontSize: 14, color: bodyColor),
+                // NOTE: テーマの文字設定から作る。fontFamily の無い TextStyle を渡すと、
+                // DropdownButton は継承した文字設定を丸ごと置き換える（キャプチャで豆腐になった）
+                style: textTheme.bodyMedium?.copyWith(fontSize: 14, color: bodyColor) ??
+                    const TextStyle(fontSize: 14, color: bodyColor),
                 hint: const Text('テーマを選んでください',
                     style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
                 items: [
@@ -638,15 +643,13 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
               draft.estimatedHours != null ? '${_formatHours(draft.estimatedHours!)}時間' : '未設定'),
           if (draft.description != null && draft.description != draft.title)
             row('説明', draft.description!),
-          if (draft.acceptanceCriteria.isNotEmpty) ...[
+          if (chat.draftCriteria.items.isNotEmpty) ...[
             const SizedBox(height: 8),
-            // 段B：1件ずつ採否・判定者・言い換えの案、下に採点
+            // 段B：1件ずつ採否・文言・判定者・言い換えの案、下に採点
             RapiCriteriaList(
-              items: draft.criteriaRows,
-              excluded: chat.draftExcludedCriteria,
-              quality: draft.criteriaQuality,
-              fallback: draft.acceptanceCriteriaFallback,
+              edit: chat.draftCriteria,
               onToggle: chat.creating ? null : _chat.toggleDraftCriterion,
+              onEdit: chat.creating ? null : _chat.editDraftCriterion,
             ),
           ],
           if (draft.unclear.isNotEmpty) ...[

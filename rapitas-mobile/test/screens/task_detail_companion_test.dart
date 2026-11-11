@@ -28,8 +28,11 @@ const _criteria = [
   '既存のログインのテストがすべて通る',
 ];
 
+const _userChecks = ['本人がスマホで間違ったパスワードを入れ、理由の文が読めることを確かめる'];
+
 Task _task({
   List<String> criteria = _criteria,
+  List<String> userChecks = const [],
   String? workflowStatus = 'plan_created',
   String? haltReason,
   String status = 'in-progress',
@@ -44,6 +47,7 @@ Task _task({
       createdAt: DateTime(2026, 11, 1),
       updatedAt: DateTime(2026, 11, 1),
       acceptanceCriteria: criteria,
+      userAcceptanceChecks: userChecks,
       workflowStatus: workflowStatus,
       haltReason: haltReason,
     );
@@ -83,6 +87,39 @@ void main() {
       expect(find.text('${i + 1}.'), findsOneWidget);
     }
     expect(find.textContaining('完了ゲートと陪審が判定します'), findsOneWidget);
+  });
+
+  testWidgets('the person’s checks are listed apart, under their own heading (fix2 item 5)',
+      (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(userChecks: _userChecks));
+    expect(find.byKey(const ValueKey('task-criteria-jury-heading')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-criteria-user-heading')), findsOneWidget);
+    expect(find.text('陪審が確かめる'), findsOneWidget);
+    expect(find.text('本人が確かめる'), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-criterion-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-user-check-0')), findsOneWidget);
+    expect(find.text(_userChecks.first), findsOneWidget);
+    expect(find.textContaining('陪審の判定には使いません'), findsOneWidget);
+    // The jury's heading sits above its list, the person's below it.
+    final juryY = tester.getTopLeft(find.byKey(const ValueKey('task-criteria-jury-heading'))).dy;
+    final userY = tester.getTopLeft(find.byKey(const ValueKey('task-criteria-user-heading'))).dy;
+    expect(tester.getTopLeft(find.text(_criteria.last)).dy, inExclusiveRange(juryY, userY));
+  });
+
+  testWidgets('a task with only the person’s checks says the jury has none', (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(criteria: const [], userChecks: _userChecks));
+    expect(find.text('完了条件はまだ登録されていません。'), findsNothing);
+    expect(find.text('ありません（本人が確かめる条件だけのタスクです）。'), findsOneWidget);
+    expect(find.text(_userChecks.first), findsOneWidget);
+  });
+
+  testWidgets('an older task (no person’s checks) shows no subheadings', (tester) async {
+    _phone(tester);
+    await _pump(tester, _task());
+    expect(find.text('陪審が確かめる'), findsNothing);
+    expect(find.text('本人が確かめる'), findsNothing);
   });
 
   testWidgets('shows the stage, its step and what is happening', (tester) async {
@@ -134,6 +171,8 @@ void main() {
         AppTheme.lightTheme
       ),
       'companion_plan_dark': (_task(), AppTheme.darkTheme),
+      'companion_two_columns_light': (_task(userChecks: _userChecks), AppTheme.lightTheme),
+      'companion_two_columns_dark': (_task(userChecks: _userChecks), AppTheme.darkTheme),
       'companion_empty_light': (
         _task(criteria: const [], workflowStatus: null, status: 'todo'),
         AppTheme.lightTheme

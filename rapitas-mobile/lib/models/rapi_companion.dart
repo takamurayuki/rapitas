@@ -4,8 +4,9 @@
 //   spec-quality-checker による採点。サーバーの task-draft / roadmap/draft が返す。
 // - 「伴走して」「伴走をやめて」の下書き（POST /assistant/companion/draft）。
 //
-// NOTE: 「誰が確かめるか」は表示だけ。保存先は今までどおり acceptanceCriteria の列で、
-// 本人が確かめる条件を別の列（userAcceptanceChecks）に分けるかは未決（設計 Q2）。
+// 「誰が確かめるか」で保存先が分かれる（設計 4.1 案1。Q2 は 2026-11-12 本人承認）：
+// 陪審が確かめる条件は acceptanceCriteria、本人が確かめる条件は userAcceptanceChecks。
+// 分けるのはサーバー（確定時に同じ規則で判定し直す）。カードのタグもサーバーの判定を出す。
 
 /// 完了条件を確かめる人。jury＝陪審が差分で確かめる、user＝本人が確かめる
 enum RapiCriterionVerifier { jury, user }
@@ -22,13 +23,56 @@ class RapiCriterionItem {
   /// ラピが3件に届かせるために補った条件か（読み取った案ではない）
   final bool supplemented;
 
+  /// 材料が少なく、ラピが具体的に書けなかった仮の文か（確定前に直してもらう）
+  final bool generic;
+
+  /// 利用者がカードで文言を直したか
+  final bool edited;
+
+  /// 直した文の判定者・言い換えの案を、サーバーに問い合わせ中か
+  final bool pending;
+
   const RapiCriterionItem({
     required this.text,
     this.verifier = RapiCriterionVerifier.jury,
     this.vagueTerm,
     this.vagueSuggestion,
     this.supplemented = false,
+    this.generic = false,
+    this.edited = false,
+    this.pending = false,
   });
+
+  /// 文言を [next] に直した行。判定者・言い換えの案はサーバーの判定が届くまで pending
+  RapiCriterionItem rewritten(String next) => RapiCriterionItem(
+        text: next,
+        verifier: verifier,
+        supplemented: supplemented,
+        edited: true,
+        pending: true,
+      );
+
+  /// サーバーの判定 [server] を、この行の「直したか」の印を残して当てる
+  RapiCriterionItem reviewed(RapiCriterionItem server) => RapiCriterionItem(
+        text: text,
+        verifier: server.verifier,
+        vagueTerm: server.vagueTerm,
+        vagueSuggestion: server.vagueSuggestion,
+        supplemented: supplemented && !edited,
+        generic: server.generic,
+        edited: edited,
+      );
+
+  /// 問い合わせに失敗したとき：判定は確定時にサーバーが行うので、待ちの印だけ外す
+  RapiCriterionItem settled() => RapiCriterionItem(
+        text: text,
+        verifier: verifier,
+        vagueTerm: vagueTerm,
+        vagueSuggestion: vagueSuggestion,
+        supplemented: supplemented,
+        generic: generic,
+        edited: edited,
+      );
 
   factory RapiCriterionItem.fromJson(Map<String, dynamic> json) {
     final vague = json['vague'];
@@ -39,6 +83,7 @@ class RapiCriterionItem {
       vagueTerm: v['term'] is String ? v['term'] as String : null,
       vagueSuggestion: v['suggestion'] is String ? v['suggestion'] as String : null,
       supplemented: json['supplemented'] == true,
+      generic: json['generic'] == true,
     );
   }
 

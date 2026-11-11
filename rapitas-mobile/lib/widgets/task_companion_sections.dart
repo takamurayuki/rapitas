@@ -51,43 +51,134 @@ const Map<String, String> _haltReasons = {
 String haltReasonText(String haltReason) =>
     _haltReasons[haltReason] ?? '自動で止まっています（理由: $haltReason）。';
 
-/// 「完了条件」の節。陪審はこの条件で完了を判定する
+/// 「完了条件」の節。陪審が判定に使う条件と、本人が確かめる条件を見出しで分けて出す
+/// （保存先も別の列。設計 4.1 案1）
 class TaskAcceptanceCriteriaSection extends StatelessWidget {
+  /// 陪審が差分で確かめる条件（acceptanceCriteria）
   final List<String> criteria;
 
-  const TaskAcceptanceCriteriaSection({super.key, required this.criteria});
+  /// 本人が確かめる条件（userAcceptanceChecks）。無ければ小見出しごと出さない
+  final List<String> userChecks;
+
+  const TaskAcceptanceCriteriaSection({
+    super.key,
+    required this.criteria,
+    this.userChecks = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final split = userChecks.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('完了条件', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        if (criteria.isEmpty)
+        if (criteria.isEmpty && !split)
           Text('完了条件はまだ登録されていません。', style: muted)
         else ...[
-          for (var i = 0; i < criteria.length; i++)
+          // 本人の条件が無い（従来の）タスクは、小見出しを付けず今までどおりに出す
+          if (split)
+            const _Subheading(
+              key: ValueKey('task-criteria-jury-heading'),
+              label: '陪審が確かめる',
+              color: Color(0xFF7C3AED),
+              background: Color(0xFFF5F3FF),
+              darkColor: Color(0xFFC4B5FD),
+            ),
+          if (criteria.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 22,
-                    child: Text('${i + 1}.',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                  ),
-                  Expanded(child: Text(criteria[i], style: theme.textTheme.bodyMedium)),
-                ],
-              ),
+              child: Text('ありません（本人が確かめる条件だけのタスクです）。', style: muted),
+            )
+          else ...[
+            _NumberedList(items: criteria, keyPrefix: 'task-criterion'),
+            Text('完了かどうかは、この条件をもとに完了ゲートと陪審が判定します。', style: muted),
+          ],
+          if (split) ...[
+            const SizedBox(height: 12),
+            const _Subheading(
+              key: ValueKey('task-criteria-user-heading'),
+              label: '本人が確かめる',
+              color: Color(0xFF0F766E),
+              background: Color(0xFFF0FDFA),
+              darkColor: Color(0xFF5EEAD4),
             ),
-          const SizedBox(height: 2),
-          Text('完了かどうかは、この条件をもとに完了ゲートと陪審が判定します。', style: muted),
+            _NumberedList(items: userChecks, keyPrefix: 'task-user-check'),
+            Text('陪審の判定には使いません。結果を見て、あなたが確かめる条件です。', style: muted),
+          ],
         ],
+      ],
+    );
+  }
+}
+
+/// 完了条件の小見出し（起票カードの判定者のタグと同じ色。ダークでは淡い文字と透けた地）
+class _Subheading extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color background;
+  final Color darkColor;
+
+  const _Subheading({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.background,
+    required this.darkColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: dark ? darkColor.withValues(alpha: 0.14) : background,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12, color: dark ? darkColor : color, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+class _NumberedList extends StatelessWidget {
+  final List<String> items;
+  final String keyPrefix;
+
+  const _NumberedList({required this.items, required this.keyPrefix});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < items.length; i++)
+          Padding(
+            key: ValueKey('$keyPrefix-$i'),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: Text('${i + 1}.',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ),
+                Expanded(child: Text(items[i], style: theme.textTheme.bodyMedium)),
+              ],
+            ),
+          ),
+        const SizedBox(height: 2),
       ],
     );
   }

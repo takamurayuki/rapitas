@@ -132,10 +132,32 @@ class _CompanionAssistant implements AssistantService {
     String? dueDate,
     double? estimatedHours,
     List<String> acceptanceCriteria = const [],
+    List<String> userAcceptanceChecks = const [],
   }) async {
     createdWith = acceptanceCriteria;
+    createdUserChecks = userAcceptanceChecks;
     return '42';
   }
+
+  List<String>? createdUserChecks;
+
+  @override
+  Future<({List<RapiCriterionItem> items, RapiCriteriaQuality? quality})> reviewCriteria({
+    required String title,
+    String? description,
+    required List<String> criteria,
+  }) async =>
+      (
+        items: [
+          for (final c in criteria)
+            RapiCriterionItem(
+                text: c,
+                verifier: c.contains('本人')
+                    ? RapiCriterionVerifier.user
+                    : RapiCriterionVerifier.jury),
+        ],
+        quality: const RapiCriteriaQuality(score: 55, isAdequate: false),
+      );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -317,8 +339,9 @@ void main() {
     expect(find.text('2 / 3件を採用'), findsOneWidget);
     await tester.tap(find.text('この内容で作成'));
     await tester.pumpAndSettle();
-    expect(assistant.createdWith, [
-      '保存ボタンを押すと値がサーバーに保存される',
+    // 判定者のタグどおりに2列で送る（設計 4.1 案1）
+    expect(assistant.createdWith, ['保存ボタンを押すと値がサーバーに保存される']);
+    expect(assistant.createdUserChecks, [
       '「設定画面を作る」の結果を本人が実際に見て、求めていたものだと確かめられる',
     ]);
   });

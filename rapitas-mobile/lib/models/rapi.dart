@@ -11,6 +11,7 @@
 
 import 'rapi_companion.dart';
 export 'rapi_companion.dart';
+export 'rapi_criteria_edit.dart';
 
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
 const Map<String, String> rapiPriorityLabels = {
@@ -613,13 +614,50 @@ class RoadmapStep {
   /// 完了条件1件ずつの見せ方（表示だけ。commit では送らない）
   final List<RapiCriterionItem> criteriaItems;
 
+  /// 完了条件の採点（spec-quality-checker）。表示だけ。古いサーバーは返さない
+  final RapiCriteriaQuality? criteriaQuality;
+
+  /// 確定した「本人が確かめる」条件（commit で送る。サーバーが判定し直して userAcceptanceChecks へ）
+  final List<String> userAcceptanceChecks;
+
   const RoadmapStep({
     required this.title,
     this.description = '',
     this.dueDate,
     this.acceptanceCriteria = const [],
     this.criteriaItems = const [],
+    this.criteriaQuality,
+    this.userAcceptanceChecks = const [],
   });
+
+  /// カードに並べる完了条件。項目の情報が無い（古いサーバー）ときは文だけで作る
+  List<RapiCriterionItem> get criteriaRows =>
+      criteriaItems.length == acceptanceCriteria.length && criteriaItems.isNotEmpty
+          ? criteriaItems
+          : [for (final c in acceptanceCriteria) RapiCriterionItem(text: c)];
+
+  /// 説明文から「## 完了条件」の節を除いたもの（条件はカードの一覧で別に出すので、二重に見せない）
+  String get descriptionWithoutCriteria => description
+      .replaceFirst(RegExp(r'^##\s*完了条件\s*$[\s\S]*?(?=^#{1,6}\s|(?![\s\S]))', multiLine: true), '')
+      .trim();
+
+  /// カードで確定した条件で送る形にした手順（陪審の条件 [jury] と本人の条件 [user]）。
+  /// 説明文の「## 完了条件」も確定した条件で作り直す（外した条件を送らない）。並びは陪審→本人で、
+  /// サーバーが2列をつないで作り直す並びと同じ
+  RoadmapStep withConfirmed({required List<String> jury, required List<String> user}) =>
+      RoadmapStep(
+        title: title,
+        description: [
+          if (descriptionWithoutCriteria.isNotEmpty) descriptionWithoutCriteria,
+          if (jury.isNotEmpty || user.isNotEmpty)
+            ['## 完了条件', for (final c in [...jury, ...user]) '- [ ] $c'].join('\n'),
+        ].join('\n\n'),
+        dueDate: dueDate,
+        acceptanceCriteria: jury,
+        criteriaItems: criteriaItems,
+        criteriaQuality: criteriaQuality,
+        userAcceptanceChecks: user,
+      );
 
   factory RoadmapStep.fromJson(Map<String, dynamic> json) {
     final due = _string(json['dueDate']);
@@ -629,6 +667,7 @@ class RoadmapStep {
       dueDate: due != null && RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(due) ? due : null,
       acceptanceCriteria: _strings(json['acceptanceCriteria']),
       criteriaItems: rapiCriterionItems(json['criteriaItems']),
+      criteriaQuality: RapiCriteriaQuality.fromJson(json['criteriaQuality']),
     );
   }
 
@@ -636,8 +675,10 @@ class RoadmapStep {
         'title': title,
         'description': description,
         if (dueDate != null) 'dueDate': dueDate,
-        // 送らなくてもサーバーは説明文の「## 完了条件」から読むが、下書きで受け取った形のまま返す
+        // カードで採った条件（外した条件は含めない）。説明文の「## 完了条件」と違えば、
+        // サーバーが確定した条件で説明文を作り直す
         if (acceptanceCriteria.isNotEmpty) 'acceptanceCriteria': acceptanceCriteria,
+        if (userAcceptanceChecks.isNotEmpty) 'userAcceptanceChecks': userAcceptanceChecks,
       };
 }
 

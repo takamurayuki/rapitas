@@ -32,6 +32,10 @@ class RapiRoadmapCardView extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onOpenTasks;
 
+  /// 手順 step の完了条件 index を採る／外す、文言を直す（最終確認の間だけ使われる）
+  final void Function(int step, int index)? onToggleCriterion;
+  final void Function(int step, int index, String text)? onEditCriterion;
+
   const RapiRoadmapCardView({
     super.key,
     required this.card,
@@ -40,6 +44,8 @@ class RapiRoadmapCardView extends StatelessWidget {
     required this.onCommit,
     required this.onCancel,
     required this.onOpenTasks,
+    this.onToggleCriterion,
+    this.onEditCriterion,
   });
 
   @override
@@ -148,7 +154,19 @@ class RapiRoadmapCardView extends StatelessWidget {
                 child: Text('手順がありません。目標を言い換えて、もう一度送ってください。', style: _mutedStyle),
               ),
             for (var i = 0; i < draft.steps.length; i++)
-              _StepRow(number: i + 1, step: draft.steps[i], withDescription: confirming),
+              _StepRow(
+                number: i + 1,
+                step: draft.steps[i],
+                withDescription: confirming,
+                criteria: i < card.stepCriteria.length ? card.stepCriteria[i] : null,
+                // 作成中は押せない。質問中は題名だけなので一覧自体を出さない
+                onToggle: phase == RapiRoadmapPhase.ready && onToggleCriterion != null
+                    ? (j) => onToggleCriterion!(i, j)
+                    : null,
+                onEdit: phase == RapiRoadmapPhase.ready && onEditCriterion != null
+                    ? (j, text) => onEditCriterion!(i, j, text)
+                    : null,
+              ),
           ],
           if (phase == RapiRoadmapPhase.committed && result != null) ..._resultLines(result),
           if (phase == RapiRoadmapPhase.commitUnknown)
@@ -391,8 +409,18 @@ class _StepRow extends StatelessWidget {
   final int number;
   final RoadmapStep step;
   final bool withDescription;
+  final RapiCriteriaEdit? criteria;
+  final ValueChanged<int>? onToggle;
+  final void Function(int index, String text)? onEdit;
 
-  const _StepRow({required this.number, required this.step, required this.withDescription});
+  const _StepRow({
+    required this.number,
+    required this.step,
+    required this.withDescription,
+    this.criteria,
+    this.onToggle,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -430,17 +458,24 @@ class _StepRow extends StatelessWidget {
                 ),
             ],
           ),
-          if (withDescription && step.description.isNotEmpty)
+          // 説明は「## 完了条件」の節を除いて出す（条件は下の一覧で、採否・文言を決める。
+          // 作られるタスクの説明には、確定した条件で節を作り直したものが入る）
+          if (withDescription && step.descriptionWithoutCriteria.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 22, top: 3),
-              child: Text(step.description, style: _mutedStyle),
+              child: Text(step.descriptionWithoutCriteria, style: _mutedStyle),
             ),
-          // 段B：完了条件を誰が確かめるか（説明文の「## 完了条件」の内訳）
-          if (withDescription && rapiCriteriaSummary(step.criteriaItems) != null)
+          // 段B：条件ごとの判定者・言い換えの案・補った案、採否と文言の直し、採点
+          if (withDescription && criteria != null && criteria!.items.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(left: 22, top: 4),
-              child: Text(rapiCriteriaSummary(step.criteriaItems)!,
-                  style: const TextStyle(fontSize: 11, color: _violetButton)),
+              padding: const EdgeInsets.only(left: 22, top: 6),
+              child: RapiCriteriaList(
+                key: ValueKey('rapi-roadmap-step-$number-criteria'),
+                edit: criteria!,
+                keyPrefix: 'rapi-step-$number-criterion',
+                onToggle: onToggle,
+                onEdit: onEdit,
+              ),
             ),
         ],
       ),
