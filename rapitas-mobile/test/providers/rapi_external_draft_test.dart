@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/providers/pending_request_provider.dart';
 import 'package:rapitas_mobile/providers/rapi_chat_provider.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
+import 'package:rapitas_mobile/services/external_draft_inbox.dart';
 import 'package:rapitas_mobile/services/home_screen_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../support/home_screen_fakes.dart';
@@ -111,6 +112,77 @@ void main() {
       expect(chat().input, '${createRequest.text}（午後に）');
       expect(chat().activeExternalDraftId, isNull);
       expect(chat().messages.any((m) => m.text.contains('依頼を破棄しました')), isTrue);
+    });
+
+    // PR #1473 再レビュー指摘 P2：次の依頼へ進むのが、欄の依頼を送ったときだけだった
+    test('書きかけの文を送れたら、欄が空なら待っている依頼を欄に入れる', () async {
+      notifier().setInput('書きかけ');
+      notifier().receiveExternalDraft([createRequest]);
+      expect(chat().activeExternalDraftId, isNull);
+
+      await notifier().send();
+
+      expect(assistant.routed, ['書きかけ']);
+      expect(chat().input, createRequest.text);
+      expect(chat().activeExternalDraftId, createRequest.id);
+      expect(chat().messages.last.text, contains('次の依頼を入力欄に入れました'));
+    });
+
+    test('書きかけの文を送れなかったときは、欄に戻った文を残し、依頼は待たせたまま', () async {
+      notifier().setInput('書きかけ');
+      notifier().receiveExternalDraft([createRequest]);
+      assistant.failNext = true;
+
+      await notifier().send();
+
+      expect(chat().input, '書きかけ');
+      expect(chat().activeExternalDraftId, isNull);
+    });
+  });
+
+  group('相談（consult）に振り分けられた依頼', () {
+    const task = RapiConsultTask(id: '7', title: '資料づくり');
+    int pickerId() => chat().messages.lastWhere((m) => m.consultPicker != null).id;
+
+    test('タスクを選ぶまでは、ほかの依頼を欄に入れても同じ依頼として取り込み直さない', () async {
+      assistant.intent = 'consult';
+      notifier().receiveExternalDraft([createRequest]);
+      await notifier().send();
+
+      expect(chat().input, isEmpty);
+      expect(chat().activeExternalDraftId, isNull);
+      expect(notifier().receiveExternalDraft([createRequest]), isFalse,
+          reason: 'タスク選びを待っている依頼は受け取り済み');
+    });
+
+    test('「やめる」で閉じたら、依頼を欄に戻す（送るか破棄するまで消さない）', () async {
+      assistant.intent = 'consult';
+      notifier().receiveExternalDraft([createRequest]);
+      await notifier().send();
+
+      notifier().dismissConsultPicker(pickerId());
+
+      expect(chat().input, createRequest.text);
+      expect(chat().activeExternalDraftId, createRequest.id);
+    });
+
+    test('相談を待つ間は次の依頼を欄に入れ、相談を送れたら相談した依頼だけを消す', () async {
+      assistant.intent = 'consult';
+      bridge.pending = [createRequest, offlineRequest];
+      await container.read(pendingRequestIntakeProvider).pull(); // 保存先にも入る
+      await notifier().send(); // offline が相談になる → 欄には次の create が入る
+      expect(chat().input, createRequest.text);
+      expect(chat().activeExternalDraftId, createRequest.id);
+      expect((await ExternalDraftInbox().load()).map((d) => d.id),
+          containsAll([createRequest.id, offlineRequest.id]),
+          reason: 'タスクを選ぶまでは、相談になった依頼も消さない');
+
+      await notifier().chooseConsultTask(pickerId(), task);
+
+      expect(assistant.consulted, [offlineRequest.text]);
+      expect(chat().input, createRequest.text);
+      expect(chat().activeExternalDraftId, createRequest.id);
+      expect((await ExternalDraftInbox().load()).map((d) => d.id), [createRequest.id]);
     });
   });
 

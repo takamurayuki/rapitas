@@ -29,10 +29,16 @@ class FakeHomeScreenBridge implements HomeScreenBridge {
   }
 }
 
-/// 振り分けは常に会話、返事は固定。[failNext] なら次の送信を失敗させる
+/// 振り分け先は [intent]（既定は会話）、返事は固定。[failNext] なら次の振り分けを、
+/// [failConsult] なら次の相談の送信（copilot/chat）を失敗させる
 class FakeAssistant implements AssistantService {
   final List<String> routed = [];
+  final List<String> consulted = [];
   bool failNext = false;
+  bool failConsult = false;
+
+  /// 振り分け先。'consult' にすると、タスク選びカードを出すだけで本文はまだ送らない経路になる
+  String? intent;
 
   @override
   Future<RoutedIntent> routeIntent(String text, {bool hasOpenTask = false}) async {
@@ -41,12 +47,29 @@ class FakeAssistant implements AssistantService {
       throw Exception('offline');
     }
     routed.add(text);
-    return const RoutedIntent();
+    return RoutedIntent(intent: intent);
   }
 
   @override
   Future<CopilotReply> chat(String message, {List<Map<String, String>> history = const []}) async =>
       const CopilotReply(content: 'わかりました');
+
+  @override
+  Future<List<CopilotHistoryMessage>> copilotHistory(String taskId) async => const [];
+
+  @override
+  Future<CopilotReply> copilotChat(
+    String message, {
+    required String taskId,
+    List<Map<String, String>> history = const [],
+  }) async {
+    if (failConsult) {
+      failConsult = false;
+      throw Exception('offline');
+    }
+    consulted.add(message);
+    return const CopilotReply(content: '相談の返事');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

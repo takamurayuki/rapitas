@@ -141,6 +141,63 @@ void main() {
     expect(await pull(second), isFalse);
   });
 
+  // PR #1473 再レビュー指摘 P1：consult はタスク選びカードを出すだけで、本文はまだ送っていない。
+  // 送信が例外なく戻った時点で消していたので、タスクを選ばずに終えると依頼が失われた。
+  group('相談（consult）に振り分けられた依頼', () {
+    const task = RapiConsultTask(id: '7', title: '資料づくり');
+
+    int pickerId(ProviderContainer c) =>
+        c.read(rapiChatProvider).messages.lastWhere((m) => m.consultPicker != null).id;
+
+    test('タスクを選ばずにアプリを終えても、次の起動で入力欄に戻る', () async {
+      assistant.intent = 'consult';
+      final first = launch(FakeHomeScreenBridge()..pending = [createRequest]);
+      await pull(first);
+      await first.read(rapiChatProvider.notifier).send();
+      expect(first.read(rapiChatProvider).messages.any((m) => m.consultPicker != null), isTrue);
+      expect(assistant.consulted, isEmpty, reason: '本文はまだ送っていない');
+      first.dispose(); // タスクを選ばずに終える
+
+      final second = launch(FakeHomeScreenBridge());
+      expect(await pull(second), isTrue);
+      expect(second.read(rapiChatProvider).input, createRequest.text);
+      expect(second.read(rapiChatProvider).activeExternalDraftId, createRequest.id);
+    });
+
+    test('タスクを選んだあと相談の送信に失敗したら、欄に戻り、次の起動でも戻る', () async {
+      assistant.intent = 'consult';
+      final first = launch(FakeHomeScreenBridge()..pending = [createRequest]);
+      await pull(first);
+      final notifier = first.read(rapiChatProvider.notifier);
+      await notifier.send();
+      assistant.failConsult = true;
+      await notifier.chooseConsultTask(pickerId(first), task);
+      expect(first.read(rapiChatProvider).input, createRequest.text);
+      expect(first.read(rapiChatProvider).activeExternalDraftId, createRequest.id,
+          reason: '欄に戻った文は、まだショートカットの依頼のまま（送れたら消す・破棄できる）');
+      first.dispose();
+
+      final second = launch(FakeHomeScreenBridge());
+      expect(await pull(second), isTrue);
+      expect(second.read(rapiChatProvider).input, createRequest.text);
+    });
+
+    test('タスクを選んで相談を送れたら消し、次の起動で戻らない', () async {
+      assistant.intent = 'consult';
+      final first = launch(FakeHomeScreenBridge()..pending = [createRequest]);
+      await pull(first);
+      final notifier = first.read(rapiChatProvider.notifier);
+      await notifier.send();
+      await notifier.chooseConsultTask(pickerId(first), task);
+      expect(assistant.consulted, [createRequest.text]);
+      first.dispose();
+
+      final second = launch(FakeHomeScreenBridge()..pending = [createRequest]);
+      expect(await pull(second), isFalse);
+      expect(await ExternalDraftInbox().load(), isEmpty);
+    });
+  });
+
   test('同じ起動の中で何度取り込んでも、同じ依頼は1度だけ', () async {
     final native = FakeHomeScreenBridge()..pending = [createRequest];
     final c = launch(native);
