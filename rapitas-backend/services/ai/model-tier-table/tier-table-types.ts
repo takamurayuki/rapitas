@@ -44,6 +44,13 @@ export interface ModelTierEntry {
    * the CLI host).
    */
   cliAlias: 'opus' | 'sonnet' | 'haiku' | null;
+  /**
+   * The id passed to `codex exec -m` on a Codex CLI host (ChatGPT login), or
+   * null when that route is not confirmed — the row is then never seated
+   * through the Codex CLI. Identity with `modelId` where set: Codex takes the
+   * API model id as is (routing2b recon §4.1).
+   */
+  codexCliModel: string | null;
   displayName: string;
   vendor: ModelVendor;
   tier: TableTier;

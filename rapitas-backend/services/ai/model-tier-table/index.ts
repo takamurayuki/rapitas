@@ -10,6 +10,7 @@ export {
   TIER_ORDER,
   UNREGISTERED_TIER_CEILING,
   capUnregisteredTier,
+  cliRouteOf,
   costPer1kOf,
   findModelEntry,
   isSuitableForRole,
@@ -20,6 +21,7 @@ export {
   tierRank,
   vendorOfProvider,
   type AnyTier,
+  type CliRoute,
 } from './tier-table';
 export {
   executorRefOf,
