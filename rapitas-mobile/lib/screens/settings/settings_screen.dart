@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'agent_config_accordion.dart';
 import 'connection_section.dart';
+import 'voice_learning_tiles.dart';
 import 'voice_mode_tile.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
@@ -81,6 +83,7 @@ class SettingsScreen extends ConsumerWidget {
             const Divider(),
             const _SectionTitle('音声操作'),
             const VoiceModeTile(),
+            VoiceLearningTiles(onOpenList: () => context.push(voiceLearningPath)),
             const Divider(),
             const _SectionTitle('情報'),
             const ListTile(

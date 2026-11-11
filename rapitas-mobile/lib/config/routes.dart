@@ -10,6 +10,7 @@ import '../screens/approvals/approvals_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/voice_learning_screen.dart';
 import '../screens/themes/themes_screen.dart';
 import '../screens/themes/theme_form_screen.dart';
 import '../screens/categories/categories_screen.dart';
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String dashboard = '/dashboard';
   static const String settings = '/settings';
+  static const String voiceLearning = '/settings/voice-learning';
   static const String themes = '/themes';
   static const String themeNew = '/themes/new';
   static const String themeEdit = '/themes/:id/edit';
@@ -97,6 +99,11 @@ class AppRoutes {
         GoRoute(
           path: settings,
           builder: (context, state) => const SettingsScreen(),
+        ),
+        // 学習した読み替えの一覧（設定の「音声操作」から push で開く）
+        GoRoute(
+          path: voiceLearning,
+          builder: (context, state) => const VoiceLearningScreen(),
         ),
         // NOTE: '/tasks/new' を '/tasks/:id' より先に宣言する（後だと id='new' として詳細に吸われる）
         GoRoute(

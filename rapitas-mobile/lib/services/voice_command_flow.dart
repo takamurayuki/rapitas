@@ -13,11 +13,14 @@ import '../providers/rapi_chat_provider.dart';
 import '../providers/service_providers.dart';
 import '../providers/task_provider.dart';
 import '../providers/theme_data_provider.dart';
+import '../providers/voice_learning_provider.dart';
 import '../providers/voice_provider.dart';
 import '../screens/task_form/task_form_screen.dart' show buildTaskFormBody;
 import 'backlog_service.dart';
 import 'dictation_service.dart';
 import 'voice_command_parser.dart';
+import 'voice_learning_store.dart';
+import 'voice_target_resolver.dart';
 
 // 音声コマンドの流れ（聞き取り → 解釈 → 対象の指定 → 確認 → 実行 → 結果）。
 //
@@ -190,6 +193,15 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   /// 対象を「指定なし → 先頭」で決めたか（確認の要らない操作でも確認する）
   bool _defaulted = false;
+
+  /// 聞き間違いの学習の記帳（記録の候補・適用した補正）。成功の地点でだけ確定する
+  late final VoiceLearningTurn _learning = VoiceLearningTurn(container);
+
+  /// 学習した補正で対象を決めたことを、結果のスナックバーに添える文
+  String? _correctionNotice;
+
+  /// 補正で対象を決めたか。_defaulted と同じく、確認の要らない操作でも確認する（設計 §3.3）
+  bool get _corrected => _learning.corrected;
 
   /// 「ラピに送るか」にどちらとも取れない答えが続いた回数
   int _rapiAsks = 0;
@@ -437,6 +449,8 @@ class VoiceCommandFlow extends ChangeNotifier {
     unknownText = null;
     helpLines = const [];
     _defaulted = false;
+    _learning.reset();
+    _correctionNotice = null;
   }
 
   Future<void> _commandTurn() async {
@@ -564,8 +578,9 @@ class VoiceCommandFlow extends ChangeNotifier {
           return 'テーマ「${theme.name}」のタスクを表示しました';
         });
       case VoiceCommandType.openTask:
-        final task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title, noun: 'タスク');
-        if (_defaulted) await _confirm('「${task.title}」を開きますか？');
+        final task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title,
+            noun: 'タスク', kind: VoiceTargetKind.task, idOf: (t) => t.id);
+        if (_defaulted || _corrected) await _confirm('「${task.title}」を開きますか？');
         await _outside('「${task.title}」を開きます', () {
           ui.push('/tasks/${task.id}');
           return '「${task.title}」を開きました';
@@ -582,28 +597,34 @@ class VoiceCommandFlow extends ChangeNotifier {
         await _setHypothesisStatus(cmd);
       case VoiceCommandType.deleteHypothesis:
         final list = await _load(() => container.read(hypothesisListProvider.future), '仮説');
-        final h = await _pick(list, cmd.target, _hypothesisLabel, noun: '仮説');
+        final h = await _pick(list, cmd.target, _hypothesisLabel,
+            noun: '仮説', kind: VoiceTargetKind.hypothesis, idOf: (h) => h.id);
         await _confirm('「${_hypothesisLabel(h)}」を削除しますか？\n元に戻せません。');
         await _perform(() async {
           await container.read(backlogServiceProvider).deleteHypothesis(h.id);
+          await _learning.deleted(VoiceTargetKind.hypothesis, h.id);
           container.invalidate(hypothesisListProvider);
           return '仮説を削除しました';
         }, failure: '仮説の削除に失敗しました');
       case VoiceCommandType.deleteIdea:
         final list = await _load(() => container.read(ideaListProvider.future), 'アイデア');
-        final idea = await _pick(list, cmd.target, (i) => i.title, noun: 'アイデア');
+        final idea = await _pick(list, cmd.target, (i) => i.title,
+            noun: 'アイデア', kind: VoiceTargetKind.idea, idOf: (i) => i.id);
         await _confirm('「${idea.title}」を削除しますか？\n元に戻せません。');
         await _perform(() async {
           await container.read(backlogServiceProvider).deleteIdea(idea.id);
+          await _learning.deleted(VoiceTargetKind.idea, idea.id);
           container.invalidate(ideaListProvider);
           return 'アイデア「${idea.title}」を削除しました';
         }, failure: 'アイデアの削除に失敗しました');
       case VoiceCommandType.deleteConcern:
         final list = await _load(() => container.read(concernListProvider.future), '懸念');
-        final concern = await _pick(list, cmd.target, (c) => c.title, noun: '懸念');
+        final concern = await _pick(list, cmd.target, (c) => c.title,
+            noun: '懸念', kind: VoiceTargetKind.concern, idOf: (c) => c.id);
         await _confirm('「${concern.title}」を削除しますか？\n元に戻せません。');
         await _perform(() async {
           await container.read(backlogServiceProvider).deleteConcern(concern.id);
+          await _learning.deleted(VoiceTargetKind.concern, concern.id);
           container.invalidate(concernListProvider);
           return '懸念「${concern.title}」を削除しました';
         }, failure: '懸念の削除に失敗しました');
@@ -624,9 +645,11 @@ class VoiceCommandFlow extends ChangeNotifier {
   Future<ApprovalRequest> _pickApproval(VoiceTarget? target) async {
     final all = await _load(() => container.read(approvalListProvider.future), '承認リクエスト');
     if (target == null) {
-      return _pick(all.where((a) => a.isPending).toList(), null, (a) => a.title, noun: '保留中の承認リクエスト');
+      return _pick(all.where((a) => a.isPending).toList(), null, (a) => a.title,
+          noun: '保留中の承認リクエスト', kind: VoiceTargetKind.approval, idOf: (a) => a.id);
     }
-    final picked = await _pick(all, target, (a) => a.title, noun: '承認リクエスト');
+    final picked =
+        await _pick(all, target, (a) => a.title, noun: '承認リクエスト', kind: VoiceTargetKind.approval, idOf: (a) => a.id);
     if (!picked.isPending) {
       final state = _approvalStatusLabels[picked.status] ?? picked.status;
       throw _Failure('その項目は既に処理済みです（「${picked.title}」は$state）');
@@ -685,12 +708,14 @@ class VoiceCommandFlow extends ChangeNotifier {
       task = await _load(() => container.read(taskDetailProvider(detailId).future), 'タスク');
       note = '「${task.title}」を対象にします';
     } else if (screen == VoiceScreen.tasks) {
-      task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title, noun: 'タスク');
+      task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title,
+          noun: 'タスク', kind: VoiceTargetKind.task, idOf: (t) => t.id);
     } else {
       // 実行画面のタップの導線と同じく、未着手のタスクのうちエージェントで実行できるもの
       final todo = await _load(() => container.read(taskServiceProvider).getTasks(status: 'todo'), 'タスク');
       final executable = todo.where((t) => t.canExecuteWithAgent).toList();
-      task = await _pick(executable, cmd.target, (t) => t.title, noun: '実行できるタスク');
+      task = await _pick(executable, cmd.target, (t) => t.title,
+          noun: '実行できるタスク', kind: VoiceTargetKind.task, idOf: (t) => t.id);
     }
     if (!task.canExecuteWithAgent) throw _Failure('「${task.title}」はエージェントで実行できません');
     await _confirm('「${task.title}」をAIエージェントで実行しますか？');
@@ -716,7 +741,9 @@ class VoiceCommandFlow extends ChangeNotifier {
       target = match.first;
       note = '「${label(target)}」を対象にします';
     } else {
-      target = await _pick(executing, cmd.target, label, noun: '実行中のタスク');
+      // 実行ごとに変わる executionId ではなく taskId で覚える（設計 §4.2）
+      target = await _pick(executing, cmd.target, label,
+          noun: '実行中のタスク', kind: VoiceTargetKind.executingTask, idOf: (t) => t.taskId);
     }
     await _confirm('「${label(target)}」の実行を停止しますか？');
     await _perform(() async {
@@ -732,7 +759,9 @@ class VoiceCommandFlow extends ChangeNotifier {
     final resumable = all.where((e) => e.canResume).toList();
     final titles = await _taskTitles();
     String label(ResumableExecution e) => e.taskTitle ?? taskTitleOrFallback(titles, e.taskId);
-    final target = await _pick(resumable, cmd.target, label, noun: '再開できる実行');
+    // タスクの外れた実行（taskId が null）は覚えない（id は実行ごとに変わるため）
+    final target = await _pick(resumable, cmd.target, label,
+        noun: '再開できる実行', kind: VoiceTargetKind.resumable, idOf: (e) => e.taskId);
     await _confirm('「${label(target)}」の実行を再開しますか？');
     await _perform(() async {
       await container.read(agentServiceProvider).resumeExecution(target.id);
@@ -796,10 +825,23 @@ class VoiceCommandFlow extends ChangeNotifier {
       final n = VoiceCommandParser.parseChoice(answer);
       final index = n == -1 ? themes.length : n;
       if (index != null && index >= 1 && index <= themes.length) return themes[index - 1];
-      final matches = _matching(themes, answer, (t) => t.name);
+      final matches = VoiceTargetResolver.matching(themes, answer, (t) => t.name);
       if (matches.length == 1) return matches.first;
       if (matches.length > 1) {
         return _choose<TaskTheme>(matches, (t) => t.name, '「$answer」に当たるテーマが${matches.length}件あります。番号で選んでください');
+      }
+      final learned = await _learnedTarget(themes, answer, (t) => t.name, kind: VoiceTargetKind.theme, idOf: (t) => t.id);
+      if (learned != null) {
+        // NOTE: タスク作成には最後の確認が無いので、補正でテーマを決めたときだけ確かめる（設計 §3.3）
+        await _confirm('テーマ「${learned.name}」で作成しますか？');
+        return learned;
+      }
+      final near = VoiceTargetResolver.nearest(themes, answer, (t) => t.name);
+      if (near.isNotEmpty) {
+        final picked = await _choose<TaskTheme>(near, (t) => t.name,
+            '「$answer」というテーマは見つかりませんでした。近いものを番号で選んでください（違うなら「キャンセル」）');
+        _learning.candidate(VoiceTargetKind.theme, answer, picked.id, picked.name);
+        return picked;
       }
       question = '「$answer」というテーマは見つかりませんでした。テーマ名か番号を話すか、「なし」と言ってください';
     }
@@ -851,11 +893,19 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   Future<TaskTheme> _resolveTheme(String name) async {
     final themes = await _load(() => container.read(themeListProvider.future), 'テーマ');
-    final matches = _matching(themes, name, (t) => t.name);
-    if (matches.isEmpty) throw _Failure('「$name」というテーマは見つかりませんでした');
+    final matches = VoiceTargetResolver.matching(themes, name, (t) => t.name);
+    if (matches.isEmpty) {
+      // 絞り込みは表示を変えるだけなので、補正で決まっても確認しない（結果のスナックバーにその旨を出す：§3.3）
+      return _correctOrNear(themes, name, (t) => t.name,
+          noun: 'テーマ',
+          kind: VoiceTargetKind.theme,
+          idOf: (t) => t.id,
+          notFound: '「$name」というテーマは見つかりませんでした');
+    }
     if (matches.length == 1) return matches.first;
     // 完全一致があればそれを使う
-    final exact = matches.where((t) => _norm(t.name) == _norm(name)).toList();
+    final exact =
+        matches.where((t) => VoiceTargetResolver.norm(t.name) == VoiceTargetResolver.norm(name)).toList();
     if (exact.length == 1) return exact.first;
     return _choose(matches, (t) => t.name, '「$name」に当たるテーマが${matches.length}件あります。番号で選んでください');
   }
@@ -866,8 +916,9 @@ class VoiceCommandFlow extends ChangeNotifier {
     if (screen == VoiceScreen.taskDetail && detailId != null) {
       task = await _load(() => container.read(taskDetailProvider(detailId).future), 'タスク');
     } else {
-      task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title, noun: 'タスク');
-      if (_defaulted) await _confirm('「${task.title}」を編集しますか？');
+      task = await _pick(await _visibleTasks(), cmd.target, (t) => t.title,
+          noun: 'タスク', kind: VoiceTargetKind.task, idOf: (t) => t.id);
+      if (_defaulted || _corrected) await _confirm('「${task.title}」を編集しますか？');
     }
     await _outside('「${task.title}」の編集画面を開きます', () {
       ui.push('/tasks/${task.id}/edit', extra: task);
@@ -891,6 +942,7 @@ class VoiceCommandFlow extends ChangeNotifier {
     } catch (e) {
       throw _Failure('タスクの削除に失敗しました: $e');
     }
+    await _learning.deleted(VoiceTargetKind.task, id);
     container.invalidate(taskListProvider);
     // 削除したタスクの詳細には居られないので、閉じて一覧へ戻る
     final message = 'タスク「${task.title}」を削除しました';
@@ -935,9 +987,11 @@ class VoiceCommandFlow extends ChangeNotifier {
     final status = cmd.status!;
     final statusLabel = VoiceCommandParser.hypothesisStatusLabels[status] ?? status;
     final list = await _load(() => container.read(hypothesisListProvider.future), '仮説');
-    final h = await _pick(list, cmd.target, _hypothesisLabel, noun: '仮説');
+    final h = await _pick(list, cmd.target, _hypothesisLabel,
+        noun: '仮説', kind: VoiceTargetKind.hypothesis, idOf: (h) => h.id);
     if (h.status == status) throw _Failure('「${_hypothesisLabel(h)}」はすでに「$statusLabel」です');
-    if (_defaulted) await _confirm('「${_hypothesisLabel(h)}」を「$statusLabel」にしますか？');
+    // NOTE: 補正で決めた対象は、状態の変更が確認なしで走らないよう必ず確かめる（設計 §3.3）
+    if (_defaulted || _corrected) await _confirm('「${_hypothesisLabel(h)}」を「$statusLabel」にしますか？');
     await _perform(() async {
       await container.read(backlogServiceProvider).updateHypothesisStatus(h.id, status);
       container.invalidate(hypothesisListProvider);
@@ -961,12 +1015,15 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   // ---- 共通の部品 ----
 
-  /// 対象を決める。指定なし → 先頭（その旨を note に出す）、番号 → その行、名前 → 一致するもの
+  /// 対象を決める。指定なし → 先頭（その旨を note に出す）、番号 → その行、名前 → 一致するもの。
+  /// 名前が1件も当たらなければ、学習した補正 → 近い候補の順に試す（[kind]・[idOf] はそのため）
   Future<T> _pick<T>(
     List<T> items,
     VoiceTarget? target,
     String Function(T) label, {
     required String noun,
+    required VoiceTargetKind kind,
+    required String? Function(T) idOf,
   }) async {
     if (items.isEmpty) throw _Failure('$nounはありません');
     if (target == null) {
@@ -983,14 +1040,60 @@ class VoiceCommandFlow extends ChangeNotifier {
       _notify();
       return items[i - 1];
     }
-    final matches = _matching(items, target.name!, label);
-    if (matches.isEmpty) throw _Failure('「${target.name}」に当たる$nounが見つかりません');
+    final matches = VoiceTargetResolver.matching(items, target.name!, label);
+    if (matches.isEmpty) {
+      return _correctOrNear(items, target.name!, label,
+          noun: noun, kind: kind, idOf: idOf, notFound: '「${target.name}」に当たる$nounが見つかりません');
+    }
     if (matches.length == 1) {
       note = '「${label(matches.first)}」を対象にします';
       _notify();
       return matches.first;
     }
     return _choose(matches, label, '「${target.name}」に当たる$nounが${matches.length}件あります。番号で選んでください');
+  }
+
+  /// 学習した補正で、いまの一覧にある対象を引く（学習がオフ・未学習・一覧に無いなら null）。
+  /// 見つかったら補正で決めた印を付け、note とスナックバーにその旨を出す
+  Future<T?> _learnedTarget<T>(
+    List<T> items,
+    String name,
+    String Function(T) label, {
+    required VoiceTargetKind kind,
+    required String? Function(T) idOf,
+  }) async {
+    final learned = await _learning.lookup(kind, name);
+    _ensureOpen();
+    if (learned == null) return null;
+    // 一覧に無いことは削除の証拠にならない（絞り込み・状態で隠れているだけかもしれない）ので消さずに見送る
+    final hit = VoiceTargetResolver.byId(items, learned.targetId, idOf);
+    if (hit == null) return null;
+    _learning.applied(learned, label(hit));
+    note = '「$name」は前に「${label(hit)}」を選んだので、それを対象にします';
+    _correctionNotice = '（「$name」は前に選んだ「${label(hit)}」として扱いました）';
+    _notify();
+    return hit;
+  }
+
+  /// 名前が1件も当たらなかったとき：学習した補正があればそれ、無ければ近い候補を選ばせる（設計 §1.4・§3.2）。
+  /// 近い候補での選択は「記録の候補」にするだけで、成功したときにだけ覚える
+  Future<T> _correctOrNear<T>(
+    List<T> items,
+    String name,
+    String Function(T) label, {
+    required String noun,
+    required VoiceTargetKind kind,
+    required String? Function(T) idOf,
+    required String notFound,
+  }) async {
+    final learned = await _learnedTarget(items, name, label, kind: kind, idOf: idOf);
+    if (learned != null) return learned;
+    final near = VoiceTargetResolver.nearest(items, name, label);
+    if (near.isEmpty) throw _Failure(notFound);
+    // シートなしの実行では _hear が _NeedsSheet を投げ、何も変えずにシートへ回る
+    final picked = await _choose(near, label, '「$name」に当たる$nounは見つかりませんでした。近いものを番号で選んでください（違うなら「キャンセル」）');
+    _learning.candidate(kind, name, idOf(picked), label(picked));
+    return picked;
   }
 
   /// 候補を番号で選ばせる（名前の一部でも可）
@@ -1009,7 +1112,7 @@ class VoiceCommandFlow extends ChangeNotifier {
         choices = const [];
         return items[i - 1];
       }
-      final byName = _matching(items, answer, label);
+      final byName = VoiceTargetResolver.matching(items, answer, label);
       if (byName.length == 1) {
         note = '「${label(byName.first)}」を対象にします';
         choices = const [];
@@ -1027,7 +1130,11 @@ class VoiceCommandFlow extends ChangeNotifier {
       final answer = await _ask(phase: VoiceFlowPhase.confirming, prompt: q);
       final yes = VoiceCommandParser.parseYesNo(answer);
       if (yes == true) return;
-      if (yes == false) throw _Cancelled();
+      if (yes == false) {
+        // 補正で決めた対象を否定された：その対応を消す（操作をやめたかっただけでも、消すほうが安全側：§2.2）
+        await _learning.rejected();
+        throw _Cancelled();
+      }
       q = '$question\n「はい」か「いいえ」で答えてください';
     }
     throw _Cancelled();
@@ -1079,6 +1186,8 @@ class VoiceCommandFlow extends ChangeNotifier {
     } catch (e) {
       throw _Failure('$failure: $e');
     }
+    // 成功したここでだけ学習を確定する（いいえ・キャンセル・失敗・途中で閉じたなら、ここまで来ない）
+    await _learning.commit();
     if (_disposed) {
       // 実行中にシートを閉じられても、結果はスナックバーで残す
       ui.showMessage(message);
@@ -1098,7 +1207,8 @@ class VoiceCommandFlow extends ChangeNotifier {
       // シートなし：すぐに操作して、結果だけスナックバーで出す
       _ensureOpen();
       final message = act();
-      if (message != null) ui.showMessage(message);
+      await _learning.commit();
+      if (message != null) ui.showMessage(_withNotice(message));
       return;
     }
     phase = VoiceFlowPhase.done;
@@ -1112,7 +1222,13 @@ class VoiceCommandFlow extends ChangeNotifier {
     }
     _closeSheet();
     final message = act();
-    if (message != null) ui.showMessage(message);
+    await _learning.commit();
+    if (message != null) ui.showMessage(_withNotice(message));
+  }
+
+  String _withNotice(String message) {
+    final notice = _correctionNotice;
+    return notice == null ? message : '$message$notice';
   }
 
   void _closeSheet() {
@@ -1148,15 +1264,5 @@ class VoiceCommandFlow extends ChangeNotifier {
     _closeTimer = Timer(closeDelay, _closeSheet);
   }
 
-  /// 名前の一部で一致するもの（空白・大文字小文字を無視）
-  static List<T> _matching<T>(List<T> items, String name, String Function(T) label) {
-    final key = _norm(name);
-    if (key.isEmpty) return const [];
-    return items.where((item) => _norm(label(item)).contains(key)).toList();
-  }
-
-  static String _norm(String s) => s
-      .replaceAllMapped(RegExp('[０-９Ａ-Ｚａ-ｚ]'), (m) => String.fromCharCode(m[0]!.codeUnitAt(0) - 0xFEE0))
-      .replaceAll(RegExp(r'[\s　、。「」『』]'), '')
-      .toLowerCase();
+  // NOTE: 名前の一致（_matching）と正規化（_norm）は voice_target_resolver.dart へ移した（学習の引き当て・近さと共有するため）。
 }
