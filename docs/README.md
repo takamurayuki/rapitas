@@ -52,4 +52,6 @@ generator scripts, not the files.
 - [adr/](adr/README.md) — architecture decision records. Historical decisions;
   do not rewrite them, supersede them with a new ADR.
 - [lessons/](lessons/) — incident and lesson narratives.
+- [delivery-log.md](delivery-log.md) — TestFlight delivery log for the iOS app
+  (one row per confirmed build; append after each merge-triggered build).
 - [archive/](archive/README.md) — historical documents, not maintained.
