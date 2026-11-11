@@ -40,6 +40,18 @@ export function normalizeCriteria(raw: unknown): string[] {
 const CRITERIA_SECTION = /^##\s*完了条件\s*$([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/m;
 const CRITERIA_SECTION_ALL = new RegExp(CRITERIA_SECTION.source, 'gm');
 const CHECKLIST_ITEM = /^\s*[-*]\s*(?:\[[ xX]\]\s*)?(.+?)\s*$/;
+/**
+ * Any list item a jury-side reader may take for a criterion: every marker the
+ * self-check's description fallback (`extractCriteriaFromDescription` in
+ * `services/agents/verification/acceptance-self-check.ts`) reads — `-`, `*`,
+ * `+`, `1.`, `1)` — plus the looser `-`/`*` shapes CHECKLIST_ITEM reads.
+ *
+ * NOTE: Kept as a copy rather than imported: that reader sits in a protected
+ * directory and its fallback must not change. `assistant-criteria-list-forms
+ * .test.ts` feeds the same lines to both and fails if they drift (review fix4:
+ * `1.` / `1)` / `+` lines kept a person's check in the stored text).
+ */
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s*(?:\[[ xX]\]\s*)?(.+?)\s*$/;
 
 /**
  * Read the checklist under a description's `## 完了条件` heading.
@@ -126,7 +138,9 @@ export function descriptionForJury(
   const body = withoutCriteriaSection(description);
   const lines = body.split('\n');
   const kept = lines.filter((line) => {
-    const item = CHECKLIST_ITEM.exec(line)?.[1];
+    // Any line, under any heading: the reader's fallback looks under
+    // `## 受入基準` and the like, not only under `## 完了条件`.
+    const item = LIST_ITEM.exec(line)?.[1];
     return !(item && person.has(item.trim()));
   });
   if (!hadSection && kept.length === lines.length && options.section === 'ifPresent') {
