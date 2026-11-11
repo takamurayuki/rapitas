@@ -21,6 +21,7 @@ import '../screens/backlog/concerns_screen.dart';
 import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
 import '../screens/rapi/rapi_screen.dart';
+import '../services/compose_requests.dart';
 import '../services/voice_route_tracker.dart';
 
 class AppRoutes {
@@ -48,13 +49,23 @@ class AppRoutes {
   static const String hypotheses = '/hypotheses';
   static const String rapi = '/rapi';
 
+  /// ディープリンク（rapitas://app/rapi?compose=1）で入力欄にフォーカスを求めるクエリ
+  static const String composeQuery = 'compose';
+
   static final GoRouter router = createRouter(tracker: appVoiceRouteTracker);
 
-  /// ルーターを作る。[tracker] は音声コマンド用のシート・ダイアログの見張り（テストでは自前のもの）
-  static GoRouter createRouter({required VoiceRouteTracker tracker, String initialLocation = home}) {
+  /// ルーターを作る。[tracker] は音声コマンド用のシート・ダイアログの見張り、
+  /// [composeRequests] は入力欄へのフォーカス要求の窓口（どちらもテストでは自前のもの）
+  static GoRouter createRouter({
+    required VoiceRouteTracker tracker,
+    String initialLocation = home,
+    ComposeRequests? composeRequests,
+  }) {
+    final compose = composeRequests ?? appComposeRequests;
     return GoRouter(
       initialLocation: initialLocation,
       observers: [tracker.rootObserver],
+      redirect: (context, state) => redirectFor(state.uri, compose),
       routes: [
         ShellRoute(
           observers: [tracker.shellObserver],
@@ -89,8 +100,8 @@ class AppRoutes {
             // ラピ（常駐エージェント）。下タブの最後
             GoRoute(
               path: rapi,
-              pageBuilder: (context, state) => const NoTransitionPage(
-                child: RapiScreen(),
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: RapiScreen(composeRequests: compose),
               ),
             ),
           ],
@@ -188,6 +199,39 @@ class AppRoutes {
         ),
       ],
     );
+  }
+
+  // ディープリンクで受け付けるパス。'/tasks/:id' のような可変部分は1階層の任意の文字列とする
+  static final List<RegExp> _knownPaths = [
+    for (final path in [
+      home, tasks, taskNew, taskDetail, taskEdit, executions, approvals, notifications,
+      dashboard, settings, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
+      ideas, ideasNew, concerns, concernsNew, hypotheses, rapi,
+    ])
+      RegExp('^${path.replaceAll(RegExp(r':[A-Za-z]+'), '[^/]+')}\$'),
+  ];
+
+  /// [path] がこのアプリのどれかの画面に当たるか
+  static bool isKnownPath(String path) => _knownPaths.any((re) => re.hasMatch(path));
+
+  /// ルーターの redirect。ディープリンク（rapitas://app/<パス>）はホスト部を無視して
+  /// パスだけで画面を決める（go_router の parser も uri.path しか見ない）。
+  ///
+  /// - `/rapi?compose=1`：入力欄へのフォーカスを要求してから、クエリを落とした `/rapi` へ
+  ///   （クエリを残すと、タブを往復するたびにまたフォーカスしてしまう）
+  /// - 知らないパス：ホームへ（router に errorBuilder がないので、手打ちの URL で行き止まりにしない）
+  ///
+  /// @param uri - 行き先 / ディープリンクならスキームとホストも含む
+  /// @param compose - フォーカス要求の窓口
+  /// @returns 書き換え先のパス。書き換えないなら null
+  static String? redirectFor(Uri uri, ComposeRequests compose) {
+    final path = uri.path.isEmpty ? home : uri.path;
+    if (path == rapi && uri.queryParameters[composeQuery] == '1') {
+      compose.request();
+      return rapi;
+    }
+    if (!isKnownPath(path)) return home;
+    return null;
   }
 }
 

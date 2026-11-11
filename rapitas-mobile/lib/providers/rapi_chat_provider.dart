@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
 import '../models/task.dart';
 import '../services/assistant_service.dart';
+import '../services/external_draft_inbox.dart';
+import '../services/home_screen_bridge.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
 import 'theme_data_provider.dart';
@@ -340,11 +342,16 @@ class RapiConsultPicker {
   final RapiConsultPickPhase phase;
   final RapiConsultTask? chosen;
 
+  /// 発言がショートカットから届いた依頼なら、その番号。相談を送れたときに保存先から消す
+  /// （カードを出しただけでは本文はまだ送っていないので、それまでは消さない）
+  final String? externalDraftId;
+
   const RapiConsultPicker({
     required this.text,
     required this.utteranceId,
     this.phase = RapiConsultPickPhase.choosing,
     this.chosen,
+    this.externalDraftId,
   });
 
   RapiConsultPicker copyWith({RapiConsultPickPhase? phase, RapiConsultTask? chosen}) =>
@@ -353,6 +360,7 @@ class RapiConsultPicker {
         utteranceId: utteranceId,
         phase: phase ?? this.phase,
         chosen: chosen ?? this.chosen,
+        externalDraftId: externalDraftId,
       );
 }
 
@@ -385,6 +393,9 @@ class RapiMessage {
   /// copilot/chat の履歴に含めるか（挨拶・送信失敗した発言は含めない）
   final bool inHistory;
 
+  /// ショートカットから届いた依頼を入力欄に入れた案内なら、その依頼の番号（「破棄」を出す）
+  final String? externalDraftId;
+
   const RapiMessage({
     required this.id,
     required this.role,
@@ -398,6 +409,7 @@ class RapiMessage {
     this.consultTaskId,
     this.taskId,
     this.inHistory = false,
+    this.externalDraftId,
   });
 
   RapiMessage _copy({
@@ -420,6 +432,7 @@ class RapiMessage {
         consultTaskId: consultTaskId,
         taskId: taskId,
         inHistory: inHistory ?? this.inHistory,
+        externalDraftId: externalDraftId,
       );
 
   RapiMessage withoutHistory() => _copy(inHistory: false);
@@ -459,6 +472,10 @@ class RapiChatState {
   /// このタスクの copilot/chat へ直接送る
   final RapiConsultTask? consultTask;
 
+  /// 入力欄に入れている、ショートカットから届いた依頼の番号。送れたとき・破棄したときに
+  /// 保存先（ExternalDraftInbox）から消す
+  final String? activeExternalDraftId;
+
   const RapiChatState({
     required this.messages,
     this.input = '',
@@ -471,6 +488,7 @@ class RapiChatState {
     this.surveyLoading = false,
     this.surveyFailed = false,
     this.consultTask,
+    this.activeExternalDraftId,
   });
 
   RapiChatState copyWith({
@@ -485,6 +503,7 @@ class RapiChatState {
     bool? surveyLoading,
     bool? surveyFailed,
     Object? consultTask = _unset,
+    Object? activeExternalDraftId = _unset,
   }) =>
       RapiChatState(
         messages: messages ?? this.messages,
@@ -501,6 +520,9 @@ class RapiChatState {
         consultTask: identical(consultTask, _unset)
             ? this.consultTask
             : consultTask as RapiConsultTask?,
+        activeExternalDraftId: identical(activeExternalDraftId, _unset)
+            ? this.activeExternalDraftId
+            : activeExternalDraftId as String?,
       );
 
   /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
@@ -510,6 +532,10 @@ class RapiChatState {
 /// assistant 系の要求がタイムアウトしたときの system メッセージ
 const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
     'デスクトップ側の処理が混んでいるかもしれません。もう一度送ってみてください。';
+
+/// ショートカットから預かった依頼を入力欄に入れるときの上限
+/// （入力欄と同じ。バックエンドの MAX_TEXT_LENGTH）
+const int rapiMaxExternalDraftLength = 2000;
 
 /// copilot/chat に送る履歴の件数
 const int _historyLimit = 10;
@@ -535,11 +561,20 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   /// 非同期処理（履歴の読み込みなど）のあとで「まだ同じ相談が続いているか」を確かめるのに使う
   int _consultSession = 0;
 
+  /// ショートカットから届き、まだ送っても破棄してもいない依頼（届いた順）
+  final List<PendingRapiRequest> _externalDrafts = [];
+
+  /// 相談に振り分けられ、タスク選びを待っている依頼（番号 → 依頼）。本文はまだ送っていないので
+  /// 保存先には残し、相談を送れたら消す。送らずに終わったら [_externalDrafts] へ戻す
+  final Map<String, PendingRapiRequest> _heldExternalDrafts = {};
+
   @override
   RapiChatState build() {
     _nextId = 0;
     _surveyInFlight = null;
     _consultSession = 0;
+    _externalDrafts.clear();
+    _heldExternalDrafts.clear();
     return RapiChatState(messages: [
       RapiMessage(
         id: _nextId++,
@@ -584,6 +619,116 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         : turns;
   }
 
+  /// ショートカット「ラピに依頼」から届いた依頼を下書きとして受け取る（送信はしない）。
+  ///
+  /// 入力欄が空なら最新の依頼を欄に入れ、ほかの依頼は案内の中に並べる。書きかけの文があれば
+  /// 消さずに、すべての依頼を案内の中に並べる。並べた依頼は、欄の依頼を送るか破棄したときに
+  /// 1件ずつ欄に入れる。すでに受け取った依頼（同じ番号）は無視する。
+  ///
+  /// @param requests - 届いた依頼（届いた順） / ExternalDraftInbox に保存済みのもの
+  /// @returns 新しい依頼があったか
+  bool receiveExternalDraft(List<PendingRapiRequest> requests) {
+    final known = {for (final d in _externalDrafts) d.id, ..._heldExternalDrafts.keys};
+    final fresh = [for (final r in requests) if (known.add(r.id)) r];
+    if (fresh.isEmpty) return false;
+    _externalDrafts.addAll(fresh);
+
+    final active = _canFillInput ? fresh.last : null;
+    final listed = [for (final r in fresh) if (r.id != active?.id) r];
+    final failed = fresh.any((r) => !r.needsConfirmationOnly);
+    final lines = <String>[
+      active != null
+          ? 'ショートカットから届いた依頼を入力欄に入れました。送信すると続きを確認できます。'
+          : 'ショートカットから依頼が届きました。書きかけの文はそのままにしています。',
+      if (failed) 'ショートカットからはデスクトップに送れなかったので、ここから送り直してください。',
+      if (listed.isNotEmpty) ...[
+        active != null ? 'ほかにも届いています：' : '届いた依頼：',
+        for (final r in listed) '・${r.text}',
+        '（入力欄の文を送ると、次の依頼を欄に入れます）',
+      ],
+    ];
+    if (active != null) _fillInput(active);
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.system,
+          text: lines.join('\n'),
+          externalDraftId: active?.id,
+        ));
+    return true;
+  }
+
+  bool get _canFillInput => state.activeExternalDraftId == null && state.input.trim().isEmpty;
+
+  static String _clipDraft(String text) => text.length > rapiMaxExternalDraftLength
+      ? text.substring(0, rapiMaxExternalDraftLength)
+      : text;
+
+  void _fillInput(PendingRapiRequest draft) =>
+      state = state.copyWith(input: _clipDraft(draft.text), activeExternalDraftId: draft.id);
+
+  /// 送れた・破棄した依頼を保存先から消す
+  Future<void> _consumeExternalDraft(String id) async {
+    _externalDrafts.removeWhere((d) => d.id == id);
+    _heldExternalDrafts.remove(id);
+    if (state.activeExternalDraftId == id) state = state.copyWith(activeExternalDraftId: null);
+    try {
+      await ref.read(externalDraftInboxProvider).consume(id);
+    } catch (_) {
+      // 消せなかった依頼は次の起動でまた下書きに戻るだけで、失われはしない
+    }
+  }
+
+  /// 欄が空いたら、残っている依頼のうち最新を欄に入れる
+  void _fillNextExternalDraft() {
+    if (_externalDrafts.isEmpty || !_canFillInput) return;
+    final next = _externalDrafts.last;
+    final rest = _externalDrafts.length - 1;
+    _fillInput(next);
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.system,
+          text: [
+            'ショートカットから届いた次の依頼を入力欄に入れました。',
+            if (!next.needsConfirmationOnly) 'デスクトップに送れなかった依頼です。ここから送り直してください。',
+            if (rest > 0) '（あと$rest件あります）',
+          ].join('\n'),
+          externalDraftId: next.id,
+        ));
+  }
+
+  /// 相談に振り分けられた依頼を、タスク選びが終わるまで預かる（欄の依頼からは外すが、保存先には残す）
+  void _holdExternalDraft(String id) {
+    final i = _externalDrafts.indexWhere((d) => d.id == id);
+    if (i >= 0) _heldExternalDrafts[id] = _externalDrafts.removeAt(i);
+    if (state.activeExternalDraftId == id) state = state.copyWith(activeExternalDraftId: null);
+  }
+
+  /// タスク選びを待っていた依頼を、送らずに終わったので待ち行列へ戻す。
+  /// [refilled] なら送れなかった文が欄に戻っているので、欄の依頼にする（送れたら消す・破棄できる）。
+  /// そうでなければ最新として並べ、次に欄が空いたときに入れる
+  void _releaseExternalDraft(String? id, {bool refilled = false}) {
+    final draft = id == null ? null : _heldExternalDrafts.remove(id);
+    if (draft == null) return;
+    _externalDrafts.add(draft);
+    if (refilled && state.activeExternalDraftId == null) {
+      state = state.copyWith(activeExternalDraftId: draft.id);
+    }
+  }
+
+  /// 入力欄に入れた、ショートカットからの依頼を破棄する（画面の「破棄」から呼ぶ）。
+  /// 欄の文に手を入れていなければ欄も空にし、残っている依頼があれば次を入れる
+  Future<void> discardExternalDraft() async {
+    final id = state.activeExternalDraftId;
+    if (id == null || state.sending) return;
+    final draft = _externalDrafts.where((d) => d.id == id).firstOrNull;
+    if (draft != null && state.input.trim() == _clipDraft(draft.text).trim()) {
+      state = state.copyWith(input: '');
+    }
+    await _consumeExternalDraft(id);
+    _system('ショートカットから届いた依頼を破棄しました。');
+    _fillNextExternalDraft();
+  }
+
   /// 入力欄の文を書き戻す（画面の TextEditingController の変更から呼ぶ）
   void setInput(String text) {
     if (state.input == text) return;
@@ -595,6 +740,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   Future<void> send() async {
     final text = state.input.trim();
     if (text.isEmpty || state.sending) return;
+    // 欄にショートカットからの依頼が入っていれば、送れたときに保存先から消す（手を入れて送っても同じ）
+    final externalDraftId = state.activeExternalDraftId;
+    var delivered = false;
 
     // 選ばれないまま残っているタスク選びカードは閉じる（あとで押して古い発言が送られないように）
     _closePendingPickers();
@@ -617,13 +765,24 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         // 相談モード中は振り分けを通さず、そのタスクの相談として送る
         await _sendConsult(consult, text, history);
       } else {
-        await _routeAndHandle(text, history, userId);
+        await _routeAndHandle(text, history, userId, externalDraftId: externalDraftId);
       }
+      delivered = true;
     } catch (e) {
       _sendFailed(e, text, userId);
     } finally {
       state = state.copyWith(sending: false);
     }
+    // NOTE: 送れなかったときは消さない（_sendFailed が欄に文を戻すので、依頼はまだ欄にある）。
+    // 相談に振り分けられた依頼も消さない（タスク選びのカードを出しただけで、本文はまだ送っていない。
+    // chooseConsultTask で送れたときに消す。PR #1473 再レビュー指摘 P1）
+    if (!delivered) return;
+    if (externalDraftId != null && !_heldExternalDrafts.containsKey(externalDraftId)) {
+      await _consumeExternalDraft(externalDraftId);
+    }
+    // NOTE: 欄の依頼でない文（書きかけ）を送ったときも、欄が空けば待っている依頼を入れる。
+    // 依頼を送ったときだけ進めていたので、書きかけを送ると依頼が一覧に残ったままになった（同 P2）
+    _fillNextExternalDraft();
   }
 
   /// 送れなかった発言を履歴から外し、文を欄に戻して理由を出す
@@ -640,8 +799,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
   }
 
-  Future<void> _routeAndHandle(
-      String text, List<Map<String, String>> history, int userId) async {
+  Future<void> _routeAndHandle(String text, List<Map<String, String>> history, int userId,
+      {String? externalDraftId}) async {
     final service = ref.read(assistantServiceProvider);
     // 相談モード中は true（相談モード中の送信はここを通らないので、効くのはそれ以外の経路）
     final routed =
@@ -674,7 +833,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         await _runRoadmapDraft(text);
       case 'consult':
         _system(took('タスクについての相談'));
-        _askConsultTask(text, userId);
+        _askConsultTask(text, userId, externalDraftId: externalDraftId);
       case 'tidy':
         _system(took('タスクの片付け'));
         _runTidy(text);
@@ -697,7 +856,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   // 画面の帯の × で抜けると、通常の振り分けに戻る。
 
   /// 発言 [text] を保留し、タスク選びのカードを出す（発言はまだどこにも送らない）
-  void _askConsultTask(String text, int userId) {
+  void _askConsultTask(String text, int userId, {String? externalDraftId}) {
+    if (externalDraftId != null) _holdExternalDraft(externalDraftId);
     // 保留した発言は一般の会話の履歴に入れない（選んだあと相談スレッドへ移す）
     state = state.copyWith(messages: [
       for (final m in state.messages) m.id == userId ? m.withoutHistory() : m,
@@ -705,7 +865,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     _add((id) => RapiMessage(
           id: id,
           role: RapiRole.assistant,
-          consultPicker: RapiConsultPicker(text: text, utteranceId: userId),
+          consultPicker: RapiConsultPicker(
+              text: text, utteranceId: userId, externalDraftId: externalDraftId),
         ));
   }
 
@@ -723,8 +884,14 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   }
 
   void _closePendingPickers() {
-    if (!state.messages.any((m) => m.consultPicker?.phase == RapiConsultPickPhase.choosing)) {
-      return;
+    final open = [
+      for (final m in state.messages)
+        if (m.consultPicker?.phase == RapiConsultPickPhase.choosing) m.consultPicker!,
+    ];
+    if (open.isEmpty) return;
+    // 閉じたカードの依頼は送らないので待ち行列へ戻す（この送信が終わって欄が空けば欄に入る）
+    for (final p in open) {
+      _releaseExternalDraft(p.externalDraftId);
     }
     state = state.copyWith(messages: [
       for (final m in state.messages)
@@ -739,6 +906,9 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     final picker = _pickerOf(messageId);
     if (picker == null || picker.phase != RapiConsultPickPhase.choosing) return;
     _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.closed));
+    // 依頼は送らなかったので消さずに戻す（欄が空なら欄に入れる。消すのは送ったとき・破棄したときだけ）
+    _releaseExternalDraft(picker.externalDraftId);
+    _fillNextExternalDraft();
   }
 
   /// タスク選びカードでタスクを選んだ：相談モードに入り、保留していた発言を送る
@@ -751,10 +921,17 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     state = state.copyWith(consultTask: task, sending: true);
     final session = ++_consultSession;
     var userId = picker.utteranceId;
+    final draftId = picker.externalDraftId;
+    var sent = false;
+    var refilled = false;
     try {
       await _loadConsultThread(task, session);
       // 履歴を待つ間に相談を終えていたら（帯の ×）、保留していた発言は送らず、何も並べない
-      if (session != _consultSession) return;
+      if (session != _consultSession) {
+        _releaseExternalDraft(draftId);
+        _fillNextExternalDraft();
+        return;
+      }
       // 保留していた発言を、読み込んだ履歴のあと（相談スレッドの末尾）へ移してから送る
       final history = _consultHistory(task.id);
       userId = _nextId;
@@ -768,10 +945,18 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
             consultTaskId: task.id,
           ));
       await _sendConsult(task, picker.text, history);
+      sent = true;
     } catch (e) {
+      refilled = state.input.trim().isEmpty;
       _sendFailed(e, picker.text, userId);
     } finally {
       state = state.copyWith(sending: false);
+    }
+    if (sent) {
+      if (draftId != null) await _consumeExternalDraft(draftId);
+      _fillNextExternalDraft();
+    } else {
+      _releaseExternalDraft(draftId, refilled: refilled);
     }
   }
 
