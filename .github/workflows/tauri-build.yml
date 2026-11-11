@@ -61,26 +61,26 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ matrix.bunjs_version }}
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: ${{ matrix.rust_version }}
           targets: ${{ matrix.target }}
 
       - name: Setup Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         continue-on-error: true
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
@@ -121,10 +121,10 @@ jobs:
       - name: Get pnpm store directory
         id: pnpm_cache_dir
         shell: bash
-        run: echo "dir=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         continue-on-error: true
         with:
           path: ${{ steps.pnpm_cache_dir.outputs.dir }}
@@ -636,7 +636,7 @@ jobs:
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rapitas-windows-${{ matrix.target }}
           # NOTE: *.sig files are required by the auto-updater so it can verify
@@ -649,7 +649,7 @@ jobs:
 
       - name: Upload artifacts (macOS)
         if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rapitas-macos-${{ matrix.target }}
           path: |
@@ -659,7 +659,7 @@ jobs:
 
       - name: Upload artifacts (Linux)
         if: always() && matrix.platform == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rapitas-linux-${{ matrix.target }}
           path: |
@@ -676,10 +676,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
@@ -733,7 +733,7 @@ jobs:
           cat artifacts/latest.json
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: false
           prerelease: false
