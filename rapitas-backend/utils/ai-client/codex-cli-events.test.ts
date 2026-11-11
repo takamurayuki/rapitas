@@ -82,6 +82,40 @@ describe('parseCodexJsonl', () => {
     expect(s.usage).toEqual({ inputTokens: 0, cachedInputTokens: 0, outputTokens: 2 });
   });
 
+  test('a turn.failed without a reason keeps the failure flag but no reason (G2 re-review)', () => {
+    for (const ev of [
+      { type: 'turn.failed', error: {} },
+      { type: 'turn.failed' },
+      { type: 'turn.failed', error: { message: '  ' } },
+    ]) {
+      const s = parseCodexJsonl(
+        lines(
+          ev,
+          { type: 'item.completed', item: { type: 'agent_message', text: 'late' } },
+          {
+            type: 'turn.completed',
+            usage: {},
+          },
+        ),
+      );
+      expect(s.turnFailed).toBe(true);
+      expect(s.succeeded).toBe(false);
+      expect(s.failureMessage).toBeNull();
+    }
+    expect(parseCodexJsonl(RECORDED).turnFailed).toBe(false);
+  });
+
+  test('describeCodexFailure: a reasonless turn.failed falls through to stderr', () => {
+    const s = parseCodexJsonl(lines({ type: 'turn.failed', error: {} }));
+    expect(describeCodexFailure(s, 'Not logged in. Run codex login.\n')).toBe(
+      'Not logged in. Run codex login.',
+    );
+    const quota = "You've hit your usage limit. Try again at 3:05 PM.";
+    expect(describeCodexFailure(s, quota)).toBe(quota);
+    // Without stderr or a warning the failure is still named, not lost.
+    expect(describeCodexFailure(s, '')).toBe('Codex CLI reported turn.failed without a reason');
+  });
+
   test('describeCodexFailure: structured reason > stderr > warning > default', () => {
     const empty = parseCodexJsonl('');
     // The G2 reproduction: stdout empty, the reason only on stderr.

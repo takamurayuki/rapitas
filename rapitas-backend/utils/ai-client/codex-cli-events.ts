@@ -41,6 +41,12 @@ export interface CodexRunSummary {
    * caller can still prefer stderr (see describeCodexFailure).
    */
   failureMessage: string | null;
+  /**
+   * True when a `turn.failed` event was seen, with or without a reason. Kept
+   * apart from failureMessage (routing2b G2 re-review): a reasonless
+   * turn.failed must still fail the run, yet must not hide stderr.
+   */
+  turnFailed: boolean;
   /** True when a `turn.completed` event was seen. */
   turnCompleted: boolean;
   usage: CodexUsage | null;
@@ -74,7 +80,8 @@ function messageOf(v: unknown): string | null {
 export function parseCodexJsonl(stdout: string): CodexRunSummary {
   let text: string | null = null;
   let turnCompleted = false;
-  let turnFailed: string | null = null;
+  let turnFailed = false;
+  let turnFailedReason: string | null = null;
   let lastError: string | null = null;
   let usage: CodexUsage | null = null;
   const warnings: string[] = [];
@@ -113,8 +120,13 @@ export function parseCodexJsonl(stdout: string): CodexRunSummary {
         break;
       }
       case 'turn.failed':
-        // Only the first failure is kept, as in the agent runner.
-        turnFailed ??= messageOf(event.error) ?? messageOf(event.message) ?? 'turn failed';
+        // Only the first failure is kept, as in the agent runner. No canned
+        // text here: a reasonless event sets the flag only, so the reason can
+        // still come from stderr (describeCodexFailure).
+        if (!turnFailed) {
+          turnFailed = true;
+          turnFailedReason = messageOf(event.error) ?? messageOf(event.message);
+        }
         break;
       case 'error':
         lastError = messageOf(event.message) ?? messageOf(event.error) ?? lastError;
@@ -125,11 +137,12 @@ export function parseCodexJsonl(stdout: string): CodexRunSummary {
   }
 
   const answered = text !== null && text.trim() !== '';
-  const succeeded = turnCompleted && turnFailed === null && answered;
+  const succeeded = turnCompleted && !turnFailed && answered;
   return {
     text: answered ? text : null,
     succeeded,
-    failureMessage: succeeded ? null : (turnFailed ?? lastError),
+    failureMessage: succeeded ? null : (turnFailedReason ?? lastError),
+    turnFailed,
     turnCompleted,
     usage,
     warnings,
@@ -145,7 +158,8 @@ const STDERR_TAIL_CHARS = 1000;
  * a canned default.
  *
  * NOTE: stderr must come before the defaults (routing2b G2 finding 2): with an
- * empty stdout the CLI reports "Not logged in" / "usage limit … try again at"
+ * empty stdout — or a `turn.failed` that carries no reason (G2 re-review) —
+ * the CLI reports "Not logged in" / "usage limit … try again at"
  * only on stderr, and that text is what the cooldown classifier reads. It also
  * comes before warning items, which every run emits (unknown `-c features.*`
  * keys) and which never explain a failure.
@@ -160,6 +174,7 @@ export function describeCodexFailure(summary: CodexRunSummary, stderr: string): 
   if (err) return err.length > STDERR_TAIL_CHARS ? err.slice(-STDERR_TAIL_CHARS) : err;
   const warning = summary.warnings[summary.warnings.length - 1];
   if (warning) return warning;
+  if (summary.turnFailed) return 'Codex CLI reported turn.failed without a reason';
   return summary.turnCompleted
     ? 'Codex CLI returned no answer'
     : 'Codex CLI did not complete a turn';

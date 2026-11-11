@@ -179,6 +179,58 @@ describe('stderr-only failure reasons survive (G2 finding 2)', () => {
     expect(new Date(entry.until).getMinutes()).toBe(5);
   });
 
+  // G2 re-review: a turn.failed with no reason must not mask stderr.
+  const REASONLESS = JSON.stringify({ type: 'turn.failed', error: {} });
+
+  test('auth on stderr behind a reasonless turn.failed: reason kept, openai cooled as auth', async () => {
+    scripts = [
+      CHATGPT,
+      { code: 1, stdout: REASONLESS, stderr: 'Not logged in. Run codex login.\n' },
+    ];
+    const err = await ask().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CodexCliUnavailableError);
+    expect((err as Error).message).toContain('Not logged in. Run codex login.');
+    expect((err as Error).message).not.toContain('turn failed');
+    expect(coolVendorAfterJurorFailure(err, 'gpt-6-astra')).toMatchObject({
+      provider: 'openai',
+      reason: 'auth',
+    });
+    expect(listActiveCooldowns().map((c) => [c.provider, c.reason])).toEqual([['openai', 'auth']]);
+  });
+
+  test('quota on stderr behind a reasonless turn.failed: reason, resumeAt and cooldown carry it', async () => {
+    scripts = [
+      CHATGPT,
+      {
+        code: 1,
+        stdout: REASONLESS,
+        stderr: "ERROR: You've hit your usage limit. Upgrade to Pro, or try again at 3:05 PM.",
+      },
+    ];
+    const err = await ask().catch((e: unknown) => e);
+    expect((err as Error).message).toContain('usage limit');
+    const outcome = coolVendorAfterJurorFailure(err, 'gpt-6-astra');
+    expect(outcome).toMatchObject({ provider: 'openai', reason: 'quota' });
+    expect(outcome?.resetAt?.getMinutes()).toBe(5);
+    const entry = listActiveCooldowns()[0];
+    expect([entry.provider, entry.reason]).toEqual(['openai', 'quota']);
+    expect(new Date(entry.until).getMinutes()).toBe(5);
+  });
+
+  test('exit 0 with an answer after a reasonless turn.failed is still a failure', async () => {
+    scripts = [
+      CHATGPT,
+      {
+        stdout: [
+          REASONLESS,
+          JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'late' } }),
+          JSON.stringify({ type: 'turn.completed', usage: {} }),
+        ].join('\n'),
+      },
+    ];
+    await expect(ask()).rejects.toThrow(/turn\.failed without a reason/);
+  });
+
   test('a structured turn.failed still wins over stderr', async () => {
     scripts = [
       CHATGPT,
