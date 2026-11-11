@@ -38,6 +38,14 @@ export type AIRequestOptions = {
    * tools to offer and ignore it.
    */
   tools?: 'none' | 'web';
+  /**
+   * Which subscription CLI serves this call in `cli` aux mode. Omitted means
+   * the Claude Code CLI, as always. `'codex'` is set only by the review
+   * jury's OpenAI seats (routing2b) — the provider name is deliberately NOT
+   * used for this, so a chat that names `chatgpt` keeps going to Claude.
+   * Ignored outside `cli` mode.
+   */
+  cliRoute?: 'claude' | 'codex';
 };
 
 export type AIResponse = {
