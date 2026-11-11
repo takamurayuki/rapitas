@@ -12,6 +12,7 @@
  * by default reports exactly what `apply` would create. Not responsible for
  * deciding when to run — that is the operator's call (see the script).
  */
+import { inheritWorkspace } from '../tenancy/parent-workspace';
 import type { CompanionOrigin } from './companion-service';
 
 /** An audit row, as the backfill reads it. */
@@ -103,15 +104,15 @@ export interface BackfillDb {
   task: {
     findMany(args: {
       where: { id: { in: number[] } };
-      select: { id: true; status: true };
-    }): Promise<Array<{ id: number; status: string }>>;
+      select: { id: true; status: true; workspaceId: true };
+    }): Promise<Array<{ id: number; status: string; workspaceId?: number | null }>>;
   };
   taskCompanion: {
     findMany(args: {
       where: { taskId: { in: number[] } };
       select: { taskId: true };
     }): Promise<Array<{ taskId: number }>>;
-    create(args: { data: PlannedCompanion }): Promise<unknown>;
+    create(args: { data: PlannedCompanion & { workspaceId?: number } }): Promise<unknown>;
   };
 }
 
@@ -153,7 +154,10 @@ export async function backfillCompanions(
   ];
   const [tasks, existing] = ids.length
     ? await Promise.all([
-        db.task.findMany({ where: { id: { in: ids } }, select: { id: true, status: true } }),
+        db.task.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, status: true, workspaceId: true },
+        }),
         db.taskCompanion.findMany({ where: { taskId: { in: ids } }, select: { taskId: true } }),
       ])
     : [[], []];
@@ -162,12 +166,17 @@ export async function backfillCompanions(
     new Map(tasks.map((t) => [t.id, t.status])),
     new Set(existing.map((e) => e.taskId)),
   );
+  const workspaceOf = new Map(tasks.map((t) => [t.id, t]));
   let created = 0;
   const failed: number[] = [];
   if (options.apply) {
     for (const row of plan.create) {
       try {
-        await db.taskCompanion.create({ data: row });
+        // The task's own workspace, written explicitly: the script runs with
+        // no workspace in context, so nothing else would stamp it.
+        await db.taskCompanion.create({
+          data: { ...row, ...inheritWorkspace(workspaceOf.get(row.taskId)) },
+        });
         created += 1;
       } catch {
         failed.push(row.taskId);

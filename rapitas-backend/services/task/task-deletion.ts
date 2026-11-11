@@ -18,6 +18,7 @@ import { createLogger } from '../../config/logger';
 import { cleanUpTaskWorktrees } from './task-worktree-cleanup';
 import { snapshotTaskForTrash, type TrashSource } from './task-trash';
 import { snapshotTaskMeasurements } from './task-measurement-snapshot';
+import { closeCompanionsForDeletion, type CompanionDeletionDb } from '../companion';
 
 const logger = createLogger('task-deletion');
 
@@ -87,7 +88,14 @@ export async function deleteTaskWithTrash(
   await snapshotTaskMeasurements(taskId, prisma);
 
   try {
-    await prisma.task.delete({ where: { id: taskId } });
+    // One transaction: the companion rows of this task and of the subtasks
+    // its delete cascades to are closed ('task_deleted') and kept, and only
+    // if the delete itself commits (companion design 4.3). TaskCompanion has
+    // no foreign key to Task precisely so that it survives this.
+    await prisma.$transaction(async (tx) => {
+      await closeCompanionsForDeletion(tx as unknown as CompanionDeletionDb, taskId);
+      await tx.task.delete({ where: { id: taskId } });
+    });
   } catch (err) {
     // The guard above and this delete are not one atomic step — clearing
     // worktrees and copying 43 relations happen in between, which is long

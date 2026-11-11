@@ -8,7 +8,12 @@ export {
   startCompanion,
   stopCompanion,
   setCompanionSource,
+  readCompanionState,
+  closeCompanionsForDeletion,
   type CompanionDb,
+  type CompanionDeletionDb,
+  type CompanionState,
+  type CompanionTaskRow,
   type CompanionOrigin,
   type CompanionClosedReason,
   type CompanionRow,
@@ -24,3 +29,9 @@ export {
   type BackfillPlan,
   type PlannedCompanion,
 } from './companion-backfill';
+
+export {
+  detectCompanionRequest,
+  COMPANION_KEYWORD,
+  type CompanionRequest,
+} from './companion-intent';

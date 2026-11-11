@@ -143,15 +143,33 @@ describe('a description someone can act on', () => {
     });
     const body = plan?.steps[0]?.description ?? '';
     expect(body.startsWith('前からある形\n\n## 完了条件\n- [ ] ')).toBe(true);
-    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(1);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(3);
     expect(plan?.steps[0]?.acceptanceCriteria[0]).toContain('「やる」');
   });
 
-  test('a plain description that already lists criteria is kept as it is', async () => {
-    const legacy = '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている';
+  test('a plain description that already lists three criteria is kept as it is', async () => {
+    const legacy =
+      '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている\n- [ ] 二枚目が無い\n- [ ] 印刷できる';
     const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
     expect(plan?.steps[0]?.description).toBe(legacy);
-    expect(plan?.steps[0]?.acceptanceCriteria).toEqual(['一枚にまとまっている']);
+    expect(plan?.steps[0]?.acceptanceCriteria).toEqual([
+      '一枚にまとまっている',
+      '二枚目が無い',
+      '印刷できる',
+    ]);
+  });
+
+  test('a description listing fewer than three is re-composed with the supplements, once', async () => {
+    const legacy = '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    expect(step?.acceptanceCriteria).toHaveLength(3);
+    expect(step?.acceptanceCriteria[0]).toBe('一枚にまとまっている');
+    expect(step?.description.match(/## 完了条件/g)).toHaveLength(1);
+    for (const c of step?.acceptanceCriteria ?? [])
+      expect(step?.description).toContain(`- [ ] ${c}`);
+    expect(step?.criteriaItems?.map((i) => !!i.supplemented)).toEqual([false, true, true]);
+    expect(typeof step?.criteriaQuality?.score).toBe('number');
   });
 
   test('never an empty heading: missing done gets a derived criterion', async () => {
@@ -159,7 +177,7 @@ describe('a description someone can act on', () => {
     const body = plan?.steps[0]?.description ?? '';
     expect(body).toContain('手を動かす');
     expect(body).toMatch(/## 完了条件\n- \[ \] 「やる」/);
-    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(1);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(3);
   });
 
   test('the column-bound criteria are exactly the ticked lines', async () => {

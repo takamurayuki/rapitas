@@ -270,10 +270,12 @@ model TaskCompanion {
   id                     Int       @id @default(autoincrement())
   /// Owning workspace; NULL = the default one until stage 4 makes this required.
   workspaceId            Int?
+  /// Deliberately NOT a foreign key to Task: a deleted task's row is closed
+  /// (closedReason='task_deleted') and kept as history, which a cascade would
+  /// erase. task-deletion.ts closes it in the same transaction as the delete;
+  /// task-create-helpers.ts inserts it in the same transaction as the task.
+  /// @references Task.id
   taskId                 Int       @unique
-  // Cascade: a deleted task takes its row with it. The trash restores a NEW
-  // task, so the old row would point at nothing either way.
-  task                   Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   // task_create | roadmap_commit | manual
   origin                 String
   /// The AssistantAction that started it, when there was one.

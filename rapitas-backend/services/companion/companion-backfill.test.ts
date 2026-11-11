@@ -69,7 +69,11 @@ function fakeDb(): BackfillDb & { writes: unknown[] } {
       findMany: async ({ where }) =>
         where.id.in
           .filter((id) => STATUS.has(id))
-          .map((id) => ({ id, status: STATUS.get(id) as string })),
+          .map((id) => ({
+            id,
+            status: STATUS.get(id) as string,
+            workspaceId: id === 10 ? 6 : null,
+          })),
     },
     taskCompanion: {
       findMany: async () => [{ taskId: 32 }],
@@ -97,5 +101,12 @@ describe('backfillCompanions', () => {
     expect(out.created).toBe(2);
     expect(out.failed).toEqual([21]);
     expect(db.writes).toHaveLength(2);
+  });
+
+  test('each row carries its task’s workspace (none in context while the script runs)', async () => {
+    const db = fakeDb();
+    await backfillCompanions(db, { apply: true });
+    expect(db.writes[0]).toMatchObject({ taskId: 10, workspaceId: 6 });
+    expect(db.writes[1]).not.toHaveProperty('workspaceId');
   });
 });

@@ -1,10 +1,16 @@
 /**
- * task-create-helpers: TaskCompanion nested create (companion design 4.3, stage 1)
+ * task-create-helpers: TaskCompanion created with its task (companion design 4.3, stage 1)
  *
  * A task ラピ creates is accompanied from the moment it exists: its
- * TaskCompanion row is part of the same `task.create` (a nested write, one
- * statement), so no failure between two inserts can leave an accompanied task
- * without its row. Tasks created any other way get no row.
+ * TaskCompanion row is inserted in the same transaction as the task, so a
+ * failure between the two inserts rolls both back. The row carries the task's
+ * workspaceId (G2 review item 1: a nested write bypassed the workspace
+ * extension and left it NULL, invisible to the same workspace's reads and
+ * stops). Tasks created any other way get no row.
+ *
+ * Rows live in an in-memory store (tests/helpers/companion-memory-db.ts) and,
+ * for the workspace cases, go through the real workspace extension — so what
+ * is asserted is rows, not the arguments a mock received.
  *
  * Mock setup mirrors task-create-helpers.parent.test.ts (mock.module is
  * process-global, so every export is mirrored there too).
@@ -107,39 +113,14 @@ mock.module('./task-mutations', () => ({
 }));
 
 const { createParentTask } = await import('./task-create-helpers');
+const { readCompanionState, stopCompanion } = await import('../companion/companion-service');
+const { runInWorkspace } = await import('../tenancy/workspace-context');
+const { createMemoryDb, scopedByWorkspace } =
+  await import('../../tests/helpers/companion-memory-db');
 
-// ---------------------------------------------------------------------------
-// Test fixtures
-// ---------------------------------------------------------------------------
-
-type MockFn = ReturnType<typeof mock>;
-
-interface FakePrisma {
-  task: {
-    findUnique: MockFn;
-    create: MockFn;
-    update: MockFn;
-  };
-  taskLabel: {
-    createMany: MockFn;
-  };
-}
-
-let prisma: FakePrisma;
+type CompanionDb = import('../companion/companion-service').CompanionDb;
 
 beforeEach(() => {
-  prisma = {
-    task: {
-      findUnique: mock(() => Promise.resolve(null)),
-      create: mock((args: { data: Record<string, unknown> }) =>
-        Promise.resolve({ id: 100, ...args.data }),
-      ),
-      update: mock(() => Promise.resolve({})),
-    },
-    taskLabel: {
-      createMany: mock(() => Promise.resolve({ count: 0 })),
-    },
-  };
   mockRecordTaskCreated.mockReset();
   mockRecordTaskCreated.mockResolvedValue(undefined);
   mockAnalyzeTaskComplexityWithLearning.mockReset();
@@ -157,24 +138,111 @@ beforeEach(() => {
 
 describe('createParentTask with a companion', () => {
   test.each(['task_create', 'roadmap_commit'] as const)(
-    'origin %s: the companion row is created inside the same task.create',
+    'origin %s: the task and its open companion row both exist afterwards',
     async (origin) => {
-      prisma.task.findUnique.mockResolvedValueOnce({ id: 100, taskLabels: [] });
-      await createParentTask(prisma as never, 'parent', undefined, {
+      const db = createMemoryDb();
+      await createParentTask(db.client as never, 'parent', undefined, {
         acceptanceCriteria: ['終わっている'],
         companion: { origin },
       });
-      expect(prisma.task.create).toHaveBeenCalledTimes(1);
-      const { data } = prisma.task.create.mock.calls[0][0] as { data: Record<string, unknown> };
-      expect(data.companion).toEqual({ create: { origin } });
-      expect(data.acceptanceCriteria).toBe(JSON.stringify(['終わっている']));
+      expect(db.tables.Task).toHaveLength(1);
+      const task = db.tables.Task[0];
+      expect(task.acceptanceCriteria).toBe(JSON.stringify(['終わっている']));
+      expect(db.tables.TaskCompanion).toEqual([
+        expect.objectContaining({ taskId: task.id, origin, closedAt: null }),
+      ]);
     },
   );
 
+  test('the row carries the task workspace even with no workspace in context', async () => {
+    // A sessionless caller (the agent, a backfill) still writes the task's
+    // own workspace onto the row; the extension is not there to stamp it.
+    const db = createMemoryDb();
+    const realCreate = db.client.task.create as (a: { data: object }) => Promise<unknown>;
+    (db.client.task as Record<string, unknown>).create = (a: { data: object }) =>
+      realCreate({ data: { ...a.data, workspaceId: 5 } });
+    await createParentTask(db.client as never, 'parent', undefined, {
+      acceptanceCriteria: ['終わっている'],
+      companion: { origin: 'task_create' },
+    });
+    expect(db.tables.TaskCompanion[0].workspaceId).toBe(5);
+  });
+
+  test('a failed companion insert rolls the task back too', async () => {
+    const db = createMemoryDb();
+    db.failNext('TaskCompanion', 'create', new Error('disk full'));
+    await expect(
+      createParentTask(db.client as never, 'parent', undefined, {
+        acceptanceCriteria: ['終わっている'],
+        companion: { origin: 'task_create' },
+      }),
+    ).rejects.toThrow('disk full');
+    expect(db.tables.Task).toEqual([]);
+    expect(db.tables.TaskCompanion).toEqual([]);
+  });
+
   test('a task created without one gets no companion row', async () => {
-    prisma.task.findUnique.mockResolvedValueOnce({ id: 100, taskLabels: [] });
-    await createParentTask(prisma as never, 'parent', undefined, {});
-    const { data } = prisma.task.create.mock.calls[0][0] as { data: Record<string, unknown> };
-    expect(data).not.toHaveProperty('companion');
+    const db = createMemoryDb();
+    await createParentTask(db.client as never, 'parent', undefined, {});
+    expect(db.tables.Task).toHaveLength(1);
+    expect(db.tables.TaskCompanion).toEqual([]);
+  });
+});
+
+describe('inside a workspace: create → find → stop (G2 review item 1)', () => {
+  test('the row is created in the workspace, found there, and stopped there', async () => {
+    const db = createMemoryDb();
+    const scoped = scopedByWorkspace(db);
+    const companions = scoped as unknown as CompanionDb;
+
+    const created = (await runInWorkspace(7, () =>
+      createParentTask(scoped as never, 'ws7 task', undefined, {
+        acceptanceCriteria: ['終わっている'],
+        companion: { origin: 'task_create' },
+      }),
+    )) as { id: number } | null;
+    expect(created).not.toBeNull();
+    const taskId = created!.id;
+    expect(db.tables.Task[0].workspaceId).toBe(7);
+    expect(db.tables.TaskCompanion[0]).toMatchObject({ taskId, workspaceId: 7 });
+
+    // Found from the same workspace…
+    const seen = await runInWorkspace(7, () => readCompanionState(companions, taskId));
+    expect(seen).toMatchObject({ ok: true, active: true });
+    // …and not from another one.
+    const other = await runInWorkspace(8, () => readCompanionState(companions, taskId));
+    expect(other).toEqual({ ok: false, reason: 'task_not_found' });
+    expect(await runInWorkspace(8, () => stopCompanion(companions, taskId))).toEqual({
+      ok: false,
+      reason: 'not_active',
+    });
+    expect(db.tables.TaskCompanion[0].closedAt).toBeNull();
+
+    // Stopped from the same workspace.
+    const stopped = await runInWorkspace(7, () => stopCompanion(companions, taskId));
+    expect(stopped.ok).toBe(true);
+    expect(db.tables.TaskCompanion[0]).toMatchObject({ closedReason: 'stopped_by_user' });
+    expect(db.tables.TaskCompanion[0].closedAt).toBeInstanceOf(Date);
+  });
+
+  test('control: a row left with a NULL workspace is invisible to that workspace', async () => {
+    // What the nested write used to produce. This is why the workspace is
+    // written explicitly: scoped reads and stops cannot reach such a row.
+    const db = createMemoryDb();
+    const scoped = scopedByWorkspace(db) as unknown as CompanionDb;
+    db.tables.Task.push({ id: 1, title: 't', status: 'todo', workspaceId: 7 });
+    db.tables.TaskCompanion.push({
+      id: 1,
+      taskId: 1,
+      origin: 'task_create',
+      workspaceId: null,
+      closedAt: null,
+    });
+    const seen = await runInWorkspace(7, () => readCompanionState(scoped, 1));
+    expect(seen).toMatchObject({ ok: true, active: false, companion: null });
+    expect(await runInWorkspace(7, () => stopCompanion(scoped, 1))).toEqual({
+      ok: false,
+      reason: 'not_active',
+    });
   });
 });

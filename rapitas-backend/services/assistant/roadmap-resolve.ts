@@ -17,7 +17,11 @@
  */
 import { MAX_ROADMAP_STEPS, MAX_ROADMAP_QUESTIONS, type NamedRef } from './roadmap-prompts';
 import type { Placement, RoadmapQuestion, RoadmapStep } from './roadmap-types';
-import { criteriaFromDescription, ensureProposedCriteria } from './criteria-proposal';
+import {
+  criteriaFromDescription,
+  proposeCriteria,
+  withoutCriteriaSection,
+} from './criteria-proposal';
 
 /** Keeps one chatty answer from filling the panel. */
 export const MAX_TITLE = 120;
@@ -153,7 +157,7 @@ export function resolveSteps(
 ): RoadmapStep[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((s) => {
+    .map((s): RoadmapStep | null => {
       const step = (s ?? {}) as {
         title?: unknown;
         description?: unknown;
@@ -170,17 +174,19 @@ export function resolveSteps(
         : [];
       // `description` is the older shape, still accepted: a model that
       // answers in it is not wrong, it is just less structured.
-      // A step without criteria gets one derived from its title, written into
-      // the description too, so the column and the text the user reads agree.
+      // A step with fewer than three criteria is supplemented with checkable
+      // ones built from its title (design 段B), written into the description
+      // too, so the column and the text the user reads agree.
       const legacy = action ? undefined : (asText(step.description, MAX_BODY) ?? '');
-      const proposed = ensureProposedCriteria(
-        action ? done : criteriaFromDescription(legacy),
+      const proposed = proposeCriteria({
         title,
-      );
+        proposed: action ? done : criteriaFromDescription(legacy),
+        description: action ?? legacy,
+      });
       const description = action
         ? composeDescription(action, proposed.criteria)
-        : proposed.fallback
-          ? composeDescription(legacy ?? '', proposed.criteria)
+        : proposed.supplemented > 0
+          ? composeDescription(withoutCriteriaSection(legacy ?? ''), proposed.criteria)
           : (legacy ?? '');
 
       const due = asDayCount(step.dueInDays);
@@ -197,6 +203,10 @@ export function resolveSteps(
         title,
         description,
         acceptanceCriteria: proposed.criteria,
+        // Display only: who checks each one, vague hints, the score. Stripped
+        // by the commit schema, so it never reaches a task.
+        criteriaItems: proposed.items,
+        criteriaQuality: proposed.quality,
         ...(dated ? { dueDate: dated } : {}),
       };
     })

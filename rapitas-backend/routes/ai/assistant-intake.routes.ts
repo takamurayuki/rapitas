@@ -34,7 +34,7 @@ import {
   ConfirmationRequiredError,
 } from '../../services/assistant';
 import {
-  ensureProposedCriteria,
+  proposeCriteria,
   normalizeCriteria,
   ACCEPTANCE_CRITERIA_REQUIRED,
 } from '../../services/assistant/criteria-proposal';
@@ -68,17 +68,22 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
       const understood = await readTaskIntent(body.text, themes);
       const read = understood ?? buildTaskDraft(body.text, themes);
       const source = understood ? 'intent' : 'patterns';
-      // The card must always have criteria to confirm: the pattern reader
-      // proposes none, and the model may return an empty list. The fallback
-      // is flagged so the card can say it is only a starting point.
-      const proposed = ensureProposedCriteria(
-        understood?.acceptanceCriteria,
-        read.title || body.text,
-      );
+      // The card must always have 3〜7 criteria to confirm (design 段B): the
+      // pattern reader proposes none, and the model may return fewer. What
+      // ラピ adds is flagged per item, and the fallback as a whole, so the
+      // card can say it is only a starting point. Each item says who checks
+      // it; the whole is scored by spec-quality-checker.
+      const proposed = proposeCriteria({
+        title: read.title || body.text,
+        proposed: understood?.acceptanceCriteria,
+        description: read.description,
+      });
       const draft = {
         ...read,
         acceptanceCriteria: proposed.criteria,
         acceptanceCriteriaFallback: proposed.fallback,
+        acceptanceCriteriaItems: proposed.items,
+        criteriaQuality: proposed.quality,
       };
 
       // Recorded although nothing changed. "ラピ suggested this" belongs in
@@ -95,6 +100,8 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           missing: draft.missing,
           criteria: draft.acceptanceCriteria.length,
           criteriaFallback: draft.acceptanceCriteriaFallback,
+          criteriaSupplemented: proposed.supplemented,
+          criteriaScore: proposed.quality.score,
         },
       });
 

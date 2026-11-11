@@ -38,7 +38,8 @@ const PRIORITIES = ['urgent', 'high', 'medium', 'low'] as const;
 type Priority = (typeof PRIORITIES)[number];
 
 /** Keeps one bad answer from becoming an enormous task body. */
-const MAX_CRITERIA = 6;
+// Matches the proposal ceiling (design 段B: 3〜7).
+const MAX_CRITERIA = 7;
 const MAX_CRITERION_LENGTH = 200;
 
 /**
@@ -60,7 +61,7 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 3. themeId は与えられたテーマ一覧の id から選ぶ。発話にテーマ名が無くても、内容から判断して選ぶこと。どうしても判断できないときだけ null にする。
 4. themeReason には、そのテーマを選んだ理由を日本語で一文で書く。
 5. 発話に書かれていないことを埋めない。優先度・期日・見積もりは、発話から読み取れないなら null にする。
-6. acceptanceCriteria は「何がどうなったら完了か」を検証可能な形で1〜3件。判断材料が無ければ空配列にする。
+6. acceptanceCriteria は「何がどうなったら完了か」を検証可能な文で3〜7件。「使いやすい」「きちんと」のような確かめられない言葉は使わず、数・操作・結果で書く。判断材料が無ければ空配列にする。
 7. unclear は「ユーザーに聞かないと決まらないこと」だけを重要な順に最大3件。自分で決めた項目（選んだテーマなど）を蒸し返さない。細かすぎる確認は書かない。
 
 JSON の形:

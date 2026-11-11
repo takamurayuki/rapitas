@@ -9,6 +9,7 @@
  * place rather than three.
  */
 import type { RoadmapAnswer } from './roadmap-prompts';
+import type { CriteriaQuality, ProposedCriterion } from './criteria-proposal';
 
 /** Where the work should go, once the invented ids are stripped out. */
 export type Placement =
@@ -31,6 +32,13 @@ export interface RoadmapStep {
    * shows what the user is agreeing "done" means (companion stage 1).
    */
   acceptanceCriteria: string[];
+  /**
+   * The same criteria as the card shows them: who checks each, vague hints,
+   * whether ラピ added it (design 段B). Draft-only; the commit schema drops it.
+   */
+  criteriaItems?: ProposedCriterion[];
+  /** spec-quality-checker's score for this step's criteria. Draft-only. */
+  criteriaQuality?: CriteriaQuality;
   /** When it should be finished, only when a deadline was named (YYYY-MM-DD). */
   dueDate?: string;
 }
