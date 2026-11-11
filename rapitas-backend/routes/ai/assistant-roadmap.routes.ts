@@ -35,6 +35,14 @@ import {
   type ApprovedPlacement,
 } from '../../services/assistant';
 import { MAX_TEXT_LENGTH } from './assistant-intake.routes';
+import {
+  criteriaFromDescription,
+  normalizeCriteria,
+  ACCEPTANCE_CRITERIA_REQUIRED,
+  MAX_CRITERIA,
+  MAX_CRITERION_LENGTH,
+} from '../../services/assistant/criteria-proposal';
+import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
 /** A placement as the payload states it, before it is trusted as a plan. */
 const placement = t.Union([
@@ -117,14 +125,36 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
         throw err;
       }
 
+      // Every step must carry criteria before anything is created. A client
+      // that predates the field still sends the description it showed, whose
+      // `## 完了条件` checklist is the same approved text.
+      const steps = body.steps.map((step) => {
+        const sent = normalizeCriteria(step.acceptanceCriteria);
+        return {
+          ...step,
+          acceptanceCriteria: sent.length ? sent : criteriaFromDescription(step.description),
+        };
+      });
+      const lacking = steps.flatMap((step, i) => (step.acceptanceCriteria.length ? [] : [i]));
+      if (lacking.length > 0) {
+        await recordAction({
+          capabilityId: 'roadmap.commit',
+          status: 'refused',
+          args: { goal: body.goal, steps: body.steps.length, stepsWithoutCriteria: lacking },
+          errorMessage: ACCEPTANCE_CRITERIA_REQUIRED,
+        });
+        set.status = 400;
+        return { success: false, error: ACCEPTANCE_CRITERIA_REQUIRED, steps: lacking };
+      }
+
       const result = await commitRoadmap({
         goal: body.goal,
         themeChoice: body.themeChoice as ApprovedPlacement,
         projectChoice: body.projectChoice as ApprovedPlacement,
-        steps: body.steps,
+        steps,
       });
 
-      await recordAction({
+      const actionId = await recordAction({
         capabilityId: 'roadmap.commit',
         status: result.failedAfter === null ? 'executed' : 'failed',
         args: { goal: body.goal, steps: body.steps.length },
@@ -133,6 +163,11 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
           ? {}
           : { errorMessage: `stopped after ${result.failedAfter}` }),
       });
+      // Best-effort pointer from each row to this act; the rows themselves
+      // were written with their tasks.
+      await linkCompanionSource(prisma as unknown as CompanionDb, result.taskIds, actionId).catch(
+        () => undefined,
+      );
 
       return { success: true, ...result };
     },
@@ -159,6 +194,11 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
             // Character classes carry no backslash and cannot fail this way,
             // which is why the rest of the schemas in this repo use them.
             dueDate: t.Optional(t.String({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' })),
+            // Optional in the schema so an older client is read from its
+            // description instead of rejected outright; required in effect.
+            acceptanceCriteria: t.Optional(
+              t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
+            ),
           }),
           { minItems: 0, maxItems: 20 },
         ),

@@ -13,6 +13,12 @@
  * row. `POST /assistant/task-create` is the only way ラピ creates a task, and
  * refuses without the user's confirmation carried in the payload.
  *
+ * Every draft carries proposed completion criteria and every create must send
+ * at least one back (companion design stage 1): the criteria the user saw on
+ * the card are what the jury later judges against. A created task is
+ * accompanied from the start — its TaskCompanion row is written in the same
+ * insert.
+ *
  * Clearing tasks away is in `assistant-cleanup.routes.ts`; questions and the
  * audit trail are in `assistant-query.routes.ts`.
  */
@@ -27,6 +33,12 @@ import {
   recordAction,
   ConfirmationRequiredError,
 } from '../../services/assistant';
+import {
+  ensureProposedCriteria,
+  normalizeCriteria,
+  ACCEPTANCE_CRITERIA_REQUIRED,
+} from '../../services/assistant/criteria-proposal';
+import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
 const logger = createLogger('assistant-intake');
 
@@ -54,8 +66,20 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
       // makes it a form with guessed fields rather than an assistant that
       // understood anything.
       const understood = await readTaskIntent(body.text, themes);
-      const draft = understood ?? buildTaskDraft(body.text, themes);
+      const read = understood ?? buildTaskDraft(body.text, themes);
       const source = understood ? 'intent' : 'patterns';
+      // The card must always have criteria to confirm: the pattern reader
+      // proposes none, and the model may return an empty list. The fallback
+      // is flagged so the card can say it is only a starting point.
+      const proposed = ensureProposedCriteria(
+        understood?.acceptanceCriteria,
+        read.title || body.text,
+      );
+      const draft = {
+        ...read,
+        acceptanceCriteria: proposed.criteria,
+        acceptanceCriteriaFallback: proposed.fallback,
+      };
 
       // Recorded although nothing changed. "ラピ suggested this" belongs in
       // the trail, and a proposal the user walked away from leaves no other
@@ -64,7 +88,14 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         capabilityId: 'task.draft',
         status: 'proposed',
         args: { text: body.text },
-        result: { source, title: draft.title, themeId: draft.themeId, missing: draft.missing },
+        result: {
+          source,
+          title: draft.title,
+          themeId: draft.themeId,
+          missing: draft.missing,
+          criteria: draft.acceptanceCriteria.length,
+          criteriaFallback: draft.acceptanceCriteriaFallback,
+        },
       });
 
       // The UI says which reader produced this, because a fallback draft is
@@ -102,6 +133,20 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         throw err;
       }
 
+      // Server-side, not left to the card: a task filed without criteria is
+      // judged against nothing the user agreed to (`criteria_missing`).
+      const acceptanceCriteria = normalizeCriteria(body.task.acceptanceCriteria);
+      if (acceptanceCriteria.length === 0) {
+        await recordAction({
+          capabilityId: 'task.create',
+          status: 'refused',
+          args: body.task,
+          errorMessage: ACCEPTANCE_CRITERIA_REQUIRED,
+        });
+        set.status = 400;
+        return { success: false, error: ACCEPTANCE_CRITERIA_REQUIRED };
+      }
+
       try {
         const task = await createTask(prisma, {
           title: body.task.title,
@@ -115,18 +160,24 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           // reach are a known source of endless verification bounce-backs, so
           // these are the ones that survived the confirmation card, not the
           // ones a model produced unseen.
-          ...(body.task.acceptanceCriteria?.length
-            ? { acceptanceCriteria: body.task.acceptanceCriteria }
-            : {}),
+          acceptanceCriteria,
+          companion: { origin: 'task_create' },
         });
 
-        await recordAction({
+        const actionId = await recordAction({
           capabilityId: 'task.create',
           status: 'executed',
           args: body.task,
           taskId: task?.id,
           result: { id: task?.id },
         });
+        if (task) {
+          // Best-effort: the row exists either way; this only says which act
+          // made it, and the act's own row already names the task.
+          await linkCompanionSource(prisma as unknown as CompanionDb, [task.id], actionId).catch(
+            (err: unknown) => logger.warn({ err, taskId: task.id }, 'companion source link failed'),
+          );
+        }
 
         return { success: true, id: task?.id, task };
       } catch (err) {

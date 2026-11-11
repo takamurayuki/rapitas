@@ -46,16 +46,16 @@ describe('proposeTaskUpdate', () => {
   test('returns the task, the validated changes and the reason', async () => {
     reply = JSON.stringify({
       taskId: 11,
-      changes: { status: 'done', priority: 'low' },
-      reason: '直したと言っているので完了にする',
+      changes: { status: 'todo', priority: 'low' },
+      reason: '後回しにすると言っているので未着手に戻す',
     });
-    const p = await proposeTaskUpdate('ログインのバグ直した', tasks);
+    const p = await proposeTaskUpdate('ログインのバグは後回し', tasks);
     expect(p).toEqual({
       kind: 'proposal',
       taskId: 11,
       title: 'Fix the login bug',
-      changes: { status: 'done', priority: 'low' },
-      reason: '直したと言っているので完了にする',
+      changes: { status: 'todo', priority: 'low' },
+      reason: '後回しにすると言っているので未着手に戻す',
     });
   });
 

@@ -158,6 +158,10 @@ export async function createParentTask(
         data.acceptanceCriteria.length > 0 && {
           acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
         }),
+      // NOTE: Nested so the task and its TaskCompanion row commit as one write;
+      // a separate insert after this one could fail and leave an accompanied
+      // task with no record that it is (companion design 4.3).
+      ...(data.companion && { companion: { create: { origin: data.companion.origin } } }),
     },
   });
 

@@ -24,6 +24,13 @@ export interface RoadmapStep {
    * approves is character-for-character what gets created.
    */
   description: string;
+  /**
+   * The same completion criteria the description lists under `## 完了条件`,
+   * as the array `Task.acceptanceCriteria` stores. Never empty: a step the
+   * model gave no criteria gets one derived from its title, so the card always
+   * shows what the user is agreeing "done" means (companion stage 1).
+   */
+  acceptanceCriteria: string[];
   /** When it should be finished, only when a deadline was named (YYYY-MM-DD). */
   dueDate?: string;
 }

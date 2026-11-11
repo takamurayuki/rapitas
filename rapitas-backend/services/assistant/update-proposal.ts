@@ -12,7 +12,7 @@
  */
 import { sendAIMessage } from '../../utils/ai-client';
 import { createLogger } from '../../config/logger';
-import { validateTaskChanges, type TaskChanges } from './task-update';
+import { validateTaskChanges, ASSISTANT_FORBIDDEN_STATUS, type TaskChanges } from './task-update';
 
 const logger = createLogger('assistant-update-proposal');
 
@@ -31,11 +31,15 @@ export type UpdateProposal =
   | { kind: 'proposal'; taskId: number; title: string; changes: TaskChanges; reason: string }
   | { kind: 'unclear'; unclear: string[] };
 
+/** Said instead of a proposal when all that was asked was to mark a task done. */
+export const DONE_VIA_TASK_SCREEN =
+  '完了にする操作はラピからはできません。完了はタスク画面から付けてください（完了の判定は完了ゲートと陪審が行います）。';
+
 const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリのアシスタント「ラピ」です。
 ユーザーの発話が、候補一覧のどのタスクの何を変えたいのかを読み取ります。実行はしません。
 
 変えられる項目:
-- status: "todo" | "in-progress" | "done"
+- status: "todo" | "in-progress"（"done" は使わない。完了にするかはラピではなく完了判定が決める）
 - priority: "low" | "medium" | "high" | "urgent"
 - themeId: テーマの数値ID（発話に明示された場合のみ）
 - dueDate: "YYYY-MM-DD"（期限を外すなら null）
@@ -115,7 +119,19 @@ export async function proposeTaskUpdate(
 
   const task = tasks.find((t) => t.id === raw?.taskId);
   if (!task) return fallback('どのタスクのことか特定できませんでした。');
-  const checked = validateTaskChanges((raw.changes ?? {}) as Record<string, unknown>);
+  // The prompt says not to, and this does not trust it to have listened: a
+  // proposal to mark something done is dropped here, so the card never offers
+  // it. The rest of the same proposal (a priority, a date) still stands.
+  const requested = { ...((raw.changes ?? {}) as Record<string, unknown>) };
+  const askedForDone = requested.status === ASSISTANT_FORBIDDEN_STATUS;
+  if (askedForDone) delete requested.status;
+  if (askedForDone && Object.keys(requested).length === 0) {
+    return {
+      kind: 'unclear',
+      unclear: [DONE_VIA_TASK_SCREEN],
+    };
+  }
+  const checked = validateTaskChanges(requested);
   if (!checked.ok) return fallback(`変更内容を受け付けられません: ${checked.error}`);
 
   return {

@@ -9,6 +9,12 @@
  *
  * `update-draft` only reads: it turns a sentence into a proposal card. What
  * gets written is the change the user confirmed, against the id on the card.
+ *
+ * None of these may make a task `done` (companion design ch.2, Q4): not the
+ * draft, not a confirmed write, not an undo that would write `done` back.
+ * Completion is the completion gate's and the jury's call. Enforced here on
+ * the server because `confirmed: true` is only the client's word — a stale
+ * card or a hand-built request carries it just as well.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -19,6 +25,8 @@ import {
   ConfirmationRequiredError,
   validateTaskChanges,
   applyTaskUpdate,
+  ASSISTANT_FORBIDDEN_STATUS,
+  DONE_NOT_ALLOWED,
   revertTaskUpdate,
   proposeTaskUpdate,
   CANDIDATE_WINDOW,
@@ -80,6 +88,19 @@ export const assistantUpdateRoutes = new Elysia({ prefix: '/assistant' })
   .post(
     '/task-update',
     async ({ body, set }) => {
+      // Before the confirmation check: whether or not it was confirmed, this
+      // is a write ラピ may never make, and the refusal belongs in the trail.
+      if (body.changes.status === ASSISTANT_FORBIDDEN_STATUS) {
+        await recordAction({
+          capabilityId: 'task.update',
+          status: 'refused',
+          args: body,
+          taskId: body.taskId,
+          errorMessage: DONE_NOT_ALLOWED,
+        });
+        set.status = 409;
+        return { success: false, error: DONE_NOT_ALLOWED };
+      }
       if (await refuseUnconfirmed('task.update', body.confirmed, body)) {
         set.status = 400;
         return { success: false, error: 'confirmation_required' };
@@ -143,6 +164,20 @@ export const assistantUpdateRoutes = new Elysia({ prefix: '/assistant' })
       ) {
         set.status = 404;
         return { success: false, error: 'no_undoable_update' };
+      }
+      // Undoing an act whose "before" was done would make ラピ the one who
+      // marked the task done. The other direction (taking a task out of done)
+      // declares nothing and stays allowed.
+      if (record.before?.status === ASSISTANT_FORBIDDEN_STATUS) {
+        await recordAction({
+          capabilityId: 'task.update',
+          status: 'refused',
+          args: { revertOf: body.actionId },
+          taskId: action.taskId,
+          errorMessage: DONE_NOT_ALLOWED,
+        });
+        set.status = 409;
+        return { success: false, error: DONE_NOT_ALLOWED, conflicts: [] };
       }
       const reverted = await revertTaskUpdate(db, action.taskId, record);
       if (!reverted.ok) {

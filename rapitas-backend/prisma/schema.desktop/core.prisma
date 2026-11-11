@@ -227,6 +227,8 @@ model Task {
   workflowTransitions  WorkflowTransition[]
   requirementReviewClaims RequirementReviewClaim[]
   requirementReviewRetryRequests RequirementReviewRetryRequest[]
+  // Set when ラピ is seeing this task through to completion (companion stage 1).
+  companion            TaskCompanion?
 }
 
 model Comment {

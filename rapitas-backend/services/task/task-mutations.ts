@@ -66,6 +66,12 @@ export interface CreateTaskInput {
   acceptanceCriteria?: string[];
   /** SearchMiss ID to link on creation — bridges gap resolution flow. */
   searchMissId?: number;
+  /**
+   * Record that ラピ accompanies this task, written in the same insert as the
+   * task (nested create) so one can never exist without the other. Top-level
+   * tasks only — ラピ does not create subtasks.
+   */
+  companion?: { origin: 'task_create' | 'roadmap_commit' };
 }
 
 /**

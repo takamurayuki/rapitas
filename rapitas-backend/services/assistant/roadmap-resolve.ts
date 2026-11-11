@@ -17,6 +17,7 @@
  */
 import { MAX_ROADMAP_STEPS, MAX_ROADMAP_QUESTIONS, type NamedRef } from './roadmap-prompts';
 import type { Placement, RoadmapQuestion, RoadmapStep } from './roadmap-types';
+import { criteriaFromDescription, ensureProposedCriteria } from './criteria-proposal';
 
 /** Keeps one chatty answer from filling the panel. */
 export const MAX_TITLE = 120;
@@ -169,9 +170,18 @@ export function resolveSteps(
         : [];
       // `description` is the older shape, still accepted: a model that
       // answers in it is not wrong, it is just less structured.
+      // A step without criteria gets one derived from its title, written into
+      // the description too, so the column and the text the user reads agree.
+      const legacy = action ? undefined : (asText(step.description, MAX_BODY) ?? '');
+      const proposed = ensureProposedCriteria(
+        action ? done : criteriaFromDescription(legacy),
+        title,
+      );
       const description = action
-        ? composeDescription(action, done)
-        : (asText(step.description, MAX_BODY) ?? '');
+        ? composeDescription(action, proposed.criteria)
+        : proposed.fallback
+          ? composeDescription(legacy ?? '', proposed.criteria)
+          : (legacy ?? '');
 
       const due = asDayCount(step.dueInDays);
       // Dates only mean something relative to a deadline. Without one the
@@ -183,7 +193,12 @@ export function resolveSteps(
             dayAfter(dates.today, Math.min(due, dates.deadlineInDays))
           : undefined;
 
-      return { title, description, ...(dated ? { dueDate: dated } : {}) };
+      return {
+        title,
+        description,
+        acceptanceCriteria: proposed.criteria,
+        ...(dated ? { dueDate: dated } : {}),
+      };
     })
     .filter((s): s is RoadmapStep => s !== null)
     .slice(0, MAX_ROADMAP_STEPS);

@@ -135,18 +135,40 @@ describe('a description someone can act on', () => {
     expect(plan?.steps[0]?.description).toContain('- [ ] A4 1枚');
   });
 
-  test('keeps a plain description when that is all it gave', async () => {
+  test('keeps a plain description, adding a derived criterion when it lists none', async () => {
+    // Companion stage 1: every step reaches the card with criteria, so a bare
+    // description gains one (derived from the title) rather than none.
     const plan = await refine({
       steps: [{ title: 'やる', description: '前からある形' }],
     });
-    expect(plan?.steps[0]?.description).toBe('前からある形');
+    const body = plan?.steps[0]?.description ?? '';
+    expect(body.startsWith('前からある形\n\n## 完了条件\n- [ ] ')).toBe(true);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(1);
+    expect(plan?.steps[0]?.acceptanceCriteria[0]).toContain('「やる」');
   });
 
-  test('says nothing rather than an empty heading when done is missing', async () => {
+  test('a plain description that already lists criteria is kept as it is', async () => {
+    const legacy = '前からある形\n\n## 完了条件\n- [ ] 一枚にまとまっている';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    expect(plan?.steps[0]?.description).toBe(legacy);
+    expect(plan?.steps[0]?.acceptanceCriteria).toEqual(['一枚にまとまっている']);
+  });
+
+  test('never an empty heading: missing done gets a derived criterion', async () => {
     const plan = await refine({ steps: [{ title: 'やる', action: '手を動かす' }] });
     const body = plan?.steps[0]?.description ?? '';
     expect(body).toContain('手を動かす');
-    expect(body).not.toContain('完了条件');
+    expect(body).toMatch(/## 完了条件\n- \[ \] 「やる」/);
+    expect(plan?.steps[0]?.acceptanceCriteria).toHaveLength(1);
+  });
+
+  test('the column-bound criteria are exactly the ticked lines', async () => {
+    const plan = await refine();
+    const step = plan?.steps[0];
+    for (const c of step?.acceptanceCriteria ?? []) {
+      expect(step?.description).toContain(`- [ ] ${c}`);
+    }
+    expect(step?.acceptanceCriteria.length).toBeGreaterThan(0);
   });
 
   test('composes the same way wherever it is called from', () => {

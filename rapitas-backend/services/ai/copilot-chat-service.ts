@@ -26,61 +26,12 @@ import {
 } from '../local-llm/response-cache';
 import { sendAIMessage, sendAIMessageStream } from '../../utils/ai-client';
 import type { AIMessage } from '../../utils/ai-client';
-import { gatherSharedKnowledge, formatKnowledgeContext } from '../agents/agent-knowledge-sharing';
+// NOTE: Task context moved to its own module (companion stage 1 widened it with
+// criteria, workflow stage, halt reason and recent transitions).
+import { buildTaskContext } from './copilot-task-context';
 import { matchCopilotIntent, respondToIntent } from './copilot-intent-responder';
 
 const log = createLogger('copilot-chat');
-
-/** Build context string from task and related data. */
-async function buildTaskContext(taskId: number): Promise<string> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: {
-      theme: { select: { name: true, workingDirectory: true } },
-      comments: {
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: { content: true },
-      },
-      subtasks: {
-        select: { id: true, title: true, status: true },
-        take: 10,
-      },
-    },
-  });
-
-  if (!task) return '';
-
-  const parts: string[] = [
-    `## タスク: ${task.title}`,
-    `ステータス: ${task.status} / 優先度: ${task.priority}`,
-  ];
-
-  if (task.description) parts.push(`説明: ${task.description.slice(0, 500)}`);
-  if (task.theme) parts.push(`テーマ: ${task.theme.name}`);
-
-  if (task.subtasks.length > 0) {
-    parts.push(`\nサブタスク: ${task.subtasks.map((s) => `[${s.status}] ${s.title}`).join(', ')}`);
-  }
-
-  if (task.comments.length > 0) {
-    parts.push(
-      `\n最近のコメント:\n${task.comments.map((c) => `- ${c.content.slice(0, 150)}`).join('\n')}`,
-    );
-  }
-
-  // Ground the copilot in the knowledge OS: past success/failure patterns and
-  // related knowledge for this task (the same context agents receive before
-  // execution). Non-fatal — falls back to task-local context on error.
-  try {
-    const knowledgeContext = formatKnowledgeContext(await gatherSharedKnowledge(taskId));
-    if (knowledgeContext) parts.push(`\n${knowledgeContext}`);
-  } catch {
-    // ignore — keep task-local context only
-  }
-
-  return parts.join('\n');
-}
 
 /**
  * Determine which Claude model to use based on message complexity. Always
@@ -114,6 +65,8 @@ const SYSTEM_PROMPT = `あなたはrapitasタスク管理アプリのAIコパイ
 - 日本語で回答
 - タスクの文脈が提供された場合、それを踏まえて回答
 - 「過去の失敗パターンに基づく警告」「関連する成功パターン」「関連する既存ナレッジ」が提供された場合は、必ずそれを根拠として具体的に助言する
+- 「完了条件」「ワークフローの段階」「停止中」「直近の遷移」が提供された場合、完了条件や進み具合（今どこか・あと何が残っているか）を聞かれたら、必ずそれを根拠に答える。提供されていないことは推測で補わない
+- 完了したかどうかはラピが宣言しない（完了の判定は完了ゲートと陪審が行う）
 - 実装の提案は具体的なステップで
 - 不明な点は確認を求める
 - 200-400文字程度を目安に簡潔に`;

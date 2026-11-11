@@ -167,6 +167,23 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'stop-what-was-started',
   },
+  {
+    // "伴走して" on a task ラピ did not create (companion design 4.3, Q1).
+    // Writes one TaskCompanion row and asks first, because it changes what
+    // she will keep reporting on. Undone by companion.stop below.
+    id: 'companion.start',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'stop-what-was-started',
+  },
+  {
+    // Closes the row (closedAt), never deletes it: when and why she stopped
+    // watching is part of the task's history.
+    id: 'companion.stop',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'restore-previous-values',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */
