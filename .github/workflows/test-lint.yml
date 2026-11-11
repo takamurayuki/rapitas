@@ -466,16 +466,23 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Check backend TypeScript
-        working-directory: rapitas-backend
-        run: bunx tsc --noEmit
-
+      # NOTE: Generate the SQLite client BEFORE the first tsc. Since a460cc8f the
+      # two clients live in separate folders (generated/prisma-postgres and
+      # generated/prisma-sqlite), and tsc type-checks test helpers that are not
+      # *.test.ts — e.g. services/workflow/acceptance/*.test-helpers.ts (#1477),
+      # which type the SQLite harness DB with the SQLite client. Generated after
+      # tsc, that import was unresolved (TS2307) and every PrismaClient value in
+      # those helpers degraded to any (TS7006), failing Lint Code on develop.
       - name: Check desktop SQLite Prisma generation
         working-directory: rapitas-backend
         run: bun run db:prepare:sqlite
         env:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Check backend TypeScript
+        working-directory: rapitas-backend
+        run: bunx tsc --noEmit
 
       - name: Verify SQLite generated artifacts match committed files
         working-directory: rapitas-backend
