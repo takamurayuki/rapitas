@@ -6,7 +6,7 @@
  * Codex が枠切れになったら、止まった理由と再開見込みを表示・記録し、cooldown
  * が明けたら再開する。黙って基準を下げない（本人判断3）。
  */
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import {
   ClaudeCliUnavailableError,
   CodexCliUnavailableError,
@@ -145,13 +145,26 @@ describe('パターン2 Codex だけ', () => {
       const unmet = stopped.decisions.find((d) => d.summary === '陪審の席の要件未達');
       expect(unmet?.adoptedReason).toContain('openai: quota（再開見込み');
 
-      __resetCooldowns();
-      await runPostSave(runVerifyPostSaveAutomation, db, taskId);
-      // The failed run reported no model, so the executor is unverified (premium).
-      expect(juryCalls(state)).toEqual([
-        ['codex', 'gpt-6-astra', 'reviewer'],
-        ['codex', 'gpt-6-astra', 'reviewer'],
-      ]);
+      // Recovery by the clock alone — no __resetCooldowns(): one minute before
+      // the parsed resume time the vendor still cools, one minute after it the
+      // cooldown has lapsed by itself and the jury sits again.
+      const until = new Date(cooldown!.until).getTime();
+      try {
+        setSystemTime(new Date(until - 60_000));
+        await runPostSave(runVerifyPostSaveAutomation, db, taskId);
+        expect(juryCalls(state)).toEqual([]);
+
+        setSystemTime(new Date(until + 60_000));
+        expect(listActiveCooldowns().find((c) => c.provider === 'openai')).toBeUndefined();
+        await runPostSave(runVerifyPostSaveAutomation, db, taskId);
+        // The failed run reported no model, so the executor is unverified (premium).
+        expect(juryCalls(state)).toEqual([
+          ['codex', 'gpt-6-astra', 'reviewer'],
+          ['codex', 'gpt-6-astra', 'reviewer'],
+        ]);
+      } finally {
+        setSystemTime();
+      }
     });
 
     test('陪審の呼び出しが枠切れ（quota）なら openai を休ませ、次のレビューは全席 unmet', async () => {
