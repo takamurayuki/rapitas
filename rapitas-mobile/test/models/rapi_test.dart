@@ -63,6 +63,18 @@ void main() {
       expect(draft.fellBackToPatterns, isTrue);
     });
 
+    test('完了条件が仮の案（サーバーがタイトルから作った）かどうかを読む', () {
+      final fallback = TaskDraft.fromJson({
+        'title': '牛乳を買う',
+        'acceptanceCriteria': ['「牛乳を買う」で求められている成果ができあがり…'],
+        'acceptanceCriteriaFallback': true,
+      });
+      expect(fallback.acceptanceCriteria, hasLength(1));
+      expect(fallback.acceptanceCriteriaFallback, isTrue);
+      expect(fallback.copyWith(title: 'x').acceptanceCriteriaFallback, isTrue);
+      expect(TaskDraft.fromJson({'title': 'x'}).acceptanceCriteriaFallback, isFalse);
+    });
+
     test('themeCandidates が無い・壊れていても空配列になる', () {
       expect(TaskDraft.fromJson({'title': 'x'}).themeCandidates, isEmpty);
       expect(
@@ -206,6 +218,24 @@ void main() {
       });
       expect(r.intent, 'create');
       expect(r.reason, 'やることを書いているので');
+    });
+  });
+
+  group('RoadmapStep', () {
+    test('完了条件を受け取ったまま commit に返す（列に入る）', () {
+      final step = RoadmapStep.fromJson({
+        'title': '経歴書',
+        'description': '書く\n\n## 完了条件\n- [ ] A4 1枚',
+        'acceptanceCriteria': ['A4 1枚'],
+      });
+      expect(step.acceptanceCriteria, ['A4 1枚']);
+      expect(step.toJson()['acceptanceCriteria'], ['A4 1枚']);
+    });
+
+    test('完了条件が無い古い形は送らない（サーバーが説明文から読む）', () {
+      final step = RoadmapStep.fromJson({'title': '経歴書', 'description': '書く'});
+      expect(step.acceptanceCriteria, isEmpty);
+      expect(step.toJson().containsKey('acceptanceCriteria'), isFalse);
     });
   });
 }

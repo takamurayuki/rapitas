@@ -631,6 +631,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                 padding: const EdgeInsets.only(top: 3),
                 child: Text('・$c', style: const TextStyle(fontSize: 13, color: bodyColor)),
               ),
+            if (draft.acceptanceCriteriaFallback)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'ラピの仮の案です。違っていたら、作成後にデスクトップのタスク編集で直してください。',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                ),
+              ),
           ],
           if (draft.unclear.isNotEmpty) ...[
             const SizedBox(height: 8),

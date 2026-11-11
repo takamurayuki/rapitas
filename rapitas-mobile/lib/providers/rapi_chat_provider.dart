@@ -1198,11 +1198,15 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
         return;
       }
       final notFound = e is AssistantException && e.statusCode == 404;
+      // サーバーはラピ経由で「完了」に戻すことを断る（完了の判定は完了ゲートと陪審が行う）
+      final doneRefused = e is AssistantException && e.code == rapiDoneNotAllowedCode;
       _setChange(
         messageId,
         (_changeOf(messageId) ?? card).copyWith(
           phase: RapiChangePhase.applied,
-          error: notFound
+          error: doneRefused
+              ? '完了に戻す操作はラピからはできません。必要ならタスク画面から完了にしてください。'
+              : notFound
               ? '元に戻せませんでした。タスクが見つかりません。'
               : e is AssistantTimeoutException
                   ? '応答がなく、元に戻せたか確かめられませんでした。タスクを開いて確認してください。'
@@ -1224,6 +1228,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
           return '指定のテーマが見つかりませんでした。';
         case 'no_change':
           return 'すでにこの内容になっているため、変更はありませんでした。';
+        case rapiDoneNotAllowedCode:
+          return '完了にする操作はラピからはできません。完了はタスク画面から付けてください。';
       }
       if (e.statusCode == 400) return 'この変更内容は受け付けられませんでした。';
     }

@@ -83,8 +83,11 @@ class TaskDraft {
   /// テーマを選んだ理由（AI が読んだときだけ）
   final String? themeReason;
 
-  /// 完了条件（AI が読んだときだけ。パターン推定では空）
+  /// 完了条件。サーバーは必ず1件以上付けて返す（AI が出さなかったときはタイトルから作った仮の案）
   final List<String> acceptanceCriteria;
+
+  /// 完了条件がラピの仮の案（AI が出さなかったのでタイトルから作った）か
+  final bool acceptanceCriteriaFallback;
 
   /// ラピが判断できなかったこと
   final List<String> unclear;
@@ -103,6 +106,7 @@ class TaskDraft {
     this.missing = const [],
     this.themeReason,
     this.acceptanceCriteria = const [],
+    this.acceptanceCriteriaFallback = false,
     this.unclear = const [],
     this.source,
   });
@@ -121,6 +125,7 @@ class TaskDraft {
       missing: _strings(json['missing']),
       themeReason: _string(json['themeReason']),
       acceptanceCriteria: _strings(json['acceptanceCriteria']),
+      acceptanceCriteriaFallback: json['acceptanceCriteriaFallback'] == true,
       unclear: _strings(json['unclear']),
       source: source,
     );
@@ -140,6 +145,7 @@ class TaskDraft {
         missing: missing,
         themeReason: themeReason,
         acceptanceCriteria: acceptanceCriteria,
+        acceptanceCriteriaFallback: acceptanceCriteriaFallback,
         unclear: unclear,
         source: source,
       );
@@ -579,7 +585,15 @@ class RoadmapStep {
   /// 期限（YYYY-MM-DD）。依頼に期限があったときだけ
   final String? dueDate;
 
-  const RoadmapStep({required this.title, this.description = '', this.dueDate});
+  /// 完了条件（説明文の「## 完了条件」と同じもの）。commit でタスクの完了条件の列に入る
+  final List<String> acceptanceCriteria;
+
+  const RoadmapStep({
+    required this.title,
+    this.description = '',
+    this.dueDate,
+    this.acceptanceCriteria = const [],
+  });
 
   factory RoadmapStep.fromJson(Map<String, dynamic> json) {
     final due = _string(json['dueDate']);
@@ -587,6 +601,7 @@ class RoadmapStep {
       title: json['title']?.toString() ?? '',
       description: _string(json['description']) ?? '',
       dueDate: due != null && RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(due) ? due : null,
+      acceptanceCriteria: _strings(json['acceptanceCriteria']),
     );
   }
 
@@ -594,6 +609,8 @@ class RoadmapStep {
         'title': title,
         'description': description,
         if (dueDate != null) 'dueDate': dueDate,
+        // 送らなくてもサーバーは説明文の「## 完了条件」から読むが、下書きで受け取った形のまま返す
+        if (acceptanceCriteria.isNotEmpty) 'acceptanceCriteria': acceptanceCriteria,
       };
 }
 
@@ -712,6 +729,10 @@ const int rapiTidyBatchSize = 50;
 
 /// 条件で選べる状態（デスクトップ TaskBulkCleanup.tsx の STATUSES と同じ順）
 const List<String> rapiTidyStatuses = ['cancelled', 'done', 'blocked', 'todo'];
+
+/// ラピ経由で「完了」を書こうとしたときにサーバーが返す error（409）。
+/// 完了の判定は完了ゲートと陪審が行い、手で完了にするのはタスク画面から
+const String rapiDoneNotAllowedCode = 'done_not_allowed_via_assistant';
 
 /// 条件の状態の表示名（デスクトップ rapiAvatar.bulk.statusLabel と同じ表記）
 const Map<String, String> rapiTidyStatusLabels = {
