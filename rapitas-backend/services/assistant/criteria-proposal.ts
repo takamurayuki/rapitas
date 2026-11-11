@@ -31,7 +31,7 @@
  * routes do that.
  */
 import { checkSpecQuality } from '../intake/spec-quality-checker';
-import { normalizeCriteria, MAX_CRITERION_LENGTH } from './criteria-text';
+import { normalizeCriteria, withoutCriteriaSection, MAX_CRITERION_LENGTH } from './criteria-text';
 import { classifyVerifier, findVagueTerm, type CriterionVerifier } from './criteria-wording';
 import {
   detectTaskKind,
@@ -46,6 +46,8 @@ export {
   normalizeCriteria,
   criteriaFromDescription,
   withoutCriteriaSection,
+  composeDescription,
+  descriptionForJury,
   MAX_CRITERIA,
   MAX_CRITERION_LENGTH,
   ACCEPTANCE_CRITERIA_REQUIRED,
@@ -117,6 +119,23 @@ function parseList(value: unknown): unknown[] {
   }
 }
 
+/**
+ * The input with any `## 完了条件` checklist taken out of its description.
+ *
+ * NOTE: The kind, the verifiers and the score are read from the task's own
+ * text, never from its criteria. The draft used to pass the description with
+ * the checklist still in it while confirm passed it without, so a criterion
+ * mentioning "画面" made a 歯医者 booking 'software' on the card (jury) and an
+ * errand on confirm (person) — the card's tags and the stored columns
+ * disagreed (review fix3 item 2). Stripping here, the one entry every path
+ * (draft, /criteria/review, create, commit) goes through, keeps them equal.
+ */
+function ownFields(input: CriteriaProposalInput): CriteriaProposalInput {
+  return typeof input.description === 'string'
+    ? { ...input, description: withoutCriteriaSection(input.description) }
+    : input;
+}
+
 /** The task fields the verifier and the supplements are read from. */
 function context(input: CriteriaProposalInput) {
   const goals = normalizeCriteria(parseList(input.goals));
@@ -178,7 +197,8 @@ function qualityOf(input: CriteriaProposalInput, items: ProposedCriterion[]): Cr
  * @param input - Title, what the reader proposed, and the rest of the spec / 提案の材料
  * @returns 3〜7 criteria with verifier marks, vague hints and a score / 提案
  */
-export function proposeCriteria(input: CriteriaProposalInput): CriteriaProposal {
+export function proposeCriteria(raw: CriteriaProposalInput): CriteriaProposal {
+  const input = ownFields(raw);
   const proposed = normalizeCriteria(input.proposed).slice(0, MAX_PROPOSED_CRITERIA);
   const ctx = context(input);
   const items: ProposedCriterion[] = proposed.map((text) => describe(text, ctx, false));
@@ -210,11 +230,12 @@ export function proposeCriteria(input: CriteriaProposalInput): CriteriaProposal 
  * @param input - The task fields, with `proposed` = the criteria as they now stand / 現在の完了条件と材料
  * @returns The items and the score, plus the task's kind / 判定者・曖昧語・採点
  */
-export function reviewCriteria(input: CriteriaProposalInput): {
+export function reviewCriteria(raw: CriteriaProposalInput): {
   items: ProposedCriterion[];
   kind: TaskKind;
   quality: CriteriaQuality;
 } {
+  const input = ownFields(raw);
   const texts = normalizeCriteria(input.proposed);
   const ctx = context(input);
   const items = texts.map((text) => describe(text, ctx, ctx.candidates.has(text)));

@@ -181,7 +181,26 @@ describe('a description someone can act on', () => {
     const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
     const step = plan?.steps[0];
     expect(step?.acceptanceCriteria).toEqual(['一つ目', '二つ目', '三つ目']);
-    expect(criteriaFromDescription(step?.description)).toEqual(step?.acceptanceCriteria);
+    // The raw text, not re-read through the normaliser that would hide a
+    // duplicate (fix3 item 3).
+    expect(step?.description.split('\n')).toEqual([
+      '前からある形',
+      '',
+      '## 完了条件',
+      '- [ ] 一つ目',
+      '- [ ] 二つ目',
+      '- [ ] 三つ目',
+    ]);
+  });
+
+  test('A／B／C／A: the description is three lines, as the column and the card are (fix3 item 3)', async () => {
+    const legacy = '前からある形\n\n## 完了条件\n- [ ] A\n- [ ] B\n- [ ] C\n- [ ] A';
+    const plan = await refine({ steps: [{ title: 'やる', description: legacy }] });
+    const step = plan?.steps[0];
+    const lines = (step?.description ?? '').split('\n').filter((l) => l.startsWith('- [ ] '));
+    expect(lines).toEqual(['- [ ] A', '- [ ] B', '- [ ] C']);
+    expect(step?.acceptanceCriteria).toEqual(['A', 'B', 'C']);
+    expect(step?.criteriaItems?.map((i) => i.text)).toEqual(['A', 'B', 'C']);
   });
 
   test('ten done items in the structured shape: description and column agree at seven', async () => {

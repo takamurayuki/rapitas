@@ -18,6 +18,7 @@
 import { MAX_ROADMAP_STEPS, MAX_ROADMAP_QUESTIONS, type NamedRef } from './roadmap-prompts';
 import type { Placement, RoadmapQuestion, RoadmapStep } from './roadmap-types';
 import {
+  composeDescription,
   criteriaFromDescription,
   proposeCriteria,
   withoutCriteriaSection,
@@ -63,28 +64,9 @@ export function dayAfter(today: Date, days: number): string {
   return when.toISOString().slice(0, 10);
 }
 
-/**
- * Compose a task description from what to do and what counts as done.
- *
- * Built here rather than on screen so the text the user approves is
- * character-for-character the text that becomes the task — the commit half
- * runs no model precisely so that nothing can change in between.
- *
- * @param action - The one thing to do / やること
- * @param done - What finished looks like / 完了条件
- * @returns The description, or empty when there is nothing to say / 説明文
- */
-export function composeDescription(action: string, done: string[]): string {
-  const parts: string[] = [];
-  if (action.trim()) parts.push(action.trim());
-  const conditions = done.map((d) => d.trim()).filter(Boolean);
-  // No heading without conditions under it: an empty "完了条件" reads as
-  // "there are none", which is not what a missing field means.
-  if (conditions.length > 0) {
-    parts.push(['## 完了条件', ...conditions.map((c) => `- [ ] ${c}`)].join('\n'));
-  }
-  return parts.join('\n\n');
-}
+// NOTE: Moved to criteria-text.ts so the routes can write the stored
+// description without importing this module; re-exported for existing callers.
+export { composeDescription };
 
 /**
  * Pull the first JSON object out of a reply that may be fenced or chatty.
@@ -144,11 +126,6 @@ export function resolvePlacement(
   return fallback === 'none' ? { kind: 'none', reason } : { kind: 'new', name: '', reason };
 }
 
-/** Same strings in the same order. */
-function sameList(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((x, i) => x === b[i]);
-}
-
 /**
  * Keep the steps that could actually become a task.
  *
@@ -184,21 +161,14 @@ export function resolveSteps(
       // too, so the column and the text the user reads agree.
       const legacy = action ? undefined : (asText(step.description, MAX_BODY) ?? '');
       const listed = action ? done : criteriaFromDescription(legacy);
-      const proposed = proposeCriteria({
-        title,
-        proposed: listed,
-        description: action ?? legacy,
-      });
-      // NOTE: Re-composed whenever the criteria set differs from the listed
-      // one for ANY reason — supplemented to three, cut to seven, a duplicate
-      // or blank dropped — not only when supplemented. Keeping the old text
-      // when 8 were listed showed 8 while the column held 7, so a criterion
-      // the user approved silently vanished (review fix2 item 1).
-      const description = action
-        ? composeDescription(action, proposed.criteria)
-        : sameList(listed, proposed.criteria)
-          ? (legacy ?? '')
-          : composeDescription(withoutCriteriaSection(legacy ?? ''), proposed.criteria);
+      const body = action ?? withoutCriteriaSection(legacy ?? '');
+      const proposed = proposeCriteria({ title, proposed: listed, description: body });
+      // NOTE: Always re-composed from the final criteria set, never kept as
+      // sent. Comparing the normalised list against the final set could not
+      // see a duplicate the normaliser had already dropped, so `A／B／C／A`
+      // stayed four lines in the text while the column held three (review
+      // fix3 item 3; fix2 item 1 was the same rule for a list cut to seven).
+      const description = composeDescription(body, proposed.criteria);
 
       const due = asDayCount(step.dueInDays);
       // Dates only mean something relative to a deadline. Without one the

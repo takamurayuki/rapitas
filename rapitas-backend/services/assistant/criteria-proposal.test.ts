@@ -12,6 +12,7 @@ import {
   withoutCriteriaSection,
   reviewCriteria,
   splitByVerifier,
+  descriptionForJury,
   detectTaskKind,
   MAX_CRITERIA,
   MIN_PROPOSED_CRITERIA,
@@ -235,5 +236,67 @@ describe('reviewCriteria / splitByVerifier (fix2 items 2 and 5)', () => {
     const split = splitByVerifier({ title: '歯医者を予約', proposed: proposal.criteria });
     expect(split.acceptanceCriteria).toEqual([]);
     expect(split.userAcceptanceChecks).toEqual(proposal.criteria);
+  });
+});
+
+describe('the task’s own text decides the kind, not its checklist (fix3 item 2)', () => {
+  const LISTED = ['予約確認の画面を保存する', '日時が決まる', '場所が決まる'];
+  const withSection = `電話で予約する\n\n## 完了条件\n${LISTED.map((c) => `- [ ] ${c}`).join('\n')}`;
+
+  test('the description with or without its checklist gives the same tags', () => {
+    const a = reviewCriteria({ title: '歯医者を予約', description: withSection, proposed: LISTED });
+    const b = reviewCriteria({
+      title: '歯医者を予約',
+      description: '電話で予約する',
+      proposed: LISTED,
+    });
+    expect(a.kind).toBe('errand');
+    expect(a.items).toEqual(b.items);
+    expect(a.items.every((i) => i.verifier === 'user')).toBe(true);
+  });
+
+  test('propose, review and split agree on the same input', () => {
+    const input = { title: '歯医者を予約', description: withSection, proposed: LISTED };
+    const proposed = proposeCriteria(input).items.map((i) => i.verifier);
+    const reviewed = reviewCriteria(input).items.map((i) => i.verifier);
+    const split = splitByVerifier(input);
+    expect(proposed).toEqual(reviewed);
+    expect(split.userAcceptanceChecks).toEqual(LISTED);
+    expect(split.acceptanceCriteria).toEqual([]);
+  });
+});
+
+describe('descriptionForJury', () => {
+  const split = { acceptanceCriteria: ['J'], userAcceptanceChecks: ['U'] };
+
+  test('always: re-composes the checklist from the jury’s criteria, raw text checked', () => {
+    expect(
+      descriptionForJury('本文\n\n## 完了条件\n- [ ] U\n- [ ] J', split, { section: 'always' }),
+    ).toBe('本文\n\n## 完了条件\n- [ ] J');
+    expect(descriptionForJury('本文', split, { section: 'always' })).toBe(
+      '本文\n\n## 完了条件\n- [ ] J',
+    );
+  });
+
+  test('no jury criteria: no heading at all', () => {
+    expect(
+      descriptionForJury(
+        '本文\n\n## 完了条件\n- [ ] U',
+        { acceptanceCriteria: [], userAcceptanceChecks: ['U'] },
+        { section: 'always' },
+      ),
+    ).toBe('本文');
+  });
+
+  test('ifPresent: untouched text stays byte for byte', () => {
+    expect(descriptionForJury('  本文\n- 別の話 ', split, { section: 'ifPresent' })).toBe(
+      '  本文\n- 別の話 ',
+    );
+  });
+
+  test('a list line repeating a person’s check is dropped under any heading', () => {
+    expect(
+      descriptionForJury('本文\n\n## 受入基準\n- J\n- [ ] U', split, { section: 'ifPresent' }),
+    ).toBe('本文\n\n## 受入基準\n- J');
   });
 });

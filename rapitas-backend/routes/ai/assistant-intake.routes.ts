@@ -37,6 +37,7 @@ import {
   proposeCriteria,
   reviewCriteria,
   splitByVerifier,
+  descriptionForJury,
   normalizeCriteria,
   ACCEPTANCE_CRITERIA_REQUIRED,
   MAX_CRITERIA,
@@ -154,11 +155,19 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
         ...(body.task.acceptanceCriteria ?? []),
         ...(body.task.userAcceptanceChecks ?? []),
       ]);
-      const { acceptanceCriteria, userAcceptanceChecks } = splitByVerifier({
+      const split = splitByVerifier({
         title: body.task.title,
         description: body.task.description,
         proposed: confirmedCriteria,
       });
+      const { acceptanceCriteria, userAcceptanceChecks } = split;
+      // NOTE: The jury reads the description verbatim, so a `## 完了条件`
+      // checklist in it is cut to the jury's criteria and a line repeating a
+      // person's check is dropped (review fix3 item 1). A description without
+      // either is stored byte for byte.
+      const description = body.task.description
+        ? descriptionForJury(body.task.description, split, { section: 'ifPresent' })
+        : undefined;
       if (confirmedCriteria.length === 0) {
         await recordAction({
           capabilityId: 'task.create',
@@ -175,7 +184,7 @@ export const assistantIntakeRoutes = new Elysia({ prefix: '/assistant' })
           title: body.task.title,
           themeId: body.task.themeId,
           status: 'todo',
-          ...(body.task.description ? { description: body.task.description } : {}),
+          ...(description ? { description } : {}),
           ...(body.task.priority ? { priority: body.task.priority } : {}),
           ...(body.task.dueDate ? { dueDate: body.task.dueDate } : {}),
           ...(body.task.estimatedHours ? { estimatedHours: body.task.estimatedHours } : {}),

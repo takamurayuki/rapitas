@@ -39,8 +39,7 @@ mock.module('../../services/task/task-mutations', () => ({
 
 const { assistantIntakeRoutes } = await import('./assistant-intake.routes');
 const { assistantRoadmapRoutes } = await import('./assistant-roadmap.routes');
-const { proposeCriteria, criteriaFromDescription } =
-  await import('../../services/assistant/criteria-proposal');
+const { proposeCriteria } = await import('../../services/assistant/criteria-proposal');
 
 async function call(
   app: { handle: (r: Request) => Promise<Response> },
@@ -149,11 +148,10 @@ describe('roadmap/commit writes two columns (real commitRoadmap)', () => {
         userAcceptanceChecks: [USER],
       },
     ]);
-    const written = created[0].description as string;
-    expect(criteriaFromDescription(written)).toEqual([`${JURY}（一覧と詳細）`, USER]);
-    expect(written).toContain('作る');
-    expect(written).not.toContain('消す条件');
-    expect(written.match(/## 完了条件/g)).toHaveLength(1);
+    // NOTE: The checklist holds the jury's criteria only (fix3 item 1); the
+    // person's check is in its own column, not in the text the jury reads.
+    expect(created[0].description).toBe(`作る\n\n## 完了条件\n- [ ] ${JURY}（一覧と詳細）`);
+    expect(created[0].userAcceptanceChecks).toEqual([USER]);
   });
 
   test('an unchanged checklist leaves the description byte for byte', async () => {

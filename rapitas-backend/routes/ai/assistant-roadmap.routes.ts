@@ -39,12 +39,11 @@ import {
   criteriaFromDescription,
   normalizeCriteria,
   splitByVerifier,
-  withoutCriteriaSection,
+  descriptionForJury,
   ACCEPTANCE_CRITERIA_REQUIRED,
   MAX_CRITERIA,
   MAX_CRITERION_LENGTH,
 } from '../../services/assistant/criteria-proposal';
-import { composeDescription } from '../../services/assistant/roadmap-resolve';
 import { linkCompanionSource, type CompanionDb } from '../../services/companion';
 
 /** A placement as the payload states it, before it is trusted as a plan. */
@@ -134,9 +133,13 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
       //
       // Both arrays are re-split by the server's rules (design 4.1 案1): the
       // jury's go to acceptanceCriteria, the person's to userAcceptanceChecks.
-      // When the confirmed set differs from the description's checklist (the
-      // user removed or reworded one on the card), the checklist is
-      // re-composed so the task's text and its columns say the same thing.
+      //
+      // NOTE: The stored description's `## 完了条件` is re-composed from the
+      // jury's criteria alone, every time. The jury, the workflow agents and
+      // replanning read the description verbatim, so a person's check left in
+      // its checklist reached the jury's prompt even with the columns split
+      // (review fix3 item 1). The person's checks live in their column only;
+      // the task screen shows them from there.
       const steps = body.steps.map((step) => {
         const listed = criteriaFromDescription(step.description);
         const sent = normalizeCriteria([
@@ -146,17 +149,12 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
         const confirmed = sent.length ? sent : listed;
         const split = splitByVerifier({
           title: step.title,
-          description: withoutCriteriaSection(step.description),
+          description: step.description,
           proposed: confirmed,
         });
-        const same =
-          listed.length === confirmed.length && listed.every((c, i) => c === confirmed[i]);
         return {
           ...step,
-          description:
-            same || confirmed.length === 0
-              ? step.description
-              : composeDescription(withoutCriteriaSection(step.description), confirmed),
+          description: descriptionForJury(step.description, split, { section: 'always' }),
           acceptanceCriteria: split.acceptanceCriteria,
           userAcceptanceChecks: split.userAcceptanceChecks,
           confirmedCount: confirmed.length,
