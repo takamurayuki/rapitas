@@ -21,6 +21,9 @@ import 'theme_data_provider.dart';
 // /assistant/route で振り分け、作成・問い合わせ・見守り・変更・計画・片付けはその結果で出し分ける。
 // 例外は相談（consult）：振り分けで相談になり、タスクを選ぶと「相談モード」に入る。
 // 相談モード中の送信は振り分けを通さず、そのタスクの copilot/chat へ直接送る（抜けるまで）。
+// 例外の例外は伴走（companion）：「伴走」を含む発言は、送る前に /assistant/companion/draft で
+// 「伴走して」「伴走をやめて」かを聞く。そうなら確認カードを出し、押されたら start/stop を送る
+// （設計 4.3「手動のタスク」）。そうでなければ、いつもどおり相談・振り分けへ送る。
 
 enum RapiRole { user, assistant, system }
 
@@ -80,6 +83,32 @@ class RapiChangeCard {
 
   /// 「取り消す」を押せるか（競合で断られたあとは出さない）
   bool get canRevert => phase == RapiChangePhase.applied && conflicts.isEmpty;
+}
+
+/// 伴走カードの段階。proposed（確認待ち）→ applying → applied。
+/// 応答が失われたら applyUnknown（サーバーでは反映済みかもしれないので、押し直させない）。
+enum RapiCompanionPhase { proposed, applying, applied, applyUnknown }
+
+/// 「伴走して」「伴走をやめて」の確認カード1枚の状態
+class RapiCompanionCard {
+  final RapiCompanionProposal proposal;
+  final RapiCompanionPhase phase;
+
+  /// カード内に出す失敗の案内
+  final String? error;
+
+  const RapiCompanionCard({
+    required this.proposal,
+    this.phase = RapiCompanionPhase.proposed,
+    this.error,
+  });
+
+  RapiCompanionCard copyWith({RapiCompanionPhase? phase, Object? error = _unset}) =>
+      RapiCompanionCard(
+        proposal: proposal,
+        phase: phase ?? this.phase,
+        error: identical(error, _unset) ? this.error : error as String?,
+      );
 }
 
 /// 計画カードの段階。
@@ -334,8 +363,13 @@ enum RapiConsultPickPhase { choosing, chosen, closed }
 
 /// 振り分けが consult になったときに出す「どのタスクについて相談しますか」カード。
 /// 発言 [text] はタスクが決まってから最初の相談として送る（それまでは送らない）。
+/// [companion] が入っていれば、相談ではなく「どのタスクの伴走を始める／やめるか」を選ぶカード
+/// （選んだら相談には入らず、伴走の確認カードを出す）。
 class RapiConsultPicker {
   final String text;
+
+  /// 伴走の依頼のためのタスク選びなら、その向き
+  final RapiCompanionAction? companion;
 
   /// 選ぶ前の発言のメッセージ id（選んだら相談スレッドへ移す）
   final int utteranceId;
@@ -352,11 +386,13 @@ class RapiConsultPicker {
     this.phase = RapiConsultPickPhase.choosing,
     this.chosen,
     this.externalDraftId,
+    this.companion,
   });
 
   RapiConsultPicker copyWith({RapiConsultPickPhase? phase, RapiConsultTask? chosen}) =>
       RapiConsultPicker(
         text: text,
+        companion: companion,
         utteranceId: utteranceId,
         phase: phase ?? this.phase,
         chosen: chosen ?? this.chosen,
@@ -384,6 +420,9 @@ class RapiMessage {
   /// 片付け（tidy）のカード
   final RapiTidyCard? tidy;
 
+  /// 伴走の確認カード
+  final RapiCompanionCard? companion;
+
   /// 相談スレッドの発言なら、そのタスクの id（一般の会話の履歴には含めない）
   final String? consultTaskId;
 
@@ -406,6 +445,7 @@ class RapiMessage {
     this.roadmap,
     this.consultPicker,
     this.tidy,
+    this.companion,
     this.consultTaskId,
     this.taskId,
     this.inHistory = false,
@@ -417,6 +457,7 @@ class RapiMessage {
     RapiRoadmapCard? roadmap,
     RapiConsultPicker? consultPicker,
     RapiTidyCard? tidy,
+    RapiCompanionCard? companion,
     bool? inHistory,
   }) =>
       RapiMessage(
@@ -429,6 +470,7 @@ class RapiMessage {
         roadmap: roadmap ?? this.roadmap,
         consultPicker: consultPicker ?? this.consultPicker,
         tidy: tidy ?? this.tidy,
+        companion: companion ?? this.companion,
         consultTaskId: consultTaskId,
         taskId: taskId,
         inHistory: inHistory ?? this.inHistory,
@@ -444,6 +486,8 @@ class RapiMessage {
   RapiMessage withConsultPicker(RapiConsultPicker picker) => _copy(consultPicker: picker);
 
   RapiMessage withTidy(RapiTidyCard tidy) => _copy(tidy: tidy);
+
+  RapiMessage withCompanion(RapiCompanionCard companion) => _copy(companion: companion);
 }
 
 const Object _unset = Object();
@@ -461,6 +505,9 @@ class RapiChatState {
 
   /// 下書きカードのタイトル欄の文（編集中の値）
   final String draftTitle;
+
+  /// 下書きの完了条件のうち、ユーザーが外したものの番号（0 始まり。設計 段B の「採否」）
+  final Set<int> draftExcludedCriteria;
   final bool creating;
 
   // 見守り（振り分けで watch になったときに読み込む）
@@ -483,6 +530,7 @@ class RapiChatState {
     this.draft,
     this.draftThemeId,
     this.draftTitle = '',
+    this.draftExcludedCriteria = const {},
     this.creating = false,
     this.survey,
     this.surveyLoading = false,
@@ -498,6 +546,7 @@ class RapiChatState {
     Object? draft = _unset,
     Object? draftThemeId = _unset,
     String? draftTitle,
+    Set<int>? draftExcludedCriteria,
     bool? creating,
     Object? survey = _unset,
     bool? surveyLoading,
@@ -513,6 +562,7 @@ class RapiChatState {
         draftThemeId:
             identical(draftThemeId, _unset) ? this.draftThemeId : draftThemeId as String?,
         draftTitle: draftTitle ?? this.draftTitle,
+        draftExcludedCriteria: draftExcludedCriteria ?? this.draftExcludedCriteria,
         creating: creating ?? this.creating,
         survey: identical(survey, _unset) ? this.survey : survey as SupervisionSurvey?,
         surveyLoading: surveyLoading ?? this.surveyLoading,
@@ -524,6 +574,15 @@ class RapiChatState {
             ? this.activeExternalDraftId
             : activeExternalDraftId as String?,
       );
+
+  /// 作成時に送る完了条件（外したものを除く。並びは提案のまま）
+  List<String> get draftSelectedCriteria {
+    final all = draft?.acceptanceCriteria ?? const <String>[];
+    return [
+      for (var i = 0; i < all.length; i++)
+        if (!draftExcludedCriteria.contains(i)) all[i],
+    ];
+  }
 
   /// 見守りカードを出すか（一度でも読み込みを始めたら一覧の先頭に出し続ける）
   bool get surveyVisible => survey != null || surveyLoading || surveyFailed;
@@ -548,6 +607,19 @@ const int rapiConsultCandidateLimit = 5;
 List<Task> rapiConsultCandidates(List<Task> tasks) {
   final sorted = [...tasks]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   return sorted.take(rapiConsultCandidateLimit).toList();
+}
+
+/// 伴走の依頼が今は当てはまらないときの返事
+String rapiCompanionUnavailableText(String reason, String title) {
+  switch (reason) {
+    case 'already_active':
+      return '「$title」はもう伴走しています。やめるときは「伴走をやめて」と送ってください。';
+    case 'not_active':
+      return '「$title」はいま伴走していません。始めるときは「伴走して」と送ってください。';
+    case 'task_done':
+      return '「$title」は完了しているので、伴走は始められません。';
+  }
+  return '「$title」の伴走は今は変えられません。';
 }
 
 final rapiChatProvider =
@@ -762,9 +834,12 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
 
     try {
       if (consult != null) {
-        // 相談モード中は振り分けを通さず、そのタスクの相談として送る
-        await _sendConsult(consult, text, history);
-      } else {
+        // 相談モード中は振り分けを通さず、そのタスクの相談として送る。
+        // ただし「伴走して」「伴走をやめて」なら、相談ではなく伴走の確認カードを出す
+        if (!await _offerCompanion(text, consultTaskId: consult.id)) {
+          await _sendConsult(consult, text, history);
+        }
+      } else if (!await _offerCompanion(text, userId: userId, externalDraftId: externalDraftId)) {
         await _routeAndHandle(text, history, userId, externalDraftId: externalDraftId);
       }
       delivered = true;
@@ -856,7 +931,8 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
   // 画面の帯の × で抜けると、通常の振り分けに戻る。
 
   /// 発言 [text] を保留し、タスク選びのカードを出す（発言はまだどこにも送らない）
-  void _askConsultTask(String text, int userId, {String? externalDraftId}) {
+  void _askConsultTask(String text, int userId,
+      {String? externalDraftId, RapiCompanionAction? companion}) {
     if (externalDraftId != null) _holdExternalDraft(externalDraftId);
     // 保留した発言は一般の会話の履歴に入れない（選んだあと相談スレッドへ移す）
     state = state.copyWith(messages: [
@@ -866,7 +942,10 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
           id: id,
           role: RapiRole.assistant,
           consultPicker: RapiConsultPicker(
-              text: text, utteranceId: userId, externalDraftId: externalDraftId),
+              text: text,
+              utteranceId: userId,
+              externalDraftId: externalDraftId,
+              companion: companion),
         ));
   }
 
@@ -917,6 +996,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     if (picker == null || picker.phase != RapiConsultPickPhase.choosing || state.sending) {
       return;
     }
+    if (picker.companion != null) return _chooseCompanionTask(messageId, picker, task);
     _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.chosen, chosen: task));
     state = state.copyWith(consultTask: task, sending: true);
     final session = ++_consultSession;
@@ -1019,6 +1099,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       draft: draft,
       draftThemeId: draft.themeId,
       draftTitle: draft.title,
+      draftExcludedCriteria: const {},
     );
     _add((id) => RapiMessage(id: id, role: RapiRole.assistant, draftSlot: true));
   }
@@ -1030,11 +1111,20 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
 
   void setDraftTheme(String? themeId) => state = state.copyWith(draftThemeId: themeId);
 
+  /// 下書きの完了条件 [index] を採る／外す（作成時に送るのは採ったものだけ）
+  void toggleDraftCriterion(int index) {
+    if (state.creating) return;
+    final next = {...state.draftExcludedCriteria};
+    if (!next.remove(index)) next.add(index);
+    state = state.copyWith(draftExcludedCriteria: next);
+  }
+
   void discardDraft() {
     state = state.copyWith(
       messages: state.messages.where((m) => !m.draftSlot).toList(),
       draft: null,
       draftThemeId: null,
+      draftExcludedCriteria: const {},
     );
   }
 
@@ -1042,7 +1132,11 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
     final draft = state.draft;
     final themeId = state.draftThemeId;
     final title = state.draftTitle.trim();
-    if (draft == null || themeId == null || title.isEmpty || state.creating) return;
+    final criteria = state.draftSelectedCriteria;
+    // サーバーは完了条件の無い作成を断る（400）。1件も採っていなければ送らない
+    if (draft == null || themeId == null || title.isEmpty || state.creating || criteria.isEmpty) {
+      return;
+    }
 
     state = state.copyWith(creating: true);
     try {
@@ -1053,7 +1147,7 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
             priority: draft.priority,
             dueDate: draft.dueDate,
             estimatedHours: draft.estimatedHours,
-            acceptanceCriteria: draft.acceptanceCriteria,
+            acceptanceCriteria: criteria,
           );
       ref.invalidate(taskListProvider);
       // 作成中に別の下書きへ置き換わっていたら、そちらは消さない
@@ -1234,6 +1328,145 @@ class RapiChatNotifier extends Notifier<RapiChatState> {
       if (e.statusCode == 400) return 'この変更内容は受け付けられませんでした。';
     }
     return 'うまくいきませんでした。もう一度試してください。';
+  }
+
+  // ---- 伴走（companion）----
+  // 「伴走」を含む発言 → companion/draft（何も書き込まない）→ 伴走の確認カード →
+  // 「伴走を始める／やめる」で start/stop（confirmed: true）。カードのボタンが確認そのもので、
+  // 確認なしに書き込む道は無い（task.update の変更カードと同じ型）。
+  // 相談モードの外で対象が決まらないときは、タスク選びのカード（伴走用）を挟む。
+
+  /// 発言が伴走の依頼なら確認カード（またはタスク選び）を出して true。そうでなければ false
+  /// （呼び出し側がふつうの相談・振り分けへ送る）。下書きの問い合わせ自体が失敗したときも false
+  /// （伴走の見分けは入口の付け足しなので、そこで送信全体を止めない）。
+  Future<bool> _offerCompanion(String text,
+      {String? consultTaskId, int? userId, String? externalDraftId}) async {
+    if (!rapiMentionsCompanion(text)) return false;
+    final RapiCompanionDraft draft;
+    try {
+      draft = await ref.read(assistantServiceProvider).companionDraft(text, taskId: consultTaskId);
+    } catch (_) {
+      return false;
+    }
+    if (!draft.matched) return false;
+    if (draft.needsTask) {
+      if (userId == null) return false;
+      _system(draft.action == RapiCompanionAction.stop ? '伴走の終了として受け取りました' : '伴走の開始として受け取りました');
+      _askConsultTask(text, userId, externalDraftId: externalDraftId, companion: draft.action);
+      return true;
+    }
+    _showCompanion(draft, consultTaskId: consultTaskId);
+    return true;
+  }
+
+  /// 伴走用のタスク選びカードでタスクを選んだ：そのタスクについて下書きを聞き、確認カードを出す
+  Future<void> _chooseCompanionTask(
+      int messageId, RapiConsultPicker picker, RapiConsultTask task) async {
+    _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.chosen, chosen: task));
+    state = state.copyWith(sending: true);
+    try {
+      final draft =
+          await ref.read(assistantServiceProvider).companionDraft(picker.text, taskId: task.id);
+      if (draft.matched) {
+        _showCompanion(draft);
+      } else {
+        _system('伴走の依頼として読み取れませんでした。「伴走して」「伴走をやめて」と送ってください。');
+      }
+      if (picker.externalDraftId != null) await _consumeExternalDraft(picker.externalDraftId!);
+    } catch (e) {
+      _releaseExternalDraft(picker.externalDraftId);
+      _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '「${task.title}」の伴走の状態を確かめられませんでした');
+    } finally {
+      state = state.copyWith(sending: false);
+    }
+    _fillNextExternalDraft();
+  }
+
+  /// 下書きを、確認カードか「今は当てはまらない」理由の返事として並べる
+  void _showCompanion(RapiCompanionDraft draft, {String? consultTaskId}) {
+    final proposal = draft.proposal;
+    if (proposal == null) {
+      _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          text: '対象のタスクを確かめられませんでした。',
+          consultTaskId: consultTaskId));
+      return;
+    }
+    final unavailable = draft.unavailable;
+    if (unavailable != null) {
+      _add((id) => RapiMessage(
+            id: id,
+            role: RapiRole.assistant,
+            text: rapiCompanionUnavailableText(unavailable, proposal.title),
+            consultTaskId: consultTaskId,
+          ));
+      return;
+    }
+    _add((id) => RapiMessage(
+          id: id,
+          role: RapiRole.assistant,
+          companion: RapiCompanionCard(proposal: proposal),
+          consultTaskId: consultTaskId,
+        ));
+  }
+
+  RapiCompanionCard? _companionOf(int messageId) {
+    for (final m in state.messages) {
+      if (m.id == messageId) return m.companion;
+    }
+    return null;
+  }
+
+  void _setCompanion(int messageId, RapiCompanionCard card) {
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == messageId ? m.withCompanion(card) : m,
+    ]);
+  }
+
+  /// 「やめる」：確認待ちの伴走カードを下げる（何も書き込んでいない）
+  void cancelCompanion(int messageId) {
+    if (_companionOf(messageId)?.phase != RapiCompanionPhase.proposed) return;
+    state = state.copyWith(messages: state.messages.where((m) => m.id != messageId).toList());
+  }
+
+  /// 「伴走を始める／やめる」：カードに出ている内容をそのまま confirmed: true で送る
+  Future<void> applyCompanion(int messageId) async {
+    final card = _companionOf(messageId);
+    if (card == null || card.phase != RapiCompanionPhase.proposed) return;
+    _setCompanion(messageId, card.copyWith(phase: RapiCompanionPhase.applying, error: null));
+    final p = card.proposal;
+    try {
+      await ref.read(assistantServiceProvider).companionApply(p.action, p.taskId);
+      _refreshTask(p.taskId);
+      _setCompanion(
+          messageId, (_companionOf(messageId) ?? card).copyWith(phase: RapiCompanionPhase.applied));
+    } catch (e) {
+      final now = _companionOf(messageId) ?? card;
+      if (_applyOutcomeUnknown(e)) {
+        _setCompanion(messageId, now.copyWith(phase: RapiCompanionPhase.applyUnknown, error: null));
+        return;
+      }
+      final code = e is AssistantException ? e.code : null;
+      // 既にその状態になっていた（別の画面や前の押下で反映済み）なら、望んだ結果になっている
+      final settled = (p.action == RapiCompanionAction.start && code == 'already_active') ||
+          (p.action == RapiCompanionAction.stop && code == 'not_active');
+      if (settled) {
+        _setCompanion(messageId, now.copyWith(phase: RapiCompanionPhase.applied));
+        return;
+      }
+      _setCompanion(
+        messageId,
+        now.copyWith(
+          phase: RapiCompanionPhase.proposed,
+          error: code == 'task_done'
+              ? 'このタスクは完了しているため、伴走は始められません。'
+              : code == 'task_not_found' || code == 'not_found'
+                  ? 'このタスクが見つかりませんでした。削除された可能性があります。'
+                  : 'うまくいきませんでした。もう一度試してください。',
+        ),
+      );
+    }
   }
 
   // ---- 計画（roadmap）----

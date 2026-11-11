@@ -11,8 +11,10 @@ import '../../services/compose_requests.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_avatar.dart';
+import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
+import 'rapi_companion_card.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_tidy_card.dart';
 
@@ -490,6 +492,17 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       ));
     }
 
+    final companion = m.companion;
+    if (companion != null) {
+      return _spaced(RapiCompanionCardView(
+        key: ValueKey('rapi-companion-${m.id}'),
+        card: companion,
+        onApply: () => _chat.applyCompanion(m.id),
+        onCancel: () => _chat.cancelCompanion(m.id),
+        onOpen: () => _openTask(companion.proposal.taskId),
+      ));
+    }
+
     final picker = m.consultPicker;
     if (picker != null) {
       return _spaced(_ConsultPickerCard(
@@ -536,8 +549,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     }
     final selected =
         options.any((t) => t.id == chat.draftThemeId) ? chat.draftThemeId : null;
-    final canCreate =
-        selected != null && chat.draftTitle.trim().isNotEmpty && !chat.creating;
+    final canCreate = selected != null &&
+        chat.draftTitle.trim().isNotEmpty &&
+        !chat.creating &&
+        chat.draftSelectedCriteria.isNotEmpty;
 
     final textTheme = Theme.of(context).textTheme;
     const labelStyle = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
@@ -625,20 +640,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
             row('説明', draft.description!),
           if (draft.acceptanceCriteria.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('完了条件', style: labelStyle),
-            for (final c in draft.acceptanceCriteria)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text('・$c', style: const TextStyle(fontSize: 13, color: bodyColor)),
-              ),
-            if (draft.acceptanceCriteriaFallback)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'ラピの仮の案です。違っていたら、作成後にデスクトップのタスク編集で直してください。',
-                  style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
-                ),
-              ),
+            // 段B：1件ずつ採否・判定者・言い換えの案、下に採点
+            RapiCriteriaList(
+              items: draft.criteriaRows,
+              excluded: chat.draftExcludedCriteria,
+              quality: draft.criteriaQuality,
+              fallback: draft.acceptanceCriteriaFallback,
+              onToggle: chat.creating ? null : _chat.toggleDraftCriterion,
+            ),
           ],
           if (draft.unclear.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -1434,7 +1443,10 @@ class _ConsultPickerCard extends ConsumerWidget {
 
     switch (picker.phase) {
       case RapiConsultPickPhase.chosen:
-        return _SystemNote(text: '「${picker.chosen?.title ?? ''}」について相談します');
+        return _SystemNote(
+            text: picker.companion != null
+                ? '「${picker.chosen?.title ?? ''}」の伴走について確かめます'
+                : '「${picker.chosen?.title ?? ''}」について相談します');
       case RapiConsultPickPhase.closed:
         return const _SystemNote(text: 'タスクを選ばずに閉じました（この発言は送っていません）');
       case RapiConsultPickPhase.choosing:
@@ -1517,13 +1529,22 @@ class _ConsultPickerCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('どのタスクについて相談しますか',
+          Text(
+              switch (picker.companion) {
+                RapiCompanionAction.start => 'どのタスクを伴走しますか',
+                RapiCompanionAction.stop => 'どのタスクの伴走をやめますか',
+                null => 'どのタスクについて相談しますか',
+              },
               style: Theme.of(context)
                   .textTheme
                   .labelLarge
                   ?.copyWith(color: _violetButton, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('選ぶと、さっきの発言をそのタスクへの最初の相談として送ります。', style: muted),
+          Text(
+              picker.companion != null
+                  ? '選ぶと確認カードを出します（まだ変更しません）。'
+                  : '選ぶと、さっきの発言をそのタスクへの最初の相談として送ります。',
+              style: muted),
           const SizedBox(height: 6),
           list,
           Align(

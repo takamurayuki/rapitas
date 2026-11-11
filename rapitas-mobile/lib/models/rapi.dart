@@ -9,6 +9,9 @@
 //   rapitas-backend/routes/tasks/task-trash.routes.ts（task-trash/:id/restore）
 // ID はバックエンドでは Int。アプリ内では Task と同じく文字列で持つ。
 
+import 'rapi_companion.dart';
+export 'rapi_companion.dart';
+
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
 const Map<String, String> rapiPriorityLabels = {
   'urgent': '緊急',
@@ -89,6 +92,13 @@ class TaskDraft {
   /// 完了条件がラピの仮の案（AI が出さなかったのでタイトルから作った）か
   final bool acceptanceCriteriaFallback;
 
+  /// 完了条件1件ずつの見せ方（誰が確かめるか・確かめにくい言葉・ラピが補ったか）。
+  /// [acceptanceCriteria] と同じ順。古いサーバーは返さないので空のことがある
+  final List<RapiCriterionItem> criteriaItems;
+
+  /// 完了条件の採点（spec-quality-checker）。古いサーバーは返さない
+  final RapiCriteriaQuality? criteriaQuality;
+
   /// ラピが判断できなかったこと
   final List<String> unclear;
 
@@ -107,6 +117,8 @@ class TaskDraft {
     this.themeReason,
     this.acceptanceCriteria = const [],
     this.acceptanceCriteriaFallback = false,
+    this.criteriaItems = const [],
+    this.criteriaQuality,
     this.unclear = const [],
     this.source,
   });
@@ -126,6 +138,8 @@ class TaskDraft {
       themeReason: _string(json['themeReason']),
       acceptanceCriteria: _strings(json['acceptanceCriteria']),
       acceptanceCriteriaFallback: json['acceptanceCriteriaFallback'] == true,
+      criteriaItems: rapiCriterionItems(json['acceptanceCriteriaItems']),
+      criteriaQuality: RapiCriteriaQuality.fromJson(json['criteriaQuality']),
       unclear: _strings(json['unclear']),
       source: source,
     );
@@ -146,9 +160,17 @@ class TaskDraft {
         themeReason: themeReason,
         acceptanceCriteria: acceptanceCriteria,
         acceptanceCriteriaFallback: acceptanceCriteriaFallback,
+        criteriaItems: criteriaItems,
+        criteriaQuality: criteriaQuality,
         unclear: unclear,
         source: source,
       );
+
+  /// カードに並べる完了条件。項目の情報が無い（古いサーバー）ときは文だけで作る
+  List<RapiCriterionItem> get criteriaRows =>
+      criteriaItems.length == acceptanceCriteria.length && criteriaItems.isNotEmpty
+          ? criteriaItems
+          : [for (final c in acceptanceCriteria) RapiCriterionItem(text: c)];
 }
 
 /// POST /assistant/ask の回答の1行（タスク）
@@ -588,11 +610,15 @@ class RoadmapStep {
   /// 完了条件（説明文の「## 完了条件」と同じもの）。commit でタスクの完了条件の列に入る
   final List<String> acceptanceCriteria;
 
+  /// 完了条件1件ずつの見せ方（表示だけ。commit では送らない）
+  final List<RapiCriterionItem> criteriaItems;
+
   const RoadmapStep({
     required this.title,
     this.description = '',
     this.dueDate,
     this.acceptanceCriteria = const [],
+    this.criteriaItems = const [],
   });
 
   factory RoadmapStep.fromJson(Map<String, dynamic> json) {
@@ -602,6 +628,7 @@ class RoadmapStep {
       description: _string(json['description']) ?? '',
       dueDate: due != null && RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(due) ? due : null,
       acceptanceCriteria: _strings(json['acceptanceCriteria']),
+      criteriaItems: rapiCriterionItems(json['criteriaItems']),
     );
   }
 

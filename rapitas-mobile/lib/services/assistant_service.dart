@@ -175,6 +175,45 @@ class AssistantService {
     }
   }
 
+  // ---- 伴走（companion）----
+  // 形はバックエンド routes/ai/assistant-companion.routes.ts が正：
+  //   POST /assistant/companion/draft {text, taskId?}（何も書き込まない）
+  //     → {matched:false} ／ {matched, action, needsTask:true} ／ {matched, action, unavailable?, proposal}
+  //   POST /assistant/companion/start|stop {taskId, confirmed:true}（確認カードのボタンからだけ呼ぶ）
+
+  /// 発言が「伴走して」「伴走をやめて」かを聞き、そうなら確認カードの材料を受け取る。
+  /// 404（タスクが無い）は code: not_found の [AssistantException]。
+  Future<RapiCompanionDraft> companionDraft(String text, {String? taskId}) async {
+    final id = taskId == null ? null : int.tryParse(taskId);
+    if (taskId != null && id == null) throw const AssistantException('invalid_task');
+    final body = _body((await _postOrError('/assistant/companion/draft', {
+      'text': text,
+      if (id != null) 'taskId': id,
+    }))
+        .data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'draft_failed');
+    }
+    return RapiCompanionDraft.fromJson(body);
+  }
+
+  /// 確認カードで押された伴走の開始・終了を、confirmed: true で送る。
+  /// 断られたら（409 already_active / not_active / task_done、404 など）その code の
+  /// [AssistantException]（statusCode 付き）。
+  Future<void> companionApply(RapiCompanionAction action, String taskId) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final path = action == RapiCompanionAction.start ? 'start' : 'stop';
+    final response =
+        await _postOrError('/assistant/companion/$path', {'taskId': id, 'confirmed': true});
+    final body = _body(response.data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'companion_failed',
+          statusCode: response.statusCode);
+    }
+    if (body['success'] != true) throw const AssistantException('unexpected_response');
+  }
+
   // ---- 計画（roadmap）----
   // 形はバックエンド routes/ai/assistant-roadmap.routes.ts が正：
   //   POST /assistant/roadmap/draft {text, answers?: [{question, answer}]（各200字・最大6件）}

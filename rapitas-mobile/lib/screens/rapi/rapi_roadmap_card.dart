@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/rapi.dart';
 import '../../providers/rapi_chat_provider.dart';
+import '../../widgets/rapi_criteria_list.dart';
 
 // 計画（roadmap）カード（デスクトップ TaskRoadmap.tsx のモバイル版）。
 //
@@ -433,6 +434,13 @@ class _StepRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 22, top: 3),
               child: Text(step.description, style: _mutedStyle),
+            ),
+          // 段B：完了条件を誰が確かめるか（説明文の「## 完了条件」の内訳）
+          if (withDescription && rapiCriteriaSummary(step.criteriaItems) != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 22, top: 4),
+              child: Text(rapiCriteriaSummary(step.criteriaItems)!,
+                  style: const TextStyle(fontSize: 11, color: _violetButton)),
             ),
         ],
       ),
