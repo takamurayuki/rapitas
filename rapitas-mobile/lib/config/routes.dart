@@ -205,7 +205,7 @@ class AppRoutes {
   static final List<RegExp> _knownPaths = [
     for (final path in [
       home, tasks, taskNew, taskDetail, taskEdit, executions, approvals, notifications,
-      dashboard, settings, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
+      dashboard, settings, voiceLearning, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
       ideas, ideasNew, concerns, concernsNew, hypotheses, rapi,
     ])
       RegExp('^${path.replaceAll(RegExp(r':[A-Za-z]+'), '[^/]+')}\$'),
