@@ -18,8 +18,13 @@ import type { ConfiguredVendors } from './configured-vendors';
 /** Usable vendors plus why the others are not. */
 export interface VendorAvailability {
   usable: ModelVendor[];
-  /** Vendors not usable: not configured, or in cooldown (quota / auth …). */
-  unavailable: Array<{ vendor: ModelVendor; reason: string }>;
+  /**
+   * Vendors not usable: not configured, or in cooldown (quota / auth …).
+   * `resumeAt` (ISO) is when a cooldown is expected to lift — shown and
+   * recorded so a stopped jury says when it can sit again (routing2b,
+   * owner decision 3: 止まった理由と再開見込みを出す).
+   */
+  unavailable: Array<{ vendor: ModelVendor; reason: string; resumeAt?: string }>;
 }
 
 /**
@@ -33,10 +38,10 @@ export function usableVendorsAmong(
   configured: readonly ModelVendor[],
   unconfigured: ConfiguredVendors['unconfigured'] = [],
 ): VendorAvailability {
-  const cooled = new Map<ModelVendor, string>();
+  const cooled = new Map<ModelVendor, { reason: string; until: number }>();
   for (const c of listActiveCooldowns()) {
     const vendor = vendorOfProvider(c.provider);
-    if (vendor) cooled.set(vendor, c.reason);
+    if (vendor) cooled.set(vendor, { reason: c.reason, until: c.until });
   }
   const route = [...new Set(configured)];
   return {
@@ -45,7 +50,10 @@ export function usableVendorsAmong(
       ...unconfigured,
       ...route
         .filter((v) => cooled.has(v))
-        .map((vendor) => ({ vendor, reason: cooled.get(vendor)! })),
+        .map((vendor) => {
+          const c = cooled.get(vendor)!;
+          return { vendor, reason: c.reason, resumeAt: new Date(c.until).toISOString() };
+        }),
     ],
   };
 }

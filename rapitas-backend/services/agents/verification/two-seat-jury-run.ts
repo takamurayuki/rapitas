@@ -101,7 +101,13 @@ function recordSeatShortfalls(taskId: number | undefined, seating: JurySeating):
         candidates: seating.plan.seats.map((s) => ({ id: s.entry.modelId, label: s.seatId })),
         // Not a model choice: what was adopted is "leave these seats empty".
         adoptedId: 'seats_left_unmet',
-        adoptedReason: seating.plan.shortfalls.map((s) => `${s.seatId}: ${s.reason}`).join(' / '),
+        adoptedReason: [
+          ...seating.plan.shortfalls.map((s) => `${s.seatId}: ${s.reason}`),
+          // Why each vendor is out and when it is expected back (routing2b).
+          ...seating.unavailable
+            .filter((u) => u.resumeAt)
+            .map((u) => `${u.vendor}: ${u.reason}（再開見込み ${u.resumeAt}）`),
+        ].join(' / '),
       }),
     )
     .catch(() => {});

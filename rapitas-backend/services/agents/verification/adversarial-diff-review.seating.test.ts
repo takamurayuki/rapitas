@@ -21,10 +21,12 @@ let auxMode: 'api' | 'cli' = 'cli';
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => auxMode }));
 /** What this host is configured for (configured-vendors.ts), per test. */
 let apiKeys: Array<'anthropic' | 'openai' | 'google'> = ['anthropic', 'google', 'openai'];
+/** Subscription CLIs this host has (Claude Code / Codex), per test. */
+let cliVendors: Array<'anthropic' | 'openai'> = ['anthropic'];
 mock.module('../../ai/model-tier-table/configured-vendors', () => ({
   resolveConfiguredVendors: async (mode: string) =>
     mode === 'cli'
-      ? { configured: ['anthropic'], unconfigured: [] }
+      ? { configured: cliVendors, unconfigured: [] }
       : {
           configured: apiKeys,
           unconfigured: (['anthropic', 'google', 'openai'] as const)
@@ -86,11 +88,12 @@ mock.module('../../../config/logger', () => ({
 const { reviewDiffAdversarially, resetJurorHealth } = await import('./adversarial-diff-review');
 const { __resetCooldowns, markProviderCooldown } = await import('../../ai/provider-cooldown');
 
-type Asked = { provider: string; model: string };
+type Asked = { provider: string; model: string; cliRoute?: string };
 const asked = () =>
   (sendAIMessage.mock.calls as unknown as Array<[Asked]>).map((c) => ({
     provider: c[0].provider,
     model: c[0].model,
+    cliRoute: c[0].cliRoute,
   }));
 type ReviewEvent = {
   payload: {
@@ -123,6 +126,7 @@ beforeEach(() => {
   implementerPin = null;
   implementerRuns = [];
   apiKeys = ['anthropic', 'google', 'openai'];
+  cliVendors = ['anthropic'];
   auxMode = 'cli';
   resetJurorHealth();
   __resetCooldowns();
@@ -167,14 +171,54 @@ describe('陪審の席の組み替え（ティア表 × 使えるベンダー）
     expect(result.verdict).toBe('pass');
     expect(asked().some((a) => a.provider === 'chatgpt')).toBe(false);
     const seating = lastReviewEvent().payload.seating!;
-    expect(seating.unavailable).toEqual([{ vendor: 'openai', reason: 'quota' }]);
+    expect(seating.unavailable).toEqual([
+      { vendor: 'openai', reason: 'quota', resumeAt: expect.any(String) },
+    ]);
     expect(seating.shortfalls).toEqual([]);
     expect(seating.seats.find((s) => s.seatId === 'reviewer-1')!.model).not.toMatch(/^gpt-/);
   });
 
-  it('Claude CLI が使えない（Codex だけ）: 席を下げずに未充足とし、表示と記録を残す', async () => {
+  // NOTE: Spec change (routing2b): a Codex-only CLI host used to leave all three
+  // seats unmet, because every CLI call went to Claude. With the Codex CLI
+  // route the OpenAI rows sit, through the Codex CLI, under the same rules.
+  it('Codex CLI だけ: OpenAI の席を Codex 経路で問い合わせ、haiku に化けない', async () => {
+    cliVendors = ['openai'];
     implementerRuns = ['gpt-6.1-sol'];
-    markProviderCooldown('claude', 'auth');
+    const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    expect(result.verdict).toBe('pass');
+    expect(asked()).toEqual([
+      { provider: 'chatgpt', model: 'gpt-6-astra', cliRoute: 'codex' },
+      { provider: 'chatgpt', model: 'gpt-6.1-sol', cliRoute: 'codex' },
+    ]);
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.mode).toBe('single_vendor');
+    expect(seating.shortfalls).toEqual([]);
+    expect(seating.seats.map((s) => [s.seatId, s.model, s.independence])).toEqual([
+      ['reviewer-1', 'gpt-6-astra', 'context_isolation'],
+      ['reviewer-2', 'gpt-6.1-sol', 'context_isolation'],
+      ['verifier', 'gpt-6-astra', 'context_isolation'],
+    ]);
+  });
+
+  it('両方の CLI: 実行役 Claude ならレビュー席1は Codex 経路の別系統、席2は Claude 経路', async () => {
+    cliVendors = ['anthropic', 'openai'];
+    implementerRuns = ['claude-sonnet-5-5'];
+    await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
+    // Reviewer-2: away from reviewer-1's vendor first (→ Anthropic), then a
+    // model other than the executor's ranks before the lower tier (→ Opus).
+    expect(asked()).toEqual([
+      { provider: 'chatgpt', model: 'gpt-6-astra', cliRoute: 'codex' },
+      { provider: 'claude', model: 'claude-opus-5-5', cliRoute: 'claude' },
+    ]);
+    const seating = lastReviewEvent().payload.seating!;
+    expect(seating.mode).toBe('cross_vendor');
+    expect(seating.seats.find((s) => s.seatId === 'reviewer-1')!.independence).toBe('cross_vendor');
+  });
+
+  it('Codex CLI だけで OpenAI が使えない: 席を下げずに未充足とし、表示と記録を残す', async () => {
+    cliVendors = ['openai'];
+    implementerRuns = ['gpt-6.1-sol'];
+    markProviderCooldown('openai', 'quota');
     const result = await reviewDiffAdversarially({ taskId: 1, worktreePath: '/wt' });
     expect(sendAIMessage).not.toHaveBeenCalled();
     // An unfillable jury is "unavailable", never a pass and never a fail that

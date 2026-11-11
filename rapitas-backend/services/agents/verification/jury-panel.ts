@@ -30,6 +30,11 @@ export interface JurorSpec {
   model: string;
   /** Stable identity for health tracking and the recorded verdict. */
   label: string;
+  /**
+   * Which subscription CLI serves the seat on a CLI host (routing2b); passed
+   * through to sendAIMessage. Omitted means the Claude CLI, as before.
+   */
+  cliRoute?: 'claude' | 'codex';
 }
 
 /** Providers used as jurors when more than one vendor is reachable. */
