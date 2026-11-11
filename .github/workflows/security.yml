@@ -1,0 +1,42 @@
+# security-caller: セキュリティCIキットの統合 workflow（security.yml）を呼び出すサンプル。
+#
+# 利用方法:
+#   1. このファイルを自分のリポジトリに .github/workflows/security.yml として配置する。
+#   2. 下の uses: の参照先（takamurayuki/security-ci と @v1）を、自分が使うキットの
+#      リポジトリ・タグに書き換える。
+#   3. v1 タグが無い場合は、キットの main のコミットSHA（40桁）でピン留めする。
+#      例: uses: <owner>/security-ci/.github/workflows/security.yml@<40桁のコミットSHA> # main
+#
+# 各チェックは with: の enable-* で無効化できる（デフォルトはすべて有効）。
+#
+# CodeQL について: 公開リポジトリでは追加設定なしで使える。非公開（private / internal）リポジトリで
+# Code scanning を使うには、GitHub Code Security（旧 GitHub Advanced Security）のライセンスと
+# リポジトリでの有効化が必要。使えない場合は with: で enable-codeql: false にすること
+# （false にしても、下の permissions 3 つは付けたままにする。README を参照）。
+#
+# fork からの PR や Dependabot の PR では、GITHUB_TOKEN が読み取り専用に制限されるため、
+# CodeQL は結果を Code scanning にアップロードできず失敗することがある（README を参照）。
+name: security
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    # 統合 workflow 自体は permissions を持たないため、必要な権限はここで付与する。
+    permissions:
+      contents: read
+      security-events: write # CodeQL の結果を Code scanning にアップロードするため
+      actions: read # CodeQL 用
+    # zizmor: ignore[unpinned-uses] は、タグ参照（@v1）のままでも workflow-lint（zizmor）が
+    # このファイル自体を失敗させないためのもの。コミット SHA でピン留めした場合は、この ignore を外すこと。
+    uses: takamurayuki/security-ci/.github/workflows/security.yml@v1 # zizmor: ignore[unpinned-uses]
+    # secrets は不要（secrets: inherit も付けなくてよい）。
+    # with:
+    #   enable-codeql: false
+    #   codeql-languages: "javascript-typescript,python"
+    #   gitleaks-config-path: ".github/gitleaks.toml"
