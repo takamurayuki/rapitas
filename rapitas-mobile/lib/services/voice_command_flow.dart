@@ -1186,8 +1186,10 @@ class VoiceCommandFlow extends ChangeNotifier {
     } catch (e) {
       throw _Failure('$failure: $e');
     }
-    // 成功したここでだけ学習を確定する（いいえ・キャンセル・失敗・途中で閉じたなら、ここまで来ない）
-    await _learning.commit();
+    // 成功したここでだけ学習を確定する（いいえ・キャンセル・失敗なら、ここまで来ない）
+    // NOTE: 実行の通信中にシートを閉じられた場合も記録しない（設計 §2.3「途中で閉じた場合は記録しない」）。
+    // 通信そのものは取り消せないので、結果の通知だけは下で残す。
+    if (!_sheetClosed && !_disposed) await _learning.commit();
     if (_disposed) {
       // 実行中にシートを閉じられても、結果はスナックバーで残す
       ui.showMessage(message);

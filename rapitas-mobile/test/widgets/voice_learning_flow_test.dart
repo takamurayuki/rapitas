@@ -68,6 +68,9 @@ class _FakeApprovals implements ApprovalService {
   final List<String> approved = [];
   bool fail = false;
 
+  /// 設定すると、承認の通信をこれが完了するまで保留する（実行中に閉じるケース用）
+  Completer<void>? gate;
+
   _FakeApprovals(this.items);
 
   @override
@@ -75,6 +78,8 @@ class _FakeApprovals implements ApprovalService {
 
   @override
   Future<void> approve(String id) async {
+    final pending = gate;
+    if (pending != null) await pending.future;
     if (fail) throw Exception('通信エラー');
     approved.add(id);
   }
@@ -486,6 +491,29 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('voice-close')));
       await finish(tester);
       expect(learned(), isEmpty);
+    });
+
+    testWidgets('「はい」のあと実行の通信中にシートを閉じたら、結果は通知するが記録しない', (tester) async {
+      await pumpApp(tester, '/approvals');
+      final gate = Completer<void>();
+      approvals.gate = gate;
+      await openSheet(tester);
+      await say(tester, 'ロビン画面を承認');
+      await say(tester, '2番');
+      await say(tester, 'はい');
+      expect(find.text('実行しています…'), findsOneWidget, reason: '通信を保留している');
+      expect(approvals.approved, isEmpty);
+      await tester.tap(find.byKey(const ValueKey('voice-close')));
+      await settle(tester);
+      expect(find.byType(VoiceInputSheet), findsNothing, reason: 'シートは閉じた');
+
+      gate.complete();
+      await finish(tester);
+      expect(approvals.approved, ['3'], reason: '通信は取り消せないので成功する');
+      expect(find.descendant(of: find.byType(SnackBar), matching: find.text('「ログイン画面のテスト」を承認しました')),
+          findsOneWidget,
+          reason: '結果はスナックバーで残す');
+      expect(learned(), isEmpty, reason: '途中で閉じたので補正は記録しない');
     });
 
     testWidgets('候補の選択で「キャンセル」なら記録しない', (tester) async {
