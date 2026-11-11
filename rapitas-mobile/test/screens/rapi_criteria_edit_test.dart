@@ -298,10 +298,12 @@ void main() {
           ['「予算の通知を実装する」の結果を本人が実際に操作して、求めていた動きだと確かめられる']);
       expect(steps[1].acceptanceCriteria, isEmpty);
       expect(steps[1].userAcceptanceChecks, ['家族2人に、通知が来たら支出を見直すと伝え、了解の返事をもらっている']);
-      // 外した条件は送らない（説明文の「## 完了条件」も確定した条件で作り直す）
+      // 外した条件は送らない。説明文の「## 完了条件」は陪審の条件だけで作り直す（本人の条件は列だけ）
       expect(steps[0].toJson().toString(), isNot(contains('通知の画面が見やすい')));
-      expect(steps[0].description, startsWith('月の予算を超えたら通知を出す\n\n## 完了条件\n'));
-      expect(steps[1].description, contains('- [ ] 家族2人に'));
+      expect(steps[0].description,
+          '月の予算を超えたら通知を出す\n\n## 完了条件\n- [ ] 予算を超えた支出を登録すると、通知が1件出る');
+      expect(steps[1].description, isNot(contains('## 完了条件')));
+      expect(steps[1].description, isNot(contains('家族2人に')));
     });
 
     testWidgets('ある手順の条件を全部外すと作成できない', (tester) async {

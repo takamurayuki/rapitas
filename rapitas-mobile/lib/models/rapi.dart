@@ -642,15 +642,14 @@ class RoadmapStep {
       .trim();
 
   /// カードで確定した条件で送る形にした手順（陪審の条件 [jury] と本人の条件 [user]）。
-  /// 説明文の「## 完了条件」も確定した条件で作り直す（外した条件を送らない）。並びは陪審→本人で、
-  /// サーバーが2列をつないで作り直す並びと同じ
+  /// 説明文の「## 完了条件」は陪審の条件だけで作り直す。説明文は陪審にそのまま渡るので、
+  /// 本人の条件は書かない（本人の条件は userAcceptanceChecks の列だけに入る。サーバーも同じ形で保存する）
   RoadmapStep withConfirmed({required List<String> jury, required List<String> user}) =>
       RoadmapStep(
         title: title,
         description: [
           if (descriptionWithoutCriteria.isNotEmpty) descriptionWithoutCriteria,
-          if (jury.isNotEmpty || user.isNotEmpty)
-            ['## 完了条件', for (final c in [...jury, ...user]) '- [ ] $c'].join('\n'),
+          if (jury.isNotEmpty) ['## 完了条件', for (final c in jury) '- [ ] $c'].join('\n'),
         ].join('\n\n'),
         dueDate: dueDate,
         acceptanceCriteria: jury,

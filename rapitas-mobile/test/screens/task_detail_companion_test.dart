@@ -36,11 +36,12 @@ Task _task({
   String? workflowStatus = 'plan_created',
   String? haltReason,
   String status = 'in-progress',
+  String description = 'パスワードを間違えたときに何も出ないので、理由を出す。',
 }) =>
     Task(
       id: '1',
       title: 'ログインのエラー表示を直す',
-      description: 'パスワードを間違えたときに何も出ないので、理由を出す。',
+      description: description,
       status: status,
       priority: 'high',
       estimatedHours: 2,
@@ -105,6 +106,19 @@ void main() {
     final juryY = tester.getTopLeft(find.byKey(const ValueKey('task-criteria-jury-heading'))).dy;
     final userY = tester.getTopLeft(find.byKey(const ValueKey('task-criteria-user-heading'))).dy;
     expect(tester.getTopLeft(find.text(_criteria.last)).dy, inExclusiveRange(juryY, userY));
+  });
+
+  testWidgets('the description lists the jury’s only; the person’s check still shows, from its column (fix3 item 1)',
+      (tester) async {
+    _phone(tester);
+    // The shape the server now stores: the description's checklist is the jury's alone.
+    final stored = 'パスワードを間違えたときに何も出ないので、理由を出す。\n\n## 完了条件\n'
+        '${_criteria.map((c) => '- [ ] $c').join('\n')}';
+    await _pump(tester, _task(userChecks: _userChecks, description: stored));
+    expect(find.byKey(const ValueKey('task-user-check-0')), findsOneWidget);
+    expect(find.text(_userChecks.first), findsOneWidget);
+    final userY = tester.getTopLeft(find.byKey(const ValueKey('task-criteria-user-heading'))).dy;
+    expect(tester.getTopLeft(find.text(_userChecks.first)).dy, greaterThan(userY));
   });
 
   testWidgets('a task with only the person’s checks says the jury has none', (tester) async {
