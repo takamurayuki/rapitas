@@ -40,3 +40,11 @@ jobs:
     #   enable-codeql: false
     #   codeql-languages: "javascript-typescript,python"
     #   gitleaks-config-path: ".github/gitleaks.toml"
+    with:
+      # CodeQL の解析対象を TypeScript/JavaScript に限定する。理由は 2 つ:
+      #   (1) Swift（iOS 側）は macOS ランナーでしか解析できず、自動判定に含まれると
+      #       ubuntu ランナーではジョブ全体が開始できない。
+      #   (2) Rust は autobuild に Tauri のシステム依存（webkit2gtk 等）が必要で、
+      #       現行ランナーでは失敗するため当面外す。
+      # どちらも将来の課題。macOS ジョブの追加や依存の導入で対象を広げる余地がある。
+      codeql-languages: "javascript-typescript"
