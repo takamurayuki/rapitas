@@ -24,12 +24,12 @@ import {
 } from '../../services/github/pr-duplicate-guard';
 import { PR_CREATION_IN_FLIGHT_ERROR } from '../../services/workflow/pr-in-flight-wait';
 import { syncHarnessIfDrifted } from '../../services/workflow/harness-drift-sync';
-import type { AutoCommitPRResult } from './workflow-auto-commit-types';
+import type { AutoCommitPRResult } from '../../services/workflow/publish/workflow-auto-commit-types';
 import {
   bindingDriftAfterCommit,
   checkBindingBeforeCommit,
   type PublishBinding,
-} from './workflow-auto-commit-binding';
+} from '../../services/workflow/publish/workflow-auto-commit-binding';
 import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
 import {
   readHeadRevision,
@@ -47,7 +47,7 @@ import {
 const log = createLogger('routes:workflow:auto-commit');
 
 // NOTE: Moved to workflow-auto-commit-types.ts to keep this file under the size limit.
-export type { AutoCommitPRResult } from './workflow-auto-commit-types';
+export type { AutoCommitPRResult } from '../../services/workflow/publish/workflow-auto-commit-types';
 
 // Shared classification helpers live in workflow-auto-commit-classify.ts (kept
 // re-exported here so existing importers of this module are unaffected).

@@ -33,6 +33,7 @@ import { buildFullInstruction, fetchAnalysisInfo } from '../shared/instruction-b
 import { executeSetup } from '../shared/execute-setup';
 import { updateSessionStatusWithRetry } from '../shared/session-helpers';
 import { tagSessionWorkflowRole } from '../shared/session-mode';
+import { alignAgentWithModelProvider } from '../shared/model-provider-alignment';
 import { resolveTaskForExecution } from '../../../../services/task/task-resolver';
 import { narrowWorkflowMode } from '../../../../services/workflow/workflow-types.guards.generated';
 import { resolveAgentForTask } from '../../../../services/workflow/role-resolver';
@@ -384,100 +385,16 @@ export const executeRoute = new Elysia().post(
         }
       }
 
-      // Switch the executor agent to one matching the chosen model's provider.
-      // Mirrors `resolveExecutableAgentConfig` in workflow-orchestrator: when
-      // SmartRouter (or a per-role explicit model) selects a model from a
-      // different provider than the resolved agent's CLI, the original agent
-      // (e.g. claude-code) cannot honor `--model gpt-...` and silently falls
-      // back to its default. Picking a compatible agent (codex for openai,
-      // gemini-cli for gemini, …) is what makes preferredProviderOverride
-      // actually take effect end-to-end.
+      // Switch the executor agent to one matching the chosen model's provider
+      // (or drop a model it cannot run) — see model-provider-alignment.ts.
       if (resolvedModelOverride && resolvedAgentConfigId) {
-        try {
-          const [
-            { inferProviderFromModelId },
-            { agentTypeToProvider, findAgentConfigForProvider },
-          ] = await Promise.all([
-            import('../../../../services/workflow/role-provider-resolver'),
-            import('../../../../services/ai/agent-fallback'),
-          ]);
-          const targetProvider = inferProviderFromModelId(resolvedModelOverride);
-          const currentAgent = await prisma.aIAgentConfig
-            .findUnique({
-              where: { id: resolvedAgentConfigId },
-              select: { id: true, agentType: true, name: true },
-            })
-            .catch(() => null);
-          const currentProvider = agentTypeToProvider(currentAgent?.agentType);
-          if (targetProvider && currentProvider && targetProvider !== currentProvider) {
-            const compatible = await findAgentConfigForProvider(targetProvider, {
-              excludeConfigId: resolvedAgentConfigId,
-            });
-            if (compatible) {
-              log.info(
-                {
-                  taskId: taskIdNum,
-                  role: roleAgent?.role,
-                  model: resolvedModelOverride,
-                  fromAgent: currentAgent?.name,
-                  fromType: currentAgent?.agentType,
-                  toAgent: compatible.name,
-                  toType: compatible.agentType,
-                },
-                '[API] Switched executor agent to match selected model provider',
-              );
-              resolvedAgentConfigId = compatible.id;
-            } else {
-              // No compatible agent — passing the foreign-provider model to
-              // the current agent will make the CLI reject it (e.g.
-              // claude-code seeing `codex-auto-review`). Drop the override
-              // so the agent uses its DB-configured default model instead.
-              log.warn(
-                {
-                  taskId: taskIdNum,
-                  role: roleAgent?.role,
-                  model: resolvedModelOverride,
-                  targetProvider,
-                  currentAgentType: currentAgent?.agentType,
-                },
-                '[API] No compatible agent for selected model provider — DROPPING modelIdOverride and falling back to agent default',
-              );
-              resolvedModelOverride = undefined;
-            }
-          } else if (!targetProvider) {
-            // We picked a model whose family we cannot infer (new release
-            // naming, custom alias, …). Sending an unknown id to claude-code
-            // produces "There's an issue with the selected model" and a 1.3s
-            // dead-end. Verify the model name at least starts with a hint
-            // matching the current agent's provider; otherwise drop the
-            // override so the agent uses its default.
-            const looksLikeOurFamily =
-              (currentProvider === 'claude' &&
-                /^(claude|opus|sonnet|haiku|anthropic)/i.test(resolvedModelOverride)) ||
-              (currentProvider === 'openai' &&
-                /^(gpt-|o\d|openai|chatgpt|codex)/i.test(resolvedModelOverride)) ||
-              (currentProvider === 'gemini' && /^(gemini|google)/i.test(resolvedModelOverride)) ||
-              (currentProvider === 'ollama' &&
-                /(ollama|llama|qwen|mistral|deepseek|phi|gemma)/i.test(resolvedModelOverride));
-            if (!looksLikeOurFamily) {
-              log.warn(
-                {
-                  taskId: taskIdNum,
-                  role: roleAgent?.role,
-                  model: resolvedModelOverride,
-                  currentAgentType: currentAgent?.agentType,
-                },
-                '[API] Selected model does not match agent provider family — DROPPING modelIdOverride',
-              );
-              resolvedModelOverride = undefined;
-            }
-          }
-        } catch (switchErr) {
-          log.warn(
-            { err: switchErr, taskId: taskIdNum },
-            '[API] Failed to align executor agent with model provider',
-          );
-        }
+        ({ agentConfigId: resolvedAgentConfigId, modelId: resolvedModelOverride } =
+          await alignAgentWithModelProvider({
+            taskId: taskIdNum,
+            role: roleAgent?.role,
+            agentConfigId: resolvedAgentConfigId,
+            modelId: resolvedModelOverride,
+          }));
       }
 
       // NOTE: Workflow enforcement is suppressed when:

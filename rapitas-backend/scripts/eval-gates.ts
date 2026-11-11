@@ -170,8 +170,22 @@ const GROUPS: { gate: string; cases: Case[] }[] = [
         ok: () => parseReviewVerdict('{"verdict":"pass","reasons":[]}').verdict === 'pass',
       },
       {
+        // NOTE: Since #1468 a fail must cite an evidenced blocker/major in
+        // `findings` to count as a vote; the fenced reply carries one so this
+        // case still measures fence tolerance + fail detection.
         name: 'fail in fence',
-        ok: () => parseReviewVerdict('```json\n{"verdict":"fail"}\n```').verdict === 'fail',
+        ok: () =>
+          parseReviewVerdict(
+            '```json\n{"verdict":"fail","findings":[{"severity":"major","summary":"x","evidence":"a.ts:1"}]}\n```',
+          ).verdict === 'fail',
+      },
+      {
+        // The #1468 rule itself: a reasons-only fail has no evidence to gate on.
+        name: 'unevidenced fail → unknown',
+        ok: () => {
+          const r = parseReviewVerdict('```json\n{"verdict":"fail","reasons":["x"]}\n```');
+          return r.verdict === 'unknown' && !r.judged;
+        },
       },
       {
         name: 'garbage → unknown',

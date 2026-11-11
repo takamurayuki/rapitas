@@ -12,6 +12,7 @@ import '../../utils/date_formatter.dart';
 import '../../utils/constants.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
+import '../../widgets/markdown/task_description_markdown.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -109,7 +110,9 @@ class TaskDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text('説明', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  Text(task.description!),
+                  // NOTE: Rendered as Markdown here only; list previews and the edit
+                  // form deliberately stay plain text.
+                  TaskDescriptionMarkdown(data: task.description!),
                 ],
                 const SizedBox(height: 24),
                 Card(

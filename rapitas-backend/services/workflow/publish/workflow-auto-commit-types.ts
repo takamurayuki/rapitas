@@ -4,8 +4,8 @@
  * The outcome shape of performAutoCommitAndPR, shared by its callers.
  * Not responsible for producing it (workflow-auto-commit.ts).
  */
-import type { BaseSyncResult } from '../../services/workflow/pre-pr-base-sync';
-import type { HarnessDriftSyncResult } from '../../services/workflow/harness-drift-sync';
+import type { BaseSyncResult } from '../pre-pr-base-sync';
+import type { HarnessDriftSyncResult } from '../harness-drift-sync';
 
 /** Outcome of each step of performAutoCommitAndPR. */
 export type AutoCommitPRResult = {

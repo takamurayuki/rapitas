@@ -27,8 +27,24 @@ const resolveReviewHold = mock(
   }),
 );
 mock.module('../../services/workflow/review-hold-resolve', () => ({ resolveReviewHold }));
+// The commit/PR implementations the route injects (services must not import
+// routes). Every export is mirrored: bun replaces the whole module.
+const performAutoCommitAndPR = mock(async (..._a: unknown[]) => ({ requested: undefined }));
+mock.module('./workflow-auto-commit', () => ({
+  performAutoCommitAndPR,
+  countCommitsAhead: async () => 0,
+  isNoChangeCompletion: () => false,
+}));
+const handleVerifyGateBlocked = mock(async (_p: unknown) => ({ newStatus: 'plan_approved' }));
+mock.module('./handlers/file-save/verify-commit-pr-gate-blocked', () => ({
+  VERIFY_GATE_REPEAT_HOLD_CAUSE: 'verification_gate_repeat_hold',
+  gateFailureSignature: (r: string) => r,
+  findRepeatedGateFailure: async () => null,
+  handleVerifyGateBlocked,
+}));
 
-const { default: routes } = await import('./review-hold.routes');
+const { default: routes, overridePublisher } = await import('./review-hold.routes');
+const { isNoChangeCompletion } = await import('./workflow-auto-commit-classify');
 
 const post = (body: unknown, headers: Record<string, string> = { 'x-rapitas-source': 'ui' }) =>
   routes.handle(
@@ -88,7 +104,20 @@ describe('review-hold routes', () => {
       action: 'accept',
       resolvedBy: 'ユーザー操作',
       note: '指摘どおり',
+      publisher: overridePublisher,
     });
+  });
+
+  test('上書きの公開処理は route 層の commit/PR 実装に委譲する', async () => {
+    const binding = { verifySha256: 's', diffFingerprint: 'f', worktreePath: '/wt/5' };
+    await overridePublisher.performAutoCommitAndPR(5, '# verify', { binding });
+    expect(performAutoCommitAndPR).toHaveBeenCalledWith(5, '# verify', { binding });
+    const gate = { taskId: 5, gateReason: 'lint', gateRecoveryBlocked: null, savedContent: 'v' };
+    expect(await overridePublisher.handleVerifyGateBlocked(gate)).toEqual({
+      newStatus: 'plan_approved',
+    });
+    expect(handleVerifyGateBlocked).toHaveBeenCalledWith(gate);
+    expect(overridePublisher.isNoChangeCompletion).toBe(isNoChangeCompletion);
   });
 
   test('保留していない・二重操作は 409', async () => {

@@ -16,6 +16,8 @@ import { createLogger } from '../../config/logger';
 import { isValidEntityId } from '../../utils/common/id-validation';
 import { readReviewHold, type ReviewHoldAction } from '../../services/workflow/review-hold';
 import { resolveReviewHold } from '../../services/workflow/review-hold-resolve';
+import { isNoChangeCompletion } from './workflow-auto-commit-classify';
+import type { OverridePublisher } from '../../services/workflow/publish/override-publisher';
 
 const log = createLogger('routes:review-hold');
 
@@ -30,6 +32,22 @@ const RESOLVE_SOURCE_LABELS: ReadonlyMap<string, string> = new Map([
 ]);
 
 const ACTIONS: ReadonlySet<string> = new Set<ReviewHoldAction>(['accept', 'override']);
+
+/**
+ * The commit/PR operations an override publishes with. They live in this
+ * layer, so the route hands them to the service (services must not import
+ * routes). Loaded lazily, as the service used to: the commit/PR stack is only
+ * needed once a human actually overrides.
+ */
+export const overridePublisher: OverridePublisher = {
+  performAutoCommitAndPR: async (...args) =>
+    (await import('./workflow-auto-commit')).performAutoCommitAndPR(...args),
+  isNoChangeCompletion,
+  handleVerifyGateBlocked: async (params) =>
+    (await import('./handlers/file-save/verify-commit-pr-gate-blocked')).handleVerifyGateBlocked(
+      params,
+    ),
+};
 
 const reviewHoldRoutes = new Elysia({ prefix: '/workflow' })
   .get('/tasks/:taskId/review-hold', async (ctx) => {
@@ -83,6 +101,7 @@ const reviewHoldRoutes = new Elysia({ prefix: '/workflow' })
       action: action as ReviewHoldAction,
       resolvedBy,
       note,
+      publisher: overridePublisher,
     });
     if (!result.ok) {
       ctx.set.status = 409;

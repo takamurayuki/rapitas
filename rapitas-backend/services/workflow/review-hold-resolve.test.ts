@@ -5,6 +5,7 @@
  * (repair loop) or override (commit/PR proceeds, bound to this artifact+diff).
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import type { OverridePublisher } from './publish/override-publisher';
 
 const noop = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({ createLogger: () => noop, logger: noop }));
@@ -60,7 +61,7 @@ const attemptVerifyRepair = mock(
 );
 mock.module('./verify-self-repair', () => ({ attemptVerifyRepair }));
 const markLatestExecutionFailed = mock(async () => {});
-mock.module('../../routes/workflow/handlers/file-save/shared', () => ({
+mock.module('./publish/mark-latest-execution-failed', () => ({
   markLatestExecutionFailed,
 }));
 const writeBlockedTask = mock(async () => {});
@@ -81,7 +82,7 @@ mock.module('../agents/verification/review-diff-fingerprint', () => ({
 }));
 let tree: string | null = 'tree-5';
 const stagedTreeIdentity = mock(async (_cwd: string) => tree);
-mock.module('../../routes/workflow/workflow-auto-commit-tree-identity', () => ({
+mock.module('./publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity,
   committedTreeIdentity: async () => tree,
 }));
@@ -91,6 +92,13 @@ const registerVerifyCompletion = mock((_id: number, _w: Promise<unknown>) => {})
 mock.module('./verify-completion-inflight', () => ({ registerVerifyCompletion }));
 
 const { resolveReviewHold } = await import('./review-hold-resolve');
+
+// Stand-in for the route's commit/PR operations; the service only passes it on.
+const PUBLISHER = {
+  performAutoCommitAndPR: async () => ({}),
+  isNoChangeCompletion: () => false,
+  handleVerifyGateBlocked: async () => ({}),
+} as unknown as OverridePublisher;
 
 beforeEach(() => {
   sessions = [{ worktreePath: '/wt/5', createdAt: 1, lastActivityAt: 1 }];
@@ -111,7 +119,14 @@ beforeEach(() => {
 describe('resolveReviewHold', () => {
   test('保留していなければ何もしない', async () => {
     readReviewHold.mockResolvedValue(null);
-    expect(await resolveReviewHold({ taskId: 5, action: 'accept', resolvedBy: 'u' })).toEqual({
+    expect(
+      await resolveReviewHold({
+        taskId: 5,
+        action: 'accept',
+        resolvedBy: 'u',
+        publisher: PUBLISHER,
+      }),
+    ).toEqual({
       ok: false,
       reason: 'not_held',
     });
@@ -120,7 +135,14 @@ describe('resolveReviewHold', () => {
 
   test('解除の CAS に負けたら何もしない（二重操作）', async () => {
     clearReviewHold.mockResolvedValue(false);
-    expect(await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' })).toEqual({
+    expect(
+      await resolveReviewHold({
+        taskId: 5,
+        action: 'override',
+        resolvedBy: 'u',
+        publisher: PUBLISHER,
+      }),
+    ).toEqual({
       ok: false,
       reason: 'cas_lost',
     });
@@ -128,7 +150,12 @@ describe('resolveReviewHold', () => {
   });
 
   test('(a) 受け入れ → 判定を決めた指摘を差し戻し理由にして修復ループへ', async () => {
-    const r = await resolveReviewHold({ taskId: 5, action: 'accept', resolvedBy: 'ユーザー操作' });
+    const r = await resolveReviewHold({
+      taskId: 5,
+      action: 'accept',
+      resolvedBy: 'ユーザー操作',
+      publisher: PUBLISHER,
+    });
     expect(r).toEqual({
       ok: true,
       action: 'accept',
@@ -156,7 +183,12 @@ describe('resolveReviewHold', () => {
 
   test('(a) 受け入れで修復上限なら blocked', async () => {
     attemptVerifyRepair.mockResolvedValue({ bounced: false });
-    const r = await resolveReviewHold({ taskId: 5, action: 'accept', resolvedBy: 'u' });
+    const r = await resolveReviewHold({
+      taskId: 5,
+      action: 'accept',
+      resolvedBy: 'u',
+      publisher: PUBLISHER,
+    });
     expect(r).toMatchObject({ ok: true, outcome: 'blocked' });
     expect(writeBlockedTask).toHaveBeenCalled();
   });
@@ -166,6 +198,7 @@ describe('resolveReviewHold', () => {
       taskId: 5,
       action: 'override',
       resolvedBy: 'ユーザー操作',
+      publisher: PUBLISHER,
     });
     expect(r).toEqual({
       ok: true,
@@ -181,10 +214,18 @@ describe('resolveReviewHold', () => {
       outcome: 'passed',
       source: 'human_override',
     });
-    expect(publishAfterReviewOverride).toHaveBeenCalledWith(5, '# verify', {
-      binding: { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' },
-      hold: HOLD,
-    });
+    // The route's publisher is what publishes — passed through untouched.
+    expect(publishAfterReviewOverride).toHaveBeenCalledWith(
+      5,
+      '# verify',
+      {
+        binding: { verifySha256: 'sha-5', diffFingerprint: 'fp-5', worktreePath: '/wt/5' },
+        hold: HOLD,
+      },
+      PUBLISHER,
+    );
+    // ...and it is not written into the hold's resolution record.
+    expect(clearReviewHold.mock.calls[0][0]).not.toHaveProperty('publisher');
     // The resolution records the commit-stable target the completion paths
     // compare against (verify.md sha256 + publish worktree + git tree id).
     expect(clearReviewHold.mock.calls[0][0]).toMatchObject({
@@ -202,7 +243,12 @@ describe('resolveReviewHold', () => {
     ['差分の git tree', () => (tree = null)],
   ])('(b) 上書きで %s が取得できなければ、保留を解かず公開もしない', async (_l, unset) => {
     unset();
-    const r = await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    const r = await resolveReviewHold({
+      taskId: 5,
+      action: 'override',
+      resolvedBy: 'u',
+      publisher: PUBLISHER,
+    });
     expect(r).toEqual({ ok: false, reason: 'unbound' });
     expect(clearReviewHold).not.toHaveBeenCalled();
     expect(recordJuryGateCompletion).not.toHaveBeenCalled();
@@ -222,11 +268,17 @@ describe('resolveReviewHold', () => {
       { worktreePath: '/wt/A', createdAt: 9, lastActivityAt: 1 },
       { worktreePath: '/wt/B', createdAt: 1, lastActivityAt: 9 },
     ];
-    await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    await resolveReviewHold({
+      taskId: 5,
+      action: 'override',
+      resolvedBy: 'u',
+      publisher: PUBLISHER,
+    });
     expect(publishAfterReviewOverride).toHaveBeenCalledWith(
       5,
       '# verify',
       expect.objectContaining({ binding: expect.objectContaining({ worktreePath: '/wt/B' }) }),
+      PUBLISHER,
     );
   });
 
@@ -236,7 +288,12 @@ describe('resolveReviewHold', () => {
       { worktreePath: '/wt/A', createdAt: 1, lastActivityAt: 1 },
       { worktreePath: null, createdAt: 2, lastActivityAt: 9 },
     ];
-    const r = await resolveReviewHold({ taskId: 5, action: 'override', resolvedBy: 'u' });
+    const r = await resolveReviewHold({
+      taskId: 5,
+      action: 'override',
+      resolvedBy: 'u',
+      publisher: PUBLISHER,
+    });
     expect(r).toEqual({ ok: false, reason: 'unbound' });
     expect(clearReviewHold).not.toHaveBeenCalled();
     expect(publishAfterReviewOverride).not.toHaveBeenCalled();

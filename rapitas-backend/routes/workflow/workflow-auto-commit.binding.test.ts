@@ -65,7 +65,7 @@ const MODIFIED: DiffFile = { filename: 'a.ts', status: 'modified', patch: '-x\n+
 let worktreeTree: string | null = 'tree-1';
 let committedTree: string | null = null;
 let treeReads: Array<string | null> = [];
-mock.module('./workflow-auto-commit-tree-identity', () => ({
+mock.module('../../services/workflow/publish/workflow-auto-commit-tree-identity', () => ({
   stagedTreeIdentity: async () => (treeReads.length ? treeReads.shift()! : worktreeTree),
   committedTreeIdentity: async () => committedTree,
 }));
