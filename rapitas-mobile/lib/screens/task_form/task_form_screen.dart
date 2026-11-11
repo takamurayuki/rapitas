@@ -9,7 +9,9 @@ import '../../providers/theme_data_provider.dart';
 import '../../utils/color_utils.dart';
 import '../../utils/constants.dart';
 import '../../utils/date_formatter.dart';
+import '../../services/voice_opened_screens.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
 
 /// タスク作成・更新 API に送るボディを作る。
 ///
@@ -120,9 +122,14 @@ class _TaskFormState extends ConsumerState<_TaskForm> {
 
   bool get _isEdit => widget.task != null;
 
+  /// 声で開いた新規作成か（タイトル欄に自動でフォーカスしない）
+  bool _openedByVoice = false;
+
   @override
   void initState() {
     super.initState();
+    // 声で開いたときは入力欄にフォーカスしない（常時聞き取りを止めないため。VoiceOpenedScreens）
+    _openedByVoice = !_isEdit && VoiceOpenedScreens.consume(AppRoutes.taskNew);
     final task = widget.task;
     _titleController = TextEditingController(text: task?.title ?? '');
     _descriptionController = TextEditingController(text: task?.description ?? '');
@@ -222,87 +229,90 @@ class _TaskFormState extends ConsumerState<_TaskForm> {
         title: Text(_isEdit ? 'タスクを編集' : '新しいタスク'),
         actions: const [VoiceModeIndicator()],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'タイトル',
-              hintText: 'タスクのタイトルを入力',
+      body: VoiceScrollTarget(
+        path: _isEdit ? AppRoutes.taskEdit : AppRoutes.taskNew,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'タイトル',
+                hintText: 'タスクのタイトルを入力',
+              ),
+              autofocus: !_isEdit && !_openedByVoice,
+              textInputAction: TextInputAction.next,
             ),
-            autofocus: !_isEdit,
-            textInputAction: TextInputAction.next,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: '説明（任意）',
-              hintText: 'タスクの説明を入力',
-              alignLabelWithHint: true,
+            const SizedBox(height: 16),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: '説明（任意）',
+                hintText: 'タスクの説明を入力',
+                alignLabelWithHint: true,
+              ),
+              minLines: 3,
+              maxLines: 6,
             ),
-            minLines: 3,
-            maxLines: 6,
-          ),
-          const SizedBox(height: 24),
-          Text('優先度', style: textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final priority in _priorities)
-                ChoiceChip(
-                  label: Text(AppConstants.priorityLabels[priority]!),
-                  selected: _priority == priority,
-                  onSelected: (_) => setState(() => _priority = priority),
+            const SizedBox(height: 24),
+            Text('優先度', style: textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final priority in _priorities)
+                  ChoiceChip(
+                    label: Text(AppConstants.priorityLabels[priority]!),
+                    selected: _priority == priority,
+                    onSelected: (_) => setState(() => _priority = priority),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            InkWell(
+              onTap: _pickDueDate,
+              borderRadius: BorderRadius.circular(12),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: '期限',
+                  prefixIcon: const Icon(Icons.calendar_today),
+                  suffixIcon: _dueDate != null
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: '期限をクリア',
+                          onPressed: () => setState(() => _dueDate = null),
+                        )
+                      : null,
                 ),
+                child: Text(
+                  _dueDate != null ? DateFormatter.formatDate(_dueDate) : '未設定',
+                ),
+              ),
+            ),
+            if (themes != null && themes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _ThemeDropdown(
+                themes: themes,
+                value: themes.any((t) => t.id == _themeId) ? _themeId : null,
+                onChanged: (value) => setState(() => _themeId = value),
+              ),
+            ] else if (themesAsync.isLoading) ...[
+              const SizedBox(height: 16),
+              const LinearProgressIndicator(),
             ],
-          ),
-          const SizedBox(height: 24),
-          InkWell(
-            onTap: _pickDueDate,
-            borderRadius: BorderRadius.circular(12),
-            child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: '期限',
-                prefixIcon: const Icon(Icons.calendar_today),
-                suffixIcon: _dueDate != null
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: '期限をクリア',
-                        onPressed: () => setState(() => _dueDate = null),
-                      )
-                    : null,
-              ),
-              child: Text(
-                _dueDate != null ? DateFormatter.formatDate(_dueDate) : '未設定',
-              ),
+            const SizedBox(height: 32),
+            FilledButton(
+              onPressed: _canSave ? () => _save(themes) : null,
+              child: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_isEdit ? '保存' : '作成'),
             ),
-          ),
-          if (themes != null && themes.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _ThemeDropdown(
-              themes: themes,
-              value: themes.any((t) => t.id == _themeId) ? _themeId : null,
-              onChanged: (value) => setState(() => _themeId = value),
-            ),
-          ] else if (themesAsync.isLoading) ...[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
           ],
-          const SizedBox(height: 32),
-          FilledButton(
-            onPressed: _canSave ? () => _save(themes) : null,
-            child: _saving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(_isEdit ? '保存' : '作成'),
-          ),
-        ],
+        ),
       ),
     );
   }

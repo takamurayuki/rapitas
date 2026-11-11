@@ -355,7 +355,8 @@ void main() {
       await settle(tester);
       expect(sheet, findsOneWidget);
       expect(listener().isListening, isFalse);
-      expect(listener().status, VoiceModeStatus.working);
+      // シートはコマンドを待っている：処理中（回る輪）ではなく回答待ち（？）
+      expect(listener().status, VoiceModeStatus.awaiting);
       // シートの聞き取り（前面）だけが動いている
       expect(coordinator().foregroundActive.value, isTrue);
 
@@ -452,27 +453,32 @@ void main() {
       expect(tasks.created, isEmpty);
     });
 
-    testWidgets('解釈できない発話はシートを開かず、表示で「コマンドではなかった」と分かる', (tester) async {
+    testWidgets('解釈できない発話はシートを開かず聞き流す。受付の表示は「話せます」のまま、説明だけ少しの間足す', (tester) async {
       await pumpApp(tester, '/tasks');
       await say(tester, '明日の会議の資料を作る');
       expect(sheet, findsNothing);
       expect(find.text('理解できませんでした'), findsNothing);
       expect(tasks.created, isEmpty);
-      expect(listener().status, VoiceModeStatus.ignored);
-      expect(find.byKey(const ValueKey('voice-mode-dot-ignored')), findsOneWidget);
+      // 「コマンドではなかった」は受付の状態ではない（gaps-design §8）。再び話せるので「話せます」
+      expect(listener().status, VoiceModeStatus.ready);
+      expect(listener().recentlyIgnored, isTrue);
+      expect(find.byKey(const ValueKey('voice-mode-dot-ready')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('コマンドではなかったので聞き流しました')), findsOneWidget);
       expectBackgroundListening();
 
-      // 少しすると聞き取り中の表示に戻る
+      // 少しすると説明も消える
       await settle(tester, 25);
-      expect(listener().status, VoiceModeStatus.listening);
-      expect(find.byKey(const ValueKey('voice-mode-dot-listening')), findsOneWidget);
+      expect(listener().status, VoiceModeStatus.ready);
+      expect(listener().recentlyIgnored, isFalse);
+      expect(find.bySemanticsLabel('音声操作：話せます'), findsOneWidget);
     });
 
     testWidgets('「キャンセル」だけの発話も聞き流す', (tester) async {
       await pumpApp(tester, '/tasks');
       await say(tester, 'キャンセル');
       expect(sheet, findsNothing);
-      expect(listener().status, VoiceModeStatus.ignored);
+      expect(listener().recentlyIgnored, isTrue);
+      expect(listener().status, VoiceModeStatus.ready);
     });
   });
 
@@ -622,7 +628,7 @@ void main() {
         await tester.tap(indicator);
         await settle(tester);
         expect(sheet, findsOneWidget);
-        expect(listener().status, VoiceModeStatus.working);
+        expect(listener().status, VoiceModeStatus.awaiting);
         await tester.tap(find.byKey(const ValueKey('voice-close')));
         await settle(tester);
         expect(sheet, findsNothing);
@@ -644,13 +650,14 @@ void main() {
 
     testWidgets('開始はできても失敗で終わり続けたら「使えない」表示にし、普通に終われば戻す', (tester) async {
       await pumpApp(tester, '/tasks');
-      final mark = find.descendant(of: indicator, matching: find.byKey(const ValueKey('voice-mode-slash')));
+      final mark = find.descendant(of: indicator, matching: find.byKey(const ValueKey('voice-mode-dot-unavailable')));
       for (var i = 1; i <= 3; i++) {
         expectBackgroundListening();
         speech.end(DictationEnd.failed); // 始まった直後に認識エラーで終わる
         await settle(tester, 1);
         if (i < 3) {
-          expect(listener().status, VoiceModeStatus.listening, reason: '$i 回目ではまだ使えない扱いにしない');
+          expect(listener().status, isIn([VoiceModeStatus.preparing, VoiceModeStatus.ready]),
+              reason: '$i 回目ではまだ使えない扱いにしない');
           expect(mark, findsNothing);
           await settle(tester); // 張り直しの間（失敗のたびに倍）を待つ
         }
@@ -664,7 +671,7 @@ void main() {
       expect(listener().status, VoiceModeStatus.unavailable, reason: '成功するまでは使えない表示のまま');
       speech.end(DictationEnd.completed);
       await settle(tester, 1);
-      expect(listener().status, VoiceModeStatus.listening);
+      expect(listener().status, isIn([VoiceModeStatus.preparing, VoiceModeStatus.ready]));
       expect(mark, findsNothing);
     });
 
@@ -703,88 +710,141 @@ void main() {
     });
   });
 
-  group('ランプ（状態ごとの描画）', () {
-    Future<void> pumpDot(WidgetTester tester, VoiceModeStatus status) async {
+  group('聞き取り表示のアイコン（状態ごとの描画）', () {
+    Future<void> pumpDot(WidgetTester tester, VoiceModeStatus status, {Brightness brightness = Brightness.light}) async {
       await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(brightness: brightness),
         home: Scaffold(body: Center(child: VoiceModeDot(status: status, onTap: () {}))),
       ));
-      await tester.pump(const Duration(milliseconds: 300));
+      // MaterialApp はテーマの切り替えをアニメーションするので、切り替わり終わるまで待つ
+      await tester.pump(const Duration(milliseconds: 500));
     }
 
-    BoxDecoration decorationOf(WidgetTester tester, VoiceModeStatus status) {
-      final box = tester.widget<DecoratedBox>(find
-          .descendant(of: find.byKey(ValueKey('voice-mode-dot-${status.name}')), matching: find.byType(DecoratedBox))
-          .first);
-      return box.decoration as BoxDecoration;
-    }
+    Icon iconOfDot(WidgetTester tester) => tester.widget<Icon>(find.byKey(const ValueKey('voice-mode-icon')));
 
-    const effects = ['voice-mode-breathe', 'voice-mode-ripple', 'voice-mode-spin', 'voice-mode-question', 'voice-mode-slash'];
-    const expected = {
-      VoiceModeStatus.listening: ('voice-mode-breathe', VoiceModeDot.indigo),
-      VoiceModeStatus.hearing: ('voice-mode-ripple', VoiceModeDot.green),
-      VoiceModeStatus.working: ('voice-mode-spin', null),
-      VoiceModeStatus.ignored: ('voice-mode-question', VoiceModeDot.orange),
-      VoiceModeStatus.paused: (null, VoiceModeDot.grey),
-      VoiceModeStatus.unavailable: ('voice-mode-slash', VoiceModeDot.darkGrey),
+    // 状態 → Material アイコンと色（2026-11-11 本人決定。見本 nav25/ui-preview/indicator-mock-v5.html）
+    final expected = <VoiceModeStatus, (IconData, Color)>{
+      VoiceModeStatus.ready: (Icons.more_horiz, VoiceModeDot.navy),
+      VoiceModeStatus.hearing: (Icons.graphic_eq, VoiceModeDot.green),
+      VoiceModeStatus.processing: (Icons.autorenew, VoiceModeDot.purple),
+      VoiceModeStatus.awaiting: (Icons.help, VoiceModeDot.orange),
+      VoiceModeStatus.preparing: (Icons.more_horiz, VoiceModeDot.faint),
+      VoiceModeStatus.paused: (Icons.pause, VoiceModeDot.grey),
+      VoiceModeStatus.unavailable: (Icons.block, VoiceModeDot.darkGrey),
     };
 
     for (final entry in expected.entries) {
       final status = entry.key;
-      final (effect, color) = entry.value;
-      testWidgets('${status.name}：アイコンを使わず、色と動きだけで表す', (tester) async {
+      final (iconData, color) = entry.value;
+      testWidgets('${status.name}：文字を使わず標準アイコンと色で表す（大きさは従来どおり）', (tester) async {
         await pumpDot(tester, status);
         final dot = find.byKey(ValueKey('voice-mode-dot-${status.name}'));
         expect(dot, findsOneWidget);
-        // マイク等のアイコンは一切使わない
-        expect(find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Icon)), findsNothing);
-        for (final icon in [Icons.mic, Icons.mic_none, Icons.mic_off, Icons.graphic_eq, Icons.settings_voice]) {
-          expect(find.byIcon(icon), findsNothing);
+        // アイコンは 1 つだけで、決めたものと色
+        final icons = find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Icon));
+        expect(icons, findsOneWidget);
+        final icon = iconOfDot(tester);
+        expect(icon.icon, iconData);
+        expect(icon.color, color);
+        expect(icon.size, VoiceModeDot.iconSize);
+        // マイク系のアイコンは使わない（入力欄のマイクと意味が重なるため）
+        for (final mic in [Icons.mic, Icons.mic_none, Icons.mic_off, Icons.settings_voice, Icons.keyboard_voice]) {
+          expect(find.byIcon(mic), findsNothing);
         }
-        // 大きさは従来どおり（丸 30・タップ範囲 40）
+        // 大きさは従来どおり（見た目 30・タップ範囲 40）。アイコンはその中に収まる
         expect(tester.getSize(dot), const Size.square(VoiceModeIndicator.dotSize));
         expect(tester.getSize(find.byKey(const ValueKey('voice-mode-indicator'))),
             const Size.square(VoiceModeIndicator.hitSize));
-        // その状態の動き・印だけがある
-        for (final key in effects) {
-          expect(find.byKey(ValueKey(key)), key == effect ? findsOneWidget : findsNothing, reason: key);
-        }
-        if (color != null) expect(decorationOf(tester, status).color, color);
-        // 「？」以外の文字は出さない
-        final texts = tester.widgetList<Text>(find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Text)));
-        expect(texts.map((t) => t.data), status == VoiceModeStatus.ignored ? ['?'] : isEmpty);
+        // 回転中（処理中）も外接枠では測らず、回る前の大きさと中心の位置で確かめる（autorenew の絵は円形なので枠内に収まる）
+        final iconSize = tester.getSize(icons);
+        expect(iconSize.width, lessThanOrEqualTo(VoiceModeIndicator.dotSize), reason: 'アイコンが 30 四方からはみ出さない');
+        expect(iconSize.height, lessThanOrEqualTo(VoiceModeIndicator.dotSize), reason: 'アイコンが 30 四方からはみ出さない');
+        expect(tester.getCenter(icons), tester.getCenter(dot), reason: '印の中央に置く');
+        // 囲み（枠線・背景の丸）は付けない
+        final boxes = tester.widgetList<DecoratedBox>(find.descendant(of: dot, matching: find.byType(DecoratedBox)));
+        expect(boxes, isEmpty, reason: 'アウトラインや囲みは付けない');
+        // 文字は出さない。説明は読み上げ（Semantics）にだけある
+        expect(find.descendant(of: find.byType(VoiceModeDot), matching: find.byType(Text)), findsNothing);
+        expect(find.bySemanticsLabel(VoiceModeDot.labelOf(status)), findsOneWidget);
       });
     }
 
-    testWidgets('聞き取り中はゆっくり明滅し、一時停止・使えない・？は静止', (tester) async {
-      await pumpDot(tester, VoiceModeStatus.listening);
+    testWidgets('アイコンの割り当ては状態の区別を保つ（同じアイコンは話せますと準備中だけで、色で分ける）', (tester) async {
+      final shown = VoiceModeStatus.values.where((s) => s != VoiceModeStatus.off);
+      final byIcon = <IconData, List<VoiceModeStatus>>{};
+      for (final s in shown) {
+        byIcon.putIfAbsent(VoiceModeDot.iconOf(s), () => []).add(s);
+      }
+      expect(byIcon[Icons.more_horiz], [VoiceModeStatus.preparing, VoiceModeStatus.ready]);
+      expect(byIcon.values.where((v) => v.length > 1), hasLength(1));
+      for (final b in Brightness.values) {
+        expect(VoiceModeDot.colorOf(VoiceModeStatus.ready, b), isNot(VoiceModeDot.colorOf(VoiceModeStatus.preparing, b)));
+        expect(VoiceModeDot.colorOf(VoiceModeStatus.unavailable, b), isNot(VoiceModeDot.colorOf(VoiceModeStatus.paused, b)));
+      }
+    });
+
+    testWidgets('話せますはごくゆっくり明滅し、受け取り中・回答待ち・準備中・一時停止・使えないは静止', (tester) async {
+      await pumpDot(tester, VoiceModeStatus.ready);
       double opacity() => tester.widget<FadeTransition>(find.byKey(const ValueKey('voice-mode-breathe'))).opacity.value;
       final samples = <double>[];
-      for (var i = 0; i < 30; i++) {
+      for (var i = 0; i < 45; i++) {
         await tester.pump(const Duration(milliseconds: 100));
         samples.add(opacity());
       }
       expect(samples.reduce(math.max), greaterThan(0.9));
-      expect(samples.reduce(math.min), lessThan(0.55));
-      // 速くしない：明るい→暗いに 1 秒以上かける
-      expect(VoiceModeDot.breatheHalf, greaterThanOrEqualTo(const Duration(seconds: 1)));
+      expect(samples.reduce(math.min), lessThan(0.65));
+      expect(samples.reduce(math.min), greaterThanOrEqualTo(0.55), reason: '消えたように見えるほど暗くしない');
+      // 速くしない：明るい→暗いに 1.5 秒以上かける
+      expect(VoiceModeDot.breatheHalf, greaterThanOrEqualTo(const Duration(milliseconds: 1500)));
       expect(VoiceModeDot.spinCycle, greaterThanOrEqualTo(const Duration(seconds: 1)));
 
-      for (final still in [VoiceModeStatus.paused, VoiceModeStatus.unavailable, VoiceModeStatus.ignored]) {
+      for (final still in [
+        VoiceModeStatus.hearing,
+        VoiceModeStatus.awaiting,
+        VoiceModeStatus.preparing,
+        VoiceModeStatus.paused,
+        VoiceModeStatus.unavailable,
+      ]) {
         await pumpDot(tester, still);
         expect(tester.hasRunningAnimations, isFalse, reason: still.name);
       }
     });
 
-    testWidgets('実行中は紫の輪、声が届いている間は緑の輪が動き続ける', (tester) async {
-      for (final moving in [VoiceModeStatus.working, VoiceModeStatus.hearing]) {
-        await pumpDot(tester, moving);
-        await tester.pump(const Duration(milliseconds: 500));
-        expect(tester.hasRunningAnimations, isTrue, reason: moving.name);
+    testWidgets('処理中は autorenew が回り続ける', (tester) async {
+      await pumpDot(tester, VoiceModeStatus.processing);
+      final spin = find.byKey(const ValueKey('voice-mode-spin'));
+      expect(find.descendant(of: spin, matching: find.byIcon(Icons.autorenew)), findsOneWidget);
+      double turns() => tester.widget<RotationTransition>(spin).turns.value;
+      final before = turns();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(turns(), isNot(before));
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('ダークでも「話せます」は「準備中」より目立ち、「使えない」はバーの上で見える', (tester) async {
+      for (final brightness in Brightness.values) {
+        final background = brightness == Brightness.dark ? const Color(0xFF141218) : Colors.white;
+        double contrast(Color c) {
+          final a = c.computeLuminance();
+          final b = background.computeLuminance();
+          return (math.max(a, b) + 0.05) / (math.min(a, b) + 0.05);
+        }
+
+        Future<Color> shown(VoiceModeStatus status) async {
+          await pumpDot(tester, status, brightness: brightness);
+          return iconOfDot(tester).color!;
+        }
+
+        final ready = contrast(await shown(VoiceModeStatus.ready));
+        final preparing = contrast(await shown(VoiceModeStatus.preparing));
+        expect(ready, greaterThan(preparing), reason: brightness.name);
+        expect(ready, greaterThanOrEqualTo(3), reason: '${brightness.name}：話せますはバーの上で見える');
+        expect(contrast(await shown(VoiceModeStatus.unavailable)), greaterThanOrEqualTo(3), reason: brightness.name);
       }
     });
 
-    testWidgets('動いている間の描き直しはランプの中だけ（外側は描き直さない）', (tester) async {
-      for (final moving in [VoiceModeStatus.listening, VoiceModeStatus.hearing, VoiceModeStatus.working]) {
+    testWidgets('動いている間の描き直しは印の中だけ（外側は描き直さない）', (tester) async {
+      for (final moving in [VoiceModeStatus.ready, VoiceModeStatus.processing]) {
         final outer = _CountingPainter();
         await tester.pumpWidget(MaterialApp(
           home: Scaffold(
@@ -800,18 +860,14 @@ void main() {
         // 動きの部分は RepaintBoundary の内側にある
         final boundary = find.byKey(const ValueKey('voice-mode-lamp-boundary'));
         expect(tester.widget(boundary), isA<RepaintBoundary>());
-        final effect = switch (moving) {
-          VoiceModeStatus.listening => 'voice-mode-breathe',
-          VoiceModeStatus.hearing => 'voice-mode-ripple',
-          _ => 'voice-mode-spin',
-        };
+        final effect = moving == VoiceModeStatus.ready ? 'voice-mode-breathe' : 'voice-mode-spin';
         expect(find.descendant(of: boundary, matching: find.byKey(ValueKey(effect))), findsOneWidget, reason: moving.name);
         final before = outer.count;
         for (var i = 0; i < 20; i++) {
           await tester.pump(const Duration(milliseconds: 50));
         }
         expect(tester.hasRunningAnimations, isTrue, reason: moving.name);
-        expect(outer.count, before, reason: '${moving.name}：ランプの外側まで描き直している');
+        expect(outer.count, before, reason: '${moving.name}：印の外側まで描き直している');
       }
     });
   });

@@ -15,10 +15,52 @@ void main() {
       expect(voiceScreenOf('/tasks/12/edit'), VoiceScreen.taskForm);
       expect(voiceScreenOf('/approvals'), VoiceScreen.approvals);
       expect(voiceScreenOf('/hypotheses'), VoiceScreen.hypotheses);
-      expect(voiceScreenOf('/themes/3/edit'), VoiceScreen.other);
+      // フォーム画面も画面種別に結び付く（「ヘルプ」でその画面向けの案内が出る）
+      expect(voiceScreenOf('/themes/new'), VoiceScreen.themeForm);
+      expect(voiceScreenOf('/themes/3/edit'), VoiceScreen.themeForm);
+      expect(voiceScreenOf('/categories/new'), VoiceScreen.categoryForm);
+      expect(voiceScreenOf('/categories/4/edit'), VoiceScreen.categoryForm);
+      expect(voiceScreenOf('/ideas/new'), VoiceScreen.ideaForm);
+      expect(voiceScreenOf('/concerns/new'), VoiceScreen.concernForm);
+      expect(voiceScreenOf('/themes/3/other'), VoiceScreen.other);
       expect(voiceTaskIdOf('/tasks/12'), '12');
       expect(voiceTaskIdOf('/tasks/new'), isNull);
       expect(voiceTaskIdOf('/tasks'), isNull);
+    });
+  });
+
+  group('フォーム画面', () {
+    test('画面名とヘルプがフォーム向けになる', () {
+      expect(voiceScreenLabel('/themes/new'), 'テーマの入力');
+      expect(voiceScreenLabel('/categories/2/edit'), 'カテゴリの入力');
+      expect(voiceScreenLabel('/ideas/new'), 'アイデアの入力');
+      expect(voiceScreenLabel('/concerns/new'), '懸念の入力');
+      for (final screen in [
+        VoiceScreen.taskForm,
+        VoiceScreen.themeForm,
+        VoiceScreen.categoryForm,
+        VoiceScreen.ideaForm,
+        VoiceScreen.concernForm,
+      ]) {
+        expect(voiceHelpFor(screen).first, contains('入力欄'), reason: screen.name);
+      }
+    });
+  });
+
+  group('更新', () {
+    test('「更新」「再読み込み」などはどの画面でも更新', () {
+      for (final text in ['更新', '更新して', '画面を更新', '一覧を更新して', '再読み込み', '再読み込みして', 'リロード', 'リフレッシュ', '再試行', '最新にして', '読み込み直して']) {
+        for (final screen in [VoiceScreen.home, VoiceScreen.tasks, VoiceScreen.settings, VoiceScreen.taskDetail]) {
+          expect(parse(text, screen).type, VoiceCommandType.refresh, reason: '$text @ ${screen.name}');
+        }
+      }
+    });
+
+    test('「◯◯を更新」のように対象の付いた文は更新コマンドにしない', () {
+      expect(parse('タイトルを更新').type, isNot(VoiceCommandType.refresh));
+      expect(parse('更新日').type, isNot(VoiceCommandType.refresh));
+      // ヘルプにも載せる
+      expect(voiceHelpFor(VoiceScreen.home).join(), contains('「更新」'));
     });
   });
 

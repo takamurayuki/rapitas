@@ -5,7 +5,12 @@ import '../../models/backlog.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/backlog_service.dart';
+import '../../services/voice_opened_screens.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
+
+// NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → この画面 という import の循環を作らないよう文字列で持つ。
+const String _newPath = '/ideas/new';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
@@ -23,6 +28,16 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
   final _contentController = TextEditingController();
   String _priority = 'medium';
   bool _saving = false;
+
+  /// 声で開いたか（タイトル欄に自動でフォーカスしない）
+  bool _openedByVoice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 声で開いたときは入力欄にフォーカスしない（常時聞き取りを止めないため。VoiceOpenedScreens）
+    _openedByVoice = VoiceOpenedScreens.consume(_newPath);
+  }
 
   @override
   void dispose() {
@@ -67,73 +82,76 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('新しいアイデア'), actions: const [VoiceModeIndicator()]),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'タイトル',
-                hintText: 'アイデアを一言で',
+      body: VoiceScrollTarget(
+        path: _newPath,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'タイトル',
+                  hintText: 'アイデアを一言で',
+                ),
+                autofocus: !_openedByVoice,
+                textInputAction: TextInputAction.next,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? 'タイトルを入力してください'
+                    : null,
               ),
-              autofocus: true,
-              textInputAction: TextInputAction.next,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              validator: (value) => (value ?? '').trim().isEmpty
-                  ? 'タイトルを入力してください'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _contentController,
-              decoration: const InputDecoration(
-                labelText: '内容（任意）',
-                hintText: '詳しい説明。空ならタイトルが内容になります',
-                alignLabelWithHint: true,
+              const SizedBox(height: 16),
+              TextField(
+                controller: _contentController,
+                decoration: const InputDecoration(
+                  labelText: '内容（任意）',
+                  hintText: '詳しい説明。空ならタイトルが内容になります',
+                  alignLabelWithHint: true,
+                ),
+                minLines: 4,
+                maxLines: 10,
               ),
-              minLines: 4,
-              maxLines: 10,
-            ),
-            const SizedBox(height: 16),
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: '優先度',
-                prefixIcon: Icon(Icons.flag_outlined),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _priority,
-                  isExpanded: true,
-                  isDense: true,
-                  items: [
-                    for (final value in backlogPriorityOrder)
-                      DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(ideaPriorityLabels[value] ?? value),
-                      ),
-                  ],
-                  onChanged: _saving
-                      ? null
-                      : (value) {
-                          if (value != null) setState(() => _priority = value);
-                        },
+              const SizedBox(height: 16),
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: '優先度',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _priority,
+                    isExpanded: true,
+                    isDense: true,
+                    items: [
+                      for (final value in backlogPriorityOrder)
+                        DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(ideaPriorityLabels[value] ?? value),
+                        ),
+                    ],
+                    onChanged: _saving
+                        ? null
+                        : (value) {
+                            if (value != null) setState(() => _priority = value);
+                          },
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('追加'),
-            ),
-          ],
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('追加'),
+              ),
+            ],
+          ),
         ),
       ),
     );

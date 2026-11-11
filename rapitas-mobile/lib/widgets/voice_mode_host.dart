@@ -8,7 +8,9 @@ import '../providers/settings_provider.dart';
 import '../providers/voice_provider.dart';
 import '../services/voice_command_flow.dart';
 import '../services/voice_mode_listener.dart';
+import '../services/voice_opened_screens.dart';
 import '../services/voice_route_tracker.dart';
+import 'voice_dismissible.dart';
 import 'voice_input_sheet.dart';
 import 'voice_scroll_target.dart';
 
@@ -180,24 +182,36 @@ class AppVoiceUi implements VoiceUi {
     }
   }
 
+  // 声で開いた画面は入力欄に自動でフォーカスしない（VoiceOpenedScreens）。目印は開く直前に付ける
   @override
-  void go(String path) => router.go(path);
+  void go(String path) {
+    VoiceOpenedScreens.markOpened(path);
+    router.go(path);
+  }
 
   @override
-  void push(String path, {Object? extra}) => router.push(path, extra: extra);
+  void push(String path, {Object? extra}) {
+    VoiceOpenedScreens.markOpened(path);
+    router.push(path, extra: extra);
+  }
 
   @override
   bool back() {
+    // ドロワー・検索モードが出ていれば、画面を戻す前にそちらを閉じる（端末の戻るボタンと同じ順）
+    if (VoiceDismissible.dismissTop()) return true;
     if (!router.canPop()) return false;
     router.pop();
     return true;
   }
 
   @override
-  bool closePopup() => tracker.closeTopPopup();
+  bool closePopup() => tracker.closeTopPopup() || VoiceDismissible.dismissTop();
 
   @override
   bool scroll(String path, {required bool down}) => VoiceScrollTarget.scroll(path, down: down);
+
+  @override
+  bool refresh(String path) => VoiceScrollTarget.refresh(path);
 
   @override
   void showMessage(String message) {

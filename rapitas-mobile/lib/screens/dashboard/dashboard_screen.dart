@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
+
+// NOTE: パスは AppRoutes.dashboard と同じ値（routes.dart との import の循環を避けて文字列で持つ）
+const String _path = '/dashboard';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -13,41 +17,44 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('ダッシュボード'),
         actions: const [VoiceModeIndicator()],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(taskListProvider);
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _StatCard(
-              title: '今日のサマリー',
-              icon: Icons.today,
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final allTasks = ref.watch(taskListProvider(const TaskFilter()));
-                  return allTasks.when(
-                    data: (tasks) {
-                      final todo = tasks.where((t) => t.status == 'todo').length;
-                      final inProgress = tasks.where((t) => t.status == 'in-progress').length;
-                      final done = tasks.where((t) => t.status == 'done').length;
-                      return Column(
-                        children: [
-                          _StatRow(label: '未着手', value: '$todo', color: Colors.grey),
-                          _StatRow(label: '進行中', value: '$inProgress', color: Colors.blue),
-                          _StatRow(label: '完了', value: '$done', color: Colors.green),
-                          const Divider(),
-                          _StatRow(label: '合計', value: '${tasks.length}', color: Colors.black87),
-                        ],
-                      );
-                    },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (_, __) => const Text('データの取得に失敗しました'),
-                  );
-                },
+      body: VoiceScrollTarget(
+        path: _path,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(taskListProvider);
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _StatCard(
+                title: '今日のサマリー',
+                icon: Icons.today,
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final allTasks = ref.watch(taskListProvider(const TaskFilter()));
+                    return allTasks.when(
+                      data: (tasks) {
+                        final todo = tasks.where((t) => t.status == 'todo').length;
+                        final inProgress = tasks.where((t) => t.status == 'in-progress').length;
+                        final done = tasks.where((t) => t.status == 'done').length;
+                        return Column(
+                          children: [
+                            _StatRow(label: '未着手', value: '$todo', color: Colors.grey),
+                            _StatRow(label: '進行中', value: '$inProgress', color: Colors.blue),
+                            _StatRow(label: '完了', value: '$done', color: Colors.green),
+                            const Divider(),
+                            _StatRow(label: '合計', value: '${tasks.length}', color: Colors.black87),
+                          ],
+                        );
+                      },
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (_, __) => const Text('データの取得に失敗しました'),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

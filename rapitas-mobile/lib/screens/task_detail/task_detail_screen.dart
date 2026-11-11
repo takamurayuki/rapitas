@@ -11,6 +11,7 @@ import '../../widgets/priority_indicator.dart';
 import '../../utils/date_formatter.dart';
 import '../../utils/constants.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
@@ -64,173 +65,178 @@ class TaskDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
-      body: taskAsync.when(
-        data: (task) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Text(
-                task.title,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  StatusBadge.task(status: task.status),
-                  const SizedBox(width: 12),
-                  PriorityIndicator(priority: task.priority),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Status change buttons
-              Row(
-                children: [
-                  for (final status in ['todo', 'in-progress', 'done'])
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(AppConstants.statusLabels[status]!),
-                        selected: task.status == status,
-                        onSelected: task.status == status
-                            ? null
-                            : (_) => _updateStatus(ref, status),
-                      ),
-                    ),
-                ],
-              ),
-              if (task.description != null && task.description!.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text('説明', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                // NOTE: Rendered as Markdown here only; list previews and the edit
-                // form deliberately stay plain text.
-                TaskDescriptionMarkdown(data: task.description!),
-              ],
-              const SizedBox(height: 24),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      _DetailRow(
-                        icon: Icons.calendar_today,
-                        label: '期日',
-                        value: DateFormatter.formatDate(task.dueDate),
-                      ),
-                      _DetailRow(
-                        icon: Icons.access_time,
-                        label: '見積もり',
-                        value: task.estimatedHours != null
-                            ? '${task.estimatedHours}時間'
-                            : '-',
-                      ),
-                      _DetailRow(
-                        icon: Icons.timer,
-                        label: '実績',
-                        value: task.actualHours != null
-                            ? '${task.actualHours}時間'
-                            : '-',
-                      ),
-                      _DetailRow(
-                        icon: Icons.folder,
-                        label: 'テーマ',
-                        value: task.theme?.name ?? '-',
-                      ),
-                      _DetailRow(
-                        icon: Icons.play_circle,
-                        label: '開始',
-                        value: DateFormatter.formatDateTime(task.startedAt),
-                      ),
-                      _DetailRow(
-                        icon: Icons.check_circle,
-                        label: '完了',
-                        value: DateFormatter.formatDateTime(task.completedAt),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (task.subtasks != null && task.subtasks!.isNotEmpty) ...[
-                const SizedBox(height: 24),
+      body: VoiceScrollTarget(
+        path: AppRoutes.taskDetail,
+        // 読み込み失敗の表示（引っ張って更新が無い）からも「更新」で読み直せるよう、直接 invalidate する
+        onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
+        child: taskAsync.when(
+          data: (task) => RefreshIndicator(
+            onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
                 Text(
-                  'サブタスク (${task.subtasks!.length})',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                ...task.subtasks!.map((subtask) => Card(
-                      child: ListTile(
-                        leading: Icon(
-                          subtask.status == 'done'
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                          color: subtask.status == 'done'
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                        title: Text(subtask.title),
-                        subtitle: Text(
-                          AppConstants.statusLabels[subtask.status] ?? subtask.status,
-                        ),
-                        onTap: () => _toggleSubtask(context, ref, subtask),
+                  task.title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                    )),
-              ],
-              if (task.canExecuteWithAgent) ...[
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    StatusBadge.task(status: task.status),
+                    const SizedBox(width: 12),
+                    PriorityIndicator(priority: task.priority),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Status change buttons
+                Row(
+                  children: [
+                    for (final status in ['todo', 'in-progress', 'done'])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(AppConstants.statusLabels[status]!),
+                          selected: task.status == status,
+                          onSelected: task.status == status
+                              ? null
+                              : (_) => _updateStatus(ref, status),
+                        ),
+                      ),
+                  ],
+                ),
+                if (task.description != null && task.description!.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text('説明', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  // NOTE: Rendered as Markdown here only; list previews and the edit
+                  // form deliberately stay plain text.
+                  TaskDescriptionMarkdown(data: task.description!),
+                ],
                 const SizedBox(height: 24),
                 Card(
-                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.smart_toy, color: Theme.of(context).colorScheme.primary),
-                            const SizedBox(width: 8),
-                            Text(
-                              'AI実行可能',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ],
+                        _DetailRow(
+                          icon: Icons.calendar_today,
+                          label: '期日',
+                          value: DateFormatter.formatDate(task.dueDate),
                         ),
-                        if (task.executionInstructions != null) ...[
-                          const SizedBox(height: 8),
-                          Text(task.executionInstructions!),
-                        ],
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: () => _executeWithAgent(context, ref),
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('エージェントで実行'),
+                        _DetailRow(
+                          icon: Icons.access_time,
+                          label: '見積もり',
+                          value: task.estimatedHours != null
+                              ? '${task.estimatedHours}時間'
+                              : '-',
+                        ),
+                        _DetailRow(
+                          icon: Icons.timer,
+                          label: '実績',
+                          value: task.actualHours != null
+                              ? '${task.actualHours}時間'
+                              : '-',
+                        ),
+                        _DetailRow(
+                          icon: Icons.folder,
+                          label: 'テーマ',
+                          value: task.theme?.name ?? '-',
+                        ),
+                        _DetailRow(
+                          icon: Icons.play_circle,
+                          label: '開始',
+                          value: DateFormatter.formatDateTime(task.startedAt),
+                        ),
+                        _DetailRow(
+                          icon: Icons.check_circle,
+                          label: '完了',
+                          value: DateFormatter.formatDateTime(task.completedAt),
                         ),
                       ],
                     ),
                   ),
                 ),
+                if (task.subtasks != null && task.subtasks!.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'サブタスク (${task.subtasks!.length})',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  ...task.subtasks!.map((subtask) => Card(
+                        child: ListTile(
+                          leading: Icon(
+                            subtask.status == 'done'
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: subtask.status == 'done'
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                          title: Text(subtask.title),
+                          subtitle: Text(
+                            AppConstants.statusLabels[subtask.status] ?? subtask.status,
+                          ),
+                          onTap: () => _toggleSubtask(context, ref, subtask),
+                        ),
+                      )),
+                ],
+                if (task.canExecuteWithAgent) ...[
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.smart_toy, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'AI実行可能',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          if (task.executionInstructions != null) ...[
+                            const SizedBox(height: 8),
+                            Text(task.executionInstructions!),
+                          ],
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: () => _executeWithAgent(context, ref),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('エージェントで実行'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text('タスクの取得に失敗しました'),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(taskDetailProvider(taskId)),
-                child: const Text('再試行'),
-              ),
-            ],
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('タスクの取得に失敗しました'),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(taskDetailProvider(taskId)),
+                  child: const Text('再試行'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

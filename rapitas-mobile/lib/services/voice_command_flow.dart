@@ -92,6 +92,9 @@ abstract class VoiceUi {
   /// [path] の画面の一覧を動かす。受け口が無ければ false
   bool scroll(String path, {required bool down});
 
+  /// [path] の画面を再読み込みする（引っ張って更新・「再試行」の代わり）。更新できるものが無ければ false
+  bool refresh(String path);
+
   /// 短い結果表示（スナックバー）。シートを閉じた後も残る
   void showMessage(String message);
 }
@@ -203,6 +206,7 @@ class VoiceCommandFlow extends ChangeNotifier {
         VoiceCommandType.close,
         VoiceCommandType.scrollDown,
         VoiceCommandType.scrollUp,
+        VoiceCommandType.refresh,
         VoiceCommandType.searchTasks,
         VoiceCommandType.filterTasks,
         VoiceCommandType.clearFilter,
@@ -214,6 +218,9 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   /// 声の答えを待っているか（聞き取りが止まっていれば「もう一度話す」を出す）
   bool get waitingForSpeech => _answer != null;
+
+  /// いまの聞き取りで言葉が届いているか（聞き取り表示の「声を受け取り中」。前の文が残っているだけなら false）
+  bool get hearingWords => listening && _gotWords;
 
   // ---- シートからの操作 ----
 
@@ -520,6 +527,8 @@ class VoiceCommandFlow extends ChangeNotifier {
         await _outside(down ? '下にスクロールします' : '上にスクロールします', () {
           return ui.scroll(path, down: down) ? null : 'この画面ではスクロールできません';
         });
+      case VoiceCommandType.refresh:
+        await _outside('更新します', () => ui.refresh(path) ? '再読み込みしています' : 'この画面では更新できません');
       case VoiceCommandType.approveRequest:
         await _approve(cmd);
       case VoiceCommandType.rejectRequest:

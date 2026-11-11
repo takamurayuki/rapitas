@@ -5,6 +5,7 @@ import '../providers/connection_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/service_providers.dart';
 import '../services/sse_service.dart';
+import 'voice_dismissible.dart';
 import 'voice_mode_indicator.dart';
 
 // NOTE: パスは config/routes.dart の AppRoutes と同じ値。routes.dart → 各画面 → このファイル
@@ -110,6 +111,8 @@ class AppDrawer extends ConsumerWidget {
 
 /// ドロワーが出ている間（開く・閉じるアニメーション中を含む）は、タイトルバーの音声操作の聞き取り表示を隠す。
 /// Scaffold はドロワーを開いている間だけ中身を作るので、作られている間＝出ている間。
+/// 出ている間は、音声の「閉じる」「戻る」でドロワーを閉じられるようにもする（ドロワーはルートではないので
+/// シート・ダイアログ用の VoiceRouteTracker からは見えない）。
 class _HidesVoiceIndicator extends StatefulWidget {
   final Widget child;
 
@@ -133,7 +136,10 @@ class _HidesVoiceIndicatorState extends State<_HidesVoiceIndicator> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => VoiceDismissible(
+        onDismiss: () => Scaffold.maybeOf(context)?.closeDrawer(),
+        child: widget.child,
+      );
 }
 
 /// ブランドの紫グラデーションの帯。アプリ名と接続先デスクトップ。

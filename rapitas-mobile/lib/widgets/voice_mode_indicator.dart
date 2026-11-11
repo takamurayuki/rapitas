@@ -1,13 +1,11 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/voice_provider.dart';
 import '../services/voice_mode_listener.dart';
 
-/// 音声操作モードの聞き取り表示（小さな丸い印。タップ範囲 40×40、見た目の丸は直径 [dotSize]）。
-/// モードがオフの間は何も出さない（幅も取らない）。状態は「ランプ」＝色と動きだけで見せる（[VoiceModeDot]）。
+/// 音声操作モードの聞き取り表示（小さな印。タップ範囲 40×40、見た目は [dotSize] 四方の中）。
+/// モードがオフの間は何も出さない（幅も取らない）。状態は文字を使わず、標準のアイコンと色で見せる（[VoiceModeDot]）。
 /// マイク等の音声アイコンは使わない（チャット入力欄のマイクと意味が被るため）。
 /// タップでコマンドシートを手で開ける（聞き取りに失敗したときの予備）。
 ///
@@ -23,7 +21,7 @@ class VoiceModeIndicator extends ConsumerStatefulWidget {
   /// 既存のアイコンの左隣（先頭）に置くときは false（右のアイコンは従来どおり端まで並ぶ）。
   final bool trailing;
 
-  /// 見た目の丸の直径
+  /// 見た目の大きさ（アイコンはこの四方の中に収める）
   static const double dotSize = 30;
 
   /// タップできる範囲（幅・高さ）
@@ -73,6 +71,7 @@ class _VoiceModeIndicatorState extends ConsumerState<VoiceModeIndicator> {
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(voiceModeListenerProvider.select((l) => l.status));
+    final ignored = ref.watch(voiceModeListenerProvider.select((l) => l.recentlyIgnored));
     final hidden = status == VoiceModeStatus.off || VoiceModeIndicator._openDrawers.value > 0;
     if (hidden) return const SizedBox.shrink();
     return Padding(
@@ -82,6 +81,7 @@ class _VoiceModeIndicatorState extends ConsumerState<VoiceModeIndicator> {
         child: Center(
           child: VoiceModeDot(
             status: status,
+            recentlyIgnored: ignored,
             onTap: () => ref.read(voiceModeListenerProvider).openSheetManually(),
           ),
         ),
@@ -90,65 +90,101 @@ class _VoiceModeIndicatorState extends ConsumerState<VoiceModeIndicator> {
   }
 }
 
-/// 聞き取り表示の丸そのもの（状態だけで描く。描画確認でも使う）。
-/// アイコンは使わず、色と動きだけの「ランプ」で状態を表す：
-/// - 聞き取り中：インディゴの丸がゆっくり明滅する
-/// - 声が届いている：緑の丸から輪が広がる
-/// - 実行中：紫の輪が回る
-/// - コマンドではなかった：オレンジの丸に「？」（表示時間は VoiceModeListener 側の決まりのまま）
-/// - 一時停止：グレーの丸（静止）
-/// - 使えない：濃いグレーの丸に斜線
-/// 丸は直径 [VoiceModeIndicator.dotSize]、動き（輪）はタップ範囲 [VoiceModeIndicator.hitSize] の内側に収める。
+/// 聞き取り表示の印そのもの（状態だけで描く。描画確認でも使う）。文字は使わず、Material の標準アイコンと色で状態を表す：
+/// - 話せます（入力なし）：more_horiz（紺）。ごくゆっくり明滅する
+/// - 声を受け取り中：graphic_eq（緑）
+/// - 処理中：autorenew（紫）が回る
+/// - 回答待ち：help（オレンジ）
+/// - 準備中・再開中：more_horiz（薄い藍。受付可能とは見せない）
+/// - 一時停止：pause（グレー）
+/// - 使えない：block（濃いグレー）
+/// アイコンは [iconSize] で [VoiceModeIndicator.dotSize] 四方の中に収め、タップ範囲は [VoiceModeIndicator.hitSize]。
+/// アウトラインや囲みは付けない。理由や認識した文は文章でここには出さない（読み上げ・ツールチップと、タップで開くコマンドシートに寄せる）。
+///
+/// NOTE: graphic_eq は静止アイコンなので、受け取り中の表示は音量に連動させない（音量の受け口も持たない）。
 class VoiceModeDot extends StatefulWidget {
   final VoiceModeStatus status;
   final VoidCallback? onTap;
 
-  const VoiceModeDot({super.key, required this.status, this.onTap});
+  /// 直前の発話をコマンドではないとして聞き流した直後か（印は変えず、読み上げの説明にだけ足す）
+  final bool recentlyIgnored;
 
-  static const Color indigo = Color(0xFF5C6BC0);
-  static const Color green = Color(0xFF43A047);
-  static const Color purple = Color(0xFF8E24AA);
-  static const Color orange = Color(0xFFFB8C00);
-  static const Color grey = Color(0xFFB0B4BA);
-  static const Color darkGrey = Color(0xFF5F6368);
+  const VoiceModeDot({super.key, required this.status, this.onTap, this.recentlyIgnored = false});
 
-  /// 明滅（聞き取り中）の 1 往復の半分
-  static const Duration breatheHalf = Duration(milliseconds: 1400);
+  /// アイコンの大きさ（見本 indicator-mock-v5.html と同じ 26。[VoiceModeIndicator.dotSize] の中に収まる）
+  static const double iconSize = 26;
 
-  /// 輪が広がる（声が届いている）1 回分
-  static const Duration rippleCycle = Duration(milliseconds: 1400);
+  static const Color navy = Color(0xFF3949AB);
+  static const Color faint = Color(0xFFC5CAE9);
 
-  /// 輪が 1 周する（実行中）時間
+  // NOTE: ダークのバーでは明暗が逆に見える（薄い印のほうが紺より目立ち、準備中が話せますより強く見える）ので、
+  // ダークでは「話せます」を明るい藍、「準備中」を暗い藍にして、強弱の関係を保つ
+  static const Color navyOnDark = Color(0xFF9FA8DA);
+  static const Color faintOnDark = Color(0xFF3C4366);
+  static const Color green = Color(0xFF2E9E4F);
+  static const Color purple = Color(0xFF9C27B0);
+  static const Color orange = Color(0xFFF57C00);
+  static const Color grey = Color(0xFF9CA3AF);
+  static const Color darkGrey = Color(0xFF6B7280);
+
+  // NOTE: ダークのバーでは濃いグレーが背景に沈むので、「使えない」は明るめのグレーにする（一時停止より少し明るい）
+  static const Color darkGreyOnDark = Color(0xFFB8BEC8);
+
+  /// 明滅（話せます）の 1 往復の半分。目立たせないよう、ごくゆっくり
+  static const Duration breatheHalf = Duration(milliseconds: 2000);
+
+  /// アイコンが 1 周する（処理中）時間
   static const Duration spinCycle = Duration(milliseconds: 1600);
 
-  /// 丸の色
-  static Color colorOf(VoiceModeStatus status) => switch (status) {
-        VoiceModeStatus.listening => indigo,
-        VoiceModeStatus.hearing => green,
-        // 実行中は回る輪が主役なので、中の丸は薄い紫
-        VoiceModeStatus.working => const Color(0x408E24AA),
-        VoiceModeStatus.ignored => orange,
-        VoiceModeStatus.unavailable => darkGrey,
-        VoiceModeStatus.paused || VoiceModeStatus.off => grey,
+  /// 状態ごとのアイコン（描画確認・テスト用）
+  ///
+  /// @param status - 状態 / 聞き取り表示の状態
+  /// @returns 表示するアイコン / アイコン
+  static IconData iconOf(VoiceModeStatus status) => switch (status) {
+        VoiceModeStatus.ready || VoiceModeStatus.preparing => Icons.more_horiz,
+        VoiceModeStatus.hearing => Icons.graphic_eq,
+        VoiceModeStatus.processing => Icons.autorenew,
+        VoiceModeStatus.awaiting => Icons.help,
+        VoiceModeStatus.paused || VoiceModeStatus.off => Icons.pause,
+        VoiceModeStatus.unavailable => Icons.block,
       };
 
-  static String labelOf(VoiceModeStatus status) {
-    switch (status) {
-      case VoiceModeStatus.off:
-        return '音声操作モードはオフです';
-      case VoiceModeStatus.paused:
-        return '音声操作：一時停止中';
-      case VoiceModeStatus.listening:
-        return '音声操作：聞き取り中';
-      case VoiceModeStatus.hearing:
-        return '音声操作：聞こえています';
-      case VoiceModeStatus.working:
-        return '音声操作：実行中';
-      case VoiceModeStatus.ignored:
-        return '音声操作：コマンドではなかったので聞き流しました';
-      case VoiceModeStatus.unavailable:
-        return '音声操作：聞き取りを始められません';
-    }
+  /// 状態ごとのアイコンの色
+  ///
+  /// @param status - 状態 / 聞き取り表示の状態
+  /// @param brightness - テーマの明暗 / ライトかダークか
+  /// @returns アイコンの色 / 色
+  static Color colorOf(VoiceModeStatus status, [Brightness brightness = Brightness.light]) {
+    final dark = brightness == Brightness.dark;
+    return switch (status) {
+      VoiceModeStatus.ready => dark ? navyOnDark : navy,
+      VoiceModeStatus.hearing => green,
+      VoiceModeStatus.processing => purple,
+      VoiceModeStatus.awaiting => orange,
+      VoiceModeStatus.preparing => dark ? faintOnDark : faint,
+      VoiceModeStatus.paused || VoiceModeStatus.off => grey,
+      VoiceModeStatus.unavailable => dark ? darkGreyOnDark : darkGrey,
+    };
+  }
+
+  /// 読み上げ・ツールチップの説明
+  ///
+  /// @param status - 状態 / 聞き取り表示の状態
+  /// @param recentlyIgnored - 直前の発話を聞き流した直後か / 聞き流した直後なら true
+  /// @returns 説明の文 / 説明文
+  static String labelOf(VoiceModeStatus status, {bool recentlyIgnored = false}) {
+    final base = switch (status) {
+      VoiceModeStatus.off => '音声操作モードはオフです',
+      VoiceModeStatus.paused => '音声操作：一時停止中（入力欄・キーボード・ほかの音声入力の間は聞きません）',
+      VoiceModeStatus.preparing => '音声操作：準備中（聞き取りを始めています）',
+      VoiceModeStatus.ready => '音声操作：話せます',
+      VoiceModeStatus.hearing => '音声操作：声を受け取っています',
+      VoiceModeStatus.processing => '音声操作：処理中',
+      VoiceModeStatus.awaiting => '音声操作：回答待ち（コマンドシートの質問に答えてください）',
+      VoiceModeStatus.unavailable => '音声操作：聞き取りを始められません',
+    };
+    final listening = status == VoiceModeStatus.ready || status == VoiceModeStatus.preparing;
+    return recentlyIgnored && listening ? '$base。直前の発話はコマンドではなかったので聞き流しました' : base;
   }
 
   @override
@@ -180,19 +216,17 @@ class _VoiceModeDotState extends State<VoiceModeDot> with SingleTickerProviderSt
   void _sync() {
     _motion.stop();
     switch (widget.status) {
-      case VoiceModeStatus.listening:
+      case VoiceModeStatus.ready:
         _motion.duration = VoiceModeDot.breatheHalf;
         _motion.value = 0;
         _motion.repeat(reverse: true);
-      case VoiceModeStatus.hearing:
-        _motion.duration = VoiceModeDot.rippleCycle;
-        _motion.value = 0;
-        _motion.repeat();
-      case VoiceModeStatus.working:
+      case VoiceModeStatus.processing:
         _motion.duration = VoiceModeDot.spinCycle;
         _motion.value = 0;
         _motion.repeat();
-      case VoiceModeStatus.ignored ||
+      case VoiceModeStatus.hearing ||
+            VoiceModeStatus.awaiting ||
+            VoiceModeStatus.preparing ||
             VoiceModeStatus.unavailable ||
             VoiceModeStatus.paused ||
             VoiceModeStatus.off:
@@ -200,75 +234,52 @@ class _VoiceModeDotState extends State<VoiceModeDot> with SingleTickerProviderSt
     }
   }
 
+  Widget _icon() {
+    final status = widget.status;
+    final icon = Icon(
+      VoiceModeDot.iconOf(status),
+      key: const ValueKey('voice-mode-icon'),
+      size: VoiceModeDot.iconSize,
+      color: VoiceModeDot.colorOf(status, Theme.of(context).brightness),
+    );
+    switch (status) {
+      case VoiceModeStatus.ready:
+        // ごくゆっくり明滅（不透明度 1.0 ⇄ 0.55）。消えたように見えるほどは暗くしない
+        return FadeTransition(
+          key: const ValueKey('voice-mode-breathe'),
+          opacity: _motion.drive(Tween(begin: 1.0, end: 0.55).chain(CurveTween(curve: Curves.easeInOut))),
+          child: icon,
+        );
+      case VoiceModeStatus.processing:
+        return RotationTransition(key: const ValueKey('voice-mode-spin'), turns: _motion, child: icon);
+      case VoiceModeStatus.hearing ||
+            VoiceModeStatus.awaiting ||
+            VoiceModeStatus.preparing ||
+            VoiceModeStatus.unavailable ||
+            VoiceModeStatus.paused ||
+            VoiceModeStatus.off:
+        return icon;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = widget.status;
-    final label = VoiceModeDot.labelOf(status);
-    const dotSize = VoiceModeIndicator.dotSize;
+    final label = VoiceModeDot.labelOf(status, recentlyIgnored: widget.recentlyIgnored);
+    const size = VoiceModeIndicator.dotSize;
     const hitSize = VoiceModeIndicator.hitSize;
-    final color = VoiceModeDot.colorOf(status);
 
-    final dot = AnimatedContainer(
+    final mark = SizedBox.square(
       key: ValueKey('voice-mode-dot-${status.name}'),
-      duration: const Duration(milliseconds: 180),
-      width: dotSize,
-      height: dotSize,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: status == VoiceModeStatus.working
-            ? null
-            : const [BoxShadow(color: Color(0x33000000), blurRadius: 3, offset: Offset(0, 1))],
+      dimension: size,
+      child: Center(
+        // 状態が変わるときは短く入れ替える（張り直しの合間の「準備中」がちらつきに見えないように）
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: KeyedSubtree(key: ValueKey(status), child: _icon()),
+        ),
       ),
-      child: switch (status) {
-        VoiceModeStatus.ignored => const Text(
-            '?',
-            key: ValueKey('voice-mode-question'),
-            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800, height: 1),
-          ),
-        VoiceModeStatus.unavailable => const CustomPaint(
-            key: ValueKey('voice-mode-slash'),
-            size: Size.square(dotSize),
-            painter: _SlashPainter(),
-          ),
-        _ => null,
-      },
     );
-
-    final Widget lamp = switch (status) {
-      // ゆっくり明滅（不透明度 1.0 ⇄ 0.45）
-      VoiceModeStatus.listening => FadeTransition(
-          key: const ValueKey('voice-mode-breathe'),
-          opacity: _motion.drive(Tween(begin: 1.0, end: 0.45).chain(CurveTween(curve: Curves.easeInOut))),
-          child: dot,
-        ),
-      // 丸の外側に輪が広がって消える
-      VoiceModeStatus.hearing => Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(
-              key: const ValueKey('voice-mode-ripple'),
-              size: const Size.square(hitSize),
-              painter: _RipplePainter(_motion, VoiceModeDot.green),
-            ),
-            dot,
-          ],
-        ),
-      // 薄い丸の上で紫の輪が回る
-      VoiceModeStatus.working => Stack(
-          alignment: Alignment.center,
-          children: [
-            dot,
-            CustomPaint(
-              key: const ValueKey('voice-mode-spin'),
-              size: const Size.square(dotSize),
-              painter: _SpinPainter(_motion, VoiceModeDot.purple),
-            ),
-          ],
-        ),
-      _ => dot,
-    };
 
     return Semantics(
       button: true,
@@ -287,9 +298,9 @@ class _VoiceModeDotState extends State<VoiceModeDot> with SingleTickerProviderSt
             child: SizedBox(
               width: hitSize,
               height: hitSize,
-              // 毎フレーム描き直す動き（明滅・輪・回転）を丸の中だけに閉じ込め、タイトルバー等まで描き直させない
+              // 毎フレーム描き直す動き（明滅・回転）を印の中だけに閉じ込め、タイトルバー等まで描き直させない
               child: Center(
-                child: RepaintBoundary(key: const ValueKey('voice-mode-lamp-boundary'), child: lamp),
+                child: RepaintBoundary(key: const ValueKey('voice-mode-lamp-boundary'), child: mark),
               ),
             ),
           ),
@@ -297,79 +308,4 @@ class _VoiceModeDotState extends State<VoiceModeDot> with SingleTickerProviderSt
       ),
     );
   }
-}
-
-/// 声が届いている：丸の縁（半径 15）からタップ範囲の縁（半径 20）まで輪が広がりながら薄くなる
-class _RipplePainter extends CustomPainter {
-  final Animation<double> t;
-  final Color color;
-
-  _RipplePainter(this.t, this.color) : super(repaint: t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const inner = VoiceModeIndicator.dotSize / 2;
-    final outer = size.shortestSide / 2 - 1;
-    final v = Curves.easeOut.transform(t.value);
-    final radius = inner + (outer - inner) * v;
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..color = color.withValues(alpha: 0.55 * (1 - v));
-    canvas.drawCircle(size.center(Offset.zero), radius, paint);
-    // 丸のすぐ外のうすい縁（静止画でも「届いている」と分かるように）
-    canvas.drawCircle(
-      size.center(Offset.zero),
-      inner + 1.5,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = color.withValues(alpha: 0.35),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_RipplePainter old) => old.color != color;
-}
-
-/// 実行中：丸の内側の縁に沿って 3/4 周の輪が回る
-class _SpinPainter extends CustomPainter {
-  final Animation<double> t;
-  final Color color;
-
-  _SpinPainter(this.t, this.color) : super(repaint: t);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stroke = 3.0;
-    final rect = (Offset.zero & size).deflate(stroke / 2);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round
-      ..color = color;
-    canvas.drawArc(rect, -math.pi / 2 + t.value * 2 * math.pi, math.pi * 1.5, false, paint);
-  }
-
-  @override
-  bool shouldRepaint(_SpinPainter old) => old.color != color;
-}
-
-/// 使えない：丸に斜線（左上から右下）
-class _SlashPainter extends CustomPainter {
-  const _SlashPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: 0.9);
-    final d = size.shortestSide * 0.27;
-    canvas.drawLine(Offset(d, d), Offset(size.width - d, size.height - d), paint);
-  }
-
-  @override
-  bool shouldRepaint(_SlashPainter old) => false;
 }
