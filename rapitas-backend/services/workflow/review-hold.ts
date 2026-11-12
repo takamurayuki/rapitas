@@ -50,6 +50,8 @@ export interface ReviewHoldDetails {
   detail: string;
   findings: ReviewFinding[];
   severity?: number;
+  /** Criteria revision when the hold was written (absent on holds older than design 4.5). */
+  criteriaRevision?: string;
 }
 
 /**
@@ -112,6 +114,11 @@ export async function holdForHumanReview(p: {
     return 'cas_lost';
   }
 
+  // The yardstick the held review was judged against: an override is refused
+  // once it differs (review-hold-resolve.ts). Read after the hold write — the
+  // gate holds the jury lock here, so no criteria write can land in between.
+  const { readCriteriaRevision } = await import('../task/task-criteria-revision');
+  const criteriaRevision = await readCriteriaRevision(prisma, p.taskId);
   await recordTransition({
     taskId: p.taskId,
     fromStatus,
@@ -127,6 +134,7 @@ export async function holdForHumanReview(p: {
       findings: p.findings,
       ...(p.severity != null ? { severity: p.severity } : {}),
       ...(p.extra ?? {}),
+      ...(criteriaRevision ? { criteriaRevision } : {}),
     },
   }).catch(() => {});
   await appendHoldEvent('review_hold', p.taskId, {
@@ -226,6 +234,9 @@ export async function probeReviewHold(taskId: number): Promise<ReviewHoldProbe> 
       detail: typeof m.detail === 'string' ? m.detail : '',
       findings: Array.isArray(m.findings) ? (m.findings as ReviewFinding[]) : [],
       ...(typeof m.severity === 'number' ? { severity: m.severity } : {}),
+      ...(typeof m.criteriaRevision === 'string' && m.criteriaRevision
+        ? { criteriaRevision: m.criteriaRevision }
+        : {}),
     };
     return { state: 'held', hold };
   } catch (err) {

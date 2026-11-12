@@ -25,6 +25,13 @@ import {
   recordJuryGateCompletion,
 } from './verify-jury-completion';
 import { currentDiffFingerprint } from '../agents/verification/review-diff-fingerprint';
+import { readCriteriaRevision } from '../task/task-criteria-revision';
+import {
+  withJuryRun,
+  confirmJuryRunStillBound,
+  type JuryRunHandle,
+  type JuryRunSeen,
+} from './jury-review-run';
 import { capFindingsForStorage } from '../agents/verification/review-findings';
 
 const log = createLogger('workflow-cli-executor');
@@ -87,7 +94,7 @@ async function runGateLocked(params: {
   actor: TransitionActor;
   sessionId: number;
 }): Promise<FallbackJuryOutcome> {
-  const { taskId, currentWfStatus, verifyContent, actor, sessionId } = params;
+  const { taskId, currentWfStatus } = params;
   const task = await prisma.task
     .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
     .catch(() => null);
@@ -114,14 +121,17 @@ async function runGateLocked(params: {
   if (!worktreePath) return { stop: false, skipped: 'no_worktree' };
 
   // The artifact version is read BEFORE the review: a verify.md saved while
-  // the jury runs must not inherit this verdict.
+  // the jury runs must not inherit this verdict. Reuse also needs the same
+  // criteria revision (companion design 4.5): criteria changed alone = judge again.
   const verifySha256 = await readVerifySha256(taskId);
+  const criteriaRevision = await readCriteriaRevision(prisma, taskId);
   const currentFingerprint = await currentDiffFingerprint(taskId, worktreePath);
   const done =
-    verifySha256 && currentFingerprint
+    verifySha256 && currentFingerprint && criteriaRevision
       ? await findJuryGateCompletion(taskId, {
           verifySha256,
           diffFingerprint: currentFingerprint,
+          criteriaRevision,
         })
       : null;
   if (done?.outcome === 'passed') return { stop: false, skipped: 'already_reviewed' };
@@ -136,15 +146,66 @@ async function runGateLocked(params: {
     return { stop: true, phaseStatus, skipped: 'already_reviewed' };
   }
 
+  // A real review runs under the DB lock (JuryReviewRun + Task.juryRunId,
+  // design 4.5.1); the identifiers the run records are read after the lock.
+  return withJuryRun(
+    { taskId, source: 'cli_epilogue' },
+    (run) => reviewAndApplyLocked({ ...params, worktreePath }, run),
+    async () => ({
+      stop: true,
+      phaseStatus: await liveStatus(taskId, currentWfStatus),
+      skipped: 'gate_busy',
+    }),
+  );
+}
+
+async function liveStatus(
+  taskId: number,
+  fallback: string,
+): Promise<WorkflowAdvanceResult['status']> {
+  const live = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+    .catch(() => null);
+  return (live?.workflowStatus ?? fallback) as WorkflowAdvanceResult['status'];
+}
+
+async function reviewAndApplyLocked(
+  params: {
+    taskId: number;
+    currentWfStatus: string;
+    verifyContent: string;
+    worktreePath: string;
+    actor: TransitionActor;
+    sessionId: number;
+  },
+  run: JuryRunHandle,
+): Promise<{ result: FallbackJuryOutcome; seen: JuryRunSeen }> {
+  const { taskId, currentWfStatus, verifyContent, actor, sessionId, worktreePath } = params;
   const { reviewDiffAdversarially } =
     await import('../agents/verification/adversarial-diff-review');
   const review = await reviewDiffAdversarially({ taskId, worktreePath }).catch(() => null);
+  const seen = (outcome: 'passed' | 'stopped' | null): JuryRunSeen => ({
+    diffFingerprint: review?.diffFingerprint ?? null,
+    verdict: review?.verdict ?? null,
+    outcome,
+  });
+  // Design 4.5.1: the run must still own the lock and the criteria / verify.md
+  // must be what it started on before ANY of the verdict is applied —
+  // otherwise it is discarded (task halted) and nothing proceeds, not even commit.
+  if (!(await confirmJuryRunStillBound(run, review))) {
+    return {
+      result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
+      seen: seen(null),
+    };
+  }
   const complete = (outcome: 'passed' | 'stopped') =>
-    review?.diffFingerprint && verifySha256
+    review?.diffFingerprint && run.verifySha256 && run.criteriaRevision
       ? recordJuryGateCompletion({
           taskId,
-          verifySha256,
+          verifySha256: run.verifySha256,
           diffFingerprint: review.diffFingerprint,
+          criteriaRevision: run.criteriaRevision,
+          juryRunId: run.id,
           verdict: review.verdict,
           outcome,
           source: 'cli_epilogue',
@@ -163,20 +224,17 @@ async function runGateLocked(params: {
     });
     if (held === 'held') {
       await complete('stopped');
-      return { stop: true, phaseStatus: 'verify_done' };
+      return { result: { stop: true, phaseStatus: 'verify_done' }, seen: seen('stopped') };
     }
     // The task moved on meanwhile: neither hold nor commit, report its live status.
-    const live = await prisma.task
-      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
-      .catch(() => null);
     return {
-      stop: true,
-      phaseStatus: (live?.workflowStatus ?? currentWfStatus) as WorkflowAdvanceResult['status'],
+      result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
+      seen: seen(null),
     };
   }
   if (!review || review.verdict !== 'fail') {
     await complete('passed');
-    return { stop: false };
+    return { result: { stop: false }, seen: seen('passed') };
   }
 
   const reason = `差分レビュー不合格: ${
@@ -196,7 +254,10 @@ async function runGateLocked(params: {
     // The workflow moved past the evaluated status meanwhile — neither
     // bounce nor block (same CAS rule as the hard-fail branch), and no
     // completion record: this verdict was not acted on.
-    return { stop: true, phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'] };
+    return {
+      result: { stop: true, phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'] },
+      seen: seen(null),
+    };
   }
 
   const { markLatestExecutionFailed } = await import('./publish/mark-latest-execution-failed');
@@ -235,5 +296,5 @@ async function runGateLocked(params: {
     }).catch(() => {});
   }
   await complete('stopped');
-  return { stop: true, phaseStatus };
+  return { result: { stop: true, phaseStatus }, seen: seen('stopped') };
 }

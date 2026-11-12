@@ -32,6 +32,7 @@ import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import type { WorkflowStatus } from './workflow-types';
 import { REVIEW_HOLD_HALT_REASON } from './review-hold';
+import { JURY_RESULT_DISCARDED_HALT_REASON } from '../task/task-criteria-write';
 
 const log = createLogger('workflow:halt-release');
 
@@ -54,7 +55,20 @@ export type HaltReleaseResult =
 interface HaltColumns {
   haltReason: string | null;
   workflowStatus: WorkflowStatus | null;
+  themeId: number | null;
 }
+
+/**
+ * Workflow statuses a discarded jury verdict leaves a task at (HTTP save:
+ * verify_done; CLI epilogue: still in_progress). Releasing it re-enters at
+ * `in_progress`, the verifier's entry status (workflow-mode-config.ts), so the
+ * verify is redone — nothing re-runs the jury for an existing verify.md, and a
+ * verify_done task with no PR is otherwise left to the orphan sweeps that
+ * reset it to draft (a full re-implementation). Not attemptVerifyRepair: the
+ * code was never judged wrong, so there is nothing for an implementer to fix
+ * and no repair budget to spend.
+ */
+const REVERIFY_FROM = new Set<string>(['verify_done', 'in_progress']);
 
 /**
  * Clear a task's halt and record the hypothesis that justifies retrying it.
@@ -76,16 +90,25 @@ export async function releaseTaskHalt(
   const taskModel = prisma.task as unknown as {
     findUnique: (args: {
       where: { id: number };
-      select: { haltReason: boolean; workflowStatus: boolean };
+      select: { haltReason: boolean; workflowStatus: boolean; themeId: boolean };
     }) => Promise<HaltColumns | null>;
     update: (args: {
       where: { id: number };
-      data: { haltReason: null; haltedAt: null; resumeCondition: null };
+      data: {
+        haltReason: null;
+        haltedAt: null;
+        resumeCondition: null;
+        workflowStatus?: WorkflowStatus;
+        status?: string;
+      };
     }) => Promise<unknown>;
   };
 
   const task = await taskModel
-    .findUnique({ where: { id: taskId }, select: { haltReason: true, workflowStatus: true } })
+    .findUnique({
+      where: { id: taskId },
+      select: { haltReason: true, workflowStatus: true, themeId: true },
+    })
     .catch((err) => {
       log.warn({ err, taskId }, '[halt-release] task lookup failed');
       return null;
@@ -98,10 +121,21 @@ export async function releaseTaskHalt(
   if (task.haltReason === REVIEW_HOLD_HALT_REASON) return { ok: false, reason: 'review_hold' };
 
   const previousHaltReason = task.haltReason;
+  const reverify =
+    previousHaltReason === JURY_RESULT_DISCARDED_HALT_REASON &&
+    REVERIFY_FROM.has(task.workflowStatus ?? '');
+  // NOTE: status goes back to in-progress too: while halted at verify_done the
+  // runner's settle wait can time out and the scheduler write `blocked`.
+  const toStatus: WorkflowStatus | null = reverify ? 'in_progress' : (task.workflowStatus ?? null);
   const cleared = await taskModel
     .update({
       where: { id: taskId },
-      data: { haltReason: null, haltedAt: null, resumeCondition: null },
+      data: {
+        haltReason: null,
+        haltedAt: null,
+        resumeCondition: null,
+        ...(reverify ? { workflowStatus: 'in_progress' as const, status: 'in-progress' } : {}),
+      },
     })
     .then(() => true)
     .catch((err) => {
@@ -118,10 +152,15 @@ export async function releaseTaskHalt(
   await recordTransition({
     taskId,
     fromStatus: task.workflowStatus ?? null,
-    toStatus: task.workflowStatus ?? 'draft',
+    toStatus: toStatus ?? 'draft',
     actor: 'user',
     cause: HALT_RELEASED_CAUSE,
-    metadata: { previousHaltReason, hypothesis, releasedBy: actorLabel },
+    metadata: {
+      previousHaltReason,
+      hypothesis,
+      releasedBy: actorLabel,
+      ...(reverify ? { reverify: true } : {}),
+    },
   }).catch((err) =>
     log.error(
       { err, taskId, previousHaltReason },
@@ -129,9 +168,37 @@ export async function releaseTaskHalt(
     ),
   );
 
+  if (reverify) await queueReverify(taskId, task.themeId);
+
   log.info(
-    { taskId, previousHaltReason, releasedBy: actorLabel },
+    { taskId, previousHaltReason, releasedBy: actorLabel, reverify },
     '[halt-release] halt released with a new hypothesis',
   );
-  return { ok: true, taskId, previousHaltReason, toStatus: task.workflowStatus ?? null };
+  return { ok: true, taskId, previousHaltReason, toStatus };
+}
+
+/**
+ * Put a released discarded-verdict task back in the workflow queue so the
+ * verifier runs again even outside an armed auto-run theme (an armed theme
+ * would also pick it up by itself). Best-effort: "already in the queue"
+ * means it is already on its way.
+ */
+async function queueReverify(taskId: number, themeId: number | null): Promise<void> {
+  try {
+    const [{ WorkflowQueueService }, { WorkflowRunner }] = await Promise.all([
+      import('./workflow-queue'),
+      import('./workflow-runner'),
+    ]);
+    await WorkflowQueueService.getInstance()
+      .enqueue({ taskId, themeId: themeId ?? undefined, priority: 50 })
+      .catch((err: unknown) =>
+        log.info({ err, taskId }, '[halt-release] Re-verify not enqueued (already queued?)'),
+      );
+    WorkflowRunner.getInstance().startProcessing();
+  } catch (err) {
+    log.warn(
+      { err, taskId },
+      '[halt-release] Re-verify dispatch failed — auto-run will pick it up',
+    );
+  }
 }

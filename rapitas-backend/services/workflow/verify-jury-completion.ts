@@ -12,8 +12,10 @@
  * and it names neither the artifact nor the diff. A slow review of an OLD diff
  * finishing after a new verify.md was saved looked exactly like a review of
  * the new one (G2 review item 1). The completion record is written only after
- * the gate finished acting, and carries verify.md's sha256 and the reviewed
- * diff's fingerprint; reuse requires both to match.
+ * the gate finished acting, and carries verify.md's sha256, the reviewed
+ * diff's fingerprint and the completion-criteria revision the jury judged
+ * against (companion design 4.5); reuse requires all three to match, so a
+ * criteria change alone sends the same verify.md + diff back to the jury.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -59,6 +61,13 @@ export interface JuryGateCompletion {
   verifySha256: string;
   /** Fingerprint of the diff the jury actually reviewed. */
   diffFingerprint: string;
+  /**
+   * Criteria revision (task-criteria-revision.ts) the verdict was given under.
+   * Records written before it existed lack it and never match.
+   */
+  criteriaRevision: string;
+  /** The JuryReviewRun that produced the verdict (absent for a human override). */
+  juryRunId?: number;
   verdict: string;
   outcome: JuryGateOutcome;
   source: JuryGateSource;
@@ -162,16 +171,16 @@ export async function recordJuryGateCompletion(
 }
 
 /**
- * The newest completion record for exactly this verify.md version and diff.
- * Never throws; an unreadable history is "not judged".
+ * The newest completion record for exactly this verify.md version, diff and
+ * criteria revision. Never throws; an unreadable history is "not judged".
  *
  * @param taskId - Task id / タスクID
- * @param key - verify.md sha256 and current diff fingerprint / 成果物と差分の識別子
+ * @param key - verify.md sha256, current diff fingerprint, current criteria revision / 成果物・差分・条件の版
  * @returns Matching completion, or null / 一致する完了記録（無ければ null）
  */
 export async function findJuryGateCompletion(
   taskId: number,
-  key: { verifySha256: string; diffFingerprint: string },
+  key: { verifySha256: string; diffFingerprint: string; criteriaRevision: string },
 ): Promise<JuryGateCompletion | null> {
   try {
     const { queryEvents } = await import('../memory/timeline');
@@ -185,6 +194,9 @@ export async function findJuryGateCompletion(
       if (
         p?.verifySha256 === key.verifySha256 &&
         p.diffFingerprint === key.diffFingerprint &&
+        // A record without a revision predates 4.5 and is not a match.
+        typeof p.criteriaRevision === 'string' &&
+        p.criteriaRevision === key.criteriaRevision &&
         (p.outcome === 'passed' || p.outcome === 'stopped')
       ) {
         return p as JuryGateCompletion;

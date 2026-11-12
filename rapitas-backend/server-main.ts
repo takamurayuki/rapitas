@@ -404,6 +404,21 @@ if (PARENT_PID && PARENT_PID > 1 && !isCiOrTest) {
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
+  // Jury-review locks (Task.juryRunId) left by a dead process. Both jury
+  // gates run in THIS (main) process, not the agent worker, so the reclaim
+  // lives here and runs before the worker wait below can return early.
+  // Runs started since boot are in this process's live set and are skipped.
+  try {
+    const { recoverJuryRunsAtStartup, startJuryRunSweep } =
+      await import('./services/workflow/jury-review-run-recovery');
+    const processStartedAt = new Date(Date.now() - process.uptime() * 1000);
+    const reclaimed = await recoverJuryRunsAtStartup(processStartedAt);
+    if (reclaimed > 0) log.info({ reclaimed }, 'Startup: reclaimed stale jury-review runs');
+    startJuryRunSweep();
+  } catch (err) {
+    log.warn({ err }, 'Startup: jury-review run recovery failed');
+  }
+
   // One-time data normalization: legacy agent-execution paths wrote the
   // non-canonical underscore 'in_progress' to task.status (canonical is the
   // hyphenated 'in-progress' — see the frontend StatusConfig). Such tasks render

@@ -17,9 +17,12 @@ import { capFindingsForStorage } from '../../../../services/agents/verification/
 import {
   withTaskJuryGate,
   JuryGateBusyError,
-  readVerifySha256,
   recordJuryGateCompletion,
 } from '../../../../services/workflow/verify-jury-completion';
+import {
+  withJuryRun,
+  confirmJuryRunStillBound,
+} from '../../../../services/workflow/jury-review-run';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -85,23 +88,52 @@ export async function runAdversarialDiffReview(
   // Serialised with the CLI epilogue's fallback gate, and closed with a
   // completion record bound to verify.md's sha256 + the reviewed diff, written
   // only after this gate has acted (verify-jury-completion.ts).
+  const busy = (): AdversarialReviewOutcome => ({
+    newStatus: params.newStatus,
+    verifyGateBlocked: params.verifyGateBlocked,
+    staleVerifyRequest: true,
+  });
+  // NOTE: Inside the in-process queue, the DB lock (JuryReviewRun +
+  // Task.juryRunId, companion design 4.5.1) is taken first; verify.md's sha256
+  // and the criteria revision are read only after it, and re-checked before
+  // the verdict is applied. Another process's run holding it = busy.
   const gated = withTaskJuryGate(
     params.taskId,
-    async () => {
-      const verifySha256 = await readVerifySha256(params.taskId);
-      const { outcome, deciding } = await reviewAndApply(params);
-      if (!outcome.staleVerifyRequest && deciding?.diffFingerprint && verifySha256) {
-        await recordJuryGateCompletion({
-          taskId: params.taskId,
-          verifySha256,
-          diffFingerprint: deciding.diffFingerprint,
-          verdict: deciding.verdict,
-          outcome: outcome.verifyGateBlocked ? 'stopped' : 'passed',
-          source: 'http_save',
-        });
-      }
-      return outcome;
-    },
+    () =>
+      withJuryRun(
+        { taskId: params.taskId, source: 'http_save' },
+        async (run) => {
+          const { outcome, deciding } = await reviewAndApply(params, (r) =>
+            confirmJuryRunStillBound(run, r),
+          );
+          const judged = outcome.verifyGateBlocked ? 'stopped' : 'passed';
+          if (
+            !outcome.staleVerifyRequest &&
+            deciding?.diffFingerprint &&
+            run.verifySha256 &&
+            run.criteriaRevision
+          ) {
+            await recordJuryGateCompletion({
+              taskId: params.taskId,
+              verifySha256: run.verifySha256,
+              diffFingerprint: deciding.diffFingerprint,
+              criteriaRevision: run.criteriaRevision,
+              juryRunId: run.id,
+              verdict: deciding.verdict,
+              outcome: judged,
+              source: 'http_save',
+            });
+          }
+          const seen = deciding
+            ? { diffFingerprint: deciding.diffFingerprint, verdict: deciding.verdict }
+            : {};
+          return {
+            result: outcome,
+            seen: { ...seen, outcome: outcome.staleVerifyRequest ? null : judged },
+          };
+        },
+        busy,
+      ),
     params.gateMaxWaitMs,
   );
   return gated.catch((err: unknown) => {
@@ -112,16 +144,16 @@ export async function runAdversarialDiffReview(
       { taskId: params.taskId },
       '[Workflow] Jury gate busy past wait limit — save not acted on',
     );
-    return {
-      newStatus: params.newStatus,
-      verifyGateBlocked: params.verifyGateBlocked,
-      staleVerifyRequest: true,
-    };
+    return busy();
   });
 }
 
+/** Pre-apply check (jury-review-run.ts): false = the verdict was discarded. */
+type ApplyGuard = (review: DecidingReview) => Promise<boolean>;
+
 async function reviewAndApply(
   params: ReviewParams,
+  canApply: ApplyGuard,
 ): Promise<{ outcome: AdversarialReviewOutcome; deciding: DecidingReview }> {
   const { taskId, savedContent, preferredBaseBranchForVerify } = params;
   let newStatus = params.newStatus;
@@ -143,6 +175,14 @@ async function reviewAndApply(
     worktreePath: reviewSession?.worktreePath,
   }).catch(() => null);
   deciding = review;
+  // Design 4.5.1: before ANY of the verdict is applied (hold, bounce, block,
+  // worktree rebuild, commit/PR, completion record) the run must still own the
+  // lock and the criteria / verify.md must be what it started on.
+  const discarded = (): { outcome: AdversarialReviewOutcome; deciding: DecidingReview } => ({
+    outcome: { newStatus, verifyGateBlocked, staleVerifyRequest: true },
+    deciding: null,
+  });
+  if (!(await canApply(review))) return discarded();
 
   if (review?.verdict === 'hold') {
     // The review could not be settled (high-risk change with no jury, or a
@@ -197,6 +237,7 @@ async function reviewAndApply(
       }).catch(() => null);
       // The re-review on the rebuilt worktree is what decides now.
       deciding = retryReview;
+      if (!(await canApply(retryReview))) return discarded();
       if (!retryReview || retryReview.verdict !== 'fail') {
         reviewStillFailing = false;
         // Same compare-and-swap guard as below: the rebuild + re-review took

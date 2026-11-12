@@ -37,8 +37,12 @@ export type ReviewHoldResolution =
       outcome: 'bounced' | 'blocked' | 'publishing' | 'stale';
       workflowStatus?: string;
     }
-  /** unbound = the override could not be tied to an identifiable artifact + diff; the hold stays. */
-  | { ok: false; reason: 'not_held' | 'cas_lost' | 'unbound' };
+  /**
+   * unbound = the override could not be tied to an identifiable artifact + diff;
+   * criteria_changed_since = the criteria are no longer those the held review
+   * judged (companion design 4.5). The hold stays in both cases.
+   */
+  | { ok: false; reason: 'not_held' | 'cas_lost' | 'unbound' | 'criteria_changed_since' };
 
 /** Transition cause when an override is refused because it cannot be bound. */
 export const REVIEW_OVERRIDE_REFUSED_CAUSE = 'adversarial_review_override_refused';
@@ -87,6 +91,33 @@ export async function resolveReviewHold(p: {
     log.warn({ taskId: p.taskId, missing: bound.missing }, '[review-hold] Override refused');
     return { ok: false, reason: 'unbound' };
   }
+  // An override approves THIS review's findings as not blocking — under the
+  // criteria it judged. Criteria changed since (only possible past
+  // writeTaskCriteria, which refuses during a hold) = judge again, not wave
+  // through. A hold written before revisions existed carries none and binds
+  // to the current one.
+  if (bound && hold.criteriaRevision && bound.target.criteriaRevision !== hold.criteriaRevision) {
+    await recordTransition({
+      taskId: p.taskId,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
+      actor: 'user',
+      cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
+      phase: 'verify',
+      metadata: {
+        resolvedBy: p.resolvedBy,
+        holdReason: hold.reason,
+        reason: 'criteria_changed_since',
+        heldCriteriaRevision: hold.criteriaRevision,
+        currentCriteriaRevision: bound.target.criteriaRevision ?? null,
+      },
+    }).catch(() => {});
+    log.warn(
+      { taskId: p.taskId },
+      '[review-hold] Override refused — criteria changed since the hold',
+    );
+    return { ok: false, reason: 'criteria_changed_since' };
+  }
   const { publisher, ...resolution } = p;
   if (
     !(await clearReviewHold({ ...resolution, hold, ...(bound ? { target: bound.target } : {}) }))
@@ -96,7 +127,7 @@ export async function resolveReviewHold(p: {
 
   const verifyContent = (await readWorkflowFile(p.taskId, 'verify').catch(() => null)) ?? '';
   return bound
-    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, bound.binding, hold, publisher)
+    ? overrideHold(p.taskId, verifyContent, p.resolvedBy, bound, hold, publisher)
     : acceptHold(p.taskId, hold, verifyContent);
 }
 
@@ -165,10 +196,11 @@ async function overrideHold(
   taskId: number,
   verifyContent: string,
   resolvedBy: string,
-  binding: OverrideBinding,
+  bound: { binding: OverrideBinding; target: OverrideTarget },
   hold: ReviewHoldDetails,
   publisher: OverridePublisher,
 ): Promise<ReviewHoldResolution> {
+  const { binding } = bound;
   // Bind the decision to THIS artifact + diff, like any gate completion: a
   // later verify.md or a changed diff is reviewed again, not waved through.
   // Publication re-checks the same binding before it commits anything.
@@ -177,6 +209,8 @@ async function overrideHold(
     taskId,
     verifySha256: binding.verifySha256,
     diffFingerprint: binding.diffFingerprint,
+    // readCurrentOverrideTarget refuses (unbound) when it cannot read the revision.
+    criteriaRevision: bound.target.criteriaRevision ?? '',
     verdict: 'hold',
     outcome: 'passed',
     source: 'human_override',
