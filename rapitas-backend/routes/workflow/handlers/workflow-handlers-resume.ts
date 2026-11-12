@@ -24,6 +24,7 @@ import {
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
 import { isValidEntityId } from '../../../utils/common/id-validation';
+import { humanSourceLabel } from '../../../utils/common/human-source';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -249,8 +250,8 @@ export async function handleAnswerWorkflowQuestion({
   // server-internal callers never go through HTTP, so legitimate traffic here
   // always carries the header.
   const rawSource = headers?.['x-rapitas-source'];
-  const answerSource = typeof rawSource === 'string' ? rawSource.toLowerCase() : '';
-  if (!ANSWER_SOURCE_LABELS[answerSource]) {
+  const sourceLabel = humanSourceLabel(rawSource, ANSWER_SOURCE_LABELS);
+  if (!sourceLabel) {
     log.warn(
       { taskId, source: rawSource ?? null, ua: headers?.['user-agent'] ?? null },
       '[Workflow:Answer] Rejected spec answer: missing X-Rapitas-Source header (likely an agent shell-call)',
@@ -287,7 +288,7 @@ export async function handleAnswerWorkflowQuestion({
       taskId,
       answer,
       actor: 'user',
-      sourceLabel: ANSWER_SOURCE_LABELS[answerSource],
+      sourceLabel,
       selections,
       // The X-Rapitas-Source check above has already proven this answer is a
       // human decision, which is what entitles it to supersede a stop that

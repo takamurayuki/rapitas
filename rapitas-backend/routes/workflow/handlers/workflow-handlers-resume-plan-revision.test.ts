@@ -69,6 +69,28 @@ beforeEach(() => {
   });
 });
 
+// The mobile decision screen answers with X-Rapitas-Source: ui; anything
+// else — ラピ, an agent, or an inherited object key — must not count as a
+// human answer (companion stage 2; human-source.ts).
+describe('handleAnswerWorkflowQuestion — only ui/operator answer', () => {
+  test.each(['assistant', 'rapi', 'constructor', '__proto__'])(
+    'refuses a %s-labelled caller without applying the answer',
+    async (source) => {
+      const set: { status?: number } = {};
+      await expect(
+        handleAnswerWorkflowQuestion({
+          params: { taskId: '7' },
+          body: { answer: '計画を改訂する' },
+          set,
+          headers: { 'x-rapitas-source': source },
+        }),
+      ).rejects.toThrow('X-Rapitas-Source');
+      expect(set.status).toBe(400);
+      expect(applyMock).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('handleAnswerWorkflowQuestion plan revision re-dispatch', () => {
   test('[計画改訂] 回答経由で planner 再起動が呼ばれる', async () => {
     const res = await call();

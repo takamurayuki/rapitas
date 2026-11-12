@@ -253,6 +253,23 @@ describe('handleApprovePlan — X-Rapitas-Source guard', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  // ラピ never approves; and an inherited object key must not pass as a
+  // source (human-source.ts — 'constructor' used to resolve to a function).
+  test.each(['assistant', 'rapi', 'constructor', '__proto__'])(
+    'rejects a %s-labelled caller and writes nothing',
+    async (source) => {
+      await expect(
+        handleApprovePlan({
+          params: { taskId: '1' },
+          body: { approved: true },
+          headers: { 'x-rapitas-source': source },
+          set: makeSet(),
+        }),
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+      expect(mockUpdate).not.toHaveBeenCalled();
+    },
+  );
+
   test('rejects request with a source value not in ui|operator', async () => {
     await expect(
       handleApprovePlan({
