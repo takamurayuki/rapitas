@@ -6,16 +6,19 @@ import '../../config/routes.dart';
 import '../../models/task.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/filter_selection_provider.dart';
 import '../../providers/theme_data_provider.dart';
-import '../../utils/color_utils.dart';
+import '../../services/filter_selection.dart';
 import '../../providers/voice_provider.dart';
 import '../../services/voice_command_flow.dart';
 import '../../utils/constants.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/centered_message.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/voice_dismissible.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import 'task_filter_sheet.dart';
 
 class TaskListScreen extends ConsumerStatefulWidget {
   const TaskListScreen({super.key});
@@ -46,6 +49,15 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     super.initState();
     // 音声コマンドの「N番目を開く」などは、いま見えている一覧（検索中は検索結果）を対象にする
     VoiceTaskListHook.visibleTasks = _visibleTasks;
+    // テーマ一覧が届いたら一度だけ、記憶 → ☆ → 先頭 で解決したテーマを絞り込みに入れる。
+    // NOTE: build 中にプロバイダーを書き換えられないので microtask へ逃がす
+    ref.listenManual<AsyncValue<TaskSelection?>>(
+      taskInitialSelectionProvider,
+      (_, next) => Future.microtask(() {
+        if (mounted) applyInitialTaskSelection(ref.read, next);
+      }),
+      fireImmediately: true,
+    );
     // 別の画面から「検索 ◯◯」で来たときは、届いている依頼をここで受け取る
     WidgetsBinding.instance.addPostFrameCallback((_) => _takeVoiceSearch());
   }
@@ -151,12 +163,18 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     ref.read(taskFilterProvider.notifier).state = filter;
   }
 
+  /// テーマ以外（ステータス・優先度・プロジェクト）で絞り込んでいるか
+  static bool _hasExtraFilter(TaskFilter filter) =>
+      filter.copyWith(clearThemeId: true) != const TaskFilter();
+
+  /// テーマ以外の条件を外す（テーマは解除できない）
+  void _clearExtraFilters(TaskFilter filter) => _setFilter(TaskFilter(themeId: filter.themeId));
+
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(taskFilterProvider);
-    // TaskFilter の == は status / priority / themeId / projectId を比較するので、
-    // themeId だけ指定中でも isFiltered（＝フィルターアイコンの Badge）が立つ
-    final isFiltered = filter != const TaskFilter();
+    // NOTE: テーマは常にどれかが選ばれている（「すべて」を廃止）ので、Badge・解除ボタンの対象はテーマ以外の条件だけ
+    final isFiltered = _hasExtraFilter(filter);
     ref.listen<String?>(voiceTaskSearchRequestProvider, (_, next) {
       if (next != null) _takeVoiceSearch();
     });
@@ -211,7 +229,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             child: const Icon(Icons.filter_list),
           ),
           tooltip: 'フィルター',
-          onPressed: () => _showFilterSheet(context, ref),
+          onPressed: () => showTaskFilterSheet(context, ref),
         ),
       ],
     );
@@ -259,7 +277,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   Widget _buildSearchBody() {
     final results = _searchResults;
     if (results == null) {
-      return const _CenteredMessage(
+      return const CenteredMessage(
         icon: Icons.search,
         message: 'キーワードを入力してください',
       );
@@ -267,7 +285,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     return results.when(
       data: (tasks) {
         if (tasks.isEmpty) {
-          return const _CenteredMessage(
+          return const CenteredMessage(
             icon: Icons.search_off,
             message: '見つかりませんでした',
           );
@@ -285,7 +303,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => _CenteredMessage(
+      error: (error, _) => CenteredMessage(
         icon: Icons.error_outline,
         iconColor: Colors.red,
         message: '検索に失敗しました',
@@ -301,10 +319,14 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   }
 
   Widget _buildListBody(TaskFilter filter, bool isFiltered) {
+    // 初期選択（テーマ）が決まるまでは全件を取りに行かない（全件→テーマの順に表示が切り替わるのを防ぐ）
+    if (!ref.watch(taskSelectionAppliedProvider) && filter.themeId == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final tasksAsync = ref.watch(taskListProvider(filter));
     return Column(
       children: [
-        if (isFiltered) _buildActiveFilterChips(filter),
+        if (isFiltered || filter.themeId != null) _buildActiveFilterChips(filter),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () async {
@@ -314,16 +336,16 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
               data: (tasks) {
                 if (tasks.isEmpty) {
                   return isFiltered
-                      ? _CenteredMessage(
+                      ? CenteredMessage(
                           icon: Icons.filter_alt_off,
                           message: '条件に合うタスクはありません',
                           action: OutlinedButton.icon(
-                            onPressed: () => _setFilter(const TaskFilter()),
+                            onPressed: () => _clearExtraFilters(filter),
                             icon: const Icon(Icons.filter_alt_off),
                             label: const Text('フィルターを解除'),
                           ),
                         )
-                      : _CenteredMessage(
+                      : CenteredMessage(
                           icon: Icons.task_alt,
                           message: 'タスクはありません',
                           action: FilledButton.icon(
@@ -346,7 +368,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _CenteredMessage(
+              error: (error, _) => CenteredMessage(
                 icon: Icons.error_outline,
                 iconColor: Colors.red,
                 message: 'タスクの取得に失敗しました',
@@ -362,7 +384,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     );
   }
 
-  /// 適用中のフィルターをチップで並べる。× で個別に解除できる。
+  /// 適用中のフィルターをチップで並べる。ステータス・優先度は × で個別に解除できる。
+  /// テーマは常にどれかが選ばれているので × は付けない（変更はシートから）。
   Widget _buildActiveFilterChips(TaskFilter filter) {
     final status = filter.status;
     final priority = filter.priority;
@@ -390,8 +413,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             if (themeId != null)
               InputChip(
                 label: Text(_themeFilterLabel(filter)),
-                onDeleted: () => _setFilter(filter.copyWith(clearThemeId: true)),
-                deleteButtonTooltipMessage: 'テーマの絞り込みを解除',
+                onPressed: () => showTaskFilterSheet(context, ref),
+                tooltip: 'テーマを変更',
               ),
           ],
         ),
@@ -423,392 +446,5 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       }
     }
     return 'テーマ：指定中';
-  }
-
-  void _showFilterSheet(BuildContext context, WidgetRef ref) {
-    final filter = ref.read(taskFilterProvider);
-
-    // カテゴリセクションの選択（シート内の一時状態。テーマ候補の絞り込みにだけ使う）。
-    // シートの builder が再実行されても消えないよう、ここで保持する。
-    // null は「すべて」。初期値はテーマ一覧が届いた時点で決める。
-    String? selectedCategoryKey;
-    var categoryInitialized = false;
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              // カテゴリ → テーマ（デスクトップと同じ並び）。この後にステータス・優先度が続く
-              Consumer(
-                builder: (context, ref, _) {
-                  final themesAsync = ref.watch(themeListProvider);
-                  if (themesAsync.isLoading && !themesAsync.hasValue) {
-                    return const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: LinearProgressIndicator(),
-                    );
-                  }
-                  final themes = themesAsync.valueOrNull;
-                  // 取得失敗・0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
-                  if (themesAsync.hasError || themes == null || themes.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  final groups = groupThemesByCategory(themes);
-                  if (!categoryInitialized) {
-                    categoryInitialized = true;
-                    selectedCategoryKey = _categoryKeyOfTheme(groups, filter.themeId);
-                  }
-                  return StatefulBuilder(
-                    builder: (context, setSheetState) {
-                      return _ThemeFilterSection(
-                        groups: groups,
-                        selectedCategoryKey: selectedCategoryKey,
-                        selectedThemeId: filter.themeId,
-                        onCategorySelected: (key) =>
-                            setSheetState(() => selectedCategoryKey = key),
-                        onThemeSelected: (themeId) {
-                          ref.read(taskFilterProvider.notifier).state = themeId == null
-                              ? filter.copyWith(clearThemeId: true)
-                              : filter.copyWith(themeId: themeId);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-              Text('ステータス', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  FilterChip(
-                    label: const Text('すべて'),
-                    selected: filter.status == null,
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(clearStatus: true);
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('未着手'),
-                    selected: filter.status == 'todo',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(status: 'todo');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('進行中'),
-                    selected: filter.status == 'in-progress',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(status: 'in-progress');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('完了'),
-                    selected: filter.status == 'done',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(status: 'done');
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text('優先度', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  FilterChip(
-                    label: const Text('すべて'),
-                    selected: filter.priority == null,
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(clearPriority: true);
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('緊急'),
-                    selected: filter.priority == 'urgent',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(priority: 'urgent');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('高'),
-                    selected: filter.priority == 'high',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(priority: 'high');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('中'),
-                    selected: filter.priority == 'medium',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(priority: 'medium');
-                      Navigator.pop(context);
-                    },
-                  ),
-                  FilterChip(
-                    label: const Text('低'),
-                    selected: filter.priority == 'low',
-                    onSelected: (_) {
-                      ref.read(taskFilterProvider.notifier).state =
-                          filter.copyWith(priority: 'low');
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// テーマが属するカテゴリグループのキーを返す。見つからなければ null（「すべて」）
-  static String? _categoryKeyOfTheme(List<ThemeCategoryGroup> groups, String? themeId) {
-    if (themeId == null) return null;
-    for (final group in groups) {
-      if (group.themes.any((t) => t.id == themeId)) {
-        return _ThemeFilterSection.groupKey(group);
-      }
-    }
-    return null;
-  }
-}
-
-/// 一覧が空・エラーのときの中央表示。引っ張って更新できるようスクロール可能にしてある。
-class _CenteredMessage extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String message;
-  final Widget? action;
-
-  const _CenteredMessage({
-    required this.icon,
-    required this.message,
-    this.iconColor = Colors.grey,
-    this.action,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: 64, color: iconColor),
-                    const SizedBox(height: 16),
-                    Text(message, textAlign: TextAlign.center),
-                    if (action != null) ...[
-                      const SizedBox(height: 16),
-                      action!,
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// フィルターシートの「カテゴリ」＋「テーマ」セクション。
-/// カテゴリチップ（シートは閉じない）でテーマ候補を絞り、テーマチップで適用してシートを閉じる。
-class _ThemeFilterSection extends StatelessWidget {
-  /// 「その他」グループのキー（カテゴリIDと衝突しない値）
-  static const String _uncategorizedKey = '__uncategorized__';
-
-  static String groupKey(ThemeCategoryGroup group) =>
-      group.categoryId ?? _uncategorizedKey;
-
-  final List<ThemeCategoryGroup> groups;
-
-  /// 選択中カテゴリのキー。null は「すべて」
-  final String? selectedCategoryKey;
-  final String? selectedThemeId;
-  final ValueChanged<String?> onCategorySelected;
-
-  /// テーマ選択時に呼ばれる。null は「指定なし」
-  final ValueChanged<String?> onThemeSelected;
-
-  const _ThemeFilterSection({
-    required this.groups,
-    required this.selectedCategoryKey,
-    required this.selectedThemeId,
-    required this.onCategorySelected,
-    required this.onThemeSelected,
-  });
-
-  String _groupLabel(ThemeCategoryGroup group) {
-    if (group.isUncategorized) return 'その他';
-    final name = group.category?.name;
-    return name != null && name.isNotEmpty ? name : '不明なカテゴリ';
-  }
-
-  Widget _themeChip(TaskTheme theme) {
-    return FilterChip(
-      label: _DotLabel(
-        color: theme.color,
-        text: theme.taskCount != null
-            ? '${theme.name}（${theme.taskCount}）'
-            : theme.name,
-      ),
-      selected: theme.id == selectedThemeId,
-      onSelected: (_) => onThemeSelected(theme.id),
-    );
-  }
-
-  Widget _themeWrap(List<Widget> children) {
-    return Wrap(spacing: 8, runSpacing: 4, children: children);
-  }
-
-  /// 「すべて」選択時のカテゴリ小見出し（色ドット＋カテゴリ名）
-  Widget _groupHeading(BuildContext context, ThemeCategoryGroup group) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 6),
-      child: DefaultTextStyle.merge(
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-        ),
-        child: _DotLabel(color: group.category?.color, text: _groupLabel(group)),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.titleSmall;
-    // グループが1つだけならカテゴリで絞る意味がないのでカテゴリセクションは出さない
-    final showCategories = groups.length > 1;
-    ThemeCategoryGroup? selectedGroup;
-    if (showCategories && selectedCategoryKey != null) {
-      for (final group in groups) {
-        if (groupKey(group) == selectedCategoryKey) selectedGroup = group;
-      }
-    }
-    final noThemeChip = FilterChip(
-      label: const Text('指定なし'),
-      selected: selectedThemeId == null,
-      onSelected: (_) => onThemeSelected(null),
-    );
-
-    final List<Widget> themeBody;
-    if (!showCategories) {
-      // グループ1つ：カテゴリ見出しなしでチップのみ
-      themeBody = [
-        _themeWrap([noThemeChip, for (final t in groups.single.themes) _themeChip(t)]),
-      ];
-    } else if (selectedGroup != null) {
-      // カテゴリ選択中：そのグループのテーマだけ（見出しなし）
-      themeBody = [
-        _themeWrap([noThemeChip, for (final t in selectedGroup.themes) _themeChip(t)]),
-      ];
-    } else {
-      // 「すべて」：指定なしを先頭に1つ、その後カテゴリ見出しごとにテーマを並べる
-      themeBody = [
-        _themeWrap([noThemeChip]),
-        for (final group in groups) ...[
-          _groupHeading(context, group),
-          _themeWrap([for (final t in group.themes) _themeChip(t)]),
-        ],
-      ];
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (showCategories) ...[
-          Text('カテゴリ', style: titleStyle),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              ChoiceChip(
-                label: const Text('すべて'),
-                selected: selectedGroup == null,
-                onSelected: (_) => onCategorySelected(null),
-              ),
-              for (final group in groups)
-                ChoiceChip(
-                  label: _DotLabel(
-                    color: group.category?.color,
-                    text: _groupLabel(group),
-                  ),
-                  selected: identical(group, selectedGroup),
-                  onSelected: (_) => onCategorySelected(groupKey(group)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-        ],
-        Text('テーマ', style: titleStyle),
-        const SizedBox(height: 8),
-        ...themeBody,
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-}
-
-/// 色ドット＋テキストのチップラベル。色がパースできなければテキストのみ。
-class _DotLabel extends StatelessWidget {
-  final String? color;
-  final String text;
-
-  const _DotLabel({required this.color, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final dotColor = ColorUtils.parseColor(color);
-    if (dotColor == null) return Text(text);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(text),
-      ],
-    );
   }
 }

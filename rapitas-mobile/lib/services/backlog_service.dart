@@ -23,7 +23,7 @@ class BacklogService {
 
   /// アイデア一覧（先頭100件）。絞り込みは指定されたもの（null・空文字でないもの）だけクエリに載せる。
   ///
-  /// - [themeId]：テーマID（バックエンドは文字列で受けて int 化する）
+  /// - [themeId]：テーマID（バックエンドは文字列で受けて int 化する）。'none'（ideaNoThemeId）はテーマ未定のアイデアだけ
   /// - [priority]：urgent / high / medium / low（medium は優先度タグなしのアイデアも含む）
   /// - [status]：open（未使用）/ used（使用済み）/ all。未指定はバックエンドで 'all' と同じ全件
   /// - [search]：キーワード（バックエンド側でタイトル・本文を検索）
@@ -48,6 +48,13 @@ class BacklogService {
 
   Future<void> createIdea(Map<String, dynamic> data) async {
     await _client.post('/idea-box', data: data);
+  }
+
+  /// アイデアのテーマを変える（PATCH /idea-box/:id）。[themeId] が null なら解除（テーマ未定に戻す）。
+  ///
+  /// バックエンドは themeId を数値（null で解除）で受け、scope タグも themeId の有無に合わせ直す。
+  Future<void> updateIdeaTheme(String id, String? themeId) async {
+    await _client.patch('/idea-box/$id', data: {'themeId': _themeIdToJson(themeId)});
   }
 
   Future<void> deleteIdea(String id) async {
@@ -103,22 +110,33 @@ class BacklogService {
 
 /// アイデア作成（POST /idea-box）のボディ。
 ///
-/// 内容が空ならタイトルで代わりに埋める（バックエンドは内容必須）。テーマを選ばないので
-/// scope は 'global' 固定で、themeId は送らない（POST は themeId=null を受け付けない）。
+/// 内容が空ならタイトルで代わりに埋める（バックエンドは内容必須）。
+/// テーマを選んだときだけ themeId（数値）を含め、scope を 'project' にする。選ばないときは
+/// themeId を送らず scope は 'global'（POST は themeId=null を受け付けず、'global' なら既定テーマへの自動割り当ても起きない）。
+///
+/// NOTE: POST の themeId は t.Number()（routes/memory/idea-box.ts）なので文字列ではなく数値で送る。PC 版（use-idea-form.ts）と同じ組み立て。
+///
+/// @param themeId - テーマID。null（指定なし）なら付けない
 Map<String, dynamic> buildIdeaCreateBody({
   required String title,
   String? content,
   required String priority,
+  String? themeId,
 }) {
   final trimmedTitle = title.trim();
   final trimmedContent = content?.trim() ?? '';
+  final themeValue = _themeIdToJson(themeId);
   return {
     'title': trimmedTitle,
     'content': trimmedContent.isNotEmpty ? trimmedContent : trimmedTitle,
-    'scope': 'global',
+    'scope': themeValue != null ? 'project' : 'global',
     'priority': priority,
+    if (themeValue != null) 'themeId': themeValue,
   };
 }
+
+/// テーマID（文字列）を API の数値に直す。null・数値にならない値は null
+int? _themeIdToJson(String? themeId) => themeId == null ? null : int.tryParse(themeId);
 
 /// 懸念作成（POST /concerns）のボディ。場所は空ならキーごと省く。
 Map<String, dynamic> buildConcernCreateBody({

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/task.dart';
 import '../../widgets/voice_scroll_target.dart';
+import '../../providers/filter_selection_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../services/reorder_orders.dart';
 import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
+import '../../widgets/default_star_button.dart';
 import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
@@ -33,6 +35,9 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
   Map<String?, String> _categoryLabels = const {};
 
   bool _saving = false;
+
+  /// ☆ を設定中のテーマID（二重実行防止）
+  String? _settingDefault;
 
   /// 並び替えモードに入る。カテゴリ順→テーマ順に平坦化した並びを下書きにする
   void _startReorder(List<TaskTheme> themes) {
@@ -104,7 +109,25 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
   /// フィルターを「このテーマだけ」に置き換えてタスクタブへ移る
   void _openTasks(TaskTheme theme) {
     ref.read(taskFilterProvider.notifier).state = TaskFilter(themeId: theme.id);
+    // タスク一覧のシートで選んだのと同じく記憶する（次回起動時の初期選択になる）
+    rememberTaskTheme(theme);
     context.go('/tasks');
+  }
+
+  /// ☆（そのカテゴリの既定テーマ）にして一覧を取り直す。同じカテゴリの他テーマの ☆ はバックエンドが外す
+  Future<void> _setDefault(TaskTheme theme) async {
+    if (_settingDefault != null) return;
+    setState(() => _settingDefault = theme.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      await ref.read(themeServiceProvider).setDefaultTheme(theme.id);
+      container.invalidate(themeListProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('デフォルトの設定に失敗しました: $e')));
+    } finally {
+      if (mounted) setState(() => _settingDefault = null);
+    }
   }
 
   void _openEdit(TaskTheme theme) {
@@ -227,6 +250,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
                         theme: theme,
                         onTap: () => _openTasks(theme),
                         onEdit: () => _openEdit(theme),
+                        onSetDefault: _settingDefault == null ? () => _setDefault(theme) : null,
                       ),
                   ],
                 ],
@@ -288,16 +312,18 @@ class _CategoryHeading extends StatelessWidget {
   }
 }
 
-/// テーマ行（色ドット＋名前＋タスク件数＋編集アイコン）
+/// テーマ行（色ドット＋名前＋タスク件数＋☆＋編集アイコン）
 class _ThemeTile extends StatelessWidget {
   final TaskTheme theme;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback? onSetDefault;
 
   const _ThemeTile({
     required this.theme,
     required this.onTap,
     required this.onEdit,
+    required this.onSetDefault,
   });
 
   @override
@@ -308,10 +334,16 @@ class _ThemeTile extends StatelessWidget {
       minLeadingWidth: 12,
       title: Text(theme.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: taskCount != null ? Text('タスク $taskCount件') : null,
-      trailing: IconButton(
-        icon: const Icon(Icons.edit_outlined),
-        tooltip: 'テーマを編集',
-        onPressed: onEdit,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DefaultStarButton(isDefault: theme.isDefault, onSetDefault: onSetDefault),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'テーマを編集',
+            onPressed: onEdit,
+          ),
+        ],
       ),
       onTap: onTap,
     );

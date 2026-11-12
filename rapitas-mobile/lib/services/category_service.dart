@@ -28,6 +28,20 @@ class CategoryService {
     return TaskCategory.fromJson(Map<String, dynamic>.from(response.data));
   }
 
+  /// ☆（既定カテゴリ）の ID。GET /categories/default-category（UserSettings.defaultCategoryId）。
+  /// 未設定・削除済みなら null。PC 版のカテゴリ画面の ☆ と同じ情報源
+  Future<String?> getDefaultCategoryId() async {
+    final response = await _client.get('/categories/default-category');
+    final data = response.data;
+    final id = data is Map ? data['defaultCategoryId'] : null;
+    return id?.toString();
+  }
+
+  /// カテゴリを ☆（既定カテゴリ）にする（PATCH /categories/:id/set-default）
+  Future<void> setDefaultCategory(String id) async {
+    await _client.patch('/categories/$id/set-default');
+  }
+
   /// 表示順どおりの id 一覧で並び順を保存する（PATCH /categories/reorder）
   Future<void> reorderCategories(List<String> orderedIds) async {
     final orders = buildReorderOrders(orderedIds);

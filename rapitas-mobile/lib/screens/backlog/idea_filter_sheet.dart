@@ -4,6 +4,7 @@ import '../../models/backlog.dart';
 import '../../models/task.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/theme_data_provider.dart';
+import '../../services/filter_selection.dart';
 
 // アイデア一覧の絞り込みシート（テーマ／優先度／状態／キーワード）と、その表示用の小物
 
@@ -13,16 +14,16 @@ const Map<String, String> ideaStatusLabels = {
   'used': '使用済み',
 };
 
-/// テーマ一覧から themeId のテーマ名を引く。一覧が無い・該当が無いときは null。
+/// テーマ一覧から themeId のテーマ名を引く。一覧が無い・該当が無い・「指定なし」のときは null。
 String? ideaThemeName(List<TaskTheme>? themes, String? themeId) {
-  if (themes == null || themeId == null) return null;
+  if (themes == null || themeId == null || themeId == ideaNoThemeId) return null;
   for (final theme in themes) {
     if (theme.id == themeId) return theme.name.isNotEmpty ? theme.name : null;
   }
   return null;
 }
 
-/// 絞り込みシートを開く。「適用」で入力中の条件を、「クリア」で初期条件を反映して閉じる。
+/// 絞り込みシートを開く。「適用」で入力中の条件を、「クリア」でテーマ以外を初期条件に戻して閉じる。
 Future<void> showIdeaFilterSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -63,11 +64,14 @@ class _IdeaFilterSheetState extends ConsumerState<IdeaFilterSheet> {
   void _apply() {
     ref.read(ideaFilterProvider.notifier).state =
         _draft.copyWith(search: _searchController.text.trim());
+    final themeId = _draft.themeId;
+    if (themeId != null) FilterSelectionStore.rememberIdeaTheme(themeId);
     Navigator.pop(context);
   }
 
+  /// NOTE: テーマは常にどれか（または「指定なし」）が選ばれている前提なので、クリアでもテーマは残す
   void _clear() {
-    ref.read(ideaFilterProvider.notifier).state = const IdeaFilter();
+    ref.read(ideaFilterProvider.notifier).state = IdeaFilter(themeId: _draft.themeId);
     Navigator.pop(context);
   }
 
@@ -105,9 +109,7 @@ class _IdeaFilterSheetState extends ConsumerState<IdeaFilterSheet> {
       return const SizedBox.shrink();
     }
     final groups = groupThemesByCategory(themes);
-    void select(String? id) => setState(() => _draft = id == null
-        ? _draft.copyWith(clearThemeId: true)
-        : _draft.copyWith(themeId: id));
+    void select(String id) => setState(() => _draft = _draft.copyWith(themeId: id));
     Widget chip(TaskTheme t) => FilterChip(
           label: Text(t.name),
           selected: _draft.themeId == t.id,
@@ -123,11 +125,12 @@ class _IdeaFilterSheetState extends ConsumerState<IdeaFilterSheet> {
       children: [
         Text('テーマ', style: titleStyle),
         const SizedBox(height: 8),
+        // NOTE: 「すべて」は廃止。「指定なし」はテーマ未定のアイデアだけを出す（GET /idea-box?themeId=none）
         Wrap(spacing: 8, runSpacing: 4, children: [
           FilterChip(
             label: const Text('指定なし'),
-            selected: _draft.themeId == null,
-            onSelected: (_) => select(null),
+            selected: _draft.themeId == ideaNoThemeId,
+            onSelected: (_) => select(ideaNoThemeId),
           ),
           // グループが1つならカテゴリ見出しは出さずに並べる
           if (groups.length == 1) for (final t in groups.single.themes) chip(t),

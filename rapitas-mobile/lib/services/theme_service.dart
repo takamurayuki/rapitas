@@ -25,6 +25,12 @@ class ThemeService {
     return TaskTheme.fromJson(response.data);
   }
 
+  /// テーマをそのカテゴリの ☆（既定テーマ）にする（PATCH /themes/:id/set-default）。
+  /// 同じカテゴリの他テーマの ☆ はバックエンドが外す
+  Future<void> setDefaultTheme(String id) async {
+    await _client.patch('/themes/$id/set-default');
+  }
+
   Future<void> deleteTheme(String id) async {
     await _client.delete('/themes/$id');
   }
