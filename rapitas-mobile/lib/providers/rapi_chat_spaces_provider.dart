@@ -51,7 +51,15 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
   RapiChatSaveQueue? _queue;
   RapiSaveStore? _last;
   String? _connection;
+
+  /// 読み込みの世代。開く・新規・削除・接続先の変更で進め、古い読み込みの結果を捨てる
   int _session = 0;
+
+  /// 接続先の世代。待っている間に接続先が替わった処理の続きを捨てる（設計 6.5「接続先ごとの分離」）
+  int _epoch = 0;
+
+  /// 応答待ち・処理中に接続先が替わった。終わったら始め直す
+  bool _restartPending = false;
 
   /// 会話を入れ替えている間は、消えた行を削除として積まない（設計 4.3）
   bool _suspend = false;
@@ -86,7 +94,7 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
 
   // ---- 保存の対象を拾う（設計 4.3）----
 
-  void _track(RapiChatState? prev, RapiChatState next) {
+  void _enqueueChanges(RapiChatState? prev, RapiChatState next) {
     final queue = _queue;
     final target = _target;
     if (_suspend || !state.started || queue == null || target == null) return;
@@ -107,6 +115,14 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
     // 画面から消えた行（カードの「やめる」・相談への付け替え）は削除として送る（設計 6.1）
     for (final id in before.keys) {
       if (!seen.contains(id)) queue.enqueue(target, SavedMessage.deletion(id));
+    }
+  }
+
+  void _track(RapiChatState? prev, RapiChatState next) {
+    _enqueueChanges(prev, next);
+    // 保留していた接続先の切り替えを、応答・処理が終わったところで行う（最後の行を積んでから）
+    if (_restartPending && !_chat.busyForSwitch) {
+      scheduleMicrotask(() => unawaited(restartIfConnectionChanged()));
     }
   }
 
@@ -137,6 +153,8 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
     );
     _queue = queue;
     await queue.restore();
+    // space_limit で止めていた作成は、どの開き方でも起動のたびに再送する（設計 6.5 の 4）
+    unawaited(queue.retryBlocked());
     final last = await _last!.read();
     state = state.copyWith(started: true);
 
@@ -161,7 +179,6 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
       }
     }
     _openNew(since: 0);
-    unawaited(queue.retryBlocked());
   }
 
   void _showRows(List<SavedMessage> rows, {required int since}) {
@@ -171,10 +188,12 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
   }
 
   void _openNew({required int since}) {
+    // 読み込み中・「前の会話を読み込む」の途中で移っても、遅れた結果を新しい会話に並べない
+    _session++;
     final key = rapiNewLocalKey();
     state = state.copyWith(
         spaceId: null, localKey: key, title: null, loading: false, loadFailed: false,
-        loadFailedKeepGoing: false, hasMore: false, nextBefore: null);
+        loadFailedKeepGoing: false, hasMore: false, nextBefore: null, loadingMore: false);
     unawaited(_last?.write(key));
     if (since > 0) _replacing(() => _chat.applySpace(const [], since: since));
   }
@@ -201,7 +220,9 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
     final unsaved = _leavingUnsaved;
     final since = _beginSwitch();
     if (since == null) return RapiSwitchOutcome.busy;
+    final epoch = _epoch;
     await _last?.write('space:${space.id}');
+    if (epoch != _epoch) return RapiSwitchOutcome.unchanged;
     unawaited(_open(space.id, space.title, since: since));
     return unsaved ? RapiSwitchOutcome.switchedLeavingUnsaved : RapiSwitchOutcome.switched;
   }
@@ -221,7 +242,10 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
   Future<RapiSwitchOutcome> deleteSpace(int id) async {
     final current = id == state.spaceId;
     if (current && _chat.busyForSwitch) return RapiSwitchOutcome.busy;
+    final epoch = _epoch;
     await ref.read(rapiChatSpaceServiceProvider).deleteSpace(id);
+    // 待っている間に接続先が替わったら、同じ番号の別のスペースに触らない
+    if (epoch != _epoch) return RapiSwitchOutcome.unchanged;
     await _queue?.discardSpace(id);
     if (current) {
       late int since;
@@ -276,6 +300,9 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
         spaceId: id, localKey: null, title: title, loading: true, loadFailed: false,
         loadFailedKeepGoing: false, hasMore: false, nextBefore: null, loadingMore: false);
     final queue = _queue;
+    // 読み込みと並べて送るので、GET が送る前の状態を読み、その応答より先に PUT が通って列から
+    // 消えることがある。読み始めの保存待ちも控えておき、結果に重ねる（受け入れ1・6c）
+    final pendingAtStart = queue?.bucketForSpace(id)?.items ?? const <SavedMessage>[];
     unawaited(queue?.flush());
     // 名前を知らずに開いた（起動時）ときは、一覧から名前を引く（読み込みと並べて走らせる）
     if (title == null) unawaited(_refreshTitle(id, session));
@@ -284,7 +311,8 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
           countsAsTurn: (r) => rapiCountsAsTurn(decodeSavedMessage(r, id: 0)),
           turnTarget: rapiHistoryLimit);
       if (session != _session) return;
-      final rows = overlayPending(loaded.rows, queue?.bucketForSpace(id)?.items ?? const []);
+      final rows = overlayPending(overlayPending(loaded.rows, pendingAtStart),
+          queue?.bucketForSpace(id)?.items ?? const []);
       _replacing(() => _chat.applySpace(
           [for (final r in rows) decodeSavedMessage(r, id: 0)], since: since));
       state = state.copyWith(
@@ -369,10 +397,26 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
 
   /// 接続先が替わったら、その接続先の保存待ちと最後のスペースで始め直す（設計 4.4・6.5 の 9）。
   /// 前の接続先の保存待ちは、その接続先のキーに残る（戻したらそこで送られる）
+  ///
+  /// 応答待ち・処理中なら保留し、終わったところで始め直す。前の接続先の列は閉じ、その遅れた応答が
+  /// 同じ番号を持つ新しい接続先のスペースに作用しないようにする
   Future<void> restartIfConnectionChanged() async {
-    if (!state.started || _connectionKey() == _connection || _chat.busyForSwitch) return;
+    if (!state.started || _connectionKey() == _connection) {
+      _restartPending = false;
+      return;
+    }
+    if (_chat.busyForSwitch) {
+      _restartPending = true;
+      return;
+    }
+    _restartPending = false;
     _session++;
+    _epoch++;
+    final old = _queue;
     _queue = null;
+    _createdFromLocal.clear();
+    // 送っている途中の要求を待たずに新しい接続先で始める（閉じた列は書き出しだけを終える）
+    unawaited(old?.close());
     _replacing(() => _chat.beginSpace());
     state = const RapiSpacesState();
     await start();

@@ -54,6 +54,12 @@ class FakeSpaceServer extends RapiChatSpaceService {
 
   /// 完了するまで GET messages の応答を止める（読み込み中の確認用）
   Completer<void>? loadGate;
+
+  /// GET messages の中身を読んだあと、完了するまで応答を止める（保存前の状態を読んだ GET の確認用）
+  Completer<void>? loadGateAfterRead;
+
+  /// 完了するまで PUT の応答を止める（中身はまだ保存しない）
+  Completer<void>? putGate;
   int spaceLimit = 100;
   int messageLimit = 2000;
   final List<String> calls = [];
@@ -134,6 +140,7 @@ class FakeSpaceServer extends RapiChatSpaceService {
     if (s == null) throw const RapiSpaceNotFound();
     final older = [for (final r in s.rows) if (before == null || r.serverId! < before) r];
     final page = older.length > limit ? older.sublist(older.length - limit) : older;
+    if (loadGateAfterRead != null) await loadGateAfterRead!.future;
     return RapiMessagePage(
       messages: page,
       hasMore: older.length > limit,
@@ -145,6 +152,7 @@ class FakeSpaceServer extends RapiChatSpaceService {
   Future<RapiPutResult> putMessages(int spaceId, List<SavedMessage> items) async {
     calls.add('PUT $spaceId ${items.length}');
     puts.add(items);
+    if (putGate != null) await putGate!.future;
     if (offline || putOffline) throw _offline('/rapi-chat/spaces/$spaceId/messages');
     final s = spaces[spaceId];
     if (s == null) return const RapiPutGone();

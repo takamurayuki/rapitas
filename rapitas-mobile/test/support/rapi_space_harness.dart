@@ -3,6 +3,7 @@ import 'package:rapitas_mobile/models/rapi_chat/saved_message.dart';
 import 'package:rapitas_mobile/providers/rapi_chat_provider.dart';
 import 'package:rapitas_mobile/providers/rapi_chat_spaces_provider.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
+import 'package:rapitas_mobile/services/rapi_chat_space_service.dart';
 
 import 'rapi_space_fakes.dart';
 
@@ -16,12 +17,16 @@ class SpaceApp {
   final ManualScheduler clock = ManualScheduler();
   late final ProviderContainer c;
 
-  SpaceApp(this.server, this.prefs, {FakeAssistant? assistant, List<Override> extra = const []})
+  /// [serviceOf] を渡すと、接続先ごとに別のサーバーを返せる（既定はいつも [server]）
+  SpaceApp(this.server, this.prefs,
+      {FakeAssistant? assistant,
+      List<Override> extra = const [],
+      RapiChatSpaceService Function(Ref ref)? serviceOf})
       : assistant = assistant ?? FakeAssistant() {
     c = ProviderContainer(overrides: [
       ...extra,
       assistantServiceProvider.overrideWithValue(this.assistant),
-      rapiChatSpaceServiceProvider.overrideWithValue(server),
+      rapiChatSpaceServiceProvider.overrideWith(serviceOf ?? (_) => server),
       rapiSaveStoreFactoryProvider.overrideWithValue((key) => MemoryStore(prefs, key)),
       rapiSaveSchedulerProvider.overrideWithValue(clock.call),
     ]);

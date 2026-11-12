@@ -168,6 +168,7 @@ class RapiChatSaveQueue {
   DateTime? _pendingSince;
   final Set<String> _shown = {};
   Future<void> _tail = Future.value();
+  bool _closed = false;
 
   RapiChatSaveQueue({
     required RapiChatSpaceService service,
@@ -252,6 +253,11 @@ class RapiChatSaveQueue {
       bucket._items.add(_Pending(m, ++_version));
     }
     _pendingSince ??= _now();
+    if (_closed) {
+      // 閉じた列は送らない。書き出しだけして、この接続先へ戻したときに送る
+      _tail = _tail.then((_) => _persist()).then((_) {}, onError: (_) {});
+      return;
+    }
     if (immediate) {
       unawaited(flush());
     } else {
@@ -277,8 +283,26 @@ class RapiChatSaveQueue {
     return flush();
   }
 
+  /// 接続先を替えたときに、この列を閉じる（設計 6.5「接続先ごとの分離」）。
+  /// 予約していたまとめ・再送を取り消し、知らせを止める。保存待ちはこの接続先のキーに書き出したまま
+  /// 残し、戻したときの列が送る。送っている途中の1件は終わらせ、その結果も書き出す
+  ///
+  /// @returns 書き出しが終わったら完了する / 書き出しの完了
+  Future<void> close() {
+    _closed = true;
+    listener = null;
+    _debounce?.call();
+    _debounce = null;
+    _retry?.call();
+    _retry = null;
+    final done = _tail.then((_) => _persist());
+    _tail = done.then((_) {}, onError: (_) {});
+    return done;
+  }
+
   /// いまある保存待ちを送る（1本に並べる）
   Future<void> flush() {
+    if (_closed) return _tail;
     final result = _tail.then((_) => _flushOnce());
     _tail = result.then((_) {}, onError: (_) {});
     return result;
@@ -297,6 +321,7 @@ class RapiChatSaveQueue {
     await _persist();
     var transient = false;
     for (final bucket in [..._buckets]) {
+      if (_closed) break;
       if (!_buckets.contains(bucket)) continue;
       if (bucket.localKey != null && !await _create(bucket)) {
         if (!bucket.limitBlocked && _buckets.contains(bucket)) transient = true;
@@ -312,7 +337,7 @@ class RapiChatSaveQueue {
       _attempt = 0;
       return;
     }
-    if (!transient) {
+    if (!transient || _closed) {
       _attempt = 0;
       return;
     }
@@ -396,7 +421,7 @@ class RapiChatSaveQueue {
   /// スペース宛ての保存待ちを送り切る。通信の失敗・5xx なら false（間隔を置いて送り直す）
   Future<bool> _send(RapiSaveBucket bucket) async {
     final spaceId = bucket.spaceId!;
-    while (bucket._items.isNotEmpty) {
+    while (bucket._items.isNotEmpty && !_closed) {
       final batch = _batch(bucket);
       if (batch.isEmpty) break;
       final RapiPutResult result;
