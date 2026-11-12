@@ -1306,6 +1306,40 @@ CREATE TABLE "PrRiskThresholdReview" (
 );
 
 -- CreateTable
+CREATE TABLE "RapiChatSpace" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "title" TEXT,
+    "titleSource" TEXT NOT NULL DEFAULT 'auto',
+    "clientKey" TEXT,
+    "messageCount" INTEGER NOT NULL DEFAULT 0,
+    "lastMessageAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RapiChatSpace_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RapiChatMessage" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "spaceId" INTEGER NOT NULL,
+    "clientId" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'text',
+    "text" TEXT NOT NULL DEFAULT '',
+    "taskId" INTEGER,
+    "inHistory" BOOLEAN NOT NULL DEFAULT false,
+    "payload" TEXT,
+    "clientCreatedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RapiChatMessage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Resource" (
     "id" SERIAL NOT NULL,
     "workspaceId" INTEGER,
@@ -2475,6 +2509,24 @@ CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month
 CREATE INDEX "PrRiskThresholdReview_workspaceId_idx" ON "PrRiskThresholdReview"("workspaceId");
 
 -- CreateIndex
+CREATE INDEX "RapiChatSpace_workspaceId_idx" ON "RapiChatSpace"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_lastMessageAt_idx" ON "RapiChatSpace"("lastMessageAt");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_clientKey_idx" ON "RapiChatSpace"("clientKey");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_spaceId_id_idx" ON "RapiChatMessage"("spaceId", "id");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_workspaceId_idx" ON "RapiChatMessage"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RapiChatMessage_spaceId_clientId_key" ON "RapiChatMessage"("spaceId", "clientId");
+
+-- CreateIndex
 CREATE INDEX "Resource_workspaceId_idx" ON "Resource"("workspaceId");
 
 -- CreateIndex
@@ -2887,6 +2939,9 @@ ALTER TABLE "NoteTaskLink" ADD CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "NoteTaskLink" ADD CONSTRAINT "NoteTaskLink_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RapiChatMessage" ADD CONSTRAINT "RapiChatMessage_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "RapiChatSpace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Resource" ADD CONSTRAINT "Resource_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -1216,6 +1216,37 @@ CREATE TABLE "PrRiskThresholdReview" (
 );
 
 -- CreateTable
+CREATE TABLE "RapiChatSpace" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "title" TEXT,
+    "titleSource" TEXT NOT NULL DEFAULT 'auto',
+    "clientKey" TEXT,
+    "messageCount" INTEGER NOT NULL DEFAULT 0,
+    "lastMessageAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "RapiChatMessage" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "spaceId" INTEGER NOT NULL,
+    "clientId" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'text',
+    "text" TEXT NOT NULL DEFAULT '',
+    "taskId" INTEGER,
+    "inHistory" BOOLEAN NOT NULL DEFAULT false,
+    "payload" TEXT,
+    "clientCreatedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "RapiChatMessage_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "RapiChatSpace" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Resource" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
@@ -2331,6 +2362,24 @@ CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month
 
 -- CreateIndex
 CREATE INDEX "PrRiskThresholdReview_workspaceId_idx" ON "PrRiskThresholdReview"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_workspaceId_idx" ON "RapiChatSpace"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_lastMessageAt_idx" ON "RapiChatSpace"("lastMessageAt");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_clientKey_idx" ON "RapiChatSpace"("clientKey");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_spaceId_id_idx" ON "RapiChatMessage"("spaceId", "id");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_workspaceId_idx" ON "RapiChatMessage"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RapiChatMessage_spaceId_clientId_key" ON "RapiChatMessage"("spaceId", "clientId");
 
 -- CreateIndex
 CREATE INDEX "Resource_workspaceId_idx" ON "Resource"("workspaceId");
