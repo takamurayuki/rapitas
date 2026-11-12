@@ -21,6 +21,7 @@ import {
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
 import { writeTaskCriteria, type CriteriaWriteDb } from '../task/task-criteria-write';
+import { computeCriteriaRevision } from '../task/task-criteria-revision';
 import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
 import {
   createNotification,
@@ -241,6 +242,9 @@ async function raiseContaminationQuestion(
   await notifyIntakeQuestionPending({ taskId: task.id, taskTitle: task.title }).catch(() => {});
 }
 
+/** A criteria column as read (typed loosely in IntakeTaskRow) back in its stored form. */
+const storedColumn = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
 /**
  * Derive a spec from the description (+ prior answer) and persist any net-new
  * items. Returns the post-merge spec view, or null when nothing was added.
@@ -265,12 +269,21 @@ async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQual
 
   // NOTE: Through writeTaskCriteria like every criteria write on an existing
   // task (companion design 4.5.1): it refuses while a jury holds the lock or a
-  // verdict is pending, and only if the columns are still what was merged
-  // from. A refusal skips the enrichment — the spec simply stays as it was.
-  // No activity: an enrichment only appends, so criterion numbers don't shift.
+  // verdict is pending. The merge above was built on the criteria read at the
+  // START of the gate, and the AI call in between can take a while — so the
+  // write is bound to THAT read's revision. A person who changed the criteria
+  // meanwhile wins: criteria_changed_since discards the enrichment instead of
+  // writing a merge of the old lists over their edit.
+  // No activity: bound to the read it merged from, an enrichment only
+  // appends, so criterion numbers don't shift.
   const written = await writeTaskCriteria(prisma as unknown as CriteriaWriteDb, {
     taskId,
     next: { goals, constraints, acceptanceCriteria },
+    expectedCriteriaRevision: computeCriteriaRevision({
+      goals: storedColumn(task.goals),
+      constraints: storedColumn(task.constraints),
+      acceptanceCriteria: storedColumn(task.acceptanceCriteria),
+    }),
     actor: 'system:intake',
     recordActivity: false,
   });

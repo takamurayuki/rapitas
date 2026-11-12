@@ -112,6 +112,37 @@ describe('draft → confirm → undo', () => {
     ).toBe(2);
   });
 
+  test('a goals-only change and its undo each leave an activity and reset the repair window', async () => {
+    const taskId = await seedJudgeableTask(db);
+    const d = await post('/assistant/criteria-draft', {
+      taskId,
+      goals: ['検索できる', '結果を共有できる'],
+      reason: '共有したいと言われた',
+    });
+    const rev = (d.body.draft as { criteriaRevision: string }).criteriaRevision;
+    const done = await post('/assistant/task-criteria', {
+      taskId,
+      confirmed: true,
+      expectedCriteriaRevision: rev,
+      goals: ['検索できる', '結果を共有できる'],
+      reason: '共有したいと言われた',
+    });
+    expect(done.status).toBe(200);
+    const undo = await post('/assistant/task-criteria/revert', { actionId: done.body.actionId });
+    expect(undo.status).toBe(200);
+    const rows = await db.activityLog.findMany({
+      where: { taskId, action: 'acceptance_criteria_changed' },
+      orderBy: { id: 'asc' },
+    });
+    expect(rows.map((r) => JSON.parse(r.metadata ?? '{}').goals)).toEqual([
+      { before: ['検索できる'], after: ['検索できる', '結果を共有できる'] },
+      { before: ['検索できる', '結果を共有できる'], after: ['検索できる'] },
+    ]);
+    expect((await db.task.findUniqueOrThrow({ where: { id: taskId } })).goals).toBe(
+      JSON.stringify(['検索できる']),
+    );
+  });
+
   test('unconfirmed → 400 and a refused audit row', async () => {
     const taskId = await seedJudgeableTask(db);
     const d = await draft(taskId);

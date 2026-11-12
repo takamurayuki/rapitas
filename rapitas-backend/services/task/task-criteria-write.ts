@@ -58,7 +58,7 @@ export interface CriteriaWriteInput {
   /** Who is writing, for the activity record (e.g. 'assistant', 'user:task_screen', 'system:intake'). */
   actor: string;
   reason?: string;
-  /** Record acceptance_criteria_changed when the criteria list changed (default true). */
+  /** Record acceptance_criteria_changed when any of the three lists changed (default true). */
   recordActivity?: boolean;
 }
 
@@ -212,11 +212,17 @@ export async function writeTaskCriteria(
     return { ok: false, reason, currentRevision };
   }
 
-  const criteriaChanged = !sameList(before.acceptanceCriteria, after.acceptanceCriteria);
-  if (criteriaChanged && input.recordActivity !== false) {
-    // Replacing the acceptance criteria invalidates every repair reason
-    // recorded against the OLD ones: those cite criteria by NUMBER (task 672).
-    // The convergence detector bounds its window on this activity.
+  // Any of the three lists counts: they all make up the revision a verdict is
+  // bound to, and the API lets goals or constraints change on their own.
+  const listsChanged =
+    !sameList(before.goals, after.goals) ||
+    !sameList(before.constraints, after.constraints) ||
+    !sameList(before.acceptanceCriteria, after.acceptanceCriteria);
+  if (listsChanged && input.recordActivity !== false) {
+    // Changing the criteria invalidates every repair reason recorded against
+    // the OLD ones: those cite criteria by NUMBER (task 672) and were judged
+    // against the old goals / constraints. The convergence detector and the
+    // repair budget bound their window on this activity.
     await db.activityLog
       .create({
         data: {

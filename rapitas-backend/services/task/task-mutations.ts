@@ -202,9 +202,9 @@ export interface UpdateTaskInput {
   acceptanceCriteria?: string[];
   /**
    * Criteria revision the caller's edit was based on (companion design 4.5).
-   * When given, an edit made on a stale read is refused with 409
-   * criteria_changed_since. Legacy clients omit it; the jury-lock and state
-   * guards apply either way.
+   * Required whenever goals / constraints / acceptanceCriteria are sent
+   * (400 criteria_revision_required otherwise); a stale one is refused with
+   * 409 criteria_changed_since. Updates without criteria omit it.
    */
   expectedCriteriaRevision?: string;
   isProtected?: boolean;

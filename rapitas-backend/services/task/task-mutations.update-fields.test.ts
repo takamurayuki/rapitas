@@ -95,6 +95,7 @@ mock.module('../memory/task-knowledge-extractor', () => ({
 }));
 
 const { updateTask } = await import('./task-mutations');
+const { computeCriteriaRevision } = await import('./task-criteria-revision');
 
 function createMockPrisma() {
   return {
@@ -317,6 +318,11 @@ describe('updateTask — フィールドマッピング', () => {
       goals: ['g1'],
       constraints: ['c1'],
       acceptanceCriteria: ['a1'],
+      expectedCriteriaRevision: computeCriteriaRevision({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: null,
+      }),
     });
 
     // Design 4.5.1: one conditional write — lock empty and criteria as read.
@@ -348,9 +354,14 @@ describe('updateTask — フィールドマッピング', () => {
         haltReason: null,
         juryRunId: 42,
       });
-    const err = await updateTask(mockPrisma as never, 1, { acceptanceCriteria: ['a1'] }).catch(
-      (e: unknown) => e,
-    );
+    const err = await updateTask(mockPrisma as never, 1, {
+      acceptanceCriteria: ['a1'],
+      expectedCriteriaRevision: computeCriteriaRevision({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: '["a0"]',
+      }),
+    }).catch((e: unknown) => e);
     expect(err).toMatchObject({ statusCode: 409, code: 'review_in_progress' });
     expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
