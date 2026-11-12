@@ -86,9 +86,87 @@ export function checkPayload(payload: string, kind: MessageKind): RejectCode | n
   // Number.isInteger(1.0) is true in JS, so the literal text is checked too:
   // the design refuses a fractional spelling such as `1.0` (§3.4).
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) return 'invalid_payload';
-  if (!/"v"\s*:\s*\d+\s*[,}]/.test(payload)) return 'invalid_payload';
+  // Only the top-level `v` counts: a nested `"v":1` must not vouch for it.
+  const raw = topLevelRawValue(payload, 'v');
+  if (raw === null || !/^[1-9]\d*$/.test(raw)) return 'invalid_payload';
   if (parsed.kind !== kind) return 'invalid_payload';
   return null;
+}
+
+/** Index just past the JSON string literal that opens at `start` (a `"`). */
+function skipString(json: string, start: number): number {
+  let i = start + 1;
+  while (i < json.length) {
+    const c = json[i];
+    if (c === '\\') i += 2;
+    else if (c === '"') return i + 1;
+    else i += 1;
+  }
+  return i;
+}
+
+/** Index just past the JSON value that starts at `start` (whitespace already skipped). */
+function skipValue(json: string, start: number): number {
+  const c = json[start];
+  if (c === '"') return skipString(json, start);
+  if (c === '{' || c === '[') {
+    let depth = 0;
+    let i = start;
+    while (i < json.length) {
+      const ch = json[i];
+      if (ch === '"') {
+        i = skipString(json, i);
+        continue;
+      }
+      if (ch === '{' || ch === '[') depth += 1;
+      else if (ch === '}' || ch === ']') {
+        depth -= 1;
+        if (depth === 0) return i + 1;
+      }
+      i += 1;
+    }
+    return i;
+  }
+  let i = start;
+  while (i < json.length && !/[\s,}\]]/.test(json[i])) i += 1;
+  return i;
+}
+
+/**
+ * The literal spelling of a top-level key's value in a JSON object text, as
+ * written (e.g. `1`, `1.0`, `"1"`). When the key repeats, the last one wins,
+ * matching JSON.parse. Assumes `json` already parsed as an object.
+ *
+ * @param json - JSON object text / JSON オブジェクトの文字列
+ * @param key - Top-level key / トップレベルのキー
+ * @returns The raw value text, or null when the key is absent / 値の表記（無ければ null）
+ */
+export function topLevelRawValue(json: string, key: string): string | null {
+  const ws = /\s/;
+  let i = 0;
+  const skipWs = () => {
+    while (i < json.length && ws.test(json[i])) i += 1;
+  };
+  skipWs();
+  if (json[i] !== '{') return null;
+  i += 1;
+  let found: string | null = null;
+  for (;;) {
+    skipWs();
+    if (i >= json.length || json[i] === '}') return found;
+    if (json[i] !== '"') return found;
+    const keyEnd = skipString(json, i);
+    const name = JSON.parse(json.slice(i, keyEnd)) as string;
+    i = keyEnd;
+    skipWs();
+    i += 1; // ':'
+    skipWs();
+    const valueEnd = skipValue(json, i);
+    if (name === key) found = json.slice(i, valueEnd);
+    i = valueEnd;
+    skipWs();
+    if (json[i] === ',') i += 1;
+  }
 }
 
 /**

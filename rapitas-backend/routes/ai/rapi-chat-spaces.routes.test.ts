@@ -66,6 +66,12 @@ describe('spaces CRUD', () => {
 
   it('cascades a space delete to its messages but leaves other tables alone', async () => {
     const task = await t.base.task.create({ data: { title: '残るタスク' } });
+    await t.base.assistantAction.create({
+      data: { capabilityId: 'task.create', status: 'executed', taskId: task.id },
+    });
+    await t.base.copilotMessage.create({
+      data: { taskId: task.id, role: 'user', content: '残る相談' },
+    });
     const id = await newSpace();
     await call('PUT', `/rapi-chat/spaces/${id}/messages`, {
       messages: [textItem('a'), textItem('b', { taskId: task.id, role: 'system' })],
@@ -74,6 +80,9 @@ describe('spaces CRUD', () => {
     await call('DELETE', `/rapi-chat/spaces/${id}`);
     expect(await t.base.rapiChatMessage.count()).toBe(0);
     expect(await t.base.task.count({ where: { id: task.id } })).toBe(1);
+    // Design §3.2: actions and the old consultation log are not part of a space.
+    expect(await t.base.assistantAction.count()).toBe(1);
+    expect(await t.base.copilotMessage.count()).toBe(1);
   });
 
   it('POST with the same clientKey returns the same space (200) and makes one row', async () => {
@@ -191,6 +200,36 @@ describe('PUT messages', () => {
     expect(await t.base.rapiChatMessage.count()).toBe(0);
 
     const retry = await call('PUT', url, { messages: [textItem('ok1'), textItem('ok2')] });
+    expect(retry.status).toBe(200);
+    expect(await t.base.rapiChatMessage.count()).toBe(2);
+  });
+
+  it('judges the version by the top-level v only, whatever is nested (422, nothing saved)', async () => {
+    const id = await newSpace();
+    const url = `/rapi-chat/spaces/${id}/messages`;
+    const card = (cid: string, kind: string, payload: string) =>
+      textItem(cid, { role: 'assistant', kind, text: '', payload });
+    const bad = [
+      card('frac', 'answer', '{"v":1.0,"kind":"answer","answer":{"v":1}}'),
+      card('str', 'answer', '{"v":"1","kind":"answer","answer":{"v":1}}'),
+      card('zero', 'change', '{"v":0,"kind":"change","change":{"v":1,"x":[{"v":2}]}}'),
+      card('exp', 'tidy', '{"kind":"tidy","tidy":{"v":1},"v":1e0}'),
+      card('dup', 'roadmap', '{"v":1,"kind":"roadmap","v":1.0}'),
+      card('nested-only', 'answer', '{"kind":"answer","answer":{"v":1}}'),
+    ];
+    const good = [
+      textItem('ok1'),
+      card('good-nested', 'answer', '{ "kind" : "answer", "answer":{"v":1.5,"s":"\\"v\\":1.0"}, "v" : 2 }'),
+    ];
+    const r = await call('PUT', url, { messages: [good[0], ...bad, good[1]] });
+    expect(r.status).toBe(422);
+    const rejected = (r.json.rejected as Array<{ clientId: string; code: string }>)
+      .map((x) => `${x.clientId}:${x.code}`)
+      .sort();
+    expect(rejected).toEqual(bad.map((b) => `${b.clientId}:invalid_payload`).sort());
+    expect(await t.base.rapiChatMessage.count()).toBe(0);
+
+    const retry = await call('PUT', url, { messages: good });
     expect(retry.status).toBe(200);
     expect(await t.base.rapiChatMessage.count()).toBe(2);
   });
