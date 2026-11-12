@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/providers/connection_provider.dart';
 import 'package:rapitas_mobile/providers/rapi_chat_spaces_provider.dart';
@@ -191,6 +192,88 @@ void main() {
       expect(app.spacesState.spaceId, b.id);
       expect(app.texts, ['発言 ${b.id}-0']);
       expect(app.clock.pending, isEmpty, reason: '閉じた列は再送を予約しない');
+    });
+  });
+
+  group('FIX2-1 A→B→A の往復', () {
+    late FakeSpaceServer other;
+    RapiChatSpaceService pick(Ref ref) =>
+        ref.watch(connectionSettingsProvider).baseUrl == _hostB ? other : server;
+
+    setUp(() => other = FakeSpaceServer());
+
+    test('前の A の列の遅れた応答は、戻った A で積んだ保存待ちを上書きせず、A で保存が進む', () async {
+      final app = SpaceApp(server, prefs, serviceOf: pick);
+      await app.start();
+      await app.say('最初');
+      final a = server.spaces.values.single;
+      // A の PUT の応答を止めたまま B へ移り、A へ戻る
+      final delayed = server.putGate = Completer<void>();
+      app.chat.setInput('遅れる');
+      await app.chat.send();
+      app.clock.runAll();
+      await _microtasks();
+      expect(server.puts.last.map((i) => i.text), contains('遅れる'));
+      await _useHost(app, _hostB);
+      await app.spaces.restartIfConnectionChanged();
+      await app.settle();
+      // 戻った A の送信は、別の門で止めておく（保存待ちが端末に残っている状態を作る）
+      final back = server.putGate = Completer<void>();
+      await _useHost(app, _hostA);
+      await app.spaces.restartIfConnectionChanged();
+      await _microtasks();
+      expect(app.spaces.connection, _hostA);
+      app.chat.setInput('戻った');
+      await app.chat.send();
+      await _microtasks();
+
+      // 前の A の列への遅れた応答が返る
+      delayed.complete();
+      await _microtasks(40);
+      expect(prefs['rapiChatPendingSaves.v1:$_hostA'], contains('戻った'),
+          reason: '戻ったあとで積んだ保存待ちが、端末から消えていない');
+
+      // ここでアプリが落ちても、次の起動で A に保存される
+      app.dispose();
+      server.putGate = null;
+      final again = SpaceApp(server, prefs, serviceOf: pick);
+      await again.start();
+      await again.settle();
+      expect(rowTexts(a), ['最初', 'はい（最初）', '遅れる', 'はい（遅れる）', '戻った', 'はい（戻った）']);
+      expect(again.spacesState.spaceId, a.id);
+      expect(prefs['rapiChatPendingSaves.v1:$_hostA'], isNull);
+      back.complete();
+      again.dispose();
+    });
+
+    test('戻った A は、落ちずにそのまま保存を進める', () async {
+      final app = SpaceApp(server, prefs, serviceOf: pick);
+      addTearDown(app.dispose);
+      await app.start();
+      await app.say('最初');
+      final a = server.spaces.values.single;
+      final delayed = server.putGate = Completer<void>();
+      app.chat.setInput('遅れる');
+      await app.chat.send();
+      app.clock.runAll();
+      await _microtasks();
+      await _useHost(app, _hostB);
+      await app.spaces.restartIfConnectionChanged();
+      await app.settle();
+      await _useHost(app, _hostA);
+      await app.spaces.restartIfConnectionChanged();
+      await _microtasks();
+      app.chat.setInput('戻った');
+      await app.chat.send();
+      await _microtasks();
+      delayed.complete();
+      server.putGate = null;
+      await _microtasks(40);
+      await app.settle();
+      expect(rowTexts(a), ['最初', 'はい（最初）', '遅れる', 'はい（遅れる）', '戻った', 'はい（戻った）']);
+      expect(app.texts, ['最初', 'はい（最初）', '遅れる', 'はい（遅れる）', '戻った', 'はい（戻った）']);
+      expect(prefs['rapiChatPendingSaves.v1:$_hostA'], isNull);
+      expect(other.spaces, isEmpty, reason: 'A の会話を B に送らない');
     });
   });
 

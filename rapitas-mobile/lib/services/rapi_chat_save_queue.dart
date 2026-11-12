@@ -153,7 +153,7 @@ class RapiSaveBucket {
 
 /// 保存待ちの列
 class RapiChatSaveQueue {
-  final RapiChatSpaceService _service;
+  RapiChatSpaceService _service;
   final RapiSaveStore _store;
   final RapiScheduler _schedule;
   final DateTime Function() _now;
@@ -298,6 +298,17 @@ class RapiChatSaveQueue {
     final done = _tail.then((_) => _persist());
     _tail = done.then((_) {}, onError: (_) {});
     return done;
+  }
+
+  /// 閉じた列を、同じ接続先へ戻したときに使い直す（設計 6.5 の 9）。保存待ちは読み直さずに記憶の分を
+  /// 使う（遅れた書き出しが戻ったあとの分を上書きしない）。ほかは読み直した列と同じ状態にする
+  void reopen(RapiSaveListener l, RapiChatSpaceService service) {
+    _closed = false;
+    listener = l;
+    _service = service;
+    _shown.clear();
+    _attempt = 0;
+    _pendingSince = isEmpty ? null : _now();
   }
 
   /// いまある保存待ちを送る（1本に並べる）

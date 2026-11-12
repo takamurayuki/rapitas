@@ -49,6 +49,9 @@ String rapiNewLocalKey() {
 
 class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSaveListener {
   RapiChatSaveQueue? _queue;
+
+  /// 接続先を替えたときに閉じた列（接続先ごと）。戻したらその列を開き直して使う（FIX2-1）
+  final Map<String, RapiChatSaveQueue> _closedQueues = {};
   RapiSaveStore? _last;
   String? _connection;
 
@@ -144,15 +147,20 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
     _connection = connection;
     final storeOf = ref.read(rapiSaveStoreFactoryProvider);
     _last = storeOf('$rapiLastSpaceKey:$connection');
-    final queue = RapiChatSaveQueue(
-      service: ref.read(rapiChatSpaceServiceProvider),
-      store: storeOf('$rapiPendingSavesKey:$connection'),
-      newKey: rapiNewLocalKey,
-      schedule: ref.read(rapiSaveSchedulerProvider),
-      listener: this,
-    );
+    // 同じ接続先の閉じた列が残っていれば、それを開き直す。新しい列が同じキーを読み直すと、
+    // 閉じた列の遅れた書き出しが、戻ったあとで積んだ保存待ちを上書きし得るため（設計 6.5 の 9）
+    final service = ref.read(rapiChatSpaceServiceProvider);
+    final reused = _closedQueues.remove(connection)?..reopen(this, service);
+    final queue = reused ??
+        RapiChatSaveQueue(
+          service: service,
+          store: storeOf('$rapiPendingSavesKey:$connection'),
+          newKey: rapiNewLocalKey,
+          schedule: ref.read(rapiSaveSchedulerProvider),
+          listener: this,
+        );
     _queue = queue;
-    await queue.restore();
+    if (reused == null) await queue.restore();
     // space_limit で止めていた作成は、どの開き方でも起動のたびに再送する（設計 6.5 の 4）
     unawaited(queue.retryBlocked());
     final last = await _last!.read();
@@ -415,7 +423,9 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
     final old = _queue;
     _queue = null;
     _createdFromLocal.clear();
-    // 送っている途中の要求を待たずに新しい接続先で始める（閉じた列は書き出しだけを終える）
+    // 送っている途中の要求を待たずに新しい接続先で始める（閉じた列は書き出しだけを終える）。
+    // 閉じた列は接続先ごとに残し、戻したときに開き直す
+    if (old != null && _connection != null) _closedQueues[_connection!] = old;
     unawaited(old?.close());
     _replacing(() => _chat.beginSpace());
     state = const RapiSpacesState();
