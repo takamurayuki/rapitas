@@ -61,6 +61,8 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
   /// テーマの初期値を決める：一覧で選んでいるテーマ → 初期選択の解決（記憶 → ☆ → 先頭）→ 指定なし。
   ///
   /// テーマ一覧の取得失敗・正常0件はテーマ欄を出せないので「指定なし」（themeId を送らない）に確定する。
+  /// 解決中に画面が閉じられたら ref を読まずに「指定なし」で終える（呼び出し元の `.then` / `_save` は
+  /// どちらも mounted を見てから使うので、この値は使われない）。
   Future<String> _resolveInitialTheme() async {
     final List<TaskTheme> themes;
     try {
@@ -68,13 +70,16 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
     } catch (_) {
       return ideaNoThemeId;
     }
-    if (themes.isEmpty) return ideaNoThemeId;
+    // NOTE: await の間に画面が閉じられると、次の ref.read が「破棄済みの ref」例外を投げる。
+    // その例外は下の catch では止まらず後段の ref.read まで進むので、ref に触る前に毎回確認する
+    if (!mounted || themes.isEmpty) return ideaNoThemeId;
     String? initial;
     try {
       initial = await ref.read(ideaInitialSelectionProvider.future);
     } catch (_) {
       initial = null;
     }
+    if (!mounted) return ideaNoThemeId;
     // NOTE: 一覧の選択は解決を待った後に読む（待っている間に一覧側で選ばれた値も拾う）
     for (final candidate in [ref.read(ideaFilterProvider).themeId, initial]) {
       if (candidate == ideaNoThemeId) return ideaNoThemeId;
