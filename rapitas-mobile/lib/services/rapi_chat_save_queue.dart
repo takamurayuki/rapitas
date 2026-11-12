@@ -444,6 +444,7 @@ class RapiChatSaveQueue {
           _removeIds(bucket, drop);
           _notice(RapiSaveNotice.full, bucket.target);
         case RapiPutMalformed():
+          if (_closed) return false; // 閉じたら分けて送らない（書き出して残し、戻したときに送る）
           final r = await _sendOneByOne(bucket, batch);
           if (r != null) return r;
         case RapiPutGone():
@@ -461,6 +462,7 @@ class RapiChatSaveQueue {
   Future<bool?> _sendOneByOne(RapiSaveBucket bucket, List<_Pending> batch) async {
     var dropped = false;
     for (final p in batch) {
+      if (_closed) break;
       final RapiPutResult r;
       try {
         r = await _service.putMessages(bucket.spaceId!, [p.msg]);

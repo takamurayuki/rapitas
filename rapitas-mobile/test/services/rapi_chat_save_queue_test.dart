@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/models/rapi_chat/saved_message.dart';
 import 'package:rapitas_mobile/services/rapi_chat_save_queue.dart';
@@ -160,6 +162,69 @@ void main() {
     expect(s.rows.map((r) => r.clientId), ['a']);
     expect(q.buckets.single.items.map((i) => i.clientId), ['b']);
     expect(clock.delays, [const Duration(seconds: 2)]);
+  });
+
+  group('FIX2-2 閉じた列は、400 の分割再送でも後続の PUT を送らない', () {
+    Future<void> settle() async {
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test('まとめた PUT の応答（400）を待つ間に閉じたら、1件ずつの送信を始めない', () async {
+      final s = server.seed();
+      final q = queue();
+      final t = RapiSaveTarget.space(s.id);
+      for (final id in ['a', 'BAD', 'c']) {
+        q.enqueue(t, _m(id));
+      }
+      final gate = server.putGate = Completer<void>();
+      final flushing = q.flush();
+      await settle();
+      expect(server.puts, hasLength(1));
+      final closing = q.close();
+      server.putGate = null;
+      gate.complete();
+      await flushing;
+      await closing;
+      await settle();
+      expect(server.puts, hasLength(1), reason: '閉じたあとで分割の PUT を送らない');
+      expect(clock.pending, isEmpty);
+      final again = queue();
+      await again.restore();
+      expect(again.buckets.single.items.map((i) => i.clientId), ['a', 'BAD', 'c'],
+          reason: '送れなかった分は書き出してあり、戻したときに送られる');
+    });
+
+    test('1件ずつ送っている途中で閉じたら、送っている1件だけ終わらせ、以降は送らない', () async {
+      final s = server.seed();
+      final q = queue();
+      final t = RapiSaveTarget.space(s.id);
+      for (final id in ['a', 'BAD', 'c']) {
+        q.enqueue(t, _m(id));
+      }
+      final first = server.putGate = Completer<void>();
+      final flushing = q.flush();
+      await settle();
+      final single = server.putGate = Completer<void>();
+      first.complete();
+      await settle();
+      expect(server.puts.map((p) => p.map((i) => i.clientId).toList()), [
+        ['a', 'BAD', 'c'],
+        ['a'],
+      ]);
+      final closing = q.close();
+      single.complete();
+      await flushing;
+      await closing;
+      await settle();
+      expect(server.puts, hasLength(2), reason: '閉じたあとで BAD・c を送らない');
+      expect(s.rows.map((r) => r.clientId), ['a'], reason: '送っていた1件は終わらせる');
+      expect(clock.pending, isEmpty);
+      final again = queue();
+      await again.restore();
+      expect(again.buckets.single.items.map((i) => i.clientId), ['BAD', 'c']);
+    });
   });
 
   test('clientId が空の項目は送らずに外す（送る前の自己検査）', () async {
