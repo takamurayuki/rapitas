@@ -471,6 +471,7 @@ CREATE TABLE "Task" (
     "haltReason" TEXT,
     "haltedAt" DATETIME,
     "resumeCondition" TEXT,
+    "juryRunId" INTEGER,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -1784,6 +1785,25 @@ CREATE TABLE "ThemeAutoRun" (
     "updatedAt" DATETIME NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "JuryReviewRun" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "source" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'running',
+    "verifySha256" TEXT,
+    "criteriaRevision" TEXT,
+    "diffFingerprint" TEXT,
+    "verdict" TEXT,
+    "outcome" TEXT,
+    "ownerId" TEXT NOT NULL,
+    "heartbeatAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" DATETIME,
+    "discardReason" TEXT
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "DeveloperModeConfig_taskId_key" ON "DeveloperModeConfig"("taskId");
 
@@ -2644,4 +2664,13 @@ CREATE INDEX "ThemeAutoRun_workspaceId_idx" ON "ThemeAutoRun"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeAutoRun_workspaceId_themeId_key" ON "ThemeAutoRun"("workspaceId", "themeId");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_taskId_startedAt_idx" ON "JuryReviewRun"("taskId", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_status_heartbeatAt_idx" ON "JuryReviewRun"("status", "heartbeatAt");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_workspaceId_idx" ON "JuryReviewRun"("workspaceId");
 `;

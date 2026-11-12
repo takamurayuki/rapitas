@@ -289,3 +289,41 @@ model ThemeAutoRun {
   @@index([workspaceId])
   @@unique([workspaceId, themeId])
 }
+
+/// One adversarial-jury review of a task (companion design 4.5.1): which gate
+/// ran it, against which verify.md and completion-criteria revision, and how it
+/// ended. While running, Task.juryRunId points at it — that column is the lock.
+/// Finished rows are kept so "which criteria was this verdict given under" can
+/// be traced later.
+model JuryReviewRun {
+  id              Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId     Int?
+  /// Deliberately NOT a foreign key: the run history outlives a deleted task.
+  /// @references Task.id
+  taskId          Int
+  // http_save | cli_epilogue (JuryGateSource without human_override)
+  source          String
+  // running | applied | discarded_stale | abandoned | busy_skipped
+  status          String    @default("running")
+  /// WorkflowFile.sha256 of verify.md, read AFTER the lock was taken.
+  verifySha256    String?
+  /// sha256 of the normalised goals/constraints/acceptanceCriteria, read AFTER the lock was taken.
+  criteriaRevision String?
+  /// Fingerprint of the diff the jury actually reviewed (filled once the verdict is in).
+  diffFingerprint String?
+  verdict         String?
+  // passed | stopped | null
+  outcome         String?
+  /// EXECUTION_OWNER_ID of the process running the review.
+  ownerId         String
+  heartbeatAt     DateTime  @default(now())
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  /// JSON: which identifiers drifted and their before/after values (discarded_stale / abandoned).
+  discardReason   String?
+
+  @@index([taskId, startedAt])
+  @@index([status, heartbeatAt])
+  @@index([workspaceId])
+}
