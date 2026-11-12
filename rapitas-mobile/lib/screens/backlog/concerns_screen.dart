@@ -11,7 +11,8 @@ import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
-/// 懸念一覧（全状態の先頭100件）。追加・削除ができる。
+/// 懸念一覧（全状態の先頭100件）。追加ができる。
+/// 削除は行の横スワイプ（右から左）＋確認ダイアログ。
 class ConcernsScreen extends ConsumerStatefulWidget {
   const ConcernsScreen({super.key});
 
@@ -20,16 +21,22 @@ class ConcernsScreen extends ConsumerStatefulWidget {
 }
 
 class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
-  /// 削除リクエスト中の懸念ID（二重タップ防止）
+  /// 削除リクエスト中の懸念ID（二重実行防止）
   final Set<String> _deleting = {};
 
-  Future<void> _delete(Concern concern) async {
-    if (_deleting.contains(concern.id)) return;
+  /// スワイプで消えた行のID。再取得の結果が届くまで一覧から外しておく
+  /// （Dismissible は消えた後も木に残るとエラーになるため）。
+  final Set<String> _dismissed = {};
+
+  /// スワイプ削除の確認→削除。削除できたら true（行が消える）、
+  /// キャンセル・失敗・実行中なら false（行はスワイプ前に戻る）。
+  Future<bool> _delete(Concern concern) async {
+    if (_deleting.contains(concern.id)) return false;
     final ok = await confirmBacklogDelete(
       context,
       '「${concern.title}」を削除します。元に戻せません。',
     );
-    if (!ok || !mounted) return;
+    if (!ok || !mounted) return false;
 
     setState(() => _deleting.add(concern.id));
     final messenger = ScaffoldMessenger.of(context);
@@ -39,11 +46,12 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
     } catch (e) {
       if (mounted) setState(() => _deleting.remove(concern.id));
       messenger.showSnackBar(SnackBar(content: Text('懸念の削除に失敗しました: $e')));
-      return;
+      return false;
     }
     container.invalidate(concernListProvider);
     if (mounted) setState(() => _deleting.remove(concern.id));
     messenger.showSnackBar(const SnackBar(content: Text('懸念を削除しました')));
+    return true;
   }
 
   @override
@@ -72,7 +80,8 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
             } catch (_) {}
           },
           child: concernsAsync.when(
-            data: (concerns) {
+            data: (fetched) {
+              final concerns = fetched.where((c) => !_dismissed.contains(c.id)).toList();
               if (concerns.isEmpty) {
                 return const CenteredMessage(
                   icon: Icons.report_problem_outlined,
@@ -86,10 +95,12 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final concern = concerns[index];
-                  return _ConcernTile(
-                    concern: concern,
+                  return BacklogSwipeToDelete(
+                    itemKey: ValueKey('concern-${concern.id}'),
                     deleting: _deleting.contains(concern.id),
-                    onDelete: () => _delete(concern),
+                    onConfirmDelete: () => _delete(concern),
+                    onDismissed: () => setState(() => _dismissed.add(concern.id)),
+                    child: _ConcernTile(concern: concern),
                   );
                 },
               );
@@ -111,17 +122,11 @@ class _ConcernsScreenState extends ConsumerState<ConcernsScreen> {
   }
 }
 
-/// 懸念行（タイトル＋種別・重要度チップ＋状態ラベル＋削除）
+/// 懸念行（タイトル＋種別・重要度チップ＋状態ラベル）。削除は行のスワイプで行う
 class _ConcernTile extends StatelessWidget {
   final Concern concern;
-  final bool deleting;
-  final VoidCallback onDelete;
 
-  const _ConcernTile({
-    required this.concern,
-    required this.deleting,
-    required this.onDelete,
-  });
+  const _ConcernTile({required this.concern});
 
   @override
   Widget build(BuildContext context) {
@@ -157,22 +162,6 @@ class _ConcernTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: deleting
-          ? const SizedBox(
-              width: 48,
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          : IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: '懸念を削除',
-              onPressed: onDelete,
-            ),
     );
   }
 }
