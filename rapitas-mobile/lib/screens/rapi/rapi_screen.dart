@@ -5,13 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
 import '../../providers/companion_provider.dart';
 import '../../providers/rapi_chat_provider.dart';
+import '../../providers/rapi_chat_spaces_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../providers/voice_provider.dart';
 import '../../services/compose_requests.dart';
 import '../../services/dictation_service.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/rapi_avatar.dart';
 import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
@@ -19,6 +19,8 @@ import 'rapi_companion_card.dart';
 import 'rapi_digest_card.dart';
 import 'rapi_digest_visibility.dart';
 import 'rapi_roadmap_card.dart';
+import 'rapi_space_widgets.dart';
+import 'rapi_spaces_sheet.dart';
 import 'rapi_tidy_card.dart';
 
 // ラピのチャット画面（デスクトップ rapi-avatar パネルのモバイル移植 v1）。
@@ -88,13 +90,7 @@ const _rapiCardBorder = Color(0xFFE4E4E7);
 /// 発言どうしの間隔
 const double _messageGap = 14;
 
-/// AppBar のタイトルに載せるラピのアバター（土台や円形の切り抜きは付けず、本体をそのまま出す。
-/// SVG は背景が透過なので、ページの地色がそのまま見える）。本体の円は直径約40px
-const double _titleAvatarSize = 64;
 
-/// 足元の影は本体の箱の下にはみ出して描かれる（assets/rapi_avatar.svg の viewBox 120×134）。
-/// 名前と重ならないよう、影の分まで高さを取る
-const double _titleAvatarHeight = _titleAvatarSize * 134 / 120;
 
 /// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より高くする
 /// （アバター約71.5 ＋ 間隔1 ＋ 名前12 ≈ 85 に上下の余白を足す）
@@ -361,6 +357,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       _chat.notice(_voiceEmptyMessage);
       return;
     }
+    // 記録の読み込み中は送らない（送信ボタンと同じ。設計 nav39 6.3）
+    if (ref.read(rapiChatSpacesProvider).blocksSend) return;
     _chat.send();
   }
 
@@ -379,6 +377,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     // ラピ本人は AppBar のタイトル位置（アバター＋その真下の名前）の1か所だけに出し、
     // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
+    final spaces = ref.watch(rapiChatSpacesProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
     ref.listen(companionDigestProvider, _onDigestChanged);
     // 上に別の画面が積まれたら聞き取りを止める（build 中は setState できないので次のフレームで）
@@ -403,6 +402,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       for (final (i, m) in chat.messages.indexed) ...[
         _buildMessage(context, chat, m),
         if (i == 0 && digestCard != null) digestCard,
+        // 挨拶のすぐ後ろに、会話スペースの読み込みの行を出す（設計 nav39 6.3）。
+        // 伴走の要約がある場合は要約の後ろ（読み込んだ記録のすぐ上）に置く
+        if (i == 0) ..._spaceRows(spaces),
       ],
       if (chat.messages.isEmpty && digestCard != null) digestCard,
       if (chat.sending) const _ThinkingRow(),
@@ -435,7 +437,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         systemOverlayStyle: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
             .copyWith(statusBarColor: Colors.transparent),
         leading: const _GlassMenuButton(),
-        title: const _RapiTitle(),
+        title: RapiSpaceTitle(title: spaces.displayTitle, onTap: _openSpaces),
         // 音声操作モードの聞き取り表示（アプリの操作。モードがオフなら出ない）。右端に置き、
         // 丸の中心は左のガラスのボタンと左右対称（画面端から 28px）。中央のラピとは離れている。
         // 入力欄のマイク（ラピへの発話）とは役割が違い、マイクが動いている間は常時聞き取りが止まる
@@ -509,7 +511,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     ? _consultPlaceholder
                     : _placeholder,
             hasText: chat.input.trim().isNotEmpty,
-            sending: chat.sending,
+            // 記録の読み込み中は送れない（欄への入力はできる。設計 nav39 6.3）
+            sending: chat.sending || spaces.blocksSend,
             listening: _voiceActive,
             onSend: _chat.send,
             onMic: _onMicPressed,
@@ -519,7 +522,44 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     );
   }
 
+  void _openSpaces() {
+    _cancelVoice();
+    showRapiSpacesSheet(context, onNewConversation: _inputFocus.requestFocus);
+  }
+
+  /// 会話スペースの読み込みの行（前の会話を読み込む・読み込み中・読み込めなかった）
+  List<Widget> _spaceRows(RapiSpacesState spaces) {
+    final notifier = ref.read(rapiChatSpacesProvider.notifier);
+    return [
+      if (spaces.hasMore && !spaces.loading)
+        _spaced(RapiLoadMoreRow(loading: spaces.loadingMore, onTap: notifier.loadMore)),
+      if (spaces.loading) _spaced(const RapiSpaceLoadingRow()),
+      if (spaces.loadFailed)
+        _spaced(RapiLoadFailedRow(
+          onRetry: notifier.retry,
+          onNew: spaces.loadFailedKeepGoing
+              ? null
+              : () {
+                  if (notifier.newConversation() == RapiSwitchOutcome.busy) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(const SnackBar(content: Text(rapiBusySwitchMessage)));
+                  }
+                },
+        )),
+    ];
+  }
+
   Widget _buildMessage(BuildContext context, RapiChatState chat, RapiMessage m) {
+    // 読み込んだ記録のカードは読み取り専用で、「記録」の枠に入れる（設計 nav39 5.2・5.3.1）
+    final card = _buildMessageBody(context, chat, m);
+    final framed = m.archived &&
+        (m.unsupported || m.answer != null || m.change != null || m.roadmap != null ||
+            m.tidy != null || m.companion != null);
+    if (!framed) return card;
+    return _spaced(RapiArchivedFrame(message: m, child: (card as Padding).child!));
+  }
+
+  Widget _buildMessageBody(BuildContext context, RapiChatState chat, RapiMessage m) {
     if (m.draftSlot) {
       final draft = chat.draft;
       if (draft == null) return const SizedBox.shrink();
@@ -538,6 +578,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onCancel: () => _chat.cancelChange(m.id),
         onRevert: () => _chat.revertChange(m.id),
         onOpen: () => _openTask(change.proposal.taskId),
+        readOnly: m.archived,
       ));
     }
 
@@ -553,6 +594,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onEditCriterion: (step, i, text) => _chat.editRoadmapCriterion(m.id, step, i, text),
         onCancel: () => _chat.cancelRoadmap(m.id),
         onOpenTasks: _openTaskList,
+        readOnly: m.archived,
       ));
     }
 
@@ -575,6 +617,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onRestore: (trashId) => _chat.restoreTidy(m.id, trashId),
         onRestoreAll: () => _chat.restoreAllTidy(m.id),
         onOpenTasks: _openTaskList,
+        readOnly: m.archived,
       ));
     }
 
@@ -586,6 +629,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onApply: () => _chat.applyCompanion(m.id),
         onCancel: () => _chat.cancelCompanion(m.id),
         onOpen: () => _openTask(companion.proposal.taskId),
+        readOnly: m.archived,
       ));
     }
 
@@ -921,36 +965,8 @@ String _formatHours(double h) =>
 
 // ---- 部品 ----
 
-/// AppBar のタイトル：ラピ本体（足元の影ごと）と、その真下に小さく名前
-class _RapiTitle extends StatelessWidget {
-  const _RapiTitle();
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 本体を足元の影ごとそのまま出す（土台・円形の切り抜きなし）
-        const SizedBox(
-          width: _titleAvatarSize,
-          height: _titleAvatarHeight,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: RapiAvatar(size: _titleAvatarSize),
-          ),
-        ),
-        const SizedBox(height: 1),
-        Text(
-          'ラピ',
-          maxLines: 1,
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, height: 1.2, color: muted),
-        ),
-      ],
-    );
-  }
-}
+// NOTE: AppBar のタイトル（旧 _RapiTitle）は、スペース名を出す RapiSpaceTitle（rapi_space_widgets.dart）に
+// 置き換えた（nav39 設計 8.5・Q4）。
 
 /// この画面の AppBar の leading：ドロワーを開く丸いガラス風ボタン
 /// （半透明の白の円＋明るい白の細い縁＋ごく薄い影の上に ☰）。動作は標準のハンバーガーと同じ。
@@ -1237,6 +1253,9 @@ class _ChangeCard extends ConsumerWidget {
   final VoidCallback onRevert;
   final VoidCallback onOpen;
 
+  /// 会話スペースから読み込んだ記録：適用・やめる・取り消すを出さない（設計 nav39 5.3.1）
+  final bool readOnly;
+
   const _ChangeCard({
     super.key,
     required this.card,
@@ -1244,6 +1263,7 @@ class _ChangeCard extends ConsumerWidget {
     required this.onCancel,
     required this.onRevert,
     required this.onOpen,
+    this.readOnly = false,
   });
 
   static const _labelStyle = TextStyle(fontSize: 12, color: Color(0xFF6B7280));
@@ -1446,7 +1466,7 @@ class _ChangeCard extends ConsumerWidget {
                   style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
             ),
           const SizedBox(height: 12),
-          if (proposed)
+          if (proposed && !readOnly)
             Row(
               children: [
                 Expanded(
@@ -1473,7 +1493,7 @@ class _ChangeCard extends ConsumerWidget {
           else
             Row(
               children: [
-                if (card.canRevert || phase == RapiChangePhase.reverting)
+                if (!readOnly && (card.canRevert || phase == RapiChangePhase.reverting))
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _violetButton,

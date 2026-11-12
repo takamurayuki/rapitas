@@ -62,6 +62,9 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
 
   RapiChatSaveQueue? get queue => _queue;
 
+  /// 応答待ち・処理中で、いまは切り替えられない
+  bool get busy => _chat.busyForSwitch;
+
   RapiChatNotifier get _chat => ref.read(rapiChatProvider.notifier);
 
   @override
@@ -274,6 +277,8 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
         loadFailedKeepGoing: false, hasMore: false, nextBefore: null, loadingMore: false);
     final queue = _queue;
     unawaited(queue?.flush());
+    // 名前を知らずに開いた（起動時）ときは、一覧から名前を引く（読み込みと並べて走らせる）
+    if (title == null) unawaited(_refreshTitle(id, session));
     try {
       final loaded = await loadSpaceRows(ref.read(rapiChatSpaceServiceProvider), id,
           countsAsTurn: (r) => rapiCountsAsTurn(decodeSavedMessage(r, id: 0)),
@@ -284,7 +289,6 @@ class RapiChatSpacesNotifier extends Notifier<RapiSpacesState> implements RapiSa
           [for (final r in rows) decodeSavedMessage(r, id: 0)], since: since));
       state = state.copyWith(
           loading: false, hasMore: loaded.hasMore, nextBefore: loaded.nextBefore);
-      if (state.title == null) unawaited(_refreshTitle(id, session));
     } on RapiSpaceNotFound {
       if (session != _session) return;
       _openNew(since: since);

@@ -53,6 +53,10 @@ class RapiTidyCardView extends ConsumerWidget {
   final VoidCallback onRestoreAll;
   final VoidCallback onOpenTasks;
 
+  /// 会話スペースから読み込んだ記録：条件・候補のチェック・削除・元に戻すをすべて止める。
+  /// 「すべて見る」（表示の展開）とタスク一覧を開く操作は生かす（設計 nav39 5.3.1）
+  final bool readOnly;
+
   const RapiTidyCardView({
     super.key,
     required this.card,
@@ -70,6 +74,7 @@ class RapiTidyCardView extends ConsumerWidget {
     required this.onRestore,
     required this.onRestoreAll,
     required this.onOpenTasks,
+    this.readOnly = false,
   });
 
   @override
@@ -144,6 +149,7 @@ class RapiTidyCardView extends ConsumerWidget {
 
   List<Widget> _setup(BuildContext context, WidgetRef ref) {
     final searching = card.phase == RapiTidyPhase.searching;
+    final locked = searching || readOnly;
     final byCondition = card.how == RapiTidyHow.condition;
     return [
       const SizedBox(height: 10),
@@ -151,9 +157,9 @@ class RapiTidyCardView extends ConsumerWidget {
         spacing: 6,
         children: [
           _chip('rapi-tidy-how-condition', '条件で選ぶ', byCondition,
-              searching ? null : () => onHow(RapiTidyHow.condition)),
+              locked ? null : () => onHow(RapiTidyHow.condition)),
           _chip('rapi-tidy-how-text', '文章で選ぶ', !byCondition,
-              searching ? null : () => onHow(RapiTidyHow.text)),
+              locked ? null : () => onHow(RapiTidyHow.text)),
         ],
       ),
       const SizedBox(height: 4),
@@ -163,7 +169,7 @@ class RapiTidyCardView extends ConsumerWidget {
               : 'さっきの文をもとに、最近更新されたタスクから消してよさそうなものを挙げます。',
           style: _hintStyle),
       const SizedBox(height: 10),
-      if (byCondition) ..._conditionForm(context, ref, searching) else ..._textForm(),
+      if (byCondition) ..._conditionForm(context, ref, locked) else ..._textForm(),
       if (card.notice != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -171,6 +177,7 @@ class RapiTidyCardView extends ConsumerWidget {
               style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
         ),
       const SizedBox(height: 12),
+      if (!readOnly)
       Row(
         children: [
           Expanded(
@@ -284,6 +291,7 @@ class RapiTidyCardView extends ConsumerWidget {
 
   List<Widget> _listing() {
     final deleting = card.phase == RapiTidyPhase.deleting;
+    final locked = deleting || readOnly;
     final items = card.items;
     final shown = card.visibleItems;
     final count = card.chosenIds.length;
@@ -308,7 +316,7 @@ class RapiTidyCardView extends ConsumerWidget {
               foregroundColor: _violetButton,
               visualDensity: VisualDensity.compact,
             ),
-            onPressed: deleting ? null : () => onAll(!allChosen),
+            onPressed: locked ? null : () => onAll(!allChosen),
             child: Text(allChosen ? 'すべて外す' : 'すべて選ぶ',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
@@ -337,7 +345,7 @@ class RapiTidyCardView extends ConsumerWidget {
         key: ValueKey('rapi-tidy-item-${item.id}'),
         item: item,
         checked: card.chosen.contains(item.id),
-        onTap: deleting ? null : () => onToggle(item.id),
+        onTap: locked ? null : () => onToggle(item.id),
       ),
       if (card.hiddenCount > 0) ...[
         Align(
@@ -345,7 +353,7 @@ class RapiTidyCardView extends ConsumerWidget {
           child: TextButton(
             key: const ValueKey('rapi-tidy-expand'),
             style: TextButton.styleFrom(foregroundColor: _violetButton),
-            onPressed: deleting ? null : onExpand,
+            onPressed: deleting && !readOnly ? null : onExpand,
             child: Text('残り${card.hiddenCount}件も表示'),
           ),
         ),
@@ -365,6 +373,7 @@ class RapiTidyCardView extends ConsumerWidget {
       const SizedBox(height: 8),
       const Text('削除したタスクはゴミ箱に入り、このカードから元に戻せます。', style: _hintStyle),
       const SizedBox(height: 10),
+      if (!readOnly)
       Row(
         children: [
           Expanded(
@@ -431,7 +440,9 @@ class RapiTidyCardView extends ConsumerWidget {
             title: card.titleOf(d.taskId),
             trashId: d.trashId,
             restore: d.trashId == null ? null : card.restoreOf(d.trashId!),
-            onRestore: busy || d.trashId == null ? null : () => onRestore(d.trashId!),
+            onRestore:
+                busy || readOnly || d.trashId == null ? null : () => onRestore(d.trashId!),
+            readOnly: readOnly,
           ),
         if (shown.length < deleted.length)
           Align(
@@ -467,7 +478,7 @@ class RapiTidyCardView extends ConsumerWidget {
           ),
       const SizedBox(height: 12),
       // 1行に並べると狭い端末で溢れるので、まとめての取り消しは全幅で1行に置く
-      if (restorable.length > 1 || (busy && deleted.length > 1))
+      if (!readOnly && (restorable.length > 1 || (busy && deleted.length > 1)))
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -616,17 +627,23 @@ class _DeletedRow extends StatelessWidget {
   final RapiTidyRestore? restore;
   final VoidCallback? onRestore;
 
+  /// 記録のカード：戻すボタン・処理中の印を出さない（結果の印だけを出す）
+  final bool readOnly;
+
   const _DeletedRow({
     super.key,
     required this.title,
     required this.trashId,
     required this.restore,
     required this.onRestore,
+    this.readOnly = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final Widget trailing = switch (restore) {
+      RapiTidyRestore.idle || RapiTidyRestore.failed || RapiTidyRestore.restoring when readOnly =>
+        const SizedBox.shrink(),
       null => const Text('控えが無いため戻せません', style: _hintStyle),
       RapiTidyRestore.restored => const Text('戻しました',
           style: TextStyle(fontSize: 12, color: _doneGreen, fontWeight: FontWeight.w600)),

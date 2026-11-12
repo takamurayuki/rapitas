@@ -16,9 +16,10 @@ class SpaceApp {
   final ManualScheduler clock = ManualScheduler();
   late final ProviderContainer c;
 
-  SpaceApp(this.server, this.prefs, {FakeAssistant? assistant})
+  SpaceApp(this.server, this.prefs, {FakeAssistant? assistant, List<Override> extra = const []})
       : assistant = assistant ?? FakeAssistant() {
     c = ProviderContainer(overrides: [
+      ...extra,
       assistantServiceProvider.overrideWithValue(this.assistant),
       rapiChatSpaceServiceProvider.overrideWithValue(server),
       rapiSaveStoreFactoryProvider.overrideWithValue((key) => MemoryStore(prefs, key)),

@@ -48,6 +48,8 @@ class RapiSpacesState {
 
   /// 画面に出すタイトル
   String get displayTitle {
+    // 起動時など、名前を知らないまま既存のスペースを読み込んでいる間は「新しい会話」と出さない
+    if (spaceId != null && title == null && loading) return '読み込み中…';
     final t = title?.trim();
     return t == null || t.isEmpty ? rapiNewSpaceTitle : t;
   }
