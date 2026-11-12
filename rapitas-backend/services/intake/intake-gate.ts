@@ -20,6 +20,7 @@ import {
   writeWorkflowFile,
 } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
+import { writeTaskCriteria, type CriteriaWriteDb } from '../task/task-criteria-write';
 import { deriveTaskSpec, generateIntakeQuestions } from '../task/task-spec-deriver';
 import {
   createNotification,
@@ -262,15 +263,21 @@ async function enrichSpec(taskId: number, task: IntakeTaskRow): Promise<SpecQual
     acceptanceCriteria.length > parseSpecArray(task.acceptanceCriteria).length;
   if (!grew) return null;
 
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      goals: JSON.stringify(goals),
-      constraints: JSON.stringify(constraints),
-      acceptanceCriteria: JSON.stringify(acceptanceCriteria),
-      updatedAt: new Date(),
-    },
+  // NOTE: Through writeTaskCriteria like every criteria write on an existing
+  // task (companion design 4.5.1): it refuses while a jury holds the lock or a
+  // verdict is pending, and only if the columns are still what was merged
+  // from. A refusal skips the enrichment — the spec simply stays as it was.
+  // No activity: an enrichment only appends, so criterion numbers don't shift.
+  const written = await writeTaskCriteria(prisma as unknown as CriteriaWriteDb, {
+    taskId,
+    next: { goals, constraints, acceptanceCriteria },
+    actor: 'system:intake',
+    recordActivity: false,
   });
+  if (!written.ok) {
+    log.info({ taskId, reason: written.reason }, '[intake] Spec enrichment not written');
+    return null;
+  }
   await recordTransition({
     taskId,
     fromStatus: task.workflowStatus ?? null,

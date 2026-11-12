@@ -409,6 +409,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           acceptanceCriteria: t.Optional(
             t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
           ),
+          expectedCriteriaRevision: t.Optional(t.String({ maxLength: 128 })),
           isProtected: t.Optional(t.Boolean()),
           autoRunExcluded: t.Optional(t.Boolean()),
         },

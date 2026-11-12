@@ -24,6 +24,10 @@ import {
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
 import { isValidEntityId } from '../../../utils/common/id-validation';
+import {
+  writeTaskCriteria,
+  type CriteriaWriteDb,
+} from '../../../services/task/task-criteria-write';
 import { humanSourceLabel } from '../../../utils/common/human-source';
 
 const log = createLogger('routes:workflow:resume');
@@ -141,11 +145,24 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   // status set for an unrelated reason.
   const statusUpdate = task.status === 'blocked' ? { status: 'todo' as const } : {};
 
+  // NOTE: goals are part of the completion criteria, so they go through
+  // writeTaskCriteria (companion design 4.5.1) — never next to other columns.
+  // A refusal (a jury lock left over, for one) only skips the seeding; the
+  // answer itself still lands in the description below.
+  const seeded = await writeTaskCriteria(prisma as unknown as CriteriaWriteDb, {
+    taskId,
+    next: { goals },
+    actor: 'user:answer_question',
+    recordActivity: false,
+  });
+  if (!seeded.ok) {
+    log.warn({ taskId, reason: seeded.reason }, '[answer-question] Goal seeding refused');
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       description: clarified,
-      goals: JSON.stringify(goals),
       workflowStatus: 'draft',
       updatedAt: new Date(),
       ...statusUpdate,
