@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/backlog.dart';
+import '../../models/task.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../providers/backlog_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/theme_data_provider.dart';
 import '../../widgets/centered_message.dart';
 import 'backlog_widgets.dart';
+import 'idea_filter_sheet.dart';
 import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
-/// アイデア一覧（先頭100件）。追加・削除ができる。
+/// アイデア一覧（先頭100件）。テーマ・優先度・状態・キーワードで絞り込め、追加・削除ができる。
 class IdeasScreen extends ConsumerStatefulWidget {
   const IdeasScreen({super.key});
 
@@ -46,15 +49,31 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
     messenger.showSnackBar(const SnackBar(content: Text('アイデアを削除しました')));
   }
 
+  void _setFilter(IdeaFilter filter) {
+    ref.read(ideaFilterProvider.notifier).state = filter;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filter = ref.watch(ideaFilterProvider);
+    final isFiltered = filter != const IdeaFilter();
     final ideasAsync = ref.watch(ideaListProvider);
+    // 行のテーマ名・チップのラベル用。取れなければテーマ名は出さないだけで一覧は表示する
+    final themes = ref.watch(themeListProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('アイデア'),
         actions: [
           const VoiceModeIndicator(trailing: false),
+          IconButton(
+            icon: Badge(
+              isLabelVisible: isFiltered,
+              child: const Icon(Icons.filter_list),
+            ),
+            tooltip: 'フィルター',
+            onPressed: () => showIdeaFilterSheet(context),
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'アイデアを追加',
@@ -64,61 +83,127 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
       ),
       body: VoiceScrollTarget(
         path: '/ideas',
-        child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(ideaListProvider);
-            try {
-              await ref.read(ideaListProvider.future);
-            } catch (_) {}
-          },
-          child: ideasAsync.when(
-            data: (ideas) {
-              if (ideas.isEmpty) {
-                return const CenteredMessage(
-                  icon: Icons.lightbulb_outline,
-                  message: 'アイデアはありません',
-                );
-              }
-              return ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 16),
-                itemCount: ideas.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final idea = ideas[index];
-                  return _IdeaTile(
-                    idea: idea,
-                    deleting: _deleting.contains(idea.id),
-                    onDelete: () => _delete(idea),
-                  );
+        child: Column(
+          children: [
+            if (isFiltered) _buildActiveFilterChips(filter, themes),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  // 一覧は ideaFilterProvider を watch しているので、条件を保ったまま取り直す
+                  ref.invalidate(ideaListProvider);
+                  try {
+                    await ref.read(ideaListProvider.future);
+                  } catch (_) {}
                 },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => CenteredMessage(
-              icon: Icons.error_outline,
-              iconColor: Colors.red,
-              message: 'アイデアの取得に失敗しました',
-              action: ElevatedButton(
-                onPressed: () => ref.invalidate(ideaListProvider),
-                child: const Text('再試行'),
+                child: ideasAsync.when(
+                  data: (ideas) {
+                    if (ideas.isEmpty) {
+                      return isFiltered
+                          ? CenteredMessage(
+                              icon: Icons.filter_alt_off,
+                              message: '条件に合うアイデアはありません',
+                              action: OutlinedButton.icon(
+                                onPressed: () => _setFilter(const IdeaFilter()),
+                                icon: const Icon(Icons.filter_alt_off),
+                                label: const Text('フィルターを解除'),
+                              ),
+                            )
+                          : const CenteredMessage(
+                              icon: Icons.lightbulb_outline,
+                              message: 'アイデアはありません',
+                            );
+                    }
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 16),
+                      itemCount: ideas.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final idea = ideas[index];
+                        return _IdeaTile(
+                          idea: idea,
+                          themeName: ideaThemeName(themes, idea.themeId),
+                          deleting: _deleting.contains(idea.id),
+                          onDelete: () => _delete(idea),
+                        );
+                      },
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (_, __) => CenteredMessage(
+                    icon: Icons.error_outline,
+                    iconColor: Colors.red,
+                    message: 'アイデアの取得に失敗しました',
+                    action: ElevatedButton(
+                      onPressed: () => ref.invalidate(ideaListProvider),
+                      child: const Text('再試行'),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 適用中の条件をチップで並べる。× で個別に解除できる（タスク一覧と同じ流儀）。
+  Widget _buildActiveFilterChips(IdeaFilter filter, List<TaskTheme>? themes) {
+    final themeId = filter.themeId;
+    final priority = filter.priority;
+    final status = filter.status;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            if (themeId != null)
+              InputChip(
+                label: Text('テーマ：${ideaThemeName(themes, themeId) ?? '指定中'}'),
+                onDeleted: () => _setFilter(filter.copyWith(clearThemeId: true)),
+                deleteButtonTooltipMessage: 'テーマの絞り込みを解除',
+              ),
+            if (status != null)
+              InputChip(
+                label: Text('状態：${ideaStatusLabels[status] ?? status}'),
+                onDeleted: () => _setFilter(filter.copyWith(clearStatus: true)),
+                deleteButtonTooltipMessage: '状態の絞り込みを解除',
+              ),
+            if (priority != null)
+              InputChip(
+                label: Text('優先度：${ideaPriorityLabels[priority] ?? priority}'),
+                onDeleted: () => _setFilter(filter.copyWith(clearPriority: true)),
+                deleteButtonTooltipMessage: '優先度の絞り込みを解除',
+              ),
+            if (filter.search.isNotEmpty)
+              InputChip(
+                label: Text('キーワード：${filter.search}'),
+                onDeleted: () => _setFilter(filter.copyWith(search: '')),
+                deleteButtonTooltipMessage: 'キーワードの絞り込みを解除',
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// アイデア行（タイトル＋優先度チップ＋作成日＋削除）
+/// アイデア行（タイトル＋優先度・テーマ・使用済みのチップ＋作成日＋削除）
 class _IdeaTile extends StatelessWidget {
   final Idea idea;
+
+  /// テーマ名。テーマ一覧が取れない・該当が無いときは null で、何も出さない
+  final String? themeName;
   final bool deleting;
   final VoidCallback onDelete;
 
   const _IdeaTile({
     required this.idea,
+    required this.themeName,
     required this.deleting,
     required this.onDelete,
   });
@@ -135,15 +220,20 @@ class _IdeaTile extends StatelessWidget {
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Row(
+        // NOTE: Row から Wrap に変更。テーマ名・使用済みが加わり、狭い幅で横にはみ出すため
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (priorityLabel != null) ...[
+            if (priorityLabel != null)
               BacklogChip(
                 label: '優先度 $priorityLabel',
                 color: backlogPriorityColor(idea.priority),
               ),
-              const SizedBox(width: 8),
-            ],
+            if (themeName case final name?) BacklogChip(label: name),
+            if (idea.usedInTaskId != null)
+              const BacklogChip(label: '使用済み', color: Colors.green),
             if (date.isNotEmpty) Text(date),
           ],
         ),

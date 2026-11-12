@@ -40,8 +40,11 @@ class BacklogChip extends StatelessWidget {
             : theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(4),
       ),
+      // NOTE: テーマ名など長くなりうるラベルが行からはみ出さないよう1行で省略する
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
           color: tint ?? theme.colorScheme.onSurfaceVariant,
           fontWeight: tint != null ? FontWeight.w600 : null,

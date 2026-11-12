@@ -21,8 +21,28 @@ class BacklogService {
 
   // ---- アイデア ----
 
-  Future<List<Idea>> getIdeas() async {
-    final response = await _client.get('/idea-box', queryParameters: _firstPage);
+  /// アイデア一覧（先頭100件）。絞り込みは指定されたもの（null・空文字でないもの）だけクエリに載せる。
+  ///
+  /// - [themeId]：テーマID（バックエンドは文字列で受けて int 化する）
+  /// - [priority]：urgent / high / medium / low（medium は優先度タグなしのアイデアも含む）
+  /// - [status]：open（未使用）/ used（使用済み）/ all。未指定はバックエンドで 'all' と同じ全件
+  /// - [search]：キーワード（バックエンド側でタイトル・本文を検索）
+  Future<List<Idea>> getIdeas({
+    String? themeId,
+    String? priority,
+    String? status,
+    String? search,
+  }) async {
+    final query = <String, dynamic>{..._firstPage};
+    void put(String key, String? value) {
+      if (value != null && value.isNotEmpty) query[key] = value;
+    }
+
+    put('themeId', themeId);
+    put('priority', priority);
+    put('status', status);
+    put('search', search);
+    final response = await _client.get('/idea-box', queryParameters: query);
     return _items(response.data, 'ideas').map(Idea.fromJson).toList();
   }
 
