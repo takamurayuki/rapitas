@@ -18,6 +18,7 @@ import 'package:rapitas_mobile/providers/companion_provider.dart';
 import 'package:rapitas_mobile/providers/connection_provider.dart';
 import 'package:rapitas_mobile/providers/execution_provider.dart';
 import 'package:rapitas_mobile/providers/notification_provider.dart';
+import 'package:rapitas_mobile/providers/rapi_chat_provider.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
 import 'package:rapitas_mobile/providers/task_provider.dart';
 import 'package:rapitas_mobile/providers/voice_provider.dart';
@@ -126,7 +127,8 @@ final _waitingJson = {
 
 late _FakeDigestService _digestSvc;
 
-Future<void> _pumpRapi(WidgetTester tester) async {
+/// 会話の履歴（[history] 件の案内）を先に積んでから、ラピを開く
+Future<void> _pumpRapi(WidgetTester tester, {int history = 0}) async {
   SharedPreferences.setMockInitialValues({});
   final router = GoRouter(initialLocation: '/rapi', routes: [
     GoRoute(path: '/rapi', builder: (_, __) => const RapiScreen()),
@@ -135,15 +137,20 @@ Future<void> _pumpRapi(WidgetTester tester) async {
         builder: (_, s) => Scaffold(body: Text('判断画面 ${s.pathParameters['id']}'))),
     GoRoute(path: '/tasks/:id', builder: (_, s) => Scaffold(body: Text('詳細 ${s.pathParameters['id']}'))),
   ]);
-  await tester.pumpWidget(ProviderScope(
+  final container = ProviderContainer(overrides: [
+    assistantServiceProvider.overrideWithValue(FakeAssistant()),
+    dictationServiceProvider.overrideWithValue(_IdleDictation()),
+    taskListProvider.overrideWith((ref, filter) async => const []),
+    companionDigestServiceProvider.overrideWithValue(_digestSvc),
+    connectionSettingsProvider.overrideWith((ref) => _LoadedSettings()),
+  ]);
+  addTearDown(container.dispose);
+  for (var i = 1; i <= history; i++) {
+    container.read(rapiChatProvider.notifier).notice('これまでの会話 $i：昨日相談した設定画面の件で、保存先と入力の上限について話しました。');
+  }
+  await tester.pumpWidget(UncontrolledProviderScope(
     key: UniqueKey(),
-    overrides: [
-      assistantServiceProvider.overrideWithValue(FakeAssistant()),
-      dictationServiceProvider.overrideWithValue(_IdleDictation()),
-      taskListProvider.overrideWith((ref, filter) async => const []),
-      companionDigestServiceProvider.overrideWithValue(_digestSvc),
-      connectionSettingsProvider.overrideWith((ref) => _LoadedSettings()),
-    ],
+    container: container,
     child: RepaintBoundary(
       key: _boundaryKey,
       child: MaterialApp.router(debugShowCheckedModeBanner: false, routerConfig: router),
@@ -157,6 +164,10 @@ void main() {
 
   testWidgets('opening ラピ shows what happened, what you decide, and the screen to do it on',
       (tester) async {
+    // 要約が丸ごと入る高さ（行が見えた分だけ既読にするので、全部見える画面で確かめる）
+    tester.view.physicalSize = const Size(390 * 3, 1500 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
     await _pumpRapi(tester);
     expect(find.byKey(const ValueKey('rapi-digest')), findsOneWidget);
     expect(find.text('あなたの判断を待っているタスクが2件あります'), findsOneWidget);
@@ -178,7 +189,7 @@ void main() {
     expect(find.text('「完了の確認中」に進みました'), findsOneWidget);
     expect(find.byKey(const ValueKey('rapi-digest-decision-44')), findsNothing);
 
-    // 見せた位置までを既読にする
+    // 見えた行の位置までを既読にする（全部見えているので3件まとめて1回）
     expect(_digestSvc.seen, [
       [(taskId: '42', cursor: 301), (taskId: '43', cursor: 312), (taskId: '44', cursor: 320)],
     ]);
@@ -191,6 +202,69 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('rapi-digest-open-42')));
     await tester.pumpAndSettle();
     expect(find.text('判断画面 42'), findsOneWidget);
+  });
+
+  // Codex レビュー nav42 指摘1の回帰：長い会話では一覧が末尾から始まり、挨拶の後の要約は画面の外にある
+  testWidgets('long conversation on a phone: the digest off screen is not marked seen, and shows again',
+      (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await _pumpRapi(tester, history: 30);
+
+    // 要約は読み込んだが、画面の外にあるので既読にしない
+    expect(_digestSvc.gets, 1);
+    expect(_digestSvc.seen, isEmpty);
+    // 最新の発言が見える位置から始まり（要約が後から届いても押し出されない）、要約は見えていない
+    expect(find.textContaining('これまでの会話 30：'), findsOneWidget);
+    expect(find.text('設定画面を作る'), findsNothing);
+
+    // 入力などで描き直しても、見えていないものは既読にしない
+    await tester.enterText(find.byType(TextField), 'あとで');
+    await tester.pumpAndSettle();
+    expect(_digestSvc.seen, isEmpty);
+
+    // 次にラピを開いたときも、要約はまた出る（カーソルが進んでいないので、サーバーは同じ要約を返す）
+    await _pumpRapi(tester, history: 30);
+    expect(_digestSvc.gets, 2);
+    expect(_digestSvc.seen, isEmpty);
+    expect(find.textContaining('これまでの会話 30：'), findsOneWidget);
+    // 上へ戻れば、前回見なかった要約がそのまま残っている
+    await tester.fling(find.byType(ListView), const Offset(0, 6000), 4000);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rapi-digest')), findsOneWidget);
+    expect(find.text('あなたが決めること：計画の承認'), findsOneWidget);
+  });
+
+  testWidgets('long conversation: scrolling up marks only the rows that came into view, once each',
+      (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await _pumpRapi(tester, history: 30);
+    expect(_digestSvc.seen, isEmpty);
+
+    // 末尾から少しずつ上へ戻す。下の行（44）から画面に入るので、最初に既読になるのは下の行だけ
+    List<String> seenIds() => [for (final batch in _digestSvc.seen) ...batch.map((s) => s.taskId)];
+    for (var i = 0; i < 60 && _digestSvc.seen.isEmpty; i++) {
+      await tester.drag(find.byType(ListView), const Offset(0, 80));
+      await tester.pumpAndSettle();
+    }
+    expect(_digestSvc.seen, isNotEmpty);
+    expect(_digestSvc.seen.first.map((s) => s.taskId), contains('44'));
+    expect(_digestSvc.seen.first.map((s) => s.taskId), isNot(contains('42')));
+    // まだ見えていない上の行（42）は、その時点では送っていない
+    expect(seenIds(), isNot(contains('42')));
+
+    // 先頭まで戻すと残りの行も見え、その分だけ足す。見えた行を2回送らない
+    await tester.fling(find.byType(ListView), const Offset(0, 6000), 4000);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ラピです'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(seenIds()..sort(), ['42', '43', '44']);
+    final all = [for (final batch in _digestSvc.seen) ...batch];
+    expect(all, containsAll([(taskId: '42', cursor: 301), (taskId: '43', cursor: 312), (taskId: '44', cursor: 320)]));
   });
 
   testWidgets('nothing new and nothing to decide: no card, nothing marked seen', (tester) async {
@@ -229,6 +303,18 @@ void main() {
     addTearDown(tester.view.reset);
     await _pumpRapi(tester);
     await _shoot(tester, '$shotDir/rapi_digest.png');
+  }, skip: shotDir == null);
+
+  testWidgets('writes captures of a long conversation (digest off screen, then scrolled to)',
+      (tester) async {
+    await _loadRealFonts();
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await _pumpRapi(tester, history: 30);
+    await _shoot(tester, '$shotDir/rapi_digest_long_end.png');
+    await tester.fling(find.byType(ListView), const Offset(0, 6000), 4000);
+    await _shoot(tester, '$shotDir/rapi_digest_long_top.png');
   }, skip: shotDir == null);
 
   testWidgets('writes a capture of the home banner', (tester) async {

@@ -34,7 +34,8 @@ class CompanionDigestState {
 /// 伴走の要約（ラピ伴走化 第2段階-1）。アプリを開いたとき・ラピタブを開いたときに読み直す（設計 Q5：プッシュはしない）。
 ///
 /// 「前回」の位置はサーバーの TaskCompanion.lastDigestTransitionId。読むだけでは進まず、
-/// ラピの画面が要約を見せたときに [markShown] で進める（ホームの小さな案内は既読にしない）
+/// ラピの画面で要約の行が実際に画面に見えたとき、その行の分だけ [markShown] で進める
+/// （ホームの小さな案内は既読にしない）
 class CompanionDigestNotifier extends StateNotifier<CompanionDigestState> {
   final Ref _ref;
   Future<void>? _inFlight;
@@ -76,12 +77,16 @@ class CompanionDigestNotifier extends StateNotifier<CompanionDigestState> {
     }
   }
 
-  /// ラピの画面で要約を見せた。見せた位置までをサーバーへ返す（失敗しても次回もう一度出るだけ）
-  Future<void> markShown() async {
-    final digest = state.digest;
-    if (digest == null || digest.isEmpty) return;
+  /// ラピの画面で、要約のうち [shown] の行が画面に見えた。その行の位置までをサーバーへ返す
+  /// （失敗しても次回もう一度出るだけ）。
+  ///
+  /// NOTE: 要約全体ではなく、見えた行だけを渡すこと。長い会話では要約が画面外にあり、
+  /// まとめて既読にすると、見ていない動きが次回から消える（設計 段D「見せた位置まで」）
+  Future<void> markShown(Iterable<DigestItem> shown) async {
+    final items = shown.toList();
+    if (items.isEmpty) return;
     try {
-      await _ref.read(companionDigestServiceProvider).markSeen(digest.items);
+      await _ref.read(companionDigestServiceProvider).markSeen(items);
     } catch (_) {
       // 既読位置は表示用の値。送れなければ同じ動きがもう一度出るだけで、状態は壊れない
     }

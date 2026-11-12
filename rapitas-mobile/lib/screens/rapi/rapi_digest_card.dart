@@ -66,11 +66,15 @@ class RapiDigestCardView extends StatelessWidget {
   /// タスクの詳細を開く
   final void Function(String taskId) onOpenTask;
 
+  /// 各タスクの行に付けるキー。画面がその行が見えているかを測るのに使う（既読は見えた行の分だけ）
+  final GlobalKey Function(String taskId)? itemKeyOf;
+
   const RapiDigestCardView({
     super.key,
     required this.digest,
     required this.onOpenDecision,
     required this.onOpenTask,
+    this.itemKeyOf,
   });
 
   @override
@@ -96,11 +100,14 @@ class RapiDigestCardView extends StatelessWidget {
                   ?.copyWith(color: _violetButton, fontWeight: FontWeight.w600)),
           for (final item in digest.items) ...[
             const SizedBox(height: 10),
-            _DigestItemView(
-              key: ValueKey('rapi-digest-item-${item.taskId}'),
-              item: item,
-              onOpenDecision: onOpenDecision,
-              onOpenTask: onOpenTask,
+            KeyedSubtree(
+              key: itemKeyOf?.call(item.taskId),
+              child: _DigestItemView(
+                key: ValueKey('rapi-digest-item-${item.taskId}'),
+                item: item,
+                onOpenDecision: onOpenDecision,
+                onOpenTask: onOpenTask,
+              ),
             ),
           ],
           const SizedBox(height: 6),

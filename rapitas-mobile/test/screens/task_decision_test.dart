@@ -48,13 +48,19 @@ class _ReadsClient implements ApiClient {
 typedef Sent = ({String path, Object? data, Map<String, dynamic> headers});
 
 /// 送信を捕まえて、決めた状態で応答する Dio
-Dio _capturingDio(List<Sent> sent, {int status = 200, Object? body}) {
+/// [replies] があれば、要求ごとに先頭から順に使う（尽きたら [status] / [body]）
+Dio _capturingDio(List<Sent> sent,
+    {int status = 200, Object? body, List<({int status, Object? body})> replies = const []}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://desktop.local:3001'));
+  final queue = [...replies];
   dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
     sent.add((path: options.path, data: options.data, headers: options.headers));
-    final response = Response(requestOptions: options, statusCode: status, data: body ?? {'success': true});
-    if (status >= 400) {
-      handler.reject(DioException.badResponse(statusCode: status, requestOptions: options, response: response));
+    final reply = queue.isEmpty ? (status: status, body: body) : queue.removeAt(0);
+    final status_ = reply.status;
+    final response =
+        Response(requestOptions: options, statusCode: status_, data: reply.body ?? {'success': true});
+    if (status_ >= 400) {
+      handler.reject(DioException.badResponse(statusCode: status_, requestOptions: options, response: response));
     } else {
       handler.resolve(response);
     }
@@ -78,7 +84,8 @@ const _plan = '# 実装計画\n\n## 変更するもの\n- 設定画面を1つ足
 late List<Sent> sent;
 late _ReadsClient _reads;
 
-Future<void> _pump(WidgetTester tester, Task task, {int status = 200, Object? body}) async {
+Future<void> _pump(WidgetTester tester, Task task,
+    {int status = 200, Object? body, List<({int status, Object? body})> replies = const []}) async {
   SharedPreferences.setMockInitialValues({});
   sent = [];
   _reads = _ReadsClient({
@@ -101,7 +108,7 @@ Future<void> _pump(WidgetTester tester, Task task, {int status = 200, Object? bo
       },
     },
   });
-  final service = DecisionService(_reads, HumanDecisionClient(_capturingDio(sent, status: status, body: body)));
+  final service = DecisionService(_reads, HumanDecisionClient(_capturingDio(sent, status: status, body: body, replies: replies)));
   final router = GoRouter(initialLocation: '/tasks', routes: [
     GoRoute(path: '/tasks', builder: (_, __) => const Scaffold(body: Text('一覧')), routes: [
       GoRoute(path: ':id/decide', builder: (_, s) => TaskDecisionScreen(taskId: s.pathParameters['id']!)),
@@ -153,6 +160,105 @@ void main() {
     // 送り終えたら元の画面へ戻り、結果を知らせる
     expect(find.text('一覧'), findsOneWidget);
     expect(find.text('計画を承認しました。実装に進みます。'), findsOneWidget);
+  });
+
+  // バックエンド（workflow-handlers-plan.ts）が、スキーマ変更を宣言した計画の普通の承認に返す拒否
+  const schemaRefusal = (
+    status: 400,
+    body: {
+      'success': false,
+      'error': 'このplanはPrismaスキーマ変更を含みます。承認するには overrideForbiddenChange:true と overrideReason を指定してください。',
+    },
+  );
+
+  testWidgets('a plan with a Prisma schema change: refused, then approved with a reason from mobile',
+      (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(workflowStatus: 'plan_created'), replies: [schemaRefusal]);
+
+    await tester.tap(find.byKey(const ValueKey('decision-approve-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+
+    // 1回目は普通の承認。断られたら画面に留まり、スキーマ変更を含むことと理由の欄を出す
+    expect(sent, hasLength(1));
+    _expectHuman(sent.single, '/workflow/tasks/42/approve-plan', {'approved': true});
+    expect(find.byType(TaskDecisionScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('decision-schema-override')), findsOneWidget);
+    expect(find.text('データベースの構造が変わる計画です'), findsOneWidget);
+    expect(find.byKey(const ValueKey('decision-approve-plan')), findsNothing);
+    // 拒否の原文（API の項目名）はそのまま見せない
+    expect(find.textContaining('overrideForbiddenChange'), findsNothing);
+
+    // 理由が空（空白だけ）では送れない
+    final approve = find.byKey(const ValueKey('decision-schema-approve'));
+    expect(tester.widget<FilledButton>(approve).onPressed, isNull);
+    await tester.enterText(find.byKey(const ValueKey('decision-schema-reason')), '   ');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(approve).onPressed, isNull);
+
+    await tester.enterText(find.byKey(const ValueKey('decision-schema-reason')), '  設定を保存する表が必要なため ');
+    await tester.pump();
+    await tester.ensureVisible(approve);
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+    // 送る前に、理由を添えてもう一度確かめる。やめれば送らない
+    expect(find.text('データベースの構造の変更を認めますか'), findsOneWidget);
+    expect(find.textContaining('理由：設定を保存する表が必要なため'), findsOneWidget);
+    await tester.tap(find.text('やめる'));
+    await tester.pumpAndSettle();
+    expect(sent, hasLength(1));
+
+    await tester.tap(approve);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+
+    // 2回目は理由付きで、同じく人の操作として approve-plan に届く
+    expect(sent, hasLength(2));
+    _expectHuman(sent.last, '/workflow/tasks/42/approve-plan', {
+      'approved': true,
+      'overrideForbiddenChange': true,
+      'overrideReason': '設定を保存する表が必要なため',
+    });
+    expect(find.text('一覧'), findsOneWidget);
+    expect(find.text('データベースの構造の変更を認めて、計画を承認しました。実装に進みます。'), findsOneWidget);
+  });
+
+  testWidgets('other plan refusals stay plain errors and do not offer the schema override',
+      (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(workflowStatus: 'plan_created'),
+        status: 400, body: {'success': false, 'error': 'approved (boolean) is required'});
+    await tester.tap(find.byKey(const ValueKey('decision-approve-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.text('approved (boolean) is required'), findsOneWidget);
+    expect(find.byKey(const ValueKey('decision-schema-override')), findsNothing);
+  });
+
+  testWidgets('a refusal of the reasoned approval is shown and keeps the reason form',
+      (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(workflowStatus: 'plan_created'),
+        replies: [schemaRefusal, (status: 409, body: {'success': false, 'error': '計画はもう承認されています。'})]);
+    await tester.tap(find.byKey(const ValueKey('decision-approve-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('decision-schema-reason')), '設定を保存する表が必要なため');
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('decision-schema-approve')));
+    await tester.tap(find.byKey(const ValueKey('decision-schema-approve')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+    expect(sent, hasLength(2));
+    expect(find.text('計画はもう承認されています。'), findsOneWidget);
+    expect(find.byKey(const ValueKey('decision-schema-override')), findsOneWidget);
+    expect(find.byType(TaskDecisionScreen), findsOneWidget);
   });
 
   testWidgets('plan revision goes to revise-plan with the instruction', (tester) async {
@@ -262,6 +368,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('decision-revise-open')));
     await tester.pumpAndSettle();
     await shoot('plan_revise');
+    await _pump(tester, _task(workflowStatus: 'plan_created'), replies: [schemaRefusal]);
+    await tester.tap(find.byKey(const ValueKey('decision-approve-plan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('decision-confirm')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('decision-schema-reason')), '設定を保存する表が必要なため');
+    await shoot('plan_schema');
+    await tester.tap(find.byKey(const ValueKey('decision-schema-approve')));
+    await shoot('plan_schema_confirm');
     await _pump(tester, _task(workflowStatus: 'awaiting_question'));
     await shoot('question');
     await _pump(tester, _task(workflowStatus: 'verify_done', haltReason: 'awaiting_review_decision'));

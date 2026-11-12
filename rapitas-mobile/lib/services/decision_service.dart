@@ -12,6 +12,17 @@ class DecisionFailure implements Exception {
   String toString() => message;
 }
 
+/// 計画が Prisma スキーマの変更を宣言しているため、普通の承認を断られた。
+///
+/// バックエンド（workflow-handlers-plan.ts）は、この計画の承認に `overrideForbiddenChange: true` と
+/// 理由（`overrideReason`）を求める。画面は確認と理由の入力を経て
+/// [DecisionService.approvePlan] の `overrideReason` 付きで送り直す
+class SchemaChangeApprovalRequired extends DecisionFailure {
+  const SchemaChangeApprovalRequired()
+      : super('この計画はデータベースの構造（Prisma スキーマ）を変えます。承認するには、変えてよい理由を書いてください。',
+            statusCode: 400);
+}
+
 /// レビュー保留の中身（GET /workflow/tasks/:id/review-hold）
 class ReviewHoldInfo {
   final String reason;
@@ -61,9 +72,36 @@ class DecisionService {
     );
   }
 
-  /// 計画を承認する（POST /workflow/tasks/:id/approve-plan）
-  Future<void> approvePlan(String taskId) =>
-      _send('/workflow/tasks/$taskId/approve-plan', {'approved': true});
+  /// 計画を承認する（POST /workflow/tasks/:id/approve-plan）。
+  ///
+  /// 計画が Prisma スキーマの変更を含むと、[overrideReason] 無しの承認は
+  /// [SchemaChangeApprovalRequired] で断られる。そのときは本人が書いた理由を [overrideReason] に入れて
+  /// 送り直す（`overrideForbiddenChange: true` を付ける）。
+  ///
+  /// NOTE: 判定はバックエンドに任せ、ここでは計画の本文を解析しない。バックエンドには宣言ファイルの
+  /// 読み方が2つあり（parsePlanFiles と plan-declared-files）、端末側にもう1つ作るとずれるため。
+  /// 断られたかどうかは、拒否文が `overrideForbiddenChange` を名指ししているかで見る（専用のコードは無い）
+  Future<void> approvePlan(String taskId, {String? overrideReason}) async {
+    final reason = overrideReason?.trim();
+    try {
+      await _decide.post('/workflow/tasks/$taskId/approve-plan', data: {
+        'approved': true,
+        if (reason != null && reason.isNotEmpty) ...{
+          'overrideForbiddenChange': true,
+          'overrideReason': reason,
+        },
+      });
+    } on DioException catch (e) {
+      if (reason == null && _asksSchemaOverride(e)) throw const SchemaChangeApprovalRequired();
+      throw DecisionFailure(_messageOf(e), statusCode: e.response?.statusCode);
+    }
+  }
+
+  static bool _asksSchemaOverride(DioException e) {
+    final data = e.response?.data;
+    final error = data is Map ? data['error'] ?? data['message'] : null;
+    return e.response?.statusCode == 400 && error is String && error.contains('overrideForbiddenChange');
+  }
 
   /// 計画の直してほしい点を伝える（POST /workflow/tasks/:id/revise-plan。計画づくりに戻る）
   Future<void> revisePlan(String taskId, String instruction) =>

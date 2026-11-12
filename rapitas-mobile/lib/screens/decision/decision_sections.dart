@@ -5,7 +5,9 @@ import '../../services/decision_service.dart';
 import '../../utils/plain_reasons.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
 
-// 判断画面の4つの節（計画承認／質問への回答／レビュー保留／停止の解除）。
+part 'plan_decision_section.dart';
+
+// 判断画面の4つの節（計画承認／質問への回答／レビュー保留／停止の解除）。計画承認は plan_decision_section.dart。
 // どの送信も DecisionService を通り、X-Rapitas-Source: ui を付けてバックエンドの人間専用ルートへ直接届く。
 
 /// 判断を送り終えたときに呼ぶ（画面が読み直しと戻る処理をする）。[message] は結果の一文
@@ -27,13 +29,16 @@ abstract class _DecisionState<T extends ConsumerStatefulWidget> extends Consumer
       await send();
       if (mounted) onDone(doneMessage);
     } on DecisionFailure catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (mounted && !handleFailure(e)) setState(() => error = e.message);
     } catch (_) {
       if (mounted) setState(() => error = '送れませんでした。通信を確かめて、もう一度押してください。');
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
+
+  /// 断られ方に応じて節が自分で表示を切り替えるとき true を返す（そのときはエラー文を出さない）
+  bool handleFailure(DecisionFailure failure) => false;
 
   Widget errorText(BuildContext context) => error == null
       ? const SizedBox.shrink()
@@ -108,83 +113,6 @@ class _WorkflowDocumentState extends ConsumerState<_WorkflowDocument> {
           child: child,
         );
       },
-    );
-  }
-}
-
-/// 計画承認と、計画の修正依頼（revise-plan）
-class PlanDecisionSection extends ConsumerStatefulWidget {
-  final String taskId;
-  final DecisionDone onDone;
-  const PlanDecisionSection({super.key, required this.taskId, required this.onDone});
-
-  @override
-  ConsumerState<PlanDecisionSection> createState() => _PlanDecisionState();
-}
-
-class _PlanDecisionState extends _DecisionState<PlanDecisionSection> {
-  final _instruction = TextEditingController();
-  bool _revising = false;
-
-  @override
-  void dispose() {
-    _instruction.dispose();
-    super.dispose();
-  }
-
-  Future<void> _approve() async {
-    final ok = await _confirm(context, 'この計画で進めますか', '承認すると、エージェントが計画どおりに実装を始めます。', '承認する');
-    if (!ok || !mounted) return;
-    await submit(() => service.approvePlan(widget.taskId), '計画を承認しました。実装に進みます。', widget.onDone);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasText = _instruction.text.trim().isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('計画', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        _WorkflowDocument(taskId: widget.taskId, fileType: 'plan', emptyText: '計画の本文がまだありません。'),
-        const SizedBox(height: 16),
-        FilledButton(
-          key: const ValueKey('decision-approve-plan'),
-          onPressed: busy ? null : _approve,
-          child: const Text('この計画で進める'),
-        ),
-        const SizedBox(height: 8),
-        if (!_revising)
-          OutlinedButton(
-            key: const ValueKey('decision-revise-open'),
-            onPressed: busy ? null : () => setState(() => _revising = true),
-            child: const Text('直してほしい点を伝える'),
-          )
-        else ...[
-          TextField(
-            key: const ValueKey('decision-revise-text'),
-            controller: _instruction,
-            minLines: 2,
-            maxLines: 6,
-            maxLength: 2000,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: '直してほしい点',
-              hintText: '例：画面は1つにまとめてほしい',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          OutlinedButton(
-            key: const ValueKey('decision-revise-send'),
-            onPressed: busy || !hasText
-                ? null
-                : () => submit(() => service.revisePlan(widget.taskId, _instruction.text),
-                    '修正の依頼を送りました。計画を作り直します。', widget.onDone),
-            child: const Text('修正を依頼する'),
-          ),
-        ],
-        errorText(context),
-      ],
     );
   }
 }

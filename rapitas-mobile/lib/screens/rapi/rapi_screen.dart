@@ -17,6 +17,7 @@ import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import 'rapi_companion_card.dart';
 import 'rapi_digest_card.dart';
+import 'rapi_digest_visibility.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_tidy_card.dart';
 
@@ -130,6 +131,14 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   late final TextEditingController _draftTitle;
   final _scroll = ScrollController();
 
+  // ---- 伴走の要約の既読（見えた行の分だけ。rapi_digest_visibility.dart） ----
+  final _digestVisibility = DigestVisibilityTracker();
+  final _listKey = GlobalKey();
+
+  /// 一覧の上端のうち、透明なバーの裏で薄くなる帯の高さ（見える範囲に数えない）
+  double _listTopInset = 0;
+  bool _digestCheckScheduled = false;
+
   /// 入力欄のフォーカス。ウィジェットやショートカットから開いたとき、ここに当ててキーボードを出す
   final _inputFocus = FocusNode();
   late final ComposeRequests _compose;
@@ -164,8 +173,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onComposeRequested());
     }
     // 伴走の要約は、ラピタブを開くたびに読み直す（設計 Q5：開いたときに出す）。
-    // 見せたら、見せた位置までを既読にする
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDigest());
+    // 既読は、行が実際に画面に見えたときにその行の分だけ送る（_checkDigestShown）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(companionDigestProvider.notifier).load();
+    });
     // 戻ってきたときは最新の発言が見える位置から始める
     if (saved.messages.length > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -191,14 +202,26 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   void _onInputChanged() => _chat.setInput(_input.text);
 
-  Future<void> _loadDigest() async {
+  /// 次のフレームの描画後に、要約の行が見えているかを測る（何度頼まれても1回にまとめる）
+  void _scheduleDigestCheck() {
+    if (_digestCheckScheduled) return;
+    _digestCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkDigestShown());
+  }
+
+  // NOTE: 要約を読み込んだだけ・一覧に置いただけでは既読にしない。会話の履歴があると一覧は末尾から
+  // 始まり、先頭付近の要約は画面の外にある（Codex レビュー nav42 指摘1）。見えた行だけを送る
+  void _checkDigestShown() {
+    _digestCheckScheduled = false;
     if (!mounted) return;
-    final notifier = ref.read(companionDigestProvider.notifier);
-    await notifier.load();
-    if (!mounted || (ref.read(companionDigestProvider).digest?.isEmpty ?? true)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) notifier.markShown();
-    });
+    // 判断画面などが上に積まれている間は、裏にある要約を見せたことにしない
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    final digest = ref.read(companionDigestProvider).digest;
+    if (digest == null || digest.isEmpty) return;
+    final list = _listKey.currentContext?.findRenderObject();
+    final shown = _digestVisibility.takeNewlyVisible(
+        digest, list is RenderBox ? list : null, _listTopInset);
+    if (shown.isNotEmpty) ref.read(companionDigestProvider.notifier).markShown(shown);
   }
 
   void _openDecision(String link) {
@@ -229,6 +252,18 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
+    });
+  }
+
+  /// 要約カードは挨拶のすぐ後（先頭付近）に差し込まれる。末尾を見ていたなら、差し込んだ後も末尾に留める
+  // NOTE: 履歴があると initState で末尾へ移るが、要約はその後で届く。そのままだとカードの高さの分だけ
+  // 中身が下へずれ、最新の発言が画面の外へ押し出される
+  void _onDigestChanged(CompanionDigestState? prev, CompanionDigestState next) {
+    if (!_scroll.hasClients || ref.read(rapiChatProvider).messages.length <= 1) return;
+    final position = _scroll.position;
+    if (position.pixels < position.maxScrollExtent - 4) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
     });
   }
 
@@ -345,6 +380,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     // 発言ごとにはアバターを付けない。挨拶も普通のラピの発言として並べる
     final chat = ref.watch(rapiChatProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
+    ref.listen(companionDigestProvider, _onDigestChanged);
     // 上に別の画面が積まれたら聞き取りを止める（build 中は setState できないので次のフレームで）
     if (_voiceActive && !(ModalRoute.of(context)?.isCurrent ?? true)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _cancelVoice());
@@ -358,7 +394,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
             digest: digest,
             onOpenDecision: _openDecision,
             onOpenTask: _openTask,
+            itemKeyOf: _digestVisibility.keyOf,
           ));
+    // 要約が変わった・画面に戻った・入力などで描き直したら、見えている行を測り直す（スクロールは下の通知で）
+    if (digestCard != null) _scheduleDigestCheck();
     final items = <Widget>[
       if (chat.surveyVisible) _buildSurveyCard(context, chat),
       for (final (i, m) in chat.messages.indexed) ...[
@@ -414,6 +453,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     // 「ステータスバー＋バーの高さ」になる（＝バーの下端の位置）
                     child: Builder(builder: (context) {
                       final barBottom = MediaQuery.paddingOf(context).top;
+                      _listTopInset = barBottom;
                       return GestureDetector(
                         onTap: () => FocusScope.of(context).unfocus(),
                         // 上へ流れた発言がぶつ切りに見えないよう、画面の最上部で透明、
@@ -429,11 +469,21 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                               rect.height == 0 ? 0 : (barBottom / rect.height).clamp(0.0, 1.0),
                             ],
                           ).createShader(rect),
-                          child: ListView(
-                            controller: _scroll,
-                            // 静止時に先頭の発言がラピに隠れないよう、バーの下端＋余白から並べ始める
-                            padding: EdgeInsets.fromLTRB(16, barBottom + _topFade, 16, _listBottomPadding),
-                            children: items,
+                          child: NotificationListener<Notification>(
+                            // スクロール中・止まったとき・中身の高さが変わったときに、要約が見えたかを測る
+                            onNotification: (n) {
+                              if (n is ScrollNotification || n is ScrollMetricsNotification) {
+                                _scheduleDigestCheck();
+                              }
+                              return false;
+                            },
+                            child: ListView(
+                              key: _listKey,
+                              controller: _scroll,
+                              // 静止時に先頭の発言がラピに隠れないよう、バーの下端＋余白から並べ始める
+                              padding: EdgeInsets.fromLTRB(16, barBottom + _topFade, 16, _listBottomPadding),
+                              children: items,
+                            ),
                           ),
                         ),
                       );

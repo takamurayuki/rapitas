@@ -298,6 +298,21 @@ describe('handleApprovePlan — forbiddenChangeOverride (task 1059)', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  // NOTE: rapitas-mobile's decision screen (decision_service.dart) recognises this refusal by
+  // the field name in the message and then asks for a reason. Renaming it there breaks mobile.
+  test('the schema-change refusal names overrideForbiddenChange (mobile relies on it)', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
+    planContentForApproval = '対象ファイル: `rapitas-backend/prisma/schema/pause.prisma`';
+    await expect(
+      handleApprovePlan({
+        params: { taskId: '1' },
+        body: { approved: true },
+        headers: UI_HEADERS,
+        set: makeSet(),
+      }),
+    ).rejects.toThrow(/overrideForbiddenChange/);
+  });
+
   test('overrideForbiddenChange:true + overrideReason 付きで承認が成功し forbiddenChangeOverride が更新される', async () => {
     mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
     planContentForApproval = '対象ファイル: `rapitas-backend/prisma/schema/pause.prisma`';
