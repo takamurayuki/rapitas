@@ -3,7 +3,7 @@
  *
  * Parses the `themeId` query parameter of GET /idea-box. A numeric value pins one
  * theme (unchanged behaviour); the literal 'none' selects only ideas without a theme.
- * It does not build the Prisma where clause (see idea-box-service buildWhereClause).
+ * It does not build the Prisma where clause (see idea-box-where-clause buildWhereClause).
  */
 
 /** Query value of `themeId` meaning "ideas with no theme only". */
