@@ -9,6 +9,7 @@ import '../models/task_execution.dart';
 import '../providers/approval_provider.dart';
 import '../providers/backlog_provider.dart';
 import '../providers/execution_provider.dart';
+import '../providers/filter_selection_provider.dart';
 import '../providers/rapi_chat_provider.dart';
 import '../providers/service_providers.dart';
 import '../providers/task_provider.dart';
@@ -565,15 +566,20 @@ class VoiceCommandFlow extends ChangeNotifier {
       case VoiceCommandType.filterTasks:
         await _filter(cmd);
       case VoiceCommandType.clearFilter:
+        // NOTE: テーマは常にどれかが選ばれている（「すべて」を廃止）ので、解除するのはテーマ以外の条件だけ
         await _outside('絞り込みを解除します', () {
-          container.read(taskFilterProvider.notifier).state = const TaskFilter();
+          final themeId = container.read(taskFilterProvider).themeId;
+          container.read(taskFilterProvider.notifier).state = TaskFilter(themeId: themeId);
           if (path != '/tasks') ui.go('/tasks');
-          return 'タスクの絞り込みを解除しました';
+          return themeId == null
+              ? 'タスクの絞り込みを解除しました'
+              : 'ステータスと優先度の絞り込みを解除しました（テーマはそのままです）';
         });
       case VoiceCommandType.themeTasks:
         final theme = await _resolveTheme(cmd.themeName!);
         await _outside('テーマ「${theme.name}」のタスクを表示します', () {
           container.read(taskFilterProvider.notifier).state = TaskFilter(themeId: theme.id);
+          rememberTaskTheme(theme);
           if (path != '/tasks') ui.go('/tasks');
           return 'テーマ「${theme.name}」のタスクを表示しました';
         });
@@ -883,6 +889,7 @@ class VoiceCommandFlow extends ChangeNotifier {
       final theme = await _resolveTheme(cmd.themeName!);
       next = current.copyWith(themeId: theme.id);
       label = 'テーマ「${theme.name}」';
+      rememberTaskTheme(theme);
     }
     await _outside('$labelで絞り込みます', () {
       container.read(taskFilterProvider.notifier).state = next;

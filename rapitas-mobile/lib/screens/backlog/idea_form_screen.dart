@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/backlog.dart';
+import '../../models/task.dart';
 import '../../providers/backlog_provider.dart';
+import '../../providers/filter_selection_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/theme_data_provider.dart';
 import '../../services/backlog_service.dart';
+import '../../services/filter_selection.dart';
 import '../../services/voice_opened_screens.dart';
+import '../../widgets/color_dot.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 
@@ -14,7 +19,10 @@ const String _newPath = '/ideas/new';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
-/// アイデアの追加フォーム（/ideas/new）。テーマは選ばない（scope は 'global' 固定）。
+/// アイデアの追加フォーム（/ideas/new）。
+///
+/// テーマは全テーマ＋「指定なし」から選ぶ。初期値はアイデア一覧の現在の選択（記憶 → ☆ → 先頭。
+/// 「指定なし」を選んでいれば指定なし）。テーマを選んだときだけ themeId を送る（buildIdeaCreateBody）。
 class IdeaFormScreen extends ConsumerStatefulWidget {
   const IdeaFormScreen({super.key});
 
@@ -29,6 +37,13 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
   String _priority = 'medium';
   bool _saving = false;
 
+  /// 選んだテーマID または ideaNoThemeId（明示的な「指定なし」）。
+  /// null は「まだ初期値が決まっていない」（テーマ一覧・記憶の解決待ち）で、「指定なし」とは区別する
+  String? _themeChoice;
+
+  /// テーマ初期値の解決。決まる前に「追加」を押されたら、保存はこれを待ってから送る
+  late final Future<String> _themeResolution;
+
   /// 声で開いたか（タイトル欄に自動でフォーカスしない）
   bool _openedByVoice = false;
 
@@ -37,6 +52,40 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
     super.initState();
     // 声で開いたときは入力欄にフォーカスしない（常時聞き取りを止めないため。VoiceOpenedScreens）
     _openedByVoice = VoiceOpenedScreens.consume(_newPath);
+    _themeResolution = _resolveInitialTheme();
+    _themeResolution.then((choice) {
+      if (mounted && _themeChoice == null) setState(() => _themeChoice = choice);
+    });
+  }
+
+  /// テーマの初期値を決める：一覧で選んでいるテーマ → 初期選択の解決（記憶 → ☆ → 先頭）→ 指定なし。
+  ///
+  /// テーマ一覧の取得失敗・正常0件はテーマ欄を出せないので「指定なし」（themeId を送らない）に確定する。
+  /// 解決中に画面が閉じられたら ref を読まずに「指定なし」で終える（呼び出し元の `.then` / `_save` は
+  /// どちらも mounted を見てから使うので、この値は使われない）。
+  Future<String> _resolveInitialTheme() async {
+    final List<TaskTheme> themes;
+    try {
+      themes = await ref.read(themeListProvider.future);
+    } catch (_) {
+      return ideaNoThemeId;
+    }
+    // NOTE: await の間に画面が閉じられると、次の ref.read が「破棄済みの ref」例外を投げる。
+    // その例外は下の catch では止まらず後段の ref.read まで進むので、ref に触る前に毎回確認する
+    if (!mounted || themes.isEmpty) return ideaNoThemeId;
+    String? initial;
+    try {
+      initial = await ref.read(ideaInitialSelectionProvider.future);
+    } catch (_) {
+      initial = null;
+    }
+    if (!mounted) return ideaNoThemeId;
+    // NOTE: 一覧の選択は解決を待った後に読む（待っている間に一覧側で選ばれた値も拾う）
+    for (final candidate in [ref.read(ideaFilterProvider).themeId, initial]) {
+      if (candidate == ideaNoThemeId) return ideaNoThemeId;
+      if (candidate != null && themes.any((t) => t.id == candidate)) return candidate;
+    }
+    return ideaNoThemeId;
   }
 
   @override
@@ -51,13 +100,20 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    // NOTE: 初期値が未解決のうちに押されたら解決を待つ。null を「指定なし」として送ると、
+    // 記憶や ☆ があってもテーマなし（scope: global）で作られてしまうため
+    final themeChoice = _themeChoice ?? await _themeResolution;
+    if (!mounted) return;
+    final themes = ref.read(themeListProvider).valueOrNull;
+    final validTheme = themeChoice != ideaNoThemeId && (themes?.any((t) => t.id == themeChoice) ?? false);
     final body = buildIdeaCreateBody(
       title: _titleController.text,
       content: _contentController.text,
       priority: _priority,
+      themeId: validTheme ? themeChoice : null,
     );
-    final messenger = ScaffoldMessenger.of(context);
-    final container = ProviderScope.containerOf(context, listen: false);
 
     try {
       await ref.read(backlogServiceProvider).createIdea(body);
@@ -76,6 +132,34 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
     } else {
       context.go('/ideas');
     }
+  }
+
+  /// テーマ欄。テーマが0件なら出さない（タスク作成フォームのテーマ欄と同じ方針）。
+  /// 取得に失敗したときは「指定なし」で作ることを一言添える。初期値が決まるまでは進捗バー
+  Widget _themeField() {
+    final themesAsync = ref.watch(themeListProvider);
+    final themes = themesAsync.valueOrNull;
+    if (themes == null && themesAsync.hasError) {
+      return const InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'テーマ',
+          prefixIcon: Icon(Icons.folder),
+          enabled: false,
+          helperText: 'テーマ一覧を取得できないため、テーマは「指定なし」で追加します',
+          helperMaxLines: 2,
+        ),
+        child: Text('指定なし'),
+      );
+    }
+    if (themes != null && themes.isEmpty) return const SizedBox.shrink();
+    final choice = _themeChoice;
+    if (themes == null || choice == null) return const LinearProgressIndicator();
+    final value = themes.any((t) => t.id == choice) ? choice : ideaNoThemeId;
+    return _IdeaThemeDropdown(
+      themes: themes,
+      value: value,
+      onChanged: _saving ? null : (v) => setState(() => _themeChoice = v),
+    );
   }
 
   @override
@@ -139,6 +223,8 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              _themeField(),
               const SizedBox(height: 32),
               FilledButton(
                 onPressed: _saving ? null : _save,
@@ -152,6 +238,59 @@ class _IdeaFormScreenState extends ConsumerState<IdeaFormScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// アイデアのテーマ選択（「指定なし」＋カテゴリ順のテーマ。テーマ名の右にカテゴリ名を薄く出す）
+class _IdeaThemeDropdown extends StatelessWidget {
+  final List<TaskTheme> themes;
+  final String value;
+  final ValueChanged<String>? onChanged;
+
+  const _IdeaThemeDropdown({required this.themes, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'テーマ',
+        prefixIcon: Icon(Icons.folder),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          items: [
+            const DropdownMenuItem<String>(value: ideaNoThemeId, child: Text('指定なし')),
+            for (final group in groupThemesByCategory(themes))
+              for (final theme in group.themes)
+                DropdownMenuItem<String>(
+                  value: theme.id,
+                  child: Row(
+                    children: [
+                      ColorDot(color: theme.color),
+                      const SizedBox(width: 8),
+                      Flexible(child: Text(theme.name, overflow: TextOverflow.ellipsis)),
+                      if (group.category?.name case final name? when name.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(name, style: muted, overflow: TextOverflow.ellipsis),
+                      ],
+                    ],
+                  ),
+                ),
+          ],
+          onChanged: onChanged == null
+              ? null
+              : (v) {
+                  if (v != null) onChanged!(v);
+                },
         ),
       ),
     );

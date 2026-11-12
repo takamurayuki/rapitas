@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/task.dart';
+import '../../providers/filter_selection_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../services/reorder_orders.dart';
 import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
+import '../../widgets/default_star_button.dart';
 import 'category_form_screen.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
@@ -44,6 +46,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   /// 並び替えモード中の並び（null なら通常モード）
   List<TaskCategory>? _draft;
   bool _saving = false;
+
+  /// ☆ を設定中のカテゴリID（二重実行防止）
+  String? _settingDefault;
 
   void _startReorder(List<TaskCategory> categories) {
     setState(() => _draft = sortCategoriesByOrder(categories));
@@ -93,6 +98,23 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     messenger.showSnackBar(const SnackBar(content: Text('並び順を保存しました')));
   }
 
+  /// ☆（既定カテゴリ。UserSettings.defaultCategoryId）にして取り直す
+  Future<void> _setDefault(TaskCategory category) async {
+    if (_settingDefault != null) return;
+    setState(() => _settingDefault = category.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    try {
+      await ref.read(categoryServiceProvider).setDefaultCategory(category.id);
+      container.invalidate(defaultCategoryIdProvider);
+      container.invalidate(categoryListProvider);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('デフォルトの設定に失敗しました: $e')));
+    } finally {
+      if (mounted) setState(() => _settingDefault = null);
+    }
+  }
+
   void _openEdit(TaskCategory category) {
     context.push('/categories/${category.id}/edit', extra: category);
   }
@@ -100,6 +122,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoryListProvider);
+    // NOTE: カテゴリの ☆ は Category.isDefault（初期投入カテゴリの印）ではなく UserSettings.defaultCategoryId（PC 版と同じ）
+    final defaultCategoryId = ref.watch(defaultCategoryIdProvider).valueOrNull;
     final draft = _draft;
 
     if (draft != null) {
@@ -192,10 +216,20 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   for (final category in sorted)
                     _CategoryTile(
                       category: category,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'カテゴリを編集',
-                        onPressed: () => _openEdit(category),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          DefaultStarButton(
+                            isDefault: category.id == defaultCategoryId,
+                            onSetDefault:
+                                _settingDefault == null ? () => _setDefault(category) : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: 'カテゴリを編集',
+                            onPressed: () => _openEdit(category),
+                          ),
+                        ],
                       ),
                       onTap: () => _openEdit(category),
                     ),

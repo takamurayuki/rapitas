@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/backlog.dart';
 import 'service_providers.dart';
 
-/// アイデア一覧の絞り込み条件。タスク一覧の TaskFilter と同じく値オブジェクト＋== 比較で、
-/// `filter != const IdeaFilter()` を「絞り込み中」（バッジ・チップ・0件表示の出し分け）に使う。
+/// アイデア一覧の絞り込み条件（値オブジェクト＋== 比較）。
+///
+/// テーマは常にどれか（テーマ、または「指定なし」= ideaNoThemeId）が選ばれている前提で、
+/// 「絞り込み中」（バッジ・解除ボタン）の判定にはテーマ以外の条件（[hasExtraConditions]）を使う。
 class IdeaFilter {
-  /// テーマID。null は指定なし
+  /// テーマID、または 'none'（ideaNoThemeId。テーマ未定のアイデアだけ）。
+  /// null は初期選択の前・テーマが1件も無いときで、テーマで絞らない
   final String? themeId;
 
   /// urgent / high / medium / low。null は指定なし
@@ -40,6 +43,9 @@ class IdeaFilter {
       search: search ?? this.search,
     );
   }
+
+  /// テーマ以外（優先度・状態・キーワード）で絞り込んでいるか
+  bool get hasExtraConditions => priority != null || status != null || search.isNotEmpty;
 
   @override
   bool operator ==(Object other) =>

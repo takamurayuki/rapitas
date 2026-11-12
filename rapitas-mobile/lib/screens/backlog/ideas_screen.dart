@@ -5,17 +5,21 @@ import '../../models/backlog.dart';
 import '../../models/task.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../providers/backlog_provider.dart';
+import '../../providers/filter_selection_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/theme_data_provider.dart';
+import '../../services/filter_selection.dart';
 import '../../widgets/centered_message.dart';
 import 'backlog_widgets.dart';
 import 'idea_filter_sheet.dart';
+import 'idea_theme_sheet.dart';
 import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
 /// アイデア一覧（先頭100件）。テーマ・優先度・状態・キーワードで絞り込め、追加ができる。
-/// 削除は行の横スワイプ（右から左）＋確認ダイアログ。
+/// テーマは常にどれか（または「指定なし」）が選ばれている（初期値は記憶 → ☆ → 先頭）。
+/// 行タップでテーマを変更でき、削除は行の横スワイプ（右から左）＋確認ダイアログ。
 class IdeasScreen extends ConsumerStatefulWidget {
   const IdeasScreen({super.key});
 
@@ -30,6 +34,20 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   /// スワイプで消えた行のID。再取得の結果が届くまで一覧から外しておく
   /// （Dismissible は消えた後も木に残るとエラーになるため）。
   final Set<String> _dismissed = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // テーマ一覧が届いたら一度だけ、記憶 → ☆ → 先頭 で解決したテーマを絞り込みに入れる
+    // NOTE: build 中にプロバイダーを書き換えられないので microtask へ逃がす
+    ref.listenManual<AsyncValue<String?>>(
+      ideaInitialSelectionProvider,
+      (_, next) => Future.microtask(() {
+        if (mounted) applyInitialIdeaSelection(ref.read, next);
+      }),
+      fireImmediately: true,
+    );
+  }
 
   /// スワイプ削除の確認→削除。削除できたら true（行が消える）、
   /// キャンセル・失敗・実行中なら false（行はスワイプ前に戻る）。
@@ -64,8 +82,11 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(ideaFilterProvider);
-    final isFiltered = filter != const IdeaFilter();
-    final ideasAsync = ref.watch(ideaListProvider);
+    // NOTE: テーマは常に選ばれているので、Badge・解除ボタンの対象はテーマ以外の条件だけ
+    final isFiltered = filter.hasExtraConditions;
+    // 初期選択（テーマ）が決まるまでは全件を取りに行かない（全件→テーマの順に表示が切り替わるのを防ぐ）
+    final waiting = ref.watch(ideaSelectionPendingProvider) && filter.themeId == null;
+    final ideasAsync = waiting ? const AsyncLoading<List<Idea>>() : ref.watch(ideaListProvider);
     // 行のテーマ名・チップのラベル用。取れなければテーマ名は出さないだけで一覧は表示する
     final themes = ref.watch(themeListProvider).valueOrNull;
 
@@ -93,12 +114,14 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
         path: '/ideas',
         child: Column(
           children: [
-            if (isFiltered) _buildActiveFilterChips(filter, themes),
+            if (isFiltered || filter.themeId != null) _buildActiveFilterChips(filter, themes),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
                   // 一覧は ideaFilterProvider を watch しているので、条件を保ったまま取り直す
                   ref.invalidate(ideaListProvider);
+                  // テーマ一覧の取得に失敗していたら取り直す（成功すれば初期選択がここで一度だけ入る）
+                  if (ref.read(themeListProvider).hasError) ref.invalidate(themeListProvider);
                   try {
                     await ref.read(ideaListProvider.future);
                   } catch (_) {}
@@ -112,7 +135,7 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                               icon: Icons.filter_alt_off,
                               message: '条件に合うアイデアはありません',
                               action: OutlinedButton.icon(
-                                onPressed: () => _setFilter(const IdeaFilter()),
+                                onPressed: () => _setFilter(IdeaFilter(themeId: filter.themeId)),
                                 icon: const Icon(Icons.filter_alt_off),
                                 label: const Text('フィルターを解除'),
                               ),
@@ -137,6 +160,7 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                           child: _IdeaTile(
                             idea: idea,
                             themeName: ideaThemeName(themes, idea.themeId),
+                            onTap: () => showIdeaActionsSheet(context, idea),
                           ),
                         );
                       },
@@ -162,6 +186,7 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   }
 
   /// 適用中の条件をチップで並べる。× で個別に解除できる（タスク一覧と同じ流儀）。
+  /// テーマは常に選ばれているので × は付けない（変更はシートから）。
   Widget _buildActiveFilterChips(IdeaFilter filter, List<TaskTheme>? themes) {
     final themeId = filter.themeId;
     final priority = filter.priority;
@@ -176,9 +201,11 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
           children: [
             if (themeId != null)
               InputChip(
-                label: Text('テーマ：${ideaThemeName(themes, themeId) ?? '指定中'}'),
-                onDeleted: () => _setFilter(filter.copyWith(clearThemeId: true)),
-                deleteButtonTooltipMessage: 'テーマの絞り込みを解除',
+                label: Text(themeId == ideaNoThemeId
+                    ? 'テーマ：指定なし'
+                    : 'テーマ：${ideaThemeName(themes, themeId) ?? '指定中'}'),
+                onPressed: () => showIdeaFilterSheet(context),
+                tooltip: 'テーマを変更',
               ),
             if (status != null)
               InputChip(
@@ -205,16 +232,20 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   }
 }
 
-/// アイデア行（タイトル＋優先度・テーマ・使用済みのチップ＋作成日）。削除は行のスワイプで行う
+/// アイデア行（タイトル＋優先度・テーマ・使用済みのチップ＋作成日）。タップで操作シート、削除は行のスワイプで行う
 class _IdeaTile extends StatelessWidget {
   final Idea idea;
 
   /// テーマ名。テーマ一覧が取れない・該当が無いときは null で、何も出さない
   final String? themeName;
 
+  /// 行タップ（操作シートを開く）
+  final VoidCallback onTap;
+
   const _IdeaTile({
     required this.idea,
     required this.themeName,
+    required this.onTap,
   });
 
   @override
@@ -247,6 +278,7 @@ class _IdeaTile extends StatelessWidget {
           ],
         ),
       ),
+      onTap: onTap,
     );
   }
 }

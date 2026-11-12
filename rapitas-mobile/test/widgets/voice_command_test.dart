@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rapitas_mobile/config/routes.dart';
 import 'package:rapitas_mobile/models/approval_request.dart';
 import 'package:rapitas_mobile/models/backlog.dart';
@@ -18,6 +19,7 @@ import 'package:rapitas_mobile/providers/voice_provider.dart';
 import 'package:rapitas_mobile/services/agent_service.dart';
 import 'package:rapitas_mobile/services/approval_service.dart';
 import 'package:rapitas_mobile/services/backlog_service.dart';
+import 'package:rapitas_mobile/services/category_service.dart';
 import 'package:rapitas_mobile/services/dictation_service.dart';
 import 'package:rapitas_mobile/services/task_service.dart';
 import 'package:rapitas_mobile/services/theme_service.dart';
@@ -185,6 +187,18 @@ class _FakeThemes implements ThemeService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// カテゴリ一覧・☆ カテゴリ（タスク一覧の初期選択が読む）。実通信させないための空の CategoryService
+class _FakeCategories implements CategoryService {
+  @override
+  Future<List<TaskCategory>> getCategories() async => const [];
+
+  @override
+  Future<String?> getDefaultCategoryId() async => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 final _devTheme = TaskTheme(id: '10', name: '開発', isDevelopment: true, workingDirectory: '/work');
 final _plainTheme = TaskTheme(id: '11', name: '英語学習');
 
@@ -241,6 +255,8 @@ void main() {
     List<Task> taskItems = const [],
     List<Hypothesis> hypothesisItems = const [],
   }) async {
+    // タスク一覧の初期選択がテーマの記憶を読むので、保存先を空のモックにしておく
+    SharedPreferences.setMockInitialValues({});
     dictation = _FakeDictation();
     approvals = _FakeApprovals(approvalItems);
     tasks = _FakeTasks(taskItems);
@@ -255,6 +271,7 @@ void main() {
       taskServiceProvider.overrideWithValue(tasks),
       agentServiceProvider.overrideWithValue(agent),
       themeServiceProvider.overrideWithValue(_FakeThemes()),
+      categoryServiceProvider.overrideWithValue(_FakeCategories()),
       backlogServiceProvider.overrideWithValue(backlog),
       voiceRouteTrackerProvider.overrideWithValue(tracker),
       rapiChatProvider.overrideWith(() => rapiChat),
@@ -349,6 +366,18 @@ void main() {
       expect(location(), '/tasks');
       expect(container.read(taskFilterProvider).status, 'in-progress');
       expect(find.text('ステータス：進行中'), findsOneWidget);
+    });
+
+    testWidgets('「フィルタを解除」はステータス・優先度だけ外し、テーマは残す（テーマは常に選択）', (tester) async {
+      await pumpApp(tester, '/approvals', taskItems: [_task('1', '資料作成', status: 'done')]);
+      container.read(taskFilterProvider.notifier).state =
+          const TaskFilter(themeId: '11', status: 'done', priority: 'high');
+      await openSheet(tester);
+      await say(tester, 'フィルタを解除');
+      await finish(tester);
+      expect(location(), '/tasks');
+      expect(container.read(taskFilterProvider), const TaskFilter(themeId: '11'));
+      expect(find.text('ステータスと優先度の絞り込みを解除しました（テーマはそのままです）'), findsOneWidget);
     });
   });
 

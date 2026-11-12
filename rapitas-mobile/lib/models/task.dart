@@ -292,6 +292,13 @@ class TaskCategory {
   /// テーマに埋め込まれたカテゴリ（GET /themes の category）には無いので null
   final int? themeCount;
 
+  /// Category.isDefault（JSON に無ければ false）。
+  ///
+  /// NOTE: これは「初期投入されたシステム既定カテゴリ」の印で、seed-defaults が既定カテゴリ全部に立てる。
+  /// PC 版の ☆（既定カテゴリ）は UserSettings.defaultCategoryId（GET /categories/default-category）で、
+  /// こちらとは別物。☆ の判定には使わないこと。
+  final bool isDefault;
+
   TaskCategory({
     required this.id,
     required this.name,
@@ -301,6 +308,7 @@ class TaskCategory {
     this.description,
     this.mode,
     this.themeCount,
+    this.isDefault = false,
   });
 
   factory TaskCategory.fromJson(Map<String, dynamic> json) {
@@ -311,6 +319,7 @@ class TaskCategory {
     final mode = json['mode'];
     final count = json['_count'];
     final themes = count is Map ? count['themes'] : null;
+    final isDefault = json['isDefault'];
     return TaskCategory(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
@@ -320,6 +329,7 @@ class TaskCategory {
       description: description is String ? description : null,
       mode: mode is String ? mode : null,
       themeCount: themes is num ? themes.toInt() : null,
+      isDefault: isDefault is bool ? isDefault : false,
     );
   }
 }
@@ -347,6 +357,10 @@ class TaskTheme {
   /// テーマの説明（Theme.description）。未設定なら null
   final String? description;
 
+  /// カテゴリ内の ☆（既定テーマ。Theme.isDefault）。欠落時は false。
+  /// PATCH /themes/:id/set-default が同じカテゴリ内の他テーマの ☆ を外すので、カテゴリごとに最大1つ
+  final bool isDefault;
+
   TaskTheme({
     required this.id,
     required this.name,
@@ -357,6 +371,7 @@ class TaskTheme {
     this.isDevelopment = false,
     this.workingDirectory,
     this.description,
+    this.isDefault = false,
   });
 
   factory TaskTheme.fromJson(Map<String, dynamic> json) {
@@ -366,6 +381,7 @@ class TaskTheme {
     final isDevelopment = json['isDevelopment'];
     final workingDirectory = json['workingDirectory'];
     final description = json['description'];
+    final isDefault = json['isDefault'];
     return TaskTheme(
       id: json['id'].toString(),
       name: json['name'] as String,
@@ -378,6 +394,7 @@ class TaskTheme {
       isDevelopment: isDevelopment is bool ? isDevelopment : false,
       workingDirectory: workingDirectory is String ? workingDirectory : null,
       description: description is String ? description : null,
+      isDefault: isDefault is bool ? isDefault : false,
     );
   }
 
