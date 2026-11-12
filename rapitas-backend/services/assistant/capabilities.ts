@@ -168,6 +168,27 @@ export const ASSISTANT_CAPABILITIES = [
     undo: 'stop-what-was-started',
   },
   {
+    // Stage 2 (companion design 段E): a proposed change to an existing task's
+    // completion criteria — what is added, removed and reworded, why, and the
+    // criteria revision it was built on. Writes nothing; the card it returns
+    // is what the user confirms.
+    id: 'task.criteria-draft',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
+  {
+    // Rewrites goals / constraints / acceptance criteria through
+    // writeTaskCriteria, only against the revision the card was built on and
+    // never while the jury judges, a verdict is pending or held, or after
+    // done (design 4.5). The audit row keeps before/after and both revisions;
+    // the undo restores the old criteria only if nothing changed since.
+    id: 'task.criteria-update',
+    writes: true,
+    requiresConfirmation: true,
+    undo: 'restore-previous-values',
+  },
+  {
     // Re-reads completion criteria the user edited on a confirmation card:
     // who checks each (jury / person), vague wording, the score. Writes
     // nothing; the create / commit that follows is what is confirmed.
