@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rapitas_mobile/models/rapi_chat/saved_message.dart';
 import 'package:rapitas_mobile/providers/connection_provider.dart';
 import 'package:rapitas_mobile/providers/rapi_chat_spaces_provider.dart';
 import 'package:rapitas_mobile/services/rapi_chat_space_service.dart';
@@ -96,6 +98,32 @@ void main() {
     await starting;
     await app.settle();
     expect(app.texts, ['発言 ${s.id}-0', '発言 ${s.id}-1', '圏外の発言', '送信に失敗しました']);
+    app.dispose();
+  });
+
+  test('FE-2 保存待ちの更新・削除も、保存前の状態を読んだ GET の応答に負けない', () async {
+    final s = server.seed(messages: 3);
+    prefs['rapiLastSpaceId.v1:$_hostA'] = 'space:${s.id}';
+    final updated = SavedMessage(
+        clientId: 'seed-${s.id}-1', role: 'assistant', text: '更新後', inHistory: true,
+        createdAt: DateTime.utc(2026, 11, 12, 9, 0, 1));
+    prefs['rapiChatPendingSaves.v1:$_hostA'] = jsonEncode([
+      {
+        'spaceId': s.id,
+        'items': [updated.toJson(), SavedMessage.deletion('seed-${s.id}-2').toJson()],
+      }
+    ]);
+    server.loadGateAfterRead = Completer<void>();
+    final app = SpaceApp(server, prefs);
+    final starting = app.spaces.start();
+    await _microtasks();
+    // GET は保存前の3件を読んで止まっている。その間に PUT が通り、保存待ちは空になった
+    expect(rowTexts(s), ['発言 ${s.id}-0', '更新後']);
+    expect(app.spaces.queue!.isEmpty, isTrue);
+    server.loadGateAfterRead!.complete();
+    await starting;
+    await app.settle();
+    expect(app.texts, ['発言 ${s.id}-0', '更新後'], reason: '古い本文も、消した行も並べない');
     app.dispose();
   });
 
