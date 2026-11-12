@@ -302,4 +302,13 @@ class FakeAssistant extends AssistantService {
       _write('deleteTasks');
   @override
   Future<void> restoreFromTrash(int trashId) async => _write('restore');
+  @override
+  Future<RapiCriteriaDraft> criteriaDraft(String taskId,
+          {required List<String> acceptanceCriteria, required String reason}) async =>
+      _write('criteriaDraft');
+  @override
+  Future<RapiCriteriaChangeResult> criteriaUpdate(RapiCriteriaDraft draft) async =>
+      _write('criteriaUpdate');
+  @override
+  Future<RapiCriteriaChangeResult> revertCriteria(int actionId) async => _write('revertCriteria');
 }

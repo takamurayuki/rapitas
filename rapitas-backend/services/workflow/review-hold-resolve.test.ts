@@ -21,7 +21,12 @@ const findFirst = mock(
     return top ? { worktreePath: top.worktreePath } : null;
   },
 );
-mock.module('../../config/database', () => ({ prisma: { agentSession: { findFirst } } }));
+// The task's completion criteria — the override binds to their revision (design 4.5).
+let criteria = { goals: '["g"]', constraints: null as string | null, acceptanceCriteria: '["a"]' };
+const taskFindUnique = mock(async (_q: unknown) => criteria);
+mock.module('../../config/database', () => ({
+  prisma: { agentSession: { findFirst }, task: { findUnique: taskFindUnique } },
+}));
 
 const HOLD = {
   reason: 'unresolved_dispute' as const,
@@ -92,6 +97,7 @@ const registerVerifyCompletion = mock((_id: number, _w: Promise<unknown>) => {})
 mock.module('./verify-completion-inflight', () => ({ registerVerifyCompletion }));
 
 const { resolveReviewHold } = await import('./review-hold-resolve');
+const { computeCriteriaRevision } = await import('../task/task-criteria-revision');
 
 // Stand-in for the route's commit/PR operations; the service only passes it on.
 const PUBLISHER = {
@@ -101,6 +107,8 @@ const PUBLISHER = {
 } as unknown as OverridePublisher;
 
 beforeEach(() => {
+  criteria = { goals: '["g"]', constraints: null, acceptanceCriteria: '["a"]' };
+  readReviewHold.mockReset().mockResolvedValue(HOLD);
   sessions = [{ worktreePath: '/wt/5', createdAt: 1, lastActivityAt: 1 }];
   sha = 'sha-5';
   fp = 'fp-5';
@@ -210,6 +218,7 @@ describe('resolveReviewHold', () => {
       taskId: 5,
       verifySha256: 'sha-5',
       diffFingerprint: 'fp-5',
+      criteriaRevision: computeCriteriaRevision(criteria),
       verdict: 'hold',
       outcome: 'passed',
       source: 'human_override',
@@ -229,7 +238,12 @@ describe('resolveReviewHold', () => {
     // The resolution records the commit-stable target the completion paths
     // compare against (verify.md sha256 + publish worktree + git tree id).
     expect(clearReviewHold.mock.calls[0][0]).toMatchObject({
-      target: { verifySha256: 'sha-5', treeId: 'tree-5', worktreePath: '/wt/5' },
+      target: {
+        verifySha256: 'sha-5',
+        treeId: 'tree-5',
+        worktreePath: '/wt/5',
+        criteriaRevision: computeCriteriaRevision(criteria),
+      },
     });
     expect(stagedTreeIdentity).toHaveBeenCalledWith('/wt/5');
     // Registered in flight so the runner's verify-settle wait sees live work.
@@ -297,5 +311,54 @@ describe('resolveReviewHold', () => {
     expect(r).toEqual({ ok: false, reason: 'unbound' });
     expect(clearReviewHold).not.toHaveBeenCalled();
     expect(publishAfterReviewOverride).not.toHaveBeenCalled();
+  });
+
+  describe('the override is bound to the criteria revision of the held review (design 4.5)', () => {
+    const heldUnder = (revision: string) => ({ ...HOLD, criteriaRevision: revision });
+
+    test('criteria changed since the hold → refused (criteria_changed_since), the hold stays', async () => {
+      readReviewHold.mockResolvedValue(heldUnder(computeCriteriaRevision(criteria)) as never);
+      criteria = { ...criteria, acceptanceCriteria: '["a","新しい条件"]' };
+      const r = await resolveReviewHold({
+        taskId: 5,
+        action: 'override',
+        resolvedBy: 'u',
+        publisher: PUBLISHER,
+      });
+      expect(r).toEqual({ ok: false, reason: 'criteria_changed_since' });
+      expect(clearReviewHold).not.toHaveBeenCalled();
+      expect(recordJuryGateCompletion).not.toHaveBeenCalled();
+      expect(publishAfterReviewOverride).not.toHaveBeenCalled();
+      expect(recordTransition).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: 'adversarial_review_override_refused',
+          metadata: expect.objectContaining({ reason: 'criteria_changed_since' }),
+        }),
+      );
+    });
+
+    test('same revision → the override proceeds', async () => {
+      readReviewHold.mockResolvedValue(heldUnder(computeCriteriaRevision(criteria)) as never);
+      const r = await resolveReviewHold({
+        taskId: 5,
+        action: 'override',
+        resolvedBy: 'u',
+        publisher: PUBLISHER,
+      });
+      expect(r).toEqual(expect.objectContaining({ ok: true, outcome: 'publishing' }));
+    });
+
+    test('a hold from before revisions existed binds to the current criteria', async () => {
+      const r = await resolveReviewHold({
+        taskId: 5,
+        action: 'override',
+        resolvedBy: 'u',
+        publisher: PUBLISHER,
+      });
+      expect(r).toEqual(expect.objectContaining({ ok: true }));
+      expect(recordJuryGateCompletion).toHaveBeenCalledWith(
+        expect.objectContaining({ criteriaRevision: computeCriteriaRevision(criteria) }),
+      );
+    });
   });
 });

@@ -56,6 +56,13 @@ const mockPrisma = {
   agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
 };
 mock.module('../../../config', () => ({ prisma: mockPrisma }));
+// The DB jury lock (design 4.5.1) is covered on real SQLite in
+// services/workflow/jury-review-run.test.ts; here it is granted and nothing drifts.
+const { fakeJuryRunModule, fakeJuryRunState } =
+  await import('../../../services/workflow/jury-review-run.test-helpers');
+mock.module('../../../services/workflow/jury-review-run', () =>
+  fakeJuryRunModule(fakeJuryRunState(() => null)),
+);
 mock.module('../../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,

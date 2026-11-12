@@ -178,6 +178,58 @@ class AssistantService {
     }
   }
 
+  // ---- 完了条件の変更（task.criteria-draft／task.criteria-update）----
+  // 形はバックエンド routes/ai/assistant-criteria.routes.ts が正。下書きは読むだけで、
+  // 書き込みはカードの「この内容で確定」から confirmed: true と下書きの版を付けて送る。
+  // 拒否（409 criteria_changed_since / review_in_progress / task_done）は
+  // code と message 付きの [AssistantException]。
+
+  /// 条件を [acceptanceCriteria] に変える下書きを受け取る（何も書き込まない）
+  Future<RapiCriteriaDraft> criteriaDraft(String taskId,
+      {required List<String> acceptanceCriteria, required String reason}) async {
+    final id = int.tryParse(taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final body = _body((await _postOrError('/assistant/criteria-draft', {
+      'taskId': id,
+      'acceptanceCriteria': acceptanceCriteria,
+      'reason': reason,
+    }))
+        .data);
+    if (body['success'] != true || body['draft'] is! Map) {
+      throw AssistantException(body['error']?.toString() ?? 'draft_failed');
+    }
+    return RapiCriteriaDraft.fromJson(Map<String, dynamic>.from(body['draft'] as Map));
+  }
+
+  /// ユーザーが確かめた下書き [draft] を確定する（下書きの版で照合される）
+  Future<RapiCriteriaChangeResult> criteriaUpdate(RapiCriteriaDraft draft) async {
+    final id = int.tryParse(draft.taskId);
+    if (id == null) throw const AssistantException('invalid_task');
+    final response = await _postOrError('/assistant/task-criteria', {
+      'taskId': id,
+      'confirmed': true,
+      'expectedCriteriaRevision': draft.criteriaRevision,
+      'acceptanceCriteria': draft.after,
+      'reason': draft.reason,
+    });
+    return _criteriaResult(response);
+  }
+
+  /// 確定した変更 [actionId] を取り消す（その後だれも変えていなければ）
+  Future<RapiCriteriaChangeResult> revertCriteria(int actionId) async =>
+      _criteriaResult(
+          await _postOrError('/assistant/task-criteria/revert', {'actionId': actionId}));
+
+  RapiCriteriaChangeResult _criteriaResult(Response<dynamic> response) {
+    final body = _body(response.data);
+    if (body['success'] == false) {
+      throw AssistantException(body['error']?.toString() ?? 'criteria_failed',
+          statusCode: response.statusCode);
+    }
+    if (body['success'] != true) throw const AssistantException('unexpected_response');
+    return RapiCriteriaChangeResult.fromJson(body);
+  }
+
   // ---- 伴走（companion）----
   // 形はバックエンド routes/ai/assistant-companion.routes.ts が正：
   //   POST /assistant/companion/draft {text, taskId?}（何も書き込まない）
@@ -467,6 +519,7 @@ class AssistantService {
         conflicts: body['conflicts'] is List
             ? (body['conflicts'] as List).whereType<String>().toList()
             : const [],
+        message: body['message'] is String ? body['message'] as String : null,
       );
     }
   }
@@ -549,7 +602,11 @@ class AssistantException implements Exception {
   /// task-update/revert の 409 で、その後に編集された項目
   final List<String> conflicts;
 
-  const AssistantException(this.code, {this.statusCode, this.conflicts = const []});
+  /// サーバーが添えた人向けの文（task-criteria の 409 など。無ければ null）
+  final String? message;
+
+  const AssistantException(this.code,
+      {this.statusCode, this.conflicts = const [], this.message});
 
   @override
   String toString() =>

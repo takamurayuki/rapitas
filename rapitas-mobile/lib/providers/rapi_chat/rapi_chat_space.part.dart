@@ -83,5 +83,7 @@ bool rapiCardBusy(RapiMessage m) {
       (tidy.phase == RapiTidyPhase.searching || tidy.phase == RapiTidyPhase.deleting || tidy.restoring)) {
     return true;
   }
+  final criteria = m.criteria?.phase;
+  if (criteria == RapiCriteriaPhase.applying || criteria == RapiCriteriaPhase.reverting) return true;
   return m.companion?.phase == RapiCompanionPhase.applying;
 }

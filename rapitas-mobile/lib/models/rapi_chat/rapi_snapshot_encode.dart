@@ -3,6 +3,9 @@
 // カードは画面に出していた値をそのまま JSON に写す（封筒 {"v":1,"kind":...,"<kind>":{...}}）。
 // 一時的な値（片付けの一覧の展開・進み具合、完了条件の編集途中の状態）は残さない。
 // 保存しない行（相談・タスク選び・下書き・挨拶・依頼の案内など）は null を返す。
+// NOTE: 完了条件の変更カード（criteria）は、確定・取り消しの済んだ（または応答待ちの）カードだけを
+// 保存する。直している途中・下書きを確かめている途中のカードは、カードの操作が読み取り専用の記録に
+// そぐわないため保存しない（[rapiCriteriaSaved]。nav42 バッチB の rebase 移植で決めた扱い）。
 
 import 'dart:convert';
 
@@ -20,8 +23,22 @@ bool rapiShouldSave(RapiMessage m) =>
     m.consultTaskId == null &&
     m.consultPicker == null &&
     !m.draftSlot &&
+    (m.criteria == null || rapiCriteriaSaved(m.criteria!.phase)) &&
     m.externalDraftId == null &&
     !m.localOnly;
+
+/// 完了条件の変更カードを、段階 [phase] で保存するか。
+///
+/// 書き込みが済んだ段階（applied・reverted・applyUnknown・revertUnavailable）と、その応答待ち
+/// （applying・reverting）は保存する。応答待ちの記録は、読み込むときに結果を断定しない段階へ戻す
+/// （rapi_snapshot_decode.dart）。直している途中（editing・drafting・proposed）は保存しない。
+/// 応答待ちから proposed へ戻った（断られた・失敗した）カードは、保存しない行になるので、
+/// 先に保存した応答待ちの行は削除として送られる（rapi_chat_spaces_provider.dart の
+/// 「画面から消えた行」と同じ扱い）。
+bool rapiCriteriaSaved(RapiCriteriaPhase phase) => switch (phase) {
+      RapiCriteriaPhase.editing || RapiCriteriaPhase.drafting || RapiCriteriaPhase.proposed => false,
+      _ => true,
+    };
 
 /// [m] を保存する行にする。保存しない行なら null
 ///
@@ -65,6 +82,7 @@ String _envelope(String kind, Map<String, dynamic> body) =>
   if (m.roadmap case final r?) return ('roadmap', _roadmapJson(r));
   if (m.tidy case final t?) return ('tidy', _tidyJson(t, thin: false));
   if (m.companion case final c?) return ('companion', _companionJson(c));
+  if (m.criteria case final c?) return ('criteria', _criteriaJson(c));
   return ('text', null);
 }
 
@@ -203,3 +221,18 @@ Map<String, dynamic> _companionJson(RapiCompanionCard c) => {
       'error': c.error,
     };
 
+
+// 編集の状態（外した条件・足した条件の並び）は残さない。差分の行を作り直すのに要る
+// 「鉛筆で直した対」（rewordings）だけを残す（設計 3.4 の「採った条件だけ」と同じ考え方）
+Map<String, dynamic> _criteriaJson(RapiCriteriaCard c) => {
+      'taskId': c.taskId,
+      'title': c.title,
+      'reason': c.reason,
+      'phase': c.phase.name,
+      'rewordings': c.rewordings,
+      'result': c.result == null
+          ? null
+          : {'actionId': c.result!.actionId, 'before': c.result!.before, 'after': c.result!.after},
+      'refusal': c.refusal,
+      'error': c.error,
+    };

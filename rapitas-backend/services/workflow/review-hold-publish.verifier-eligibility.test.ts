@@ -74,7 +74,11 @@ const verifierLookup = mock(async () => ({
 const updateMany = mock(async (_a: unknown) => ({ count: 1 }));
 mock.module('../../config/database', () => ({
   prisma: {
-    task: { updateMany },
+    task: {
+      updateMany,
+      // Criteria the override binds to (design 4.5); unchanged throughout.
+      findUnique: async () => ({ goals: null, constraints: null, acceptanceCriteria: '["a"]' }),
+    },
     agentExecution: {
       findFirst: verifierLookup,
       findMany: async () => [{ modelName: 'claude-sonnet-5-5' }],

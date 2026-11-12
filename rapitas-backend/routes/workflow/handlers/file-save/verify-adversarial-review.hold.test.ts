@@ -76,6 +76,12 @@ mock.module('../../../../services/workflow/verify-self-repair', () => ({
 const mockHold = mock(() => Promise.resolve('held')) as any;
 mock.module('../../../../services/workflow/review-hold', () => ({ holdFromReview: mockHold }));
 
+// The DB jury lock (design 4.5.1) is covered on real SQLite in
+// services/workflow/jury-review-run.test.ts; here it is granted and nothing drifts.
+const { fakeJuryRunModule, fakeJuryRunState } =
+  await import('../../../../services/workflow/jury-review-run.test-helpers');
+const juryRun = fakeJuryRunState(() => 'sha-1');
+mock.module('../../../../services/workflow/jury-review-run', () => fakeJuryRunModule(juryRun));
 const { runAdversarialDiffReview } = await import('./verify-adversarial-review');
 
 const params = () => ({

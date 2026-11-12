@@ -19,6 +19,8 @@ import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
 import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
+import type { CriteriaWriteDb } from './task-criteria-write';
+import { writeScreenCriteria } from './task-criteria-screen-write';
 import {
   linkTaskToMiss,
   autoLinkMatchingMisses,
@@ -198,6 +200,13 @@ export interface UpdateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  /**
+   * Criteria revision the caller's edit was based on (companion design 4.5).
+   * Required whenever goals / constraints / acceptanceCriteria are sent
+   * (400 criteria_revision_required otherwise); a stale one is refused with
+   * 409 criteria_changed_since. Updates without criteria omit it.
+   */
+  expectedCriteriaRevision?: string;
   isProtected?: boolean;
   autoRunExcluded?: boolean;
 }
@@ -212,7 +221,7 @@ export interface UpdateTaskInput {
  * @throws {Error} When the task is not found / タスクが見つからない場合
  */
 export async function updateTask(prisma: PrismaInstance, taskId: number, input: UpdateTaskInput) {
-  const { labelIds, ...fields } = input;
+  const { labelIds, expectedCriteriaRevision, ...fields } = input;
 
   const currentTask = await prisma.task.findUnique({
     where: { id: taskId },
@@ -222,6 +231,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   if (!currentTask) {
     throw new Error(`タスク(ID: ${taskId})が見つかりません`);
   }
+
+  // Criteria first, under the jury lock (design 4.5.1): a refusal leaves the request unapplied.
+  await writeScreenCriteria(
+    prisma as unknown as CriteriaWriteDb,
+    taskId,
+    fields,
+    expectedCriteriaRevision,
+  );
 
   const reopening = currentTask.status === 'done' && fields.status === 'todo';
   const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
@@ -278,12 +295,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
       ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
       ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),
-      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
-      ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
-      ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),
-      ...(fields.acceptanceCriteria !== undefined && {
-        acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
-      }),
+      // NOTE: goals / constraints / acceptanceCriteria were written above by
+      // writeTaskCriteria — never here, where the jury lock is not checked.
     },
   };
   // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
@@ -436,28 +449,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     });
   }
 
-  // Replacing the acceptance criteria invalidates every repair reason recorded
-  // against the OLD ones. Those reasons cite criteria by NUMBER, and the numbers
-  // now point at different criteria, so the convergence detector counts a stale
-  // indictment against a criterion nobody has ever failed. Observed on task 672:
-  // the criteria were corrected mid-flight and the next single bounce tripped
-  // the cutoff using two pre-correction reasons.
-  //
-  // Recorded as an activity so the detector can bound its window on it, exactly
-  // as it already bounds on `task_retried`.
-  if (fields.acceptanceCriteria !== undefined && updatedTask) {
-    await prisma.activityLog
-      .create({
-        data: {
-          taskId,
-          action: 'acceptance_criteria_changed',
-          metadata: JSON.stringify({ count: fields.acceptanceCriteria.length }),
-        },
-      })
-      .catch((err: unknown) =>
-        logger.warn({ err, taskId }, '[task] criteria-change activity not recorded (non-fatal)'),
-      );
-  }
+  // NOTE: The acceptance_criteria_changed activity (the repair window's reset,
+  // task 672) is now written by writeTaskCriteria, with before/after/actor.
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.
   if (updatedTask) {

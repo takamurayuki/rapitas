@@ -24,6 +24,11 @@ import {
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
 import { isValidEntityId } from '../../../utils/common/id-validation';
+import {
+  writeTaskCriteria,
+  type CriteriaWriteDb,
+} from '../../../services/task/task-criteria-write';
+import { computeCriteriaRevision } from '../../../services/task/task-criteria-revision';
 import { humanSourceLabel } from '../../../utils/common/human-source';
 
 const log = createLogger('routes:workflow:resume');
@@ -111,7 +116,15 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, description: true, goals: true, workflowStatus: true, status: true },
+    select: {
+      id: true,
+      description: true,
+      goals: true,
+      constraints: true,
+      acceptanceCriteria: true,
+      workflowStatus: true,
+      status: true,
+    },
   });
   if (!task) {
     throw new NotFoundError('Task not found');
@@ -141,11 +154,28 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   // status set for an unrelated reason.
   const statusUpdate = task.status === 'blocked' ? { status: 'todo' as const } : {};
 
+  // NOTE: goals are part of the completion criteria, so they go through
+  // writeTaskCriteria (companion design 4.5.1) — never next to other columns.
+  // The appended list was built from the read above, so the write is bound to
+  // that read's revision: a goals edit that lands in between is kept, and the
+  // seeding is dropped (criteria_changed_since) rather than overwriting it.
+  // A refusal (a jury lock left over, for one) only skips the seeding; the
+  // answer itself still lands in the description below.
+  const seeded = await writeTaskCriteria(prisma as unknown as CriteriaWriteDb, {
+    taskId,
+    next: { goals },
+    expectedCriteriaRevision: computeCriteriaRevision(task),
+    actor: 'user:answer_question',
+    recordActivity: false,
+  });
+  if (!seeded.ok) {
+    log.warn({ taskId, reason: seeded.reason }, '[answer-question] Goal seeding refused');
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       description: clarified,
-      goals: JSON.stringify(goals),
       workflowStatus: 'draft',
       updatedAt: new Date(),
       ...statusUpdate,

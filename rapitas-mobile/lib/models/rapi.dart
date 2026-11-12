@@ -12,6 +12,7 @@
 import 'rapi_companion.dart';
 export 'rapi_companion.dart';
 export 'rapi_criteria_edit.dart';
+export 'rapi_criteria_change.dart';
 
 /// 優先度の表示ラベル（デスクトップ rapiAvatar.intake.priority と同じ表記）
 const Map<String, String> rapiPriorityLabels = {

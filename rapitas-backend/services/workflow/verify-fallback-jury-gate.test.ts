@@ -104,6 +104,13 @@ mock.module('./publish/mark-latest-execution-failed', () => ({
 const holdForHumanReview = mock(async (_p: Record<string, unknown>): Promise<string> => 'held');
 mock.module('./review-hold', () => ({ holdFromReview: holdForHumanReview }));
 
+// The DB jury lock (design 4.5.1) is covered on real SQLite in
+// jury-review-run.test.ts; here it is granted and nothing drifts.
+const { fakeJuryRunModule, fakeJuryRunState, EMPTY_CRITERIA_REVISION } =
+  await import('./jury-review-run.test-helpers');
+const juryRun = fakeJuryRunState(() => verifySha);
+mock.module('./jury-review-run', () => fakeJuryRunModule(juryRun));
+
 const { runFallbackJuryGate } = await import('./verify-fallback-jury-gate');
 const { withTaskJuryGate, recordJuryGateCompletion, JURY_GATE_COMPLETED_EVENT } =
   await import('./verify-jury-completion');
@@ -280,6 +287,7 @@ describe('runFallbackJuryGate', () => {
       taskId: 9,
       verifySha256: 'sha-v1',
       diffFingerprint: 'fp-A',
+      criteriaRevision: EMPTY_CRITERIA_REVISION,
       verdict: 'pass',
       outcome: 'passed',
       source: 'http_save',
@@ -307,11 +315,58 @@ describe('runFallbackJuryGate', () => {
       verdict: 'pass',
       outcome: 'passed' as const,
       source: 'http_save' as const,
+      criteriaRevision: EMPTY_CRITERIA_REVISION,
     };
     await recordJuryGateCompletion({ ...base, verifySha256: 'sha-v0', diffFingerprint: 'fp-A' });
     await recordJuryGateCompletion({ ...base, verifySha256: 'sha-v1', diffFingerprint: 'fp-OLD' });
     await runFallbackJuryGate(params());
     expect(review).toHaveBeenCalledTimes(1);
+  });
+
+  test('same verify.md and diff, criteria changed → the jury is called again (design 4.5)', async () => {
+    // The passing record was given under other criteria: it must not be reused.
+    await recordJuryGateCompletion({
+      taskId: 9,
+      verifySha256: 'sha-v1',
+      diffFingerprint: 'fp-A',
+      criteriaRevision: 'revision-of-the-old-criteria',
+      verdict: 'pass',
+      outcome: 'passed',
+      source: 'http_save',
+    });
+    const out = await runFallbackJuryGate(params());
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(out).toEqual({ stop: false });
+  });
+
+  test('a completion recorded before revisions existed is not reuse', async () => {
+    timeline.unshift({
+      eventType: JURY_GATE_COMPLETED_EVENT,
+      correlationId: 'task-9',
+      payload: {
+        taskId: 9,
+        verifySha256: 'sha-v1',
+        diffFingerprint: 'fp-A',
+        verdict: 'pass',
+        outcome: 'passed',
+        source: 'http_save',
+      },
+    });
+    await runFallbackJuryGate(params());
+    expect(review).toHaveBeenCalledTimes(1);
+  });
+
+  test('the completion record names the criteria revision and the run', async () => {
+    await runFallbackJuryGate(params());
+    expect(completions()).toEqual([
+      expect.objectContaining({
+        verifySha256: 'sha-v1',
+        diffFingerprint: 'fp-A',
+        criteriaRevision: EMPTY_CRITERIA_REVISION,
+        juryRunId: expect.any(Number),
+        outcome: 'passed',
+      }),
+    ]);
   });
 
   test('an old review finishing late cannot stand in for a newer verify.md', async () => {
@@ -353,6 +408,7 @@ describe('runFallbackJuryGate', () => {
         taskId: 9,
         verifySha256: 'sha-v1',
         diffFingerprint: 'fp-A',
+        criteriaRevision: EMPTY_CRITERIA_REVISION,
         verdict: 'fail',
         outcome: 'stopped',
         source: 'http_save',
@@ -410,5 +466,50 @@ describe('runFallbackJuryGate — gate wait limit (G2 re-review item 2)', () => 
     expect(completions()).toEqual([]);
     releaseHttp();
     await http;
+  });
+});
+
+describe('runFallbackJuryGate — DB jury lock (design 4.5.1)', () => {
+  beforeEach(() => {
+    juryRun.acquire = true;
+    juryRun.stillBound = true;
+    juryRun.discarded = 0;
+  });
+
+  test('another run holds Task.juryRunId → gate_busy: no review, no commit, no record', async () => {
+    juryRun.acquire = false;
+    taskFindUnique.mockResolvedValue({
+      title: 'Add feature',
+      githubPrId: null,
+      workflowStatus: 'in_progress',
+    } as never);
+    const out = await runFallbackJuryGate(params());
+    expect(out).toEqual({ stop: true, phaseStatus: 'in_progress', skipped: 'gate_busy' });
+    expect(review).not.toHaveBeenCalled();
+    expect(completions()).toEqual([]);
+  });
+
+  test('criteria drifted during the review → stop, nothing applied, no completion record', async () => {
+    juryRun.stillBound = false;
+    review.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 90,
+      reasons: ['基準1を満たさない'],
+      diffFingerprint: 'fp-A',
+    });
+    const out = await runFallbackJuryGate(params());
+    expect(out.stop).toBe(true);
+    expect(juryRun.discarded).toBe(1);
+    expect(repair).not.toHaveBeenCalled();
+    expect(holdForHumanReview).not.toHaveBeenCalled();
+    expect(markFailed).not.toHaveBeenCalled();
+    expect(completions()).toEqual([]);
+  });
+
+  test('a PASS that drifted does not let the epilogue commit', async () => {
+    juryRun.stillBound = false;
+    const out = await runFallbackJuryGate(params());
+    expect(out.stop).toBe(true);
+    expect(completions()).toEqual([]);
   });
 });

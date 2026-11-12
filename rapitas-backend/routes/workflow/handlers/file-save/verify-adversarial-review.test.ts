@@ -91,6 +91,12 @@ mock.module('../../../../services/workflow/verify-self-repair', () => ({
   attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
+// The DB jury lock (design 4.5.1) is covered on real SQLite in
+// services/workflow/jury-review-run.test.ts; here it is granted and nothing drifts.
+const { fakeJuryRunModule, fakeJuryRunState } =
+  await import('../../../../services/workflow/jury-review-run.test-helpers');
+const juryRun = fakeJuryRunState(() => storedVerifySha);
+mock.module('../../../../services/workflow/jury-review-run', () => fakeJuryRunModule(juryRun));
 const { runAdversarialDiffReview } = await import('./verify-adversarial-review');
 
 function buildParams() {
@@ -278,5 +284,82 @@ describe('runAdversarialDiffReview — gate wait limit (G2 re-review item 2)', (
     expect(completionRecords()).toEqual([]);
     releaseOther();
     await other;
+  });
+});
+
+describe('runAdversarialDiffReview — DB jury lock and pre-apply re-check (design 4.5.1)', () => {
+  beforeEach(() => {
+    juryRun.acquire = true;
+    juryRun.stillBound = true;
+    juryRun.discarded = 0;
+    juryRun.finished.length = 0;
+    mockTaskUpdate.mockClear();
+    mockMarkLatestExecutionFailed.mockClear();
+    mockReviewDiffAdversarially.mockReset();
+    mockAttemptVerifyRepair.mockReset().mockResolvedValue({ bounced: false });
+    mockFindUnique
+      .mockReset()
+      .mockResolvedValue({ workflowStatus: 'verify_done', updatedAt: new Date(0) });
+  });
+
+  test('the completion record carries the criteria revision and the run id', async () => {
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'pass',
+      severity: 0,
+      reasons: [],
+      diffFingerprint: 'fp-A',
+    });
+    await runAdversarialDiffReview(buildParams());
+    const last = completionRecords().at(-1);
+    expect(last).toEqual(
+      expect.objectContaining({
+        criteriaRevision: juryRun.criteriaRevision,
+        juryRunId: expect.any(Number),
+      }),
+    );
+    expect(juryRun.finished.at(-1)).toEqual(
+      expect.objectContaining({ status: 'applied', outcome: 'passed', diffFingerprint: 'fp-A' }),
+    );
+  });
+
+  test('another run holds the lock → no review, stale (no rollback, no commit/PR)', async () => {
+    juryRun.acquire = false;
+    const before = completionRecords().length;
+    const out = await runAdversarialDiffReview(buildParams());
+    expect(out.staleVerifyRequest).toBe(true);
+    expect(mockReviewDiffAdversarially).not.toHaveBeenCalled();
+    expect(completionRecords().length).toBe(before);
+  });
+
+  test('drift after a FAIL → discarded: no bounce, no block, no completion record, stale', async () => {
+    juryRun.stillBound = false;
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 90,
+      reasons: ['基準2を満たさない'],
+      diffFingerprint: 'fp-A',
+    });
+    const before = completionRecords().length;
+    const out = await runAdversarialDiffReview(buildParams());
+    expect(out.staleVerifyRequest).toBe(true);
+    expect(juryRun.discarded).toBe(1);
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockMarkLatestExecutionFailed).not.toHaveBeenCalled();
+    expect(completionRecords().length).toBe(before);
+  });
+
+  test('drift after a PASS → stale, so the pipeline does not commit', async () => {
+    juryRun.stillBound = false;
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'pass',
+      severity: 0,
+      reasons: [],
+      diffFingerprint: 'fp-A',
+    });
+    const before = completionRecords().length;
+    const out = await runAdversarialDiffReview(buildParams());
+    expect(out.staleVerifyRequest).toBe(true);
+    expect(completionRecords().length).toBe(before);
   });
 });

@@ -215,6 +215,13 @@ model Task {
   haltedAt              DateTime?
   // JSON: { requiresNewHypothesis: boolean, note: string }
   resumeCondition       String?
+  /// The JuryReviewRun currently judging this task, or null (companion design
+  /// 4.5.1). The lock lives on the task row so a criteria write and the lock
+  /// check are ONE conditional updateMany (services/workflow/jury-run-lock.ts,
+  /// task-criteria-write.ts); a unique index on the run table would leave the
+  /// writer a check-then-write gap a review could start inside.
+  /// @references JuryReviewRun.id
+  juryRunId             Int?
 
   @@index([status])
   @@index([themeId])

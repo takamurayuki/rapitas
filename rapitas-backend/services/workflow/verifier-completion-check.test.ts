@@ -65,6 +65,8 @@ const override = (binding: unknown = OVERRIDE_BINDING): Row => ({
 });
 mock.module('../../config/database', () => ({
   prisma: {
+    // Criteria the override target reads its revision from (design 4.5); unchanged.
+    task: { findUnique: async () => ({ goals: null, constraints: null, acceptanceCriteria: null }) },
     agentExecution: {
       findFirst: verifierLookup,
       findMany: async () => [{ modelName: 'claude-sonnet-5-5' }],

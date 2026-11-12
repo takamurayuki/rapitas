@@ -16,6 +16,7 @@ import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import 'rapi_companion_card.dart';
+import 'rapi_criteria_change_card.dart';
 import 'rapi_digest_card.dart';
 import 'rapi_digest_visibility.dart';
 import 'rapi_roadmap_card.dart';
@@ -502,6 +503,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
               key: const ValueKey('rapi-consult-band'),
               title: consult.title,
               onOpen: () => _openTask(consult.id),
+              onCriteria: chat.sending
+                  ? null
+                  : () => _chat.openCriteriaChange(consult.id, consult.title),
               onExit: _chat.exitConsult,
             ),
           _Composer(
@@ -556,7 +560,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final card = _buildMessageBody(context, chat, m);
     final framed = m.archived &&
         (m.unsupported || m.answer != null || m.change != null || m.roadmap != null ||
-            m.tidy != null || m.companion != null);
+            m.tidy != null || m.companion != null || m.criteria != null);
     if (!framed) return card;
     return _spaced(RapiArchivedFrame(message: m, child: (card as Padding).child!));
   }
@@ -631,6 +635,26 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onApply: () => _chat.applyCompanion(m.id),
         onCancel: () => _chat.cancelCompanion(m.id),
         onOpen: () => _openTask(companion.proposal.taskId),
+        readOnly: m.archived,
+      ));
+    }
+
+    final criteria = m.criteria;
+    if (criteria != null) {
+      return _spaced(RapiCriteriaChangeCardView(
+        key: ValueKey('rapi-criteria-${m.id}'),
+        card: criteria,
+        onToggle: (i) => _chat.toggleCriteriaItem(m.id, i),
+        onEdit: (i, text) => _chat.editCriteriaItem(m.id, i, text),
+        onAdd: (text) => _chat.addCriteriaItem(m.id, text),
+        onReason: (text) => _chat.setCriteriaReason(m.id, text),
+        onDraft: () => _chat.draftCriteriaChange(m.id),
+        onApply: () => _chat.applyCriteriaChange(m.id),
+        onBack: () => _chat.backToCriteriaEdit(m.id),
+        onRebuild: () => _chat.rebuildCriteriaChange(m.id),
+        onCancel: () => _chat.cancelCriteriaChange(m.id),
+        onRevert: () => _chat.revertCriteriaChange(m.id),
+        onOpen: () => _openTask(criteria.taskId),
         readOnly: m.archived,
       ));
     }
@@ -1675,12 +1699,16 @@ class _ConsultPickerCard extends ConsumerWidget {
 class _ConsultBand extends StatelessWidget {
   final String title;
   final VoidCallback onOpen;
+
+  /// 「完了条件を変える」（段E）。送信中は null（押せない）
+  final VoidCallback? onCriteria;
   final VoidCallback onExit;
 
   const _ConsultBand({
     super.key,
     required this.title,
     required this.onOpen,
+    required this.onCriteria,
     required this.onExit,
   });
 
@@ -1713,6 +1741,17 @@ class _ConsultBand extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, color: Color(0xFF18181B)),
                 ),
               ),
+            ),
+            TextButton(
+              key: const ValueKey('rapi-consult-criteria'),
+              style: TextButton.styleFrom(
+                foregroundColor: _violetButton,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              onPressed: onCriteria,
+              child: const Text('完了条件を変える',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             ),
             IconButton(
               key: const ValueKey('rapi-consult-exit'),

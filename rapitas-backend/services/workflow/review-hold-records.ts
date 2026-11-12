@@ -3,7 +3,8 @@
  *
  * The records around a review hold: parsing a hold transition's metadata, the
  * timeline copy of a hold / its resolution, and the target a human override
- * is bound to (verify.md sha256 + publish worktree + git tree id) together
+ * is bound to (verify.md sha256 + publish worktree + git tree id + criteria
+ * revision) together
  * with the check that the current state still is that target. Not
  * responsible for writing or clearing the hold itself (review-hold.ts).
  *
@@ -24,6 +25,12 @@ export interface OverrideTarget {
   verifySha256: string;
   treeId: string;
   worktreePath: string;
+  /**
+   * Completion-criteria revision the override was given under (companion
+   * design 4.5). Optional only so resolutions recorded before it still parse;
+   * when present, a different current revision is drift.
+   */
+  criteriaRevision?: string;
 }
 
 /**
@@ -57,7 +64,13 @@ export function readOverrideTarget(meta: Record<string, unknown>): OverrideTarge
   if (typeof verifySha256 !== 'string' || !verifySha256) return null;
   if (typeof treeId !== 'string' || !treeId) return null;
   if (typeof worktreePath !== 'string' || !worktreePath) return null;
-  return { verifySha256, treeId, worktreePath };
+  const { criteriaRevision } = b;
+  return {
+    verifySha256,
+    treeId,
+    worktreePath,
+    ...(typeof criteriaRevision === 'string' && criteriaRevision ? { criteriaRevision } : {}),
+  };
 }
 
 /**
@@ -71,12 +84,19 @@ export async function readCurrentOverrideTarget(
   taskId: number,
 ): Promise<OverrideTarget | { missing: string }> {
   try {
-    const [{ readVerifySha256 }, { resolvePublishWorktree }, { stagedTreeIdentity }] =
-      await Promise.all([
-        import('./verify-jury-completion'),
-        import('./publish/workflow-auto-commit-binding'),
-        import('./publish/workflow-auto-commit-tree-identity'),
-      ]);
+    const [
+      { readVerifySha256 },
+      { resolvePublishWorktree },
+      { stagedTreeIdentity },
+      { readCriteriaRevision },
+      { prisma },
+    ] = await Promise.all([
+      import('./verify-jury-completion'),
+      import('./publish/workflow-auto-commit-binding'),
+      import('./publish/workflow-auto-commit-tree-identity'),
+      import('../task/task-criteria-revision'),
+      import('../../config/database'),
+    ]);
     // NOTE: The SAME worktree commit/PR publishes from (latest-active session).
     const worktreePath = await resolvePublishWorktree(taskId);
     if (!worktreePath) return { missing: '公開処理が使う worktree が見つかりません' };
@@ -84,7 +104,9 @@ export async function readCurrentOverrideTarget(
     if (!verifySha256) return { missing: 'verify.md の識別子（sha256）を取得できません' };
     const treeId = await stagedTreeIdentity(worktreePath);
     if (!treeId) return { missing: '差分の識別子（tree）を取得できません' };
-    return { verifySha256, treeId, worktreePath };
+    const criteriaRevision = await readCriteriaRevision(prisma, taskId);
+    if (!criteriaRevision) return { missing: '完了条件の版を取得できません' };
+    return { verifySha256, treeId, worktreePath, criteriaRevision };
   } catch (err) {
     log.warn({ err, taskId }, '[review-hold] Override target unreadable');
     return { missing: '上書きの対象を読み取れません' };
@@ -109,6 +131,9 @@ export async function overrideTargetDrift(
     return '公開に使う worktree が上書きの対象と異なります';
   if (now.verifySha256 !== target.verifySha256) return '上書きした後に verify.md が変わりました';
   if (now.treeId !== target.treeId) return '上書きした後に差分が変わりました';
+  if (target.criteriaRevision && now.criteriaRevision !== target.criteriaRevision) {
+    return '上書きした後に完了条件が変わりました';
+  }
   return null;
 }
 

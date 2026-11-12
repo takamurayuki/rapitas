@@ -12,6 +12,7 @@ import { promptsRoutes } from './prompts';
 import { systemPromptsRoutes } from './system-prompts';
 import assistantCleanupRoute from './assistant-cleanup.routes';
 import assistantCompanionRoute from './assistant-companion.routes';
+import assistantCriteriaRoute from './assistant-criteria.routes';
 import assistantIntakeRoute from './assistant-intake.routes';
 import assistantProfileRoute from './assistant-profile.routes';
 import assistantQueryRoute from './assistant-query.routes';
@@ -32,6 +33,7 @@ export const aiDomainRoutes = new Elysia()
   .use(systemPromptsRoutes)
   .use(assistantCleanupRoute)
   .use(assistantCompanionRoute)
+  .use(assistantCriteriaRoute)
   .use(assistantIntakeRoute)
   .use(assistantProfileRoute)
   .use(assistantQueryRoute)
