@@ -47,12 +47,31 @@ class FakeIdeaCreate implements BacklogService {
 
 class FakeThemeStar implements ThemeService {
   final List<String> starred = [];
+  List<TaskTheme> themes = screenThemes;
 
   @override
-  Future<List<TaskTheme>> getThemes() async => screenThemes;
+  Future<List<TaskTheme>> getThemes() async => themes;
 
+  /// バックエンドと同じく、同じカテゴリの他テーマの ☆ を外してから付ける
   @override
-  Future<void> setDefaultTheme(String id) async => starred.add(id);
+  Future<void> setDefaultTheme(String id) async {
+    starred.add(id);
+    final categoryId = themes.firstWhere((t) => t.id == id).categoryId;
+    themes = [
+      for (final t in themes)
+        t.categoryId == categoryId
+            ? TaskTheme(
+                id: t.id,
+                name: t.name,
+                color: t.color,
+                categoryId: t.categoryId,
+                category: t.category,
+                taskCount: t.taskCount,
+                isDefault: t.id == id,
+              )
+            : t,
+    ];
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -81,7 +100,7 @@ class FakeCategoryStar implements CategoryService {
 }
 
 /// アイデア作成フォーム（保存後の遷移先 /ideas も用意する）
-Widget buildIdeaFormApp(FakeIdeaCreate backlog, {String? defaultCategoryId = '1'}) {
+Widget buildIdeaFormApp(FakeIdeaCreate backlog, {String? defaultCategoryId = '1', IdeaFilter? listFilter}) {
   final router = GoRouter(initialLocation: '/ideas/new', routes: [
     GoRoute(path: '/ideas', builder: (_, __) => const Scaffold(body: Text('一覧'))),
     GoRoute(path: '/ideas/new', builder: (_, __) => const IdeaFormScreen()),
@@ -92,6 +111,7 @@ Widget buildIdeaFormApp(FakeIdeaCreate backlog, {String? defaultCategoryId = '1'
       themeListProvider.overrideWith((ref) async => screenThemes),
       categoryListProvider.overrideWith((ref) async => screenCategories),
       defaultCategoryIdProvider.overrideWith((ref) async => defaultCategoryId),
+      if (listFilter != null) ideaFilterProvider.overrideWith((ref) => listFilter),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
@@ -137,9 +157,8 @@ void main() {
 
     testWidgets('一覧で選んでいるテーマがあればそれを初期値にする', (tester) async {
       final backlog = FakeIdeaCreate();
-      await tester.pumpWidget(buildIdeaFormApp(backlog));
-      final container = ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
-      container.read(ideaFilterProvider.notifier).state = const IdeaFilter(themeId: '21');
+      // NOTE: フォームは一覧から開くので、一覧の選択はフォームが開く前に決まっている（開いた後の変更には追従しない）
+      await tester.pumpWidget(buildIdeaFormApp(backlog, listFilter: const IdeaFilter(themeId: '21')));
       await tester.pumpAndSettle();
       expect(dropdownValue(tester), '21');
     });
@@ -160,6 +179,13 @@ void main() {
           of: find.widgetWithText(ListTile, '資格'), matching: find.byIcon(Icons.star_border)));
       await tester.pumpAndSettle();
       expect(themes.starred, ['21']);
+      // 取り直した一覧で ☆ が移り、同じカテゴリの旧 ☆（英語）は輪郭に戻る
+      Finder starOf(String name, IconData icon) =>
+          find.descendant(of: find.widgetWithText(ListTile, name), matching: find.byIcon(icon));
+      expect(starOf('資格', Icons.star), findsOneWidget);
+      expect(starOf('英語', Icons.star_border), findsOneWidget);
+      expect(starOf('スマホアプリ', Icons.star), findsOneWidget);
+      expect(find.byIcon(Icons.star), findsNWidgets(2));
     });
 
     testWidgets('カテゴリ画面：☆ は defaultCategoryId のカテゴリ。押すと set-default して切り替わる', (tester) async {

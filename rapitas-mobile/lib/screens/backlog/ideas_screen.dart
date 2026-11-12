@@ -85,7 +85,7 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
     // NOTE: テーマは常に選ばれているので、Badge・解除ボタンの対象はテーマ以外の条件だけ
     final isFiltered = filter.hasExtraConditions;
     // 初期選択（テーマ）が決まるまでは全件を取りに行かない（全件→テーマの順に表示が切り替わるのを防ぐ）
-    final waiting = !ref.watch(ideaSelectionAppliedProvider) && filter.themeId == null;
+    final waiting = ref.watch(ideaSelectionPendingProvider) && filter.themeId == null;
     final ideasAsync = waiting ? const AsyncLoading<List<Idea>>() : ref.watch(ideaListProvider);
     // 行のテーマ名・チップのラベル用。取れなければテーマ名は出さないだけで一覧は表示する
     final themes = ref.watch(themeListProvider).valueOrNull;
@@ -120,6 +120,8 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                 onRefresh: () async {
                   // 一覧は ideaFilterProvider を watch しているので、条件を保ったまま取り直す
                   ref.invalidate(ideaListProvider);
+                  // テーマ一覧の取得に失敗していたら取り直す（成功すれば初期選択がここで一度だけ入る）
+                  if (ref.read(themeListProvider).hasError) ref.invalidate(themeListProvider);
                   try {
                     await ref.read(ideaListProvider.future);
                   } catch (_) {}

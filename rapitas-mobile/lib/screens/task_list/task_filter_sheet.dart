@@ -20,8 +20,14 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
   // シートの builder が再実行されても消えないよう、ここで保持する。初期値はテーマ一覧が届いた時点で決める。
   String? selectedCategoryId;
 
+  // NOTE: カテゴリ切替は記憶の読み込みを待ってからテーマを適用する。待っている間に別のカテゴリ・テーマを
+  // 選んだり、シートを閉じたりしたら、後から届いた古い結果で選択を上書きしないよう世代番号で捨てる。
+  var generation = 0;
+  var closed = false;
+
   // NOTE: カテゴリ切替でテーマが即適用されるので、ステータス・優先度は開いた時点ではなく現在の条件に重ねる
   void apply(BuildContext sheetContext, TaskFilter Function(TaskFilter) change) {
+    generation++;
     ref.read(taskFilterProvider.notifier).state = change(ref.read(taskFilterProvider));
     Navigator.pop(sheetContext);
   }
@@ -41,7 +47,7 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
     );
   }
 
-  showModalBottomSheet(
+  showModalBottomSheet<void>(
     context: context,
     builder: (context) {
       return SingleChildScrollView(
@@ -70,10 +76,12 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
                 // 取得失敗・候補0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
                 if (groups.isEmpty) return const SizedBox.shrink();
                 final currentThemeId = ref.watch(taskFilterProvider).themeId;
-                final categoryId = selectedCategoryId ??= _categoryIdOfTheme(groups, currentThemeId) ??
+                selectedCategoryId ??= _categoryIdOfTheme(groups, currentThemeId) ??
                     ref.read(taskInitialSelectionProvider).valueOrNull?.categoryId;
                 return StatefulBuilder(
                   builder: (context, setSheetState) {
+                    // NOTE: カテゴリの選択は builder 内で読む（外で読むと、切替直後の再描画に反映されない）
+                    final categoryId = selectedCategoryId;
                     return TaskThemeFilterSection(
                       groups: groups,
                       selectedCategoryId: groups.any((g) => g.categoryId == categoryId)
@@ -81,10 +89,12 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
                           : groups.first.categoryId!,
                       selectedThemeId: currentThemeId,
                       onCategorySelected: (id) async {
+                        final myGeneration = ++generation;
                         setSheetState(() => selectedCategoryId = id);
                         // カテゴリを切り替えたら、そのカテゴリの記憶 → ☆ → 先頭のテーマを即適用する
                         // （「選ばれていないカテゴリ」の状態を作らない）。シートは開いたまま
-                        final memory = await FilterSelectionStore.loadTask();
+                        final memory = await ref.read(taskSelectionMemoryLoaderProvider)();
+                        if (closed || myGeneration != generation) return;
                         final themeId =
                             resolveThemeForCategory(categoryId: id, themes: themes!, memory: memory);
                         if (themeId == null) return;
@@ -122,7 +132,10 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    closed = true;
+    generation++;
+  });
 }
 
 /// テーマが属するカテゴリのIDを返す。見つからなければ null

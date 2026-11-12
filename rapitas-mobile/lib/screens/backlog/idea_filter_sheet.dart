@@ -23,7 +23,8 @@ String? ideaThemeName(List<TaskTheme>? themes, String? themeId) {
   return null;
 }
 
-/// 絞り込みシートを開く。「適用」で入力中の条件を、「クリア」でテーマ以外を初期条件に戻して閉じる。
+/// 絞り込みシートを開く。「適用」で入力中の条件を、「クリア」でテーマ以外を初期条件に戻して閉じる
+/// （どちらもシートで選んでいるテーマを適用し、記憶する）。
 Future<void> showIdeaFilterSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -69,9 +70,13 @@ class _IdeaFilterSheetState extends ConsumerState<IdeaFilterSheet> {
     Navigator.pop(context);
   }
 
-  /// NOTE: テーマは常にどれか（または「指定なし」）が選ばれている前提なので、クリアでもテーマは残す
+  /// NOTE: テーマは常にどれか（または「指定なし」）が選ばれている前提なので、クリアでもテーマは残す。
+  /// 残すのはシートで選んでいるテーマ（下書き）で、「適用」と同じく記憶もする
+  /// （一覧だけ切り替えて記憶が古いままだと、再起動で前のテーマに戻ってしまうため）。
   void _clear() {
-    ref.read(ideaFilterProvider.notifier).state = IdeaFilter(themeId: _draft.themeId);
+    final themeId = _draft.themeId;
+    ref.read(ideaFilterProvider.notifier).state = IdeaFilter(themeId: themeId);
+    if (themeId != null) FilterSelectionStore.rememberIdeaTheme(themeId);
     Navigator.pop(context);
   }
 

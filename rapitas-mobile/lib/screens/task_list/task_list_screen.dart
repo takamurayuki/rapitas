@@ -320,7 +320,7 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
 
   Widget _buildListBody(TaskFilter filter, bool isFiltered) {
     // 初期選択（テーマ）が決まるまでは全件を取りに行かない（全件→テーマの順に表示が切り替わるのを防ぐ）
-    if (!ref.watch(taskSelectionAppliedProvider) && filter.themeId == null) {
+    if (ref.watch(taskSelectionPendingProvider) && filter.themeId == null) {
       return const Center(child: CircularProgressIndicator());
     }
     final tasksAsync = ref.watch(taskListProvider(filter));
@@ -331,6 +331,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
           child: RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(taskListProvider);
+              // テーマ一覧の取得に失敗していたら取り直す（成功すれば初期選択がここで一度だけ入る）
+              if (ref.read(themeListProvider).hasError) ref.invalidate(themeListProvider);
             },
             child: tasksAsync.when(
               data: (tasks) {

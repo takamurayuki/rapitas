@@ -28,30 +28,30 @@ Future<List<TaskCategory>?> _categoriesOrNull(Ref ref) async {
   }
 }
 
-/// テーマ一覧。取得失敗は「テーマなし」と同じく初期選択をしない
-Future<List<TaskTheme>> _themesOrEmpty(Ref ref) async {
-  try {
-    return await ref.watch(themeListProvider.future);
-  } catch (_) {
-    return const [];
-  }
-}
+/// タスク一覧の記憶の読み込み（テストで遅延を差し込めるようにプロバイダーにしている）
+final taskSelectionMemoryLoaderProvider =
+    Provider<Future<TaskSelectionMemory> Function()>((ref) => FilterSelectionStore.loadTask);
 
-/// タスク一覧の初期選択。カテゴリに属するテーマが無ければ null
+// NOTE: テーマ一覧の取得失敗は空配列に変換しない（以前は変換していた）。失敗をエラーのまま伝え、
+// 正常な0件（null＝絞らない、で確定）と区別する。失敗時は初期選択の権利を消費せず、
+// 再取得に成功した時点で一度だけ選ぶ（applyInitial… を参照）。
+
+/// タスク一覧の初期選択。カテゴリに属するテーマが無ければ null。テーマ一覧の取得失敗はエラーになる
 final taskInitialSelectionProvider = FutureProvider<TaskSelection?>((ref) async {
-  final themes = await _themesOrEmpty(ref);
+  final themes = await ref.watch(themeListProvider.future);
   if (themes.isEmpty) return null;
   return resolveTaskSelection(
     themes: themes,
     categories: await _categoriesOrNull(ref),
     defaultCategoryId: await ref.watch(defaultCategoryIdProvider.future),
-    memory: await FilterSelectionStore.loadTask(),
+    memory: await ref.read(taskSelectionMemoryLoaderProvider)(),
   );
 });
 
-/// アイデア一覧の初期選択（テーマID または [ideaNoThemeId]）。テーマが無ければ null
+/// アイデア一覧の初期選択（テーマID または [ideaNoThemeId]）。テーマが無ければ null。
+/// テーマ一覧の取得失敗はエラーになる
 final ideaInitialSelectionProvider = FutureProvider<String?>((ref) async {
-  final themes = await _themesOrEmpty(ref);
+  final themes = await ref.watch(themeListProvider.future);
   if (themes.isEmpty) return null;
   return resolveIdeaSelection(
     themes: themes,
@@ -67,9 +67,25 @@ final taskSelectionAppliedProvider = StateProvider<bool>((ref) => false);
 /// アイデア一覧の初期選択を適用済みか
 final ideaSelectionAppliedProvider = StateProvider<bool>((ref) => false);
 
+/// タスク一覧が初期選択の解決を待つべきか。
+///
+/// 解決中だけ true。取得に失敗したら待たずに一覧（テーマで絞らない）を出し続け、
+/// 初期選択は未完了のまま残す（一覧表示の継続と初期選択の完了を分けている）。
+final taskSelectionPendingProvider = Provider<bool>((ref) {
+  if (ref.watch(taskSelectionAppliedProvider)) return false;
+  return !ref.watch(taskInitialSelectionProvider).hasError;
+});
+
+/// アイデア一覧が初期選択の解決を待つべきか（[taskSelectionPendingProvider] と同じ方針）
+final ideaSelectionPendingProvider = Provider<bool>((ref) {
+  if (ref.watch(ideaSelectionAppliedProvider)) return false;
+  return !ref.watch(ideaInitialSelectionProvider).hasError;
+});
+
 /// 解決結果が届いていれば、タスク一覧の絞り込みへ一度だけ入れる。
 ///
 /// すでにテーマが指定されている（テーマ画面・音声から来た）ときはそれを優先し、上書きしない。
+/// 取得失敗（エラー）では適用済みにしない。再取得に成功した値が届いたときに一度だけ適用する。
 ///
 /// @param read - プロバイダーの読み取り（WidgetRef.read / ProviderContainer.read）
 /// @param selection - taskInitialSelectionProvider の現在値
@@ -79,6 +95,7 @@ void applyInitialTaskSelection(
 ) {
   if (read(taskSelectionAppliedProvider)) return;
   if (selection.isLoading && !selection.hasValue) return;
+  if (selection.hasError) return;
   read(taskSelectionAppliedProvider.notifier).state = true;
   final themeId = selection.valueOrNull?.themeId;
   final filter = read(taskFilterProvider);
@@ -97,6 +114,7 @@ void applyInitialIdeaSelection(
 ) {
   if (read(ideaSelectionAppliedProvider)) return;
   if (selection.isLoading && !selection.hasValue) return;
+  if (selection.hasError) return;
   read(ideaSelectionAppliedProvider.notifier).state = true;
   final themeId = selection.valueOrNull;
   final filter = read(ideaFilterProvider);
