@@ -147,6 +147,28 @@ describe('IdeaBox Service', () => {
       expect(result.ideas[0].title).toBe('idea1');
     });
 
+    test('noTheme はテーマなし（themeId IS NULL）だけに絞る', async () => {
+      await listIdeas({ noTheme: true });
+      const call = mockKnowledgeEntry.findMany.mock.calls[0][0];
+      expect(call.where.themeId).toBeNull();
+      expect(mockKnowledgeEntry.count).toHaveBeenCalledWith({ where: call.where });
+    });
+
+    test('noTheme と scope=project は矛盾するので空になる', async () => {
+      await listIdeas({ noTheme: true, scope: 'project' });
+      expect(mockKnowledgeEntry.findMany.mock.calls[0][0].where.themeId).toBe(-1);
+    });
+
+    test('noTheme と scope=global はテーマなしのまま', async () => {
+      await listIdeas({ noTheme: true, scope: 'global' });
+      expect(mockKnowledgeEntry.findMany.mock.calls[0][0].where.themeId).toBeNull();
+    });
+
+    test('数値 themeId の解釈は変わらない', async () => {
+      await listIdeas({ themeId: 3 });
+      expect(mockKnowledgeEntry.findMany.mock.calls[0][0].where.themeId).toBe(3);
+    });
+
     test('未使用フィルタが適用される', async () => {
       await listIdeas({ unusedOnly: true });
 

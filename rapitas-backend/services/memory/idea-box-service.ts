@@ -285,6 +285,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
 export async function listIdeas(options: {
   categoryId?: number;
   themeId?: number;
+  /** Only ideas without a theme (themeId IS NULL). Takes precedence over themeId / categoryId. */
+  noTheme?: boolean;
   unusedOnly?: boolean;
   scope?: IdeaScope;
   /** Lifecycle filter: open = not yet turned into a task, used = already turned. */
@@ -298,6 +300,7 @@ export async function listIdeas(options: {
   const {
     categoryId,
     themeId,
+    noTheme = false,
     unusedOnly = false,
     scope,
     status,
@@ -309,6 +312,7 @@ export async function listIdeas(options: {
   const where = await buildWhereClause({
     categoryId,
     themeId,
+    noTheme,
     unusedOnly,
     scope,
     status,
@@ -549,16 +553,20 @@ export async function getIdeaStats(categoryId?: number): Promise<{
 async function buildWhereClause(opts: {
   categoryId?: number;
   themeId?: number;
+  noTheme?: boolean;
   unusedOnly?: boolean;
   scope?: IdeaScope;
   status?: 'open' | 'used' | 'all';
   priority?: string;
   search?: string;
 }) {
-  const { categoryId, themeId, unusedOnly, scope, status, priority } = opts;
+  const { categoryId, themeId, noTheme, unusedOnly, scope, status, priority } = opts;
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
+  // NOTE: noTheme（GET /idea-box?themeId=none）はテーマ未定のアイデアだけを返す。数値 themeId の解釈は変えない。
   let themeFilter: Record<string, unknown> = {};
-  if (themeId) {
+  if (noTheme) {
+    themeFilter = { themeId: null };
+  } else if (themeId) {
     themeFilter = { themeId };
   } else if (categoryId) {
     themeFilter = { themeId: { in: await getThemeIdsForCategory(categoryId) } };
@@ -582,7 +590,10 @@ async function buildWhereClause(opts: {
   // ALREADY implies project-scope, so we skip the redundant null-check
   // (and avoid a Prisma "themeId" key collision).
   let scopeFilter: Record<string, unknown> = {};
-  if (scope && !themeId && !categoryId) {
+  if (noTheme) {
+    // Themeless ideas are global by the invariant above; 'project' can never match.
+    if (scope === 'project') scopeFilter = { themeId: -1 };
+  } else if (scope && !themeId && !categoryId) {
     scopeFilter = scope === 'project' ? { themeId: { not: null } } : { themeId: null };
   } else if (scope === 'global' && (themeId || categoryId)) {
     // Logical contradiction — global ideas never have a theme. Force an
