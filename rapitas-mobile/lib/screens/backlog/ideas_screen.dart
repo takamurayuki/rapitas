@@ -14,7 +14,8 @@ import '../../widgets/voice_mode_indicator.dart';
 
 // NOTE: routes.dart がこの画面を import しているので、循環を避けてパスは文字列で書く
 
-/// アイデア一覧（先頭100件）。テーマ・優先度・状態・キーワードで絞り込め、追加・削除ができる。
+/// アイデア一覧（先頭100件）。テーマ・優先度・状態・キーワードで絞り込め、追加ができる。
+/// 削除は行の横スワイプ（右から左）＋確認ダイアログ。
 class IdeasScreen extends ConsumerStatefulWidget {
   const IdeasScreen({super.key});
 
@@ -23,16 +24,22 @@ class IdeasScreen extends ConsumerStatefulWidget {
 }
 
 class _IdeasScreenState extends ConsumerState<IdeasScreen> {
-  /// 削除リクエスト中のアイデアID（二重タップ防止）
+  /// 削除リクエスト中のアイデアID（二重実行防止）
   final Set<String> _deleting = {};
 
-  Future<void> _delete(Idea idea) async {
-    if (_deleting.contains(idea.id)) return;
+  /// スワイプで消えた行のID。再取得の結果が届くまで一覧から外しておく
+  /// （Dismissible は消えた後も木に残るとエラーになるため）。
+  final Set<String> _dismissed = {};
+
+  /// スワイプ削除の確認→削除。削除できたら true（行が消える）、
+  /// キャンセル・失敗・実行中なら false（行はスワイプ前に戻る）。
+  Future<bool> _delete(Idea idea) async {
+    if (_deleting.contains(idea.id)) return false;
     final ok = await confirmBacklogDelete(
       context,
       '「${idea.title}」を削除します。元に戻せません。',
     );
-    if (!ok || !mounted) return;
+    if (!ok || !mounted) return false;
 
     setState(() => _deleting.add(idea.id));
     final messenger = ScaffoldMessenger.of(context);
@@ -42,11 +49,12 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
     } catch (e) {
       if (mounted) setState(() => _deleting.remove(idea.id));
       messenger.showSnackBar(SnackBar(content: Text('アイデアの削除に失敗しました: $e')));
-      return;
+      return false;
     }
     container.invalidate(ideaListProvider);
     if (mounted) setState(() => _deleting.remove(idea.id));
     messenger.showSnackBar(const SnackBar(content: Text('アイデアを削除しました')));
+    return true;
   }
 
   void _setFilter(IdeaFilter filter) {
@@ -96,7 +104,8 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                   } catch (_) {}
                 },
                 child: ideasAsync.when(
-                  data: (ideas) {
+                  data: (fetched) {
+                    final ideas = fetched.where((i) => !_dismissed.contains(i.id)).toList();
                     if (ideas.isEmpty) {
                       return isFiltered
                           ? CenteredMessage(
@@ -120,11 +129,15 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
                       separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final idea = ideas[index];
-                        return _IdeaTile(
-                          idea: idea,
-                          themeName: ideaThemeName(themes, idea.themeId),
+                        return BacklogSwipeToDelete(
+                          itemKey: ValueKey('idea-${idea.id}'),
                           deleting: _deleting.contains(idea.id),
-                          onDelete: () => _delete(idea),
+                          onConfirmDelete: () => _delete(idea),
+                          onDismissed: () => setState(() => _dismissed.add(idea.id)),
+                          child: _IdeaTile(
+                            idea: idea,
+                            themeName: ideaThemeName(themes, idea.themeId),
+                          ),
                         );
                       },
                     );
@@ -192,20 +205,16 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
   }
 }
 
-/// アイデア行（タイトル＋優先度・テーマ・使用済みのチップ＋作成日＋削除）
+/// アイデア行（タイトル＋優先度・テーマ・使用済みのチップ＋作成日）。削除は行のスワイプで行う
 class _IdeaTile extends StatelessWidget {
   final Idea idea;
 
   /// テーマ名。テーマ一覧が取れない・該当が無いときは null で、何も出さない
   final String? themeName;
-  final bool deleting;
-  final VoidCallback onDelete;
 
   const _IdeaTile({
     required this.idea,
     required this.themeName,
-    required this.deleting,
-    required this.onDelete,
   });
 
   @override
@@ -238,22 +247,6 @@ class _IdeaTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: deleting
-          ? const SizedBox(
-              width: 48,
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          : IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'アイデアを削除',
-              onPressed: onDelete,
-            ),
     );
   }
 }
