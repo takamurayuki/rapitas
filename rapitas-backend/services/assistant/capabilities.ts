@@ -202,6 +202,20 @@ export const ASSISTANT_CAPABILITIES = [
     requiresConfirmation: true,
     undo: 'restore-previous-values',
   },
+  {
+    // What changed on accompanied tasks since the user last looked, and what
+    // waits on them (stage 2, design 段D). Counts only — no model. The one
+    // thing it moves is the display cursor TaskCompanion.lastDigestTransitionId,
+    // which is rebuildable from WorkflowTransition and not state (design 4.3),
+    // so it is declared as a read. It only LINKS to the decision screen: plan
+    // approval, answering, review holds, halt release and plan revision are not
+    // ラピ's to perform and are deliberately absent from this registry
+    // (design 2章; capabilities.decisions.test.ts).
+    id: 'companion.digest',
+    writes: false,
+    requiresConfirmation: false,
+    undo: 'nothing-to-undo',
+  },
 ] as const satisfies readonly AssistantCapability[];
 
 /** What undoing a capability takes. */

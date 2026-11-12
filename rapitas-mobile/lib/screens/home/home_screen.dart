@@ -9,6 +9,7 @@ import '../../providers/notification_provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/sse_service.dart';
+import '../../widgets/companion_digest_banner.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_mode_indicator.dart';
@@ -52,6 +53,7 @@ class HomeScreen extends ConsumerWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    const CompanionDigestBanner(),
                     _SectionHeader(
                       title: '進行中のタスク',
                       onSeeAll: () => context.go(AppRoutes.tasks),

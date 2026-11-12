@@ -13,6 +13,7 @@ import { NotFoundError, ValidationError } from '../../../middleware/error-handle
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { persistPlanRevision } from '../../../services/workflow/plan-revision-persistence';
 import { isValidEntityId } from '../../../utils/common/id-validation';
+import { humanSourceLabel } from '../../../utils/common/human-source';
 
 const log = createLogger('routes:workflow:plan-revision');
 
@@ -85,7 +86,8 @@ export async function handleRevisePlan({ params, body, set, headers }: RevisePla
   // on answer-question and on PUT /tasks/:id/status.
   const rawSource = headers?.['x-rapitas-source'];
   const source = typeof rawSource === 'string' ? rawSource.toLowerCase() : '';
-  if (!REVISION_SOURCE_LABELS[source]) {
+  const sourceLabel = humanSourceLabel(rawSource, REVISION_SOURCE_LABELS);
+  if (!sourceLabel) {
     log.warn(
       { taskId, source: rawSource ?? null },
       '[plan-revision] rejected: missing X-Rapitas-Source header (likely an agent shell-call)',
@@ -123,7 +125,7 @@ export async function handleRevisePlan({ params, body, set, headers }: RevisePla
     throw new NotFoundError('plan.md does not exist for this task');
   }
 
-  await persistPlanRevision(prisma, task, instruction, REVISION_SOURCE_LABELS[source]);
+  await persistPlanRevision(prisma, task, instruction, sourceLabel);
 
   log.info(
     { taskId, source },

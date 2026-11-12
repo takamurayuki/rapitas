@@ -136,6 +136,19 @@ void main() {
     expect(find.text('本人が確かめる'), findsNothing);
   });
 
+  // Stage 2: when a person must decide, the detail leads to the decision screen.
+  testWidgets('a task waiting on you offers the decision screen; a running one does not',
+      (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(workflowStatus: 'plan_created'));
+    expect(find.byKey(const ValueKey('task-detail-decide')), findsOneWidget);
+    expect(find.text('判断する：計画の承認'), findsOneWidget);
+    await _pump(tester, _task(workflowStatus: 'in_progress', haltReason: 'no_progress'));
+    expect(find.text('判断する：停止の解除'), findsOneWidget);
+    await _pump(tester, _task(workflowStatus: 'in_progress'));
+    expect(find.byKey(const ValueKey('task-detail-decide')), findsNothing);
+  });
+
   testWidgets('shows the stage, its step and what is happening', (tester) async {
     _phone(tester);
     await _pump(tester, _task(workflowStatus: 'plan_created'));
@@ -153,10 +166,19 @@ void main() {
     expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
   });
 
+  // NOTE: This used jury_result_discarded as its unknown code. Stage 2 gives that
+  // code (written by batch B) a plain sentence ahead of time, so a code no table
+  // knows stands in for "unknown" now.
   testWidgets('an unknown halt code is shown, not hidden', (tester) async {
     _phone(tester);
-    await _pump(tester, _task(workflowStatus: 'in_progress', haltReason: 'jury_result_discarded'));
-    expect(find.text('自動で止まっています（理由: jury_result_discarded）。'), findsOneWidget);
+    await _pump(tester, _task(workflowStatus: 'in_progress', haltReason: 'some_future_halt'));
+    expect(find.text('自動で止まっています（理由: some_future_halt）。'), findsOneWidget);
+  });
+
+  testWidgets('a discarded jury result (batch B) is said plainly', (tester) async {
+    _phone(tester);
+    await _pump(tester, _task(workflowStatus: 'verify_done', haltReason: 'jury_result_discarded'));
+    expect(find.text('確認の途中で完了条件が変わったため、その判定は使わずに止めています。'), findsOneWidget);
   });
 
   testWidgets('no criteria and no workflow are said plainly', (tester) async {

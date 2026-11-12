@@ -125,6 +125,23 @@ describe('handleRevisePlan', () => {
     expect(taskUpdate).not.toHaveBeenCalled();
   });
 
+  test.each(['assistant', 'rapi', 'constructor', '__proto__'])(
+    'refuses %s as a source (only ui/operator direct the planner)',
+    async (source) => {
+      const set: { status?: number } = {};
+      await expect(
+        handleRevisePlan({
+          params: { taskId: '1' },
+          body: { instruction: '直して' },
+          set,
+          headers: { 'x-rapitas-source': source },
+        }),
+      ).rejects.toThrow('X-Rapitas-Source');
+      expect(set.status).toBe(400);
+      expect(taskUpdate).not.toHaveBeenCalled();
+    },
+  );
+
   test('rejects a blank instruction', async () => {
     const set: { status?: number } = {};
     await expect(

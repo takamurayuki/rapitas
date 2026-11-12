@@ -12,8 +12,12 @@
  * pressing it calls `/start` or `/stop` with `confirmed: true` — the same
  * draft → confirm → commit shape as task.update-draft / task.update.
  *
- * Not responsible for what accompanying means day to day (the digest is stage
- * 2) — only for the TaskCompanion row.
+ * `/digest` and `/digest/seen` are what accompanying means day to day (stage 2
+ * item 1): what changed on accompanied tasks since the user last looked, and
+ * what is waiting on them. Read-only apart from the display cursor. The
+ * digest only POINTS at the decision screen (`decision.link`); approving,
+ * answering, resolving a hold and releasing a halt stay on the human-only
+ * workflow routes, which ラピ never calls (design 2章, 8章).
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -30,12 +34,32 @@ import {
   setCompanionSource,
   readCompanionState,
   detectCompanionRequest,
+  readCompanionDigest,
+  markDigestSeen,
   type CompanionDb,
+  type DigestDb,
+  type DigestDeps,
 } from '../../services/companion';
 import { MAX_TEXT_LENGTH } from './assistant-intake.routes';
 
 const logger = createLogger('assistant-companion');
 const db = prisma as unknown as CompanionDb;
+const digestDb = prisma as unknown as DigestDb;
+
+/**
+ * The repair and hold readers, loaded on first use: they pull in the workflow
+ * services, which the start/stop routes (and their tests) do not need.
+ */
+const digestDeps: DigestDeps = {
+  summarizeRepairs: async (taskId) =>
+    (await import('../../services/workflow/repair-escalation')).summarizeRepairCauses(taskId),
+  readHoldReason: async (taskId) =>
+    (await (await import('../../services/workflow/review-hold')).readReviewHold(taskId))?.reason ??
+    null,
+};
+
+/** Most cursors one seen-report may carry. */
+const MAX_SEEN_CURSORS = 200;
 
 /** Refuse an unconfirmed write, recording the refusal. Returns true when refused. */
 async function refuseUnconfirmed(
@@ -194,6 +218,39 @@ export const assistantCompanionRoutes = new Elysia({ prefix: '/assistant/compani
       return { success: true, actionId, closedAt: result.closedAt.toISOString() };
     },
     { body },
+  )
+
+  /**
+   * What changed on accompanied tasks since the user last looked, and what
+   * waits on them (no model; companion-digest.ts). Reading does not move the
+   * cursor — the client reports what it showed through `/digest/seen`.
+   */
+  .get('/digest', async () => {
+    assertCapabilityAllowed('companion.digest', { confirmed: false });
+    const digest = await readCompanionDigest(digestDb, digestDeps);
+    return { success: true, ...digest };
+  })
+
+  /**
+   * The client showed the digest up to these transitions. Moves each open
+   * companion's cursor forward only; a display bookkeeping write, not a
+   * decision (design 4.3: rebuildable from WorkflowTransition).
+   */
+  .post(
+    '/digest/seen',
+    async ({ body }) => {
+      assertCapabilityAllowed('companion.digest', { confirmed: false });
+      const moved = await markDigestSeen(digestDb, body.cursors);
+      return { success: true, moved };
+    },
+    {
+      body: t.Object({
+        cursors: t.Array(
+          t.Object({ taskId: t.Integer({ minimum: 1 }), transitionId: t.Integer({ minimum: 1 }) }),
+          { maxItems: MAX_SEEN_CURSORS },
+        ),
+      }),
+    },
   );
 
 export default assistantCompanionRoutes;

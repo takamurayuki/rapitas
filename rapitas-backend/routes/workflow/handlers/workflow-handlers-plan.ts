@@ -18,6 +18,7 @@ import { readPromptLanguage } from '../../../services/system/prompt-language-sto
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { parsePlanFiles } from '../../../services/agents/verification/scope-check';
 import { isSchemaFilePath } from '../../../services/agents/verification/schema-change-gate';
+import { humanSourceLabel } from '../../../utils/common/human-source';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -77,7 +78,7 @@ export async function handleApprovePlan({
     // curl (task 1059 AC2: the only prior guard on this endpoint was none).
     const rawSource = headers?.['x-rapitas-source'];
     const source = typeof rawSource === 'string' ? rawSource.toLowerCase() : '';
-    if (!APPROVE_PLAN_SOURCE_LABELS[source]) {
+    if (!humanSourceLabel(rawSource, APPROVE_PLAN_SOURCE_LABELS)) {
       log.warn(
         { taskId, source: rawSource ?? null },
         '[Workflow] Rejected approve-plan: missing X-Rapitas-Source header (likely an agent shell-call)',
