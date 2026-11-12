@@ -219,7 +219,11 @@ describe('PUT messages', () => {
     ];
     const good = [
       textItem('ok1'),
-      card('good-nested', 'answer', '{ "kind" : "answer", "answer":{"v":1.5,"s":"\\"v\\":1.0"}, "v" : 2 }'),
+      card(
+        'good-nested',
+        'answer',
+        '{ "kind" : "answer", "answer":{"v":1.5,"s":"\\"v\\":1.0"}, "v" : 2 }',
+      ),
     ];
     const r = await call('PUT', url, { messages: [good[0], ...bad, good[1]] });
     expect(r.status).toBe(422);
