@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/rapi.dart';
+import '../../providers/companion_provider.dart';
 import '../../providers/rapi_chat_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/theme_data_provider.dart';
@@ -15,6 +16,7 @@ import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import 'rapi_companion_card.dart';
+import 'rapi_digest_card.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_tidy_card.dart';
 
@@ -161,6 +163,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     if (_compose.hasPending) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onComposeRequested());
     }
+    // 伴走の要約は、ラピタブを開くたびに読み直す（設計 Q5：開いたときに出す）。
+    // 見せたら、見せた位置までを既読にする
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDigest());
     // 戻ってきたときは最新の発言が見える位置から始める
     if (saved.messages.length > 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -185,6 +190,21 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   }
 
   void _onInputChanged() => _chat.setInput(_input.text);
+
+  Future<void> _loadDigest() async {
+    if (!mounted) return;
+    final notifier = ref.read(companionDigestProvider.notifier);
+    await notifier.load();
+    if (!mounted || (ref.read(companionDigestProvider).digest?.isEmpty ?? true)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) notifier.markShown();
+    });
+  }
+
+  void _openDecision(String link) {
+    _cancelVoice();
+    context.push(link);
+  }
 
   /// 要求はルーターの redirect の途中で届くので、その場では触らず次のフレームで処理する
   void _onComposeSignal() {
@@ -329,9 +349,23 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     if (_voiceActive && !(ModalRoute.of(context)?.isCurrent ?? true)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _cancelVoice());
     }
+    final digest = ref.watch(companionDigestProvider).digest;
+    // 伴走の要約は挨拶（最初の発言）のすぐ後に、ラピの報告として置く
+    final digestCard = digest == null || digest.isEmpty
+        ? null
+        : _spaced(RapiDigestCardView(
+            key: const ValueKey('rapi-digest'),
+            digest: digest,
+            onOpenDecision: _openDecision,
+            onOpenTask: _openTask,
+          ));
     final items = <Widget>[
       if (chat.surveyVisible) _buildSurveyCard(context, chat),
-      for (final m in chat.messages) _buildMessage(context, chat, m),
+      for (final (i, m) in chat.messages.indexed) ...[
+        _buildMessage(context, chat, m),
+        if (i == 0 && digestCard != null) digestCard,
+      ],
+      if (chat.messages.isEmpty && digestCard != null) digestCard,
       if (chat.sending) const _ThinkingRow(),
     ];
 

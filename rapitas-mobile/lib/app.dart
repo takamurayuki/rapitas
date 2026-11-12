@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/routes.dart';
 import 'config/theme.dart';
+import 'providers/companion_provider.dart';
 import 'providers/home_widget_sync_provider.dart';
 import 'providers/pairing_provider.dart';
 import 'providers/pending_request_provider.dart';
@@ -23,6 +24,8 @@ class RapitasMobileApp extends ConsumerWidget {
     ref.watch(homeWidgetSyncProvider);
     // ショートカットが預けた依頼の取り込みと、裏へ回る直前のウィジェットの書き出し（iOS のみ）
     ref.watch(homeScreenLifecycleProvider);
+    // 伴走の要約を、起動して接続設定が読めたとき・裏から戻ったときに読み直す（プッシュはしない。設計 Q5）
+    ref.watch(companionDigestLifecycleProvider);
 
     return MaterialApp.router(
       title: 'Rapitas Mobile',

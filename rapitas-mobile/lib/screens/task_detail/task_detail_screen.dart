@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/routes.dart';
+import '../../models/companion_digest.dart';
 import '../../models/task.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/task_provider.dart';
@@ -14,6 +15,7 @@ import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
 import '../../widgets/task_companion_sections.dart';
+import '../../utils/plain_reasons.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -126,6 +128,19 @@ class TaskDetailScreen extends ConsumerWidget {
                   workflowStatus: task.workflowStatus,
                   haltReason: task.haltReason,
                 ),
+                // 第2段階：人が決める場面なら判断画面へ（ボタンは画面から直接バックエンドへ送る）
+                if (decisionKindFor(
+                        status: task.status,
+                        workflowStatus: task.workflowStatus,
+                        haltReason: task.haltReason)
+                    case final kind?) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.tonal(
+                    key: const ValueKey('task-detail-decide'),
+                    onPressed: () => context.push('/tasks/$taskId/decide'),
+                    child: Text('判断する：${decisionCopy(kind).title}'),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Card(
                   child: Padding(

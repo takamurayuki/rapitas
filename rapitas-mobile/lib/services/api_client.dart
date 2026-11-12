@@ -7,7 +7,16 @@ class ApiClient {
   final ApiConfig _config;
 
   ApiClient({required ApiConfig config}) : _config = config {
-    _dio = Dio(BaseOptions(
+    _dio = createDio(config);
+  }
+
+  /// この接続設定の Dio を作る（既定のヘッダ・タイムアウト・デバッグ用ログ）。
+  ///
+  /// 判断画面だけが使う別の窓口（HumanDecisionClient）も同じ設定から作る。
+  /// NOTE: 既定のヘッダに X-Rapitas-Source を入れてはいけない。全リクエストに付くと、
+  /// ラピ経由の送信と画面からの判断をバックエンドが見分けられなくなる（人間専用ルートの守りが外れる）
+  static Dio createDio(ApiConfig config) {
+    final dio = Dio(BaseOptions(
       baseUrl: config.baseUrl,
       connectTimeout: ApiConfig.connectTimeout,
       receiveTimeout: ApiConfig.receiveTimeout,
@@ -28,7 +37,7 @@ class ApiClient {
     // default to off). Method, path and status are what debugging a client
     // needs; the payload is not.
     if (kDebugMode) {
-      _dio.interceptors.add(LogInterceptor(
+      dio.interceptors.add(LogInterceptor(
         request: true,
         requestHeader: false,
         requestBody: false,
@@ -36,6 +45,7 @@ class ApiClient {
         responseBody: false,
       ));
     }
+    return dio;
   }
 
   void updateBaseUrl(String baseUrl) {

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../utils/plain_reasons.dart';
+
+// NOTE: 止まった理由の文（haltReasonText）は第2段階で原因コードの対応表 utils/plain_reasons.dart へ移した
 
 /// タスク詳細の「完了条件」と「いまの段階」の節（ラピ伴走化 第1段階）。
 ///
@@ -37,19 +40,6 @@ WorkflowStageInfo workflowStageInfo(String? workflowStatus) {
   }
   return _stages[workflowStatus] ?? WorkflowStageInfo(workflowStatus, '', null);
 }
-
-const Map<String, String> _haltReasons = {
-  'budget_time_exceeded': '作業時間の上限に達したため、自動で止まっています。',
-  'budget_cost_exceeded': '費用の上限に達したため、自動で止まっています。',
-  'budget_attempts_exceeded': 'やり直しの回数が上限に達したため、自動で止まっています。',
-  'repeat_cause_detected': '同じ原因の失敗が続いたため、自動で止まっています。',
-  'no_progress': '進み具合が見られないため、自動で止まっています。',
-  'awaiting_review_decision': 'レビューの結論が出ず、あなたの判断を待っています。',
-};
-
-/// 止まっている理由の平易な文。未知のコードは理由コードを添えて返す
-String haltReasonText(String haltReason) =>
-    _haltReasons[haltReason] ?? '自動で止まっています（理由: $haltReason）。';
 
 /// 「完了条件」の節。陪審が判定に使う条件と、本人が確かめる条件を見出しで分けて出す
 /// （保存先も別の列。設計 4.1 案1）

@@ -4,6 +4,7 @@ import '../models/task.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/task_list/task_list_screen.dart';
 import '../screens/task_detail/task_detail_screen.dart';
+import '../screens/decision/task_decision_screen.dart';
 import '../screens/task_form/task_form_screen.dart';
 import '../screens/agent_execution/agent_execution_screen.dart';
 import '../screens/approvals/approvals_screen.dart';
@@ -30,6 +31,9 @@ class AppRoutes {
   static const String taskNew = '/tasks/new';
   static const String taskDetail = '/tasks/:id';
   static const String taskEdit = '/tasks/:id/edit';
+
+  /// 判断画面（計画承認・質問への回答・レビュー保留・停止の解除。ラピの要約のリンク先）
+  static const String taskDecide = '/tasks/:id/decide';
   static const String executions = '/executions';
   static const String approvals = '/approvals';
   static const String notifications = '/notifications';
@@ -130,6 +134,10 @@ class AppRoutes {
           },
         ),
         GoRoute(
+          path: taskDecide,
+          builder: (context, state) => TaskDecisionScreen(taskId: state.pathParameters['id']!),
+        ),
+        GoRoute(
           path: taskDetail,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
@@ -204,7 +212,7 @@ class AppRoutes {
   // ディープリンクで受け付けるパス。'/tasks/:id' のような可変部分は1階層の任意の文字列とする
   static final List<RegExp> _knownPaths = [
     for (final path in [
-      home, tasks, taskNew, taskDetail, taskEdit, executions, approvals, notifications,
+      home, tasks, taskNew, taskDetail, taskEdit, taskDecide, executions, approvals, notifications,
       dashboard, settings, voiceLearning, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
       ideas, ideasNew, concerns, concernsNew, hypotheses, rapi,
     ])
