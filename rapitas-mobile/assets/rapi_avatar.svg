@@ -3,7 +3,7 @@
     ラピ (idle, light) — static export of rapitas-frontend RapiAvatar.tsx.
     Values: RAPI_AVATAR_TOKENS (body.light, trackOpacity.light, shadowOpacity.light, eye),
     RING / BODY / EYES / SHADOW / PLUS geometry, idle eye rx 4.3 / ry 5.8.
-    SMIL animation and the startle CSS are omitted (still image).
+    SMIL animation and the startle CSS are omitted; the eyes live in rapi_avatar.dart.
     The character's box is 0 0 120 120 as in the original. The original draws the
     shadow outside it (overflow: visible); renderers clip to the viewBox, so the
     viewBox here is extended downward to 134 to keep the shadow (cy 127 + ry 5.5).
@@ -30,10 +30,9 @@
     </g>
   </g>
 
-  <!-- 2-3. body and eyes -->
+  <!-- 2. body. 3. The eyes (rx 4.3 / ry 5.8 at 48,72 and 72,72) are drawn and blinked by
+       lib/widgets/rapi_avatar.dart, since flutter_svg does not play SVG animation. -->
   <circle cx="60" cy="70" r="37" fill="#6366F1"/>
-  <ellipse cx="48" cy="72" rx="4.3" ry="5.8" fill="#FFFFFF"/>
-  <ellipse cx="72" cy="72" rx="4.3" ry="5.8" fill="#FFFFFF"/>
 
   <!-- 4. ring (front half only) -->
   <g transform="rotate(-18 60 70)">
