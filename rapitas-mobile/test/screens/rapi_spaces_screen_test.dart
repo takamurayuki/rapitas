@@ -155,6 +155,36 @@ void main() {
     expect(find.text('変更しています…'), findsNothing);
   });
 
+  testWidgets('記録の完了条件カード：「取り消す」が無く「タスクを開く」だけ。確定待ちの記録は「確かめられませんでした」', (tester) async {
+    final s = server.seed(title: '記録');
+    const base = ['ログインできる', 'エラーが出る'];
+    final start = RapiCriteriaCard.start(taskId: '7', title: 'ログインのバグを直す', criteria: base);
+    _addCard(
+        server,
+        s,
+        RapiMessage(
+            id: 1,
+            role: RapiRole.assistant,
+            criteria: start.copyWith(
+                phase: RapiCriteriaPhase.applied,
+                result: const RapiCriteriaChangeResult(actionId: 31, before: base, after: ['ログインできる']))));
+    _addCard(server, s,
+        RapiMessage(id: 2, role: RapiRole.assistant, criteria: start.copyWith(phase: RapiCriteriaPhase.applying)));
+    prefs[_last] = 'space:${s.id}';
+    final app = await pumpSpaceScreen(tester, server, prefs);
+    expect(find.text('完了条件を変えました'), findsOneWidget);
+    expect(find.text('変更できたか確かめられませんでした'), findsOneWidget);
+    expect(find.textContaining('記録 ·'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('rapi-criteria-revert')), findsNothing);
+    expect(find.byKey(const ValueKey('rapi-criteria-apply')), findsNothing);
+    expect(find.text('変更しています…'), findsNothing);
+    expect(find.byKey(const ValueKey('rapi-criteria-open')), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('rapi-criteria-open')).first);
+    await tester.pumpAndSettle();
+    expect(find.text('タスクの画面'), findsOneWidget);
+    expect(app.assistant.writes, isEmpty);
+  });
+
   testWidgets('新しい形の記録はカードの位置に「表示できません」を出す（例外にならない）', (tester) async {
     final s = server.seed(title: '記録');
     server.addRow(

@@ -25,6 +25,7 @@ RapiMessage decodeSavedMessage(SavedMessage s, {required int id}) {
     RapiRoadmapCard? roadmap,
     RapiTidyCard? tidy,
     RapiCompanionCard? companion,
+    RapiCriteriaCard? criteria,
     bool unsupported = false,
   }) =>
       RapiMessage(
@@ -36,6 +37,7 @@ RapiMessage decodeSavedMessage(SavedMessage s, {required int id}) {
         roadmap: roadmap,
         tidy: tidy,
         companion: companion,
+        criteria: criteria,
         taskId: s.taskId?.toString(),
         inHistory: s.inHistory,
         clientId: s.clientId,
@@ -63,6 +65,7 @@ RapiMessage decodeSavedMessage(SavedMessage s, {required int id}) {
       'roadmap' => base(roadmap: _roadmap(json)),
       'tidy' => base(tidy: _tidy(json)),
       'companion' => base(companion: _companion(json)),
+      'criteria' => base(criteria: _criteria(json)),
       _ => base(unsupported: true),
     };
   } on Object {
@@ -193,5 +196,48 @@ RapiCompanionCard _companion(Map<String, dynamic> j) {
     ),
     phase: _phase(RapiCompanionPhase.values, j['phase']),
     error: _str(j['error']),
+  );
+}
+
+/// 取り消しの応答を待つ間に保存した記録に添える案内（取り消せたかは断定しない）
+const String rapiCriteriaRevertUnknownText =
+    '取り消しの応答を待つ間に残した記録です。元に戻せたかは確かめられていません。今の完了条件はタスクを開いて確かめてください。';
+
+RapiCriteriaCard _criteria(Map<String, dynamic> j) {
+  final result = j['result'];
+  final saved = _phase(RapiCriteriaPhase.values, j['phase']);
+  // NOTE: 応答待ちのまま残った記録は、結果を断定しない段階で戻す（勝手に成功・失敗を言い切らない）。
+  // 確定待ち（applying）は applyUnknown（反映済みかもしれない）。取り消し待ち（reverting）は、
+  // 確定は済んでいる（result がある）ので applied に戻し、取り消せたかは分からないと添える
+  final phase = switch (saved) {
+    RapiCriteriaPhase.applying => RapiCriteriaPhase.applyUnknown,
+    RapiCriteriaPhase.reverting => RapiCriteriaPhase.applied,
+    // 直している途中の段階は保存しない（rapiCriteriaSaved）。来たら形の不一致として扱う
+    RapiCriteriaPhase.editing || RapiCriteriaPhase.drafting || RapiCriteriaPhase.proposed =>
+      throw const FormatException('phase'),
+    _ => saved,
+  };
+  // 鉛筆で直した対を、直す前の条件（base）と直した一覧（edit）として戻す。差分の行
+  // （RapiCriteriaCard.rows）が言い換えを「前 → 後」の1行にまとめるのに使う
+  final rewordings = <String, String>{
+    for (final e in _map(j['rewordings']).entries)
+      if (e.value is String) e.key: e.value as String,
+  };
+  return RapiCriteriaCard(
+    taskId: '${j['taskId']}',
+    title: _str(j['title']) ?? '',
+    base: rewordings.keys.toList(),
+    edit: RapiCriteriaEdit(items: [for (final v in rewordings.values) RapiCriterionItem(text: v)]),
+    reason: _str(j['reason']) ?? '',
+    phase: phase,
+    result: result is Map
+        ? RapiCriteriaChangeResult(
+            actionId: _int(result['actionId']),
+            before: _strings(result['before']),
+            after: _strings(result['after']),
+          )
+        : null,
+    refusal: _str(j['refusal']),
+    error: saved == RapiCriteriaPhase.reverting ? rapiCriteriaRevertUnknownText : _str(j['error']),
   );
 }

@@ -24,6 +24,7 @@ part 'rapi_chat/rapi_chat_consult.part.dart';
 part 'rapi_chat/rapi_chat_draft.part.dart';
 part 'rapi_chat/rapi_chat_change.part.dart';
 part 'rapi_chat/rapi_chat_companion.part.dart';
+part 'rapi_chat/rapi_chat_criteria.part.dart';
 part 'rapi_chat/rapi_chat_roadmap.part.dart';
 part 'rapi_chat/rapi_chat_tidy.part.dart';
 part 'rapi_chat/rapi_chat_ask.part.dart';
@@ -94,7 +95,7 @@ final rapiChatProvider =
 /// ラピの会話の状態と処理。処理は機能ごとの mixin（rapi_chat/*.part.dart）にあり、
 /// ここは土台（共有の状態・小さな補助）と build だけを持つ。
 class RapiChatNotifier extends _RapiChatBase
-    with _RapiExternalOps, _RapiSendOps, _RapiConsultOps, _RapiDraftOps, _RapiChangeOps, _RapiCompanionOps, _RapiRoadmapOps, _RapiTidyOps, _RapiAskOps, _RapiSpaceOps {
+    with _RapiExternalOps, _RapiSendOps, _RapiConsultOps, _RapiDraftOps, _RapiChangeOps, _RapiCompanionOps, _RapiCriteriaOps, _RapiRoadmapOps, _RapiTidyOps, _RapiAskOps, _RapiSpaceOps {
   @override
   RapiChatState build() {
     _nextId = 0;

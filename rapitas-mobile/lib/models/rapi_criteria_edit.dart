@@ -74,6 +74,18 @@ class RapiCriteriaEdit {
     );
   }
 
+  /// 条件 [text] を末尾に足す（採る側）。空や既にある文なら何もしない
+  RapiCriteriaEdit appended(String text) {
+    final next = text.trim();
+    if (next.isEmpty || items.any((i) => i.text == next)) return this;
+    return _with(items: [...items, RapiCriterionItem(text: next)], bump: true);
+  }
+
+  /// 問い合わせを待たずに、直した行の「確認中」を下ろす（既存タスクの条件変更カードは
+  /// 判定の問い合わせをしない。判定者の振り分けは陪審の列だけを扱うため）
+  RapiCriteriaEdit settled() =>
+      _with(items: [for (final i in items) i.pending ? i.settled() : i]);
+
   /// 確定時に送る条件（外したものを除く。並びはカードのまま）
   List<String> get selected => [
         for (var i = 0; i < items.length; i++)

@@ -81,6 +81,9 @@ class RapiMessage {
   /// 伴走の確認カード
   final RapiCompanionCard? companion;
 
+  /// 完了条件の変更カード（段E）
+  final RapiCriteriaCard? criteria;
+
   /// 相談スレッドの発言なら、そのタスクの id（一般の会話の履歴には含めない）
   final String? consultTaskId;
 
@@ -120,6 +123,7 @@ class RapiMessage {
     this.consultPicker,
     this.tidy,
     this.companion,
+    this.criteria,
     this.consultTaskId,
     this.taskId,
     this.inHistory = false,
@@ -137,6 +141,7 @@ class RapiMessage {
     RapiConsultPicker? consultPicker,
     RapiTidyCard? tidy,
     RapiCompanionCard? companion,
+    RapiCriteriaCard? criteria,
     bool? inHistory,
   }) =>
       RapiMessage(
@@ -150,6 +155,7 @@ class RapiMessage {
         consultPicker: consultPicker ?? this.consultPicker,
         tidy: tidy ?? this.tidy,
         companion: companion ?? this.companion,
+        criteria: criteria ?? this.criteria,
         consultTaskId: consultTaskId,
         taskId: taskId,
         inHistory: inHistory ?? this.inHistory,
@@ -173,6 +179,7 @@ class RapiMessage {
         consultPicker: consultPicker,
         tidy: tidy,
         companion: companion,
+        criteria: criteria,
         consultTaskId: consultTaskId,
         taskId: taskId,
         inHistory: inHistory,
@@ -195,6 +202,8 @@ class RapiMessage {
   RapiMessage withTidy(RapiTidyCard tidy) => _copy(tidy: tidy);
 
   RapiMessage withCompanion(RapiCompanionCard companion) => _copy(companion: companion);
+
+  RapiMessage withCriteria(RapiCriteriaCard criteria) => _copy(criteria: criteria);
 }
 
 const Object _unset = Object();
