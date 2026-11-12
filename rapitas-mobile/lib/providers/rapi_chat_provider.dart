@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
@@ -25,6 +27,7 @@ part 'rapi_chat/rapi_chat_companion.part.dart';
 part 'rapi_chat/rapi_chat_roadmap.part.dart';
 part 'rapi_chat/rapi_chat_tidy.part.dart';
 part 'rapi_chat/rapi_chat_ask.part.dart';
+part 'rapi_chat/rapi_chat_space.part.dart';
 
 // ラピの会話状態。
 //
@@ -33,7 +36,8 @@ part 'rapi_chat/rapi_chat_ask.part.dart';
 // 画面はこれを watch して描画する。応答待ちのままタブを離れても、届いた結果は
 // ここで状態へ反映するので捨てられない。
 //
-// NOTE: 永続化はしない。アプリを終了すると会話は消える。
+// NOTE: 会話の保存（会話スペース）は rapi_chat_spaces_provider.dart が受け持つ。ここは画面にある
+// 会話の状態だけを持ち、スペースの切り替えでは中身を入れ替える（rapi_chat/rapi_chat_space.part.dart）。
 // NOTE: モード（会話／作る／聞く／見守り／変更／計画／片付け）の切り替えは無い。送った文は毎回
 // /assistant/route で振り分け、作成・問い合わせ・見守り・変更・計画・片付けはその結果で出し分ける。
 // 例外は相談（consult）：振り分けで相談になり、タスクを選ぶと「相談モード」に入る。
@@ -52,6 +56,14 @@ const int rapiMaxExternalDraftLength = 2000;
 
 /// copilot/chat に送る履歴の件数
 const int _historyLimit = 10;
+
+/// copilot/chat に送る履歴の件数（スペースの読み込みで turns をそろえる数にも使う）
+const int rapiHistoryLimit = _historyLimit;
+
+/// [m] が copilot/chat の turns に入るか。スペースの読み込みで「turns に入る行」を数えるのにも
+/// 同じ関数を使う（条件を2か所に書かない。設計 nav39 6.3）
+bool rapiCountsAsTurn(RapiMessage m) =>
+    m.inHistory && m.role != RapiRole.system && m.text.isNotEmpty;
 
 /// 相談のタスク選びカードに出す件数
 const int rapiConsultCandidateLimit = 5;
@@ -82,7 +94,7 @@ final rapiChatProvider =
 /// ラピの会話の状態と処理。処理は機能ごとの mixin（rapi_chat/*.part.dart）にあり、
 /// ここは土台（共有の状態・小さな補助）と build だけを持つ。
 class RapiChatNotifier extends _RapiChatBase
-    with _RapiExternalOps, _RapiSendOps, _RapiConsultOps, _RapiDraftOps, _RapiChangeOps, _RapiCompanionOps, _RapiRoadmapOps, _RapiTidyOps, _RapiAskOps {
+    with _RapiExternalOps, _RapiSendOps, _RapiConsultOps, _RapiDraftOps, _RapiChangeOps, _RapiCompanionOps, _RapiRoadmapOps, _RapiTidyOps, _RapiAskOps, _RapiSpaceOps {
   @override
   RapiChatState build() {
     _nextId = 0;
@@ -90,9 +102,13 @@ class RapiChatNotifier extends _RapiChatBase
     _consultSession = 0;
     _externalDrafts.clear();
     _heldExternalDrafts.clear();
+    _clientSession = _RapiChatBase._newSessionKey();
+    _greetingId = _nextId;
     return RapiChatState(messages: [
       RapiMessage(
         id: _nextId++,
+        // 挨拶は端末で毎回出すので、会話スペースには保存しない（設計 nav39 6.1）
+        localOnly: true,
         role: RapiRole.assistant,
         text: 'ぼくは rapitas 専属のエージェント、ラピです。今日は何をしますか？'
             'やりたいことを下の欄にそのまま書いてください。'
@@ -107,6 +123,18 @@ class RapiChatNotifier extends _RapiChatBase
 abstract class _RapiChatBase extends Notifier<RapiChatState> {
   int _nextId = 0;
   Future<void>? _surveyInFlight;
+
+  /// このセッションの行の clientId の頭（provider を作り直すたびに振り直す。端末内の id は 0 から
+  /// 振り直されるので、前のセッションの行と鍵がぶつからないようにする）
+  String _clientSession = '';
+
+  /// 挨拶の行の id（スペースを切り替えても残す）
+  int _greetingId = 0;
+
+  static String _newSessionKey() {
+    final r = Random.secure();
+    return List.generate(12, (_) => r.nextInt(36).toRadixString(36)).join();
+  }
 
   /// 相談セッションの世代。相談モードに入るたび・抜けるたびに進める。
   /// 非同期処理（履歴の読み込みなど）のあとで「まだ同じ相談が続いているか」を確かめるのに使う
@@ -141,7 +169,7 @@ abstract class _RapiChatBase extends Notifier<RapiChatState> {
 
   static List<Map<String, String>> _turns(Iterable<RapiMessage> messages) {
     final turns = messages
-        .where((m) => m.inHistory && m.role != RapiRole.system && m.text.isNotEmpty)
+        .where(rapiCountsAsTurn)
         .map((m) => {
               'role': m.role == RapiRole.user ? 'user' : 'assistant',
               'content': m.text,

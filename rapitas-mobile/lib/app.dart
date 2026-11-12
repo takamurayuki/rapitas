@@ -6,6 +6,7 @@ import 'providers/companion_provider.dart';
 import 'providers/home_widget_sync_provider.dart';
 import 'providers/pairing_provider.dart';
 import 'providers/pending_request_provider.dart';
+import 'providers/rapi_chat_spaces_provider.dart';
 import 'providers/realtime_refresh_provider.dart';
 import 'providers/settings_provider.dart';
 import 'widgets/voice_mode_host.dart';
@@ -26,6 +27,8 @@ class RapitasMobileApp extends ConsumerWidget {
     ref.watch(homeScreenLifecycleProvider);
     // 伴走の要約を、起動して接続設定が読めたとき・裏から戻ったときに読み直す（プッシュはしない。設計 Q5）
     ref.watch(companionDigestLifecycleProvider);
+    // ラピの会話スペース：起動時に最後の会話を開き、裏へ回る・前面に戻るときに保存待ちを送る
+    ref.watch(rapiChatSpacesBootProvider);
 
     return MaterialApp.router(
       title: 'Rapitas Mobile',

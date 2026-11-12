@@ -93,6 +93,22 @@ class RapiMessage {
   /// ショートカットから届いた依頼を入力欄に入れた案内なら、その依頼の番号（「破棄」を出す）
   final String? externalDraftId;
 
+  /// 会話スペースに保存する行の鍵（読み込んだ記録はサーバーの値。いまのセッションの行は null で、
+  /// 保存のときに provider が端末内の id から決める。設計 nav39 4.2）
+  final String? clientId;
+
+  /// 会話スペースから読み込んだ記録か。記録は読み取り専用で、カードの操作は効かない（設計 5.3.1）
+  final bool archived;
+
+  /// 記録を保存した日時（[archived] のときだけ。カードの「記録」の印に出す）
+  final DateTime? savedAt;
+
+  /// 記録の形が新しすぎる・知らない種類で、カードを出せない（本文だけを出す。設計 3.4）
+  final bool unsupported;
+
+  /// 端末だけの行（挨拶・保存の失敗の案内など）。会話スペースには保存しない（設計 6.1・4.4）
+  final bool localOnly;
+
   const RapiMessage({
     required this.id,
     required this.role,
@@ -108,6 +124,11 @@ class RapiMessage {
     this.taskId,
     this.inHistory = false,
     this.externalDraftId,
+    this.clientId,
+    this.archived = false,
+    this.savedAt,
+    this.unsupported = false,
+    this.localOnly = false,
   });
 
   RapiMessage _copy({
@@ -133,6 +154,34 @@ class RapiMessage {
         taskId: taskId,
         inHistory: inHistory ?? this.inHistory,
         externalDraftId: externalDraftId,
+        clientId: clientId,
+        archived: archived,
+        savedAt: savedAt,
+        unsupported: unsupported,
+        localOnly: localOnly,
+      );
+
+  /// 同じ中身で端末内の id だけを [newId] にした行（読み込んだ記録に新しい id を振るとき）
+  RapiMessage withId(int newId) => RapiMessage(
+        id: newId,
+        role: role,
+        text: text,
+        answer: answer,
+        draftSlot: draftSlot,
+        change: change,
+        roadmap: roadmap,
+        consultPicker: consultPicker,
+        tidy: tidy,
+        companion: companion,
+        consultTaskId: consultTaskId,
+        taskId: taskId,
+        inHistory: inHistory,
+        externalDraftId: externalDraftId,
+        clientId: clientId,
+        archived: archived,
+        savedAt: savedAt,
+        unsupported: unsupported,
+        localOnly: localOnly,
       );
 
   RapiMessage withoutHistory() => _copy(inHistory: false);

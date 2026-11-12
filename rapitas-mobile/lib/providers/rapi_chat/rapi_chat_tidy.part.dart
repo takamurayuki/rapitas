@@ -18,9 +18,11 @@ mixin _RapiTidyOps on _RapiChatBase {
     _add((id) => RapiMessage(id: id, role: RapiRole.assistant, tidy: RapiTidyCard(text: text)));
   }
 
-  RapiTidyCard? _tidyOf(int messageId) {
+  RapiTidyCard? _tidyOf(int messageId, {bool includeArchived = false}) {
     for (final m in state.messages) {
-      if (m.id == messageId) return m.tidy;
+      // 読み込んだ記録（archived）のカードは読み取り専用。ここで引けなくして、全ての操作を止める
+      // （表示だけの「すべて見る」は includeArchived で引く。設計 nav39 5.3.1）
+      if (m.id == messageId) return m.archived && !includeArchived ? null : m.tidy;
     }
     return null;
   }
@@ -152,7 +154,7 @@ mixin _RapiTidyOps on _RapiChatBase {
 
   /// 長い一覧を全部出す
   void expandTidy(int messageId) {
-    final card = _tidyOf(messageId);
+    final card = _tidyOf(messageId, includeArchived: true);
     if (card == null || card.expanded) return;
     _setTidy(messageId, card.copyWith(expanded: true));
   }

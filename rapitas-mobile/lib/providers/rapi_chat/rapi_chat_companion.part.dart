@@ -91,7 +91,8 @@ mixin _RapiCompanionOps on _RapiChatBase {
 
   RapiCompanionCard? _companionOf(int messageId) {
     for (final m in state.messages) {
-      if (m.id == messageId) return m.companion;
+      // 読み込んだ記録（archived）のカードは読み取り専用。ここで引けなくして、全ての操作を止める（設計 nav39 5.3.1）
+      if (m.id == messageId) return m.archived ? null : m.companion;
     }
     return null;
   }
