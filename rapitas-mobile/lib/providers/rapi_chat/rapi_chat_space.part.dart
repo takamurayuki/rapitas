@@ -44,9 +44,13 @@ mixin _RapiSpaceOps on _RapiChatBase {
   void applySpace(List<RapiMessage> loaded, {required int since}) {
     final greeting = [for (final m in state.messages) if (m.id == _greetingId) m];
     final later = [for (final m in state.messages) if (m.id >= since && m.id != _greetingId) m];
+    // 読み込み中に足された行は、もう保存待ちにも積まれていて、重ね合わせで記録としても戻ってくる。
+    // 同じ行を二重に出さないよう、後ろに残すいまの行を正とする
+    final live = {for (final m in later) clientIdOf(m)};
     state = state.copyWith(messages: [
       ...greeting,
-      for (final m in loaded) m.withId(_nextId++),
+      for (final m in loaded)
+        if (!live.contains(m.clientId)) m.withId(_nextId++),
       ...later,
     ]);
   }
