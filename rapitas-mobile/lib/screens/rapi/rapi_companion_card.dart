@@ -22,12 +22,16 @@ class RapiCompanionCardView extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onOpen;
 
+  /// 会話スペースから読み込んだ記録：始める／やめるのボタンを出さない（設計 nav39 5.3.1）
+  final bool readOnly;
+
   const RapiCompanionCardView({
     super.key,
     required this.card,
     required this.onApply,
     required this.onCancel,
     required this.onOpen,
+    this.readOnly = false,
   });
 
   @override
@@ -115,7 +119,7 @@ class RapiCompanionCardView extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
             ),
           const SizedBox(height: 12),
-          if (proposed)
+          if (proposed && !readOnly)
             Row(
               children: [
                 Expanded(

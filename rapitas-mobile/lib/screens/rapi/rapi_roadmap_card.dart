@@ -36,6 +36,10 @@ class RapiRoadmapCardView extends StatelessWidget {
   final void Function(int step, int index)? onToggleCriterion;
   final void Function(int step, int index, String text)? onEditCriterion;
 
+  /// 会話スペースから読み込んだ記録：質問の選択・完了条件の採否と編集・ボタン列をすべて止める
+  /// （選ばれていた値は読み取り専用で出す。設計 nav39 5.3.1）
+  final bool readOnly;
+
   const RapiRoadmapCardView({
     super.key,
     required this.card,
@@ -46,6 +50,7 @@ class RapiRoadmapCardView extends StatelessWidget {
     required this.onOpenTasks,
     this.onToggleCriterion,
     this.onEditCriterion,
+    this.readOnly = false,
   });
 
   @override
@@ -120,7 +125,7 @@ class RapiRoadmapCardView extends StatelessWidget {
                 index: i,
                 question: card.asked[i],
                 selected: i < card.answers.length ? card.answers[i] : null,
-                enabled: phase == RapiRoadmapPhase.questions,
+                enabled: phase == RapiRoadmapPhase.questions && !readOnly,
                 onSelect: (a) => onAnswer(i, a),
               ),
           ],
@@ -160,10 +165,10 @@ class RapiRoadmapCardView extends StatelessWidget {
                 withDescription: confirming,
                 criteria: i < card.stepCriteria.length ? card.stepCriteria[i] : null,
                 // 作成中は押せない。質問中は題名だけなので一覧自体を出さない
-                onToggle: phase == RapiRoadmapPhase.ready && onToggleCriterion != null
+                onToggle: phase == RapiRoadmapPhase.ready && !readOnly && onToggleCriterion != null
                     ? (j) => onToggleCriterion!(i, j)
                     : null,
-                onEdit: phase == RapiRoadmapPhase.ready && onEditCriterion != null
+                onEdit: phase == RapiRoadmapPhase.ready && !readOnly && onEditCriterion != null
                     ? (j, text) => onEditCriterion!(i, j, text)
                     : null,
               ),
@@ -185,7 +190,7 @@ class RapiRoadmapCardView extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
             ),
           const SizedBox(height: 12),
-          if (asking || confirming)
+          if ((asking || confirming) && !readOnly)
             Row(
               children: [
                 Expanded(

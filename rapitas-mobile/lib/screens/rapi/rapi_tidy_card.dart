@@ -4,6 +4,8 @@ import '../../models/rapi.dart';
 import '../../providers/rapi_chat_provider.dart';
 import '../../providers/theme_data_provider.dart';
 
+part 'rapi_tidy_rows.dart';
+
 // 片付け（tidy）カード（デスクトップ TaskTidy.tsx / TaskBulkCleanup.tsx / TaskCleanup.tsx のモバイル版）。
 //
 // 段階ごとに出すもの：
@@ -53,6 +55,10 @@ class RapiTidyCardView extends ConsumerWidget {
   final VoidCallback onRestoreAll;
   final VoidCallback onOpenTasks;
 
+  /// 会話スペースから読み込んだ記録：条件・候補のチェック・削除・元に戻すをすべて止める。
+  /// 「すべて見る」（表示の展開）とタスク一覧を開く操作は生かす（設計 nav39 5.3.1）
+  final bool readOnly;
+
   const RapiTidyCardView({
     super.key,
     required this.card,
@@ -70,6 +76,7 @@ class RapiTidyCardView extends ConsumerWidget {
     required this.onRestore,
     required this.onRestoreAll,
     required this.onOpenTasks,
+    this.readOnly = false,
   });
 
   @override
@@ -144,6 +151,7 @@ class RapiTidyCardView extends ConsumerWidget {
 
   List<Widget> _setup(BuildContext context, WidgetRef ref) {
     final searching = card.phase == RapiTidyPhase.searching;
+    final locked = searching || readOnly;
     final byCondition = card.how == RapiTidyHow.condition;
     return [
       const SizedBox(height: 10),
@@ -151,9 +159,9 @@ class RapiTidyCardView extends ConsumerWidget {
         spacing: 6,
         children: [
           _chip('rapi-tidy-how-condition', '条件で選ぶ', byCondition,
-              searching ? null : () => onHow(RapiTidyHow.condition)),
+              locked ? null : () => onHow(RapiTidyHow.condition)),
           _chip('rapi-tidy-how-text', '文章で選ぶ', !byCondition,
-              searching ? null : () => onHow(RapiTidyHow.text)),
+              locked ? null : () => onHow(RapiTidyHow.text)),
         ],
       ),
       const SizedBox(height: 4),
@@ -163,7 +171,7 @@ class RapiTidyCardView extends ConsumerWidget {
               : 'さっきの文をもとに、最近更新されたタスクから消してよさそうなものを挙げます。',
           style: _hintStyle),
       const SizedBox(height: 10),
-      if (byCondition) ..._conditionForm(context, ref, searching) else ..._textForm(),
+      if (byCondition) ..._conditionForm(context, ref, locked) else ..._textForm(),
       if (card.notice != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -171,6 +179,7 @@ class RapiTidyCardView extends ConsumerWidget {
               style: const TextStyle(fontSize: 12, color: _warnAmber, height: 1.4)),
         ),
       const SizedBox(height: 12),
+      if (!readOnly)
       Row(
         children: [
           Expanded(
@@ -284,6 +293,7 @@ class RapiTidyCardView extends ConsumerWidget {
 
   List<Widget> _listing() {
     final deleting = card.phase == RapiTidyPhase.deleting;
+    final locked = deleting || readOnly;
     final items = card.items;
     final shown = card.visibleItems;
     final count = card.chosenIds.length;
@@ -308,7 +318,7 @@ class RapiTidyCardView extends ConsumerWidget {
               foregroundColor: _violetButton,
               visualDensity: VisualDensity.compact,
             ),
-            onPressed: deleting ? null : () => onAll(!allChosen),
+            onPressed: locked ? null : () => onAll(!allChosen),
             child: Text(allChosen ? 'すべて外す' : 'すべて選ぶ',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
@@ -337,7 +347,7 @@ class RapiTidyCardView extends ConsumerWidget {
         key: ValueKey('rapi-tidy-item-${item.id}'),
         item: item,
         checked: card.chosen.contains(item.id),
-        onTap: deleting ? null : () => onToggle(item.id),
+        onTap: locked ? null : () => onToggle(item.id),
       ),
       if (card.hiddenCount > 0) ...[
         Align(
@@ -345,7 +355,7 @@ class RapiTidyCardView extends ConsumerWidget {
           child: TextButton(
             key: const ValueKey('rapi-tidy-expand'),
             style: TextButton.styleFrom(foregroundColor: _violetButton),
-            onPressed: deleting ? null : onExpand,
+            onPressed: deleting && !readOnly ? null : onExpand,
             child: Text('残り${card.hiddenCount}件も表示'),
           ),
         ),
@@ -365,6 +375,7 @@ class RapiTidyCardView extends ConsumerWidget {
       const SizedBox(height: 8),
       const Text('削除したタスクはゴミ箱に入り、このカードから元に戻せます。', style: _hintStyle),
       const SizedBox(height: 10),
+      if (!readOnly)
       Row(
         children: [
           Expanded(
@@ -431,7 +442,9 @@ class RapiTidyCardView extends ConsumerWidget {
             title: card.titleOf(d.taskId),
             trashId: d.trashId,
             restore: d.trashId == null ? null : card.restoreOf(d.trashId!),
-            onRestore: busy || d.trashId == null ? null : () => onRestore(d.trashId!),
+            onRestore:
+                busy || readOnly || d.trashId == null ? null : () => onRestore(d.trashId!),
+            readOnly: readOnly,
           ),
         if (shown.length < deleted.length)
           Align(
@@ -467,7 +480,7 @@ class RapiTidyCardView extends ConsumerWidget {
           ),
       const SizedBox(height: 12),
       // 1行に並べると狭い端末で溢れるので、まとめての取り消しは全幅で1行に置く
-      if (restorable.length > 1 || (busy && deleted.length > 1))
+      if (!readOnly && (restorable.length > 1 || (busy && deleted.length > 1)))
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -540,147 +553,4 @@ class RapiTidyCardView extends ConsumerWidget {
         ),
         child: DropdownButtonHideUnderline(child: dropdown),
       );
-}
-
-/// 候補1件：チェック、題名、状態と最終更新日（条件）または理由（文章）。行のどこを押しても切り替わる
-class _CandidateRow extends StatelessWidget {
-  final TidyItem item;
-  final bool checked;
-  final VoidCallback? onTap;
-
-  const _CandidateRow({super.key, required this.item, required this.checked, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final updated = item.updatedAt?.toLocal();
-    final meta = [
-      _statusLabels[item.status] ?? item.status,
-      if (updated != null)
-        '${updated.year}/${updated.month.toString().padLeft(2, '0')}/${updated.day.toString().padLeft(2, '0')} 更新',
-    ].where((s) => s.isNotEmpty).join(' · ');
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: Checkbox(
-                value: checked,
-                activeColor: _deleteRed,
-                side: const BorderSide(color: Color(0xFFA1A1AA), width: 1.5),
-                visualDensity: VisualDensity.compact,
-                onChanged: onTap == null ? null : (_) => onTap!(),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          height: 1.35,
-                          color: checked ? _bodyColor : const Color(0xFF9CA3AF),
-                        )),
-                    if (meta.isNotEmpty) Text(meta, style: _hintStyle),
-                    if (item.reason.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(item.reason, style: _mutedStyle),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 削除した1件：題名と、戻すボタン（または戻した／戻せない の印）
-class _DeletedRow extends StatelessWidget {
-  final String title;
-  final int? trashId;
-  final RapiTidyRestore? restore;
-  final VoidCallback? onRestore;
-
-  const _DeletedRow({
-    super.key,
-    required this.title,
-    required this.trashId,
-    required this.restore,
-    required this.onRestore,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Widget trailing = switch (restore) {
-      null => const Text('控えが無いため戻せません', style: _hintStyle),
-      RapiTidyRestore.restored => const Text('戻しました',
-          style: TextStyle(fontSize: 12, color: _doneGreen, fontWeight: FontWeight.w600)),
-      RapiTidyRestore.unavailable => const Text('戻せません（復元済みなど）', style: _hintStyle),
-      RapiTidyRestore.restoring => const SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2, color: _violetButton),
-        ),
-      RapiTidyRestore.idle || RapiTidyRestore.failed => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (restore == RapiTidyRestore.failed)
-              const Padding(
-                padding: EdgeInsets.only(right: 2),
-                child: Text('戻せませんでした',
-                    style: TextStyle(fontSize: 11, color: _warnAmber)),
-              ),
-            TextButton(
-              key: ValueKey('rapi-tidy-restore-$trashId'),
-              style: TextButton.styleFrom(
-                foregroundColor: _violetButton,
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: onRestore,
-              child: Text(restore == RapiTidyRestore.failed ? 'もう一度' : '戻す',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
-    };
-    final restored = restore == RapiTidyRestore.restored;
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: restored ? _bodyColor : const Color(0xFF6B7280),
-                decoration: restored ? null : TextDecoration.lineThrough,
-                decorationColor: const Color(0xFFA1A1AA),
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(height: 36, child: Center(child: trailing)),
-        ],
-      ),
-    );
-  }
 }

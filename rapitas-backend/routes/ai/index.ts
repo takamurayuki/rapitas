@@ -18,6 +18,7 @@ import assistantQueryRoute from './assistant-query.routes';
 import assistantResearchRoute from './assistant-research.routes';
 import assistantRoadmapRoute from './assistant-roadmap.routes';
 import assistantUpdateRoute from './assistant-update.routes';
+import rapiChatSpacesRoute from './rapi-chat-spaces.routes';
 
 export { aiChatRoutes } from './ai-chat';
 export { copilotChatRoutes } from './copilot-chat';
@@ -36,4 +37,5 @@ export const aiDomainRoutes = new Elysia()
   .use(assistantQueryRoute)
   .use(assistantResearchRoute)
   .use(assistantRoadmapRoute)
-  .use(assistantUpdateRoute);
+  .use(assistantUpdateRoute)
+  .use(rapiChatSpacesRoute);

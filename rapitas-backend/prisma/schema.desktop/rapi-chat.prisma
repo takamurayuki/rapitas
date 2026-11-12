@@ -1,0 +1,67 @@
+// ============================================================================
+// rapi-chat.prisma — ラピのチャットの会話スペース（nav39 設計）
+// 表示用の記録。状態の正はタスク DB と AssistantAction で、ここではない。
+// 相談モード（taskId 付き）の発言は入れない（正は CopilotMessage）。
+// ============================================================================
+
+/// One conversation space in ラピ's chat. A display record of what was said —
+/// never read by the assistant pipeline, which stays stateless (turns are
+/// rebuilt by the client from the messages it has loaded).
+model RapiChatSpace {
+  id            Int       @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId   Int?
+  /// NULL until the first user message names it (shown as 「新しい会話」).
+  title         String?
+  // auto | user
+  titleSource   String    @default("auto")
+  /// Device-generated key sent with POST so a resend after a lost response
+  /// returns the same space instead of creating a second one (design §6.5).
+  /// Not @unique: NULL workspaceIds never collide in a unique index, so the
+  /// guarantee comes from the lookup in the create transaction instead.
+  clientKey     String?
+  /// Denormalised for the list screen; updated in the same write as messages.
+  messageCount  Int       @default(0)
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  messages RapiChatMessage[]
+
+  @@index([workspaceId])
+  @@index([lastMessageAt])
+  @@index([clientKey])
+}
+
+/// One message of a space. Cards are kept as a versioned JSON snapshot of what
+/// the screen showed; replaying them must not re-run anything (read-only in v1).
+model RapiChatMessage {
+  id              Int           @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId     Int?
+  spaceId         Int
+  space           RapiChatSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  /// Client-generated id; the upsert key, so a resend after a lost response
+  /// rewrites the same row instead of adding a second one.
+  clientId        String
+  // user | assistant | system
+  role            String
+  // text | answer | change | roadmap | tidy | companion
+  kind            String        @default("text")
+  text            String        @default("")
+  /// Task opened from this message (「起票しました」). Loose reference on purpose:
+  /// the message must survive the task's deletion.
+  taskId          Int?
+  /// Whether it counts as a turn for /copilot/chat (RapiMessage.inHistory).
+  inHistory       Boolean       @default(false)
+  /// JSON snapshot string {"v":1,...}; NULL for plain text. See design §3.4.
+  payload         String?
+  /// When the device added it (ordering ties, display); server time is createdAt.
+  clientCreatedAt DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([spaceId, clientId])
+  @@index([spaceId, id])
+  @@index([workspaceId])
+}
