@@ -17,8 +17,9 @@
  * - no remote-tracking branch of the same name, and no configured upstream
  *   other than origin/develop or origin/main, exists after `git fetch --prune`
  *   (a failed fetch skips the whole cycle);
- * - its tip is an ancestor of origin/develop, or is an ancestor of (or equal
- *   to) the head commit of a MERGED/CLOSED pull request from that branch.
+ * - its tip is preserved per work-preserved.ts: an ancestor of origin/develop
+ *   or origin/main, or of (or equal to) the head of a MERGED/CLOSED pull
+ *   request from that branch.
  * Deletion is `update-ref -d <ref> <tip>`, which refuses if the branch moved
  * after it was judged.
  */
@@ -27,14 +28,13 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createLogger } from '../../../../../config/logger';
 import type { PullRequestHead } from '../../../../github/pr-head-lookup';
+import { isWorkPreserved, type GitResult } from './work-preserved';
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/local-branch-prune');
 
 /** Branches no sweep may delete, whatever their state. */
 const PROTECTED_BRANCHES = new Set(['main', 'develop', 'master']);
-/** The integration branch whose history counts as "preserved". */
-const INTEGRATION_REF = 'refs/remotes/origin/develop';
 /** Upstreams that say where a branch was cut from, not that it was pushed. */
 const SHARED_UPSTREAMS = new Set(['refs/remotes/origin/develop', 'refs/remotes/origin/main']);
 /** Bounds gh calls per cycle; branches past it are simply kept until a later cycle. */
@@ -43,12 +43,7 @@ const GIT_TIMEOUT_MS = 60_000;
 /** A fetch talks to the network; give it more room than a local read. */
 const FETCH_TIMEOUT_MS = 120_000;
 
-/** Outcome of one git invocation; never thrown, so "unknown" is always explicit. */
-export interface GitResult {
-  /** Exit code, or -1 when git could not be run or timed out. */
-  code: number;
-  stdout: string;
-}
+export type { GitResult } from './work-preserved';
 
 /** Injectable collaborators. */
 export interface LocalBranchPruneDeps {
@@ -90,19 +85,6 @@ async function checkedOutBranches(
   const branches = new Set<string>();
   for (const m of list.stdout.matchAll(/^branch refs\/heads\/(.+?)\r?$/gm)) branches.add(m[1]!);
   return branches;
-}
-
-/** `git merge-base --is-ancestor`: true / false, or null when git could not tell. */
-async function isAncestor(
-  git: NonNullable<LocalBranchPruneDeps['git']>,
-  baseDir: string,
-  commit: string,
-  of: string,
-): Promise<boolean | null> {
-  const r = await git(['merge-base', '--is-ancestor', commit, of], baseDir);
-  if (r.code === 0) return true;
-  if (r.code === 1) return false;
-  return null;
 }
 
 /**
@@ -148,7 +130,6 @@ export async function pruneMergedLocalBranches(
   const remoteBranchNames = new Set(
     [...remoteRefs].map((ref) => ref.split('/').slice(3).join('/')).filter(Boolean),
   );
-  const hasIntegrationRef = remoteRefs.has(INTEGRATION_REF);
 
   const deletable: Array<{ branch: string; tip: string }> = [];
   let prLookups = 0;
@@ -167,24 +148,22 @@ export async function pruneMergedLocalBranches(
     const liveUpstream = !!upstream && remoteRefs.has(upstream) && !SHARED_UPSTREAMS.has(upstream);
     if (remoteBranchNames.has(branch) || liveUpstream) continue;
 
-    let preserved = hasIntegrationRef
-      ? (await isAncestor(git, baseDir, tip, INTEGRATION_REF)) === true
-      : false;
-
-    if (!preserved && prLookups < MAX_PR_LOOKUPS_PER_CYCLE) {
-      prLookups++;
-      const prs = await lookupPrs(baseDir, branch);
-      for (const pr of prs ?? []) {
-        if (pr.state !== 'MERGED' && pr.state !== 'CLOSED') continue;
-        if (
-          pr.headRefOid === tip ||
-          (await isAncestor(git, baseDir, tip, pr.headRefOid)) === true
-        ) {
-          preserved = true;
-          break;
-        }
-      }
-    }
+    // NOTE: Shared with the worktree sweep (work-preserved.ts) so the two never
+    // disagree about what is kept. That predicate also counts origin/main:
+    // branches cut from the release line were kept forever before.
+    const withinBudget = prLookups < MAX_PR_LOOKUPS_PER_CYCLE;
+    const preserved = await isWorkPreserved(git, baseDir, tip, {
+      branch,
+      remoteRefs,
+      ...(withinBudget
+        ? {
+            lookupPrs: (dir: string, b: string) => {
+              prLookups++;
+              return lookupPrs(dir, b);
+            },
+          }
+        : {}),
+    });
     if (preserved) deletable.push({ branch, tip });
   }
 

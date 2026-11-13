@@ -3,13 +3,18 @@
  *
  * Periodic scheduler for cleaning up orphaned git worktrees.
  * Runs every 30 minutes by default to remove worktrees from completed/failed sessions
- * and orphaned filesystem directories that git no longer tracks, then prunes
- * local branches whose work is provably preserved (#1403).
+ * and orphaned filesystem directories that git no longer tracks, idle named
+ * worktrees whose work is preserved, and old workflow scratch files, then
+ * prunes local branches whose work is provably preserved (#1403).
  */
 
 import { createLogger } from '../../config/logger';
 import { cleanupOrphanedWorktrees } from '../agents/orchestrator/git-operations/worktree/worktree-ops';
-import { pruneMergedLocalBranches } from '../agents/orchestrator/git-operations/branch-hygiene';
+import {
+  pruneMergedLocalBranches,
+  sweepIdleWorktrees,
+  sweepScratchFiles,
+} from '../agents/orchestrator/git-operations/branch-hygiene';
 import { getProjectRoot } from '../../config';
 
 const logger = createLogger('worktree-cleanup-scheduler');
@@ -106,7 +111,26 @@ export class WorktreeCleanupScheduler {
       // Don't throw - let the scheduler continue running
     }
 
-    // After the worktree sweep, so branches it just released are judged too.
+    // Named worktrees (people, Codex, Claude Code sub-agents) and leftover temp
+    // ratchet worktrees: the task cleanup above never looks at them, so they
+    // piled up (18 on 2026-11-14). Separate try, like the prune below.
+    try {
+      const swept = await sweepIdleWorktrees(baseDir);
+      logger.info(
+        { examined: swept.examined, removed: swept.removed.length, skipped: swept.skipped },
+        '[WorktreeCleanupScheduler] Idle worktree sweep completed',
+      );
+    } catch (error) {
+      logger.error({ err: error }, '[WorktreeCleanupScheduler] Idle worktree sweep failed');
+    }
+
+    try {
+      await sweepScratchFiles(baseDir);
+    } catch (error) {
+      logger.error({ err: error }, '[WorktreeCleanupScheduler] Scratch file sweep failed');
+    }
+
+    // After the worktree sweeps, so branches they just released are judged too.
     // Separate try: a branch-prune failure must not read as a worktree failure.
     try {
       const pruned = await pruneMergedLocalBranches(baseDir);
