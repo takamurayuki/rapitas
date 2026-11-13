@@ -78,6 +78,17 @@ model Milestone {
   name        String
   description String?
   dueDate     DateTime?
+  /// JSON array of 達成条件 — what must be true for this milestone to count as
+  /// reached, agreed with the person (services/goals/milestone-achievement.ts).
+  acceptanceCriteria String?
+  /// open | reached | paused. `reached` is set only by POST /milestones/:id/confirm,
+  /// after the person checks every criterion and writes the evidence.
+  status      String    @default("open")
+  /// The person's own account of why the milestone is reached.
+  evidence    String?
+  /// When the person confirmed it; null while not reached.
+  reachedAt   DateTime?
+  sortOrder   Int       @default(0)
   projectId   Int
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks       Task[]
