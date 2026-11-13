@@ -203,8 +203,8 @@ const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
 - **Never** hand-roll prev/next buttons, page-number lists, or a custom
   items-per-page selector. If the shared component is missing a feature you
   need, extend `Pagination` itself (and update every caller) — do not fork it.
-- Reference callers: `ConcernsClient`, `IdeasClient`, `DecisionsClient`,
-  `KnowledgeClient`, the task list. Copy their wiring.
+- Reference callers: `ConcernsClient`, `IdeasClient`, `HypothesesClient`,
+  `KnowledgeClient`, `PullRequestsClient`, `SearchClient`, the task list. Copy their wiring.
 
 ### 7-2. The general rule
 
