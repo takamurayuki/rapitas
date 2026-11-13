@@ -37,11 +37,16 @@ RAPITAS_API_TOKEN=<長いランダム文字列>
 
 ## 開発
 
+Flutter の版は `.fvmrc` で固定している（[FVM](https://fvm.app/)）。GitHub Actions と Xcode Cloud も同じファイルを読むので、ローカルでも `fvm flutter` を使う。
+
 ```
-flutter pub get
-flutter test
-flutter run
+fvm install
+fvm flutter pub get
+fvm flutter test
+fvm flutter run
 ```
+
+版を上げるときは `fvm use <version>` で `.fvmrc` を書き換え、`fvm flutter pub get` で更新した `pubspec.lock` と一緒にコミットする。IDE は `.fvm/flutter_sdk` を SDK に指定する。
 
 - トークンは flutter_secure_storage、URL は shared_preferences に保存する
 - REST・SSE ともに `Authorization: Bearer <token>` を付ける（`lib/config/api_config.dart`）
