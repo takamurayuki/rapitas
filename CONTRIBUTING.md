@@ -109,6 +109,34 @@ See [`commitlint.config.js`](commitlint.config.js). Most common:
 | Dir size | ≤ 10 files (hard limit 20) | review (see `.claude/FOLDER_ORGANIZATION_POLICY.md`) |
 | Public function docs | Required (JSDoc / rustdoc) | review (see `.claude/COMMENT_POLICY.md`) |
 | Comments | WHY, not WHAT | review (see `.claude/COMMENT_POLICY.md`) |
+| Docs: no emoji, no box-drawing diagrams | See "Documentation style" below | `scripts/docs/check-docs-style.cjs` (CI step `Docs follow the style rules`) |
+| Docs: paths, scripts, versions match the code | See "Documentation style" below | `scripts/docs/check-docs-drift.cjs` (CI step `Docs match the code`) |
+
+### Documentation style
+
+Docs describe the code as it is today. A PR that changes behaviour updates the
+docs it affects in the same PR. Write in the doc's language (Japanese or
+English) and keep it plain:
+
+- **Structure.** Short noun-phrase headings with no decoration. The first
+  sentence of a section states its conclusion or purpose.
+- **Status as words.** Tables say 対応済み / 未対応 / 一部 (or Done / Not done).
+  Task lists use `- [ ]` / `- [x]`.
+- **Callouts.** Use GitHub alerts — `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
+  `> [!WARNING]`, `> [!CAUTION]` — not emoji.
+- **Examples.** Label them Good / Bad (良い例 / 悪い例), not with check marks.
+- **Shape.** Comparisons and options as tables, procedures as numbered lists,
+  parallel items as bullets.
+- **Tone.** Bold only key terms or the one thing not to miss. No exclamation
+  marks, no closing pleasantries, no repeated summary sections. One idea per
+  sentence, short paragraphs, the same term for the same thing.
+- **Diagrams.** Flows, sequences, states and architecture are ```` ```mermaid ````
+  blocks. Directory trees stay plain text trees.
+
+CI enforces the mechanical part: `scripts/docs/check-docs-style.cjs` fails on
+emoji or emoji-style marks and on box-drawing diagrams in any tracked Markdown
+outside `docs/archive/`. A symbol that is literal UI or tool output can be
+allow-listed in `scripts/docs/docs-style-ignore.json`, with a reason.
 
 ---
 
@@ -156,13 +184,21 @@ fails:
 2. **Open a draft PR early** so CI runs against your branch.
 3. **Fill in the PR template** completely. The "test plan" section is not
    optional.
-4. **Wait for CI to pass.** The hard gates are:
-   - `Test and Lint` (test-lint.yml)
-   - `Version Sync Check` (version-check.yml)
-   - `Tauri Build` if you touched the Tauri pipeline
-   - `Security Scan` if you touched dependencies
+4. **Wait for CI to pass.** Which checks block a merge is defined in one
+   place, [`.github/quality-gates.json`](.github/quality-gates.json) (entries
+   with `"mode": "required"`). Today they are:
+   - the test and lint jobs in `test-lint.yml` (Lint Code, Check Frontend,
+     Check Rust Code on Linux and Windows, Test Backend, Test SQLite
+     Compatible Suite, Route Regression, Frozen Install Verification)
+   - `Build (ubuntu-latest)`, `Build (macos-latest)`, `Build (windows-latest)`
+     from `tauri-build.yml`
+   - the security scan jobs from `security-scan.yml` (CodeQL Analysis,
+     Dependency Security Check, NPM Security Audit, Rust Security Audit)
+   - `Secret scanning` from `gitleaks.yml`
+
+   `Version Sync Check` and the Markdown lint are advisory.
 5. **Mark "Ready for review"** and request a code owner (see `.github/CODEOWNERS`).
-6. **Squash-merge into `develop`.** `master` is reserved for releases.
+6. **Squash-merge into `develop`.** `main` is the release line; there is no `master`.
 
 ---
 
