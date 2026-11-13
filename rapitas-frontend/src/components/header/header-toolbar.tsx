@@ -102,41 +102,59 @@ export function HeaderToolbar({
   };
 
   return (
-    <div className={`flex shrink-0 items-center gap-1 sm:gap-3${className ? ` ${className}` : ''}`}>
+    <div
+      className={`flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3${className ? ` ${className}` : ''}`}
+    >
       {/* Hide the header pomodoro whenever a task detail is open — full-page
           (/tasks/...) or the slide panel — to avoid duplicating its controls. */}
       {!pathname?.startsWith('/tasks/') && !isTaskDetailVisible && <GlobalPomodoroWidget />}
 
       {(pathname === '/' || pathname === '/kanban') && (
-        <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
-          {/* Labels hide below lg (the toggle alone overflowed a 390px phone,
-              and with the header's back/forward pair it left no room for the
-              search at 640–1023px); aria-label keeps the icon-only buttons named. */}
+        <>
+          {/* NOTE: Below md the two-segment toggle is one button that switches
+              to the other view (its icon and label name where it goes). The
+              segment pair is 76px, and 390–767px widths need that room for the
+              search field now that back/forward and the Web wordmark share
+              the left block. */}
           <button
-            onClick={() => isListView || toggleView()}
-            aria-label={t('list')}
-            className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              isListView
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
-            }`}
+            onClick={toggleView}
+            aria-label={isListView ? t('kanban') : t('list')}
+            title={isListView ? t('kanban') : t('list')}
+            data-testid="view-toggle-compact"
+            className="md:hidden p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            <List className="w-4 h-4" />
-            <span className="hidden lg:inline">{t('list')}</span>
+            {isListView ? <Columns3 className="w-5 h-5" /> : <List className="w-5 h-5" />}
           </button>
-          <button
-            onClick={() => !isListView || toggleView()}
-            aria-label={t('kanban')}
-            className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              !isListView
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
-            }`}
-          >
-            <Columns3 className="w-4 h-4" />
-            <span className="hidden lg:inline">{t('kanban')}</span>
-          </button>
-        </div>
+          <div className="hidden md:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+            {/* Labels hide below lg (with the header's back/forward pair they
+                left no room for the search at 640–1023px); aria-label keeps
+                the icon-only buttons named. */}
+            <button
+              onClick={() => isListView || toggleView()}
+              aria-label={t('list')}
+              className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                isListView
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden lg:inline">{t('list')}</span>
+            </button>
+            <button
+              onClick={() => !isListView || toggleView()}
+              aria-label={t('kanban')}
+              className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                !isListView
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
+              }`}
+            >
+              <Columns3 className="w-4 h-4" />
+              <span className="hidden lg:inline">{t('kanban')}</span>
+            </button>
+          </div>
+        </>
       )}
 
       {/* Language and theme move into the more menu below sm. */}
@@ -191,7 +209,7 @@ export function HeaderToolbar({
         <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             aria-label={t('userMenu')}
             title={user ? t('userMenuTitle', { username: user.username }) : t('userMenu')}
           >
@@ -257,7 +275,7 @@ export function HeaderToolbar({
       <div className="relative" ref={moreMenuRef}>
         <button
           onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-          className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           aria-label={t('moreMenu')}
           title={t('moreMenu')}
         >

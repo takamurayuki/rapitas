@@ -21,6 +21,10 @@ export interface NavigationHistoryState {
   recordReplace: (url: string) => void;
   /** A back/forward traversal landed on a known entry. */
   moveTo: (index: number) => void;
+  /** Back past the first entry landed on one we never saw: it becomes entry 0. */
+  recordPrepend: (url: string) => void;
+  /** Forward past the last entry landed on one we never saw: it becomes the last. */
+  recordAppend: (url: string) => void;
   /** Starts over from a single entry (app start, or an entry we never recorded). */
   reset: (url: string) => void;
 }
@@ -41,6 +45,8 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>((set) =>
       return { entries };
     }),
   moveTo: (index) => set((s) => (index >= 0 && index < s.entries.length ? { index } : s)),
+  recordPrepend: (url) => set((s) => ({ entries: [url, ...s.entries], index: 0 })),
+  recordAppend: (url) => set((s) => ({ entries: [...s.entries, url], index: s.entries.length })),
   reset: (url) => set({ entries: [url], index: 0 }),
 }));
 

@@ -161,6 +161,41 @@ function formatBindingKey(b: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'c
   return parts.join('+');
 }
 
+/**
+ * One-time migration for data saved before focusSearch existed. Such data
+ * still holds the command bar on its old default ⌘K, which focusSearch now
+ * takes. Each step only happens when it collides with nothing the user
+ * already saved, so a custom binding elsewhere is never shadowed:
+ * - the command bar moves to its new default (⌘⇧P) only if no other id holds ⌘⇧P;
+ * - focusSearch gets ⌘K only if nothing holds ⌘K after that, otherwise it is
+ *   added unassigned (empty key — the search field just shows no badge) and
+ *   the user can pick a key in settings.
+ * A ⌘K the user picks later is theirs (findDuplicate warns).
+ *
+ * @param stored - Bindings as persisted, without focusSearch / 保存済みの割り当て
+ * @returns Bindings with focusSearch appended / focusSearch を加えた割り当て
+ */
+function migrateToFocusSearch(stored: ShortcutBinding[]): ShortcutBinding[] {
+  let list = stored;
+  const isTaken = (b: ShortcutBinding) =>
+    list.some((s) => s.id !== b.id && s.key && formatBindingKey(s) === formatBindingKey(b));
+
+  const commandBarDefault = DEFAULT_SHORTCUTS.find((d) => d.id === 'commandBar');
+  const commandBar = list.find((s) => s.id === 'commandBar');
+  if (
+    commandBarDefault &&
+    commandBar &&
+    formatBindingKey(commandBar) === formatBindingKey(LEGACY_COMMAND_BAR) &&
+    !isTaken(commandBarDefault)
+  ) {
+    list = list.map((s) => (s.id === 'commandBar' ? { ...commandBarDefault } : s));
+  }
+
+  const focusDefault = DEFAULT_SHORTCUTS.find((d) => d.id === 'focusSearch');
+  if (!focusDefault) return list;
+  return [...list, isTaken(focusDefault) ? { ...focusDefault, key: '' } : { ...focusDefault }];
+}
+
 export const useShortcutStore = create<ShortcutState>()(
   persist(
     (set, get) => ({
@@ -191,18 +226,11 @@ export const useShortcutStore = create<ShortcutState>()(
       merge: (persisted, current) => {
         const stored = (persisted as Partial<ShortcutState> | undefined)?.shortcuts;
         if (!Array.isArray(stored)) return current;
-        const known = new Set(stored.map((s) => s.id));
-        const missing = DEFAULT_SHORTCUTS.filter((d) => !known.has(d.id)).map((d) => ({ ...d }));
-        // Data saved before focusSearch existed still holds the command bar on
-        // its old default ⌘K, which focusSearch now takes; move it to the new
-        // default once. A ⌘K the user picks later is theirs (findDuplicate warns).
-        const migrated = known.has('focusSearch')
+        const migrated = stored.some((s) => s.id === 'focusSearch')
           ? stored
-          : stored.map((s) =>
-              s.id === 'commandBar' && formatBindingKey(s) === formatBindingKey(LEGACY_COMMAND_BAR)
-                ? { ...(DEFAULT_SHORTCUTS.find((d) => d.id === 'commandBar') ?? s) }
-                : s,
-            );
+          : migrateToFocusSearch(stored);
+        const known = new Set(migrated.map((s) => s.id));
+        const missing = DEFAULT_SHORTCUTS.filter((d) => !known.has(d.id)).map((d) => ({ ...d }));
         return { ...current, shortcuts: [...migrated, ...missing] };
       },
     },

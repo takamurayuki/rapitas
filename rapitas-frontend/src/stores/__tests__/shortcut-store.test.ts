@@ -193,6 +193,55 @@ describe('shortcutStore', () => {
       expect(find('commandBar')).toMatchObject({ key: 'J' });
     });
 
+    /** Persists pre-focusSearch data with the given overrides, then reloads it. */
+    const rehydrateLegacy = async (
+      overrides: Partial<Record<string, Partial<(typeof DEFAULT_SHORTCUTS)[number]>>>,
+    ) => {
+      const legacy = DEFAULT_SHORTCUTS.filter((s) => s.id !== 'focusSearch').map((s) => ({
+        ...s,
+        ...(s.id === 'commandBar' ? { key: 'K', meta: true, shift: false, ctrl: false } : {}),
+        ...overrides[s.id],
+      }));
+      localStorage.setItem(
+        'shortcut-bindings-storage',
+        JSON.stringify({ state: { shortcuts: legacy }, version: 0 }),
+      );
+      await useShortcutStore.persist.rehydrate();
+    };
+
+    it('does not move the command bar onto ⌘⇧P when another function already holds it', async () => {
+      await rehydrateLegacy({ focusMode: { key: 'P', meta: true, shift: true, ctrl: false } });
+      expect(find('focusMode')).toMatchObject({ key: 'P', meta: true, shift: true });
+      // The command bar stays on ⌘K, so focusSearch must not take ⌘K too.
+      expect(find('commandBar')).toMatchObject({ key: 'K', meta: true, shift: false });
+      expect(find('focusSearch')).toMatchObject({ key: '' });
+    });
+
+    it('adds focusSearch unassigned when another function was given ⌘K', async () => {
+      await rehydrateLegacy({
+        commandBar: { key: 'J', meta: true, shift: false, ctrl: false },
+        kanban: { key: 'K', meta: true, shift: false, ctrl: false },
+      });
+      expect(find('commandBar')).toMatchObject({ key: 'J' });
+      expect(find('kanban')).toMatchObject({ key: 'K', meta: true, shift: false });
+      expect(find('focusSearch')).toMatchObject({ key: '' });
+    });
+
+    it('never leaves two functions on the same key after migrating', async () => {
+      for (const overrides of [
+        {},
+        { focusMode: { key: 'P', meta: true, shift: true, ctrl: false } },
+        { home: { key: 'K', meta: true, shift: false, ctrl: false }, commandBar: { key: 'J' } },
+      ]) {
+        await rehydrateLegacy(overrides);
+        const keys = useShortcutStore
+          .getState()
+          .shortcuts.filter((s) => s.key)
+          .map(formatBindingKey);
+        expect(new Set(keys).size).toBe(keys.length);
+      }
+    });
+
     it('leaves ⌘K on the command bar once focusSearch is known (a later, deliberate choice)', async () => {
       const saved = DEFAULT_SHORTCUTS.map((s) =>
         s.id === 'commandBar' ? { ...s, key: 'K', meta: true, shift: false, ctrl: false } : s,

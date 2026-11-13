@@ -101,7 +101,7 @@ describe('navigation history sync', () => {
     expect(window.history.state[NAV_HISTORY_STATE_KEY]).toMatchObject({ idx: 1 });
   });
 
-  it('starts over when landing on an entry it never recorded (e.g. from before a reload)', async () => {
+  it('adds an entry it never recorded (from before this page load) in front instead of starting over', async () => {
     uninstall();
     window.history.pushState({ [NAV_HISTORY_STATE_KEY]: { sid: 'old', idx: 7 } }, '', '/old');
     window.history.pushState(null, '', '/current');
@@ -109,9 +109,78 @@ describe('navigation history sync', () => {
     expect(canBack()).toBe(false);
 
     await traverse(-1);
-    expect(state().entries).toEqual(['/old']);
+    expect(state().entries).toEqual(['/old', '/current']);
+    expect(state().index).toBe(0);
     expect(canBack()).toBe(false);
+    expect(canForward()).toBe(true);
+  });
+
+  it('keeps existing entries lined up after a round trip through an unrecorded entry', async () => {
+    // Codex review fix1 #1: start at /current → push /next → OS back to the
+    // pre-load /old → forward to /current. Both buttons must still work.
+    uninstall();
+    window.history.pushState(null, '', '/old');
+    window.history.pushState(null, '', '/current');
+    uninstall = installNavigationHistorySync();
+    window.history.pushState(null, '', '/next');
+
+    await traverse(-2);
+    expect(window.location.pathname).toBe('/old');
+    await traverse(1);
+    expect(window.location.pathname).toBe('/current');
+    expect(state().entries).toEqual(['/old', '/current', '/next']);
+    expect(state().index).toBe(1);
+    expect(canBack()).toBe(true);
+    expect(canForward()).toBe(true);
+
+    await traverse(1);
+    expect(window.location.pathname).toBe('/next');
+    expect(state().index).toBe(2);
     expect(canForward()).toBe(false);
+
+    await traverse(-2);
+    expect(window.location.pathname).toBe('/old');
+    expect(state().index).toBe(0);
+    expect(state().entries).toEqual(['/old', '/current', '/next']);
+  });
+
+  it('pushes from a prepended entry like from any other (forward entries dropped)', async () => {
+    uninstall();
+    window.history.pushState(null, '', '/old');
+    window.history.pushState(null, '', '/current');
+    uninstall = installNavigationHistorySync();
+    window.history.pushState(null, '', '/next');
+    await traverse(-2);
+    window.history.pushState(null, '', '/fresh');
+    expect(state().entries).toEqual(['/old', '/fresh']);
+    expect(canBack()).toBe(true);
+    expect(canForward()).toBe(false);
+
+    await traverse(-1);
+    expect(window.location.pathname).toBe('/old');
+    expect(state().index).toBe(0);
+    expect(canForward()).toBe(true);
+  });
+
+  it('adds an unrecorded forward entry (left over from before a reload) at the end', async () => {
+    uninstall();
+    window.history.pushState(null, '', '/a');
+    window.history.pushState({ [NAV_HISTORY_STATE_KEY]: { sid: 'old', idx: 2 } }, '', '/b');
+    await traverse(-1);
+    // Reload lands here: /a still carries the old document's tag.
+    window.history.replaceState({ [NAV_HISTORY_STATE_KEY]: { sid: 'old', idx: 1 } }, '', '/a');
+    uninstall = installNavigationHistorySync();
+
+    await traverse(1);
+    expect(window.location.pathname).toBe('/b');
+    expect(state().entries).toEqual(['/a', '/b']);
+    expect(state().index).toBe(1);
+    expect(canBack()).toBe(true);
+    expect(canForward()).toBe(false);
+
+    await traverse(-1);
+    expect(state().index).toBe(0);
+    expect(canForward()).toBe(true);
   });
 
   it('is idempotent: a second install does not record each push twice', () => {
