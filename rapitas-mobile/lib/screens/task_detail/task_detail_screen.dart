@@ -16,6 +16,7 @@ import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
 import '../../widgets/task_companion_sections.dart';
 import '../../utils/plain_reasons.dart';
+import 'subtask_section.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -185,31 +186,12 @@ class TaskDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (task.subtasks != null && task.subtasks!.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text(
-                    'サブタスク (${task.subtasks!.length})',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  ...task.subtasks!.map((subtask) => Card(
-                        child: ListTile(
-                          leading: Icon(
-                            subtask.status == 'done'
-                                ? Icons.check_circle
-                                : Icons.radio_button_unchecked,
-                            color: subtask.status == 'done'
-                                ? Colors.green
-                                : Colors.grey,
-                          ),
-                          title: Text(subtask.title),
-                          subtitle: Text(
-                            AppConstants.statusLabels[subtask.status] ?? subtask.status,
-                          ),
-                          onTap: () => _toggleSubtask(context, ref, subtask),
-                        ),
-                      )),
-                ],
+                // NOTE: 0 件でも出す。以前は 0 件だと欄ごと無く、最初のサブタスクを作れなかった
+                const SizedBox(height: 24),
+                SubtaskSection(
+                  task: task,
+                  onToggle: (subtask) => _toggleSubtask(context, ref, subtask),
+                ),
                 if (task.canExecuteWithAgent) ...[
                   const SizedBox(height: 24),
                   Card(

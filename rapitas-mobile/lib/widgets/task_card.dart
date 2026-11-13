@@ -4,6 +4,7 @@ import '../utils/color_utils.dart';
 import '../utils/date_formatter.dart';
 import 'status_badge.dart';
 import 'priority_indicator.dart';
+import 'subtask_progress.dart';
 
 class TaskCard extends StatelessWidget {
   final Task task;
@@ -84,7 +85,23 @@ class TaskCard extends StatelessWidget {
                   StatusBadge.task(status: task.status),
                   const SizedBox(width: 8),
                   PriorityIndicator(priority: task.priority),
-                  const Spacer(),
+                  // デスクトップのタスクカードと同じく、ステータス・優先度の並びに進捗を出す
+                  // （バーはデスクトップの狭い幅と同じ 80px を上限に、期限と並ばないときは縮める）
+                  if (task.subtasks?.isNotEmpty ?? false)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8, right: 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 112),
+                            child: SubtaskProgress(subtasks: task.subtasks),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
                   if (dueDate != null)
                     Row(
                       mainAxisSize: MainAxisSize.min,
