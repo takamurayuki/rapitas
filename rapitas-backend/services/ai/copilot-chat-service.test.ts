@@ -5,7 +5,8 @@
  * LLM — Ollama was dropped for unreliable summarization quality), plus an
  * integration-style test locking that sendCopilotMessage's deterministic
  * intent shortcut (Step 0) returns without ever calling the LLM, and that
- * non-matching messages still fall through to Claude.
+ * non-matching messages still fall through to Claude, and that the system
+ * prompt (and with it the cache key) follows whether a task is attached.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
@@ -51,16 +52,20 @@ mock.module('../../config/database', () => ({
 
 const mockGetCachedResponse = mock(() => null as { content: string; tokensUsed: number } | null);
 const mockSetCachedResponse = mock(() => {});
+const mockGenerateCacheKey = mock(
+  (_kind: string, _model: string, _systemPrompt: string, _messages: unknown[]) => 'cache-key',
+);
 mock.module('../local-llm/response-cache', () => ({
   getCachedResponse: mockGetCachedResponse,
   setCachedResponse: mockSetCachedResponse,
-  generateCacheKey: () => 'cache-key',
+  generateCacheKey: mockGenerateCacheKey,
 }));
 
 const mockSendAIMessage = mock(() => Promise.resolve({ content: 'llm answer', tokensUsed: 10 }));
+const mockSendAIMessageStream = mock(() => Promise.resolve(new ReadableStream()));
 mock.module('../../utils/ai-client', () => ({
   sendAIMessage: mockSendAIMessage,
-  sendAIMessageStream: mock(() => Promise.resolve(new ReadableStream())),
+  sendAIMessageStream: mockSendAIMessageStream,
 }));
 
 // All four runtime exports mirrored: mock.module replaces the whole module.
@@ -78,8 +83,14 @@ mock.module('./copilot-intent-responder', () => ({
   respondToIntent: mockRespondToIntent,
 }));
 
-const { selectModelTier, sendCopilotMessage, getCopilotHistory } =
+const { selectModelTier, sendCopilotMessage, streamCopilotMessage, getCopilotHistory } =
   await import('./copilot-chat-service');
+const { TASK_COPILOT_SYSTEM_PROMPT, GENERAL_COPILOT_SYSTEM_PROMPT } =
+  await import('./copilot-system-prompts');
+
+/** The systemPrompt option of the first call to an AI-client mock. */
+const systemPromptOf = (m: { mock: { calls: unknown[][] } }) =>
+  (m.mock.calls[0][0] as { systemPrompt: string }).systemPrompt;
 
 beforeEach(() => {
   storedMessages = [];
@@ -88,6 +99,8 @@ beforeEach(() => {
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
   mockGetCachedResponse.mockReset().mockReturnValue(null);
   mockSendAIMessage.mockReset().mockResolvedValue({ content: 'llm answer', tokensUsed: 10 });
+  mockSendAIMessageStream.mockReset().mockResolvedValue(new ReadableStream());
+  mockGenerateCacheKey.mockClear();
   mockMatchCopilotIntent.mockReset().mockReturnValue(null);
   mockRespondToIntent.mockReset().mockResolvedValue(null);
 });
@@ -153,6 +166,48 @@ describe('sendCopilotMessage — Step 0 deterministic intent shortcut', () => {
   it('skips the intent shortcut entirely when there is no taskId', async () => {
     await sendCopilotMessage({ message: 'ステータスは？' });
     expect(mockMatchCopilotIntent).not.toHaveBeenCalled();
+  });
+});
+
+describe('system prompt — task conversations vs task-free conversations', () => {
+  it('uses the general-assistant prompt when no taskId is given', async () => {
+    await sendCopilotMessage({ message: '「冗長」の意味を教えて' });
+
+    expect(systemPromptOf(mockSendAIMessage)).toBe(GENERAL_COPILOT_SYSTEM_PROMPT);
+  });
+
+  it('keeps the task-support prompt when a taskId is given', async () => {
+    await sendCopilotMessage({ message: '実装方針についてどう思う？', taskId: 1 });
+
+    expect(systemPromptOf(mockSendAIMessage)).toBe(TASK_COPILOT_SYSTEM_PROMPT);
+  });
+
+  it('applies the same split on the streaming path', async () => {
+    await streamCopilotMessage({ message: '「冗長」の意味を教えて' });
+    await streamCopilotMessage({ message: '実装方針についてどう思う？', taskId: 1 });
+
+    expect(mockSendAIMessageStream).toHaveBeenCalledTimes(2);
+    const prompts = mockSendAIMessageStream.mock.calls.map(
+      (call) => (call[0] as unknown as { systemPrompt: string }).systemPrompt,
+    );
+    expect(prompts).toEqual([GENERAL_COPILOT_SYSTEM_PROMPT, TASK_COPILOT_SYSTEM_PROMPT]);
+  });
+
+  it('keys the response cache by the chosen prompt, so the two never share an entry', async () => {
+    // Same message text, and buildTaskContext finds no task (null), so the
+    // cached user message is identical — only the system prompt tells them apart.
+    await sendCopilotMessage({ message: '同じ質問' });
+    await sendCopilotMessage({ message: '同じ質問', taskId: 1 });
+
+    const keyPrompts = mockGenerateCacheKey.mock.calls.map((call) => call[2]);
+    expect(keyPrompts).toEqual([GENERAL_COPILOT_SYSTEM_PROMPT, TASK_COPILOT_SYSTEM_PROMPT]);
+    expect(mockGenerateCacheKey.mock.calls[0][3]).toEqual(mockGenerateCacheKey.mock.calls[1][3]);
+  });
+
+  it('does not scope or cap the general prompt the way the task prompt does', () => {
+    expect(TASK_COPILOT_SYSTEM_PROMPT).toContain('200-400文字');
+    expect(GENERAL_COPILOT_SYSTEM_PROMPT).not.toContain('200-400文字');
+    expect(GENERAL_COPILOT_SYSTEM_PROMPT).not.toContain('タスクに関する質問に');
   });
 });
 
