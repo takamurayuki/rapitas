@@ -15,14 +15,12 @@ const proposal = { name: 'app', tagline: 'tag' } as AppProposal;
 const result = { claude_md: '# x', scaffold: [] } as unknown as GenerateResult;
 
 const respond = (status: number, body: unknown) =>
-  vi
-    .spyOn(globalThis, 'fetch')
-    .mockResolvedValue(
-      new Response(JSON.stringify(body), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  );
 
 afterEach(() => vi.restoreAllMocks());
 
