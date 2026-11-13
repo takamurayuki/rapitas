@@ -109,31 +109,32 @@ export function HeaderToolbar({
 
       {(pathname === '/' || pathname === '/kanban') && (
         <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
-          {/* Labels hide below sm (the toggle alone overflowed a 390px phone);
-              aria-label keeps the icon-only buttons named. */}
+          {/* Labels hide below lg (the toggle alone overflowed a 390px phone,
+              and with the header's back/forward pair it left no room for the
+              search at 640–1023px); aria-label keeps the icon-only buttons named. */}
           <button
             onClick={() => isListView || toggleView()}
             aria-label={t('list')}
-            className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               isListView
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
             }`}
           >
             <List className="w-4 h-4" />
-            <span className="hidden sm:inline">{t('list')}</span>
+            <span className="hidden lg:inline">{t('list')}</span>
           </button>
           <button
             onClick={() => !isListView || toggleView()}
             aria-label={t('kanban')}
-            className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
               !isListView
                 ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
             }`}
           >
             <Columns3 className="w-4 h-4" />
-            <span className="hidden sm:inline">{t('kanban')}</span>
+            <span className="hidden lg:inline">{t('kanban')}</span>
           </button>
         </div>
       )}

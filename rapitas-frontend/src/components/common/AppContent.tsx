@@ -25,11 +25,16 @@ import { useLinkViewStore } from '@/stores/link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
 import { isAppShellHidden } from '@/utils/app-shell';
+import { useNavigationHistorySync } from '@/components/header/history/navigation-history-sync';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
  */
 export default function AppContent({ children }: { children: React.ReactNode }) {
+  // NOTE: Hosted here, not in the header — AppContent is rendered on every
+  // route, so history is recorded even where the header is not (/auth etc.),
+  // and the header's back/forward state is right the moment it reappears.
+  useNavigationHistorySync();
   // The pin flag outlives the nav: it is remembered across navigation, while
   // the nav itself is not rendered on /auth or in the popup windows. Reserving
   // its width there left the sign-in form with an empty 18rem column on its

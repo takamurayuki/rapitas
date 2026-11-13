@@ -154,6 +154,58 @@ describe('shortcutStore', () => {
     });
   });
 
+  describe('focusSearch / commandBar defaults', () => {
+    const find = (id: string) => useShortcutStore.getState().shortcuts.find((s) => s.id === id);
+
+    it('gives ⌘K to focusSearch and moves the command bar to ⌘⇧P', () => {
+      useShortcutStore.getState().resetAll();
+      expect(find('focusSearch')).toMatchObject({ key: 'K', meta: true, shift: false });
+      expect(find('commandBar')).toMatchObject({ key: 'P', meta: true, shift: true });
+      expect(
+        useShortcutStore
+          .getState()
+          .findDuplicate('focusSearch', { key: 'K', meta: true, shift: false, ctrl: false }),
+      ).toBeUndefined();
+    });
+
+    it('moves a command bar still on the old ⌘K default off it once', async () => {
+      const legacy = DEFAULT_SHORTCUTS.filter((s) => s.id !== 'focusSearch').map((s) =>
+        s.id === 'commandBar' ? { ...s, key: 'K', meta: true, shift: false, ctrl: false } : s,
+      );
+      localStorage.setItem(
+        'shortcut-bindings-storage',
+        JSON.stringify({ state: { shortcuts: legacy }, version: 0 }),
+      );
+      await useShortcutStore.persist.rehydrate();
+      expect(find('commandBar')).toMatchObject({ key: 'P', meta: true, shift: true });
+      expect(find('focusSearch')).toMatchObject({ key: 'K', meta: true });
+    });
+
+    it('keeps a command bar binding the user chose themselves', async () => {
+      const legacy = DEFAULT_SHORTCUTS.filter((s) => s.id !== 'focusSearch').map((s) =>
+        s.id === 'commandBar' ? { ...s, key: 'J', meta: true, shift: false, ctrl: false } : s,
+      );
+      localStorage.setItem(
+        'shortcut-bindings-storage',
+        JSON.stringify({ state: { shortcuts: legacy }, version: 0 }),
+      );
+      await useShortcutStore.persist.rehydrate();
+      expect(find('commandBar')).toMatchObject({ key: 'J' });
+    });
+
+    it('leaves ⌘K on the command bar once focusSearch is known (a later, deliberate choice)', async () => {
+      const saved = DEFAULT_SHORTCUTS.map((s) =>
+        s.id === 'commandBar' ? { ...s, key: 'K', meta: true, shift: false, ctrl: false } : s,
+      );
+      localStorage.setItem(
+        'shortcut-bindings-storage',
+        JSON.stringify({ state: { shortcuts: saved }, version: 0 }),
+      );
+      await useShortcutStore.persist.rehydrate();
+      expect(find('commandBar')).toMatchObject({ key: 'K', shift: false });
+    });
+  });
+
   describe('formatBindingKey', () => {
     it('should format a meta+key binding', () => {
       expect(formatBindingKey({ key: 'N', meta: true, shift: false, ctrl: false })).toBe('meta+N');

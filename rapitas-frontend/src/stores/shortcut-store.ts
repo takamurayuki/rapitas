@@ -11,6 +11,7 @@ export type ShortcutId =
   | 'shortcutHelp'
   | 'toggleAI'
   | 'commandBar'
+  | 'focusSearch'
   | 'toggleBrowser'
   | 'triageApprove'
   | 'triageDefer'
@@ -103,7 +104,17 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     ctrl: true,
   },
   {
+    // NOTE: Was ⌘K until ⌘K became the header search's focus key (focusSearch,
+    // below) — ⌘K for search is the convention users expect. ⌘⇧P keeps the
+    // "command palette" association; see LEGACY_COMMAND_BAR for the migration.
     id: 'commandBar',
+    key: 'P',
+    meta: true,
+    shift: true,
+    ctrl: false,
+  },
+  {
+    id: 'focusSearch',
     key: 'K',
     meta: true,
     shift: false,
@@ -137,6 +148,9 @@ interface ShortcutState {
     binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>,
   ) => ShortcutBinding | undefined;
 }
+
+/** The command bar's default before ⌘K moved to focusSearch; migrated once on load. */
+const LEGACY_COMMAND_BAR = { key: 'K', meta: true, shift: false, ctrl: false } as const;
 
 function formatBindingKey(b: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>): string {
   const parts: string[] = [];
@@ -179,7 +193,17 @@ export const useShortcutStore = create<ShortcutState>()(
         if (!Array.isArray(stored)) return current;
         const known = new Set(stored.map((s) => s.id));
         const missing = DEFAULT_SHORTCUTS.filter((d) => !known.has(d.id)).map((d) => ({ ...d }));
-        return { ...current, shortcuts: [...stored, ...missing] };
+        // Data saved before focusSearch existed still holds the command bar on
+        // its old default ⌘K, which focusSearch now takes; move it to the new
+        // default once. A ⌘K the user picks later is theirs (findDuplicate warns).
+        const migrated = known.has('focusSearch')
+          ? stored
+          : stored.map((s) =>
+              s.id === 'commandBar' && formatBindingKey(s) === formatBindingKey(LEGACY_COMMAND_BAR)
+                ? { ...(DEFAULT_SHORTCUTS.find((d) => d.id === 'commandBar') ?? s) }
+                : s,
+            );
+        return { ...current, shortcuts: [...migrated, ...missing] };
       },
     },
   ),

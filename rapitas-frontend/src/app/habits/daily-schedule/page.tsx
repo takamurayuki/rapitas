@@ -9,8 +9,7 @@
  */
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { Plus, ArrowLeft, Clock } from 'lucide-react';
+import { Plus, Clock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useScheduleBlocks } from './_components/useScheduleBlocks';
@@ -60,12 +59,6 @@ export default function DailySchedulePage() {
       {/* Page header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link
-            href="/habits"
-            className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
-          </Link>
           <Clock className="w-8 h-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">

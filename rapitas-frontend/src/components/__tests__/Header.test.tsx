@@ -182,8 +182,13 @@ describe('Header', () => {
       render(<Header />);
       const wordmark = screen.getByText('Rapi+');
       expect(wordmark.closest('a')).toHaveAttribute('href', '/');
-      // The wordmark is the only content of the home link, so it must stay
-      // visible at every width (no `hidden` / `sm:inline` breakpoint gating).
+      // NOTE: Below md the back/forward pair takes the wordmark's place (with
+      // all three the search was 0px wide at 390px and the header overflowed
+      // at 640px), so the home link is hidden there and shown from md up. Within the link the wordmark itself is
+      // never separately gated.
+      const link = wordmark.closest('a')!;
+      expect(link.className).toMatch(/(^|\s)hidden(\s|$)/);
+      expect(link.className).toMatch(/(^|\s)md:flex(\s|$)/);
       expect(wordmark.className).not.toMatch(/(^|\s)hidden(\s|$)/);
       expect(screen.queryByTestId('app-icon')).not.toBeInTheDocument();
     });

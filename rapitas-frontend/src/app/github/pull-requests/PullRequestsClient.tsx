@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Eye,
   Filter,
-  ArrowLeft,
   GitMerge,
   XCircle,
   FolderGit2,
@@ -180,12 +179,6 @@ export default function PullRequestsClient() {
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-4 mb-6">
-          <Link
-            href="/github"
-            className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Pull Requests</h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">{t('prsSubtitle')}</p>

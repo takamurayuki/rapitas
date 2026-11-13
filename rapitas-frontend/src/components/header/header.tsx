@@ -60,6 +60,7 @@ import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
 import { RestartDialogs } from './restart-dialogs';
+import { HistoryNavButtons } from './history';
 
 /**
  * Sticky application header with a hamburger-triggered side navigation panel.
@@ -266,7 +267,7 @@ export default function Header() {
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
       <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-        <div className="flex items-center justify-between h-16 px-2 sm:px-6">
+        <div className="flex items-center h-16 px-2 sm:px-6">
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
@@ -275,6 +276,14 @@ export default function Header() {
             >
               {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
+
+            {/* Back/forward live here for every screen; pages no longer carry
+                their own back buttons. NOTE: they take the wordmark's place
+                below md (hidden there; below sm it was hidden before #1503
+                too) — with all three, the search field was 0px wide at 390px
+                and the header overflowed at 640px. Home stays reachable via
+                the side nav's タスク一覧. */}
+            <HistoryNavButtons />
 
             {/* NOTE: The desktop app (Tauri) shows no brand block — desktop apps
                 rarely title their own header, and home stays reachable via the
@@ -286,7 +295,7 @@ export default function Header() {
             {!h.isTauriEnv && (
               <Link
                 href="/"
-                className="flex items-center gap-2 group tauri:hidden"
+                className="hidden md:flex items-center gap-2 group tauri:hidden"
                 data-testid="header-brand"
               >
                 <div className="flex items-center gap-2">
@@ -323,9 +332,6 @@ export default function Header() {
             isTauriEnv={h.isTauriEnv}
             isRestarting={h.isRestarting}
             handleRestartClick={h.handleRestartClick}
-            // Without the brand, justify-between would float the search in the
-            // middle; the auto margin packs it next to the menu button instead.
-            className="tauri:ml-auto"
           />
         </div>
       </header>
@@ -339,7 +345,8 @@ export default function Header() {
         filteredNavItems={filteredNavItems}
         expandedItems={h.expandedItems}
         toggleExpand={h.toggleExpand}
-        getShortcutLabel={h.getShortcutLabel}
+        user={h.user}
+        isAuthLoading={!h.hasMounted || h.isAuthLoading}
       />
 
       <RestartDialogs
