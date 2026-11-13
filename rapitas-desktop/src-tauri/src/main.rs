@@ -24,6 +24,7 @@ mod release;
 
 mod shortcut_config;
 
+mod app_icon;
 mod app_setup;
 mod browser;
 mod dev_server_wait;

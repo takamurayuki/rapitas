@@ -24,10 +24,10 @@ npx tauri icon path/to/your/icon.png
 
 | マスター | 用途 |
 | --- | --- |
-| `app-icon.svg` | アプリアイコンのすべてのサイズ（`*.png`、`icon.ico` の全フレーム、`icon.icns` の全フレーム） |
-| `tray-icon.svg` | `tray-icon.png`（256x256・透過。トレイ専用。同じ図形を黒のベタ塗りにし、タイルなしで横約88%まで中央基準で拡大したもの。トレイの小さな表示へ縮小しても輪郭が崩れないよう、バーと四角の高さを 118 に太くしてある） |
+| `app-icon.svg` | アプリアイコンの 64px 以上（`*.png`、`icon.ico` の 64/128/256 フレーム、`icon.icns` の全フレーム） |
+| `scripts/render-small-icons.py` | 16〜48px の小サイズ（`icon.ico` の 16/20/24/32/48 フレーム、`32x32.png`、トレイ用 `tray-icon-{16,20,24,32}.png`）。傾けた図形は小サイズで縁がにじむため、同じ構成を水平・整数ピクセルで描き直している。64px 以上は `app-icon.svg` のまま |
 
 図形はスマホ版アイコン（`rapitas-mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`）と同じ構成です。
 スマホ版は全面塗りで、デスクトップ版はそこに角丸タイル（`rx=213`）をかけただけです。図形を縮小しないでください。タイルの内側はスマホ版と 1px 単位で一致します。
 
-システムトレイは `src/app_setup.rs` が `tray-icon.png` を読み込んで表示します（macOS ではテンプレート画像として扱い、メニューバーの明暗に合わせて OS が色を反転します）。アプリアイコンの `32x32.png` はトレイには使いません。
+システムトレイは `src/app_icon.rs` がモニターの拡大率に合う `tray-icon-<size>.png` を選んで表示します（アプリアイコンと同じ紫のタイル＋白の図形。OS に 256px から縮小させると図形が崩れるため、実寸の画像を渡します）。`app-icon.svg` の図形を変えたら `python rapitas-desktop/scripts/render-small-icons.py` を再実行してください。

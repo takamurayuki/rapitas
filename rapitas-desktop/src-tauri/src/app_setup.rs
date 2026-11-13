@@ -26,20 +26,11 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &capture_item, &quit_item])?;
 
-    // Tray-only artwork (solid black glyph, transparent background), kept
-    // separate from the app icon set. Master: icons/tray-icon.svg.
-    let tray_icon_bytes = include_bytes!("../icons/tray-icon.png");
-    let tray_icon_image =
-        tauri::image::Image::from_bytes(tray_icon_bytes).expect("failed to load tray icon");
-
-    let tray_builder = TrayIconBuilder::new().icon(tray_icon_image);
-    // On macOS, a template image lets the menu bar recolor the glyph for light
-    // and dark appearance. Other platforms show the icon as-is.
-    #[cfg(target_os = "macos")]
-    let tray_builder = tray_builder.icon_as_template(true);
-
-    let _tray = tray_builder
-        .tooltip("Rapitas - AI Task Manager")
+    // NOTE: Same purple tile + white glyph as the app icon (operator request,
+    // replacing the black template glyph), sized to the display scale.
+    let _tray = TrayIconBuilder::new()
+        .icon(crate::app_icon::tray_icon_image(app)?)
+        .tooltip("Rapitas")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -275,6 +266,8 @@ pub fn run() {
             crate::release::setup_sidecar(app);
             #[cfg(target_os = "windows")]
             register_aumid_for_toasts(app);
+            #[cfg(target_os = "windows")]
+            crate::app_icon::hide_title_bar_icon_and_text(app);
             setup_tray(app)?;
             setup_global_shortcut(app)?;
             // Pre-warm the toast window while boot owns the focus anyway.
