@@ -30,7 +30,11 @@ const SKIPPED_OFFLINE = 'fetch-failed';
 const SKIPPED_DIVERGED = 'diverged';
 const SKIPPED_MERGE_FAILED = 'merge-failed';
 
-/** A fetch that hangs (captive portal, dead VPN) must not hold the launch. */
+/**
+ * A fetch that hangs (captive portal, dead VPN) must not hold the launch.
+ * The merge gets the same cap: a post-merge hook that never exits would
+ * otherwise hold it just the same.
+ */
 const DEFAULT_FETCH_TIMEOUT_MS = 20_000;
 
 /** How many pulled commits to list by subject. */
@@ -60,6 +64,8 @@ function defaultRun(command, args, options) {
     execFile(command, args, { encoding: 'utf8', ...options }, (err, stdout, stderr) => {
       resolve({
         code: err ? (typeof err.code === 'number' ? err.code : 1) : 0,
+        // execFile's `timeout` kills the child with SIGTERM and sets killed.
+        timedOut: Boolean(err && err.killed),
         stdout: stdout || '',
         stderr: stderr || (err && !stdout ? err.message : '') || '',
       });
@@ -158,7 +164,16 @@ async function pullOnLaunch(options) {
     return { action: SKIPPED_DIVERGED, branch, upstream, from, to };
   }
 
-  const merge = await git(['merge', '--ff-only', '--quiet', upstream]);
+  // --no-overwrite-ignore: git merge overwrites ignored files by default, so
+  // a local ignored file (e.g. a .env) at a path the upstream now tracks
+  // would be silently replaced; this makes git refuse instead.
+  // --no-autostash: with merge.autoStash=true, a tracked edit made after the
+  // dirty check (during the fetch) would be stashed and re-applied, possibly
+  // with conflicts; this makes git refuse instead.
+  const merge = await git(
+    ['merge', '--ff-only', '--no-autostash', '--no-overwrite-ignore', '--quiet', upstream],
+    { timeout: fetchTimeoutMs },
+  );
   if (merge.code !== 0) {
     return {
       action: SKIPPED_MERGE_FAILED,
@@ -166,7 +181,9 @@ async function pullOnLaunch(options) {
       upstream,
       from,
       to,
-      reason: reasonLine(merge.stderr) || `git merge exited ${merge.code}`,
+      reason: merge.timedOut
+        ? `git merge did not finish within ${Math.round(fetchTimeoutMs / 1000)}s (a hook may be hanging); check 'git status'`
+        : reasonLine(merge.stderr) || `git merge exited ${merge.code}`,
     };
   }
 

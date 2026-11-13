@@ -27,6 +27,7 @@ const {
   SKIPPED_DIRTY,
   SKIPPED_OFFLINE,
   SKIPPED_DIVERGED,
+  SKIPPED_MERGE_FAILED,
 } = require('./dev-pull.cjs');
 
 const GIT_ENV = {
@@ -88,7 +89,12 @@ function hermeticRun(command, args, options) {
       args,
       { encoding: 'utf8', ...options, env: { ...GIT_ENV, ...(options.env || {}), ...GIT_ENV } },
       (err, stdout, stderr) =>
-        resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout, stderr }),
+        resolve({
+          code: err ? (typeof err.code === 'number' ? err.code : 1) : 0,
+          timedOut: Boolean(err && err.killed),
+          stdout,
+          stderr,
+        }),
     );
   });
 }
@@ -152,6 +158,82 @@ describe('pullOnLaunch against real repositories', () => {
     assert.equal(result.action, PULLED);
     assert.equal(git(r.local, 'rev-parse', 'HEAD'), tip);
     assert.ok(fs.existsSync(path.join(r.local, 'scratch.txt')));
+  });
+
+  test('a local ignored file at a path upstream starts tracking → refused, file and HEAD kept', async () => {
+    const r = makeRepos();
+    // Base: secret.env is ignored on both sides.
+    r.pushUpstream('.gitignore', 'secret.env\n');
+    git(r.local, 'pull', '-q', '--ff-only');
+    const before = git(r.local, 'rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(r.local, 'secret.env'), 'local secret\n');
+    // Upstream force-adds the same path as a tracked file.
+    fs.writeFileSync(path.join(r.other, 'secret.env'), 'upstream template\n');
+    git(r.other, 'add', '-f', 'secret.env');
+    git(r.other, 'commit', '-q', '-m', 'track secret.env');
+    git(r.other, 'push', '-q', 'origin', 'develop');
+
+    const result = await pullOnLaunch({ repoRoot: r.local, run: hermeticRun });
+
+    assert.equal(result.action, SKIPPED_MERGE_FAILED);
+    assert.equal(git(r.local, 'rev-parse', 'HEAD'), before);
+    assert.equal(fs.readFileSync(path.join(r.local, 'secret.env'), 'utf8'), 'local secret\n');
+    assert.match(
+      describePull(result).lines.join('\n'),
+      /Starting with the code already checked out/,
+    );
+  });
+
+  test('merge.autoStash=true and an edit lands after the dirty check → refused, no stash', async () => {
+    const r = makeRepos();
+    const before = git(r.local, 'rev-parse', 'HEAD');
+    r.pushUpstream('README.md', 'upstream\n');
+    git(r.local, 'config', 'merge.autoStash', 'true');
+    // The edit happens while the fetch runs, i.e. after `git status` said clean.
+    const run = async (c, a, o) => {
+      const res = await hermeticRun(c, a, o);
+      if (a[0] === 'fetch') fs.writeFileSync(path.join(r.local, 'README.md'), 'local edit\n');
+      return res;
+    };
+
+    const result = await pullOnLaunch({ repoRoot: r.local, run });
+
+    assert.equal(result.action, SKIPPED_MERGE_FAILED);
+    assert.equal(git(r.local, 'rev-parse', 'HEAD'), before);
+    assert.equal(fs.readFileSync(path.join(r.local, 'README.md'), 'utf8'), 'local edit\n');
+    assert.equal(git(r.local, 'stash', 'list'), '');
+  });
+
+  test('a post-merge hook that never exits → merge-failed after the timeout, launch not held', async () => {
+    const r = makeRepos();
+    r.pushUpstream();
+    const pidFile = path.join(r.root, 'hook.pid');
+    const hook = path.join(r.local, '.git', 'hooks', 'post-merge');
+    fs.writeFileSync(hook, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
+    fs.chmodSync(hook, 0o755);
+
+    const started = Date.now();
+    try {
+      const result = await pullOnLaunch({
+        repoRoot: r.local,
+        run: hermeticRun,
+        fetchTimeoutMs: 1500,
+      });
+      assert.ok(Date.now() - started < 10_000, 'returned well before the hook would exit');
+      assert.equal(result.action, SKIPPED_MERGE_FAILED);
+      assert.match(result.reason, /did not finish within 2s/);
+      assert.match(
+        describePull(result).lines.join('\n'),
+        /Starting with the code already checked out/,
+      );
+    } finally {
+      // The hook outlives the killed git; do not leave it behind.
+      try {
+        process.kill(Number(fs.readFileSync(pidFile, 'utf8').trim()));
+      } catch {
+        /* already gone */
+      }
+    }
   });
 
   test('diverged from upstream → skipped, no merge commit made', async () => {
@@ -252,6 +334,33 @@ describe('pullOnLaunch decisions with a fake runner', () => {
     assert.equal(fetch.options.timeout, 1234);
     assert.equal(fetch.options.env.GIT_TERMINAL_PROMPT, '0');
     assert.ok(!calls.some((c) => c.args[0] === 'merge'));
+  });
+  test('merge runs with --ff-only, --no-autostash, --no-overwrite-ignore and the timeout', async () => {
+    const calls = [];
+    const run = async (c, a, o) => {
+      calls.push({ args: a, options: o });
+      const sub = a[0];
+      if (sub === 'rev-parse' && a[1] === '--is-inside-work-tree')
+        return { code: 0, stdout: 'true\n', stderr: '' };
+      if (sub === 'rev-parse' && a.includes('@{u}'))
+        return { code: 0, stdout: 'origin/develop\n', stderr: '' };
+      if (sub === 'rev-parse' && a[1] === '--abbrev-ref')
+        return { code: 0, stdout: 'develop\n', stderr: '' };
+      if (sub === 'rev-parse' && a[1] === 'HEAD')
+        return { code: 0, stdout: 'a'.repeat(40), stderr: '' };
+      if (sub === 'rev-parse') return { code: 0, stdout: 'b'.repeat(40), stderr: '' };
+      if (sub === 'merge') return { code: 1, timedOut: true, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+
+    const result = await pullOnLaunch({ repoRoot: '/repo', run, fetchTimeoutMs: 4321 });
+
+    const merge = calls.find((c) => c.args[0] === 'merge');
+    for (const flag of ['--ff-only', '--no-autostash', '--no-overwrite-ignore'])
+      assert.ok(merge.args.includes(flag), flag);
+    assert.equal(merge.options.timeout, 4321);
+    assert.equal(result.action, SKIPPED_MERGE_FAILED);
+    assert.match(result.reason, /did not finish within 4s/);
   });
 });
 
