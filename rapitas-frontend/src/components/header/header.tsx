@@ -52,7 +52,6 @@ import {
   ScanSearch,
 } from 'lucide-react';
 import Link from 'next/link';
-import AppIcon from '@/components/common/app-icon';
 import { useTranslations } from 'next-intl';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -279,9 +278,7 @@ export default function Header() {
 
             <Link href="/" className="flex items-center gap-2 group">
               <div className="flex items-center gap-2">
-                <AppIcon size={32} className="shrink-0" />
-                {/* Wordmark drops below sm; the icon alone still links home. */}
-                <span className="hidden sm:inline text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                   Rapi+
                 </span>
               </div>
