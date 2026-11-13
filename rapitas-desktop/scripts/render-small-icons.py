@@ -27,15 +27,7 @@ SMALL_SIZES = (16, 20, 24, 32, 48)
 # Frames kept as-is from the current icon.ico (rendered from app-icon.svg).
 LARGE_SIZES = (64, 128, 256)
 TRAY_SIZES = (16, 20, 24, 32)
-# Tray icons keep the app icon's purple tile + white glyph, but enlarge the
-# glyph and tighten the corners: at 16px the app icon's padding leaves the
-# bars too small to read. (A tile-less purple glyph was tried and rejected.)
-TRAY_GLYPH_ENLARGE = 1.18
-TRAY_TILE_RADIUS = 0.18
-# The tray also joins each bullet square to its bar. The ~1px gap between them
-# is the first thing the 16px tray smears shut, so six parts blur into three
-# lumpy ones; three clean slanted bars keep the mark's rhythm and tilt.
-TRAY_JOIN_BULLETS = True
+# Tray artwork uses independent spacing; app/taskbar artwork remains unchanged.
 
 GRADIENT_FROM = (0x8B, 0x5C, 0xF6)
 GRADIENT_TO = (0x63, 0x66, 0xF1)
@@ -208,24 +200,46 @@ def render_icon(size: int, join_bullets: bool = False) -> Image.Image:
 
 
 def render_tray(size: int) -> Image.Image:
-    """
-    Render one tray icon: the app icon tile with an enlarged, simplified glyph.
+    """Render the tilted three-band mark with a consistent inter-row gap.
 
-    Args:
-        size: edge length in pixels / 一辺のピクセル数
-
-    Returns:
-        RGBA tray icon / トレイ用アイコン画像
+    This layout is independent of app-icon thickening. At 16px the bands are
+    2px thick with 2px clear spacing before rotation. Larger sizes scale that
+    geometry smoothly instead of changing proportions at four preset sizes.
     """
-    global TILE_RADIUS
-    base_scale, base_radius = GLYPH_SCALE.get(size, 1.0), TILE_RADIUS
-    GLYPH_SCALE[size] = base_scale * TRAY_GLYPH_ENLARGE
-    TILE_RADIUS = TRAY_TILE_RADIUS
-    try:
-        return render_icon(size, TRAY_JOIN_BULLETS)
-    finally:
-        GLYPH_SCALE[size] = base_scale
-        TILE_RADIUS = base_radius
+    k = SUPERSAMPLE
+    unit = size / 16
+    mask = Image.new("L", (size * k, size * k), 0)
+    draw = ImageDraw.Draw(mask)
+    angle = math.radians(ROTATION_DEG)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    # Same length order and slanted tips as the app mark; optical centering
+    # leaves roughly 2px tile padding and avoids maximizing ink coverage.
+    for center, right in [(4, 12), (8, 13.5), (12, 11.25)]:
+        polygon = [(2.5, center-1), (right-.9, center-1),
+                   (right, center+1), (2.5, center+1)]
+        points = []
+        for x, y in polygon:
+            x, y = x-8, y-8
+            points.append(((8+x*cosine-y*sine)*unit*k,
+                           (8+x*sine+y*cosine)*unit*k))
+        draw.polygon(points, fill=255)
+    coverage = mask.resize((size, size), Image.Resampling.BOX)
+    image = render_tile(size)
+    white = Image.new("RGBA", (size, size), (255,255,255,255))
+    white.putalpha(coverage)
+    image.alpha_composite(white)
+    return image
+
+
+def render_tray_assets() -> None:
+    """Store all integer sizes 16..64 without runtime resampling."""
+    atlas = Image.new("RGBA", (64, 49 * 64), (0,0,0,0))
+    for size in range(16,65):
+        frame = render_tray(size)
+        atlas.paste(frame, (0, (size-16)*64))
+        if size in TRAY_SIZES:
+            frame.save(ICONS / f"tray-icon-{size}.png")
+    atlas.save(ICONS / "tray-atlas.png")
 
 
 def png_bytes(image: Image.Image) -> bytes:
@@ -295,8 +309,7 @@ def main() -> None:
     """Render every small frame, the tray icons and the rebuilt icon.ico."""
     small = {size: render_icon(size) for size in SMALL_SIZES}
     small[32].save(ICONS / "32x32.png")
-    for size in TRAY_SIZES:
-        render_tray(size).save(ICONS / f"tray-icon-{size}.png")
+    render_tray_assets()
     large = read_large_frames(ICONS / "icon.ico")
     frames = [(s, png_bytes(small[s])) for s in SMALL_SIZES] + large
     write_ico(ICONS / "icon.ico", sorted(frames))
@@ -304,4 +317,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if "--tray-only" in sys.argv:
+        render_tray_assets()
+    else:
+        main()

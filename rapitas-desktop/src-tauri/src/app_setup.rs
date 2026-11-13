@@ -28,7 +28,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // NOTE: Same purple tile + white glyph as the app icon (operator request),
     // with the glyph enlarged so it reads at tray size.
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id(crate::app_icon::TRAY_ID)
         .icon(crate::app_icon::tray_icon_image(app)?)
         .tooltip("Rapitas")
         .menu(&menu)
@@ -63,6 +63,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .build(app)?;
+    crate::app_icon::watch_tray_scale(app);
 
     Ok(())
 }

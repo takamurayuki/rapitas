@@ -4,51 +4,86 @@
 //! icon in the main window's title bar. The artwork itself is rendered by
 //! `rapitas-desktop/scripts/render-small-icons.py`.
 
-/// Tray bitmaps rendered pixel-for-pixel at each shell tray size.
-///
-/// NOTE: tray-icon turns the RGBA into a single-size HICON and the shell then
-/// resamples it to the tray slot (16px at 100%, 20/24/32 at 125/150/200%).
-/// Handing it a 256px bitmap made that resample smear the bars, so we ship the
-/// exact sizes and pick one instead of letting the OS scale.
-const TRAY_ICONS: [(u32, &[u8]); 4] = [
-    (16, include_bytes!("../icons/tray-icon-16.png")),
-    (20, include_bytes!("../icons/tray-icon-20.png")),
-    (24, include_bytes!("../icons/tray-icon-24.png")),
-    (32, include_bytes!("../icons/tray-icon-32.png")),
-];
+// Each integer size from 16 to 64 is independently rasterized in a 64px-wide
+// atlas. Frame extraction does not resize the artwork.
+const TRAY_ATLAS: &[u8] = include_bytes!("../icons/tray-atlas.png");
+const MIN_SIZE: u32 = 16;
+const MAX_SIZE: u32 = 64;
+pub const TRAY_ID: &str = "main-tray";
 
-/// Choose the tray bitmap edge length for a display scale factor.
-///
-/// @param scale_factor - monitor scale (1.0 = 100%) / モニターの拡大率
-/// @returns the smallest shipped size covering 16px at that scale / その拡大率で16pxを満たす最小のサイズ
-pub fn tray_icon_size(scale_factor: f64) -> u32 {
-    let wanted = (16.0 * scale_factor).round() as u32;
-    TRAY_ICONS
-        .iter()
-        .map(|(size, _)| *size)
-        .find(|size| *size >= wanted)
-        .unwrap_or(TRAY_ICONS[TRAY_ICONS.len() - 1].0)
+pub fn tray_icon_size(scale: f64) -> u32 {
+    if !scale.is_finite() || scale <= 0.0 {
+        return MIN_SIZE;
+    }
+    ((16.0 * scale).round() as u32).clamp(MIN_SIZE, MAX_SIZE)
 }
 
-/// Load the tray icon image for the primary monitor's scale factor.
-///
-/// @param app - running app, used to read the monitor scale / 拡大率を読むためのアプリ
-/// @returns decoded tray image / トレイ用画像
-/// @throws tauri::Error when the embedded PNG cannot be decoded / PNG を復号できない場合
+fn desired_size(app: &tauri::AppHandle) -> u32 {
+    #[cfg(target_os = "windows")]
+    {
+        use winapi::um::winuser::{
+            FindWindowW, GetDpiForWindow, GetSystemMetricsForDpi, SM_CXSMICON,
+        };
+        let class: Vec<u16> = "Shell_TrayWnd\0".encode_utf16().collect();
+        // SAFETY: class is NUL terminated; these APIs only query the shell.
+        unsafe {
+            let taskbar = FindWindowW(class.as_ptr(), std::ptr::null());
+            if !taskbar.is_null() {
+                let dpi = GetDpiForWindow(taskbar);
+                if dpi > 0 {
+                    let pixels = GetSystemMetricsForDpi(SM_CXSMICON, dpi);
+                    if pixels > 0 {
+                        return (pixels as u32).clamp(MIN_SIZE, MAX_SIZE);
+                    }
+                }
+            }
+        }
+    }
+    tray_icon_size(
+        app.primary_monitor()
+            .ok()
+            .flatten()
+            .map(|m| m.scale_factor())
+            .unwrap_or(1.0),
+    )
+}
+
+fn image_for_size(size: u32) -> tauri::Result<tauri::image::Image<'static>> {
+    let atlas = tauri::image::Image::from_bytes(TRAY_ATLAS)?;
+    let size = size.clamp(MIN_SIZE, MAX_SIZE);
+    let top = (size - MIN_SIZE) * MAX_SIZE;
+    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
+    for y in top..top + size {
+        let start = (y * MAX_SIZE * 4) as usize;
+        rgba.extend_from_slice(&atlas.rgba()[start..start + (size * 4) as usize]);
+    }
+    Ok(tauri::image::Image::new_owned(rgba, size, size))
+}
+
 pub fn tray_icon_image(app: &tauri::App) -> tauri::Result<tauri::image::Image<'static>> {
-    let scale = app
-        .primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| m.scale_factor())
-        .unwrap_or(1.0);
-    let size = tray_icon_size(scale);
-    let bytes = TRAY_ICONS
-        .iter()
-        .find(|(s, _)| *s == size)
-        .map(|(_, b)| *b)
-        .unwrap_or(TRAY_ICONS[0].1);
-    tauri::image::Image::from_bytes(bytes)
+    image_for_size(desired_size(app.handle()))
+}
+
+/// Hidden windows receive no useful move event when the taskbar changes DPI.
+/// Poll shell metrics and replace the icon only when its required size changes.
+pub fn watch_tray_scale(app: &tauri::App) {
+    let handle = app.handle().clone();
+    let mut current = desired_size(&handle);
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let Some(tray) = handle.tray_by_id(TRAY_ID) else {
+                break;
+            };
+            let wanted = desired_size(&handle);
+            if wanted != current {
+                match image_for_size(wanted).and_then(|image| tray.set_icon(Some(image))) {
+                    Ok(()) => current = wanted,
+                    Err(e) => eprintln!("[Tray] DPI image update failed: {e}"),
+                }
+            }
+        }
+    });
 }
 
 /// Hide the app icon and the title text drawn at the left of the main window's title bar.
@@ -95,27 +130,37 @@ pub fn hide_title_bar_icon_and_text(app: &tauri::App) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn picks_the_exact_size_for_common_scales() {
-        assert_eq!(tray_icon_size(1.0), 16);
-        assert_eq!(tray_icon_size(1.25), 20);
-        assert_eq!(tray_icon_size(1.5), 24);
-        assert_eq!(tray_icon_size(2.0), 32);
+    fn exact_sizes_include_fractional_and_high_scales() {
+        for (scale, size) in [
+            (1.0, 16),
+            (1.1, 18),
+            (1.25, 20),
+            (1.5, 24),
+            (1.75, 28),
+            (2.0, 32),
+            (3.0, 48),
+            (4.0, 64),
+        ] {
+            assert_eq!(tray_icon_size(scale), size);
+        }
+        assert_eq!(tray_icon_size(f64::NAN), 16);
+        assert_eq!(tray_icon_size(-1.0), 16);
+        assert_eq!(tray_icon_size(10.0), 64);
     }
-
     #[test]
-    fn rounds_up_between_sizes_and_caps_at_the_largest() {
-        assert_eq!(tray_icon_size(1.1), 20);
-        assert_eq!(tray_icon_size(1.75), 32);
-        assert_eq!(tray_icon_size(3.0), 32);
-    }
-
-    #[test]
-    fn every_tray_bitmap_has_the_size_it_is_listed_under() {
-        for (size, bytes) in TRAY_ICONS {
-            let image = tauri::image::Image::from_bytes(bytes).expect("tray png decodes");
-            assert_eq!((image.width(), image.height()), (size, size));
+    fn atlas_frames_are_valid_and_have_visible_artwork() {
+        let atlas = tauri::image::Image::from_bytes(TRAY_ATLAS).unwrap();
+        assert_eq!((atlas.width(), atlas.height()), (64, 49 * 64));
+        for size in MIN_SIZE..=MAX_SIZE {
+            let frame = image_for_size(size).unwrap();
+            assert_eq!((frame.width(), frame.height()), (size, size));
+            assert_eq!(frame.rgba().len(), (size * size * 4) as usize);
+            assert!(frame
+                .rgba()
+                .chunks_exact(4)
+                .any(|p| p == [255, 255, 255, 255]));
+            assert_eq!(frame.rgba()[3], 0);
         }
     }
 }
