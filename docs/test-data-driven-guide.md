@@ -99,6 +99,13 @@ export type BoundaryCase<T> = {
 | `NULLABLE_ID_EDGES` | `BoundaryCase<number \| null>[]` | `ID_EDGES` + null |
 | `NONEXISTENT_ID` | `number` | 999（DB に存在しない ID のセンチネル） |
 | `TIME_BOUNDARIES` | `BoundaryCase<number>[]` | epoch=0 / -1 |
+| `DATE_EDGES` | `BoundaryCase<string>[]` | ISO 日付文字列の境界値（Unix epoch など） |
+| `ENUM_INVALID_EDGES` | `BoundaryCase<string>[]` | enum に該当しない文字列（空文字・未知の値・大文字化・空白のみ） |
+| `FLOAT_EDGES` | `BoundaryCase<number>[]` | 浮動小数点の境界値（0、-0、NaN など） |
+| `PG_INT_BOUNDARIES` | `BoundaryCase<number>[]` | PostgreSQL INT4 の最小値・最大値など |
+| `makeEnumBoundaries()` | 関数 | 有効値の配列から `{ valid, invalid }` の境界ケースを作る（invalid の既定は `ENUM_INVALID_EDGES`） |
+
+各定数の値は `rapitas-backend/tests/helpers/boundary-values.ts` と、そこから生成される `rapitas-backend/docs/boundary-guide.generated.md` を参照する。
 
 ### 使い方（`$label` 記法）
 
