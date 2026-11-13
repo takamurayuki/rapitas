@@ -1313,7 +1313,13 @@ html[data-desktop-frame] body {
 html.dark .desktop-titlebar {
   border-bottom-color: #3f3f46;
 }
-html[data-desktop-frame] .app-main-header,
+/* Body already reserves the caption. With body as an overflow container,
+   sticky top adds that inset again and hides panel toolbars behind the header.
+   Only app-page-content scrolls, so the header can stay in normal flow. */
+html[data-desktop-frame] .app-main-header {
+  position: relative;
+  top: auto;
+}
 html[data-desktop-frame] .fixed.top-0,
 html[data-desktop-frame] .fixed.inset-0 {
   top: var(--desktop-titlebar-height);
