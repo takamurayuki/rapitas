@@ -51,8 +51,8 @@ Neither copy is complete yet: 27 glyphs are only here (for example the
 notification glyphs from `BadgeCheck` to `GitPullRequestArrow`, and `Repeat`,
 `Thermometer`, `Workflow`), and newer glyphs such as `Milestone` and `Goal` are
 only in the letter files. **Check both before choosing a glyph.** When you
-port a row, move it with its full text, including the entries added by task
-#672, and delete it here in the same change.
+port a row, move it with its full text (including the entries added by
+task #672) and delete it here in the same change.
 
 The lint rule `local/no-icon-collision` (logic in
 `rapitas-backend/eslint-rules/no-icon-collision.mjs`, data in
