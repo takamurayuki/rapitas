@@ -255,3 +255,5 @@ tests/services/roadmap-commit-milestones.test.ts
 routes/ai/assistant-roadmap.milestones.test.ts
 services/agents/orchestrator/git-operations/branch-hygiene/worktree-sweep.test.ts
 services/agents/orchestrator/git-operations/branch-hygiene/scratch-sweep.test.ts
+services/scheduling/worktree-cleanup-scheduler.test.ts
+services/agents/orchestrator/git-operations/branch-hygiene/local-branch-prune.test.ts
