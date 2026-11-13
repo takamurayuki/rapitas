@@ -5,6 +5,7 @@ import { X, Keyboard } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore, isTriageShortcutId, type ShortcutId } from '@/stores/shortcut-store';
 import { useNoteStore } from '@/stores/note-store';
+import { isBrowserRoute } from '@/components/link-view/browser-screen/browser-screen-slot';
 import { useLinkViewStore } from '@/stores/link-view-store';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
 
@@ -42,6 +43,20 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable=""],[contenteditable="true"]'));
+}
+
+/**
+ * Ctrl+B: show or hide the docked link pane.
+ *
+ * Does nothing on /browser: the full screen already shows the same tabs and
+ * the pane is not drawn there, so toggling would only flip hidden state
+ * (nav60 §9).
+ *
+ * @param pathname - The current route / 現在のパス
+ */
+export function toggleBrowserPane(pathname: string): void {
+  if (isBrowserRoute(pathname)) return;
+  useLinkViewStore.getState().toggleOpen();
 }
 
 export default function KeyboardShortcuts() {
@@ -84,7 +99,7 @@ export default function KeyboardShortcuts() {
     focusSearch: () => {
       // HeaderSearch handles its own keyboard shortcut (it must also work from inside other inputs)
     },
-    toggleBrowser: () => useLinkViewStore.getState().toggleOpen(),
+    toggleBrowser: () => toggleBrowserPane(window.location.pathname),
   };
 
   useEffect(() => {

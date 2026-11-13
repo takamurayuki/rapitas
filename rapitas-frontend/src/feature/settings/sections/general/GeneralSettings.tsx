@@ -11,6 +11,7 @@ import BackupCard from '../../components/BackupCard';
 import RecentErrorsCard from '../../components/RecentErrorsCard';
 import { UserDatabaseCard } from '../../components/user-database';
 import { MobileLinkCard } from '../../components/mobile-link';
+import { BrowsingDataRow } from '../../components/browsing-data';
 import Link from 'next/link';
 import { useSettingsModalStore } from '../../settings-modal-store';
 
@@ -139,6 +140,7 @@ export default function GeneralSettingsPage() {
                 </button>
               ))}
             </div>
+            <BrowsingDataRow />
           </div>
         </div>
 

@@ -2,15 +2,14 @@
  * header/__tests__/header-toolbar.test.tsx
  *
  * Integration tests for the HeaderToolbar component.
- * Tests view toggle, user menu open/close, logout, more menu,
- * dark mode toggle, and restart button.
+ * Tests view toggle, the browser entry (which replaced the user menu), more
+ * menu, dark mode toggle, and restart button.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HeaderToolbar } from '../header-toolbar';
 import { useLocaleStore } from '@/stores/locale-store';
-import { useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -83,27 +82,10 @@ vi.mock('lucide-react', async (importOriginal) => {
     Loader2: 'loader2-icon',
     Sparkles: 'sparkles-icon',
     NotebookTabs: 'notebook-tabs-icon',
-    User: 'user-icon',
-    LogOut: 'log-out-icon',
   });
 });
 
 const defaultProps = {
-  hasMounted: true,
-  isAuthLoading: false,
-  isAuthenticated: true,
-  user: {
-    id: 1,
-    username: 'TestUser',
-    email: 'test@example.com',
-    role: 'user' as const,
-    createdAt: '2024-01-01T00:00:00Z',
-    lastLoginAt: null,
-  },
-  isUserMenuOpen: false,
-  setIsUserMenuOpen: vi.fn(),
-  userMenuRef: { current: null } as React.RefObject<HTMLDivElement | null>,
-  handleLogout: vi.fn(),
   isMoreMenuOpen: false,
   setIsMoreMenuOpen: vi.fn(),
   moreMenuRef: { current: null } as React.RefObject<HTMLDivElement | null>,
@@ -210,80 +192,54 @@ describe('HeaderToolbar', () => {
     });
   });
 
-  describe('user menu', () => {
-    it('renders the user menu button when authenticated', () => {
+  describe('browser entry (replaces the user menu)', () => {
+    it('has no user menu button any more — it moved to the side nav', () => {
       render(<HeaderToolbar {...defaultProps} />);
-      expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
-    });
-
-    it('still renders the button when nobody is signed in', () => {
-      // It is the way to the profile ラピ plans against, and this app has
-      // no sign-in: gating it on a session nobody has made it unreachable
-      // (reported 2026-10-22). The account rows inside are what the
-      // session gates, not the button.
-      render(<HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} />);
-      expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
-    });
-
-    it('offers the profile whether or not anyone is signed in', () => {
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
-      expect(screen.getByRole('button', { name: /rapiProfileLink/ })).toBeInTheDocument();
-    });
-
-    it('opens the settings modal on the personal section', () => {
-      // Settings are a modal now (the /settings/* pages are gone), and the
-      // profile lives in its personal section — not on the general one.
-      useSettingsModalStore.setState({ isOpen: false, section: 'general' });
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
-      fireEvent.click(screen.getByRole('button', { name: /rapiProfileLink/ }));
-      expect(useSettingsModalStore.getState()).toMatchObject({
-        isOpen: true,
-        section: 'personal',
-      });
-    });
-
-    it('keeps the account rows for a real session', () => {
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen />);
-      expect(screen.getByText('TestUser')).toBeInTheDocument();
-      expect(screen.getByText('logout')).toBeInTheDocument();
-    });
-
-    it('shows no account rows when there is no session', () => {
-      // An empty name and a logout button that logs nothing out is worse
-      // than not offering them.
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
+      expect(screen.queryByRole('button', { name: 'userMenu' })).not.toBeInTheDocument();
       expect(screen.queryByText('logout')).not.toBeInTheDocument();
     });
 
-    it('does not render user menu button when hasMounted is false', () => {
-      render(<HeaderToolbar {...defaultProps} hasMounted={false} />);
-      expect(screen.queryByRole('button', { name: 'userMenu' })).not.toBeInTheDocument();
+    it('shows the Compass browser button, between the bell and the more menu', () => {
+      render(<HeaderToolbar {...defaultProps} />);
+      const browser = screen.getByRole('button', { name: 'openBrowser' });
+      expect(browser).toHaveAttribute('title', 'openBrowser');
+      expect(browser.querySelector('[data-testid="Compass-icon"]')).toBeTruthy();
+      const bell = screen.getByTestId('notification-bell');
+      const more = screen.getByRole('button', { name: 'moreMenu' });
+      expect(bell.compareDocumentPosition(browser)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(browser.compareDocumentPosition(more)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
-    it('calls setIsUserMenuOpen when user menu button is clicked', () => {
-      const setIsUserMenuOpen = vi.fn();
-      render(<HeaderToolbar {...defaultProps} setIsUserMenuOpen={setIsUserMenuOpen} />);
-      fireEvent.click(screen.getByRole('button', { name: 'userMenu' }));
-      expect(setIsUserMenuOpen).toHaveBeenCalled();
+    it('is shown whatever the auth state — browsing needs no session', () => {
+      // The old user button waited for hasMounted && !isAuthLoading; this
+      // one has no such gate because it depends on nothing auth-related.
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.getByTestId('header-browser-button')).toBeInTheDocument();
     });
 
-    it('shows username and email in dropdown when isUserMenuOpen=true', () => {
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen={true} />);
-      expect(screen.getByText('TestUser')).toBeInTheDocument();
-      expect(screen.getByText('test@example.com')).toBeInTheDocument();
+    it('opens /browser', () => {
+      render(<HeaderToolbar {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: 'openBrowser' }));
+      expect(mockPush).toHaveBeenCalledWith('/browser');
     });
 
-    it('calls handleLogout when logout button is clicked', () => {
-      const handleLogout = vi.fn();
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen={true} handleLogout={handleLogout} />);
-      fireEvent.click(screen.getByText('logout'));
-      expect(handleLogout).toHaveBeenCalled();
+    it('is marked current on /browser and pushes nothing there', () => {
+      // A second push would stack a duplicate /browser in the app history.
+      mockPathname = '/browser';
+      render(<HeaderToolbar {...defaultProps} />);
+      const browser = screen.getByRole('button', { name: 'openBrowser' });
+      expect(browser).toHaveAttribute('aria-current', 'page');
+      expect(browser.className).toContain('text-indigo-600');
+      fireEvent.click(browser);
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('is not marked current elsewhere', () => {
+      mockPathname = '/dashboard';
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.getByRole('button', { name: 'openBrowser' })).not.toHaveAttribute(
+        'aria-current',
+      );
     });
   });
 

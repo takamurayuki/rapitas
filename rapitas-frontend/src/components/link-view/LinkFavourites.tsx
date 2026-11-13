@@ -25,8 +25,11 @@ import { hostOf } from './link-tab-meta';
 interface LinkFavouritesProps {
   /** Open a saved page in a tab. / タブで開く */
   onOpen: (favourite: LinkFavourite) => void;
-  /** Close the favourites view. / 閉じる */
-  onClose: () => void;
+  /**
+   * Close the favourites view. Omitted where there is nothing to close back
+   * to — the /browser screen is left through the app's own navigation. / 閉じる
+   */
+  onClose?: () => void;
 }
 
 /**
@@ -75,13 +78,15 @@ export function LinkFavourites({ onOpen, onClose }: LinkFavouritesProps) {
         <span className="flex-1 text-xs font-medium text-zinc-700 dark:text-zinc-200">
           {t('favourites')}
         </span>
-        <button
-          onClick={onClose}
-          title={t('close')}
-          className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            title={t('close')}
+            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1 border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-700">

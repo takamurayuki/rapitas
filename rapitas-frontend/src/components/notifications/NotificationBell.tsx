@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -22,6 +23,8 @@ export default function NotificationBell() {
   const tc = useTranslations('common');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // The panel drops over the in-app browser's webview area.
+  useOccludesWebview(isOpen);
   const {
     notifications,
     unreadCount,

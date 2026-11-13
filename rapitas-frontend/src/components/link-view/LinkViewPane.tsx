@@ -21,18 +21,21 @@ import {
   Bookmark,
   BookmarkPlus,
 } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api';
 import { useLinkLibraryStore } from '@/stores/link-library-store';
+import { useLinkViewStatusStore } from '@/stores/link-view-status-store';
 import { openExternalUrl } from '@/utils/tauri';
-import { hostOf } from './link-tab-meta';
+import { browserUrlRefusal, resolveAddressInput } from '@/utils/browser-url-policy';
+import { saveTabToFavourites } from './browser-screen/save-favourite';
 import { TabStrip } from './tab-strip';
 import type { LinkTab } from '@/stores/link-view-store';
 
 interface LinkViewPaneProps {
   tabs: LinkTab[];
   activeId: string;
-  /** The element the active webview is sized to. / webview の矩形基準 */
-  placeholderRef: React.RefObject<HTMLDivElement | null>;
+  /** Ref callback for the element the active webview is laid over. / webview の表示先 */
+  surfaceRef: (el: HTMLDivElement | null) => void;
+  /** The band row above the page (refused navigation etc.). / 帯 */
+  band?: React.ReactNode;
   onActivate: (id: string) => void;
   onCloseTab: (id: string) => void;
   onHistory: (action: 'back' | 'forward' | 'reload') => void;
@@ -74,7 +77,8 @@ const iconButton =
 export function LinkViewPane({
   tabs,
   activeId,
-  placeholderRef,
+  surfaceRef,
+  band,
   onActivate,
   onCloseTab,
   onHistory,
@@ -93,39 +97,22 @@ export function LinkViewPane({
     setDraft(active?.url ?? '');
   }, [active?.id, active?.url]);
 
-  const addFavourite = useLinkLibraryStore((s) => s.addFavourite);
   const saved = useLinkLibraryStore((s) => s.favourites.some((f) => f.url === active?.url));
+  const save = () => (active ? saveTabToFavourites(active) : Promise.resolve());
 
-  /**
-   * Save the page, resolving its title and icon first.
-   *
-   * The same endpoint the note editor's link cards use. It falls back to
-   * the host rather than failing: a saved page with a plain title beats a
-   * save that silently did nothing.
-   */
-  const save = async () => {
-    if (!active) return;
-    let title = hostOf(active.url);
-    let favicon = '';
-    try {
-      const res = await fetch(`${API_BASE_URL}/url-metadata`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: active.url }),
-      });
-      const meta = await res.json();
-      title = meta.title || title;
-      favicon = meta.favicon || '';
-    } catch {
-      // Keep the host-derived title.
-    }
-    addFavourite({ url: active.url, title, favicon, groupId: active.groupId ?? null });
-  };
-
+  // A non-URL entry is searched (Q4). A refused one (the app or backend
+  // origin, javascript: …) never reaches the tab; the band says why.
   const submit = () => {
-    const url = toNavigableUrl(draft);
-    if (url) onNavigate(url);
-    else setDraft(active?.url ?? '');
+    if (draft === active?.url) return;
+    const url = resolveAddressInput(draft);
+    if (url && !browserUrlRefusal(url)) {
+      onNavigate(url);
+      return;
+    }
+    if (url && active) {
+      useLinkViewStatusStore.getState().showBand(active.id, { kind: 'entry-blocked', url });
+    }
+    setDraft(active?.url ?? '');
   };
 
   return (
@@ -140,10 +127,20 @@ export function LinkViewPane({
 
       {/* Address bar for the active tab */}
       <div className="flex shrink-0 items-center gap-0.5 border-b border-zinc-200 px-2 py-1 dark:border-zinc-700">
-        <button onClick={() => onHistory('back')} title={t('back')} className={iconButton}>
+        <button
+          onClick={() => onHistory('back')}
+          title={t('back')}
+          aria-label={t('back')}
+          className={iconButton}
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => onHistory('forward')} title={t('forward')} className={iconButton}>
+        <button
+          onClick={() => onHistory('forward')}
+          title={t('forward')}
+          aria-label={t('forward')}
+          className={iconButton}
+        >
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
         <button onClick={() => onHistory('reload')} title={t('reload')} className={iconButton}>
@@ -196,9 +193,11 @@ export function LinkViewPane({
         </button>
       </div>
 
+      {band}
+
       {/* The webview covers this box; leaving it empty avoids drawing content
-          nobody can see. The background shows for the frame before it docks. */}
-      <div ref={placeholderRef} className="min-h-0 flex-1 bg-zinc-50 dark:bg-zinc-900" />
+          nobody can see. The background shows while it is hidden or docking. */}
+      <div ref={surfaceRef} className="min-h-0 flex-1 bg-zinc-50 dark:bg-zinc-900" />
     </div>
   );
 }

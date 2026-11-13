@@ -2,18 +2,27 @@
 /**
  * LinkViewHost
  *
- * Mounts the in-app link pane once, in the app shell, so a link clicked
- * anywhere can dock into it. Renders nothing until a link is opened, which
- * is also when the first Tauri child webview is created.
+ * The in-app browser's single owner, mounted once in the app shell: it holds
+ * the docked webviews (through `useLinkView`) and decides which layout shows
+ * them — the side pane, or, on /browser, the full screen portalled into the
+ * page's slot. One owner because the webviews are destroyed with it; a second
+ * owner on /browser would reload every page on each switch (nav60 §3.1).
  *
  * Placement is decided here rather than in the pane: the pane draws, the
- * host decides which edge it may have.
+ * host decides which edge it may have. Nothing loads until a page is shown.
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
+import { useLinkViewStatusStore } from '@/stores/link-view-status-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { LINK_PANE_Z } from '@/lib/pane-layering';
-import { openExternalUrl } from '@/utils/tauri';
+import { isTauri, openExternalUrl } from '@/utils/tauri';
+import { BrowserScreen } from './browser-screen/BrowserScreen';
+import { LinkBandBar } from './browser-screen/LinkBandBar';
+import { isBrowserRoute, useBrowserScreenSlotStore } from './browser-screen/browser-screen-slot';
+import { useLinkViewReports } from './browser-screen/useLinkViewReports';
 import { LinkFavourites } from './LinkFavourites';
 import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
@@ -58,8 +67,17 @@ export function linkPaneWidthVw(taskPanelVw: number): number {
   return Math.max(100 - taskPanelVw, 20);
 }
 
-/** The docked link pane, or nothing when no link is open. */
+/** The docked link pane, the full /browser screen, or nothing. */
 export default function LinkViewHost() {
+  const pathname = usePathname();
+  const onBrowserScreen = isBrowserRoute(pathname);
+  const slot = useBrowserScreenSlotStore((s) => s.slot);
+  // Read at once, not after mount: a first render as "web" on the desktop
+  // would build iframes and fire an embed check. Hydration-safe because the
+  // only thing it decides — the screen — renders after the slot mounts, never
+  // during hydration; the pane does not depend on it.
+  const [isDesktop] = useState(() => isTauri());
+
   const tabs = useLinkViewStore((s) => s.tabs);
   const activeId = useLinkViewStore((s) => s.activeId);
   const activateTab = useLinkViewStore((s) => s.activateTab);
@@ -71,7 +89,7 @@ export default function LinkViewHost() {
   const closeAll = useLinkViewStore((s) => s.closeAll);
   const isOpen = useLinkViewStore((s) => s.isOpen);
   const setOpen = useLinkViewStore((s) => s.setOpen);
-  const paneView = useLinkViewStore((s) => s.view);
+  const view = useLinkViewStore((s) => s.view);
   const showLibrary = useLinkViewStore((s) => s.showLibrary);
 
   const taskPanelVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
@@ -80,58 +98,91 @@ export default function LinkViewHost() {
   const taskPanelVw = useTaskPanelWidthVw(taskPanelVisible);
   const widthVw = linkPaneWidthVw(taskPanelVw);
 
-  // A link the pane cannot take still has to go somewhere. The usual cause
-  // is a desktop build made before tauri's `unstable` feature was enabled,
-  // where the command simply does not exist — the setting is switchable
-  // then, so a silent no-op would look like a broken link.
+  // The element each layout lays the webview over; state (not a ref) so
+  // switching layouts re-runs the webview effects against the new element.
+  const [paneSurface, setPaneSurface] = useState<HTMLDivElement | null>(null);
+  const [screenSurface, setScreenSurface] = useState<HTMLDivElement | null>(null);
+
+  // A link the webview cannot take still has to go somewhere. The usual
+  // cause is a desktop build made before tauri's `unstable` feature, where
+  // the command does not exist. On /browser the screen says so first, so it
+  // does not just go blank, and keeps the tabs; the pane keeps its old
+  // behaviour of closing.
   const fallBackToBrowser = useCallback(
     (failed: string) => {
-      closeAll();
+      if (isBrowserRoute(window.location.pathname)) {
+        const id = useLinkViewStore.getState().activeId;
+        if (id)
+          useLinkViewStatusStore.getState().showBand(id, { kind: 'unavailable', url: failed });
+      } else {
+        closeAll();
+      }
       void openExternalUrl(failed);
     },
     [closeAll],
   );
 
-  const paneShowsAPage = isOpen && paneView === 'page' && Boolean(activeId);
+  const pageShown = onBrowserScreen
+    ? Boolean(slot) && view !== 'library' && Boolean(activeId)
+    : isOpen && view === 'page' && Boolean(activeId);
+  // The screen only docks on the desktop; the web build draws iframes. The
+  // pane keeps its old contract: no command outside Tauri means the
+  // fallback sends the link to the browser.
+  const docked = onBrowserScreen ? isDesktop && pageShown : pageShown;
   const webview = useLinkView(
     tabs,
-    paneShowsAPage ? activeId : null,
+    docked ? activeId : null,
+    onBrowserScreen ? screenSurface : paneSurface,
     fallBackToBrowser,
     applyPageChange,
   );
+  useLinkViewReports();
 
   // The webview is an OS surface that only follows the pane when told to.
   // A dock-side swap moves the pane without changing its size, and a
-  // ResizeObserver never fires for that — the surface stayed where it was,
-  // leaving the page content stranded on the old side (#1068).
+  // ResizeObserver never fires for that (#1068).
   useEffect(() => {
     webview.resync();
   }, [side, widthVw, webview]);
 
-  // Esc closes the active tab, matching the split-view exit the app has.
+  // Esc closes the active tab in the pane, matching the split-view exit.
+  // Not on /browser, where Esc in a page-sized screen closing a tab would
+  // surprise far more than help.
   useEffect(() => {
-    if (!activeId || !isOpen) return;
+    if (!activeId || !isOpen || onBrowserScreen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeTab(activeId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeId, isOpen, closeTab]);
+  }, [activeId, isOpen, onBrowserScreen, closeTab]);
+
+  if (onBrowserScreen) {
+    // The pane is not drawn on /browser even when open — the screen shows
+    // the same tabs — and AppContent reserves no width for it there.
+    if (!slot) return null;
+    return createPortal(
+      <BrowserScreen
+        isDesktop={isDesktop}
+        surfaceRef={setScreenSurface}
+        onHistory={webview.history}
+      />,
+      slot,
+    );
+  }
 
   if (!isOpen) return null;
 
   return (
     // top-16 so the header stays visible and interactive, matching
-    // TaskSlidePanel. The stacking order lives in `pane-layering` — this
-    // pane has to clear the task panel's overlay or that overlay takes
-    // every click meant for it.
+    // TaskSlidePanel. The stacking order lives in `pane-layering`.
     <div
       className={`fixed bottom-0 top-16 bg-white dark:bg-zinc-900 ${
         side === 'right' ? 'right-0' : 'left-0'
       }`}
       style={{ width: `${widthVw}vw`, zIndex: LINK_PANE_Z }}
     >
-      {paneView === 'library' || !activeId ? (
+      {view === 'library' || !activeId ? (
         <LinkFavourites
           onOpen={(fav) => openLink(fav.url)}
           // ✕ closes the pane. Falling back to the page instead left no
@@ -143,7 +194,14 @@ export default function LinkViewHost() {
         <LinkViewPane
           tabs={tabs}
           activeId={activeId}
-          placeholderRef={webview.placeholderRef}
+          surfaceRef={setPaneSurface}
+          band={
+            <LinkBandBar
+              tabId={activeId}
+              pageUrl={tabs.find((tab) => tab.id === activeId)?.url ?? ''}
+              onReload={() => webview.history('reload')}
+            />
+          }
           onActivate={activateTab}
           onCloseTab={closeTab}
           onHistory={webview.history}

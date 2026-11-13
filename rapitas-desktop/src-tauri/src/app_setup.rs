@@ -222,46 +222,72 @@ pub fn run() {
 
     builder
         .manage(crate::terminal::TerminalManager::new())
+        .manage(crate::link_webview::LinkViewState::default())
         .manage(crate::toast::PendingToast {
             pending: std::sync::Mutex::new(None),
             ready: std::sync::atomic::AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![
-            crate::shortcuts::get_global_shortcut,
-            crate::shortcuts::set_global_shortcut,
-            crate::shortcuts::get_capture_shortcut,
-            crate::shortcuts::set_capture_shortcut,
-            crate::quick_capture::open_quick_capture,
-            crate::today_todo::open_today_todo,
-            crate::pomodoro_float::focus_pomodoro_float,
-            crate::pomodoro_float::set_pomodoro_float_always_on_top,
-            crate::pomodoro_float::set_pomodoro_float_acrylic,
-            crate::toast::show_toast_window,
-            crate::toast::toast_ready,
-            crate::toast::toast_dismiss,
-            crate::toast::toast_resize,
-            crate::toast::toast_navigate,
-            crate::browser::open_split_view,
-            crate::browser::open_url_in_browser,
-            crate::link_webview::open_link_webview,
-            crate::link_webview::set_link_webview_bounds,
-            crate::link_webview::set_link_webview_visible,
-            crate::link_webview::close_link_webview,
-            crate::link_webview::link_webview_history,
-            crate::window_commands::get_window_decorations,
-            crate::window_commands::open_task_in_main,
-            crate::voice_commands::voice_model_status,
-            crate::voice_commands::voice_start_recording,
-            crate::voice_commands::voice_stop_recording,
-            crate::voice_commands::wake_word_start,
-            crate::voice_commands::wake_word_stop,
-            crate::voice_commands::wake_word_status,
-            crate::terminal::terminal_create,
-            crate::terminal::terminal_write,
-            crate::terminal::terminal_resize,
-            crate::terminal::terminal_close
-        ])
+        // Every app command is refused when it comes from an in-app browser
+        // webview (`link-view-*`), before dispatch — so commands added later
+        // are covered too. The capabilities already exclude those webviews;
+        // this is the second wall should a local document ever load in one
+        // (nav60 §5.2-3).
+        .invoke_handler({
+            // Boxed with its type spelled out: the macro's closure takes its
+            // parameter type from context, and a plain `let` gives it none.
+            let handler: Box<dyn Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync> =
+                Box::new(tauri::generate_handler![
+                    crate::shortcuts::get_global_shortcut,
+                    crate::shortcuts::set_global_shortcut,
+                    crate::shortcuts::get_capture_shortcut,
+                    crate::shortcuts::set_capture_shortcut,
+                    crate::quick_capture::open_quick_capture,
+                    crate::today_todo::open_today_todo,
+                    crate::pomodoro_float::focus_pomodoro_float,
+                    crate::pomodoro_float::set_pomodoro_float_always_on_top,
+                    crate::pomodoro_float::set_pomodoro_float_acrylic,
+                    crate::toast::show_toast_window,
+                    crate::toast::toast_ready,
+                    crate::toast::toast_dismiss,
+                    crate::toast::toast_resize,
+                    crate::toast::toast_navigate,
+                    crate::browser::open_split_view,
+                    crate::browser::open_url_in_browser,
+                    crate::link_webview::open_link_webview,
+                    crate::link_webview::set_link_webview_bounds,
+                    crate::link_webview::set_link_webview_visible,
+                    crate::link_webview::close_link_webview,
+                    crate::link_webview::link_webview_history,
+                    crate::link_webview::clear_link_view_data,
+                    crate::window_commands::get_window_decorations,
+                    crate::window_commands::open_task_in_main,
+                    crate::voice_commands::voice_model_status,
+                    crate::voice_commands::voice_start_recording,
+                    crate::voice_commands::voice_stop_recording,
+                    crate::voice_commands::wake_word_start,
+                    crate::voice_commands::wake_word_stop,
+                    crate::voice_commands::wake_word_status,
+                    crate::terminal::terminal_create,
+                    crate::terminal::terminal_write,
+                    crate::terminal::terminal_resize,
+                    crate::terminal::terminal_close
+                ]);
+            move |invoke: tauri::ipc::Invoke<tauri::Wry>| {
+                let label = invoke.message.webview_ref().label().to_string();
+                if crate::link_webview::is_link_view_label(&label) {
+                    invoke
+                        .resolver
+                        .reject("Commands are not available to the in-app browser");
+                    return true;
+                }
+                handler(invoke)
+            }
+        })
         .setup(|app| {
+            // NOTE: main is `"create": false` in tauri.conf.json and built
+            // here, first, so its responses get X-Frame-Options (see
+            // main_window). Everything below expects it to exist.
+            crate::main_window::build(app)?;
             // Release-only sidecar startup (difference #2 of 3).
             #[cfg(not(debug_assertions))]
             crate::release::setup_sidecar(app);
@@ -282,9 +308,9 @@ pub fn run() {
             if let Err(e) = crate::pomodoro_float::prewarm_pomodoro_float_window(app.handle()) {
                 eprintln!("[Pomodoro] float window pre-warm failed: {e}");
             }
-            // The main window is declared in tauri.conf.json, so it has already
-            // navigated to devUrl by the time setup runs — possibly before the
-            // dev server existed. The watch also covers the dev server being
+            // The main window was built at the top of setup, so it has already
+            // navigated to devUrl by now — possibly before the dev server
+            // existed. The watch also covers the dev server being
             // recycled later, under a live window (see dev_server_wait); it
             // does nothing while :3000 stays up.
             #[cfg(debug_assertions)]
