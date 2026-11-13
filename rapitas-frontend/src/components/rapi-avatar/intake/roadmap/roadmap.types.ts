@@ -29,6 +29,15 @@ export interface Step {
   title: string;
   description: string;
   dueDate?: string;
+  /** Index into `Draft.milestones` of the milestone (節目) this step builds towards. */
+  milestoneIndex?: number;
+}
+
+/** A stage between the goal and its steps, with what must be true to reach it. */
+export interface Milestone {
+  name: string;
+  acceptanceCriteria: string[];
+  dueDate?: string;
 }
 
 export interface Draft {
@@ -37,6 +46,8 @@ export interface Draft {
   projectChoice: Placement;
   questions: Question[];
   steps: Step[];
+  /** Present when the work is filed under a project; created there as its milestones. */
+  milestones?: Milestone[];
   deadline?: string;
   /** What the plan takes for granted — note material, not task material. */
   assumptions?: string[];
@@ -85,5 +96,7 @@ export interface Committed {
   themeId: number | null;
   projectId: number | null;
   taskIds: number[];
+  /** Milestones created under the project, in plan order. */
+  milestoneIds?: number[];
   failedAfter: number | null;
 }

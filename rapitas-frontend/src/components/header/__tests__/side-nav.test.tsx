@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { SideNav } from '../side-nav';
 import type { User } from '@/contexts/AuthContext';
+import { useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -85,8 +86,7 @@ describe('SideNav footer', () => {
     expect(within(account).getByTestId('User-icon')).toBeTruthy();
     expect(within(account).getByText('Yuki')).toBeTruthy();
 
-    const settings = screen.getByRole('link', { name: 'settings' });
-    expect(settings.getAttribute('href')).toBe('/settings/general');
+    const settings = screen.getByRole('button', { name: 'settings' });
     // Same row, account first (the button sits in its menu's wrapper).
     expect(settings.parentElement).toBe(account.parentElement?.parentElement);
     expect(account.compareDocumentPosition(settings)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -106,13 +106,20 @@ describe('SideNav footer', () => {
 
   it('closes the unpinned nav when settings is opened, keeps a pinned one', () => {
     renderNav({ user });
-    fireEvent.click(screen.getByRole('link', { name: 'settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'settings' }));
     expect(setIsMenuOpen).toHaveBeenCalledWith(false);
 
     setIsMenuOpen.mockClear();
     renderNav({ user, pinned: true });
-    fireEvent.click(screen.getAllByRole('link', { name: 'settings' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings' })[1]);
     expect(setIsMenuOpen).not.toHaveBeenCalled();
+  });
+
+  it('opens the settings modal instead of navigating to a settings page', () => {
+    useSettingsModalStore.setState({ isOpen: false, section: 'general' });
+    renderNav({ user });
+    fireEvent.click(screen.getByRole('button', { name: 'settings' }));
+    expect(useSettingsModalStore.getState().isOpen).toBe(true);
   });
 
   it('no longer has the keyboard-shortcuts footer button', () => {
@@ -150,7 +157,10 @@ describe('SideNav account menu', () => {
     expect(within(menu).getByText('yuki@example.com')).toBeTruthy();
     const items = within(menu).getAllByRole('menuitem');
     expect(items.map((i) => i.textContent)).toEqual(['rapiProfileLink', 'logout']);
-    expect(items[0].getAttribute('href')).toBe('/settings/personal');
+    // Settings are a modal now: the profile item is a button, not a link
+    // to the removed /settings/personal page.
+    expect(items[0].tagName).toBe('BUTTON');
+    expect(items[0].getAttribute('href')).toBeNull();
     // General settings stays on the footer's own button, not in the menu.
     expect(within(menu).queryByText('generalSettings')).toBeNull();
     expect(within(menu).queryByRole('link', { name: 'settings' })).toBeNull();
@@ -162,11 +172,24 @@ describe('SideNav account menu', () => {
     const items = within(menu).getAllByRole('menuitem');
     expect(items.map((i) => i.textContent)).toEqual(['rapiProfileLink', 'login', 'register']);
     expect(items.map((i) => i.getAttribute('href'))).toEqual([
-      '/settings/personal',
+      null,
       '/auth/login',
       '/auth/register',
     ]);
     expect(within(menu).queryByText('logout')).toBeNull();
+  });
+
+  it('opens the settings modal on the personal section from the profile item', () => {
+    // Moved here with the user menu: the profile lives in the settings
+    // modal's personal section (the /settings/* pages are gone).
+    useSettingsModalStore.setState({ isOpen: false, section: 'general' });
+    renderNav({ user: null });
+    const { menu } = openMenu();
+    fireEvent.click(within(menu).getByText('rapiProfileLink'));
+    expect(useSettingsModalStore.getState()).toMatchObject({ isOpen: true, section: 'personal' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    // Like the footer gear, it closes an unpinned nav so the modal is not under it.
+    expect(setIsMenuOpen).toHaveBeenCalledWith(false);
   });
 
   it('cannot be opened while auth is still loading', () => {

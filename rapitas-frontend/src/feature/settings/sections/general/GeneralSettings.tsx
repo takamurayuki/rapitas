@@ -1,0 +1,234 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Globe, ExternalLink, Columns2 } from 'lucide-react';
+import { useLocaleStore } from '@/stores/locale-store';
+import { locales, type Locale } from '@/i18n/config';
+import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
+import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/link-view';
+import BackupCard from '../../components/BackupCard';
+import RecentErrorsCard from '../../components/RecentErrorsCard';
+import { UserDatabaseCard } from '../../components/user-database';
+import { MobileLinkCard } from '../../components/mobile-link';
+import { BrowsingDataRow } from '../../components/browsing-data';
+import Link from 'next/link';
+import { useSettingsModalStore } from '../../settings-modal-store';
+
+const LOCALE_LABELS: Record<Locale, string> = {
+  ja: '日本語',
+  en: 'English',
+};
+
+/** Preset external-link browsers. Empty value = OS default. */
+const BROWSER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '' }, // label filled from i18n at render
+  { value: 'chrome', label: 'Google Chrome' },
+  { value: 'msedge', label: 'Microsoft Edge' },
+  { value: 'firefox', label: 'Firefox' },
+];
+
+export default function GeneralSettingsPage() {
+  const t = useTranslations('settings');
+  const { locale, setLocale } = useLocaleStore();
+  const closeSettings = useSettingsModalStore((s) => s.close);
+
+  // External-link browser preference (persisted in localStorage; read by
+  // openExternalUrl). Loaded on mount to avoid SSR hydration mismatch.
+  const [browser, setBrowser] = useState('');
+  useEffect(() => {
+    setBrowser(localStorage.getItem(EXTERNAL_BROWSER_KEY) || '');
+  }, []);
+  const updateBrowser = (value: string) => {
+    setBrowser(value);
+    if (value) localStorage.setItem(EXTERNAL_BROWSER_KEY, value);
+    else localStorage.removeItem(EXTERNAL_BROWSER_KEY);
+  };
+
+  // Where links from notes / task descriptions open. Read on mount for the
+  // same reason as the browser above: localStorage is not there during SSR.
+  const [linkMode, setLinkMode] = useState<LinkOpenMode>('external');
+  useEffect(() => {
+    setLinkMode(getLinkOpenMode());
+  }, []);
+  const updateLinkMode = (mode: LinkOpenMode) => {
+    setLinkMode(mode);
+    setLinkOpenMode(mode);
+  };
+
+  return (
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('generalDescription')}</p>
+
+      <div className="space-y-6">
+        {/* External link browser */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <ExternalLink className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('externalBrowserTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('externalBrowserDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <select
+              value={browser}
+              onChange={(e) => updateBrowser(e.target.value)}
+              className="w-full sm:w-72 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-400"
+            >
+              {BROWSER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.value === '' ? t('externalBrowserDefault') : opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* How links open */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Columns2 className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('linkOpenModeTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('linkOpenModeDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(['external', 'internal'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => updateLinkMode(mode)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    linkMode === mode
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-zinc-800'
+                  }`}
+                >
+                  {linkMode === mode && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                    </div>
+                  )}
+                  <h3
+                    className={`font-medium text-sm ${
+                      linkMode === mode
+                        ? 'text-indigo-700 dark:text-indigo-300'
+                        : 'text-zinc-900 dark:text-zinc-100'
+                    }`}
+                  >
+                    {mode === 'external' ? t('linkOpenModeExternal') : t('linkOpenModeInternal')}
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    {mode === 'external'
+                      ? t('linkOpenModeExternalHint')
+                      : t('linkOpenModeInternalHint')}
+                  </p>
+                </button>
+              ))}
+            </div>
+            <BrowsingDataRow />
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Globe className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('languageTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('languageDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {locales.map((loc) => (
+                <button
+                  key={loc}
+                  onClick={() => setLocale(loc)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    locale === loc
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-zinc-800'
+                  }`}
+                >
+                  {locale === loc && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                    </div>
+                  )}
+                  <Globe
+                    className={`w-6 h-6 mb-2 ${
+                      locale === loc
+                        ? 'text-indigo-600 dark:text-indigo-400'
+                        : 'text-zinc-400 dark:text-zinc-500'
+                    }`}
+                  />
+                  <h3
+                    className={`font-medium text-sm ${
+                      locale === loc
+                        ? 'text-indigo-700 dark:text-indigo-300'
+                        : 'text-zinc-900 dark:text-zinc-100'
+                    }`}
+                  >
+                    {LOCALE_LABELS[loc]}
+                  </h3>
+                  <p
+                    className={`text-xs mt-1 ${
+                      locale === loc
+                        ? 'text-indigo-500 dark:text-indigo-400'
+                        : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {loc.toUpperCase()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <BackupCard />
+        <UserDatabaseCard />
+        <MobileLinkCard />
+        <RecentErrorsCard />
+
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            {t('generalPage.setupCheckTitle')}
+          </h2>
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+            {t('generalPage.setupCheckDescription')}
+          </p>
+          {/* /setup is a full page: leaving for it closes the settings modal. */}
+          <Link
+            href="/setup"
+            onClick={closeSettings}
+            className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {t('generalPage.openSetupScreen')}
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

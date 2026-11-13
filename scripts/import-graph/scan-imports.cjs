@@ -25,9 +25,10 @@ const REGEX_KEYWORDS = /\b(return|typeof|case|in|of|delete|void|throw|new|yield|
  * swallow at most the rest of its line, not the rest of the file.
  *
  * @param {string} src - Source text / ソースコード
+ * @param {{keepTemplates?: boolean}} [opts] - keepTemplates leaves template literals intact (for path-literal scans) / テンプレートリテラルを残す
  * @returns {string} Same-length text with non-code regions as spaces / 同じ長さの空白化済みテキスト
  */
-function stripNonCode(src) {
+function stripNonCode(src, opts = {}) {
   const out = src.split('');
   const n = src.length;
   const blank = (from, to) => {
@@ -74,7 +75,7 @@ function stripNonCode(src) {
           j++;
         } else j++;
       }
-      blank(i, j + 1);
+      if (!opts.keepTemplates) blank(i, j + 1);
       i = j + 1;
       lastSig = '`';
       continue;
@@ -210,6 +211,14 @@ function resolveSpecifier(fromFile, rawSpec, files, aliases) {
   }
   for (const raw of bases) {
     const base = raw.replace(/\/$/, '');
+    // NOTE: A trailing slash ('./types/') names the DIRECTORY: Node and TS
+    // skip './types.ts' for it. Resolving it as a file made
+    // abstraction/types.ts (`export * from './types/'`) import itself.
+    if (spec.endsWith('/')) {
+      for (const ext of CODE_EXTS)
+        if (files.has(`${base}/index${ext}`)) return `${base}/index${ext}`;
+      continue;
+    }
     if (files.has(base) && CODE_EXTS.includes(path.posix.extname(base))) return base;
     // ESM-style `./x.js` that is really `./x.ts`.
     const stem = /\.[mc]?jsx?$/.test(base) ? base.replace(/\.[mc]?jsx?$/, '') : null;

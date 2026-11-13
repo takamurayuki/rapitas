@@ -8,7 +8,6 @@
  * to the settings hub on the right.
  */
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Pin, PinOff, Settings } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -17,6 +16,7 @@ import { NavItemRenderer } from './nav-item';
 import type { User as AuthUser } from '@/contexts/AuthContext';
 import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { SideNavAccountMenu } from './side-nav-account-menu';
+import { openSettings, useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 type SideNavProps = {
   /** Ref attached to the nav element for click-outside detection. */
@@ -65,6 +65,7 @@ export function SideNav({
   // webview, which would paint above it. Pinned, the page is laid out beside
   // it, so nothing overlaps.
   useOccludesWebview(isMenuOpen && !isMenuPinned);
+  const isSettingsOpen = useSettingsModalStore((s) => s.isOpen);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname === '/kanban';
@@ -154,13 +155,16 @@ export function SideNav({
               if (!isMenuPinned) setIsMenuOpen(false);
             }}
           />
-          <Link
-            href="/settings/general"
+          {/* NOTE: Opens the settings modal (was a link to /settings/general).
+              The only settings entry besides the account menu's personal one. */}
+          <button
+            type="button"
             onClick={() => {
               if (!isMenuPinned) setIsMenuOpen(false);
+              openSettings();
             }}
             className={`shrink-0 p-2 rounded-lg transition-colors ${
-              pathname?.startsWith('/settings')
+              isSettingsOpen
                 ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
@@ -168,7 +172,7 @@ export function SideNav({
             title={t('settings')}
           >
             <Settings className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </nav>
     </>

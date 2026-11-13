@@ -284,10 +284,9 @@ describe('HeaderToolbar', () => {
       expect(screen.getByTestId('sun-icon')).toBeInTheDocument();
     });
 
-    it('shows settings link in the more menu', () => {
+    it('has no app-settings item in the more menu (the side-nav gear opens settings)', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
-      const settingsLink = screen.getByRole('link', { name: /generalSettings/i });
-      expect(settingsLink).toHaveAttribute('href', '/settings/general');
+      expect(screen.queryByText('generalSettings')).toBeNull();
     });
 
     it('calls handleRestartClick when restart button is clicked', () => {

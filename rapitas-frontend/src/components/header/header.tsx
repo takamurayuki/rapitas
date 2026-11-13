@@ -18,6 +18,7 @@ import {
   Folders,
   FolderGit2,
   ScrollText,
+  Mountain,
   BarChart3,
   GanttChartSquare,
   FileText,
@@ -27,7 +28,6 @@ import {
   CalendarClock,
   Clock,
   Bot,
-  Settings,
   UserCog,
   Archive,
   GitPullRequest,
@@ -39,7 +39,6 @@ import {
   Bug,
   Inbox,
   NotebookTabs,
-  Package,
   Beaker,
   Sprout,
   Sunrise,
@@ -75,6 +74,9 @@ export default function Header() {
   }
 
   const navItems: NavItem[] = [
+    // Goals come first: the product's axis is carrying a person's goal through
+    // its milestones; the task list is how the work for them gets done.
+    { href: '/goals', label: t('goals'), icon: Mountain },
     {
       href: '/',
       label: t('taskList'),
@@ -248,16 +250,12 @@ export default function Header() {
           label: t('claudeGeneration'),
           icon: FileCog,
         },
-        { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
+        // NOTE: The CLI tools entry went with the /settings/cli-tools page; CLI
+        // tools is a section of the settings modal (side-nav footer gear).
       ],
     },
-    {
-      // Single entry into the unified settings hub; sub-sections (general /
-      // API keys / task automation / shortcuts / CLI tools) are the hub's tabs.
-      href: '/settings/general',
-      label: t('settings'),
-      icon: Settings,
-    },
+    // NOTE: No settings item here: settings are a modal opened from the gear in
+    // the side-nav footer, so a second entry in this list was redundant.
   ];
 
   const filteredNavItems = navItems;

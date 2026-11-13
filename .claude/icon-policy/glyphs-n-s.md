@@ -10,7 +10,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `SquareTerminal`          | 統合ターミナル                           |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
-| `Server`                  | バックエンドサーバー本体の状態 (BackendConnectionError, agents SystemStatusPanel status pill) |
+| `Server`                  | バックエンドサーバー本体の状態 (agents SystemStatusPanel status pill) |
 | `PlayCircle`              | いま実際に実行中のエージェント数 (SystemStatusPanel activeExecutions) |
 | `Sprout`                  | 記憶の成長 (nav: /agents/memory)         |
 | `Search`                  | 知識ブラウザ (nav: /knowledge)           |

@@ -21,6 +21,12 @@ on:
       - '.github/workflows/mobile.yml'
   workflow_dispatch:
 
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
 jobs:
   flutter:
     name: Check Mobile (Flutter)
@@ -35,13 +41,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned Flutter version
+        id: flutter-version
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          test -n "$version" || { echo "::error::no flutter version in .fvmrc"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          # NOTE: pubspec.lock requires flutter >=3.38.4; stable satisfies it. Pin a
-          # version here if a new stable release starts breaking the build.
+          # NOTE: Pinned by rapitas-mobile/.fvmrc, the FVM config developers
+          # use locally (also read by Xcode Cloud's ci_post_clone.sh).
+          # Unpinned `stable` moved to 3.50.0 on 2026-11-13 and resolved newer
+          # SDK-bundled packages (test_api, ...), so the committed pubspec.lock
+          # stopped matching. Bump it with `fvm use <version>` and regenerate
+          # pubspec.lock together.
           channel: stable
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
           cache: true
 
       - name: Install dependencies
@@ -85,12 +105,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Use the newest installed Xcode
         # NOTE: Xcode Cloud workflows default to the latest Xcode release; the runner
         # image defaults to an older one.
         run: |
-          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          # printf over the glob instead of `ls -d` (SC2012); same list, same sort.
+          XCODE=$(printf '%s\n' /Applications/Xcode_*.app | sort -V | tail -1)
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
 

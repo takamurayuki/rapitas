@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { LogIn, LogOut, User, UserPen, UserPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { User as AuthUser } from '@/contexts/AuthContext';
+import { openSettings } from '@/feature/settings/settings-modal-store';
 import { useClickOutside } from './useClickOutside';
 
 type SideNavAccountMenuProps = {
@@ -25,7 +26,7 @@ type SideNavAccountMenuProps = {
   isAuthLoading: boolean;
   /** Logs out and moves to the login page. / ログアウト処理 */
   onLogout: () => void | Promise<void>;
-  /** Called after an item that leaves the page is chosen. / ページ移動を伴う項目の選択後 */
+  /** Called after an item that leaves the page (or opens settings) is chosen. / ページ移動・設定を開く項目の選択後 */
   onNavigate: () => void;
 };
 
@@ -103,7 +104,7 @@ export function SideNavAccountMenu({
     }
   };
 
-  /** Close after choosing an item that navigates; focus is the new page's. */
+  /** Close after choosing an item that navigates or opens settings; focus moves on. */
   const choose = () => {
     setIsOpen(false);
     onNavigate();
@@ -136,16 +137,23 @@ export function SideNavAccountMenu({
               </p>
             </div>
           )}
-          <Link
-            href="/settings/personal"
+          {/* Personal settings open the settings modal over the current page
+              (the /settings/* pages are gone). The nav follows the footer
+              gear's rule: an unpinned one closes so the modal is not
+              covered by it. */}
+          <button
+            type="button"
             role="menuitem"
             tabIndex={-1}
-            onClick={choose}
+            onClick={() => {
+              choose();
+              openSettings('personal');
+            }}
             className={itemClass}
           >
             <UserPen className="w-4 h-4" />
             <span>{t('rapiProfileLink')}</span>
-          </Link>
+          </button>
           {user ? (
             <button
               role="menuitem"

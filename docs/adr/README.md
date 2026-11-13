@@ -66,3 +66,4 @@ What did we decide? Be specific.
 | [0007](./0007-always-red-ci-gates-file-size-and-full-suite.md) | Always-red CI gates: file-size ratchet and Full Suite (Advisory) | accepted |
 | [0008](./0008-jury-of-claude-models.md) | Rebuild the adversarial jury out of Claude models | accepted |
 | [0009](./0009-score-models-on-the-repair-loop.md) | Score a model choice on the repair loop, not on process exit | accepted |
+| [0010](./0010-desktop-rust-boundary.md) | What moves from the backend sidecar into the desktop's Rust | accepted |

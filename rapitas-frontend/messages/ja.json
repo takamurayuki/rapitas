@@ -273,9 +273,8 @@
     "memoryAdmin": "メモリ管理",
     "growthReport": "デイリーレポート",
     "settings": "設定",
-    "generalSettings": "アプリ設定",
+    "goals": "ゴール",
     "apiKeySettings": "APIキー設定",
-    "cliTools": "CLIツール管理",
     "shortcutSettings": "ショートカット設定",
     "openMenu": "メニューを開く",
     "goBack": "戻る",
@@ -1451,6 +1450,7 @@
     },
     "layout": {
       "navAriaLabel": "設定",
+      "modalTitle": "設定",
       "personalTab": "個人設定",
       "generalTab": "一般",
       "shortcutsTab": "ショートカット",
@@ -6675,5 +6675,75 @@
     "clearDataFailed": "閲覧データを消去できませんでした",
     "clearDataSettingsHint": "アプリ内ブラウザで開いたサイトの Cookie・ログイン状態は、アプリとは別の場所に保存されます。",
     "webClearDataHint": "Web 版では、サイトのデータはお使いのブラウザの設定から消去してください"
+  },
+  "goals": {
+    "title": "ゴール",
+    "subtitle": "やりたいことを節目に分けて、一つずつ達成を確かめながら進めます",
+    "cancel": "キャンセル",
+    "notFound": "ゴールが見つかりません",
+    "backToList": "ゴール一覧へ",
+    "create": {
+      "open": "ゴールを追加",
+      "nameLabel": "ゴール名",
+      "namePlaceholder": "例: 基本情報技術者試験に合格する",
+      "descriptionLabel": "達成したときの姿",
+      "descriptionPlaceholder": "何ができたら達成か（任意）",
+      "submit": "作成"
+    },
+    "empty": {
+      "title": "まだゴールがありません",
+      "description": "やりたいことを1つ書いて、節目に分けるところから始めましょう"
+    },
+    "reachRate": "節目到達率",
+    "reachRateValue": "{percent}%（{reached}/{pursued}）",
+    "noMilestonesYet": "節目がまだありません",
+    "pausedCount": "休止 {count}件",
+    "nextMilestone": "次の節目: {name}",
+    "noOpenMilestone": "進行中の節目はありません",
+    "milestone": {
+      "title": "節目",
+      "empty": "節目がまだありません。最初の節目を追加しましょう",
+      "nameLabel": "節目の名前",
+      "namePlaceholder": "例: 基礎固め（午前問題で7割）",
+      "dueLabel": "目標日",
+      "add": "節目を追加"
+    },
+    "status": {
+      "open": "進行中",
+      "reached": "達成",
+      "paused": "休止中"
+    },
+    "due": "目標 {date}",
+    "taskCount": "タスク {done}/{total}",
+    "criteria": {
+      "title": "達成条件",
+      "edit": "編集",
+      "none": "達成条件がまだありません。何ができたらこの節目を達成とするか決めましょう",
+      "editLabel": "達成条件（1行に1つ）",
+      "placeholder": "例: 午前問題の過去問で7割以上を3回連続",
+      "hint": "1行に1つ、最大{max}件まで",
+      "save": "保存"
+    },
+    "evidence": "達成の根拠（{date} に確認）",
+    "confirm": {
+      "open": "達成を確認",
+      "needsCriteria": "先に達成条件を決めてください",
+      "title": "「{name}」の達成を確認",
+      "lead": "それぞれの条件を満たしたことを確かめて、チェックしてください。タスクが全部終わっていても、条件を満たしていなければ達成ではありません。",
+      "evidenceLabel": "達成の根拠",
+      "evidencePlaceholder": "例: 11/10 の模試で午前 74%。過去問 2023〜2025 を解き終えた",
+      "submit": "達成を確定"
+    },
+    "reopen": "達成を取り消す",
+    "pause": "休止する",
+    "resume": "再開する",
+    "delete": "節目を削除",
+    "deleteConfirm": "この節目を削除しますか？ 中のタスクは削除されず、節目から外れます。",
+    "unassigned": {
+      "title": "節目に入っていないタスク（{count}件）",
+      "description": "どの節目に向けたタスクかを選ぶと、節目ごとの進み具合が分かります",
+      "fileLabel": "「{title}」を入れる節目",
+      "pick": "節目を選ぶ"
+    }
   }
 }

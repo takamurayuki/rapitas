@@ -310,6 +310,7 @@
     },
     "layout": {
       "navAriaLabel": "設定",
+      "modalTitle": "設定",
       "personalTab": "個人設定",
       "generalTab": "一般",
       "shortcutsTab": "ショートカット",

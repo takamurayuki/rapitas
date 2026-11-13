@@ -42,6 +42,7 @@
     "db:migrate:desktop": "bun run scripts/migrate-postgres-to-sqlite.ts",
     "db:prepare:postgres-init": "bun run scripts/generate-postgres-init-sql.cjs",
     "db:studio": "prisma studio",
+    "backfill:task-companions": "bun scripts/backfill-task-companions.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "audit": "bun audit",

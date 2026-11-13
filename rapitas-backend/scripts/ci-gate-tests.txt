@@ -246,3 +246,14 @@ services/workflow/auto-merge-checks.fail-closed.test.ts
 # without touching this file — the changed-tests gate would never pick it up.
 # Only the advisory full suite caught that on #1415.
 services/workflow/auto-merge-checks.test.ts
+services/goals/milestone-achievement.test.ts
+tests/routes/organization/goals-routes.test.ts
+tests/routes/organization/milestone-achievement-routes.test.ts
+services/goals/roadmap-milestones.test.ts
+tests/services/roadmap-draft-milestones.test.ts
+tests/services/roadmap-commit-milestones.test.ts
+routes/ai/assistant-roadmap.milestones.test.ts
+services/agents/orchestrator/git-operations/branch-hygiene/worktree-sweep.test.ts
+services/agents/orchestrator/git-operations/branch-hygiene/scratch-sweep.test.ts
+services/scheduling/worktree-cleanup-scheduler.test.ts
+services/agents/orchestrator/git-operations/branch-hygiene/local-branch-prune.test.ts

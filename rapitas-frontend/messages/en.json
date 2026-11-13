@@ -273,9 +273,8 @@
     "memoryAdmin": "Memory Admin",
     "growthReport": "Daily Report",
     "settings": "Settings",
-    "generalSettings": "App Settings",
+    "goals": "Goals",
     "apiKeySettings": "API Key Settings",
-    "cliTools": "CLI Tools",
     "shortcutSettings": "Shortcut Settings",
     "openMenu": "Open menu",
     "goBack": "Back",
@@ -1451,6 +1450,7 @@
     },
     "layout": {
       "navAriaLabel": "Settings",
+      "modalTitle": "Settings",
       "personalTab": "Personal",
       "generalTab": "General",
       "shortcutsTab": "Shortcuts",
@@ -6675,5 +6675,75 @@
     "clearDataFailed": "Could not clear browsing data",
     "clearDataSettingsHint": "Cookies and sign-ins of sites opened in the in-app browser are stored separately from the app.",
     "webClearDataHint": "On the web, clear site data from your browser's settings"
+  },
+  "goals": {
+    "title": "Goals",
+    "subtitle": "Break what you want to achieve into milestones, and confirm each one as you reach it",
+    "cancel": "Cancel",
+    "notFound": "Goal not found",
+    "backToList": "All goals",
+    "create": {
+      "open": "Add goal",
+      "nameLabel": "Goal name",
+      "namePlaceholder": "e.g. Pass the Fundamental IT Engineer exam",
+      "descriptionLabel": "What achieving it looks like",
+      "descriptionPlaceholder": "What has to be true to call it achieved (optional)",
+      "submit": "Create"
+    },
+    "empty": {
+      "title": "No goals yet",
+      "description": "Write down one thing you want to achieve, then break it into milestones"
+    },
+    "reachRate": "Milestones reached",
+    "reachRateValue": "{percent}% ({reached}/{pursued})",
+    "noMilestonesYet": "No milestones yet",
+    "pausedCount": "{count} paused",
+    "nextMilestone": "Next milestone: {name}",
+    "noOpenMilestone": "No milestone in progress",
+    "milestone": {
+      "title": "Milestones",
+      "empty": "No milestones yet. Add the first one",
+      "nameLabel": "Milestone name",
+      "namePlaceholder": "e.g. Basics (70% on morning questions)",
+      "dueLabel": "Target date",
+      "add": "Add milestone"
+    },
+    "status": {
+      "open": "In progress",
+      "reached": "Reached",
+      "paused": "Paused"
+    },
+    "due": "Target {date}",
+    "taskCount": "Tasks {done}/{total}",
+    "criteria": {
+      "title": "Done when",
+      "edit": "Edit",
+      "none": "No criteria yet. Decide what has to be true for this milestone to count as reached",
+      "editLabel": "Criteria (one per line)",
+      "placeholder": "e.g. 70%+ on past morning papers three times in a row",
+      "hint": "One per line, up to {max}",
+      "save": "Save"
+    },
+    "evidence": "Evidence (confirmed {date})",
+    "confirm": {
+      "open": "Confirm reached",
+      "needsCriteria": "Set the criteria first",
+      "title": "Confirm \"{name}\" as reached",
+      "lead": "Check each criterion once you have made sure it is met. Finishing every task is not enough if a criterion is not met.",
+      "evidenceLabel": "Evidence",
+      "evidencePlaceholder": "e.g. 74% on the morning section of the Nov 10 mock exam; finished the 2023–2025 past papers",
+      "submit": "Confirm"
+    },
+    "reopen": "Undo",
+    "pause": "Pause",
+    "resume": "Resume",
+    "delete": "Delete milestone",
+    "deleteConfirm": "Delete this milestone? Its tasks are kept and simply leave the milestone.",
+    "unassigned": {
+      "title": "Tasks not in a milestone ({count})",
+      "description": "File each task under the milestone it works towards to see each milestone's progress",
+      "fileLabel": "Milestone for \"{title}\"",
+      "pick": "Choose a milestone"
+    }
   }
 }

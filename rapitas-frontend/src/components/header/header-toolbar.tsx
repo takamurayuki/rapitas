@@ -7,7 +7,6 @@
  * the in-app browser entry, and the "more" (⋮) dropdown menu.
  */
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Columns3,
@@ -16,7 +15,6 @@ import {
   Languages,
   Moon,
   Sun,
-  Settings,
   SquareArrowDown,
   RotateCw,
   Compass,
@@ -210,14 +208,8 @@ export function HeaderToolbar({
         </button>
         {isMoreMenuOpen && (
           <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-            <Link
-              href="/settings/general"
-              onClick={() => setIsMoreMenuOpen(false)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              <span>{t('generalSettings')}</span>
-            </Link>
+            {/* NOTE: The "App settings" item was removed — settings open from
+                the gear in the side-nav footer. */}
             {/* Stand-ins for the toolbar switches hidden below sm. */}
             <button
               role="menuitem"

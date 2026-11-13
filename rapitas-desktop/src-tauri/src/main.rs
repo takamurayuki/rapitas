@@ -21,6 +21,15 @@ mod terminal;
 
 #[cfg(not(debug_assertions))]
 mod release;
+#[cfg(not(debug_assertions))]
+mod sidecar_launch;
+
+// Sidecar supervision (ADR-0010 phase 1). Used only by `release`, but also
+// compiled for tests so its decisions are tested in the normal debug run.
+#[cfg(all(target_os = "windows", any(test, not(debug_assertions))))]
+mod sidecar_job;
+#[cfg(any(test, not(debug_assertions)))]
+mod sidecar_policy;
 
 mod shortcut_config;
 

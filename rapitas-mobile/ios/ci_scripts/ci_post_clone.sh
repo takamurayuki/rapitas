@@ -3,7 +3,7 @@
 # ci_scripts は .xcworkspace と同じ階層に置く必要がある）。
 #
 # Xcode Cloud の Mac には Flutter も CocoaPods の依存も無いので、ここで用意する。
-# - Flutter stable を取得し、flutter pub get で Generated.xcconfig と Podfile を作る
+# - rapitas-mobile/.fvmrc（FVM の設定）の版の Flutter を取得し、flutter pub get で Generated.xcconfig と Podfile を作る
 # - ビルド番号は Xcode Cloud の通し番号を使う。pubspec の +1 のままだと
 #   TestFlight が「同じビルド番号」として2回目以降を受け付けないため
 #
@@ -49,7 +49,11 @@ if ! command -v pod >/dev/null 2>&1; then
   step 11 "CocoaPods のインストール" brew install cocoapods
 fi
 
-step 12 "Flutter の取得" git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$HOME/flutter"
+# NOTE: 版は rapitas-mobile/.fvmrc で固定する（GitHub Actions の mobile.yml と同じファイル。開発者は fvm use で変える）。
+# stable を取ると新しい安定版で付属パッケージの版が変わり、コミット済みの pubspec.lock と食い違う。
+FLUTTER_VERSION="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+step 12 "Flutter の版の読み取り" test -n "$FLUTTER_VERSION"
+step 12 "Flutter の取得" git clone https://github.com/flutter/flutter.git --depth 1 -b "$FLUTTER_VERSION" "$HOME/flutter"
 export PATH="$PATH:$HOME/flutter/bin"
 
 # NOTE: Swift Package Manager 連携がオンだと、Flutter はプラグインを Swift パッケージとして
