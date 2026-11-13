@@ -54,7 +54,10 @@ type HeaderToolbarProps = Pick<
   | 'isTauriEnv'
   | 'isRestarting'
   | 'handleRestartClick'
->;
+> & {
+  /** Extra classes for the toolbar root (e.g. layout tweaks from the header). / ルート要素への追加クラス */
+  className?: string;
+};
 
 /**
  * Toolbar displayed on the right side of the header bar.
@@ -78,6 +81,7 @@ export function HeaderToolbar({
   isTauriEnv,
   isRestarting,
   handleRestartClick,
+  className,
 }: HeaderToolbarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -98,7 +102,7 @@ export function HeaderToolbar({
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+    <div className={`flex shrink-0 items-center gap-1 sm:gap-3${className ? ` ${className}` : ''}`}>
       {/* Hide the header pomodoro whenever a task detail is open — full-page
           (/tasks/...) or the slide panel — to avoid duplicating its controls. */}
       {!pathname?.startsWith('/tasks/') && !isTaskDetailVisible && <GlobalPomodoroWidget />}

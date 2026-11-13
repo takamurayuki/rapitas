@@ -351,4 +351,18 @@ describe('HeaderToolbar', () => {
       expect(screen.getByText('minimizeToTray')).toBeInTheDocument();
     });
   });
+  describe('root className', () => {
+    it('appends the className prop to the root classes', () => {
+      const { container } = render(<HeaderToolbar {...defaultProps} className="tauri:ml-auto" />);
+      const root = container.firstElementChild as HTMLElement;
+      expect(root.className).toContain('shrink-0');
+      expect(root.className).toContain('tauri:ml-auto');
+    });
+
+    it('keeps the default root classes without a className prop', () => {
+      const { container } = render(<HeaderToolbar {...defaultProps} />);
+      const root = container.firstElementChild as HTMLElement;
+      expect(root.className).toBe('flex shrink-0 items-center gap-1 sm:gap-3');
+    });
+  });
 });

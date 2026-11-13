@@ -276,13 +276,26 @@ export default function Header() {
               {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                  Rapi+
-                </span>
-              </div>
-            </Link>
+            {/* NOTE: The desktop app (Tauri) shows no brand block — desktop apps
+                rarely title their own header, and home stays reachable via the
+                side nav's タスク一覧 (href="/"). Two layers, so there is neither
+                a hydration mismatch nor a flash: `tauri:hidden` hides it from
+                the first paint (layout.tsx's head script tags <html> with
+                `tauri` before React loads), and once mounted isTauriEnv drops
+                it from the DOM. Server/static HTML always includes it. */}
+            {!h.isTauriEnv && (
+              <Link
+                href="/"
+                className="flex items-center gap-2 group tauri:hidden"
+                data-testid="header-brand"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                    Rapi+
+                  </span>
+                </div>
+              </Link>
+            )}
           </div>
 
           <HeaderSearch
@@ -310,6 +323,9 @@ export default function Header() {
             isTauriEnv={h.isTauriEnv}
             isRestarting={h.isRestarting}
             handleRestartClick={h.handleRestartClick}
+            // Without the brand, justify-between would float the search in the
+            // middle; the auto margin packs it next to the menu button instead.
+            className="tauri:ml-auto"
           />
         </div>
       </header>

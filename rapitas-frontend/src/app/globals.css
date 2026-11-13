@@ -46,6 +46,10 @@
 /* Class-based dark mode switching */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Desktop app (Tauri) only — layout.tsx's head script adds `tauri` to <html>
+   before first paint, so these rules apply without waiting for hydration. */
+@custom-variant tauri (&:where(.tauri, .tauri *));
+
 :root {
   --background: #f1f5f9;
   --background-secondary: #eef2f8;

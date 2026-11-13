@@ -86,6 +86,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // Desktop app marker for the tauri: CSS variant (globals.css).
+                // Tauri injects __TAURI_INTERNALS__ before any page script.
+                if ('__TAURI_INTERNALS__' in window) {
+                  document.documentElement.classList.add('tauri');
+                }
                 const setClassOnDocumentBody = (darkMode) => {
                   document.documentElement.classList.toggle('dark', darkMode);
                 };
