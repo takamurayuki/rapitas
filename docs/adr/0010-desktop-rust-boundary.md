@@ -117,9 +117,21 @@ measurement showing the language is the bottleneck, and a superseding ADR.
 
 ## Follow-ups
 
-- [ ] Phase 1: measure orphaned processes / port-3001 holders after quitting
-      the app and unrestarted backend exits; then put the sidecar in a Job
-      Object with ready-based supervision and restart.
-- [ ] Decide whether `dev.js` adopts the same supervision or keeps its own.
+- [x] Phase 1 (Windows, release builds): the sidecar runs in a kill-on-close
+      Job Object (`rapitas-desktop/src-tauri/src/sidecar_job.rs`); every exit
+      goes through a restart policy with back-off and a give-up toast, and a
+      backend that never reports `ready: true` is killed and restarted
+      (`rapitas-desktop/src-tauri/src/sidecar_policy.rs`, `release.rs`). The
+      baseline is pinned as a test: killing only the parent leaves its child
+      running; closing the job ends both, including children started later.
+- [x] `dev.js` keeps its own supervision. In development the backend must
+      outlive the app window — agents and the developer use it while the
+      window is closed or rebuilt — so tying it to the window's job would
+      break that. Revisit only if dev shows the same orphan problem.
+- [ ] Phase 1 on macOS / Linux: contain the sidecar's descendants (process
+      group or `PR_SET_PDEATHSIG`); needs a spawn path with `pre_exec`, which
+      tauri-plugin-shell's `Command` does not offer.
+- [ ] Measure in a release install: processes left after quitting, and
+      restarts / give-ups from the `[Backend]` log lines.
 - [ ] Phase 2 only when a feature needs an OS event: sleep/resume, lock, idle,
       network change.
