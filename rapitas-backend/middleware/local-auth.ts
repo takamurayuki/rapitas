@@ -127,9 +127,11 @@ function resolveAllowedOrigins(): Set<string> {
  * open can POST to http://127.0.0.1:3001 — a classic drive-by-localhost CSRF
  * vector (CORS restricts who can READ the response, not who can SEND a
  * state-changing request). Browsers label such requests `Sec-Fetch-Site:
- * cross-site`; we reject state-changing methods carrying that label. Same-origin
- * / same-site / none (direct navigation) and non-browser clients that omit the
- * header (Tauri IPC, curl, EventSource) pass through, so app traffic is
+ * cross-site`; we reject state-changing methods carrying that label unless the
+ * Origin is allow-listed. `same-site` gets the same Origin check, because
+ * SameSite ignores ports (127.0.0.1:5173 is same-site with 127.0.0.1:3001).
+ * Same-origin / none (direct navigation) and non-browser clients that omit
+ * the header (Tauri IPC, curl, EventSource) pass through, so app traffic is
  * unaffected. Runs unconditionally, independent of RAPITAS_API_TOKEN.
  *
  * NOTE(security): Some non-browser HTTP clients (older WebViews, some
@@ -160,6 +162,19 @@ export function createCrossSiteGuard(): (ctx: { request: Request }) => Response 
     };
 
     const site = request.headers.get('sec-fetch-site');
+    // NOTE(security): same-site used to pass unconditionally. SameSite looks
+    // at the registrable domain and ignores the port, so a page on
+    // http://127.0.0.1:5173 — a dev server opened in the in-app browser, or
+    // in any tab — is same-site with the API on 127.0.0.1:3001. A form post
+    // or a no-cors fetch from it needs no preflight, carried the session
+    // cookie (SameSite=Strict does not stop same-site) and reached the route.
+    // Same-site now needs an allow-listed Origin exactly like cross-site;
+    // the app's own pages (127.0.0.1:3000) always send one (nav60 §5.4.2).
+    if (site === 'same-site') {
+      const origin = request.headers.get('origin');
+      if (origin && allowedOrigins.has(origin)) return undefined;
+      return block(`sec-fetch-site: same-site, origin: ${origin ?? '(none)'}`);
+    }
     if (site === 'cross-site') {
       // NOTE: localhost:3000 → 127.0.0.1:3001 is "cross-site" by registrable
       // domain although both are loopback. The frontend targets 127.0.0.1 on

@@ -51,9 +51,39 @@ describe('createCrossSiteGuard', () => {
     expect(guard({ request: req('POST', 'same-origin') })).toBeUndefined();
   });
 
-  it('allows same-site and none (direct navigation)', () => {
-    expect(guard({ request: req('POST', 'same-site') })).toBeUndefined();
+  it('allows none (direct navigation)', () => {
     expect(guard({ request: req('POST', 'none') })).toBeUndefined();
+  });
+
+  // SameSite ignores the port, so a page on 127.0.0.1:5173 (a dev server the
+  // in-app browser may open) is same-site with the API on 127.0.0.1:3001 and
+  // carries its cookie. Same-site writes therefore need an allow-listed
+  // Origin, exactly like cross-site ones (nav60 §5.4.2).
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    'blocks a same-site %s with no Origin or a foreign Origin',
+    (method) => {
+      for (const origin of [undefined, 'http://127.0.0.1:5173', 'null']) {
+        const res = guard({ request: req(method, 'same-site', origin) });
+        expect(res).toBeInstanceOf(Response);
+        expect(res!.status).toBe(403);
+      }
+    },
+  );
+
+  it('allows a same-site write from an allow-listed Origin (the app on 127.0.0.1:3000)', () => {
+    const prev = process.env.CORS_ORIGIN;
+    delete process.env.CORS_ORIGIN;
+    try {
+      const defaultGuard = createCrossSiteGuard();
+      for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+        expect(
+          defaultGuard({ request: req(method, 'same-site', 'http://127.0.0.1:3000') }),
+        ).toBeUndefined();
+      }
+    } finally {
+      if (prev === undefined) delete process.env.CORS_ORIGIN;
+      else process.env.CORS_ORIGIN = prev;
+    }
   });
 
   it('allows requests with no Sec-Fetch-Site (Tauri IPC, curl, EventSource)', () => {
