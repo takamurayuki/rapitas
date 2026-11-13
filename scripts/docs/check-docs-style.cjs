@@ -69,7 +69,9 @@ function allowMap(entries) {
   const map = new Map();
   for (const e of entries) {
     if (!e.file || !e.chars || !e.reason || !e.reason.trim()) {
-      throw new Error(`docs-style-ignore.json: entry needs file, chars and reason: ${JSON.stringify(e)}`);
+      throw new Error(
+        `docs-style-ignore.json: entry needs file, chars and reason: ${JSON.stringify(e)}`,
+      );
     }
     const set = map.get(e.file) || new Set();
     for (const c of e.chars.replace(/️/g, '')) set.add(c);
@@ -85,7 +87,8 @@ function main() {
     .filter((f) => f && !EXEMPT.some((re) => re.test(f)) && !f.includes('node_modules/'));
   const allow = allowMap(JSON.parse(fs.readFileSync(IGNORE_PATH, 'utf8')).exceptions);
   for (const f of allow.keys()) {
-    if (!files.includes(f)) throw new Error(`docs-style-ignore.json names a file that is not checked: ${f}`);
+    if (!files.includes(f))
+      throw new Error(`docs-style-ignore.json names a file that is not checked: ${f}`);
   }
   const problems = [];
   for (const f of files) {
