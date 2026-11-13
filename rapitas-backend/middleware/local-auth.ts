@@ -121,6 +121,48 @@ function resolveAllowedOrigins(): Set<string> {
 }
 
 /**
+ * GET routes that change state, found by the nav60 §9 audit of every GET
+ * route. The guard's premise is "GET/HEAD do not change state"; these break
+ * it, so they get the same Origin check as a write until they are moved to
+ * POST. Each spawns processes, sends notifications, spends LLM quota or
+ * writes rows:
+ *   /agents/diagnose                        runs the CLI (and an LLM call)
+ *   /project-health/scan                    runs git, notifies, posts a webhook
+ *   /workflow/tasks/:id/analyze-complexity  updates the task
+ *   /workflow/learning/tasks/:id/duration-prediction  upserts a prediction
+ *   /tasks/suggestions/ai                   paid LLM call, replaces cache rows
+ *   /github/pull-requests/by-task/:id       relinks PR and task rows
+ * Every app caller uses fetch(), which sends Origin cross-origin, so app
+ * traffic is unaffected; a page's `<img src>` or link to them is refused.
+ *
+ * NOTE: OAuth callbacks (/auth/google/callback, calendar-slots) also write on
+ * GET but are top-level navigations from the provider with no Origin, so they
+ * cannot be guarded this way; the Google callback's missing `state` check is
+ * reported separately.
+ */
+const STATE_CHANGING_GET_PATHS: RegExp[] = [
+  /^\/agents\/diagnose\/?$/,
+  /^\/project-health\/scan\/?$/,
+  /^\/workflow\/tasks\/[^/]+\/analyze-complexity\/?$/,
+  /^\/workflow\/learning\/tasks\/[^/]+\/duration-prediction\/?$/,
+  /^\/tasks\/suggestions\/ai\/?$/,
+  /^\/github\/pull-requests\/by-task\/[^/]+\/?$/,
+];
+
+/**
+ * Whether a request must pass the cross-site guard.
+ *
+ * @param request - The incoming request / リクエスト
+ * @returns True for writes and for the state-changing GETs above / 検査対象なら true
+ */
+export function isGuardedRequest(request: Request): boolean {
+  if (STATE_CHANGING_METHODS.has(request.method)) return true;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  const { pathname } = new URL(request.url);
+  return STATE_CHANGING_GET_PATHS.some((re) => re.test(pathname));
+}
+
+/**
  * Cross-site request guard (CSRF backstop for the default tokenless deployment).
  *
  * The backend binds to loopback with no user auth, so ANY web page the user has
@@ -149,7 +191,7 @@ export function createCrossSiteGuard(): (ctx: { request: Request }) => Response 
   const allowedOrigins = resolveAllowedOrigins();
 
   return ({ request }) => {
-    if (!STATE_CHANGING_METHODS.has(request.method)) return undefined;
+    if (!isGuardedRequest(request)) return undefined;
 
     const block = (reason: string): Response => {
       log.warn(

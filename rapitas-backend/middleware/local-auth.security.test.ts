@@ -7,14 +7,14 @@
  * deployment.
  */
 import { describe, it, expect } from 'bun:test';
-import { createCrossSiteGuard } from './local-auth';
+import { createCrossSiteGuard, isGuardedRequest } from './local-auth';
 import { assertSafeGitRef } from '../utils/common/branch-name-generator';
 
-const req = (method: string, site?: string, origin?: string) => {
+const req = (method: string, site?: string, origin?: string, path = '/tasks/1/execute') => {
   const headers: Record<string, string> = {};
   if (site) headers['sec-fetch-site'] = site;
   if (origin) headers['origin'] = origin;
-  return new Request('http://127.0.0.1:3001/tasks/1/execute', { method, headers });
+  return new Request(`http://127.0.0.1:3001${path}`, { method, headers });
 };
 
 describe('createCrossSiteGuard', () => {
@@ -90,7 +90,56 @@ describe('createCrossSiteGuard', () => {
     expect(guard({ request: req('POST') })).toBeUndefined();
   });
 
-  it('never blocks GET/HEAD even cross-site (reads)', () => {
+  // nav60 §9 audit: these GETs change state, so they are guarded like writes.
+  const STATE_CHANGING_GETS = [
+    '/agents/diagnose',
+    '/project-health/scan',
+    '/workflow/tasks/12/analyze-complexity',
+    '/workflow/learning/tasks/12/duration-prediction',
+    '/tasks/suggestions/ai',
+    '/github/pull-requests/by-task/12',
+  ];
+
+  it.each(STATE_CHANGING_GETS)('blocks a foreign-origin or origin-less GET %s', (path) => {
+    for (const [site, origin] of [
+      ['cross-site', undefined],
+      ['cross-site', 'https://evil.example'],
+      ['same-site', undefined],
+      ['same-site', 'http://127.0.0.1:5173'],
+    ] as const) {
+      const res = guard({ request: req('GET', site, origin, path) });
+      expect(res?.status).toBe(403);
+    }
+  });
+
+  it.each(STATE_CHANGING_GETS)('still serves the app (allow-listed Origin) for %s', (path) => {
+    const prev = process.env.CORS_ORIGIN;
+    delete process.env.CORS_ORIGIN;
+    try {
+      const g = createCrossSiteGuard();
+      expect(
+        g({ request: req('GET', 'same-site', 'http://127.0.0.1:3000', path) }),
+      ).toBeUndefined();
+      expect(g({ request: req('GET', 'same-origin', undefined, path) })).toBeUndefined();
+      expect(g({ request: req('GET', undefined, undefined, path) })).toBeUndefined();
+    } finally {
+      if (prev === undefined) delete process.env.CORS_ORIGIN;
+      else process.env.CORS_ORIGIN = prev;
+    }
+  });
+
+  it('does not guard look-alike read routes', () => {
+    for (const path of [
+      '/github/pull-requests/by-task/12/ci-status',
+      '/project-health',
+      '/tasks/suggestions',
+      '/agents/diagnose-report',
+    ]) {
+      expect(isGuardedRequest(req('GET', 'cross-site', undefined, path))).toBe(false);
+    }
+  });
+
+  it('never blocks other GET/HEAD even cross-site (reads)', () => {
     expect(guard({ request: req('GET', 'cross-site') })).toBeUndefined();
     expect(guard({ request: req('HEAD', 'cross-site') })).toBeUndefined();
   });
