@@ -279,9 +279,7 @@ export default function Header() {
 
             <Link href="/" className="flex items-center gap-2 group">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
-                  <AppIcon size={20} className="text-white" />
-                </div>
+                <AppIcon size={32} className="shrink-0" />
                 {/* Wordmark drops below sm; the icon alone still links home. */}
                 <span className="hidden sm:inline text-lg font-bold text-indigo-600 dark:text-indigo-400">
                   Rapi+
