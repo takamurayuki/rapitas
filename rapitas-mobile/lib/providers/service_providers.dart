@@ -8,6 +8,7 @@ import '../services/task_service.dart';
 import '../services/agent_service.dart';
 import '../services/approval_service.dart';
 import '../services/deploy_service.dart';
+import '../services/note_service.dart';
 import '../services/notification_service.dart';
 import '../services/sse_service.dart';
 import '../services/theme_service.dart';
@@ -55,6 +56,11 @@ final categoryServiceProvider = Provider<CategoryService>((ref) {
 
 final backlogServiceProvider = Provider<BacklogService>((ref) {
   return BacklogService(ref.watch(apiClientProvider));
+});
+
+/// ノート（資料。/notes）
+final noteServiceProvider = Provider<NoteService>((ref) {
+  return NoteService(ref.watch(apiClientProvider));
 });
 
 /// ラピ（/assistant/*・/copilot/chat）

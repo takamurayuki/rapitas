@@ -794,6 +794,14 @@
       "createFailedError": "テンプレートの作成に失敗しました",
       "genericError": "エラーが発生しました"
     },
+    "acceptanceCriteriaSection": {
+      "heading": "完了条件",
+      "juryHeading": "陪審が確かめる",
+      "juryEmpty": "ありません（本人が確かめる条件だけのタスクです）。",
+      "juryNote": "完了かどうかは、この条件をもとに完了ゲートと陪審が判定します。",
+      "userHeading": "本人が確かめる",
+      "userNote": "陪審の判定には使いません。結果を見て、あなたが確かめる条件です。"
+    },
     "compactTaskDetailCard": {
       "titleAriaLabel": "タスクのタイトル",
       "unprotectTitle": "保護を解除する",
@@ -3218,7 +3226,7 @@
     "createFailed": "カテゴリの作成に失敗しました",
     "updated": "カテゴリを更新しました",
     "updateFailed": "カテゴリの更新に失敗しました",
-    "deleteConfirm": "「{name}」を削除しますか？所属するテーマは別のカテゴリに移動してください。",
+    "deleteConfirm": "「{name}」を削除しますか？所属するテーマは削除されず、カテゴリなしになります。",
     "deleted": "カテゴリを削除しました",
     "deleteFailed": "カテゴリの削除に失敗しました",
     "manageItems": "{item}を管理します",
@@ -4293,6 +4301,7 @@
     "themeCreated": "テーマが作成されました",
     "themeCreatedDescription": "Gitリポジトリが初期化され、要件・設計書（docs/）とエージェント指示書がコミットされました。",
     "themeCreateError": "テーマの作成に失敗しました",
+    "themeCategoryRequired": "開発モードのカテゴリがありません。カテゴリを選んでから作成してください",
     "createAnother": "別のテーマを作成",
     "proposalGenerateFailed": "プロポーザル生成に失敗しました",
     "claudeMdGenerateFailed": "CLAUDE.md生成に失敗しました",

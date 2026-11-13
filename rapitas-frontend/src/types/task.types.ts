@@ -114,6 +114,17 @@ export type Task = {
   agentGenerated?: boolean;
   agentExecutable?: boolean;
   executionInstructions?: string | null;
+  /**
+   * Completion criteria the completion gate and jury judge against — a
+   * JSON-encoded string array as stored in the DB (Task.acceptanceCriteria).
+   * Parse with `parseCriteriaList`.
+   */
+  acceptanceCriteria?: string | null;
+  /**
+   * Completion checks only the person can make (companion design 4.1 案1).
+   * Same JSON-string-array form; never used by the jury.
+   */
+  userAcceptanceChecks?: string | null;
   developerModeConfig?: DeveloperModeConfig | null;
   taskAnalysisConfig?: TaskAnalysisConfig | null;
   agentExecutionConfig?: AgentExecutionConfig | null;

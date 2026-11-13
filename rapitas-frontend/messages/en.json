@@ -794,6 +794,14 @@
       "createFailedError": "Failed to create template",
       "genericError": "An error occurred"
     },
+    "acceptanceCriteriaSection": {
+      "heading": "Completion criteria",
+      "juryHeading": "Checked by the jury",
+      "juryEmpty": "None (this task has only checks for you to make).",
+      "juryNote": "The completion gate and the jury judge completion against these criteria.",
+      "userHeading": "Checked by you",
+      "userNote": "Not used by the jury. These are for you to check once you see the result."
+    },
     "compactTaskDetailCard": {
       "titleAriaLabel": "Task title",
       "unprotectTitle": "Remove protection",
@@ -3218,7 +3226,7 @@
     "createFailed": "Failed to create category",
     "updated": "Category updated",
     "updateFailed": "Failed to update category",
-    "deleteConfirm": "Delete \"{name}\"? Please move associated themes to another category first.",
+    "deleteConfirm": "Delete \"{name}\"? Its themes are kept and become uncategorized.",
     "deleted": "Category deleted",
     "deleteFailed": "Failed to delete category",
     "manageItems": "Manage {item}",
@@ -4293,6 +4301,7 @@
     "themeCreated": "Theme created",
     "themeCreatedDescription": "Git repository initialized with requirement and design docs (docs/) and agent instruction files committed.",
     "themeCreateError": "Failed to create theme",
+    "themeCategoryRequired": "No development category is left. Pick a category, then create the theme.",
     "createAnother": "Create another theme",
     "proposalGenerateFailed": "Failed to generate proposals",
     "claudeMdGenerateFailed": "Failed to generate CLAUDE.md",

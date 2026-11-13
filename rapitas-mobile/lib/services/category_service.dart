@@ -28,6 +28,12 @@ class CategoryService {
     return TaskCategory.fromJson(Map<String, dynamic>.from(response.data));
   }
 
+  /// カテゴリを削除する（DELETE /categories/:id）。初期投入の「開発」「学習」も削除できる。
+  /// 所属テーマは消えずカテゴリなしになる（バックエンドの onDelete: SetNull）
+  Future<void> deleteCategory(String id) async {
+    await _client.delete('/categories/$id');
+  }
+
   /// ☆（既定カテゴリ）の ID。GET /categories/default-category（UserSettings.defaultCategoryId）。
   /// 未設定・削除済みなら null。PC 版のカテゴリ画面の ☆ と同じ情報源
   Future<String?> getDefaultCategoryId() async {

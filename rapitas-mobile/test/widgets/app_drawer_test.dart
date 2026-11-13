@@ -9,9 +9,10 @@ void main() {
       expect(drawerSelectedIndex('/ideas'), 2);
       expect(drawerSelectedIndex('/concerns'), 3);
       expect(drawerSelectedIndex('/hypotheses'), 4);
-      expect(drawerSelectedIndex('/dashboard'), 5);
-      expect(drawerSelectedIndex('/notifications'), 6);
-      expect(drawerSelectedIndex('/settings'), 7);
+      expect(drawerSelectedIndex('/notes'), 5);
+      expect(drawerSelectedIndex('/dashboard'), 6);
+      expect(drawerSelectedIndex('/notifications'), 7);
+      expect(drawerSelectedIndex('/settings'), 8);
     });
 
     test('下タブの画面はドロワーに無いので -1', () {
@@ -31,6 +32,8 @@ void main() {
       expect(drawerSelectedIndex('/themes/new'), -1);
       expect(drawerSelectedIndex('/ideas/new'), -1);
       expect(drawerSelectedIndex('/concerns/new'), -1);
+      expect(drawerSelectedIndex('/notes/new'), -1);
+      expect(drawerSelectedIndex('/notes/123'), -1);
       expect(drawerSelectedIndex('/ideasx'), -1);
     });
   });

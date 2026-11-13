@@ -103,15 +103,15 @@ export function CategoryItem({
           >
             <Pencil className="w-4 h-4" />
           </button>
-          {!item.isDefault && (
-            <button
-              onClick={() => onDelete(item.id, item.name)}
-              className="p-2 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-              title={tc('delete')}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
+          {/* NOTE: Shown for seeded defaults (開発・学習) too — the API now deletes
+              them and seed-defaults no longer re-creates them. */}
+          <button
+            onClick={() => onDelete(item.id, item.name)}
+            className="p-2 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            title={tc('delete')}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

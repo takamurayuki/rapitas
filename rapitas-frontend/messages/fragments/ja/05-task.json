@@ -322,6 +322,14 @@
       "createFailedError": "テンプレートの作成に失敗しました",
       "genericError": "エラーが発生しました"
     },
+    "acceptanceCriteriaSection": {
+      "heading": "完了条件",
+      "juryHeading": "陪審が確かめる",
+      "juryEmpty": "ありません（本人が確かめる条件だけのタスクです）。",
+      "juryNote": "完了かどうかは、この条件をもとに完了ゲートと陪審が判定します。",
+      "userHeading": "本人が確かめる",
+      "userNote": "陪審の判定には使いません。結果を見て、あなたが確かめる条件です。"
+    },
     "compactTaskDetailCard": {
       "titleAriaLabel": "タスクのタイトル",
       "unprotectTitle": "保護を解除する",

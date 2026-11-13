@@ -22,6 +22,7 @@ import '../screens/backlog/concerns_screen.dart';
 import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
 import '../screens/rapi/rapi_screen.dart';
+import 'note_routes.dart';
 import '../services/compose_requests.dart';
 import '../services/voice_route_tracker.dart';
 
@@ -205,6 +206,8 @@ class AppRoutes {
           path: hypotheses,
           builder: (context, state) => const HypothesesScreen(),
         ),
+        // ノート（一覧・新規・編集・詳細。パスは note_paths.dart）
+        ...noteRoutes,
       ],
     );
   }
@@ -214,7 +217,7 @@ class AppRoutes {
     for (final path in [
       home, tasks, taskNew, taskDetail, taskEdit, taskDecide, executions, approvals, notifications,
       dashboard, settings, voiceLearning, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
-      ideas, ideasNew, concerns, concernsNew, hypotheses, rapi,
+      ideas, ideasNew, concerns, concernsNew, hypotheses, rapi, ...noteKnownPaths,
     ])
       RegExp('^${path.replaceAll(RegExp(r':[A-Za-z]+'), '[^/]+')}\$'),
   ];

@@ -1,3 +1,9 @@
+/**
+ * AppIcon.test
+ *
+ * Checks that the header logo is the current task-dash app icon (brand gradient
+ * tile + three task rows), not the old clipboard glyph.
+ */
 import { render } from '@testing-library/react';
 import AppIcon from '../common/app-icon';
 
@@ -9,48 +15,65 @@ describe('AppIcon', () => {
     expect(svg).toBeInTheDocument();
   });
 
-  it('uses default size of 20', () => {
+  it('uses default size of 32 (it draws its own tile)', () => {
     const { container } = render(<AppIcon />);
-
-    const svg = container.querySelector('svg');
-    expect(svg).toHaveAttribute('width', '20');
-    expect(svg).toHaveAttribute('height', '20');
-  });
-
-  it('uses custom size', () => {
-    const { container } = render(<AppIcon size={32} />);
 
     const svg = container.querySelector('svg');
     expect(svg).toHaveAttribute('width', '32');
     expect(svg).toHaveAttribute('height', '32');
   });
 
+  it('uses custom size', () => {
+    const { container } = render(<AppIcon size={48} />);
+
+    const svg = container.querySelector('svg');
+    expect(svg).toHaveAttribute('width', '48');
+    expect(svg).toHaveAttribute('height', '48');
+  });
+
   it('applies custom className', () => {
-    const { container } = render(<AppIcon className="text-indigo-500" />);
+    const { container } = render(<AppIcon className="shrink-0" />);
 
     const svg = container.querySelector('svg');
-    expect(svg).toHaveClass('text-indigo-500');
+    expect(svg).toHaveClass('shrink-0');
   });
 
-  it('has correct viewBox', () => {
+  it('shares the 1024 artboard of the desktop app-icon.svg', () => {
     const { container } = render(<AppIcon />);
 
     const svg = container.querySelector('svg');
-    expect(svg).toHaveAttribute('viewBox', '0 0 24 24');
+    expect(svg).toHaveAttribute('viewBox', '0 0 1024 1024');
   });
 
-  it('renders path elements for the icon', () => {
+  it('draws the brand gradient tile', () => {
     const { container } = render(<AppIcon />);
 
-    const paths = container.querySelectorAll('path');
-    expect(paths.length).toBe(2);
+    const stops = Array.from(container.querySelectorAll('stop'));
+    expect(stops.map((s) => s.getAttribute('stop-color'))).toEqual(['#8B5CF6', '#6366F1']);
+    const tile = container.querySelector('rect');
+    const gradientId = container.querySelector('linearGradient')?.getAttribute('id');
+    expect(tile).toHaveAttribute('fill', `url(#${gradientId})`);
   });
 
-  it('uses currentColor for stroke', () => {
+  it('draws three task rows (box + dash each) in white, not the clipboard', () => {
     const { container } = render(<AppIcon />);
 
-    const svg = container.querySelector('svg');
-    expect(svg).toHaveAttribute('stroke', 'currentColor');
-    expect(svg).toHaveAttribute('fill', 'none');
+    const mark = container.querySelector('g');
+    expect(mark).toHaveAttribute('fill', '#FFFFFF');
+    expect(container.querySelectorAll('g path').length).toBe(6);
+    expect(container.querySelector('svg')).not.toHaveAttribute('stroke');
+  });
+
+  it('gives each instance its own gradient id', () => {
+    const { container } = render(
+      <>
+        <AppIcon />
+        <AppIcon />
+      </>,
+    );
+
+    const ids = Array.from(container.querySelectorAll('linearGradient')).map((g) => g.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
   });
 });
