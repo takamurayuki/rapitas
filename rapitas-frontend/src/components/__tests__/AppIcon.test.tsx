@@ -4,6 +4,8 @@
  * Checks that the header logo is the current task-dash app icon (brand gradient
  * tile + three task rows), not the old clipboard glyph.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render } from '@testing-library/react';
 import AppIcon from '../common/app-icon';
 
@@ -62,6 +64,24 @@ describe('AppIcon', () => {
     expect(mark).toHaveAttribute('fill', '#FFFFFF');
     expect(container.querySelectorAll('g path').length).toBe(6);
     expect(container.querySelector('svg')).not.toHaveAttribute('stroke');
+  });
+
+  it('matches the desktop app-icon.svg geometry exactly', () => {
+    // vitest runs from rapitas-frontend/; the desktop icon is the source of truth.
+    const source = readFileSync(
+      resolve(process.cwd(), '../rapitas-desktop/src-tauri/icons/app-icon.svg'),
+      'utf8',
+    );
+    const desktop = new DOMParser().parseFromString(source, 'image/svg+xml');
+    const { container } = render(<AppIcon />);
+
+    const attrs = (root: ParentNode, selector: string, name: string) =>
+      Array.from(root.querySelectorAll(selector)).map((el) => el.getAttribute(name));
+
+    expect(attrs(container, 'g path', 'd')).toEqual(attrs(desktop, 'g path', 'd'));
+    expect(attrs(container, 'g', 'transform')).toEqual(attrs(desktop, 'g', 'transform'));
+    expect(attrs(container, 'rect', 'rx')).toEqual(attrs(desktop, 'rect', 'rx'));
+    expect(attrs(container, 'stop', 'stop-color')).toEqual(attrs(desktop, 'stop', 'stop-color'));
   });
 
   it('gives each instance its own gradient id', () => {
