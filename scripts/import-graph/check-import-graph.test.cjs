@@ -41,6 +41,15 @@ test('resolver: relative, extensionless, barrel, .js→.ts, query suffix, packag
   assert.equal(resolveSpecifier('src/x.ts', './missing', files, []), null);
 });
 
+test('resolver: a trailing slash names the directory, never the sibling file', () => {
+  // abstraction/types.ts does `export * from './types/'`; resolving that to
+  // types.ts itself hid the whole types/ directory from the graph.
+  const files = new Set(['a/types.ts', 'a/types/index.ts']);
+  assert.equal(resolveSpecifier('a/types.ts', './types/', files, []), 'a/types/index.ts');
+  assert.equal(resolveSpecifier('a/x.ts', './types', files, []), 'a/types.ts');
+  assert.equal(resolveSpecifier('a/x.ts', './nothing/', files, []), null);
+});
+
 test('resolver: tsconfig `@/` alias (with comments and trailing commas)', () => {
   const tsconfig = `{
     // comment
