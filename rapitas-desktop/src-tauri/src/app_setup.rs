@@ -268,7 +268,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             register_aumid_for_toasts(app);
             #[cfg(target_os = "windows")]
-            crate::app_icon::hide_title_bar_icon_and_text(app);
+            crate::app_icon::prepare_main_window(app);
             setup_tray(app)?;
             setup_global_shortcut(app)?;
             // Pre-warm the toast window while boot owns the focus anyway.
@@ -292,19 +292,6 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            #[cfg(target_os = "windows")]
-            match event {
-                tauri::WindowEvent::ThemeChanged(theme) => {
-                    crate::app_icon::refresh_caption_colors(window, *theme);
-                }
-                tauri::WindowEvent::Focused(_) if window.label() == "main" => {
-                    crate::app_icon::refresh_caption_colors(
-                        window,
-                        window.theme().unwrap_or(tauri::Theme::Light),
-                    );
-                }
-                _ => {}
-            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
                     // Hide the main window to the system tray instead of closing.

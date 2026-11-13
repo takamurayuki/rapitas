@@ -26,6 +26,7 @@ import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { TerminalProvider } from '@/feature/terminal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
+import DesktopTitleBar from '@/components/common/DesktopTitleBar';
 import AppContent from '@/components/common/AppContent';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
@@ -150,6 +151,7 @@ export default function RootLayout({
         {/* First, and above AuthProvider: it must be evaluated before anything
             can fetch, or those requests go out with no session cookie and are
             served unscoped. */}
+        <DesktopTitleBar />
         <ApiCredentialsInitializer />
         <IntlProvider>
           <AuthProvider>

@@ -266,7 +266,7 @@ export default function Header() {
     <>
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
-      <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
+      <header className="app-main-header sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
         <div className="flex items-center h-16 px-1.5 sm:px-6">
           <div className="flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3">
             <button

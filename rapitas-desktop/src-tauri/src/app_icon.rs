@@ -86,85 +86,15 @@ pub fn watch_tray_scale(app: &tauri::App) {
     });
 }
 
-/// Preserve shell metadata (hover previews / Alt+Tab), hide only the caption.
+/// Register the main window for split view. Keep its normal title and icons:
+/// DesktopTitleBar removes decorations only after its controls have mounted.
 #[cfg(target_os = "windows")]
-pub fn hide_title_bar_icon_and_text(app: &tauri::App) {
+pub fn prepare_main_window(app: &tauri::App) {
     use tauri::Manager;
-    use winapi::shared::windef::HWND;
-    use winapi::um::winuser::{
-        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_DLGMODALFRAME,
-    };
-    let Some(window) = app.get_window("main") else {
-        return;
-    };
-    let Ok(raw) = window.hwnd() else {
-        return;
-    };
-    let hwnd = raw.0 as HWND;
-    crate::window_manager::register_main_window(hwnd);
-    if let Err(e) = window.set_title("Rapitas") {
-        eprintln!("[Window] restoring shell title failed: {e}");
-    }
-    if let Some(icon) = app.default_window_icon() {
-        if let Err(e) = window.set_icon(icon.clone()) {
-            eprintln!("[Window] restoring shell icons failed: {e}");
+    if let Some(window) = app.get_window("main") {
+        if let Ok(raw) = window.hwnd() {
+            crate::window_manager::register_main_window(raw.0 as winapi::shared::windef::HWND);
         }
-    }
-    // Do NOT send WM_SETICON(ICON_SMALL, 0): Explorer uses that same icon.
-    // The extended style suppresses its caption placement without clearing it.
-    // SAFETY: hwnd is the live main window; preserve all other style bits.
-    unsafe {
-        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_DLGMODALFRAME as isize);
-    }
-    refresh_caption_colors(&window, window.theme().unwrap_or(tauri::Theme::Light));
-    unsafe {
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-        );
-    }
-}
-
-/// Windows 11 can color the caption separately from the shell title. Matching
-/// foreground/background leaves native controls and the drag region intact.
-/// These DWM attributes do not alter WM_GETTEXT/WM_GETICON used by Explorer.
-#[cfg(target_os = "windows")]
-pub fn refresh_caption_colors(window: &tauri::Window, theme: tauri::Theme) {
-    use winapi::um::dwmapi::DwmSetWindowAttribute;
-    if window.label() != "main" {
-        return;
-    }
-    let Ok(raw) = window.hwnd() else {
-        return;
-    };
-    let hwnd = raw.0 as winapi::shared::windef::HWND;
-    // DWMWA_CAPTION_COLOR=35 / DWMWA_TEXT_COLOR=36 (Windows 11 build 22000+).
-    // winapi 0.3 predates these documented constants.
-    let color: u32 = if theme == tauri::Theme::Dark {
-        0x00202020
-    } else {
-        0x00ffffff
-    };
-    let apply = |attribute, value: &u32| unsafe {
-        // SAFETY: valid HWND; COLORREF is four bytes and lives through the call.
-        DwmSetWindowAttribute(hwnd, attribute, value as *const u32 as *const _, 4)
-    };
-    let background = apply(35, &color);
-    let foreground = apply(36, &color);
-    if background < 0 || foreground < 0 {
-        // Older Windows: keep readable default colors and shell metadata. Never
-        // fall back to clearing the title/icon, which breaks taskbar previews.
-        let default_color = 0xffffffff;
-        apply(35, &default_color);
-        apply(36, &default_color);
-        eprintln!("[Window] caption-only colors unsupported: {background:#x}/{foreground:#x}");
     }
 }
 

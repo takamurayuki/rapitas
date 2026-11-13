@@ -1277,3 +1277,31 @@ iframe:not([src='']) + .iframe-loading {
    the add-idea modal's icon only (see .animate-idea-lamp-flash, triggered by
    an actual POST success — not this ambient header flash). Not a revert of
    this removal — see ui-design-language.md §5, 2026-07-25. */
+
+/* Blank desktop caption: reserve the same space as the removed native frame.
+   Keep the document as the scroll root (no transformed wrapper around panels). */
+html[data-desktop-frame='caption'] body {
+  padding-top: 32px;
+}
+.desktop-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 2147483647;
+}
+html[data-desktop-frame='caption'] .app-main-header,
+html[data-desktop-frame='caption'] .fixed.top-0,
+html[data-desktop-frame='caption'] .fixed.inset-0 {
+  top: 32px;
+}
+html[data-desktop-frame='caption'] .fixed.top-16 {
+  top: calc(4rem + 32px);
+}
+html[data-desktop-frame='caption'] .h-screen {
+  height: calc(100vh - 32px);
+}
+html[data-desktop-frame='caption'] .min-h-screen {
+  min-height: calc(100vh - 32px);
+}
