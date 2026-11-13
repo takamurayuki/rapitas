@@ -1,0 +1,27 @@
+# nav45 E1/E2 isolated verification (throwaway). Mirrors rapitas' situation:
+# the same job names run on push (to the head branch) and on pull_request (to the base branch).
+name: verify-checks
+on:
+  push:
+    branches: ['verify-e/head']
+  pull_request:
+    branches: ['verify-e/base']
+permissions: {}
+jobs:
+  check-a:
+    name: Verify Check A
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "event=${{ github.event_name }} sha=${{ github.sha }}"
+  build:
+    name: Verify Build (${{ matrix.platform }})
+    strategy:
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            arch: x86_64
+          - platform: ubuntu-latest
+            arch: aarch64
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "build ${{ matrix.arch }} event=${{ github.event_name }}"
