@@ -9,12 +9,13 @@ If a directory has more than 10 files at its root, split by domain or concern.
 
 ## 1. DECISION TREE — Should I reorganize?
 
-```
-Does the directory have > 10 files at root level?
-├── YES → Split into subdirectories by domain/concern. (See Section 2)
-└── NO  → Are the files from multiple unrelated domains?
-           ├── YES → Split by domain. (See Section 2)
-           └── NO  → Leave as-is.
+```mermaid
+flowchart TD
+  Q1{"Does the directory have more than 10 files at root level?"}
+  Q1 -->|YES| SPLIT["Split into subdirectories by domain or concern (Section 2)"]
+  Q1 -->|NO| Q2{"Are the files from multiple unrelated domains?"}
+  Q2 -->|YES| DOMAIN["Split by domain (Section 2)"]
+  Q2 -->|NO| KEEP["Leave as-is"]
 ```
 
 ---

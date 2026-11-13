@@ -16,13 +16,14 @@ is as confusing as two unrelated functions sharing one name.
 
 ## 1. DECISION TREE — Before adding an icon
 
-```
-What concept does this icon represent here?
-├── Is that concept already shown with an icon elsewhere?
-│     └── YES → reuse THAT icon (same meaning → same glyph).
-└── Is the glyph I want to use already used for a DIFFERENT concept?
-      ├── YES → pick a different glyph (different meaning → different icon).
-      └── NO  → OK to use it; it now "owns" this meaning.
+```mermaid
+flowchart TD
+  Q0["What concept does this icon represent here?"]
+  Q0 --> Q1{"Is that concept already shown with an icon elsewhere?"}
+  Q1 -->|YES| REUSE["Reuse THAT icon (same meaning, same glyph)"]
+  Q1 -->|NO| Q2{"Is the glyph I want already used for a DIFFERENT concept?"}
+  Q2 -->|YES| OTHER["Pick a different glyph (different meaning, different icon)"]
+  Q2 -->|NO| OWN["OK to use it; it now owns this meaning"]
 ```
 
 ---

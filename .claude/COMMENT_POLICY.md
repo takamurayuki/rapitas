@@ -9,16 +9,13 @@ If the comment only restates what the code does, delete it.
 
 ## DECISION TREE — Should I write a comment?
 
-```
-Is this a file, public function, or exported type?
-├── YES → Write a doc comment. (See Section 2)
-└── NO  → Does this line/block meet ANY of the following?
-           ├── A) The reason for this implementation is not obvious from the code
-           ├── B) There is a constraint from an external spec or API
-           ├── C) A future editor could break this by "improving" it
-           └── D) This is a known issue, workaround, or unfinished work
-               ├── YES to any → Write an inline comment. (See Section 3)
-               └── NO to all  → Write NO comment.
+```mermaid
+flowchart TD
+  Q1{"Is this a file, public function, or exported type?"}
+  Q1 -->|YES| DOC["Write a doc comment (Section 2)"]
+  Q1 -->|NO| Q2{"Does this line or block meet ANY of these?<br/>A) The reason for this implementation is not obvious from the code<br/>B) There is a constraint from an external spec or API<br/>C) A future editor could break this by improving it<br/>D) This is a known issue, workaround, or unfinished work"}
+  Q2 -->|"YES to any"| INLINE["Write an inline comment (Section 3)"]
+  Q2 -->|"NO to all"| NONE["Write NO comment"]
 ```
 
 ---
