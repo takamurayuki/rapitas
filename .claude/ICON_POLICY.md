@@ -162,14 +162,14 @@ _None outstanding._ Both previously-tracked collisions are resolved:
 ## 4. ANTI-PATTERNS — Never do these
 
 ```tsx
-// ❌ Same glyph, two unrelated meanings
+// Bad: Same glyph, two unrelated meanings
 <CheckCircle2 />  // here: "completed"
 <CheckCircle2 />  // elsewhere: "selected" — pick CheckSquare / Check instead
 
-// ❌ Reaching for a glyph already owned by another concept
+// Bad: Reaching for a glyph already owned by another concept
 <Lightbulb />     // already = "idea"; don't reuse it for "tip/hint/insight"
 
-// ✅ Distinct meanings, distinct glyphs
+// Good: Distinct meanings, distinct glyphs
 <Lightbulb />     // idea
 <Bug />           // concern / bug
 ```
