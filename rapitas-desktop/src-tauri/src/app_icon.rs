@@ -86,44 +86,44 @@ pub fn watch_tray_scale(app: &tauri::App) {
     });
 }
 
-/// Hide the app icon and the title text drawn at the left of the main window's title bar.
-///
-/// The window title stays set, so the taskbar and Alt+Tab still show the icon
-/// and "Rapitas"; only the caption stops drawing them.
-///
-/// @param app - running app that owns the "main" window / main ウィンドウを持つアプリ
+/// Clear the caption and suppress the native small icon while retaining the
+/// resize border, system menu and minimize/maximize/close buttons.
 #[cfg(target_os = "windows")]
 pub fn hide_title_bar_icon_and_text(app: &tauri::App) {
     use tauri::Manager;
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::Controls::{
-        SetWindowThemeAttribute, WTA_NONCLIENT, WTA_OPTIONS, WTNCA_NODRAWCAPTION, WTNCA_NODRAWICON,
+    use winapi::shared::windef::HWND;
+    use winapi::um::winuser::{
+        GetWindowLongPtrW, SendMessageW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, ICON_SMALL,
+        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_SETICON,
+        WS_EX_DLGMODALFRAME,
     };
-
-    let Some(window) = app.get_webview_window("main") else {
+    let Some(window) = app.get_window("main") else {
         return;
     };
     let Ok(raw) = window.hwnd() else {
         return;
     };
-    // tauri links a newer `windows` crate than ours, so pass the raw handle across.
-    let hwnd = HWND(raw.0);
-    let flags = WTNCA_NODRAWICON | WTNCA_NODRAWCAPTION;
-    let options = WTA_OPTIONS {
-        dwFlags: flags,
-        dwMask: flags,
-    };
-    // SAFETY: hwnd is the live main window and `options` outlives the call.
-    let result = unsafe {
-        SetWindowThemeAttribute(
+    let hwnd = raw.0 as HWND;
+    // Split-view must not rely on a visible caption to identify the main window.
+    crate::window_manager::register_main_window(hwnd);
+    if let Err(e) = window.set_title("") {
+        eprintln!("[Window] clearing title failed: {e}");
+    }
+    // SAFETY: the handle belongs to the live main window. Preserve all existing
+    // styles and the large icon (taskbar/Alt+Tab); force a non-client repaint.
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_DLGMODALFRAME as isize);
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL as usize, 0);
+        SetWindowPos(
             hwnd,
-            WTA_NONCLIENT,
-            &options as *const WTA_OPTIONS as *const core::ffi::c_void,
-            std::mem::size_of::<WTA_OPTIONS>() as u32,
-        )
-    };
-    if let Err(e) = result {
-        eprintln!("[Window] hiding title bar icon/text failed: {e}");
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
     }
 }
 

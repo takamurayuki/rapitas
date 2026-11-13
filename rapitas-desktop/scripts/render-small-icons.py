@@ -200,7 +200,7 @@ def render_icon(size: int, join_bullets: bool = False) -> Image.Image:
 
 
 def render_tray(size: int) -> Image.Image:
-    """Render the tilted three-band mark with a consistent inter-row gap.
+    """Render three square-and-bar rows with clear horizontal and vertical gaps.
 
     This layout is independent of app-icon thickening. At 16px the bands are
     2px thick with 2px clear spacing before rotation. Larger sizes scale that
@@ -215,14 +215,20 @@ def render_tray(size: int) -> Image.Image:
     # Same length order and slanted tips as the app mark; optical centering
     # leaves roughly 2px tile padding and avoids maximizing ink coverage.
     for center, right in [(4, 12), (8, 13.5), (12, 11.25)]:
-        polygon = [(2.5, center-1), (right-.9, center-1),
-                   (right, center+1), (2.5, center+1)]
-        points = []
-        for x, y in polygon:
-            x, y = x-8, y-8
-            points.append(((8+x*cosine-y*sine)*unit*k,
-                           (8+x*sine+y*cosine)*unit*k))
-        draw.polygon(points, fill=255)
+        # Restore the app mark's separate square bullets. At 16px each square
+        # is 2px wide and the 1.5px gap survives the -10 degree rotation.
+        polygons = [
+            [(2, center-1), (4, center-1), (4, center+1), (2, center+1)],
+            [(5.5, center-1), (right-.9, center-1),
+             (right, center+1), (5.5, center+1)],
+        ]
+        for polygon in polygons:
+            points = []
+            for x, y in polygon:
+                x, y = x-8, y-8
+                points.append(((8+x*cosine-y*sine)*unit*k,
+                               (8+x*sine+y*cosine)*unit*k))
+            draw.polygon(points, fill=255)
     coverage = mask.resize((size, size), Image.Resampling.BOX)
     image = render_tile(size)
     white = Image.new("RGBA", (size, size), (255,255,255,255))
