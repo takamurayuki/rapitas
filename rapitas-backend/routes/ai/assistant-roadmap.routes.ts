@@ -177,6 +177,7 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
         themeChoice: body.themeChoice as ApprovedPlacement,
         projectChoice: body.projectChoice as ApprovedPlacement,
         steps: steps.map(({ confirmedCount: _count, ...step }) => step),
+        milestones: body.milestones ?? [],
       });
 
       const actionId = await recordAction({
@@ -229,8 +230,24 @@ export const assistantRoadmapRoutes = new Elysia({ prefix: '/assistant/roadmap' 
             userAcceptanceChecks: t.Optional(
               t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), { maxItems: MAX_CRITERIA }),
             ),
+            // Which approved milestone this step builds towards. Declared, or
+            // t.Object would drop it and every task would be created unfiled.
+            milestoneIndex: t.Optional(t.Integer({ minimum: 0, maximum: 19 })),
           }),
           { minItems: 0, maxItems: 20 },
+        ),
+        // The approved milestones (節目); created only when there is a project.
+        milestones: t.Optional(
+          t.Array(
+            t.Object({
+              name: t.String({ minLength: 1, maxLength: 200 }),
+              acceptanceCriteria: t.Array(t.String({ maxLength: MAX_CRITERION_LENGTH }), {
+                maxItems: MAX_CRITERIA,
+              }),
+              dueDate: t.Optional(t.String({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' })),
+            }),
+            { maxItems: 20 },
+          ),
         ),
       }),
     },
