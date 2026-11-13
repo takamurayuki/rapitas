@@ -123,22 +123,22 @@ def func(param: str) -> int:
 ### Good vs Bad — Memorize these patterns
 
 ```typescript
-// ❌ NEVER — restates the code
+// Bad: restates the code
 const count = agents.length; // get the length of agents
 
-// ✅ ALWAYS — explains why
+// Good: explains why
 const count = agents.length; // cached to avoid O(n) on every loop iteration
 
-// ❌ NEVER — obvious initialization
+// Bad: obvious initialization
 let retries = 0; // initialize to 0
 
-// ✅ ALWAYS — external constraint
+// Good: external constraint
 const MAX_TOKENS = 8192; // Claude API hard limit per system prompt
 
-// ❌ NEVER — describes the call
+// Bad: describes the call
 await agent.stop(); // call stop
 
-// ✅ ALWAYS — non-obvious ordering or side effect
+// Good: non-obvious ordering or side effect
 await agent.stop(); // must complete before releasing the port; stop() is not idempotent
 ```
 
@@ -199,22 +199,22 @@ for (const agent of agents) {
 ## 6. ANTI-PATTERNS — Never do these
 
 ```typescript
-// ❌ Timestamped edit logs — use git
+// Bad: Timestamped edit logs — use git
 // Updated on 2025-01-01
 
-// ❌ Obvious type restatement
+// Bad: Obvious type restatement
 const name: string = "rapitas"; // string
 
-// ❌ Disabled code without explanation
+// Bad: Disabled code without explanation
 // await agent.reset();
 
-// ✅ Disabled code WITH explanation
+// Good: Disabled code WITH explanation
 // await agent.reset(); // NOTE: Disabled — reset() clears token budget mid-task. Re-enable after #142.
 
-// ❌ Vague intent
+// Bad: Vague intent
 // TODO: Fix this later
 
-// ✅ Specific and actionable
+// Good: Specific and actionable
 // TODO: Add exponential backoff — currently fails immediately on rate limit (HTTP 429).
 ```
 
