@@ -93,3 +93,4 @@ src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-req
 src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
 src/app/goals/_components/detail/__tests__/ConfirmAchievementDialog.test.tsx
 src/app/goals/_hooks/__tests__/goals-api.test.ts
+src/components/rapi-avatar/intake/roadmap/__tests__/TaskRoadmap.milestones.test.tsx
