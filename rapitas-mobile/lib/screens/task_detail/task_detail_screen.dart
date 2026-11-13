@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../config/routes.dart';
 import '../../models/companion_digest.dart';
 import '../../models/task.dart';
-import '../../providers/execution_provider.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
@@ -19,6 +18,8 @@ import '../../widgets/task_companion_sections.dart';
 import '../../widgets/task_notes_section.dart';
 import '../../utils/plain_reasons.dart';
 import 'subtask_section.dart';
+import 'task_execution_controls.dart';
+import 'task_inline_edit.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
   final String taskId;
@@ -29,230 +30,199 @@ class TaskDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final taskAsync = ref.watch(taskDetailProvider(taskId));
     final loadedTask = taskAsync.valueOrNull;
+    final executing = watchTaskExecuting(ref, taskId);
+    final runButton = loadedTask == null
+        ? null
+        : taskExecutionHeaderButton(context, task: loadedTask, executing: executing);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('タスク詳細'),
-        actions: [
-          // 読み込み前は右にアイコンが無いので右端用の余白を取る
-          VoiceModeIndicator(trailing: loadedTask == null),
-          if (loadedTask != null && loadedTask.canExecuteWithAgent)
-            IconButton(
-              icon: const Icon(Icons.play_arrow),
-              tooltip: 'AIエージェントで実行',
-              onPressed: () => _executeWithAgent(context, ref),
-            ),
-          if (loadedTask != null) ...[
-            IconButton(
-              icon: const Icon(Icons.edit),
-              tooltip: '編集',
-              onPressed: () => context.push('/tasks/$taskId/edit', extra: loadedTask),
-            ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'delete') _deleteTask(context, ref, loadedTask);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                      const SizedBox(width: 12),
-                      Text(
-                        '削除',
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    return TaskExecutionPoller(
+      taskId: taskId,
+      active: executing,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('タスク詳細'),
+          // NOTE: 「…」メニュー（削除のみ）は廃止。削除はタスク一覧の横スワイプに一本化した。
+          actions: [
+            // 読み込み前は右にアイコンが無いので右端用の余白を取る
+            VoiceModeIndicator(trailing: loadedTask == null),
+            if (runButton != null) runButton,
+            if (loadedTask != null)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: '編集',
+                onPressed: () => context.push('/tasks/$taskId/edit', extra: loadedTask),
+              ),
           ],
-        ],
-      ),
-      body: VoiceScrollTarget(
-        path: AppRoutes.taskDetail,
-        // 読み込み失敗の表示（引っ張って更新が無い）からも「更新」で読み直せるよう、直接 invalidate する
-        onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
-        child: taskAsync.when(
-          data: (task) => RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(taskDetailProvider(taskId));
-              ref.invalidate(taskNotesProvider(taskId));
-            },
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  task.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    StatusBadge.task(status: task.status),
-                    const SizedBox(width: 12),
-                    PriorityIndicator(priority: task.priority),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Status change buttons
-                Row(
-                  children: [
-                    for (final status in ['todo', 'in-progress', 'done'])
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(AppConstants.statusLabels[status]!),
-                          selected: task.status == status,
-                          onSelected: task.status == status
-                              ? null
-                              : (_) => _updateStatus(ref, status),
-                        ),
-                      ),
-                  ],
-                ),
-                if (task.description != null && task.description!.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text('説明', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  // NOTE: Rendered as Markdown here only; list previews and the edit
-                  // form deliberately stay plain text.
-                  TaskDescriptionMarkdown(data: task.description!),
-                ],
-                // ラピ伴走化 第1段階：何をもって完了とするかと、いまどこにいるか（どちらも DB の値）
-                const SizedBox(height: 24),
-                TaskAcceptanceCriteriaSection(
-                  criteria: task.acceptanceCriteria,
-                  userChecks: task.userAcceptanceChecks,
-                ),
-                const SizedBox(height: 24),
-                TaskStageSection(
-                  workflowStatus: task.workflowStatus,
-                  haltReason: task.haltReason,
-                ),
-                // 第2段階：人が決める場面なら判断画面へ（ボタンは画面から直接バックエンドへ送る）
-                if (decisionKindFor(
-                        status: task.status,
-                        workflowStatus: task.workflowStatus,
-                        haltReason: task.haltReason)
-                    case final kind?) ...[
-                  const SizedBox(height: 12),
-                  FilledButton.tonal(
-                    key: const ValueKey('task-detail-decide'),
-                    onPressed: () => context.push('/tasks/$taskId/decide'),
-                    child: Text('判断する：${decisionCopy(kind).title}'),
-                  ),
-                ],
-                // 紐づくノート（成果物・説明資料）。中身は別ファイル（この画面はすでに大きい）
-                const SizedBox(height: 24),
-                TaskNotesSection(taskId: taskId),
-                const SizedBox(height: 24),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _DetailRow(
-                          icon: Icons.calendar_today,
-                          label: '期日',
-                          value: DateFormatter.formatDate(task.dueDate),
-                        ),
-                        _DetailRow(
-                          icon: Icons.access_time,
-                          label: '見積もり',
-                          value: task.estimatedHours != null
-                              ? '${task.estimatedHours}時間'
-                              : '-',
-                        ),
-                        _DetailRow(
-                          icon: Icons.timer,
-                          label: '実績',
-                          value: task.actualHours != null
-                              ? '${task.actualHours}時間'
-                              : '-',
-                        ),
-                        _DetailRow(
-                          icon: Icons.folder,
-                          label: 'テーマ',
-                          value: task.theme?.name ?? '-',
-                        ),
-                        _DetailRow(
-                          icon: Icons.play_circle,
-                          label: '開始',
-                          value: DateFormatter.formatDateTime(task.startedAt),
-                        ),
-                        _DetailRow(
-                          icon: Icons.check_circle,
-                          label: '完了',
-                          value: DateFormatter.formatDateTime(task.completedAt),
-                        ),
-                      ],
+          bottom: taskExecutingBar(executing),
+        ),
+        body: VoiceScrollTarget(
+          path: AppRoutes.taskDetail,
+          // 読み込み失敗の表示（引っ張って更新が無い）からも「更新」で読み直せるよう、直接 invalidate する
+          onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
+          child: taskAsync.when(
+            data: (task) => RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(taskDetailProvider(taskId));
+                ref.invalidate(taskNotesProvider(taskId));
+              },
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  TaskInlineEditable(
+                    taskId: taskId,
+                    field: TaskInlineField.title,
+                    initialValue: task.title,
+                    child: Text(
+                      task.title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ),
-                ),
-                // NOTE: 0 件でも出す。以前は 0 件だと欄ごと無く、最初のサブタスクを作れなかった
-                const SizedBox(height: 24),
-                SubtaskSection(
-                  task: task,
-                  onToggle: (subtask) => _toggleSubtask(context, ref, subtask),
-                ),
-                if (task.canExecuteWithAgent) ...[
-                  const SizedBox(height: 24),
-                  Card(
-                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      StatusBadge.task(status: task.status),
+                      const SizedBox(width: 12),
+                      PriorityIndicator(priority: task.priority),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Status change buttons
+                  Row(
+                    children: [
+                      for (final status in ['todo', 'in-progress', 'done'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(AppConstants.statusLabels[status]!),
+                            selected: task.status == status,
+                            onSelected: task.status == status
+                                ? null
+                                : (_) => _updateStatus(ref, status),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (task.description != null && task.description!.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    TaskInlineEditable(
+                      taskId: taskId,
+                      field: TaskInlineField.description,
+                      initialValue: task.description!,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(Icons.smart_toy, color: Theme.of(context).colorScheme.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'AI実行可能',
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ],
+                          Text('説明', style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 8),
+                          // NOTE: Rendered as Markdown here only; list previews and the edit
+                          // form deliberately stay plain text.
+                          TaskDescriptionMarkdown(data: task.description!),
+                        ],
+                      ),
+                    ),
+                  ],
+                  // ラピ伴走化 第1段階：何をもって完了とするかと、いまどこにいるか（どちらも DB の値）
+                  const SizedBox(height: 24),
+                  TaskAcceptanceCriteriaSection(
+                    criteria: task.acceptanceCriteria,
+                    userChecks: task.userAcceptanceChecks,
+                  ),
+                  const SizedBox(height: 24),
+                  TaskStageSection(
+                    workflowStatus: task.workflowStatus,
+                    haltReason: task.haltReason,
+                  ),
+                  // 第2段階：人が決める場面なら判断画面へ（ボタンは画面から直接バックエンドへ送る）
+                  if (decisionKindFor(
+                          status: task.status,
+                          workflowStatus: task.workflowStatus,
+                          haltReason: task.haltReason)
+                      case final kind?) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      key: const ValueKey('task-detail-decide'),
+                      onPressed: () => context.push('/tasks/$taskId/decide'),
+                      child: Text('判断する：${decisionCopy(kind).title}'),
+                    ),
+                  ],
+                  // 紐づくノート（成果物・説明資料）。中身は別ファイル（この画面はすでに大きい）
+                  const SizedBox(height: 24),
+                  TaskNotesSection(taskId: taskId),
+                  const SizedBox(height: 24),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          _DetailRow(
+                            icon: Icons.calendar_today,
+                            label: '期日',
+                            value: DateFormatter.formatDate(task.dueDate),
                           ),
-                          if (task.executionInstructions != null) ...[
-                            const SizedBox(height: 8),
-                            Text(task.executionInstructions!),
-                          ],
-                          const SizedBox(height: 12),
-                          FilledButton.icon(
-                            onPressed: () => _executeWithAgent(context, ref),
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('エージェントで実行'),
+                          _DetailRow(
+                            icon: Icons.access_time,
+                            label: '見積もり',
+                            value: task.estimatedHours != null
+                                ? '${task.estimatedHours}時間'
+                                : '-',
+                          ),
+                          _DetailRow(
+                            icon: Icons.timer,
+                            label: '実績',
+                            value: task.actualHours != null
+                                ? '${task.actualHours}時間'
+                                : '-',
+                          ),
+                          _DetailRow(
+                            icon: Icons.folder,
+                            label: 'テーマ',
+                            value: task.theme?.name ?? '-',
+                          ),
+                          // NOTE: play_circle は「AI実行」に充てたので、開始日時は別のグリフにする
+                          _DetailRow(
+                            icon: Icons.start,
+                            label: '開始',
+                            value: DateFormatter.formatDateTime(task.startedAt),
+                          ),
+                          _DetailRow(
+                            icon: Icons.check_circle,
+                            label: '完了',
+                            value: DateFormatter.formatDateTime(task.completedAt),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  // NOTE: 0 件でも出す。以前は 0 件だと欄ごと無く、最初のサブタスクを作れなかった
+                  const SizedBox(height: 24),
+                  SubtaskSection(
+                    task: task,
+                    onToggle: (subtask) => _toggleSubtask(context, ref, subtask),
+                  ),
+                  // NOTE: 実行ボタンはヘッダーに固定した。カードは実行指示の表示用に残す。
+                  if (task.canExecuteWithAgent || executing) ...[
+                    const SizedBox(height: 24),
+                    TaskExecutionInfoCard(task: task, executing: executing),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text('タスクの取得に失敗しました'),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => ref.invalidate(taskDetailProvider(taskId)),
-                  child: const Text('再試行'),
-                ),
-              ],
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('タスクの取得に失敗しました'),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => ref.invalidate(taskDetailProvider(taskId)),
+                    child: const Text('再試行'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -282,101 +252,6 @@ class TaskDetailScreen extends ConsumerWidget {
           SnackBar(content: Text('サブタスクの更新に失敗しました: $e')),
         );
       }
-    }
-  }
-
-  Future<void> _deleteTask(BuildContext context, WidgetRef ref, Task task) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('タスクを削除'),
-        content: Text('「${task.title}」を削除しますか？\nこの操作は取り消せません。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    // 画面が破棄されても invalidate できるよう、await の前にコンテナを捕捉する
-    final container = ProviderScope.containerOf(context, listen: false);
-    try {
-      final service = ref.read(taskServiceProvider);
-      await service.deleteTask(taskId);
-      container.invalidate(taskListProvider);
-      if (!context.mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('タスク「${task.title}」を削除しました')),
-      );
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go(AppRoutes.tasks);
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('タスクの削除に失敗しました: $e')),
-      );
-    }
-  }
-
-  Future<void> _executeWithAgent(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('AI実行の確認'),
-        content: const Text('このタスクをAIエージェントで実行しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('実行'),
-          ),
-        ],
-      ),
-    );
-
-    // ダイアログ表示中に画面が破棄されていたら ref / context は使えない
-    if (confirmed != true || !context.mounted) return;
-    // await 中に画面を離れても、サーバー側の状態は変わるのでキャッシュは読み直す。
-    // そのため WidgetRef ではなく、await 前に控えた container から invalidate する。
-    final container = ProviderScope.containerOf(context, listen: false);
-    try {
-      final service = container.read(agentServiceProvider);
-      final result = await service.executeTask(taskId);
-      container.invalidate(executingTasksProvider);
-      container.invalidate(taskDetailProvider(taskId));
-      container.invalidate(taskListProvider);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          // 仕様が薄い draft タスクは質問を作るだけで止まる（エージェントは未起動）
-          content: Text(result.isAwaitingQuestion
-              ? (result.message ?? '仕様確認の質問を作成しました')
-              : 'エージェント実行を開始しました'),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('実行に失敗しました: $e')),
-      );
     }
   }
 }

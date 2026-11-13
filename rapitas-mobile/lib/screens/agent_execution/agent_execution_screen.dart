@@ -62,7 +62,7 @@ class AgentExecutionScreen extends ConsumerWidget {
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
                     SizedBox(height: 160),
-                    Icon(Icons.smart_toy_outlined, size: 64, color: Colors.grey),
+                    Icon(Icons.play_circle_outline, size: 64, color: Colors.grey),
                     SizedBox(height: 16),
                     Center(child: Text('実行中のタスクはありません')),
                   ],
@@ -303,7 +303,7 @@ class AgentExecutionScreen extends ConsumerWidget {
                   title: Text(task.title,
                       maxLines: 2, overflow: TextOverflow.ellipsis),
                   subtitle: Text(task.status),
-                  leading: const Icon(Icons.smart_toy),
+                  leading: const Icon(Icons.play_circle_outline),
                   onTap: () => Navigator.pop(context, task),
                 );
               },
