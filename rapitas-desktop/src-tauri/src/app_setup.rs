@@ -284,6 +284,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // NOTE: main is `"create": false` in tauri.conf.json and built
+            // here, first, so its responses get X-Frame-Options (see
+            // main_window). Everything below expects it to exist.
+            crate::main_window::build(app)?;
             // Release-only sidecar startup (difference #2 of 3).
             #[cfg(not(debug_assertions))]
             crate::release::setup_sidecar(app);
@@ -304,9 +308,9 @@ pub fn run() {
             if let Err(e) = crate::pomodoro_float::prewarm_pomodoro_float_window(app.handle()) {
                 eprintln!("[Pomodoro] float window pre-warm failed: {e}");
             }
-            // The main window is declared in tauri.conf.json, so it has already
-            // navigated to devUrl by the time setup runs — possibly before the
-            // dev server existed. The watch also covers the dev server being
+            // The main window was built at the top of setup, so it has already
+            // navigated to devUrl by now — possibly before the dev server
+            // existed. The watch also covers the dev server being
             // recycled later, under a live window (see dev_server_wait); it
             // does nothing while :3000 stays up.
             #[cfg(debug_assertions)]
