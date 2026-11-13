@@ -28,16 +28,19 @@ layout lives in [ADR-0006](../adr/0006-prisma-schema-folder-split.md).
 
 ## Launcher A — backend dev watcher (`scripts/dev.ts` + `scripts/dev/watcher.ts`)
 
-Provider resolution (`scripts/dev/prisma-sync.ts → resolveDbProvider`) mirrors
-`prisma.config.ts`: explicit `RAPITAS_DB_PROVIDER` wins; else a `file:`
-`DATABASE_URL` ⇒ `sqlite`; else ⇒ `postgresql`.
+Provider resolution (`scripts/dev/prisma-sync.ts → resolveDbProvider`):
+explicit `RAPITAS_DB_PROVIDER` wins; else a `file:` `DATABASE_URL` means
+`sqlite`; else `postgresql`. `prisma.config.ts` itself only reads
+`RAPITAS_DB_PROVIDER === 'sqlite'`, so `syncDevSchema()` pins that variable
+for the CLI after resolving it.
 
 `syncDevSchema()` then runs, pinning `RAPITAS_DB_PROVIDER` on the CLI:
 
 - **SQLite**: regenerate `schema.desktop` → `db push --skip-generate` → (generate)
 - **PostgreSQL**: `db push --skip-generate` → (generate)
 
-Triggers: startup (`dev.ts`, push only) and any `prisma/schema/*.prisma` save
+Triggers: startup (`dev.ts`, push and generate, so the loaded client matches
+the active provider) and any `prisma/schema/*.prisma` save
 (`watcher.ts`, full regenerate→push→generate→restart).
 
 ## Launcher B — desktop/Tauri (`rapitas-desktop/scripts/dev.js`)
