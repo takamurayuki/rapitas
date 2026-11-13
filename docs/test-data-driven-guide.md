@@ -296,6 +296,6 @@ test.each([['a', true], ['b', false]])('...', (input, expected) => {
 
 ## 関連ドキュメント
 
-- **境界値定数の完全リスト**: `docs/boundary-guide.generated.md`（`bun run gen:boundary-guide` で再生成）
+- **境界値定数の完全リスト**: `rapitas-backend/docs/boundary-guide.generated.md`（`bun run gen:boundary-guide` で再生成）
 - **境界値定数の実装**: `rapitas-backend/tests/helpers/boundary-values.ts`
 - **コードモッド（自動変換）**: `rapitas-backend/scripts/codemods/README.md`
