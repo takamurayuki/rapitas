@@ -66,6 +66,10 @@ void main() {
         '/themes/5/edit',
         '/categories/new',
         '/hypotheses',
+        '/notes',
+        '/notes/new',
+        '/notes/1731456000000',
+        '/notes/1731456000000/edit',
         '/settings/voice-learning',
       ]) {
         expect(AppRoutes.redirectFor(Uri.parse(path), compose), isNull, reason: path);

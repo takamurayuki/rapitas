@@ -5,6 +5,7 @@ import '../../config/routes.dart';
 import '../../models/companion_digest.dart';
 import '../../models/task.dart';
 import '../../providers/execution_provider.dart';
+import '../../providers/note_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../widgets/status_badge.dart';
@@ -15,6 +16,7 @@ import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/markdown/task_description_markdown.dart';
 import '../../widgets/task_companion_sections.dart';
+import '../../widgets/task_notes_section.dart';
 import '../../utils/plain_reasons.dart';
 import 'subtask_section.dart';
 
@@ -75,7 +77,10 @@ class TaskDetailScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
         child: taskAsync.when(
           data: (task) => RefreshIndicator(
-            onRefresh: () async => ref.invalidate(taskDetailProvider(taskId)),
+            onRefresh: () async {
+              ref.invalidate(taskDetailProvider(taskId));
+              ref.invalidate(taskNotesProvider(taskId));
+            },
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -142,6 +147,9 @@ class TaskDetailScreen extends ConsumerWidget {
                     child: Text('判断する：${decisionCopy(kind).title}'),
                   ),
                 ],
+                // 紐づくノート（成果物・説明資料）。中身は別ファイル（この画面はすでに大きい）
+                const SizedBox(height: 24),
+                TaskNotesSection(taskId: taskId),
                 const SizedBox(height: 24),
                 Card(
                   child: Padding(
