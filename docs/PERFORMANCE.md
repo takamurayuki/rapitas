@@ -44,7 +44,7 @@ cd rapitas-frontend && pnpm build && ls -la .next/static/chunks/
 Resolved per [ADR-0006](adr/0006-prisma-schema-folder-split.md): the
 former single-file Prisma schema (1426 lines, 72 models, 1 enum) was split into
 per-domain files under `rapitas-backend/prisma/schema/` using Prisma's
-`prismaSchemaFolder` layout (GA in Prisma 6; 15 domain files as of 2026-11).
+`prismaSchemaFolder` layout (GA in Prisma 6; 16 domain files as of 2026-11).
 Editor latency and `prisma generate` runtime should improve correspondingly —
 measure and update §1 once observed.
 
@@ -112,13 +112,17 @@ the unmounted backend `ws` service was later deleted as well.
 ### 3.1 Frontend
 
 - **SWR** for caching and dedup
-- **`task-cache-store`** (`rapitas-frontend/src/stores/task-cache-store.ts`)
-  with localStorage persistence + 24h cache window
-- **Skeleton loaders** to prevent layout shift (`rapitas-frontend/src/app/HomeClient.tsx`)
+- **`task-cache-store`** (`rapitas-frontend/src/stores/task-cache-store.ts`):
+  an in-memory task list capped at 800 entries (oldest completed tasks are
+  evicted first), refreshed incrementally with the `X-Server-Cursor` header.
+  It is not persisted to localStorage
+- **Skeleton loaders** to prevent layout shift
+  (`rapitas-frontend/src/app/home/_components/HomeTaskList.tsx`, `HomeFilterPanel.tsx`)
 - **Specific `transition-*` properties** instead of `transition-all` to
   avoid resize re-triggers
 - **Recharts** with memoized data shapers
-- **`use client` only where needed** — most pages remain server components
+- **`use client`** — most pages are client components today (44 of 57
+  `page.tsx` files start with `'use client'`), so this is not a current strength
 
 ### 3.2 Backend
 
@@ -129,7 +133,8 @@ the unmounted backend `ws` service was later deleted as well.
 
 ### 3.3 Tauri
 
-- **Sidecar pattern** for the backend binary — single-process model
+- **Separate backend process** — the Bun-compiled backend runs as a child
+  process that the Rust shell supervises (ADR-0010), not in the WebView process
 - **Static export** (`output: 'export'`) eliminates Next.js server runtime
 
 ---
