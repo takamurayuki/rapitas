@@ -7,7 +7,8 @@
  * Not responsible for observing history changes — useNavigationHistorySync
  * feeds it — nor for navigating; the buttons call router.back()/forward().
  */
-import { create } from 'zustand';
+import { useStore } from 'zustand';
+import { createStore, type StoreApi } from 'zustand/vanilla';
 
 /** Snapshot of the in-app history and the current position in it. */
 export interface NavigationHistoryState {
@@ -29,7 +30,7 @@ export interface NavigationHistoryState {
   reset: (url: string) => void;
 }
 
-export const useNavigationHistoryStore = create<NavigationHistoryState>((set) => ({
+const navigationHistoryStore = createStore<NavigationHistoryState>((set) => ({
   entries: [],
   index: -1,
   recordPush: (url) =>
@@ -49,6 +50,38 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>((set) =>
   recordAppend: (url) => set((s) => ({ entries: [...s.entries, url], index: s.entries.length })),
   reset: (url) => set({ entries: [url], index: 0 }),
 }));
+
+// NOTE: The Next.js app router calls history.pushState from useInsertionEffect,
+// and the sync records it right there. Notifying React subscribers in the same
+// call schedules an update inside the insertion phase, which React rejects
+// ("useInsertionEffect must not schedule updates"). The state itself still
+// changes synchronously — the sync reads it back on the next push — and only
+// the notification waits for a microtask, after the commit has finished.
+const deferredSubscribe: StoreApi<NavigationHistoryState>['subscribe'] = (listener) =>
+  navigationHistoryStore.subscribe((state, previous) => {
+    queueMicrotask(() => listener(state, previous));
+  });
+
+const reactFacingStore: StoreApi<NavigationHistoryState> = {
+  ...navigationHistoryStore,
+  subscribe: deferredSubscribe,
+};
+
+/**
+ * Reads the navigation history store from a component (with a selector), or
+ * from anywhere via `.getState()` / `.setState()` like a regular zustand store.
+ *
+ * @param selector - Picks the slice to subscribe to / 購読する値を選ぶ関数
+ * @returns The selected value / 選んだ値
+ */
+export const useNavigationHistoryStore = Object.assign(
+  <T>(selector: (state: NavigationHistoryState) => T): T => useStore(reactFacingStore, selector),
+  {
+    getState: navigationHistoryStore.getState,
+    setState: navigationHistoryStore.setState,
+    subscribe: navigationHistoryStore.subscribe,
+  },
+);
 
 /**
  * Whether there is an in-app entry before the current one.
