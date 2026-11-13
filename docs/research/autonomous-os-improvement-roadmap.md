@@ -4,6 +4,9 @@
 > 2023–2026年の一次情報(arXiv/公式ブログ/学会採録)調査に基づく。
 > 各提案は「現状の実装 → 研究的根拠 → 具体的な変更」の形で記述。
 
+> [!NOTE]
+> この文書の「現状」は 2026-07 時点の記述で、その後の実装は反映していない。2026-11 時点で、phase critic は既定で有効（opt-out、`rapitas-backend/services/workflow/phase-critic/phase-critic.ts`）になり、敵対的レビューは単一ジャッジから二人の陪審に変わった（ADR-0008、`adversarial-diff-review.ts`）。
+
 ---
 
 ## 0. エグゼクティブサマリー
