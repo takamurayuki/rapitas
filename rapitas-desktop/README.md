@@ -37,14 +37,9 @@ cd ../rapitas-backend
 bun install
 ```
 
-### 2. アイコンの生成
+### 2. アイコン
 
-1024x1024以上の正方形PNG画像を用意し、以下を実行:
-
-```bash
-cd rapitas-desktop
-npx tauri icon path/to/your-icon.png
-```
+アイコンはリポジトリに含まれているため、通常は生成し直す必要はない。元画像 `src-tauri/icons/app-icon-master.png` を変えた場合は `scripts/render-small-icons.py` で各サイズを描き直す。手順と出力先は [`src-tauri/icons/README.md`](src-tauri/icons/README.md) を参照。
 
 ### 3. 開発サーバーの起動
 
@@ -55,11 +50,12 @@ pnpm run dev
 
 `pnpm run dev` は `node scripts/dev.js` を実行し、以下を行います:
 
+- チェックアウトをプライマリブランチ（`RAPITAS_PRIMARY_BRANCH`、既定 `develop`）に固定し、upstream へ fast-forward する（`scripts/dev-pull.cjs`。作業ツリーが dirty・分岐・オフラインのときは理由を表示してスキップ。`--no-pull` で無効）
 - ポート 3001/3000 に残った rapitas のプロセスを停止
 - SQLite 用 Prisma Client と初期化 SQL を生成 (`bun run db:prepare:sqlite`。スキーマ未変更ならスキップ)
 - バックエンド (`bun run dev:stable`, http://localhost:3001) を起動し、続けて Next.js 開発サーバー (http://localhost:3000) を起動
 
-Tauri ウィンドウも含めて起動する場合は `pnpm run tauri` (`tauri dev`) を使います。`src-tauri/tauri.conf.json` の `beforeDevCommand` が `node scripts/dev.js` を実行するため、上記のサーバー起動も同時に行われます。
+Tauri ウィンドウも含めて起動する場合は `pnpm run tauri`（`scripts/dep-sync.cjs --only desktop` の後に `tauri dev`）を使います。`src-tauri/tauri.conf.json` の `beforeDevCommand` が `node scripts/dev.js` を実行するため、上記のサーバー起動も同時に行われます。
 
 ## ビルド
 
@@ -73,7 +69,7 @@ pnpm run build   # tauri build --features custom-protocol -c src-tauri/tauri.bui
 
 - Windows: `.msi`, `.exe`
 - macOS: `.dmg`, `.app`
-- Linux: `.deb`, `.AppImage`
+- Linux: `.deb`, `.rpm`
 
 ## アーキテクチャ
 
@@ -86,12 +82,18 @@ rapitas-desktop/
 │   ├── capabilities/     # 権限設定
 │   ├── icons/            # アプリアイコン
 │   └── src/
-│       └── main.rs       # Rustエントリーポイント
+│       ├── main.rs       # Rustエントリーポイント
+│       ├── sidecar_launch.rs, sidecar_policy.rs, sidecar_job.rs  # バックエンド sidecar の起動と監視
+│       ├── terminal.rs   # 統合ターミナルの PTY
+│       ├── app_icon.rs   # トレイ・ウィンドウアイコン
+│       └── ...           # ショートカット、音声入力、ポモドーロ窓など
 ```
+
+Rust 側に置く責務（OS とプロセス寿命に関わる処理だけ）は [ADR-0010](../docs/adr/0010-desktop-rust-boundary.md) で決めている。
 
 ## Web版との違い
 
-- **バックエンド**: デスクトップ版はアプリ起動時にバックエンドを自動起動
+- **バックエンド**: リリースビルドはバックエンドを sidecar として起動し監視する。終了すると back-off を挟んで再起動し（終了コード 75 は即時）、2 分間に 5 回落ちたら再起動をやめて通知する（`src-tauri/src/sidecar_policy.rs`）。Windows では Job Object に入れ、アプリ終了時に子プロセスごと止まる
 - **セキュリティ**: ローカルで動作するため、APIキーなどがサーバーに送信されない
 - **パフォーマンス**: WebView2/WKWebViewを使用し、ネイティブに近い速度
 - **オフライン**: バックエンドがローカルで動作するため、ネット接続不要（AIエージェント実行時を除く）
