@@ -67,13 +67,18 @@ function defaultRun(command, args, options) {
   });
 }
 
-/** Last non-empty stderr line, for a one-line reason. */
-function lastLine(text) {
+/**
+ * One-line reason from git's stderr: the first `fatal:`/`error:` line, since
+ * git often follows it with hint lines ("Please make sure you have the
+ * correct access rights / and the repository exists.") that explain nothing
+ * on their own. Falls back to the first non-empty line.
+ */
+function reasonLine(text) {
   const lines = String(text || '')
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-  return lines.length ? lines[lines.length - 1] : '';
+  return lines.find((l) => /^(fatal|error):/.test(l)) || lines[0] || '';
 }
 
 /**
@@ -91,7 +96,7 @@ async function pullOnLaunch(options) {
 
   const inside = await git(['rev-parse', '--is-inside-work-tree']);
   if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
-    return { action: SKIPPED_NOT_A_REPO, reason: lastLine(inside.stderr) };
+    return { action: SKIPPED_NOT_A_REPO, reason: reasonLine(inside.stderr) };
   }
 
   const branchOut = await git(['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -130,7 +135,7 @@ async function pullOnLaunch(options) {
       action: SKIPPED_OFFLINE,
       branch,
       upstream,
-      reason: lastLine(fetch.stderr) || `git fetch exited ${fetch.code}`,
+      reason: reasonLine(fetch.stderr) || `git fetch exited ${fetch.code}`,
     };
   }
 
@@ -161,7 +166,7 @@ async function pullOnLaunch(options) {
       upstream,
       from,
       to,
-      reason: lastLine(merge.stderr) || `git merge exited ${merge.code}`,
+      reason: reasonLine(merge.stderr) || `git merge exited ${merge.code}`,
     };
   }
 

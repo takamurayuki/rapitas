@@ -184,7 +184,8 @@ describe('pullOnLaunch against real repositories', () => {
     const result = await pullOnLaunch({ repoRoot: r.local, run: hermeticRun });
 
     assert.equal(result.action, SKIPPED_OFFLINE);
-    assert.ok(result.reason.length > 0);
+    // The fatal line, not git's trailing "and the repository exists." hint.
+    assert.match(result.reason, /^fatal:/);
     assert.equal(git(r.local, 'rev-parse', 'HEAD'), before);
   });
 
@@ -235,7 +236,10 @@ describe('pullOnLaunch decisions with a fake runner', () => {
         return {
           code: 128,
           stdout: '',
-          stderr: 'fatal: unable to access: Could not resolve host\n',
+          stderr:
+            'fatal: unable to access: Could not resolve host\n' +
+            'Please make sure you have the correct access rights\n' +
+            'and the repository exists.\n',
         };
       throw new Error(`unexpected git ${a.join(' ')}`);
     };
