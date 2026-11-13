@@ -174,14 +174,14 @@
 
 | 機能観点 | rapitas | 競合 A (例: Devin) | 競合 B (例: Linear) | 競合 C (例: Notion) |
 | --- | --- | --- | --- | --- |
-| 自律エンジニアリングエージェント | ✅ Multi-CLI (Claude/Codex/Gemini) | ✅ 独自 | ❌ | ❌ |
-| 階層タスク管理 | ✅ Cat/Theme/Task/Subtask | ❌ | ✅ Project/Issue/SubIssue | ✅ Page hierarchy |
-| 5-role workflow | ✅ | 部分的 | ❌ | ❌ |
-| RAG / Knowledge graph | ✅ | ❌ | ❌ | 部分的 |
-| ローカル DB (SQLite) | ✅ Tauri | ❌ | ❌ | ❌ |
-| プロンプト自動進化 | ✅ PromptEvolution | ❌ | ❌ | ❌ |
-| ポモドーロ / Habit | ✅ | ❌ | ❌ | プラグイン依存 |
-| 音声書き起こし入力 | ✅ | ❌ | ❌ | ❌ |
+| 自律エンジニアリングエージェント | あり（Multi-CLI: Claude / Codex / Gemini） | あり（独自） | なし | なし |
+| 階層タスク管理 | あり（Cat/Theme/Task/Subtask） | なし | あり（Project/Issue/SubIssue） | あり（Page hierarchy） |
+| 5-role workflow | あり | 部分的 | なし | なし |
+| RAG / Knowledge graph | あり | なし | なし | 部分的 |
+| ローカル DB (SQLite) | あり（Tauri） | なし | なし | なし |
+| プロンプト自動進化 | あり（PromptEvolution） | なし | なし | なし |
+| ポモドーロ / Habit | あり | なし | なし | プラグイン依存 |
+| 音声書き起こし入力 | あり | なし | なし | なし |
 
 ## カテゴリ別 改善アクション（定量・具体）
 
