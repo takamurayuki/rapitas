@@ -9,6 +9,7 @@
 
 | スクリプト | npm script | 概要 |
 |---|---|---|
+| `insensitive-mode.ts` | なし（`bun run scripts/codemods/insensitive-mode.ts` で直接実行） | Pattern A（`isPostgres ? { mode: 'insensitive' } : {}`）を `getInsensitiveMode()` 呼び出しに置換し import を追加。Pattern B は manualReview に報告するだけ |
 | `insensitive-spread.ts` | `codemod:insensitive-spread` | Pattern B1（中間変数 `const insensitive = getInsensitiveMode()`）をスプレッドにインライン化 |
 | `prefer-test-each.ts` | `codemod:test-each` | 同一 matcher の `expect` が 3 つ以上並ぶテストブロックを `test.each` 形式に変換（`codemod:all` には含まれない） |
 | `spec-array.ts` | `codemod:spec-array` | `JSON.parse(x \|\| '[]')` → `parseSpecArray(x)` に置換 |
@@ -151,12 +152,14 @@ export function transformMyCodemod({ filePath, content }: TransformInput): Trans
   return { newContent, changed, manualReview };
 }
 
-// スクリプトとして直接実行された場合のエントリポイント
-runCodemod(transformMyCodemod, {
-  roots: [join(__dirname, '../../')],
-  label: '<name>',
-  write: process.argv.includes('--write'),
-});
+// スクリプトとして直接実行された場合だけ走らせる。テストが import したときに書き換えが始まらないようにするため
+if (import.meta.main) {
+  runCodemod(transformMyCodemod, {
+    roots: [join(__dirname, '../../')],
+    label: '<name>',
+    write: process.argv.includes('--write'),
+  });
+}
 ```
 
 ### 2. テストを追加する
