@@ -56,7 +56,7 @@ bun run dev
 
 開発サーバー起動後、以下のURLでSwagger UIを確認できます：
 
-- http://localhost:3001/swagger
+- http://localhost:3001/api/docs
 
 ## テスト
 
