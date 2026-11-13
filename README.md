@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache License 2.0"/></a>
   <img src="https://img.shields.io/badge/Tauri-2.x-24C8DB.svg" alt="Tauri 2"/>
   <img src="https://img.shields.io/badge/Bun-1.3-fbf0df.svg" alt="Bun 1.3"/>
   <img src="https://img.shields.io/badge/Next.js-16-black.svg" alt="Next.js 16"/>
@@ -146,4 +146,4 @@ Full setup (Web/PostgreSQL build, individual processes, commands, troubleshootin
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE)
