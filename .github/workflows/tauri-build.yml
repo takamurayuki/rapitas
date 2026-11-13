@@ -23,6 +23,12 @@ env:
   BUN_LOCKFILE_SKIP: true  # Skip lockfile validation in CI
   NEXT_TURBO: 0  # Disable Turbopack globally in CI
 
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build (${{ matrix.platform }})
@@ -62,16 +68,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          # NOTE: zizmor cache-poisoning. This workflow publishes a release on a
+          # tag push, and a cache written by any branch/PR run could be restored
+          # into that release build. Never use a cache for release builds.
+          package-manager-cache: false
 
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ matrix.bunjs_version }}
+          no-cache: ${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -84,6 +97,8 @@ jobs:
         continue-on-error: true
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
+          # Release (tag) builds must not restore a cache another run wrote.
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install system dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-latest'
@@ -116,7 +131,9 @@ jobs:
             libgcc-s1
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.34.9
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.9
 
       - name: Get pnpm store directory
         id: pnpm_cache_dir
@@ -131,6 +148,8 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-v2-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-v2-
+          # Release (tag) builds must not restore a cache another run wrote.
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
@@ -174,6 +193,10 @@ jobs:
       - name: Build backend binary (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: rapitas-backend
+        # Explicit, not a change: pwsh is already the default shell on Windows
+        # runners. Without it actionlint cannot tell (runs-on is a matrix value)
+        # and lints this PowerShell as bash.
+        shell: pwsh
         env:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
@@ -384,8 +407,10 @@ jobs:
           # Mirror the installed layout: engine beside the exe + explicit path
           # (release.rs does the same at runtime).
           cp generated/prisma-sqlite/*query_engine*.node "$SMOKE_DIR/"
-          ENGINE=$(ls "$SMOKE_DIR"/*query_engine*.node | head -1)
-          cd "$SMOKE_DIR"
+          # First match in glob (sorted) order, as `ls | head -1` gave (SC2012).
+          engines=("$SMOKE_DIR"/*query_engine*.node)
+          ENGINE="${engines[0]}"
+          cd "$SMOKE_DIR" || exit 1
 
           PRISMA_QUERY_ENGINE_LIBRARY="$ENGINE" \
           RAPITAS_DB_PROVIDER=sqlite \
@@ -436,7 +461,8 @@ jobs:
           echo ""
           echo "Checking build output..."
           if [ -d "out" ]; then
-            echo "✓ out directory exists with $(ls -1 out | wc -l) files"
+            # Same count as `ls -1 out | wc -l`: top-level, dotfiles excluded (SC2012).
+            echo "✓ out directory exists with $(find out -mindepth 1 -maxdepth 1 ! -name '.*' | wc -l) files"
             count=0
             for entry in out/* out/.[!.]* out/..?*; do
               [ -e "$entry" ] || continue
@@ -474,6 +500,10 @@ jobs:
       - name: Prepare desktop build (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: rapitas-desktop
+        # Explicit, not a change: pwsh is already the default shell on Windows
+        # runners. Without it actionlint cannot tell (runs-on is a matrix value)
+        # and lints this PowerShell as bash.
+        shell: pwsh
         run: |
           pnpm run ci:prepare
 
@@ -503,6 +533,10 @@ jobs:
       - name: Verify backend binary before configuration (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: rapitas-desktop
+        # Explicit, not a change: pwsh is already the default shell on Windows
+        # runners. Without it actionlint cannot tell (runs-on is a matrix value)
+        # and lints this PowerShell as bash.
+        shell: pwsh
         run: |
           echo "Checking binaries directory content before configuration:"
           if (Test-Path "src-tauri/binaries") {
@@ -673,10 +707,16 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # Publishing a release needs contents: write. The repository's default token
+    # is read-only, so this job could not create the release without it.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Download all artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -691,7 +731,10 @@ jobs:
           set -e
           VERSION="${GITHUB_REF#refs/tags/v}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          REPO_BASE="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+          # GITHUB_REPOSITORY / GITHUB_REF_NAME are the runner's own env vars with
+          # the same values; reading them keeps the tag name out of the script
+          # text (zizmor template-injection).
+          REPO_BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
 
           read_sig() { [ -f "$1" ] && cat "$1" | base64 -w0 || echo ""; }
 
@@ -733,7 +776,11 @@ jobs:
           cat artifacts/latest.json
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        # NOTE: zizmor suggests `gh release` instead (informational). Kept: the
+        # `artifacts/**` globs, generated notes and create-or-update behaviour
+        # would all have to be re-implemented in shell, and the swap cannot be
+        # exercised without pushing a release tag.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2 # zizmor: ignore[superfluous-actions]
         with:
           draft: false
           prerelease: false

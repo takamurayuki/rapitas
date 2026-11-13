@@ -14,6 +14,12 @@ on:
       - '.github/workflows/**'
       - '.github/actionlint.yml'
 
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
 jobs:
   actionlint:
     name: Lint GitHub Actions workflows
@@ -27,6 +33,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Run actionlint
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2

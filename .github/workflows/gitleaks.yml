@@ -14,6 +14,12 @@ on:
   schedule:
     - cron: '0 0 * * 1'  # Weekly on Monday
 
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
 jobs:
   gitleaks:
     name: Secret scanning
@@ -28,6 +34,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Run gitleaks
