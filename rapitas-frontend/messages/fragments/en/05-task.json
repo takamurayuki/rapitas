@@ -322,6 +322,14 @@
       "createFailedError": "Failed to create template",
       "genericError": "An error occurred"
     },
+    "acceptanceCriteriaSection": {
+      "heading": "Completion criteria",
+      "juryHeading": "Checked by the jury",
+      "juryEmpty": "None (this task has only checks for you to make).",
+      "juryNote": "The completion gate and the jury judge completion against these criteria.",
+      "userHeading": "Checked by you",
+      "userNote": "Not used by the jury. These are for you to check once you see the result."
+    },
     "compactTaskDetailCard": {
       "titleAriaLabel": "Task title",
       "unprotectTitle": "Remove protection",
