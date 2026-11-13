@@ -16,8 +16,12 @@ tauri-build = { version = "2.5", features = [] }
 # 2.10.x. link_webview.rs needs it so a note's link can be read in a pane
 # instead of the external browser; an iframe cannot do that job because sites
 # sending X-Frame-Options render blank. Outside tauri's semver guarantee, so a
-# tauri bump must be checked against link_webview.rs before it lands.
-tauri = { version = "2.10.1", features = [
+# tauri bump must be checked against link_webview/ before it lands.
+# NOTE: pinned to >= 2.12.4, not 2.10.1: the in-app browser's boundary relies
+# on 2.12.4 behaviour absent from 2.10.1 — remote-origin IPC being checked
+# against the ACL for app commands too, and `on_permission_request` (nav60
+# §5.2-5). Declared here so `cargo update --precise` cannot quietly undo it.
+tauri = { version = "2.12.4", features = [
   "tray-icon",
   "image-png",
   "macos-private-api",

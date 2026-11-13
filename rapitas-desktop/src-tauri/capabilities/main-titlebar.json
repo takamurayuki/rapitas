@@ -1,6 +1,6 @@
 {
   "identifier": "main-titlebar",
   "description": "Allow the main Windows titlebar to manage native decorations after its controls mount",
-  "windows": ["main"],
+  "webviews": ["main"],
   "permissions": ["core:window:allow-set-decorations", "core:window:allow-toggle-maximize"]
 }
