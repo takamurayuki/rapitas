@@ -4,7 +4,7 @@
 > wired up and running in rapitas today, with file-level evidence for each
 > claim. This is not a design aspiration document — every mechanism below is
 > load-bearing code, not a stub. Paths are relative to the repo root
-> (`C:\Projects\rapitas`) unless noted; backend paths omit the
+> unless noted; backend paths omit the
 > `rapitas-backend/` prefix where the section already states it.
 >
 > For the full execution-lifecycle deep dive (worktree isolation → quality
@@ -18,9 +18,10 @@
 ## 1. Verify / self-repair loop + convergence metric
 
 A task's `verify.md` is not trusted at face value. `runVerificationGate`
-(`rapitas-backend/services/agents/orchestrator/...`, detailed in the deep
-dive above) runs ESLint + `tsc --noEmit` + scoped tests against the actual
-diff. When the gate — or the verifier's own self-reported result — fails,
+(`rapitas-backend/services/agents/verification/verification-gate.ts`, detailed
+in the deep dive above) runs ESLint, Prettier, `tsc --noEmit` and scoped tests
+against the actual diff, plus the coverage, red-state, tamper, scope,
+file-size and runtime-smoke checks. When the gate — or the verifier's own self-reported result — fails,
 `services/workflow/verify-self-repair.ts` (`attemptVerifyRepair`) bounces the
 task back to the **implementer** phase with the failure written into
 `verify.md` as feedback, instead of blocking outright. A sibling mechanism,
@@ -45,25 +46,27 @@ the agent metrics dashboard (`rapitas-frontend/src/app/agents/metrics/`).
 
 ---
 
-## 2. Adversarial cross-provider diff review
+## 2. Adversarial diff review (two-reviewer jury)
 
 Before a task is allowed to complete, `services/agents/verification/adversarial-diff-review.ts`
-(`reviewDiffAdversarially`) sends the task's final diff (capped at 14,000
-chars via `getDiff`) plus `plan.md` and its acceptance criteria to an
-**independent LLM judge**, asking for a strict pass/fail verdict with
-severity and reasons in Japanese.
+(`reviewDiffAdversarially`) has the task's final diff judged against `plan.md`
+and its acceptance criteria by reviewers that did not write it. The diff text
+is built by `jury-diff-text.ts`, capped at 48,000 characters
+(`MAX_DIFF_CHARS`) with explicit per-file truncation.
 
-The judge is deliberately **not** the same provider that implemented the
-task where avoidable: `JUDGE_PROVIDERS = ['claude', 'gemini', 'chatgpt']`
-puts the implementer's own provider last, falling back through the others —
-a cross-provider bias mitigation, not just a second opinion from the same
-model family. The reply parser (`parseReviewVerdict`) tolerantly extracts a
-JSON verdict block and defaults to `'unknown'` on anything unparsable.
+Two blind reviewer seats judge independently (`two-seat-jury-run.ts`). When
+they agree, that settles the verdict. Only when they disagree does a
+non-voting verifier seat check the grounds of the disputed findings. This
+replaced a three-seat majority vote (owner decision 2026-11-10; background in
+[ADR-0008](adr/0008-jury-of-claude-models.md)). Seat models and the provider
+order (`JUDGE_PROVIDERS`, used when more than one vendor is reachable) are in
+`jury-panel.ts`. Per-juror verdicts are written to the timeline.
 
-**Fail-open by design**: any judge/infra error, or the feature flag
-`RAPITAS_ADVERSARIAL_REVIEW=0`, returns `verdict: 'unknown'` rather than
-blocking the task — a broken judge integration can never dead-end a task
-that's otherwise done. Default: **on**.
+On FAIL the workflow goes back to the implementer. When no reviewer produced a
+verdict, or the review errored, the outcome depends on risk
+(`jury-unavailable-outcome.ts`): low-risk work proceeds as `'unknown'`, and
+high-risk work becomes `'hold'`, parked for a human. Default: **on**; set
+`RAPITAS_ADVERSARIAL_REVIEW` to `0`, `false` or `off` to skip it.
 
 ---
 
@@ -80,14 +83,16 @@ pricing are looked up, not baked in), and returns a `RoutingDecision`
 A same-phase retry (a re-queued execution, a discovery-cache rollover, a
 provider-cooldown flap) must not silently switch models mid-phase —
 `services/ai/model-route-stability.ts` pins the router's decision per
-`taskId:role:minTier` in an in-process cache (`getStableSmartRoute`) for the
-life of the backend process, and exposes `invalidateStableRoute()` for a
-_deliberate_ re-route (e.g. a genuine provider failure). This is
-process-memory only — a backend restart resets pinned routes, an accepted
-discontinuity.
+task, role and tier constraints (`minTier`, `capTier`, `hardCapTier`) for up to
+`PIN_TTL_MS` (24 hours) via `getStableSmartRoute`, and exposes
+`invalidateStableRoute()` for a _deliberate_ re-route (e.g. a genuine provider
+failure, from `services/workflow/workflow-provider-fallback.ts`). The pin is
+kept in memory and also written to the timeline as a `model_route_pin` event,
+so it survives a backend restart; reading or writing it fails open to a fresh
+routing decision.
 
-Wired into `services/workflow/workflow-orchestrator.ts` (~lines 562-654):
-when a phase's `modelId === 'auto'`, the orchestrator computes escalation
+Wired in through `services/workflow/role-route-inputs.ts` (`routeModelForRole`):
+when a phase's `modelId === 'auto'`, it computes escalation
 (`queueItem.retryCount` + `outcome-telemetry.ts`'s
 `recentThemeEscalation`) and a risk floor (`services/workflow/routing-policy.ts`
 — schema/auth/payment/security work forces a premium-tier floor via
@@ -250,8 +255,7 @@ This is an inventory of what runs today, not a roadmap. Known open gaps
 
 - `eval-judge.ts` persists only the **latest** run (no historical accuracy
   trend across runs) — see `services/observability/eval-judge-results.ts`.
-- The route-stability cache (§3) is process-memory only; it does not survive
-  a backend restart.
-- The adversarial judge (§2) is fail-open: a disabled or broken judge never
-  blocks completion, which is a deliberate trade-off (availability over a
-  false negative), not a gap — noted here so it isn't mistaken for one.
+- The adversarial review (§2) fails open only for low-risk work: when no
+  reviewer gives a verdict, low-risk work proceeds as `'unknown'`, while
+  high-risk work is held for a human (`'hold'`). This is a deliberate
+  trade-off, not a gap.
