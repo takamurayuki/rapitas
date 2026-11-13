@@ -23,8 +23,8 @@ export function useThemeSetup(t: (key: string) => string) {
   // Primary AI agent the scaffolded repo targets — decides the guide file's
   // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
   const [agentTargetId, setAgentTargetId] = useState<string>(AGENT_TARGETS[0].id);
-  // Empty means "let the backend decide": category falls back to 開発, and
-  // basePath falls back to ~/Projects.
+  // Empty means "let the backend decide": category falls back to 開発 (or another
+  // development-mode category once 開発 is deleted), and basePath to ~/Projects.
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [basePath, setBasePath] = useState<string>('');
   const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
@@ -69,7 +69,11 @@ export function useThemeSetup(t: (key: string) => string) {
         // route returns Japanese prose that would otherwise leak into an
         // English UI regardless of the user's locale setting.
         setSetupPhase('error');
-        setSetupError(t('themeCreateError'));
+        // category_required: no category picked and no development-mode
+        // category left to fall back to (the user deleted 開発).
+        setSetupError(
+          data.code === 'category_required' ? t('themeCategoryRequired') : t('themeCreateError'),
+        );
       }
     } catch {
       setSetupPhase('error');
