@@ -87,10 +87,6 @@ vi.mock('next-intl', () => ({
 }));
 
 // Mock components
-vi.mock('@/components/common/app-icon', () => ({
-  default: () => <div data-testid="app-icon" />,
-}));
-
 vi.mock('@/feature/tasks/pomodoro/GlobalPomodoroWidget', () => ({
   default: () => <div data-testid="pomodoro-widget" />,
 }));

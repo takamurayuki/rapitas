@@ -71,13 +71,6 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, _params?: Record<string, string>) => key,
 }));
 
-// Mock components
-vi.mock('@/components/common/app-icon', () => ({
-  default: ({ size, className }: { size?: number; className?: string }) => (
-    <div data-testid="app-icon" />
-  ),
-}));
-
 vi.mock('@/feature/tasks/pomodoro/GlobalPomodoroWidget', () => ({
   default: () => <div data-testid="pomodoro-widget" />,
 }));
@@ -185,11 +178,14 @@ describe('Header', () => {
       expect(header).toBeInTheDocument();
     });
 
-    it('renders the app icon', () => {
+    it('renders the Rapi+ wordmark as the home link without an icon', () => {
       render(<Header />);
-      // AppIcon appears in both header and sidebar nav
-      const icons = screen.getAllByTestId('app-icon');
-      expect(icons.length).toBeGreaterThanOrEqual(1);
+      const wordmark = screen.getByText('Rapi+');
+      expect(wordmark.closest('a')).toHaveAttribute('href', '/');
+      // The wordmark is the only content of the home link, so it must stay
+      // visible at every width (no `hidden` / `sm:inline` breakpoint gating).
+      expect(wordmark.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(screen.queryByTestId('app-icon')).not.toBeInTheDocument();
     });
 
     it('renders the menu button', () => {
