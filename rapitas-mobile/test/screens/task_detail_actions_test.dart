@@ -317,21 +317,28 @@ void main() {
       expect(find.text('タイトルを編集'), findsNothing);
     });
 
-    testWidgets('description: multi-line raw Markdown, saved as description', (tester) async {
-      final world = _World(task: _task(description: '- 手順1\n- **手順2**'));
+    testWidgets('description: raw Markdown saved verbatim, whitespace included', (tester) async {
+      final world = _World(task: _task(description: '    code\n- **手順2**'));
       await _pump(tester, world);
 
       await _doubleTap(tester, find.byKey(const ValueKey('task-inline-description')));
       expect(find.text('説明を編集'), findsOneWidget);
       final field = find.byKey(const ValueKey('task-inline-edit-field'));
-      expect(tester.widget<TextField>(field).controller!.text, '- 手順1\n- **手順2**');
+      expect(tester.widget<TextField>(field).controller!.text, '    code\n- **手順2**');
       expect(tester.widget<TextField>(field).maxLines, greaterThan(1));
 
-      await tester.enterText(field, '- 手順1\n- 手順3');
-      await tester.tap(find.byKey(const ValueKey('task-inline-edit-save')));
+      final save = find.byKey(const ValueKey('task-inline-edit-save'));
+      await tester.enterText(field, '    code2\n- 手順3');
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      // a whitespace-only change (indent the list item) is still a change
+      await _doubleTap(tester, find.byKey(const ValueKey('task-inline-description')));
+      await tester.enterText(field, '    code\n  - **手順2**');
+      await tester.tap(save);
       await tester.pumpAndSettle();
       expect(world.tasks.updates, [
-        {'description': '- 手順1\n- 手順3'}
+        {'description': '    code2\n- 手順3'},
+        {'description': '    code\n  - **手順2**'},
       ]);
     });
 

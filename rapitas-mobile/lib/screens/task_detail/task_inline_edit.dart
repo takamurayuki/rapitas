@@ -36,7 +36,9 @@ class TaskInlineEditable extends ConsumerWidget {
       context: context,
       builder: (_) => TaskFieldEditDialog(field: field, initialValue: initialValue),
     );
-    if (next == null || next == initialValue.trim() || !context.mounted) return;
+    // NOTE: Only the title is trimmed; description whitespace is Markdown (indented code etc.).
+    final current = field == TaskInlineField.title ? initialValue.trim() : initialValue;
+    if (next == null || next == current || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     // 保存中に画面を離れても読み直せるよう、await の前にコンテナを捕捉する
     final container = ProviderScope.containerOf(context, listen: false);
@@ -56,7 +58,8 @@ String _label(TaskInlineField field) =>
     field == TaskInlineField.title ? 'タイトル' : '説明';
 
 /// タイトル（1行）／説明（複数行・Markdown 原文）の編集ダイアログ。
-/// 保存で前後の空白を除いた値を返し、キャンセルなら null。空タイトルは保存できない。
+/// 保存でタイトルは前後の空白を除いた値、説明は入力原文のまま返し、キャンセルなら null。
+/// 空タイトルは保存できない。
 class TaskFieldEditDialog extends StatefulWidget {
   final TaskInlineField field;
   final String initialValue;
@@ -82,7 +85,8 @@ class _TaskFieldEditDialogState extends State<TaskFieldEditDialog> {
 
   void _save() {
     if (!_canSave) return;
-    Navigator.pop(context, _controller.text.trim());
+    // NOTE: Description is returned verbatim — trimming would break Markdown indentation.
+    Navigator.pop(context, _isTitle ? _controller.text.trim() : _controller.text);
   }
 
   @override
