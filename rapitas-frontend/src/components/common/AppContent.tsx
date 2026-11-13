@@ -80,7 +80,7 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
 
   return (
     <div
-      className="transition-[padding] duration-200 ease-out"
+      className="app-page-content transition-[padding] duration-200 ease-out"
       style={{
         paddingRight: rightVw ? `${rightVw}vw` : undefined,
         paddingLeft: leftVw ? `${leftVw}vw` : undefined,

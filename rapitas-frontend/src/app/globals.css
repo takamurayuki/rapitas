@@ -1278,30 +1278,73 @@ iframe:not([src='']) + .iframe-loading {
    an actual POST success — not this ambient header flash). Not a revert of
    this removal — see ui-design-language.md §5, 2026-07-25. */
 
-/* Blank desktop caption: reserve the same space as the removed native frame.
-   Keep the document as the scroll root (no transformed wrapper around panels). */
-html[data-desktop-frame='caption'] body {
-  padding-top: 32px;
+/* One shared geometry for the caption, header, navigation and content.
+   The 32px caption includes its divider; only page content can scroll. */
+html[data-desktop-frame] {
+  --desktop-titlebar-height: 0px;
+  --app-header-height: 0px;
+  --app-viewport-height: calc(100dvh - var(--desktop-titlebar-height));
+  --app-chrome-bottom: calc(var(--desktop-titlebar-height) + var(--app-header-height));
+  height: 100%;
+  overflow: hidden;
+}
+html[data-desktop-frame='caption'] {
+  --desktop-titlebar-height: 32px;
+}
+html[data-desktop-frame]:has(.app-main-header) {
+  --app-header-height: calc(4rem + 1px);
+}
+html[data-desktop-frame] body {
+  box-sizing: border-box;
+  height: 100dvh;
+  padding-top: var(--desktop-titlebar-height);
+  overflow: hidden;
 }
 .desktop-titlebar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
+  box-sizing: border-box;
   height: 32px;
+  border-bottom: 1px solid #e4e4e7;
   z-index: 2147483647;
 }
-html[data-desktop-frame='caption'] .app-main-header,
-html[data-desktop-frame='caption'] .fixed.top-0,
-html[data-desktop-frame='caption'] .fixed.inset-0 {
-  top: 32px;
+html.dark .desktop-titlebar {
+  border-bottom-color: #3f3f46;
 }
-html[data-desktop-frame='caption'] .fixed.top-16 {
-  top: calc(4rem + 32px);
+html[data-desktop-frame] .app-main-header,
+html[data-desktop-frame] .fixed.top-0,
+html[data-desktop-frame] .fixed.inset-0 {
+  top: var(--desktop-titlebar-height);
 }
-html[data-desktop-frame='caption'] .h-screen {
-  height: calc(100vh - 32px);
+html[data-desktop-frame] .fixed.top-16 {
+  top: var(--app-chrome-bottom);
 }
-html[data-desktop-frame='caption'] .min-h-screen {
-  min-height: calc(100vh - 32px);
+html[data-desktop-frame] .app-page-content {
+  height: calc(100dvh - var(--app-chrome-bottom));
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+/* Existing viewport-sized pages already own an inner scroller. Account for
+   the caption as well, so they fit inside app-page-content rather than adding
+   a second scrollbar. Retain each page's existing header allowance. */
+html[data-desktop-frame] .h-screen {
+  height: calc(100dvh - var(--app-chrome-bottom));
+}
+html[data-desktop-frame] .min-h-screen {
+  min-height: calc(100dvh - var(--app-chrome-bottom));
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-4rem)]'] {
+  height: calc(var(--app-viewport-height) - var(--app-header-height));
+}
+html[data-desktop-frame] [class~='min-h-[calc(100vh-4rem)]'] {
+  min-height: calc(var(--app-viewport-height) - var(--app-header-height));
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-4.2rem)]'] {
+  height: calc(var(--app-viewport-height) - 4.2rem);
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-5rem)]'] {
+  height: calc(var(--app-viewport-height) - 5rem);
 }
