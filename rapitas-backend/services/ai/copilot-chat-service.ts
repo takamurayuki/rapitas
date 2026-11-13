@@ -30,6 +30,9 @@ import type { AIMessage } from '../../utils/ai-client';
 // criteria, workflow stage, halt reason and recent transitions).
 import { buildTaskContext } from './copilot-task-context';
 import { matchCopilotIntent, respondToIntent } from './copilot-intent-responder';
+// NOTE: Task conversations and task-free conversations speak under different
+// system prompts (see copilot-system-prompts for why).
+import { selectCopilotSystemPrompt } from './copilot-system-prompts';
 
 const log = createLogger('copilot-chat');
 
@@ -57,19 +60,6 @@ export function selectModelTier(message: string): { model: string; tier: string 
   // Sonnet for complex analysis.
   return { model: 'claude-sonnet-4-6', tier: 'standard' };
 }
-
-const SYSTEM_PROMPT = `あなたはrapitasタスク管理アプリのAIコパイロットです。
-ユーザーのタスクに関する質問に、簡潔で実用的な回答をしてください。
-
-ルール:
-- 日本語で回答
-- タスクの文脈が提供された場合、それを踏まえて回答
-- 「過去の失敗パターンに基づく警告」「関連する成功パターン」「関連する既存ナレッジ」が提供された場合は、必ずそれを根拠として具体的に助言する
-- 「完了条件」「ワークフローの段階」「停止中」「直近の遷移」が提供された場合、完了条件や進み具合（今どこか・あと何が残っているか）を聞かれたら、必ずそれを根拠に答える。提供されていないことは推測で補わない
-- 完了したかどうかはラピが宣言しない（完了の判定は完了ゲートと陪審が行う）
-- 実装の提案は具体的なステップで
-- 不明な点は確認を求める
-- 200-400文字程度を目安に簡潔に`;
 
 export interface CopilotChatOptions {
   message: string;
@@ -118,9 +108,11 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
     }
   }
 
-  // 1. Check cache
+  // 1. Check cache. The system prompt is part of the key, so task and
+  // task-free answers to the same message never share an entry.
+  const systemPrompt = selectCopilotSystemPrompt(taskId);
   const cacheMessages = [{ role: 'user', content: contextPrompt }];
-  const cacheKey = generateCacheKey('copilot', 'auto', SYSTEM_PROMPT, cacheMessages);
+  const cacheKey = generateCacheKey('copilot', 'auto', systemPrompt, cacheMessages);
   const cachedEntry = getCachedResponse(cacheKey);
   if (cachedEntry) {
     log.debug('Cache hit for copilot message');
@@ -148,7 +140,7 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
     provider: 'claude',
     model,
     messages,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     maxTokens: tier === 'economy' ? 800 : 2000,
   });
 
@@ -180,7 +172,8 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
 }
 
 /**
- * Stream a copilot chat response.
+ * Stream a copilot chat response. Uses the same task / task-free prompt split
+ * as sendCopilotMessage. Streams bypass the response cache entirely.
  */
 export async function streamCopilotMessage(
   options: CopilotChatOptions,
@@ -211,7 +204,7 @@ export async function streamCopilotMessage(
     provider: 'claude',
     model,
     messages,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: selectCopilotSystemPrompt(taskId),
     maxTokens: tier === 'economy' ? 800 : 2000,
   });
 
