@@ -2,276 +2,83 @@
 
 ## 概要
 
-コミット時にフォーマットやLintエラーが発生した場合、**自動的に修正を試み、成功すればコミットが継続されます**。修正できないエラーがある場合のみ、詳細なエラー情報が表示されます。
+コミット時の Git フックは、ステージしたファイルの整形と Lint を自動で行う。自動修正で直ればコミットはそのまま続き、直らない場合だけ詳細なエラーを表示してコミットを止める。
 
-## 🚀 自動修正の仕組み
+フックは husky で登録されている。
 
-### コミット時の処理フロー
+| フック | 実行するもの | 止める条件 |
+| --- | --- | --- |
+| `.husky/pre-commit` | `scripts/auto-fix-commit.cjs`（lint-staged と自動修正） | 自動修正後も整形・Lint エラーが残る |
+| `.husky/commit-msg` | commitlint（`commitlint.config.js`） | コミットメッセージが規約に合わない |
+| `.husky/pre-push` | `main` への直接 push の拒否と、フロントエンド・バックエンドの型チェック | `main` への push、または `tsc --noEmit` の失敗 |
 
-```bash
-git commit -m "your message"
+## lint-staged の対象
+
+ルートの `package.json` の `lint-staged` 設定で、ステージされたファイルの種類ごとに処理が決まる。
+
+| 対象 | 処理 |
+| --- | --- |
+| `rapitas-frontend/src/**/*.{ts,tsx}` | `prettier --write`、`eslint --fix`（`rapitas-frontend/eslint.config.mjs`） |
+| `rapitas-backend/**/*.ts` | `prettier --write` |
+| `rapitas-backend/prisma/**/*.prisma` | `scripts/prisma-generate-hook.cjs`（Prisma Client の再生成） |
+
+## pre-commit の処理フロー
+
+`scripts/auto-fix-commit.cjs` は次の順に処理する。
+
+```mermaid
+flowchart TD
+  A["git commit"] --> B["Step 1: npx lint-staged"]
+  B -->|成功| OK["コミット継続"]
+  B -->|lint-staged 自体が起動できない| F["scripts/pre-commit-check.cjs で代替チェック"]
+  F -->|成功| OK
+  F -->|エラーあり| C
+  B -->|整形・Lint エラー| C["自動修正<br/>フロントエンド: Prettier と ESLint --fix<br/>バックエンド: Prettier"]
+  C --> D["修正したファイルを再ステージ"]
+  D --> E["Step 2: 再検証<br/>lint-staged（使えない場合は pre-commit-check.cjs）"]
+  E -->|成功| OK
+  E -->|エラーが残る| G["pre-commit-check.cjs で詳細を表示し、コミットを中断"]
 ```
 
-**自動実行される処理:**
+エラーが残った場合の出力には、ファイル名・行番号・ESLint のメッセージと、次の対処手順が含まれる。
 
-1. **🔍 Step 1: 初回チェック**
-   - lint-staged を実行（Prettier + ESLint）
+## 自動修正できないエラーの対処
 
-2. **✅ 成功した場合**
-   - そのままコミット完了
+1. 表示されたファイルと行を確認する。改めて確認したいときは `npm run check:commit` を実行する。
+2. エラーを手で修正する。
+3. `git add` で再ステージし、もう一度 `git commit` する。自動修正は再び走る。
 
-3. **⚠️ エラーが検出された場合**
-   - 🔧 自動修正スクリプトを実行
-     - フロントエンド: Prettier + ESLint --fix
-     - バックエンド: Prettier
-   - 📦 修正したファイルを再ステージング
-4. **🔄 Step 2: 再検証**
-   - 修正後に再度 lint-staged を実行
-5. **✨ 結果**
-   - 成功 → コミット継続
-   - 失敗 → 詳細エラー表示 + コミット中断
+`git commit --no-verify` でフックを飛ばせるが、CI の Lint で同じエラーが落ちるため使わない。
 
-### 実行例
+### よくあるエラー
 
-```bash
-$ git commit -m "feat: add new feature"
+| エラー | 修正方法 |
+| --- | --- |
+| Prettier の `[warn] src/components/Example.tsx` | `cd rapitas-frontend` の後に `npx prettier --write <ファイル>` |
+| `'variableName' is assigned a value but never used` | 変数を削除する、使う、または意図的に使わないなら `_variableName` に改名する |
+| `React Hook useEffect has missing dependencies` | 依存配列に値を足す、または `useCallback` / `useMemo` で包む。eslint-disable コメントは最後の手段 |
 
-🔍 Pre-commit チェックを開始...
+## 手動コマンド
 
-📋 Step 1: lint-staged を実行中...
-⚠️  Lint/フォーマットエラーが検出されました
+| コマンド | 説明 |
+| --- | --- |
+| `npm run check:commit` | ステージ済みファイルの整形と Lint を詳しく表示する（`scripts/pre-commit-check.cjs`） |
+| `npm run lint:fix` | フロントエンドの `src` に Prettier と ESLint --fix、バックエンド全体に Prettier をかける |
+| `npm run lint:all` | フロントエンドとバックエンドの Lint を並列に実行する |
+| `cd rapitas-frontend && pnpm run lint` | フロントエンドだけ Lint する |
+| `cd rapitas-backend && bun run lint` | バックエンドだけ Lint する |
 
-📝 8個のファイルを自動修正します...
-
-🎨 フロントエンドファイルを修正中...
-  ├─ Prettier実行...
-  │  ✅ Prettier完了
-  └─ ESLint --fix 実行...
-     ✅ ESLint修正完了
-
-📦 修正したファイルを再ステージング中...
-✅ 再ステージング完了
-
-🔄 Step 2: 修正後の検証を実行中...
-✅ 自動修正が成功しました！
-✨ コミットを継続します
-
-[feature/new-feature abc1234] feat: add new feature
- 8 files changed, 150 insertions(+), 42 deletions(-)
-```
-
-## 🛠️ 自動修正できないエラーの対処法
-
-自動修正後もエラーが残る場合、**詳細なエラー情報が自動的に表示されます**：
-
-```bash
-═══════════════════════════════════════════
-❌ 自動修正後もエラーが残っています
-═══════════════════════════════════════════
-
-🔍 詳細なエラー情報を表示中...
-
-🎨 フロントエンドファイルをチェック中...
-  └─ ESLintチェック...
-     ❌ ESLintエラーが見つかりました:
-
-     📄 src/components/TaskCard.tsx
-        ⚠️  Line 58:9 - 'dateLocale' is assigned a value but never used
-        ❌ Line 99:9 - 'rollbackSubtaskStatus' is assigned a value but never used
-
-💡 対処方法:
-   1. 上記のエラーを手動で修正
-   2. git add . で再ステージング
-   3. git commit で再度コミット
-
-   または、エラーを無視してコミット:
-   git commit --no-verify
-```
-
-### 1. 詳細なエラーを確認
-
-エラーは **自動的に表示されます**。手動で確認したい場合：
-
-```bash
-npm run check:commit
-```
-
-### 2. 手動で修正
-
-エラー内容を確認して、手動で修正します：
-
-```bash
-# 該当ファイルを編集
-code src/components/TaskCard.tsx
-
-# 未使用変数を削除、または使用する
-# React Hook依存配列を修正
-```
-
-### 3. 再度コミット
-
-```bash
-git add .
-git commit -m "your message"
-# 自動修正が再度実行されます
-```
-
-### 4. エラーを無視してコミット（非推奨）
-
-どうしても必要な場合のみ：
-
-```bash
-git commit -m "your message" --no-verify
-```
-
-## 📋 手動コマンド
-
-自動修正を手動で実行したい場合：
-
-```bash
-# 全ファイルの自動修正
-npm run lint:fix
-
-# 詳細チェック（エラー箇所を明確に表示）
-npm run check:commit
-
-# コミット（自動修正付き）
-git commit -m "your message"
-
-# 自動修正をスキップしてコミット
-git commit -m "your message" --no-verify
-```
-
-### Prettierエラー
-
-**エラー:**
-
-```
-Checking formatting...
-[warn] src/components/Example.tsx
-```
-
-**修正方法:**
-
-```bash
-cd rapitas-frontend
-npx prettier --write src/components/Example.tsx
-```
-
-### ESLint警告: 未使用変数
-
-**エラー:**
-
-```
-'variableName' is assigned a value but never used
-```
-
-**修正方法:**
-
-1. 変数を削除する
-2. 変数名を `_variableName` に変更（意図的に未使用であることを示す）
-3. 使用する
-
-### ESLint警告: React Hook依存配列
-
-**エラー:**
-
-```
-React Hook useEffect has missing dependencies
-```
-
-**修正方法:**
-
-1. 依存配列に必要な値を追加
-2. `useCallback` や `useMemo` でラップ
-3. eslint-disableコメントを追加（非推奨）
-
-## コマンド一覧
-
-| コマンド                               | 説明                             |
-| -------------------------------------- | -------------------------------- |
-| `npm run check:commit`                 | コミット前の詳細チェック（手動） |
-| `npm run lint:fix`                     | 自動修正可能なエラーを修正       |
-| `npm run lint:all`                     | 全ファイルのLintチェック         |
-| `cd rapitas-frontend && pnpm run lint` | フロントエンドのみLint           |
-| `cd rapitas-backend && bun run lint`   | バックエンドのみLint             |
-
-## ワークフロー推奨
-
-### 基本フロー（自動修正あり）
-
-1. コードを書く
-2. `git add .` でステージング
-3. `git commit -m "message"` でコミット
-   - ✨ **自動的に修正が試みられます**
-   - 成功すればそのままコミット完了
-   - 失敗すれば詳細エラー表示
-
-### エラーが出た場合
-
-1. **エラーは自動的に表示されます** - どのファイルのどの行にエラーがあるか確認
-2. 手動で修正
-3. `git add .` で再ステージング
-4. `git commit -m "message"` で再度コミット
-   - 再度自動修正が試みられます
-
-### 事前チェックしたい場合
-
-1. コードを書く
-2. `npm run lint:fix` で事前に自動修正
-3. `git add .` でステージング
-4. `git commit -m "message"` でコミット
-
-## pre-commit フックの動作
-
-`.husky/pre-commit` で自動実行されるフロー：
-
-```bash
-1. lint-staged を実行
-   ├─ Prettier --write (フォーマット)
-   └─ ESLint --fix (自動修正)
-
-2. ❌ エラーが出た場合
-   ├─ 自動修正スクリプトを実行
-   ├─ 修正したファイルを再ステージング
-   └─ 再度 lint-staged を実行
-
-3. ✅ 成功 → コミット継続
-   ❌ 失敗 → エラー表示 + 中断
-```
+コミット前にまとめて直したい場合は、`npm run lint:fix` の後に `git add` してからコミットする。
 
 ## トラブルシューティング
 
-### lint-stagedが終わらない
+### lint-staged が終わらない
 
-原因: ESLintのチェックに時間がかかっている可能性
+ステージしたファイルが多いと ESLint に時間がかかる。`Ctrl+C` で中断し、`git restore --staged <ファイル>` でステージを減らしてから分けてコミットする。
 
-対処:
+> [!WARNING]
+> 中断したコミットは作られていない。`git reset HEAD~1` を実行すると、直前の既存コミットを取り消してしまう。
 
-```bash
-# 一度中断してファイル数を減らす
-git reset HEAD~1
-git add <特定のファイル>
-git commit
-```
+### 改行コードの警告
 
-### エラーメッセージが表示されない
-
-原因: lint-stagedの出力が省略されている
-
-対処:
-
-```bash
-# 詳細チェックを手動実行
-npm run check:commit
-```
-
-### Prettierとgitの改行コード問題
-
-警告が表示される場合:
-
-```
-warning: in the working copy of 'file.ts', LF will be replaced by CRLF
-```
-
-これは警告のみで、コミットは可能です。`.gitattributes` で統一できます。
+`warning: in the working copy of 'file.ts', LF will be replaced by CRLF` は警告だけで、コミットは成功する。改行コードは `.gitattributes` で統一されている。
