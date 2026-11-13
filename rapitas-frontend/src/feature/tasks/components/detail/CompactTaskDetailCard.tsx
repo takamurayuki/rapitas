@@ -27,6 +27,7 @@ import { sumSubtaskActualHours } from '@/utils/subtask-hours';
 import CompactTaskDetailHeader from './CompactTaskDetailHeader';
 import CompactTaskDetailWorkloadSection from './CompactTaskDetailWorkloadSection';
 import CiStatusBadge from './CiStatusBadge';
+import TaskAcceptanceCriteriaSection from './TaskAcceptanceCriteriaSection';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -129,7 +130,7 @@ export default function CompactTaskDetailCard({
 
       {/* Accordion sections */}
       <Accordion
-        defaultExpanded={['description']}
+        defaultExpanded={['description', 'criteria']}
         allowMultiple={true}
         className="border-t border-zinc-100 dark:border-zinc-800"
       >
@@ -157,6 +158,9 @@ export default function CompactTaskDetailCard({
             </div>
           </AccordionContent>
         </AccordionItem>
+
+        {/* Completion criteria — read-only; renders nothing when the task has none. */}
+        <TaskAcceptanceCriteriaSection task={task} />
 
         {/* Labels — flat (non-accordion) section right above the workload
             accordion; editable in place. Hidden when the task's category has
