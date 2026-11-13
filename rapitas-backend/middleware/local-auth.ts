@@ -132,6 +132,7 @@ function resolveAllowedOrigins(): Set<string> {
  *   /workflow/learning/tasks/:id/duration-prediction  upserts a prediction
  *   /tasks/suggestions/ai                   paid LLM call, replaces cache rows
  *   /github/pull-requests/by-task/:id       relinks PR and task rows
+ *   /search                                 records a zero-hit query (SearchMiss upsert)
  * Every app caller uses fetch(), which sends Origin cross-origin, so app
  * traffic is unaffected; a page's `<img src>` or link to them is refused.
  *
@@ -147,6 +148,9 @@ const STATE_CHANGING_GET_PATHS: RegExp[] = [
   /^\/workflow\/learning\/tasks\/[^/]+\/duration-prediction\/?$/,
   /^\/tasks\/suggestions\/ai\/?$/,
   /^\/github\/pull-requests\/by-task\/[^/]+\/?$/,
+  // NOTE: Only the bare /search root records misses (search-route.ts →
+  // recordSearchMiss); /search/suggest etc. are pure reads and stay open.
+  /^\/search\/?$/,
 ];
 
 /**

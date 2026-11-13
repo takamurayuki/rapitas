@@ -98,6 +98,10 @@ describe('createCrossSiteGuard', () => {
     '/workflow/learning/tasks/12/duration-prediction',
     '/tasks/suggestions/ai',
     '/github/pull-requests/by-task/12',
+    // A zero-hit search writes a SearchMiss row, so a page's
+    // <img src="http://127.0.0.1:3001/search/?q=..."> could seed the history.
+    '/search',
+    '/search/',
   ];
 
   it.each(STATE_CHANGING_GETS)('blocks a foreign-origin or origin-less GET %s', (path) => {
@@ -134,6 +138,8 @@ describe('createCrossSiteGuard', () => {
       '/project-health',
       '/tasks/suggestions',
       '/agents/diagnose-report',
+      '/search/suggest',
+      '/searches',
     ]) {
       expect(isGuardedRequest(req('GET', 'cross-site', undefined, path))).toBe(false);
     }
