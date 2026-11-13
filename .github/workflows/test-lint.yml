@@ -668,6 +668,14 @@ jobs:
       - name: Docs match the code
         run: node scripts/docs/check-docs-drift.cjs
 
+      # The machine-checkable half of the "Documentation style" rules in
+      # .claude/CLAUDE.md: no emoji or emoji-style status marks, and no
+      # box-drawing diagrams (draw them in mermaid). Directory trees pass.
+      # docs/archive is history and exempt; literal UI/tool output is
+      # allow-listed per file, with a reason, in docs-style-ignore.json. ~1s.
+      - name: Docs follow the style rules
+        run: node scripts/docs/check-docs-style.cjs
+
       # NOTE: #1410 — .github/quality-gates.json is the one definition of which
       # checks gate a merge (branch protection is generated from it, and the
       # auto-merge reads it). On 2026-10-16 main required four job names that no

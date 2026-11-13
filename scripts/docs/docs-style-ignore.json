@@ -1,0 +1,4 @@
+{
+  "_comment": "Characters check-docs-style lets one doc keep. Only for a symbol that is literal UI text or tool output being documented; decorative use belongs in the doc fix, not here. Every entry needs a reason.",
+  "exceptions": []
+}
