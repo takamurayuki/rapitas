@@ -18,9 +18,9 @@
 
 | 対象 | 処理 |
 | --- | --- |
-| `rapitas-frontend/src/**/*.{ts,tsx}` | `prettier --write`、`eslint --fix`（`rapitas-frontend/eslint.config.mjs`） |
-| `rapitas-backend/**/*.ts` | `prettier --write` |
-| `rapitas-backend/prisma/**/*.prisma` | `scripts/prisma-generate-hook.cjs`（Prisma Client の再生成） |
+| `rapitas-frontend/src/**/*.{ts,tsx}` | `prettier --write`、`eslint --fix`（`rapitas-frontend/eslint.config.mjs`、`--max-warnings=9999` なので警告では止まらない） |
+| `rapitas-backend/**/*.ts` | `prettier --write` のみ（ESLint はかけない） |
+| `rapitas-backend/prisma/**/*.prisma` | `scripts/prisma-generate-hook.cjs`（Prisma Client の再生成。失敗するとコミットを中断） |
 
 ## pre-commit の処理フロー
 
@@ -34,11 +34,15 @@ flowchart TD
   F -->|成功| OK
   F -->|エラーあり| C
   B -->|整形・Lint エラー| C["自動修正<br/>フロントエンド: Prettier と ESLint --fix<br/>バックエンド: Prettier"]
-  C --> D["修正したファイルを再ステージ"]
+  C -->|"修正対象の .ts / .tsx が無い"| X["コミットを中断"]
+  C --> D["最初にステージされていたファイルを丸ごと再ステージ"]
   D --> E["Step 2: 再検証<br/>lint-staged（使えない場合は pre-commit-check.cjs）"]
   E -->|成功| OK
   E -->|エラーが残る| G["pre-commit-check.cjs で詳細を表示し、コミットを中断"]
 ```
+
+> [!NOTE]
+> 再ステージは修正したファイルだけでなく、最初にステージされていたファイル全体に対して `git add` する。部分的にステージしていたファイルは、ステージしていなかった変更も含めてコミットされる。
 
 エラーが残った場合の出力には、ファイル名・行番号・ESLint のメッセージと、次の対処手順が含まれる。
 
