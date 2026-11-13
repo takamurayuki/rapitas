@@ -30,4 +30,4 @@ npx tauri icon path/to/your/icon.png
 図形はスマホ版アイコン（`rapitas-mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`）と同じ構成です。
 スマホ版は全面塗りで、デスクトップ版はそこに角丸タイル（`rx=213`）をかけただけです。図形を縮小しないでください。タイルの内側はスマホ版と 1px 単位で一致します。
 
-システムトレイは `src/app_icon.rs` がモニターの拡大率に合う `tray-icon-<size>.png` を選んで表示します（アプリアイコンと同じ紫のタイル＋白の図形。小さい枠で読めるよう図形を約1.2倍に拡大し角丸を少し詰めている。OS に 256px から縮小させると図形が崩れるため、実寸の画像を渡します）。`app-icon.svg` の図形を変えたら `python rapitas-desktop/scripts/render-small-icons.py` を再実行してください。
+システムトレイは `src/app_icon.rs` がモニターの拡大率に合う `tray-icon-<size>.png` を選んで表示します（アプリアイコンと同じ紫のタイル＋白の図形。小さい枠で読めるよう図形を約1.2倍に拡大し角丸を少し詰め、行頭の四角と線をつなげて3本の帯にしている（16px では間の隙間がにじんで消えるため）。OS に 256px から縮小させると図形が崩れるため、実寸の画像を渡します）。`app-icon.svg` の図形を変えたら `python rapitas-desktop/scripts/render-small-icons.py` を再実行してください。

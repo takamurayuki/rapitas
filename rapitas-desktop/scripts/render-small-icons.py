@@ -32,6 +32,10 @@ TRAY_SIZES = (16, 20, 24, 32)
 # bars too small to read. (A tile-less purple glyph was tried and rejected.)
 TRAY_GLYPH_ENLARGE = 1.18
 TRAY_TILE_RADIUS = 0.18
+# The tray also joins each bullet square to its bar. The ~1px gap between them
+# is the first thing the 16px tray smears shut, so six parts blur into three
+# lumpy ones; three clean slanted bars keep the mark's rhythm and tilt.
+TRAY_JOIN_BULLETS = True
 
 GRADIENT_FROM = (0x8B, 0x5C, 0xF6)
 GRADIENT_TO = (0x63, 0x66, 0xF1)
@@ -86,12 +90,14 @@ def render_tile(size: int) -> Image.Image:
     return gradient.resize((size, size), Image.BOX)
 
 
-def glyph_polygons(thicken: float) -> list:
+def glyph_polygons(thicken: float, join_bullets: bool = False) -> list:
     """
-    Build the six glyph polygons in 1024-unit space, rotated like app-icon.svg.
+    Build the glyph polygons in 1024-unit space, rotated like app-icon.svg.
 
     Args:
         thicken: row-height multiplier / 行の太さの倍率
+        join_bullets: start each bar at its bullet's left edge, closing the gap
+            / 行頭の四角と線をつなげて1本にするか
 
     Returns:
         list of polygons, each a list of (x, y) / 多角形の座標リスト
@@ -100,22 +106,24 @@ def glyph_polygons(thicken: float) -> list:
     polygons = []
     for center, shift in zip(ROW_CENTERS, TIP_SHIFT):
         top, bottom = center - half, center + half
-        polygons.append([
-            (SQUARE_CENTER_X - half, top),
-            (SQUARE_CENTER_X + half, top),
-            (SQUARE_CENTER_X + half, bottom),
-            (SQUARE_CENTER_X - half, bottom),
-        ])
+        bar_start = SQUARE_CENTER_X - half if join_bullets else BAR_START_X
+        if not join_bullets:
+            polygons.append([
+                (SQUARE_CENTER_X - half, top),
+                (SQUARE_CENTER_X + half, top),
+                (SQUARE_CENTER_X + half, bottom),
+                (SQUARE_CENTER_X - half, bottom),
+            ])
         # The tip is the svg's slanted right edge (x 680 at the top of row 0
         # to ~725 at its bottom), extended along the same slope when thickened.
         def tip(y, center=center, shift=shift):
             return TIP_MID_X + shift + TIP_SLOPE * (y - center)
 
         polygons.append([
-            (BAR_START_X, top),
+            (bar_start, top),
             (tip(top), top),
             (tip(bottom), bottom),
-            (BAR_START_X, bottom),
+            (bar_start, bottom),
         ])
     angle = math.radians(ROTATION_DEG)
     cos, sin = math.cos(angle), math.sin(angle)
@@ -127,7 +135,9 @@ def glyph_polygons(thicken: float) -> list:
     return [[rotate(p) for p in polygon] for polygon in polygons]
 
 
-def glyph_coverage(size: int, dx: float, dy: float) -> Image.Image:
+def glyph_coverage(
+    size: int, dx: float, dy: float, join_bullets: bool = False
+) -> Image.Image:
     """
     Rasterise the glyph's exact per-pixel coverage at a sub-pixel offset.
 
@@ -135,6 +145,7 @@ def glyph_coverage(size: int, dx: float, dy: float) -> Image.Image:
         size: edge length in pixels / 一辺のピクセル数
         dx: horizontal shift in pixels / 水平方向のずらし量(px)
         dy: vertical shift in pixels / 垂直方向のずらし量(px)
+        join_bullets: see `glyph_polygons` / `glyph_polygons` を参照
 
     Returns:
         L-mode coverage mask / 被覆率マスク
@@ -144,7 +155,7 @@ def glyph_coverage(size: int, dx: float, dy: float) -> Image.Image:
     offset = big / 2 - 512 * scale
     mask = Image.new("L", (big, big), 0)
     draw = ImageDraw.Draw(mask)
-    for polygon in glyph_polygons(THICKEN.get(size, 1.0)):
+    for polygon in glyph_polygons(THICKEN.get(size, 1.0), join_bullets):
         draw.polygon(
             [
                 (x * scale + offset + dx * SUPERSAMPLE, y * scale + offset + dy * SUPERSAMPLE)
@@ -170,12 +181,13 @@ def blur_score(coverage: Image.Image) -> float:
     return sum(v * (255 - v) for v in coverage.tobytes()) / 255 / 255
 
 
-def render_icon(size: int) -> Image.Image:
+def render_icon(size: int, join_bullets: bool = False) -> Image.Image:
     """
     Render one small app icon frame (tile + tilted white glyph).
 
     Args:
         size: edge length in pixels / 一辺のピクセル数
+        join_bullets: see `glyph_polygons` / `glyph_polygons` を参照
 
     Returns:
         RGBA icon frame / アイコン画像
@@ -185,7 +197,7 @@ def render_icon(size: int) -> Image.Image:
     # +-0.5px and keep the crispest so the bars read as solid strokes.
     steps = [i / 8 - 0.5 for i in range(9)]
     coverage = min(
-        (glyph_coverage(size, dx, dy) for dx in steps for dy in steps),
+        (glyph_coverage(size, dx, dy, join_bullets) for dx in steps for dy in steps),
         key=blur_score,
     )
     image = render_tile(size)
@@ -197,7 +209,7 @@ def render_icon(size: int) -> Image.Image:
 
 def render_tray(size: int) -> Image.Image:
     """
-    Render one tray icon: the app icon tile with an enlarged glyph.
+    Render one tray icon: the app icon tile with an enlarged, simplified glyph.
 
     Args:
         size: edge length in pixels / 一辺のピクセル数
@@ -210,7 +222,7 @@ def render_tray(size: int) -> Image.Image:
     GLYPH_SCALE[size] = base_scale * TRAY_GLYPH_ENLARGE
     TILE_RADIUS = TRAY_TILE_RADIUS
     try:
-        return render_icon(size)
+        return render_icon(size, TRAY_JOIN_BULLETS)
     finally:
         GLYPH_SCALE[size] = base_scale
         TILE_RADIUS = base_radius
