@@ -1604,8 +1604,8 @@
     }
   },
   "linkView": {
-    "back": "Back",
-    "forward": "Forward",
+    "back": "Page back",
+    "forward": "Page forward",
     "reload": "Reload",
     "openExternally": "Open in the external browser",
     "close": "Close",
@@ -6653,7 +6653,27 @@
     "manage": "Create and edit categories and themes"
   },
   "browser": {
-    "addressPlaceholder": "Enter a URL",
-    "opensExternally": "Pages open in your external browser"
+    "addressPlaceholder": "Enter a URL or search terms",
+    "emptyHint": "Enter a URL or open a saved page (anything that is not a URL is searched on Google)",
+    "loading": "Loading",
+    "checking": "Checking whether this page can be shown…",
+    "more": "More actions",
+    "bandNavigationBlocked": "This address cannot be opened in the in-app browser",
+    "bandNewWindowBlocked": "The window this page tried to open was not opened. Use the external browser for pop-up sign-ins",
+    "bandDownloadBlocked": "Downloads are not done in the in-app browser",
+    "bandSlowLoad": "This page is taking a while to load",
+    "bandUnavailable": "This version of the app cannot show pages in-app, so it opened in your browser",
+    "refusedTitle": "This site does not allow being shown inside the app",
+    "rescueNotice": "If the page does not show or respond,",
+    "unknownNotice": "Could not confirm this page can be shown. If it does not show,",
+    "historyNotice": "After moving within a page, the header's Back may go back inside the page first",
+    "previousScreen": "Previous screen",
+    "clearData": "Clear browsing data",
+    "clearDataConfirmTitle": "Clear browsing data?",
+    "clearDataConfirmBody": "Removes cookies, stored data and cache for sites opened in the in-app browser and signs you out of them. Your rapitas sign-in, tabs and saved pages are kept.",
+    "clearDataDone": "Browsing data cleared",
+    "clearDataFailed": "Could not clear browsing data",
+    "clearDataSettingsHint": "Cookies and sign-ins of sites opened in the in-app browser are stored separately from the app.",
+    "webClearDataHint": "On the web, clear site data from your browser's settings"
   }
 }

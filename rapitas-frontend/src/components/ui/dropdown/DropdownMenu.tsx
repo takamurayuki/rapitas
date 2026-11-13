@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { MoreVertical } from 'lucide-react';
 
 export interface DropdownMenuItem {
@@ -50,6 +51,9 @@ export default function DropdownMenu({
   // and this only asks — closing itself would fight the next render.
   const controlled = open !== undefined;
   const isOpen = controlled ? open : uncontrolledOpen;
+  // An open menu can drop over the in-app browser's webview, an OS surface
+  // that would paint over it; while it is open the webview steps aside.
+  useOccludesWebview(isOpen);
   // Through a ref so the callback below stays stable: an inline
   // `onOpenChange` from the caller would otherwise re-subscribe the
   // outside-click and Escape listeners on every render.

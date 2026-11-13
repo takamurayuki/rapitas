@@ -28,3 +28,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `FolderPlus`              | アプリ内ブラウザのグループを作る（`LinkFavourites` のグループ追加欄、`TabStripTab` の「新しいグループに追加」— 同一概念の再利用）。注: `FolderOpen`＝汎用フォルダ、`Folders`＝カテゴリ一覧ページヘッダーとは別概念 |
 | `Eraser`                  | ラピの「片付ける」モード（`RapiModeTabs` の tidy タブ — 完了済みタスクの一括整理。注: `Trash2`＝個別削除、`Archive`＝メモリ/KB管理とは別概念。`rapitas-frontend/src/components/category/icons` の登録は中立的な再掲で対象外） |
 | `Compass`                 | アプリ内ブラウザ（ヘッダー右上の「ブラウザ」ボタン `HeaderToolbar` → `/browser`。`Globe`＝スコープ「グローバル」、`AppWindow`＝ライブプレビューに割り当て済みのため別グリフ）。注: `SmartCommandBar` のヒント「ページ移動」と `category/icons`・`claude-md-generator` のアイコン登録は既存の中立的な再掲で、本タスクでは変更しない |
+| `Cookie`                  | アプリ内ブラウザの「閲覧データを消去」（`BrowserToolbar` の「…」、設定「リンクの開き方」下の `BrowsingDataRow`）。注: `Eraser`＝ラピの「片付ける」モード、`Trash2`＝個別削除とは別概念。`rapitas-frontend/src/components/category/icons` の登録は中立的な再掲で対象外 |

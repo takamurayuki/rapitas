@@ -112,7 +112,9 @@ export function SideNavAccountMenu({
   const name = user ? user.username : isAuthLoading ? '' : t('notSignedIn');
 
   return (
-    <div className="relative min-w-0 flex-1" ref={rootRef}>
+    // Not `relative`: the menu is positioned against the footer row in
+    // SideNav, so it spans the nav's width rather than this button's.
+    <div className="min-w-0 flex-1" ref={rootRef}>
       {isOpen && (
         <div
           ref={menuRef}
@@ -121,7 +123,7 @@ export function SideNavAccountMenu({
           aria-label={t('userMenu')}
           onKeyDown={onMenuKeyDown}
           data-testid="side-nav-account-menu"
-          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-10"
+          className="absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-10"
         >
           {user && (
             <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">

@@ -11,6 +11,7 @@ import BackupCard from '../_components/BackupCard';
 import RecentErrorsCard from '../_components/RecentErrorsCard';
 import { UserDatabaseCard } from '../_components/user-database';
 import { MobileLinkCard } from '../_components/mobile-link';
+import { BrowsingDataRow } from '../_components/browsing-data';
 import Link from 'next/link';
 
 const LOCALE_LABELS: Record<Locale, string> = {
@@ -147,6 +148,7 @@ export default function GeneralSettingsPage() {
                 </button>
               ))}
             </div>
+            <BrowsingDataRow />
           </div>
         </div>
 

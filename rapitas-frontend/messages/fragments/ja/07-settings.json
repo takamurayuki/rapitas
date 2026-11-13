@@ -463,8 +463,8 @@
     }
   },
   "linkView": {
-    "back": "戻る",
-    "forward": "進む",
+    "back": "ページを戻る",
+    "forward": "ページを進む",
     "reload": "再読み込み",
     "openExternally": "外部ブラウザで開く",
     "close": "閉じる",

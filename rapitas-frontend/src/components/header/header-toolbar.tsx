@@ -29,6 +29,7 @@ import { useLocaleStore } from '@/stores/locale-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import { Spinner } from '@/components/ui/spinner';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import type { UseHeaderReturn } from './useHeader';
 
 type HeaderToolbarProps = Pick<
@@ -73,6 +74,8 @@ export function HeaderToolbar({
 
   const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
   const isBrowserScreen = pathname === '/browser';
+  // The ⋮ menu drops over the in-app browser's webview area.
+  useOccludesWebview(isMoreMenuOpen);
 
   const toggleView = () => {
     if (isListView) {

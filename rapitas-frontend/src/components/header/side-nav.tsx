@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
 import type { User as AuthUser } from '@/contexts/AuthContext';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { SideNavAccountMenu } from './side-nav-account-menu';
 
 type SideNavProps = {
@@ -60,6 +61,10 @@ export function SideNav({
 }: SideNavProps) {
   const pathname = usePathname();
   const t = useTranslations('nav');
+  // Unpinned, the nav slides over the page — and over the in-app browser's
+  // webview, which would paint above it. Pinned, the page is laid out beside
+  // it, so nothing overlaps.
+  useOccludesWebview(isMenuOpen && !isMenuPinned);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname === '/kanban';
@@ -136,7 +141,7 @@ export function SideNav({
             removed: the footer now carries the account and the settings entry.
             The shortcut help itself is unchanged — ⌘/ and OPEN_SHORTCUTS_EVENT
             still open it. Kept outside the scroll area so it never scrolls away. */}
-        <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
+        <div className="relative shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
           {/* NOTE: The account row became the user menu's button when the
               header's user icon gave its slot to the in-app browser entry
               (nav61). Items that leave the page follow the nav's own rule:

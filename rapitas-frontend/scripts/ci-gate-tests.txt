@@ -91,4 +91,8 @@ src/components/note/editor/useInlineLinks.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
-src/app/browser/_components/BrowserExternalStart.test.tsx
+src/components/link-view/browser-screen/__tests__/BrowserScreen.test.tsx
+src/components/link-view/useLinkView.visibility.test.ts
+src/components/link-view/browser-screen/__tests__/LinkViewHost.browser.test.tsx
+src/utils/__tests__/browser-url-policy.test.ts
+src/__tests__/frame-ancestors-config.test.ts

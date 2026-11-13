@@ -1,6 +1,26 @@
 {
   "browser": {
-    "addressPlaceholder": "URL を入力",
-    "opensExternally": "ページは外部ブラウザで開きます"
+    "addressPlaceholder": "URL または検索語を入力",
+    "emptyHint": "URL を入力するか、お気に入りから開きます（URL でない語句は Google で検索します）",
+    "loading": "読み込み中",
+    "checking": "表示できるか確認しています…",
+    "more": "その他の操作",
+    "bandNavigationBlocked": "この場所はアプリ内ブラウザでは開けません",
+    "bandNewWindowBlocked": "このページが開こうとしたウィンドウは開けませんでした。ポップアップでのログインなどは外部ブラウザで行ってください",
+    "bandDownloadBlocked": "ダウンロードはアプリ内ブラウザでは行いません",
+    "bandSlowLoad": "読み込みに時間がかかっています",
+    "bandUnavailable": "このバージョンのアプリではアプリ内表示を使えないため、外部ブラウザで開きました",
+    "refusedTitle": "このサイトはアプリ内での表示を許可していません",
+    "rescueNotice": "表示されない・操作できない場合は",
+    "unknownNotice": "このページは表示できるか確認できませんでした。表示されない場合は",
+    "historyNotice": "ページ内で移動した後は、ヘッダーの戻るでページ側が先に戻ることがあります",
+    "previousScreen": "前の画面へ",
+    "clearData": "閲覧データを消去",
+    "clearDataConfirmTitle": "閲覧データを消去しますか？",
+    "clearDataConfirmBody": "アプリ内ブラウザで開いたサイトの Cookie・保存データ・キャッシュを消去し、各サイトからログアウトします。rapitas のログイン、タブ、お気に入りは消えません。",
+    "clearDataDone": "閲覧データを消去しました",
+    "clearDataFailed": "閲覧データを消去できませんでした",
+    "clearDataSettingsHint": "アプリ内ブラウザで開いたサイトの Cookie・ログイン状態は、アプリとは別の場所に保存されます。",
+    "webClearDataHint": "Web 版では、サイトのデータはお使いのブラウザの設定から消去してください"
   }
 }
