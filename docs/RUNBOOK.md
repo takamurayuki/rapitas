@@ -53,7 +53,8 @@ lsof -ti:3000 | xargs kill -9
 Get-NetTCPConnection -LocalPort 3001 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
 
-> ⚠️ **Read CLAUDE.md §1 first.** When working as an AI agent, killing port
+> [!WARNING]
+> **Read CLAUDE.md §1 first.** When working as an AI agent, killing port
 > 3001 may sever your own connection to the workflow API. Verify the PID is
 > NOT the agent's parent before killing.
 
@@ -108,7 +109,8 @@ make db-generate
 cd rapitas-backend && bun run db:generate
 ```
 
-> ⚠️ **CLAUDE.md §1:** AI agents must NOT run `prisma generate` or
+> [!WARNING]
+> **CLAUDE.md §1:** AI agents must NOT run `prisma generate` or
 > `prisma db push` manually. The dev script handles this; if you need a
 > regen, restart the dev environment instead.
 
@@ -321,7 +323,8 @@ cd rapitas-backend
 RAPITAS_DB_PROVIDER=postgresql bunx prisma db push --skip-generate
 ```
 
-> ⚠️ **CLAUDE.md §1:** AI agents must NOT run `prisma db push`/`generate`. The
+> [!WARNING]
+> **CLAUDE.md §1:** AI agents must NOT run `prisma db push`/`generate`. The
 > raw additive `ALTER` above touches neither — it is safe for nullable columns
 > and re-syncs the DB to the already-generated client.
 >
