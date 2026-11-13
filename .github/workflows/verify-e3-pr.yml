@@ -1,0 +1,17 @@
+# nav45 E3 isolated verification (throwaway). pull_request-derived runs with the same check names.
+name: verify-e3-pr
+on:
+  pull_request:
+    branches: ['verify-e3/base']
+permissions: {}
+jobs:
+  prevent:
+    name: E3 PR-event
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+  prfix:
+    name: E3 PR-fix
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo pr-ok

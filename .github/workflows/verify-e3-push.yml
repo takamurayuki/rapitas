@@ -1,0 +1,45 @@
+# nav45 E3 isolated verification (throwaway). Push-derived checks on T.
+name: verify-e3-push
+on:
+  push:
+    branches: ['verify-e3/head']
+permissions: {}
+jobs:
+  plain:
+    name: E3 Plain
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+  mixed:
+    name: E3 Mixed (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            ok: 'yes'
+          - platform: ubuntu-latest
+            ok: 'no'
+    runs-on: ubuntu-latest
+    steps:
+      - run: '[ "${{ matrix.ok }}" = yes ]'
+  rerun:
+    name: E3 Rerun
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo attempt=${{ github.run_attempt }}; [ "${{ github.run_attempt }}" != 1 ]'
+  regress:
+    name: E3 Regress
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo attempt=${{ github.run_attempt }}; [ "${{ github.run_attempt }}" = 1 ]'
+  prevent:
+    name: E3 PR-event
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo push-ok
+  prfix:
+    name: E3 PR-fix
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
