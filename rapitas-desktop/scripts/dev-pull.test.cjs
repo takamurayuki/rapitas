@@ -204,9 +204,11 @@ describe('pullOnLaunch against real repositories', () => {
     assert.equal(git(r.local, 'stash', 'list'), '');
   });
 
-  test('a post-merge hook that never exits → merge-failed after the timeout, launch not held', async () => {
+  test('a post-merge hook that never exits → pulled with a warning after the timeout, launch not held', async () => {
     const r = makeRepos();
-    r.pushUpstream();
+    const before = git(r.local, 'rev-parse', 'HEAD');
+    // Touch the launcher path so launcherChanged must still be collected.
+    const tip = r.pushUpstream('rapitas-desktop/scripts/dev.js', '// new launcher\n');
     const pidFile = path.join(r.root, 'hook.pid');
     const hook = path.join(r.local, '.git', 'hooks', 'post-merge');
     fs.writeFileSync(hook, `#!/bin/sh\necho $$ > '${pidFile}'\nexec sleep 30\n`);
@@ -220,12 +222,21 @@ describe('pullOnLaunch against real repositories', () => {
         fetchTimeoutMs: 1500,
       });
       assert.ok(Date.now() - started < 10_000, 'returned well before the hook would exit');
-      assert.equal(result.action, SKIPPED_MERGE_FAILED);
-      assert.match(result.reason, /did not finish within 2s/);
-      assert.match(
-        describePull(result).lines.join('\n'),
-        /Starting with the code already checked out/,
-      );
+      // The fast-forward finished before the hook hung: report what really happened.
+      assert.equal(git(r.local, 'rev-parse', 'HEAD'), tip);
+      assert.equal(result.action, PULLED);
+      assert.equal(result.from, before);
+      assert.equal(result.to, tip);
+      assert.equal(result.commits.length, 1);
+      assert.equal(result.launcherChanged, true);
+      assert.match(result.warning, /did not exit within 2s/);
+      const d = describePull(result);
+      const text = d.lines.join('\n');
+      assert.equal(d.level, 'warn');
+      assert.match(text, /Pulled 1 commit from origin\/develop/);
+      assert.match(text, /previous dev\.js/);
+      assert.match(text, /post-merge hook may be hanging/);
+      assert.doesNotMatch(text, /git pull skipped/);
     } finally {
       // The hook outlives the killed git; do not leave it behind.
       try {
@@ -359,8 +370,45 @@ describe('pullOnLaunch decisions with a fake runner', () => {
     for (const flag of ['--ff-only', '--no-autostash', '--no-overwrite-ignore'])
       assert.ok(merge.args.includes(flag), flag);
     assert.equal(merge.options.timeout, 4321);
+    // HEAD still reads as `from` after the timeout: the merge itself stopped.
     assert.equal(result.action, SKIPPED_MERGE_FAILED);
-    assert.match(result.reason, /did not finish within 4s/);
+    assert.match(result.reason, /did not finish within 4s.*check 'git status'/);
+  });
+
+  /** Fake git for the merge-timeout cases; headAfterMerge drives the re-check. */
+  function timeoutRunner(headAfterMerge) {
+    let merged = false;
+    return async (c, a) => {
+      const sub = a[0];
+      if (sub === 'rev-parse' && a[1] === '--is-inside-work-tree')
+        return { code: 0, stdout: 'true\n', stderr: '' };
+      if (sub === 'rev-parse' && a.includes('@{u}'))
+        return { code: 0, stdout: 'origin/develop\n', stderr: '' };
+      if (sub === 'rev-parse' && a[1] === '--abbrev-ref')
+        return { code: 0, stdout: 'develop\n', stderr: '' };
+      if (sub === 'rev-parse' && a[1] === 'HEAD')
+        return merged ? headAfterMerge : { code: 0, stdout: 'a'.repeat(40), stderr: '' };
+      if (sub === 'rev-parse') return { code: 0, stdout: 'b'.repeat(40), stderr: '' };
+      if (sub === 'merge') {
+        merged = true;
+        return { code: 1, timedOut: true, stdout: '', stderr: '' };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    };
+  }
+
+  test('merge timed out but HEAD reached the target → pulled with a warning', async () => {
+    const run = timeoutRunner({ code: 0, stdout: `${'b'.repeat(40)}\n`, stderr: '' });
+    const result = await pullOnLaunch({ repoRoot: '/repo', run, fetchTimeoutMs: 4321 });
+    assert.equal(result.action, PULLED);
+    assert.match(result.warning, /did not exit within 4s/);
+  });
+
+  test('merge timed out and HEAD cannot be re-read → merge-failed (safe side)', async () => {
+    const run = timeoutRunner({ code: 128, stdout: '', stderr: 'fatal: bad HEAD' });
+    const result = await pullOnLaunch({ repoRoot: '/repo', run, fetchTimeoutMs: 4321 });
+    assert.equal(result.action, SKIPPED_MERGE_FAILED);
+    assert.match(result.reason, /check 'git status'/);
   });
 });
 

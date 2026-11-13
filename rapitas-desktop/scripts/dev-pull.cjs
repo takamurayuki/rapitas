@@ -91,7 +91,7 @@ function reasonLine(text) {
  * Fast-forward the checkout at repoRoot to its upstream, if that is safe.
  *
  * @param options - repoRoot, and optional run / enabled / fetchTimeoutMs overrides
- * @returns `{ action, reason?, from?, to?, upstream?, commits?, launcherChanged? }` / 実行結果
+ * @returns `{ action, reason?, from?, to?, upstream?, commits?, launcherChanged?, warning? }` / 実行結果
  */
 async function pullOnLaunch(options) {
   const { repoRoot, run = defaultRun, enabled = true } = options;
@@ -174,7 +174,18 @@ async function pullOnLaunch(options) {
     ['merge', '--ff-only', '--no-autostash', '--no-overwrite-ignore', '--quiet', upstream],
     { timeout: fetchTimeoutMs },
   );
-  if (merge.code !== 0) {
+  // A timeout can land after the fast-forward itself finished (the
+  // post-merge hook hangs, not the merge). Then HEAD is already at `to` and
+  // reporting "skipped" would hide the pulled commits and the launcher-changed
+  // warning, so re-read HEAD. "Can't tell" stays merge-failed.
+  let warning;
+  if (merge.code !== 0 && merge.timedOut) {
+    const headOut = await git(['rev-parse', 'HEAD']);
+    if (headOut.code === 0 && headOut.stdout.trim() === to) {
+      warning = `git merge fast-forwarded but did not exit within ${Math.round(fetchTimeoutMs / 1000)}s (a post-merge hook may be hanging); its work may be incomplete`;
+    }
+  }
+  if (merge.code !== 0 && !warning) {
     return {
       action: SKIPPED_MERGE_FAILED,
       branch,
@@ -195,7 +206,8 @@ async function pullOnLaunch(options) {
   const diff = await git(['diff', '--name-only', `${from}..${to}`, '--', ...LAUNCHER_PATHS]);
   const launcherChanged = diff.code === 0 && diff.stdout.trim() !== '';
 
-  return { action: PULLED, branch, upstream, from, to, commits, launcherChanged };
+  const pulled = { action: PULLED, branch, upstream, from, to, commits, launcherChanged };
+  return warning ? { ...pulled, warning } : pulled;
 }
 
 /**
@@ -221,6 +233,11 @@ function describePull(result) {
           '   NOTE: rapitas-desktop/scripts changed; this launch still runs the previous dev.js.',
           '         Re-run the command to use the new launcher.',
         );
+      }
+      // dev.js prints these lines as-is, so the hook warning needs no dev.js change.
+      if (result.warning) {
+        lines.push(`⚠️  ${result.warning}.`);
+        return { level: 'warn', lines };
       }
       return { level: 'info', lines };
     }
