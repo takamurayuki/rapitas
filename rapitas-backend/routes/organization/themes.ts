@@ -301,7 +301,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     '/setup-from-claude-md',
     async (context) => {
       const { body, set } = context;
-      // categoryId: target category; omitted falls back to 開発.
+      // categoryId: target category; omitted falls back per theme-category-resolver.
       const {
         appName,
         claudeMd,
@@ -327,6 +327,14 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       };
 
       try {
+        // See theme-category-resolver for the fallback order. Resolved BEFORE any
+        // filesystem/git work so a rejection does not leave an orphan project folder.
+        const resolved = await resolveThemeCategory(prisma.category, categoryId);
+        if (!resolved.ok) {
+          set.status = 400;
+          return { success: false, error: resolved.error, code: resolved.code };
+        }
+
         // NOTE: Sanitize app name to create folder name — supports ASCII, Japanese, and mixed names.
         // First try ASCII-only kebab-case; if that yields empty, keep Unicode characters.
         const asciiName = appName
@@ -410,14 +418,6 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           execSync('git checkout develop', { cwd: projectPath, stdio: 'pipe' });
         } catch {
           // NOTE: Non-fatal — develop branch creation can fail if default branch is already 'develop'
-        }
-
-        // See theme-category-resolver: caller's choice wins, 開発 is the
-        // fallback, an unknown id is rejected, and isDevelopment follows mode.
-        const resolved = await resolveThemeCategory(prisma.category, categoryId);
-        if (!resolved.ok) {
-          set.status = 400;
-          return { success: false, error: resolved.error };
         }
 
         // Create theme record

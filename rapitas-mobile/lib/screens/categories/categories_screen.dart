@@ -9,6 +9,7 @@ import '../../services/reorder_orders.dart';
 import '../../widgets/centered_message.dart';
 import '../../widgets/color_dot.dart';
 import '../../widgets/default_star_button.dart';
+import 'category_delete_row.dart';
 import 'category_form_screen.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
@@ -34,7 +35,7 @@ List<TaskCategory> sortCategoriesByOrder(List<TaskCategory> categories) {
   return [for (final entry in indexed) entry.category];
 }
 
-/// カテゴリ管理（一覧・並び替え・追加・編集）
+/// カテゴリ管理（一覧・並び替え・追加・編集・横スワイプで削除）
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
@@ -214,24 +215,28 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 padding: const EdgeInsets.only(bottom: 16),
                 children: [
                   for (final category in sorted)
-                    _CategoryTile(
+                    CategoryDeleteRow(
+                      key: ValueKey('category-row-${category.id}'),
                       category: category,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          DefaultStarButton(
-                            isDefault: category.id == defaultCategoryId,
-                            onSetDefault:
-                                _settingDefault == null ? () => _setDefault(category) : null,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            tooltip: 'カテゴリを編集',
-                            onPressed: () => _openEdit(category),
-                          ),
-                        ],
+                      child: _CategoryTile(
+                        category: category,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            DefaultStarButton(
+                              isDefault: category.id == defaultCategoryId,
+                              onSetDefault:
+                                  _settingDefault == null ? () => _setDefault(category) : null,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              tooltip: 'カテゴリを編集',
+                              onPressed: () => _openEdit(category),
+                            ),
+                          ],
+                        ),
+                        onTap: () => _openEdit(category),
                       ),
-                      onTap: () => _openEdit(category),
                     ),
                 ],
               );

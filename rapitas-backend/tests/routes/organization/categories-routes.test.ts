@@ -22,6 +22,7 @@ const mockPrisma = {
     findFirst: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({})),
     update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
 };
 
@@ -272,15 +273,16 @@ describe('DELETE /categories/:id', () => {
     });
   });
 
-  test('デフォルトカテゴリの削除で400を返すこと', async () => {
+  test('デフォルトカテゴリも削除できること（実DBでの挙動は categories-delete.sqlite.test）', async () => {
     const category = { id: 1, name: '開発', isDefault: true };
     mockPrisma.category.findUnique.mockResolvedValue(category);
+    mockPrisma.category.delete.mockResolvedValue(category);
 
     const res = await app.handle(
       new Request('http://localhost/categories/1', { method: 'DELETE' }),
     );
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
   });
 
   test('存在しないIDで404を返すこと', async () => {
@@ -310,7 +312,8 @@ describe('POST /categories/seed-defaults', () => {
     app = createApp();
   });
 
-  test('既存カテゴリが無いときデフォルトを新規作成すること', async () => {
+  test('カテゴリが1件も無い（初回）ときデフォルトを新規作成すること', async () => {
+    mockPrisma.category.count.mockResolvedValue(0);
     mockPrisma.category.findMany.mockResolvedValue([]);
     mockPrisma.category.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
       Promise.resolve({ id: 99, ...data, _count: { themes: 0 } }),

@@ -41,7 +41,7 @@
     "createFailed": "カテゴリの作成に失敗しました",
     "updated": "カテゴリを更新しました",
     "updateFailed": "カテゴリの更新に失敗しました",
-    "deleteConfirm": "「{name}」を削除しますか？所属するテーマは別のカテゴリに移動してください。",
+    "deleteConfirm": "「{name}」を削除しますか？所属するテーマは削除されず、カテゴリなしになります。",
     "deleted": "カテゴリを削除しました",
     "deleteFailed": "カテゴリの削除に失敗しました",
     "manageItems": "{item}を管理します",

@@ -29,8 +29,13 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export const categoriesRoutes = new Elysia({ prefix: '/categories' })
-  // Seed default categories (idempotent) - also cleans up duplicates
+  // Seed default categories on first run only - also cleans up duplicates and
+  // backfills fields on default categories that still exist.
   .post('/seed-defaults', async () => {
+    // NOTE: Only an empty table is seeded. The desktop calls this on every
+    // categories/themes page load, so creating "missing" defaults whenever one
+    // was absent resurrected 開発/学習 right after the user deleted them.
+    const isFirstRun = (await prisma.category.count()) === 0;
     const results = [];
     for (const def of DEFAULT_CATEGORIES) {
       // Find all categories with this name
@@ -41,7 +46,7 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
       });
 
       if (allMatches.length === 0) {
-        // No category exists, create one
+        if (!isFirstRun) continue;
         const created = await prisma.category.create({
           data: { ...def, isDefault: true },
           include: { _count: { select: { themes: true } } },
@@ -84,7 +89,8 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
         }
       }
     }
-    // Auto-assign development themes without a category to the "Development" category
+    // Auto-assign development themes without a category to the "Development"
+    // category — only while it exists; a deleted 開発 leaves them uncategorized.
     const devCategory = results.find((c) => c.name === '開発');
     if (devCategory) {
       await prisma.theme.updateMany({
@@ -247,7 +253,8 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
     },
   )
 
-  // Delete category (default categories cannot be deleted)
+  // Delete category. Default categories are deletable too: seed-defaults no
+  // longer re-creates them, and themes/labels survive via onDelete: SetNull.
   .delete(
     '/:id',
     async (context) => {
@@ -261,13 +268,15 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
       if (!category) {
         throw new NotFoundError('Category not found');
       }
-      if (category.isDefault) {
-        throw new ValidationError('デフォルトカテゴリは削除できません');
-      }
 
-      return await prisma.category.delete({
-        where: { id },
+      const deleted = await prisma.category.delete({ where: { id } });
+      // defaultCategoryId is a plain Int (no FK), so clear it here rather than
+      // leave the task list's initial selection pointing at a deleted row.
+      await prisma.userSettings.updateMany({
+        where: { defaultCategoryId: id },
+        data: { defaultCategoryId: null },
       });
+      return deleted;
     },
     {
       params: t.Object({ id: t.String() }),
