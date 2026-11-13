@@ -17,7 +17,7 @@ commands at the bottom of each section only as a last resort.
 | Frontend connects but API calls 500 | [§2 Backend crashed silently](#2-backend-crashed-silently) |
 | `prisma generate` errors / type mismatch | [§3 Prisma client out of sync](#3-prisma-client-out-of-sync) |
 | `Can't reach database server` | [§4 PostgreSQL not running](#4-postgresql-not-running) |
-| Tauri build hangs on Windows | [§5 Bun + Playwright pipe hang](#5-bun--playwright-pipe-hang-windows) |
+| Browser smoke checks or screenshots hang on Windows | [§5 Bun + Playwright pipe hang](#5-bun--playwright-pipe-hang-windows) |
 | `pnpm lint` fails on a file you didn't touch | [§6 Husky bypassed earlier](#6-husky-was-bypassed-on-an-earlier-commit) |
 | `prisma db push` reports schema drift | [§7 Schema drift](#7-schema-drift-after-pulling-develop) |
 | Workflow files (research.md / plan.md) missing | [§8 Workflow API not used](#8-workflow-files-missing-or-out-of-sync) |
@@ -258,11 +258,14 @@ Unix). Read the job log for the listing of `src-tauri/binaries/`.
 **Fix locally:**
 
 ```bash
-cd rapitas-backend
-bun build index.ts --compile --outfile rapitas-backend
-mkdir -p ../rapitas-desktop/src-tauri/binaries
-cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/
+node rapitas-desktop/scripts/build-backend.js
 ```
+
+The script compiles the backend for the SQLite build and writes
+`rapitas-desktop/src-tauri/binaries/rapitas-backend-<target-triple>`
+(`rapitas-backend.exe-<target-triple>.exe` on Windows). The release config
+only bundles files matching `binaries/rapitas-backend-*`, so a bare
+`rapitas-backend` copied by hand is not picked up.
 
 ---
 
@@ -355,9 +358,9 @@ backend when that restart followed a `git pull`.
    back on its own within a second or two. If you are on a build from before
    that, the manual fix below still applies.
 
-Restarting the backend does not restart `rapitas.exe`. The window therefore
-outlives the frontend it was pointed at, the port dies under it, and no code
-path re-navigates it. Measured on the 2026-10-15 17:38 restart, from process
+Before the 2026-10-19 fix, restarting the backend did not restart `rapitas.exe`.
+The window outlived the frontend it was pointed at, the port died under it,
+and no code path re-navigated it. Measured on the 2026-10-15 17:38 restart, from process
 start times:
 
 ```
