@@ -62,7 +62,7 @@ class TaskCard extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: Icon(
-                        Icons.smart_toy,
+                        Icons.play_circle_outline,
                         size: 16,
                         color: Theme.of(context).colorScheme.primary,
                       ),

@@ -33,7 +33,7 @@ class ApprovalsScreen extends ConsumerWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.approval, size: 64, color: Colors.grey),
+                      Icon(Icons.fact_check, size: 64, color: Colors.grey),
                       SizedBox(height: 16),
                       Text('承認リクエストはありません'),
                     ],
