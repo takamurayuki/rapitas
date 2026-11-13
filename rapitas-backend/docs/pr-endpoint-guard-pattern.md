@@ -48,15 +48,10 @@ merged/closed PR への操作は競合状態。GitHub API 自体が拒否する�
 .post('/pull-requests/:id/your-operation', async (context) => {
   const { id } = context.params as { id: string };
 
-  // Step 1: DB から PR レコードを取得
-  const pr = await prisma.gitHubPullRequest.findUnique({
-    where: { id: parseInt(id) },
-    include: { integration: true },
-  });
-  if (!pr) {
-    context.set.status = 404;
-    return { success: false, error: 'PR not found' };
-  }
+  // Step 1: DB から PR レコードを取得（services/github/resource-guard.ts）。
+  // ID を検証し、見つからなければ NotFoundError('PR not found', 'PR_NOT_FOUND') を投げる。
+  // parseInt(params.id) は local/require-validated-id-param で lint エラーになるため使わない。
+  const pr = await resolvePrOrThrow(id);
 
   // Step 2: 事前ガード (prNumber整合性 + state チェック)
   // requireOpen: true  → open PR にのみ許可される操作 (approve, merge, etc.)
@@ -138,5 +133,6 @@ Elysia の `context` に依存するとヘルパーの単体テストがモッ�
 
 - `services/github/pr-guards.ts` — ガード関数の実装
 - `services/github/pr-guards.test.ts` — ガード関数の単体テスト
-- `routes/social/github.ts` — 適用済みエンドポイント
+- `routes/social/github/pull-requests-write.ts` — 適用済みエンドポイント（`routes/social/github.ts` は `.use()` で束ねるだけ）
+- `services/github/resource-guard.ts` — `resolvePrOrThrow`（ID 検証と 404）
 - `tests/routes/social/github-routes.test.ts` — 統合テスト
