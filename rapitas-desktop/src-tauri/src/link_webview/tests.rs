@@ -199,11 +199,13 @@ fn the_capability_files_use_webviews_not_windows() {
 }
 
 #[test]
-fn only_set_link_webview_visible_and_creation_change_visibility() {
-    // nav60 §3.1: show() lives in exactly one place; hide() in that place,
-    // right after creation, and in the teardown of the clear-data command.
+fn show_and_hide_are_called_only_inside_apply_visible() {
+    // nav60 §3.1: every show/hide — the ordered commands, the hide right
+    // after creation and the teardown of the clear-data command — goes
+    // through `apply_visible`, which can only be called with the sequence
+    // lock held. So `.show()` and `.hide()` each appear exactly once.
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/link_webview");
-    let mut shows = 0;
+    let (mut shows, mut hides) = (0, 0);
     for name in ["mod.rs", "builder.rs"] {
         let src = std::fs::read_to_string(dir.join(name)).expect("read");
         let code: String = src
@@ -212,9 +214,8 @@ fn only_set_link_webview_visible_and_creation_change_visibility() {
             .collect::<Vec<_>>()
             .join("\n");
         shows += code.matches(".show()").count();
+        hides += code.matches(".hide()").count();
     }
-    assert_eq!(
-        shows, 1,
-        "show() must only be called by set_link_webview_visible"
-    );
+    assert_eq!(shows, 1, "show() must only be called by apply_visible");
+    assert_eq!(hides, 1, "hide() must only be called by apply_visible");
 }

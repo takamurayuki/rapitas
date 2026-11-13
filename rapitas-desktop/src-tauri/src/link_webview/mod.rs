@@ -11,7 +11,9 @@
 //! or in the external browser (the frontend setting does that), laying the
 //! pane out (the frontend owns the rectangle and pushes it through
 //! `set_link_webview_bounds`), or deciding visibility (the frontend's
-//! `applyVisibility` does, and only `set_link_webview_visible` applies it).
+//! `applyVisibility` does, and only `set_link_webview_visible` applies it;
+//! the forced hides on creation and on clearing go through the same
+//! `apply_visible` under the same lock).
 //!
 //! NOTE: a child webview is an OS-level surface, not a DOM node. It paints
 //! above all HTML in the window regardless of z-index, so the frontend hides
@@ -146,10 +148,7 @@ pub async fn open_link_webview(
     // child webview starts visible (tauri has no "create hidden" option), and
     // `Bounds::sanitized` clamps negatives to 0, so the off-screen spot is
     // computed here from the window's own size.
-    let sequences = state
-        .sequences
-        .lock()
-        .map_err(|_| "Link view state poisoned".to_string())?;
+    let sequences = lock_sequences(&state)?;
     let size = window
         .inner_size()
         .map_err(|e| format!("Failed to read window size: {e}"))?;
@@ -157,8 +156,7 @@ pub async fn open_link_webview(
     let webview = window
         .add_child(builder, offscreen, PhysicalSize::new(1u32, 1u32))
         .map_err(|e| format!("Failed to create link view: {e}"))?;
-    webview
-        .hide()
+    apply_visible(&sequences, &webview, false)
         .map_err(|e| format!("Failed to hide new link view: {e}"))?;
     let placed = apply_bounds(&webview, bounds);
     drop(sequences);
@@ -203,10 +201,7 @@ pub async fn set_link_webview_visible(
     seq: u64,
 ) -> Result<(), String> {
     let label = label_for(&tab_id)?;
-    let mut sequences = state
-        .sequences
-        .lock()
-        .map_err(|_| "Link view state poisoned".to_string())?;
+    let mut sequences = lock_sequences(&state)?;
     if !sequences.admit(&label, seq) {
         return Ok(());
     }
@@ -214,12 +209,8 @@ pub async fn set_link_webview_visible(
     let Some(webview) = app.get_webview(&label) else {
         return Ok(());
     };
-    if visible {
-        webview.show()
-    } else {
-        webview.hide()
-    }
-    .map_err(|e| format!("Failed to change link view visibility: {e}"))
+    apply_visible(&sequences, &webview, visible)
+        .map_err(|e| format!("Failed to change link view visibility: {e}"))
 }
 
 /// Close the docked webview.
@@ -275,7 +266,10 @@ pub async fn link_webview_history(
 /// Returns a message when the engine refuses to clear or a webview cannot be
 /// created for the purpose.
 #[tauri::command]
-pub async fn clear_link_view_data(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn clear_link_view_data(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, LinkViewState>,
+) -> Result<(), String> {
     let views: Vec<tauri::Webview> = app
         .webviews()
         .into_iter()
@@ -302,6 +296,7 @@ pub async fn clear_link_view_data(app: tauri::AppHandle) -> Result<(), String> {
         let size = window
             .inner_size()
             .map_err(|e| format!("Failed to read window size: {e}"))?;
+        let sequences = lock_sequences(&state)?;
         let temp = window
             .add_child(
                 builder,
@@ -309,7 +304,8 @@ pub async fn clear_link_view_data(app: tauri::AppHandle) -> Result<(), String> {
                 PhysicalSize::new(1u32, 1u32),
             )
             .map_err(|e| format!("Failed to create link view: {e}"))?;
-        let _ = temp.hide();
+        let _ = apply_visible(&sequences, &temp, false);
+        drop(sequences);
         let cleared = temp
             .clear_all_browsing_data()
             .map_err(|e| format!("Failed to clear browsing data: {e}"));
@@ -317,11 +313,50 @@ pub async fn clear_link_view_data(app: tauri::AppHandle) -> Result<(), String> {
         cleared?;
     }
 
+    // NOTE: Hidden and closed under the sequence lock, through the same
+    // `apply_visible` as every other show/hide, so a "show" already in flight
+    // cannot land between the hide and the close and flash a dying page.
+    let sequences = lock_sequences(&state)?;
     for webview in views {
-        let _ = webview.hide();
+        let _ = apply_visible(&sequences, &webview, false);
         let _ = webview.close();
     }
+    drop(sequences);
     Ok(())
+}
+
+/// Lock the show/hide sequence table.
+fn lock_sequences<'a>(
+    state: &'a LinkViewState,
+) -> Result<std::sync::MutexGuard<'a, SequenceTable>, String> {
+    state
+        .sequences
+        .lock()
+        .map_err(|_| "Link view state poisoned".to_string())
+}
+
+/// Show or hide a webview — the one place `show()`/`hide()` is called.
+///
+/// Taking the locked table is the proof the caller holds the sequence lock,
+/// so no ordered visibility command can interleave with this one.
+///
+/// # Arguments
+/// * `_held` - The locked sequence table / ロック済みの連番表
+/// * `webview` - The webview to change / 対象の webview
+/// * `visible` - Show when true, hide when false / 表示するなら true
+///
+/// # Errors
+/// Returns the platform's error when it refuses the change.
+fn apply_visible(
+    _held: &SequenceTable,
+    webview: &tauri::Webview,
+    visible: bool,
+) -> tauri::Result<()> {
+    if visible {
+        webview.show()
+    } else {
+        webview.hide()
+    }
 }
 
 /// Apply a sanitized rectangle to a webview.
