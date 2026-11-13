@@ -1348,3 +1348,11 @@ html[data-desktop-frame] [class~='h-[calc(100vh-4.2rem)]'] {
 html[data-desktop-frame] [class~='h-[calc(100vh-5rem)]'] {
   height: calc(var(--app-viewport-height) - 5rem);
 }
+/* The slide panel has its own toolbar and scroll area. Loading/error views
+   must fit that area instead of using the full page's viewport height. */
+[data-task-slide-panel] [class~='h-[calc(100vh-5rem)]'] {
+  height: 100%;
+}
+html[data-desktop-frame] [data-task-slide-panel] [class~='h-[calc(100vh-5rem)]'] {
+  height: 100%;
+}
