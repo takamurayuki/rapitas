@@ -5,54 +5,45 @@ and a Tauri desktop app. This document is a high-level map of the system —
 **what runs where, and which boundaries matter**. For module-level details,
 read the source under each subproject.
 
-> Last reviewed: 2026-11-03. Counts below are approximate snapshots as of that
+> Last reviewed: 2026-11-14. Counts below are approximate snapshots as of that
 > date — the source tree is authoritative.
 
 ---
 
 ## 1. Topology
 
+```mermaid
+flowchart TB
+  desktop["rapitas-desktop<br/>Tauri 2.x, Rust, system WebView"]
+  frontend["rapitas-frontend :3000<br/>Next.js 16 / React 19, Tailwind v4, zustand + SWR"]
+  backend["rapitas-backend :3001<br/>Bun + Elysia, Prisma, SSE"]
+  mobile["rapitas-mobile<br/>Flutter companion app"]
+  db[("PostgreSQL (web) / SQLite file (desktop)<br/>optional Redis")]
+  worktree["Agent CLIs (Claude Code, Codex, Gemini CLI)<br/>in a git worktree per task"]
+  ext["External services<br/>Anthropic, OpenAI, Google Generative AI,<br/>GitHub via the gh CLI, local LLM (Ollama / llama-server)"]
+  desktop -->|"loads in the WebView (dev :3000, release static export)"| frontend
+  desktop -->|"spawns and supervises (release builds)"| backend
+  frontend <-->|"HTTP + SSE"| backend
+  mobile <-->|"HTTP (LAN or Tailscale)"| backend
+  backend --> db
+  backend -->|"spawns"| worktree
+  backend --> ext
 ```
-                      ┌────────────────────────┐
-                      │  rapitas-desktop       │
-                      │  (Tauri 2.x, Rust)     │
-                      │  - System WebView      │
-                      │  - Backend sidecar     │
-                      └───────────┬────────────┘
-                                  │ embeds
-                                  ▼
-┌────────────────────────┐   ┌────────────────────────┐
-│  rapitas-frontend      │◄──►  rapitas-backend       │
-│  Next.js 16 / React 19 │   │  Bun + Elysia          │
-│  Tailwind v4           │   │  Prisma: PostgreSQL    │
-│  zustand + SWR         │   │   (web) / SQLite (desk)│
-│                        │   │  SSE                   │
-│  port 3000             │   │  port 3001             │
-└────────────────────────┘   └───────────┬────────────┘
-                                         │
-                                         ▼
-                              ┌────────────────────────┐
-                              │  External services     │
-                              │  - Anthropic Claude    │
-                              │  - OpenAI              │
-                              │  - Google Generative AI│
-                              │  - GitHub API          │
-                              │  - Local LLM (Ollama)  │
-                              │  - Playwright (sidecar)│
-                              └────────────────────────┘
-```
+
+Playwright, used by the verification gate's runtime smoke test, runs as a
+local Node child process of the backend, not as an external service.
 
 | Process | Owner | Lifecycle | Port |
 |---|---|---|---|
 | Backend (Elysia) | `rapitas-backend/index.ts` | Always-on; **must not be restarted casually** (see CLAUDE.md §1) | 3001 |
 | Frontend (Next.js) | `rapitas-frontend` | Dev: HMR via pnpm; Prod: static export when `TAURI_BUILD=true` | 3000 |
-| Desktop shell | `rapitas-desktop/src-tauri` | Spawns backend as a sidecar in production | — |
+| Desktop shell | `rapitas-desktop/src-tauri` | Release builds spawn and supervise the backend: Windows Job Object containment, a readiness check on `/health`, restart with back-off (see [ADR-0010](adr/0010-desktop-rust-boundary.md)) | — |
 | PostgreSQL | external | Web build only; managed by the user | 5432 |
-| SQLite | file | Desktop build. Dev: `rapitas-desktop/.data/rapitas-dev.db` (set by `dev.js`); release: `rapitas.db` in the Tauri app data dir (`resolve_database_url` in `rapitas-desktop/src-tauri/src/release.rs`) | — |
+| SQLite | file | Desktop build. Dev: `rapitas-desktop/.data/rapitas-dev.db` (set by `dev.js`); release: `rapitas.db` in the Tauri app data dir (`resolve_database_url` in `rapitas-desktop/src-tauri/src/sidecar_launch.rs`) | — |
 | Redis (optional) | external | Only used by `rapitas-backend/services/core/cache-service.ts` when `NODE_ENV=production` (`REDIS_URL`) | 6379 |
 
 The desktop dev orchestrator is **`rapitas-desktop/scripts/dev.js`** (SQLite).
-It pins the primary branch, cleans up stale rapitas processes on 3001/3000,
+It pins the primary branch and fast-forwards it to its upstream (`rapitas-desktop/scripts/dev-pull.cjs`), cleans up stale rapitas processes on 3001/3000,
 regenerates the SQLite Prisma client + init SQL (`bun run db:prepare:sqlite`,
 cached by schema hash), then launches the backend (`bun run dev:stable`) and
 the frontend. The backend applies the init SQL to the SQLite DB on boot
@@ -75,9 +66,9 @@ navigable, treat the following as the canonical module boundaries:
 rapitas-backend/
 ├── routes/         # HTTP route definitions (thin layer)
 ├── services/       # Business logic + DB queries
-├── middleware/     # Auth, CORS, request logging
+├── middleware/     # Local auth, error handler, performance logging, rate limiting (CORS is set up in server-main.ts)
 ├── schemas/        # TypeBox schemas for input validation
-├── prisma/         # schema/*.prisma (about 100 models — see §3); schema.desktop/ is generated
+├── prisma/         # schema/*.prisma (about 100 models, see §3); schema.desktop/ is generated
 ├── generated/      # Prisma clients (prisma-postgres / prisma-sqlite), gitignored
 ├── utils/          # Cross-cutting helpers
 ├── workers/        # Worker threads / child processes (agent worker, output parser, whisper, embeddings)
@@ -98,14 +89,14 @@ ratchet baseline and should be split per
 
 ```
 rapitas-frontend/src/
-├── app/            # Next.js App Router pages (about 35 top-level route folders)
+├── app/            # Next.js App Router pages (about 40 top-level route folders, e.g. goals/)
 ├── components/     # Shared UI components
-├── feature/        # Feature folders (calendar, search, tasks, …)
+├── feature/        # Feature folders (calendar, search, tasks, settings modal, terminal, …)
 ├── hooks/          # Custom React hooks
 ├── stores/         # zustand stores (global state)
 ├── contexts/       # React context providers
 ├── lib/            # Pure utilities, API clients
-├── styles/         # Tailwind v4 entry + globals
+├── styles/         # Note editor / modal CSS (the Tailwind v4 entry is app/globals.css)
 ├── types/, utils/, config/, data/
 └── i18n/           # Locale config (catalogs in rapitas-frontend/messages/: en.json, ja.json + fragments/)
 ```
@@ -114,13 +105,15 @@ State management split:
 
 - **zustand** — global UI state (theme, filters, modal stacks)
 - **SWR** — server data fetching, caching, revalidation
-- **React Context** — auth, dark mode, locale
+- **React Context** — auth only (`contexts/AuthContext.tsx`); dark mode is the `useDarkMode` hook and locale is a zustand store plus next-intl
+
+Settings open as a modal (`src/feature/settings/`), not as `/settings/*` pages. The header keeps an in-app back/forward history (`src/components/header/history/`).
 
 ### 2.3 Desktop (`rapitas-desktop/`)
 
 Tauri 2 with the system WebView. The Rust shell:
 
-1. Spawns the Bun-compiled backend binary as a **sidecar** (release builds)
+1. Spawns the Bun-compiled backend binary as a child process (release builds) and supervises it: restart on exit with back-off, give up after five crashes in two minutes, and kill the whole process tree with the app on Windows. Only desktop-only OS and process-lifetime work lives in Rust ([ADR-0010](adr/0010-desktop-rust-boundary.md))
 2. Loads the statically exported frontend (`next build` with `output: 'export'`,
    copied into `rapitas-desktop/public/` by `rapitas-desktop/scripts/ci-build.js`)
 3. Provides native integrations (notifications, global shortcuts, quick
@@ -135,14 +128,14 @@ via plain HTTP/SSE on `localhost:3001`.
 
 `rapitas-backend/prisma/schema/` is a `prismaSchemaFolder` layout (see
 [ADR-0006](adr/0006-prisma-schema-folder-split.md)) containing about **100
-models** across 15 per-domain files plus `_generators.prisma` (as of
+models** across 16 per-domain files plus `_generators.prisma` (as of
 2026-11). Prisma merges them at generate time. The desktop SQLite schema
 (`rapitas-backend/prisma/schema.desktop/`) is generated from it — never
 hand-edit it. The models cluster as follows:
 
 | Sub-domain | Representative models | Notes |
 |---|---|---|
-| **Core tasks** | `Category`, `Theme`, `Project`, `Milestone`, `Task`, `Comment`, `Label` | Hierarchical: Category → Theme → Project → Task → Subtask |
+| **Core tasks** | `Category`, `Theme`, `Project`, `Milestone`, `Task`, `Comment`, `Label` | Category → Theme → Task; Project → Milestone. A task links to a theme, a project and a milestone independently, and subtasks are tasks with `parentId`. The goals screen (`/goals`) shows projects as goals and milestones as their stages; a milestone carries `acceptanceCriteria`, `status`, `evidence` and `reachedAt` (`rapitas-backend/services/goals/`) |
 | **Time tracking** | `TimeEntry`, `PomodoroSession`, `ActivityLog`, `DailyScheduleBlock` | |
 | **Notes / resources** | `Note`, `NoteTaskLink`, `Resource` | |
 | **AI orchestration** | `AgentSession`, `AgentExecution`, `AgentExecutionLog`, `AIAgentConfig`, `WorkflowQueueItem`, `OrchestraSession`, `ThemeAutoRun` | Multi-provider (Claude/OpenAI/Gemini/Local) |
@@ -153,7 +146,8 @@ hand-edit it. The models cluster as follows:
 | **PR risk** | `PrRiskConfig`, `PrRiskScore`, `PrOutcome`, … | |
 | **Usage budget** | `UsageBudget`, `UsageBudgetThemeShare`, `UsageClassificationRule` | |
 | **Tenancy** | `Workspace`, `WorkspaceMember`, `CalendarShare` | |
-| **System** | `User`, `UserSession`, `UserSettings`, `Notification`, `ApprovalRequest` | Identity, settings, approvals |
+| **System** | `User`, `UserSession`, `UserSettings`, `Notification` | Identity, settings (`ApprovalRequest` lives in `agents.prisma`) |
+| **Rapi chat** | `RapiChatSpace`, `RapiChatMessage` | Conversations with the built-in assistant |
 
 > Layout:
 >
@@ -174,7 +168,8 @@ hand-edit it. The models cluster as follows:
 > ├── resources.prisma     # Resource
 > ├── pr-risk.prisma       # PrRiskConfig, PrRiskScore, PrOutcome, …
 > ├── usage-budget.prisma  # UsageBudget, …
-> └── tenancy.prisma       # Workspace, WorkspaceMember, CalendarShare
+> ├── tenancy.prisma       # Workspace, WorkspaceMember, CalendarShare
+> └── rapi-chat.prisma     # RapiChatSpace, RapiChatMessage
 > ```
 
 ---
@@ -242,7 +237,9 @@ GitHub Actions (`.github/workflows/tauri-build.yml`) builds 4 targets:
 - `x86_64-unknown-linux-gnu`
 
 The backend is compiled to a standalone binary via `bun build --compile` and
-placed in `rapitas-desktop/src-tauri/binaries/` as a Tauri sidecar. Tauri then
+placed in `rapitas-desktop/src-tauri/binaries/` as `rapitas-backend-<target-triple>`.
+The release config (`tauri.build.conf.json`) ships it as a bundle resource
+(`externalBin` is empty), and the Rust shell starts it. Tauri then
 bundles `.exe`/`.msi`/`.dmg`/`.deb`/`.rpm` artifacts. The frontend is
 statically exported and copied into `rapitas-desktop/public/` (the release
 `frontendDist`). Releases are triggered
@@ -267,10 +264,12 @@ the standard Next.js build.
 | Route regression | `test-lint.yml` (`Route Regression`) | `route-regression` gate, no coverage |
 | SQLite suite | `test-lint.yml` (`Test SQLite Compatible Suite`) | `sqlite-tests` gate |
 | Full backend suite | `test-lint.yml` (`Full Suite (Advisory)`) | Advisory (`continue-on-error`) |
+| Test order | `test-lint.yml` (`Test Order Dependency Check`) | Advisory |
 | Frontend tests | `test-lint.yml` (`Check Frontend`) | `vitest run --coverage` over a named list of test files (not the full suite); the thresholds in `rapitas-frontend/vitest.config.ts` are enforced for that list |
 | Frozen install | `test-lint.yml` (`Frozen Install Verification`) | Lockfiles must install unchanged |
 | Type check | `test-lint.yml` | `tsc --noEmit` for both apps |
-| Lint / format | `test-lint.yml` | ESLint + Prettier |
+| Lint / format | `test-lint.yml` (`Lint Code`) | ESLint + Prettier |
+| Docs | `test-lint.yml` (`Check Rust Code`) | `scripts/docs/check-docs-drift.cjs` and `scripts/docs/check-docs-style.cjs` |
 | Rust clippy | `test-lint.yml` (`Check Rust Code`, `Check Rust Code (Windows)`) | `cargo clippy -- -D warnings` |
 | Trivy | `security-scan.yml` | CRITICAL/HIGH on filesystem |
 | CodeQL | `security-scan.yml` | JS/TS |
@@ -280,11 +279,16 @@ the standard Next.js build.
 | actionlint | `actionlint.yml` | Workflow YAML lint |
 | Knip | `knip.yml` | Advisory (unused exports/deps) |
 | Bundle size | `bundle-size.yml` | Advisory (per-chunk + total budget) |
-| Version sync | `version-check.yml` | Hard fail if manifests drift |
+| Version sync | `version-check.yml` | Fails when manifests drift; advisory for merging |
 | File size | `file-size.yml` | Per-file line limits with a ratchet baseline |
 | HACK/FIXME ceilings | `todos-check.yml` | ADR-0004 |
 | Markdown lint | `markdownlint.yml` | Advisory |
 | Tauri build | `tauri-build.yml` | 4 platforms; tag-driven release |
+
+Which of these block a merge is defined in one place, `.github/quality-gates.json`
+(`required` / `advisory`); branch protection and the auto-merge both read it.
+Other workflows (`e2e.yml`, `browser-e2e.yml`, `performance.yml`,
+`dependency-review.yml`, `security.yml`, `mobile.yml`) are listed there too.
 
 See also: `.github/CI_CD_SETUP.md`.
 
@@ -295,7 +299,7 @@ See also: `.github/CI_CD_SETUP.md`.
 1. **Schema-first vs code-first** for Prisma — currently `db push` based, no
    migration history (the migrations directory has been removed). ADR-0003 calls
    for moving to `prisma migrate` before public release.
-2. **Module ownership** — about 100 models split across 15 per-domain files (ADR-0006)
+2. **Module ownership** — about 100 models split across 16 per-domain files (ADR-0006)
    still lacks CODEOWNERS-by-domain, so cross-domain ownership is unclear.
 3. **AI agent isolation** — agents currently share the same DB. Multi-tenant
    isolation (per-user agents) is unclear.
