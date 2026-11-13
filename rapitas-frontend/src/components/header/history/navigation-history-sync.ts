@@ -92,13 +92,16 @@ export function installNavigationHistorySync(): Uninstall {
 
   /** Which side of the recorded range an unrecorded entry we just landed on lies. */
   const sideOfUnknown = (): 'before' | 'after' | null => {
+    // NOTE: Checked before the position: once we have pushed, nothing lies
+    // after the recorded range, so an unrecorded entry is before it even when
+    // a multi-step jump started from the middle (e.g. back 2 from index 1,
+    // skipping only the recorded entry 0). Resetting there wiped the history.
+    if (!forwardMayExist) return 'before';
     const { index, entries } = store();
     const last = entries.length - 1;
-    // Traversing from inside the range lands on a tagged entry, so an
-    // untagged one is only reachable from an end of it (a multi-step jump,
-    // e.g. the back button's long-press menu, can come from either end).
+    // Before any push, entries left over from before a reload may also lie
+    // after the range, so one reached from inside it can't be placed.
     if (index !== 0 && index !== last) return null;
-    if (!forwardMayExist) return 'before';
     const landed = readAnyTag(history.state);
     if (originTag && landed && landed.sid === originTag.sid) {
       return landed.idx > originTag.idx ? 'after' : 'before';

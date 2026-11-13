@@ -144,6 +144,41 @@ describe('navigation history sync', () => {
     expect(state().entries).toEqual(['/old', '/current', '/next']);
   });
 
+  it('adds an unrecorded entry in front when reached from the middle of the range', async () => {
+    // Codex re-review fix2: /current → push /next, /last → back to /next →
+    // back 2 to the pre-load /old (skipping only the recorded /current).
+    // This used to reset the store to ['/old'] and disable both buttons.
+    uninstall();
+    window.history.pushState(null, '', '/old');
+    window.history.pushState(null, '', '/current');
+    uninstall = installNavigationHistorySync();
+    window.history.pushState(null, '', '/next');
+    window.history.pushState(null, '', '/last');
+
+    await traverse(-1);
+    expect(window.location.pathname).toBe('/next');
+    expect(state().index).toBe(1);
+
+    await traverse(-2);
+    expect(window.location.pathname).toBe('/old');
+    expect(state().entries).toEqual(['/old', '/current', '/next', '/last']);
+    expect(state().index).toBe(0);
+    expect(canBack()).toBe(false);
+    expect(canForward()).toBe(true);
+
+    await traverse(1);
+    expect(window.location.pathname).toBe('/current');
+    expect(state().entries).toEqual(['/old', '/current', '/next', '/last']);
+    expect(state().index).toBe(1);
+    expect(canBack()).toBe(true);
+    expect(canForward()).toBe(true);
+
+    await traverse(2);
+    expect(window.location.pathname).toBe('/last');
+    expect(state().index).toBe(3);
+    expect(canForward()).toBe(false);
+  });
+
   it('pushes from a prepended entry like from any other (forward entries dropped)', async () => {
     uninstall();
     window.history.pushState(null, '', '/old');
