@@ -2,7 +2,9 @@
 
 ## Overview
 
-rapitas-mobile is a Flutter mobile application for managing Rapitas (Tauri desktop app) remotely from a smartphone. It connects to the rapitas-backend API (Elysia + Bun + Prisma + PostgreSQL) running on port 3001.
+rapitas-mobile is a Flutter app for using Rapitas from a phone. It talks to the same rapitas-backend API (Elysia + Bun + Prisma ORM, PostgreSQL (web) / SQLite (desktop)) that the desktop app runs. Agents themselves always run on the desktop; the phone views and operates tasks, executions, approvals and the Rapi assistant chat.
+
+The UI is Japanese only. User-facing strings are written directly in the widgets.
 
 ---
 
@@ -10,368 +12,194 @@ rapitas-mobile is a Flutter mobile application for managing Rapitas (Tauri deskt
 
 ### Tech Stack
 
-- **Framework**: Flutter (Dart)
-- **State Management**: Riverpod 2.x
-- **HTTP Client**: Dio
-- **Local Storage**: shared_preferences / Hive
-- **Push Notifications**: firebase_messaging (FCM)
-- **Real-time Updates**: SSE (Server-Sent Events) via Dio streaming (`lib/services/sse_service.dart`)
-- **Routing**: go_router
-- **Localization**: Japanese (primary), English
+Taken from `pubspec.yaml`.
+
+| Concern | Package / approach |
+| --- | --- |
+| Framework | Flutter (Dart SDK ^3.6.1) |
+| State management | flutter_riverpod 2.x (providers are written by hand; `riverpod_annotation` / `riverpod_generator` are declared but not used) |
+| HTTP client | dio |
+| Routing | go_router (`lib/config/routes.dart`) |
+| Settings storage | shared_preferences (backend URL, paired desktop id/name, theme mode, voice mode, Rapi drafts) |
+| Secret storage | flutter_secure_storage (API / device token) |
+| Real-time updates | SSE over Dio streaming (`lib/services/sse_service.dart`, parser in `lib/services/sse_parser.dart`) |
+| QR pairing | mobile_scanner |
+| LAN discovery | bonsoir (mDNS service `_rapitas._tcp`) |
+| Voice input | speech_to_text |
+| Markdown / assets | flutter_markdown_plus, flutter_svg, url_launcher |
+| Date formatting | intl |
+
+`json_annotation`, `freezed_annotation`, `freezed`, `json_serializable` and `connectivity_plus` are also declared, but no code in `lib/` uses them today. Models have hand-written `fromJson` / `toJson`.
+
+There is no push notification (FCM or otherwise) and no local database. Notifications are fetched from the backend and refreshed over SSE while the app is running.
 
 ### Project Structure
 
 ```
 rapitas-mobile/
 ├── lib/
-│   ├── main.dart
-│   ├── app.dart
+│   ├── main.dart                  ProviderScope + RapitasMobileApp
+│   ├── app.dart                   MaterialApp.router; starts the long-lived providers
 │   ├── config/
-│   │   ├── api_config.dart          # Backend URL, timeout settings
-│   │   ├── theme.dart               # Material3 theme (light/dark)
-│   │   └── routes.dart              # go_router configuration
-│   ├── models/                      # Data models (mirrors Prisma schema)
-│   │   ├── task.dart
-│   │   ├── theme_model.dart
-│   │   ├── project.dart
-│   │   ├── milestone.dart
-│   │   ├── agent_config.dart
-│   │   ├── agent_execution.dart
-│   │   ├── notification.dart
-│   │   ├── schedule_event.dart
-│   │   ├── study_streak.dart
-│   │   ├── exam_goal.dart
-│   │   ├── habit.dart
-│   │   ├── flashcard.dart
-│   │   └── ...
-│   ├── providers/                   # Riverpod providers
-│   │   ├── task_provider.dart
-│   │   ├── agent_provider.dart
-│   │   ├── execution_provider.dart
-│   │   ├── notification_provider.dart
-│   │   ├── auth_provider.dart
-│   │   └── ...
-│   ├── services/                    # API client & business logic
-│   │   ├── api_client.dart          # Dio-based HTTP client
-│   │   ├── sse_service.dart         # SSE real-time connection
-│   │   ├── task_service.dart
-│   │   ├── agent_service.dart
-│   │   ├── notification_service.dart
-│   │   └── ...
-│   ├── screens/                     # Full-screen pages
-│   │   ├── home/
-│   │   ├── task_list/
-│   │   ├── task_detail/
-│   │   ├── agent_execution/
-│   │   ├── approvals/
-│   │   ├── notifications/
-│   │   ├── dashboard/
-│   │   ├── calendar/
-│   │   ├── settings/
-│   │   └── ...
-│   ├── widgets/                     # Reusable UI components
-│   │   ├── task_card.dart
-│   │   ├── execution_log_viewer.dart
-│   │   ├── status_badge.dart
-│   │   ├── priority_indicator.dart
-│   │   └── ...
-│   └── utils/
-│       ├── date_formatter.dart
-│       ├── color_utils.dart
-│       └── constants.dart
-├── test/
+│   │   ├── api_config.dart        Base URL normalisation, timeouts, auth headers, SSE path
+│   │   ├── routes.dart            go_router routes, bottom navigation shell, deep links
+│   │   ├── note_paths.dart / note_routes.dart
+│   │   └── theme.dart             Material 3 light/dark themes
+│   ├── models/                    Plain Dart classes with fromJson
+│   │   ├── task.dart              Task, TaskCategory, TaskTheme, ThemeCategoryGroup
+│   │   ├── task_execution.dart    ExecutingTask, ResumableExecution, TaskExecutionStart
+│   │   ├── agent_config.dart, approval_request.dart, notification_model.dart
+│   │   ├── backlog.dart           Idea, Concern, Hypothesis
+│   │   ├── note.dart, companion_digest.dart, project.dart (unused)
+│   │   ├── rapi.dart, rapi_companion.dart, rapi_criteria_change.dart, rapi_criteria_edit.dart
+│   │   └── rapi_chat/             Chat message, cards, snapshot encode/decode
+│   ├── providers/                 Riverpod providers
+│   │   ├── service_providers.dart ApiConfig / ApiClient / service instances
+│   │   ├── connection_provider.dart   URL, token and paired desktop
+│   │   ├── pairing_provider.dart  Pairing service, LAN re-discovery
+│   │   ├── realtime_refresh_provider.dart  SSE event -> provider invalidation
+│   │   ├── task_provider.dart, agent_provider.dart, execution_provider.dart, approval_provider.dart
+│   │   ├── notification_provider.dart, backlog_provider.dart, note_provider.dart, theme_data_provider.dart
+│   │   ├── companion_provider.dart, home_widget_sync_provider.dart, pending_request_provider.dart
+│   │   ├── rapi_chat_provider.dart, rapi_chat_spaces_provider.dart (+ rapi_chat/*.part.dart)
+│   │   ├── settings_provider.dart theme mode, voice command mode
+│   │   └── voice_provider.dart, voice_learning_provider.dart, filter_selection_provider.dart
+│   ├── services/                  API clients and non-UI logic
+│   │   ├── api_client.dart        Shared Dio wrapper
+│   │   ├── human_decision_client.dart  Separate Dio for human-only workflow routes
+│   │   ├── task_service.dart, agent_service.dart, approval_service.dart, notification_service.dart
+│   │   ├── theme_service.dart, category_service.dart, backlog_service.dart, note_service.dart
+│   │   ├── decision_service.dart, deploy_service.dart
+│   │   ├── assistant_service.dart, companion_digest_service.dart, rapi_chat_space_service.dart
+│   │   ├── sse_service.dart, sse_parser.dart
+│   │   ├── pairing/               pairing_payload.dart, pairing_service.dart, desktop_discovery.dart
+│   │   ├── home_screen_bridge.dart, external_draft_inbox.dart   iOS widget / Shortcut bridge
+│   │   └── voice_*.dart, dictation_*.dart   Voice commands and dictation
+│   ├── screens/
+│   │   ├── home/  task_list/  task_detail/  task_form/  decision/
+│   │   ├── agent_execution/  approvals/  notifications/  dashboard/
+│   │   ├── themes/  categories/  backlog/  notes/  rapi/
+│   │   ├── pairing/               QR scanner
+│   │   └── settings/              Connection, agent configs, voice settings
+│   ├── widgets/                   Shared widgets (task_card, status_badge, execution_log_viewer,
+│   │                              app_drawer, voice_mode_*, markdown/, ...)
+│   └── utils/                     color_utils, constants, date_formatter, plain_reasons
+├── test/                          config/ models/ providers/ screens/ services/ widgets/ support/
+├── ios/                           Runner (incl. Shortcut intents) and RapiWidget (home screen widget)
+├── android/
 ├── pubspec.yaml
-├── analysis_options.yaml
-└── CLAUDE.md
+└── analysis_options.yaml
 ```
+
+### Navigation
+
+The bottom navigation bar has five tabs: ホーム (`/`), タスク (`/tasks`), 実行 (`/executions`), 承認 (`/approvals`) and チャット (`/rapi`). Everything else is reached from the drawer (`lib/widgets/app_drawer.dart`): テーマ, カテゴリ, アイデア, 懸念, 仮説, ノート, ダッシュボード, 通知, 設定.
+
+Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1` opens the chat with the input focused. Pairing QR codes use `rapitas://pair?d=<payload>`.
 
 ---
 
-## Backend API (rapitas-backend)
+## Implemented Screens
 
-### Connection
+| Screen | Folder under `lib/screens/` | What it does |
+| --- | --- | --- |
+| Home | `home/` | In-progress tasks, running agents, pending approvals, unread count |
+| Task list | `task_list/` | Task list with a filter sheet (category, theme, status, priority) |
+| Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls |
+| Task form | `task_form/` | Create and edit tasks |
+| Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
+| Executions | `agent_execution/` | Running and resumable executions, execution logs |
+| Approvals | `approvals/` | Approve or reject approval requests (with an optional reason) |
+| Notifications | `notifications/` | Notification list, mark as read, delete |
+| Dashboard | `dashboard/` | Task counts by status (未着手 / 進行中 / 完了 / 合計), computed on the phone from the task list |
+| Themes / categories | `themes/`, `categories/` | CRUD, reorder, set default |
+| Backlog | `backlog/` | Ideas (CRUD, filter), concerns (create, delete), hypotheses (status override, delete) |
+| Notes | `notes/` | List, view, create and edit notes; link a note to a task |
+| Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest |
+| Pairing | `pairing/` | QR scanner that pairs the phone with a desktop |
+| Settings | `settings/` | Connection (pair, manual URL and token, re-discover, connection test, restart desktop backend), AI agent configs, theme mode, voice command mode, voice learning |
 
-- **Base URL**: `http://<host>:3001` (configurable in settings)
-- **Protocol**: REST (JSON) + SSE (real-time)
-- **Authentication**: The backend binds to 127.0.0.1 by default. To reach it from the phone, the desktop sets `RAPITAS_BIND_HOST` (e.g. its Tailscale IP) **and** `RAPITAS_API_TOKEN`; the app sends that token as `Authorization: Bearer <token>` on REST and SSE (see `lib/config/api_config.dart`). The token is stored in flutter_secure_storage.
-- **Swagger Docs**: `http://<host>:3001/api/docs`
-
-### Core API Endpoints
-
-#### Tasks (`/tasks`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/tasks` | List tasks (filter: projectId, milestoneId, priority, status, themeId, parentId) |
-| GET | `/tasks/search?q=` | Autocomplete search |
-| GET | `/tasks/:id` | Get task with subtasks, timeEntries, comments, resources |
-| POST | `/tasks` | Create task |
-| PATCH | `/tasks/:id` | Update task (status, priority, title, etc.) |
-| DELETE | `/tasks/:id` | Delete task |
-
-#### AI Agents (`/agents`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/agents` | List agent configs |
-| POST | `/agents` | Create agent config |
-| PATCH | `/agents/:id` | Update agent config |
-| DELETE | `/agents/:id` | Delete agent config |
-| POST | `/agents/:id/test-connection` | Test API key connection |
-| GET | `/agents/:id/audit-logs` | Get config change history |
-
-#### Agent Execution (`/agents/executions`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/agents/executions/:taskId/execute` | Execute task via AI agent |
-| POST | `/agents/executions/:id/resume` | Resume interrupted execution |
-| POST | `/agents/executions/:id/cancel` | Cancel running execution |
-| GET | `/agents/executions/:id` | Get execution status & details |
-| GET | `/agents/executions/:id/logs` | Get execution logs |
-
-#### Approvals (`/approvals`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/approvals` | List pending approvals |
-| GET | `/approvals/:id` | Get approval details |
-| POST | `/approvals/:id/approve` | Approve request |
-| POST | `/approvals/:id/reject` | Reject request (with reason) |
-| POST | `/approvals/subtasks/create` | Create subtasks from AI analysis |
-
-#### Developer Mode (`/developer-mode`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/developer-mode/config/:taskId` | Get developer mode config |
-| POST | `/developer-mode/enable/:taskId` | Enable developer mode |
-| DELETE | `/developer-mode/disable/:taskId` | Disable developer mode |
-| POST | `/developer-mode/analyze/:taskId` | AI task analysis (breakdown) |
-| POST | `/developer-mode/generate-prompt` | Generate optimized prompt |
-
-#### Themes (`/themes`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/themes` | List all themes |
-| POST | `/themes` | Create theme |
-| PATCH | `/themes/:id` | Update theme |
-| DELETE | `/themes/:id` | Delete theme |
-
-#### Projects (`/projects`) & Milestones (`/milestones`)
-
-- Standard CRUD for projects and milestones
-
-#### Notifications (`/notifications`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/notifications` | List notifications |
-| PATCH | `/notifications/:id/read` | Mark as read |
-| DELETE | `/notifications/:id` | Delete notification |
-
-#### Schedule Events (`/schedules`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/schedules` | List events (filter by date range) |
-| POST | `/schedules` | Create event |
-| PATCH | `/schedules/:id` | Update event |
-| DELETE | `/schedules/:id` | Delete event |
-
-#### Statistics & Reports
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/statistics` | Dashboard statistics |
-| GET | `/reports` | Various analytics reports |
-
-#### Study Features
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/POST | `/exam-goals` | Exam goal CRUD |
-| GET/POST | `/study-streaks` | Study streak CRUD |
-| GET | `/study-streaks/current` | Current streak info |
-| GET/POST | `/study-plans` | Study plan CRUD |
-| POST | `/study-plans/:id/apply` | Apply plan (create tasks) |
-| GET/POST | `/flashcards/decks` | Flashcard deck CRUD |
-| GET/POST | `/habits` | Habit CRUD + logging |
-| GET | `/achievements` | Achievement gallery |
-
-#### Real-time (SSE)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/events/stream` | Main SSE stream |
-| GET | `/events/subscribe/:channel` | Channel-specific SSE |
-
-**SSE Event Types** (as actually emitted by `services/communication/realtime-service.ts`): `execution_status`, `execution_output`, `new_notification`, `task_created` / `task_updated` / `task_completed`, `subtasks_created`, `phase_transition`, `auto_run_update`, `schedule_*`, `ping` (every 60s), `shutdown`. There is no dedicated approval event — pending approvals surface via `new_notification` / `phase_transition`. The event → refresh mapping lives in `lib/providers/realtime_refresh_provider.dart`.
-
-#### AI Chat (`/ai`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/ai/chat` | Send message (non-streaming) |
-| POST | `/ai/chat/stream` | Send message (SSE streaming) |
-| GET | `/ai/providers` | Get available AI providers |
-
-#### Settings (`/settings`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/settings` | Get user settings |
-| PATCH | `/settings` | Update settings |
-
-#### GitHub Integration (`/github`)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/github/status` | Check gh CLI status |
-| GET | `/github/integrations` | List integrations |
-| GET | `/github/integrations/:id/pull-requests` | List PRs |
-| GET | `/github/integrations/:id/issues` | List issues |
+On iOS there is also a home screen widget (`ios/RapiWidget/`) that shows a snapshot of approvals, executions and today's tasks, and a Shortcut ("ラピに依頼") that hands a request to the app. Both talk to Dart through `lib/services/home_screen_bridge.dart` (MethodChannel `rapitas/home_screen`); on Android the bridge does nothing.
 
 ---
 
-## Database Models (Prisma Schema Reference)
+## Backend Connection
 
-### Task
+### Two ways to connect
 
-```
-id, title, description, status (todo/in-progress/done), priority (low/medium/high/urgent),
-labels (JSON), estimatedHours, actualHours, dueDate, subject, startedAt, completedAt,
-parentId (hierarchy), themeId, projectId, milestoneId, examGoalId,
-isDeveloperMode, isAiTaskAnalysis, agentGenerated, agentExecutable,
-autoExecutable, requireApproval (always/major_only/never), executionInstructions,
-githubIssueId, githubPrId, createdAt, updatedAt
-```
+| Method | Phone talks to | Token | Where it comes from |
+| --- | --- | --- | --- |
+| QR pairing (LAN) | The mobile gateway on the desktop (default port 3002, all interfaces) | Per-device token | Issued by `POST /mobile-link/claim` |
+| Manual URL + token | The main API on port 3001, exposed via `RAPITAS_BIND_HOST` or `tailscale serve` | `RAPITAS_API_TOKEN` | Typed into Settings |
 
-### AgentExecution
+The main API binds to 127.0.0.1 unless `RAPITAS_BIND_HOST` and `RAPITAS_API_TOKEN` are both set; when the token is set, every request must carry it (`rapitas-backend/middleware/local-auth.ts`). The mobile gateway accepts only requests that carry a paired device token, except the claim itself (`rapitas-backend/services/mobile-link/mobile-gateway.ts`). Phone linking must be enabled on the desktop (the claim returns 503 otherwise).
 
-```
-id, sessionId, agentConfigId, command, status (pending/running/completed/failed/cancelled/interrupted),
-output, artifacts (JSON), startedAt, completedAt, tokensUsed, executionTimeMs,
-errorMessage, question, questionType, questionDetails (JSON), claudeSessionId
-```
+Either way the app sends `Authorization: Bearer <token>` on REST and SSE (`lib/config/api_config.dart`). The SSE URL never contains the token.
 
-### ApprovalRequest
+### Pairing flow
 
-```
-id, configId, requestType, title, description, proposedChanges (JSON),
-status (pending/approved/rejected/expired), expiresAt, approvedAt, rejectedAt, rejectionReason
-```
+1. The desktop shows a QR code from its phone-link settings. The payload (`lib/services/pairing/pairing_payload.dart`, mirrored by `rapitas-backend/services/mobile-link/pairing-payload.ts`) holds the desktop id and name, the gateway port, its LAN addresses, a one-time code and an expiry.
+2. `PairingService` (`lib/services/pairing/pairing_service.dart`) posts the code to `/mobile-link/claim` on each LAN address in turn and keeps the first that answers 201 with a token.
+3. `ConnectionSettingsNotifier.savePairing` stores the URL, desktop id and desktop name in shared_preferences and the token in flutter_secure_storage.
+4. On startup and whenever SSE starts reconnecting, `desktopRelocatorProvider` (`lib/providers/pairing_provider.dart`) looks for the paired desktop on the LAN via mDNS (`_rapitas._tcp`, TXT `id` must match) and updates the URL if its IP changed. It runs at most once a minute.
 
-### Notification
+Saving a URL by hand clears the paired desktop id and name, because the manual target is not necessarily that desktop.
 
-```
-id, type, title, message, link, isRead, readAt, metadata (JSON), createdAt
-```
+### Storage
 
-### ScheduleEvent
+| Value | Store | Key |
+| --- | --- | --- |
+| Backend URL | shared_preferences | `backendUrl` |
+| Paired desktop id / name | shared_preferences | `pairedDesktopId`, `pairedDesktopName` |
+| API or device token | flutter_secure_storage | `rapitasApiToken` |
 
-```
-id, title, description, startAt, endAt, isAllDay, color,
-reminderMinutes, reminderSentAt, taskId, createdAt, updatedAt
-```
+### Endpoints the app calls
 
----
+This is the full list from `lib/services/` (all relative to the base URL). Do not assume other backend routes are wired up in the app.
 
-## Core Features (Mobile App)
+| Area | Endpoints |
+| --- | --- |
+| Tasks | `GET /tasks`, `GET /tasks/search?q=`, `GET /tasks/:id`, `POST /tasks`, `PATCH /tasks/:id`, `DELETE /tasks/:id` |
+| Execution | `POST /tasks/:id/execute`, `POST /tasks/:id/stop-execution`, `POST /agents/executions/:id/resume`, `GET /tasks/executing`, `GET /agents/resumable-executions`, `GET /tasks/:id/execution-logs` |
+| Agent configs | `GET/POST /agents`, `GET/PATCH/DELETE /agents/:id`, `POST/DELETE /agents/:id/api-key`, `POST /agents/:id/test-connection` |
+| Approvals | `GET /approvals`, `GET /approvals/:id`, `POST /approvals/:id/approve`, `POST /approvals/:id/reject` |
+| Workflow decisions | `GET /workflow/tasks/:id/files/:fileType`, `GET /workflow/tasks/:id/review-hold`, `POST /workflow/tasks/:id/approve-plan`, `.../revise-plan`, `.../answer-question`, `.../review-hold/resolve`, `.../release-halt` |
+| Notifications | `GET /notifications`, `PATCH /notifications/:id/read`, `DELETE /notifications/:id` |
+| Themes | `GET/POST /themes`, `PATCH/DELETE /themes/:id`, `PATCH /themes/:id/set-default`, `PATCH /themes/reorder` |
+| Categories | `GET/POST /categories`, `PATCH/DELETE /categories/:id`, `GET /categories/default-category`, `PATCH /categories/:id/set-default`, `PATCH /categories/reorder` |
+| Backlog | `GET/POST /idea-box`, `PATCH/DELETE /idea-box/:id`, `GET/POST /concerns`, `DELETE /concerns/:id`, `GET /hypotheses`, `PUT /hypotheses/:id/status`, `DELETE /hypotheses/:id` |
+| Notes | `GET /notes`, `GET/PUT/DELETE /notes/:id`, `POST /notes/:id/links` |
+| Rapi assistant | `POST /assistant/route`, `/assistant/task-draft`, `/assistant/task-create`, `/assistant/ask`, `GET /assistant/supervision`, `POST /assistant/update-draft`, `/assistant/task-update` (+ `/revert`), `/assistant/criteria-draft`, `/assistant/task-criteria` (+ `/revert`), `/assistant/criteria/review`, `/assistant/companion/draft`, `/assistant/companion/start`, `/assistant/companion/stop`, `/assistant/roadmap/draft`, `/assistant/roadmap/commit`, `/assistant/delete-filter`, `/assistant/delete-draft`, `/assistant/task-delete`, `POST /task-trash/:id/restore` |
+| Companion digest | `GET /assistant/companion/digest`, `POST /assistant/companion/digest/seen` |
+| Copilot chat | `POST /copilot/chat`, `GET /copilot/chat/:id/history` |
+| Chat spaces | `GET/POST /rapi-chat/spaces`, `DELETE /rapi-chat/spaces/:id`, `GET/PUT /rapi-chat/spaces/:id/messages` |
+| System | `GET /settings` (connection test), `GET /deploy/status`, `POST /deploy/now` (restart the desktop backend) |
+| Pairing | `POST /mobile-link/claim` |
+| Real-time | `GET /events/stream` (SSE) |
 
-### 1. Task Management (Priority: High)
+`POST /tasks/:id/execute` is served by `rapitas-backend/routes/agents/execution/routes/execute-route.ts`. Execution actions report failure in the body (`success` / `error`) even on HTTP 200, so `AgentService` checks the body and throws `AgentActionException`.
 
-- Task list with filtering (status, priority, theme, project)
-- Task detail view with subtask hierarchy
-- Quick task creation
-- Status change (swipe actions: todo -> in-progress -> done)
-- Priority change
-- Due date management
-- Theme/project assignment
+The workflow decision routes reject calls without `X-Rapitas-Source: ui|operator`. Only `HumanDecisionClient` (`lib/services/human_decision_client.dart`) adds that header, and only for those routes. Do not add it to `ApiClient` defaults and do not use `HumanDecisionClient` from the Rapi chat code, or the backend can no longer tell a human decision from an assistant action.
 
-### 2. AI Agent Execution & Monitoring (Priority: High)
+Swagger docs for the whole backend are at `http://<host>:3001/api/docs`.
 
-- View running executions in real-time (SSE streaming)
-- Execute tasks via AI agent (trigger from mobile)
-- View execution logs (streaming)
-- Cancel running executions
-- Resume interrupted executions
-- Answer agent questions (when AI asks for clarification)
-- Token usage and execution time display
+### Real-time (SSE)
 
-### 3. Approval Workflow (Priority: High)
+`SseService` connects to `/events/stream`, reconnects with exponential backoff from 1 s to 30 s, and reconnects if no event (including `ping`) arrives for 150 s. `realtimeRefreshProvider` (`lib/providers/realtime_refresh_provider.dart`) maps events to the lists it reloads:
 
-- Push notification for new approval requests
-- View proposed changes (diff view)
-- Approve/reject from mobile
-- Approval history
+| Event | Reloads |
+| --- | --- |
+| `task_created`, `task_updated`, `task_completed`, `subtasks_created` | tasks |
+| `execution_status` | executions, tasks |
+| `new_notification` | notifications, approvals |
+| `phase_transition` | tasks, approvals |
+| `auto_run_update` | tasks, executions |
 
-### 4. Notifications (Priority: High)
+Events are emitted by `rapitas-backend/services/communication/realtime-service.ts` and its callers. There is no dedicated approval event.
 
-- Real-time push notifications via FCM
-- In-app notification center
-- Notification types: execution complete, approval needed, question asked, task updates
-- Badge count on app icon
+### Data models
 
-### 5. Dashboard & Statistics (Priority: Medium)
-
-- Task completion statistics
-- Today's summary
-- Active executions overview
-- Study streak display
-- Burndown chart (simple)
-
-### 6. Calendar & Schedule (Priority: Medium)
-
-- Calendar view of scheduled events
-- Quick event creation
-- Reminders (local notifications)
-- Task due date visualization
-
-### 7. Study Features (Priority: Medium)
-
-- Exam goal countdown
-- Study streak tracking
-- Flashcard review (spaced repetition)
-- Habit check-in
-
-### 8. GitHub Integration (Priority: Low)
-
-- View PR status
-- View issue list
-- Quick PR approval (via GitHub API)
-
----
-
-## Recommended Additional Features for Mobile
-
-### Quick Actions & Widgets
-
-- **Home Screen Widget**: Display today's tasks, active executions, pending approvals
-- **Quick Actions (3D Touch / Long Press)**: Create task, check approvals, view executions
-- **Share Extension**: Share text/URL to create a task
-
-### Mobile-Specific Features
-
-- **Offline Mode**: Cache recent tasks for offline viewing, queue changes for sync
-- **Biometric Auth**: Fingerprint/Face ID for app access (API keys are sensitive)
-- **Voice Input**: Voice-to-task creation using speech recognition
-- **Camera Integration**: Attach photos to tasks directly from camera
-- **QR Code Scanner**: Scan QR to connect to backend server
-
-### Enhanced Monitoring
-
-- **Execution Timeline**: Visual timeline of all agent executions
-- **Resource Monitor**: Token usage charts, API cost tracking
-- **Activity Feed**: Chronological feed of all system events
-
-### Smart Features
-
-- **Smart Notifications**: Priority-based notification filtering
-- **Batch Operations**: Multi-select tasks for bulk status changes
-- **Search**: Full-text search across tasks, comments, execution logs
-- **Favorites**: Pin frequently accessed tasks
+Mobile models are hand-written subsets of the backend responses, not mirrors of the Prisma schema. When a field is in doubt, read the backend route's response and the Prisma models in `rapitas-backend/prisma/schema/` (for example `core.prisma` for tasks, themes and categories, `agents.prisma` for agent configs and executions, `notes.prisma`, `rapi-chat.prisma`, `workflow.prisma`).
 
 ---
 
@@ -379,65 +207,56 @@ reminderMinutes, reminderSentAt, taskId, createdAt, updatedAt
 
 ### Code Style
 
-- Follow Dart/Flutter official style guide
-- Use `analysis_options.yaml` with strict rules
-- File names in snake_case
-- Class names in PascalCase
-- Variable/function names in camelCase
-- Constants in camelCase (Dart convention)
+- Follow the Dart style guide. `analysis_options.yaml` includes the flutter_lints recommended set with no extra rules; run `flutter analyze`.
+- File names in snake_case, classes in PascalCase, variables and functions in camelCase, constants in camelCase (Dart convention).
+- Comments in this package are mostly Japanese; keep the existing language of a file.
 
 ### State Management (Riverpod)
 
-- Use `@riverpod` annotation (code generation) for providers
-- AsyncNotifier for API-driven state
-- StateNotifier for local UI state
-- Keep providers focused and composable
+- Providers are declared by hand, not with `@riverpod` code generation.
+- Service instances come from `lib/providers/service_providers.dart`. `apiConfigProvider` is built from `connectionSettingsProvider`, so changing the URL or token rebuilds `ApiClient` and every service.
+- API-backed reads use `FutureProvider` / `FutureProvider.family` (and `autoDispose` where appropriate); mutable state uses `StateNotifierProvider`, `NotifierProvider` or `AsyncNotifierProvider`.
+- Long-lived background providers (realtime refresh, desktop relocator, home widget sync, companion digest, chat space boot) are watched once in `lib/app.dart`.
 
 ### API Client Pattern
 
-```dart
-// Centralized Dio instance with interceptors
-class ApiClient {
-  late final Dio _dio;
+`ApiClient` (`lib/services/api_client.dart`) wraps one Dio instance built by `ApiClient.createDio(config)`:
 
-  ApiClient({required String baseUrl}) {
-    _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: Duration(seconds: 10),
-      receiveTimeout: Duration(seconds: 30),
-    ));
-    _dio.interceptors.add(LogInterceptor());
-  }
+```dart
+final dio = Dio(BaseOptions(
+  baseUrl: config.baseUrl,
+  connectTimeout: ApiConfig.connectTimeout, // 10 s
+  receiveTimeout: ApiConfig.receiveTimeout, // 30 s, overridable per request
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    ...config.authHeaders, // Authorization: Bearer <token> when set
+  },
+));
+if (kDebugMode) {
+  dio.interceptors.add(LogInterceptor(requestBody: false, responseBody: false /* ... */));
 }
 ```
 
+Services take an `ApiClient` in their constructor and return models. The logging interceptor is debug-only and never logs headers or bodies; keep it that way.
+
 ### Error Handling
 
-- Use `Result<T>` pattern or `Either<Failure, T>` for API calls
-- Show user-friendly error messages (Japanese)
-- Retry logic for transient network errors
-- Graceful degradation when backend is unreachable
+- There is no `Result` / `Either` type. Services throw: `DioException` for transport and HTTP errors, and typed exceptions for domain failures (`AgentActionException`, `PairingException`, `DeployException`, `AssistantException`), whose `toString()` is a Japanese message fit to show.
+- Screens render `AsyncValue` with an error state and a 再試行 (retry) action, or show a SnackBar.
+- When the backend reports failure in the body, read `error` (then `message`) rather than trusting the HTTP status.
 
 ### Testing
 
-- Unit tests for services and providers
-- Widget tests for key screens
-- Integration tests for critical flows (task CRUD, execution trigger)
-- Minimum 80% test coverage target
-
-### Backend Communication
-
-- **Important**: The backend runs on the user's local network. The mobile app must allow configuring the backend URL.
-- Support mDNS/Bonjour for automatic backend discovery on local network
-- Handle network transitions (Wi-Fi -> cellular) gracefully
-- SSE reconnection with exponential backoff
+- Run `flutter test`. Tests live in `test/`, split into `config/`, `models/`, `providers/`, `screens/`, `services/`, `widgets/`, with fakes and harnesses in `test/support/`.
+- Unit tests cover services and providers; widget tests cover screens and shared widgets. There is no integration_test directory and no coverage gate for this package.
+- New behaviour should ship with a test, following the repository's TDD rule.
 
 ### Localization
 
-- Primary language: Japanese
-- UI text in Japanese by default
-- Error messages in Japanese
-- Date/time format: Japanese locale (yyyy/MM/dd, HH:mm)
+- Japanese only. `MaterialApp.router` uses `locale: Locale('ja', 'JP')`; there is no l10n framework and no English translation.
+- Error messages are in Japanese.
+- Dates use `lib/utils/date_formatter.dart`: `yyyy/MM/dd`, `yyyy/MM/dd HH:mm`, `HH:mm`.
 
 ---
 
@@ -445,27 +264,17 @@ class ApiClient {
 
 ### Backend Compatibility
 
-- The backend is shared with rapitas-frontend (Next.js) and rapitas-desktop (Tauri)
-- **Do NOT modify the backend API** - the mobile app must adapt to existing endpoints
-- If new endpoints are needed, they should be added to rapitas-backend separately
-- Backend uses Bun runtime + Elysia framework + Prisma ORM + PostgreSQL
+- The backend is shared with rapitas-frontend (Next.js) and rapitas-desktop (Tauri).
+- The mobile app adapts to existing endpoints. If it needs a new endpoint, add it to rapitas-backend as a separate change.
+- `PairingPayload` must stay in sync with `rapitas-backend/services/mobile-link/pairing-payload.ts`; bump `v` for incompatible changes.
 
 ### Security
 
-- API keys (Claude, ChatGPT, Gemini) are encrypted in the database - never expose raw keys in mobile app
-- Backend currently has no authentication - consider adding API key or JWT auth for remote access
-- Store backend URL and connection settings securely (flutter_secure_storage)
-
-### Performance
-
-- Minimize API calls - use caching and pagination
-- SSE connection should be managed as a singleton
-- Lazy-load screens and data
-- Image caching for task attachments
+- The token can trigger agent execution, which amounts to code execution on the desktop. Keep it in flutter_secure_storage only; never put it in URLs, logs, the iOS widget snapshot or shared_preferences.
+- Agent API keys are sent to the backend and only a masked value (`apiKeyMasked`) comes back; never store or display raw keys in the app.
+- Plain `http` is allowed on Android only in debug builds (`android/app/src/debug/AndroidManifest.xml`), so Android release builds can connect only over HTTPS (for example `tailscale serve`); QR pairing, which uses `http` on the LAN, does not work there. iOS allows local-network `http` through `NSAllowsLocalNetworking` in `ios/Runner/Info.plist`.
 
 ### Platform Support
 
-- Target: iOS 15+ and Android 10+
-- Material 3 design with platform-adaptive components
-- Support both portrait and landscape orientations
-- Responsive layout for phones and tablets
+- iOS deployment target 15.0 for the app (the widget extension targets 16.1). Android uses Flutter's default `minSdk` / `targetSdk`.
+- Material 3 themes (light, dark, follow system).
