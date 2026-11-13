@@ -25,9 +25,9 @@ npx tauri icon path/to/your/icon.png
 | マスター | 用途 |
 | --- | --- |
 | `app-icon.svg` | アプリアイコンのすべてのサイズ（`*.png`、`icon.ico` の全フレーム、`icon.icns` の全フレーム） |
-| `tray-icon.svg` | `tray-icon.png`（同じ図形をトレイ用の配色にしたもの） |
+| `tray-icon.svg` | `tray-icon.png`（64x64・透過。トレイ専用。同じ図形を黒のベタ塗りにし、タイルなしで横約88%まで中央基準で拡大したもの） |
 
 図形はスマホ版アイコン（`rapitas-mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`）と同じ構成です。
 スマホ版は全面塗りで、デスクトップ版はそこに角丸タイル（`rx=213`）をかけただけです。図形を縮小しないでください。タイルの内側はスマホ版と 1px 単位で一致します。
 
-システムトレイは `src/app_setup.rs` が `32x32.png` を読み込んで表示します。
+システムトレイは `src/app_setup.rs` が `tray-icon.png` を読み込んで表示します（macOS ではテンプレート画像として扱い、メニューバーの明暗に合わせて OS が色を反転します）。アプリアイコンの `32x32.png` はトレイには使いません。

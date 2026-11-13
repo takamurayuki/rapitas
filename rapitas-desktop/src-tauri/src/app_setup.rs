@@ -26,12 +26,19 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &capture_item, &quit_item])?;
 
-    let tray_icon_bytes = include_bytes!("../icons/32x32.png");
+    // Tray-only artwork (solid black glyph, transparent background), kept
+    // separate from the app icon set. Master: icons/tray-icon.svg.
+    let tray_icon_bytes = include_bytes!("../icons/tray-icon.png");
     let tray_icon_image =
         tauri::image::Image::from_bytes(tray_icon_bytes).expect("failed to load tray icon");
 
-    let _tray = TrayIconBuilder::new()
-        .icon(tray_icon_image)
+    let tray_builder = TrayIconBuilder::new().icon(tray_icon_image);
+    // On macOS, a template image lets the menu bar recolor the glyph for light
+    // and dark appearance. Other platforms show the icon as-is.
+    #[cfg(target_os = "macos")]
+    let tray_builder = tray_builder.icon_as_template(true);
+
+    let _tray = tray_builder
         .tooltip("Rapitas - AI Task Manager")
         .menu(&menu)
         .show_menu_on_left_click(false)
