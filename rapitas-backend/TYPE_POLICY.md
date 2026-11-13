@@ -19,13 +19,13 @@
 ### 2.1 再利用可能な型定義
 
 ```typescript
-// ✅ Good: 共通の型定義を作成
+// Good: 共通の型定義を作成
 interface RequestBody {
   title: string;
   description?: string;
 }
 
-// ❌ Bad: インライン型やanyの使用
+// Bad: インライン型やanyの使用
 const handler = (body: any) => { ... }
 ```
 
@@ -49,7 +49,7 @@ const handler = (body: any) => { ... }
 ### 3.1 フレームワーク制約
 
 ```typescript
-// ✅ 許可: Elysia global.d.ts
+// 許可: Elysia global.d.ts
 interface Context {
   request: any; // フレームワーク制約
 }
@@ -58,14 +58,14 @@ interface Context {
 ### 3.2 動的JSON処理
 
 ```typescript
-// ✅ 許可: 外部APIの動的レスポンス（コメント必須）
+// 許可: 外部APIの動的レスポンス（コメント必須）
 const response: Record<string, any> = await fetchDynamicAPI(); // HACK(agent): 動的JSON構造のため
 ```
 
 ### 3.3 テスト用モック
 
 ```typescript
-// ✅ 許可: テスト環境でのモック（型付き代替を推奨）
+// 許可: テスト環境でのモック（型付き代替を推奨）
 const mockFunction = jest.fn() as any; // HACK(agent): Jest型制約回避
 ```
 
@@ -74,7 +74,7 @@ const mockFunction = jest.fn() as any; // HACK(agent): Jest型制約回避
 ### 4.1 リクエストボディの型定義
 
 ```typescript
-// ✅ Good
+// Good
 interface CreateTaskRequest {
   title: string;
   description?: string;
@@ -85,7 +85,7 @@ app.post('/tasks', ({ body }: { body: CreateTaskRequest }) => {
   // 型安全な処理
 });
 
-// ❌ Bad
+// Bad
 app.post('/tasks', ({ body }) => {
   const taskData = body as any;
 });
@@ -94,14 +94,14 @@ app.post('/tasks', ({ body }) => {
 ### 4.2 エラーハンドリング
 
 ```typescript
-// ✅ Good
+// Good
 try {
   // 処理
 } catch (error: unknown) {
   const message = error instanceof Error ? error.message : 'Unknown error';
 }
 
-// ❌ Bad
+// Bad
 try {
   // 処理
 } catch (error: any) {
@@ -112,14 +112,14 @@ try {
 ### 4.3 外部ライブラリの型拡張
 
 ```typescript
-// ✅ Good: 型定義ファイルで拡張
+// Good: 型定義ファイルで拡張
 declare module 'external-library' {
   export interface LibraryOptions {
     newOption: string;
   }
 }
 
-// ❌ Bad: anyでキャスト
+// Bad: anyでキャスト
 const options = libraryOptions as any;
 ```
 
@@ -135,7 +135,7 @@ tsc --noEmit --strict --noImplicitAny
 ### 5.2 実行時検証
 
 ```typescript
-// ✅ Good: ランタイム型ガード
+// Good: ランタイム型ガード
 function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
@@ -173,5 +173,3 @@ if (isString(data.title)) {
 - [ ] 型ガードが適切に実装されているか
 - [ ] ジェネリクスが効果的に活用されているか
 - [ ] 型定義が過度に複雑になっていないか
-
-このポリシーに従い、プロジェクト全体の型安全性を向上させていきます。
