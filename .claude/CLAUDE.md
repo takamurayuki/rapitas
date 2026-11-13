@@ -47,6 +47,11 @@ When rules conflict, follow this order:
 | Backend  | Elysia + Bun + Prisma ORM — PostgreSQL (web) / SQLite (desktop) | 3001 |
 | Desktop  | Tauri 2.x                                 | —    |
 
+Moving work between the backend and the desktop's Rust (`rapitas-desktop/src-tauri/`)?
+Follow [ADR-0010](../docs/adr/0010-desktop-rust-boundary.md): only desktop-only OS /
+process-lifetime concerns move to Rust, product logic stays in the backend, one owner
+per responsibility, and measure before and after.
+
 ### Dev server startup
 
 `rapitas-desktop/scripts/dev.js` (`npm run dev:tauri`, desktop / SQLite) handles on each start:
