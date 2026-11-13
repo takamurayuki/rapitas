@@ -60,6 +60,7 @@ import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
 import { RestartDialogs } from './restart-dialogs';
+import { HistoryNavButtons } from './history';
 
 /**
  * Sticky application header with a hamburger-triggered side navigation panel.
@@ -266,15 +267,19 @@ export default function Header() {
       {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
           menus are never hidden behind them, but below modal dialogs (z-200). */}
       <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-        <div className="flex items-center justify-between h-16 px-2 sm:px-6">
-          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+        <div className="flex items-center h-16 px-1.5 sm:px-6">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3">
             <button
               onClick={() => h.setIsMenuOpen(!h.isMenuOpen)}
-              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               aria-label={t('openMenu')}
             >
               {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
+
+            {/* Back/forward live here for every screen; pages no longer carry
+                their own back buttons. */}
+            <HistoryNavButtons />
 
             {/* NOTE: The desktop app (Tauri) shows no brand block — desktop apps
                 rarely title their own header, and home stays reachable via the
@@ -282,7 +287,10 @@ export default function Header() {
                 a hydration mismatch nor a flash: `tauri:hidden` hides it from
                 the first paint (layout.tsx's head script tags <html> with
                 `tauri` before React loads), and once mounted isTauriEnv drops
-                it from the DOM. Server/static HTML always includes it. */}
+                it from the DOM. Server/static HTML always includes it.
+                The Web wordmark shows at every width (nav57); a 390px phone
+                keeps room for the search by compacting the toolbar below md
+                (header-toolbar.tsx) and this row's padding instead. */}
             {!h.isTauriEnv && (
               <Link
                 href="/"
@@ -323,9 +331,6 @@ export default function Header() {
             isTauriEnv={h.isTauriEnv}
             isRestarting={h.isRestarting}
             handleRestartClick={h.handleRestartClick}
-            // Without the brand, justify-between would float the search in the
-            // middle; the auto margin packs it next to the menu button instead.
-            className="tauri:ml-auto"
           />
         </div>
       </header>
@@ -339,7 +344,8 @@ export default function Header() {
         filteredNavItems={filteredNavItems}
         expandedItems={h.expandedItems}
         toggleExpand={h.toggleExpand}
-        getShortcutLabel={h.getShortcutLabel}
+        user={h.user}
+        isAuthLoading={!h.hasMounted || h.isAuthLoading}
       />
 
       <RestartDialogs

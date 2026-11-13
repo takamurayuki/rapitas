@@ -37,7 +37,6 @@ export interface TaskDetailContentProps {
   setAgentConfigId: (id: number | null) => void;
   planFile: WorkflowFile | null;
   onApprovalComplete: (approved: boolean, newStatus?: string) => void;
-  onBack: () => void;
   taskActions: TaskEditSlice & TaskDetailViewBodyProps['taskActions'];
   viewBodyProps: Omit<
     TaskDetailViewBodyProps,
@@ -70,7 +69,6 @@ export default function TaskDetailContent({
   setAgentConfigId,
   planFile,
   onApprovalComplete,
-  onBack,
   taskActions,
   viewBodyProps,
 }: TaskDetailContentProps) {
@@ -132,10 +130,8 @@ export default function TaskDetailContent({
       <TaskDetailQuickNav
         sections={quickNavSections}
         task={task}
-        isPageMode={isPageMode}
         isThisTaskTimer={isThisTaskTimer}
         pomodoroState={pomodoroState}
-        onBack={onBack}
         onOpenPomodoro={() => void openPomodoroFloatWindow({ id: task.id, title: task.title })}
         onDeleteTask={taskActions.deleteTask}
         onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}

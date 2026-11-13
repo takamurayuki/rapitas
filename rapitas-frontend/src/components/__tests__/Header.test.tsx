@@ -182,8 +182,13 @@ describe('Header', () => {
       render(<Header />);
       const wordmark = screen.getByText('Rapi+');
       expect(wordmark.closest('a')).toHaveAttribute('href', '/');
-      // The wordmark is the only content of the home link, so it must stay
-      // visible at every width (no `hidden` / `sm:inline` breakpoint gating).
+      // The Web wordmark is the only content of the home link and stays
+      // visible at every width (nav57) — no `hidden` / breakpoint gating on
+      // the link or the text. Only the desktop app (tauri:hidden) drops it.
+      const link = wordmark.closest('a')!;
+      expect(link.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+      expect(link.className).not.toMatch(/(^|\s)(sm|md|lg):(flex|inline|block)(\s|$)/);
+      expect(link.className).toMatch(/(^|\s)tauri:hidden(\s|$)/);
       expect(wordmark.className).not.toMatch(/(^|\s)hidden(\s|$)/);
       expect(screen.queryByTestId('app-icon')).not.toBeInTheDocument();
     });

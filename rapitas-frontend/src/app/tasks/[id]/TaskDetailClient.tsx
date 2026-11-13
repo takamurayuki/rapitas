@@ -356,7 +356,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
       setAgentConfigId={setAgentConfigId}
       planFile={workflowFiles?.plan || null}
       onApprovalComplete={handleApprovalComplete}
-      onBack={() => router.back()}
       taskActions={taskActions}
       viewBodyProps={viewBodyProps}
     />

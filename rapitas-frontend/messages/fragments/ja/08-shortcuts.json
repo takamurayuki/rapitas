@@ -45,6 +45,7 @@
       "shortcutHelp": "ショートカットヘルプ",
       "toggleAI": "ノート+AI機能",
       "commandBar": "コマンドバー",
+      "focusSearch": "検索欄へ移動",
       "toggleBrowser": "ブラウザパネルの表示切替",
       "triageApprove": "トリアージ: 承認",
       "triageDefer": "トリアージ: 保留",

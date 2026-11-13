@@ -182,6 +182,33 @@ describe('HeaderToolbar', () => {
     });
   });
 
+  describe('compact view toggle (below md)', () => {
+    it('offers the kanban view from the list view and goes there', () => {
+      mockPathname = '/';
+      render(<HeaderToolbar {...defaultProps} />);
+      const btn = screen.getByTestId('view-toggle-compact');
+      expect(btn).toHaveAttribute('aria-label', 'kanban');
+      expect(btn.className).toMatch(/(^|\s)md:hidden(\s|$)/);
+      fireEvent.click(btn);
+      expect(mockPush).toHaveBeenCalledWith('/kanban');
+    });
+
+    it('offers the list view from the kanban view and goes there', () => {
+      mockPathname = '/kanban';
+      render(<HeaderToolbar {...defaultProps} />);
+      const btn = screen.getByTestId('view-toggle-compact');
+      expect(btn).toHaveAttribute('aria-label', 'list');
+      fireEvent.click(btn);
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+
+    it('is not rendered on other routes', () => {
+      mockPathname = '/dashboard';
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.queryByTestId('view-toggle-compact')).not.toBeInTheDocument();
+    });
+  });
+
   describe('user menu', () => {
     it('renders the user menu button when authenticated', () => {
       render(<HeaderToolbar {...defaultProps} />);
@@ -362,7 +389,7 @@ describe('HeaderToolbar', () => {
     it('keeps the default root classes without a className prop', () => {
       const { container } = render(<HeaderToolbar {...defaultProps} />);
       const root = container.firstElementChild as HTMLElement;
-      expect(root.className).toBe('flex shrink-0 items-center gap-1 sm:gap-3');
+      expect(root.className).toBe('flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3');
     });
   });
 });

@@ -4,11 +4,10 @@
  * PRHeader
  *
  * Header row for the pull request detail page.
- * Displays back navigation, PR status icon, title, branch info, and GitHub link.
+ * Displays the PR status icon, title, branch info, and GitHub link.
  */
 
-import Link from 'next/link';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
 import { getPRStatusIcon } from './PrUtils';
@@ -27,12 +26,6 @@ export function PRHeader({ pr }: PRHeaderProps) {
 
   return (
     <div className="flex items-start gap-4 mb-6">
-      <Link
-        href="/github/pull-requests"
-        className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
-      </Link>
       {getPRStatusIcon(pr.state)}
       <div className="flex-1">
         <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">

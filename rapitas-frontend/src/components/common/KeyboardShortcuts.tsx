@@ -81,6 +81,9 @@ export default function KeyboardShortcuts() {
     commandBar: () => {
       // SmartCommandBar handles its own keyboard shortcut
     },
+    focusSearch: () => {
+      // HeaderSearch handles its own keyboard shortcut (it must also work from inside other inputs)
+    },
     toggleBrowser: () => useLinkViewStore.getState().toggleOpen(),
   };
 
