@@ -6,6 +6,7 @@
 
 - **厳格禁止**: `any`型の使用は原則として禁止
 - **例外のみ**: フレームワーク制約や外部ライブラリの型定義不備による場合のみ、明示的なコメント付きで許可
+- **機械的な強制**: 本番コードでは ESLint の `@typescript-eslint/no-explicit-any` が error（`eslint-shared.mjs`）。例外には `// HACK(agent): <理由>` と `// eslint-disable-next-line @typescript-eslint/no-explicit-any` の両方を付ける。テストファイルと `.d.ts` は対象外
 - **代替手法**: `unknown`、Union型、ジェネリクス、型アサーションを活用
 
 ### 1.2 型安全性の優先
@@ -39,8 +40,8 @@ const handler = (body: any) => { ... }
 
 | 種類 | 規則 | 例 |
 |-----|------|-----|
-| Interface | PascalCase + Interface suffix | `TaskInterface`, `UserInterface` |
-| Type alias | PascalCase + Type suffix | `StatusType`, `ConfigType` |
+| Interface | PascalCase（接尾辞なし） | `Task`, `AgentConfig` |
+| Type alias | PascalCase（接尾辞なし） | `WorkflowStatus`, `GateOutcome` |
 | Enum | PascalCase | `TaskStatus`, `UserRole` |
 | Generic | 単一大文字 | `T`, `K`, `V` |
 
@@ -49,9 +50,9 @@ const handler = (body: any) => { ... }
 ### 3.1 フレームワーク制約
 
 ```typescript
-// 許可: Elysia global.d.ts
-interface Context {
-  request: any; // フレームワーク制約
+// 許可: 型定義の無いモジュールの宣言（rapitas-backend/global.d.ts）
+declare module 'elysia' {
+  export const DEFS: any; // Elysia framework constraint
 }
 ```
 
@@ -65,8 +66,9 @@ const response: Record<string, any> = await fetchDynamicAPI(); // HACK(agent): �
 ### 3.3 テスト用モック
 
 ```typescript
-// 許可: テスト環境でのモック（型付き代替を推奨）
-const mockFunction = jest.fn() as any; // HACK(agent): Jest型制約回避
+// テストファイルでは no-explicit-any が無効なので HACK コメントは不要。ただし型付きのモックを推奨
+import { mock } from 'bun:test';
+const mockFunction = mock(() => Promise.resolve(null));
 ```
 
 ## 4. 推奨パターン
@@ -128,8 +130,8 @@ const options = libraryOptions as any;
 ### 5.1 コンパイル時チェック
 
 ```bash
-# 厳格な型チェック
-tsc --noEmit --strict --noImplicitAny
+# strict は tsconfig.base.json で有効。pre-push フックと同じコマンド
+cd rapitas-backend && bunx tsc --noEmit --skipLibCheck
 ```
 
 ### 5.2 実行時検証
