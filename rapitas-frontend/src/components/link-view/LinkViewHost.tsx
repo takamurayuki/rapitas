@@ -72,10 +72,11 @@ export default function LinkViewHost() {
   const pathname = usePathname();
   const onBrowserScreen = isBrowserRoute(pathname);
   const slot = useBrowserScreenSlotStore((s) => s.slot);
-  // Read after mount: the static export renders without Tauri, and the
-  // desktop/web split must not differ between server and first client render.
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => setIsDesktop(isTauri()), []);
+  // Read at once, not after mount: a first render as "web" on the desktop
+  // would build iframes and fire an embed check. Hydration-safe because the
+  // only thing it decides — the screen — renders after the slot mounts, never
+  // during hydration; the pane does not depend on it.
+  const [isDesktop] = useState(() => isTauri());
 
   const tabs = useLinkViewStore((s) => s.tabs);
   const activeId = useLinkViewStore((s) => s.activeId);

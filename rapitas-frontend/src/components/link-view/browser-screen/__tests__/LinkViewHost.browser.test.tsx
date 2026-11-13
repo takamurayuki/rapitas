@@ -16,6 +16,7 @@ import { useLinkViewStatusStore } from '@/stores/link-view-status-store';
 import { useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
 import { useBrowserScreenSlotStore } from '../browser-screen-slot';
 import { SLOW_LOAD_MS } from '../useLinkViewReports';
+import { resetEmbedVerdicts } from '../useEmbedCheck';
 
 let pathname = '/';
 const handlers: Record<string, (e: { tabId: string; url: string; detail: string }) => void> = {};
@@ -199,5 +200,21 @@ describe('webview reports', () => {
       handlers.downloadBlocked({ tabId: 't2', url: 'blob:https://x/1', detail: 'download' }),
     );
     expect(useLinkViewStatusStore.getState().bands.t2?.kind).toBe('download-blocked');
+  });
+});
+
+describe('desktop first render', () => {
+  it('never builds a web iframe or asks the embed check on the desktop', () => {
+    tauri = true;
+    pathname = '/browser';
+    // Earlier tests cached example.com's verdict; without a reset a web
+    // render would not fetch and this test could not fail.
+    resetEmbedVerdicts();
+    useLinkViewStore.getState().openLink('https://example.com/');
+    mountSlot();
+    render(<LinkViewHost />);
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByTestId('browser-surface')).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
