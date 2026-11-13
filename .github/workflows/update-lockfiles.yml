@@ -24,7 +24,11 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        # NOTE: credentials are deliberately persisted (zizmor artipacked is
+        # ignored here): create-pull-request pushes the lockfile branch from this
+        # checkout, and this job uploads no artifacts, which is the leak path
+        # that audit guards against.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 # zizmor: ignore[artipacked]
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
@@ -40,7 +44,9 @@ jobs:
           bun-version: '1.3.13'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.34.9
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.9
 
       - name: Update Bun lockfile
         working-directory: rapitas-backend
