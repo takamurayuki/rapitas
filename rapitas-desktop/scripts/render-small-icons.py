@@ -1,7 +1,7 @@
 """
 render-small-icons.py
 
-Renders the pixel-snapped small app-icon frames (16-48px) and the tray icons,
+Renders the small app-icon frames (16-48px) and the glyph-only tray icons,
 and rebuilds icon.ico from them plus the existing large frames.
 
 Why this exists: app-icon.svg rotates the glyph by -10 degrees. Downscaled to
@@ -27,6 +27,11 @@ SMALL_SIZES = (16, 20, 24, 32, 48)
 # Frames kept as-is from the current icon.ico (rendered from app-icon.svg).
 LARGE_SIZES = (64, 128, 256)
 TRAY_SIZES = (16, 20, 24, 32)
+# Tray icons drop the tile (like Slack's) so the glyph can fill the slot: the
+# tile's padding and corners cost ~30% of a 16px tray icon. Brand purple stays
+# legible on both the light and the dark taskbar, where white or black vanish.
+TRAY_COLOR = (0x8B, 0x5C, 0xF6)
+TRAY_GLYPH_ENLARGE = 1.38
 
 GRADIENT_FROM = (0x8B, 0x5C, 0xF6)
 GRADIENT_TO = (0x63, 0x66, 0xF1)
@@ -190,6 +195,31 @@ def render_icon(size: int) -> Image.Image:
     return image
 
 
+def render_tray(size: int) -> Image.Image:
+    """
+    Render one tray icon: the tilted glyph alone in brand purple, no tile.
+
+    Args:
+        size: edge length in pixels / 一辺のピクセル数
+
+    Returns:
+        RGBA tray icon / トレイ用アイコン画像
+    """
+    base = GLYPH_SCALE.get(size, 1.0)
+    GLYPH_SCALE[size] = base * TRAY_GLYPH_ENLARGE
+    try:
+        steps = [i / 8 - 0.5 for i in range(9)]
+        coverage = min(
+            (glyph_coverage(size, dx, dy) for dx in steps for dy in steps),
+            key=blur_score,
+        )
+    finally:
+        GLYPH_SCALE[size] = base
+    image = Image.new("RGBA", (size, size), TRAY_COLOR + (255,))
+    image.putalpha(coverage)
+    return image
+
+
 def png_bytes(image: Image.Image) -> bytes:
     """
     Encode an image as PNG.
@@ -258,7 +288,7 @@ def main() -> None:
     small = {size: render_icon(size) for size in SMALL_SIZES}
     small[32].save(ICONS / "32x32.png")
     for size in TRAY_SIZES:
-        small.get(size, render_icon(size)).save(ICONS / f"tray-icon-{size}.png")
+        render_tray(size).save(ICONS / f"tray-icon-{size}.png")
     large = read_large_frames(ICONS / "icon.ico")
     frames = [(s, png_bytes(small[s])) for s in SMALL_SIZES] + large
     write_ico(ICONS / "icon.ico", sorted(frames))
