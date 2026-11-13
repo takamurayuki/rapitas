@@ -27,3 +27,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Bookmark` / `BookmarkPlus` | アプリ内ブラウザのお気に入り（`LinkFavourites` の見出し・パネルを開くボタン、`LinkViewPane` の保存ボタン。`BookmarkPlus`=未保存、`Bookmark`(fill)=保存済み）。注: `Star`＝カテゴリの既定/推奨は別概念のため流用しない。`rapitas-frontend/src/components/category/icons`・`claude-md-generator` のアイコン登録は中立的な再掲で対象外 |
 | `FolderPlus`              | アプリ内ブラウザのグループを作る（`LinkFavourites` のグループ追加欄、`TabStripTab` の「新しいグループに追加」— 同一概念の再利用）。注: `FolderOpen`＝汎用フォルダ、`Folders`＝カテゴリ一覧ページヘッダーとは別概念 |
 | `Eraser`                  | ラピの「片付ける」モード（`RapiModeTabs` の tidy タブ — 完了済みタスクの一括整理。注: `Trash2`＝個別削除、`Archive`＝メモリ/KB管理とは別概念。`rapitas-frontend/src/components/category/icons` の登録は中立的な再掲で対象外） |
+| `CirclePause`             | 節目の休止（ゴール詳細の節目カードの「休止する」— 休止は正当な判断で、到達率の分母から外れる。注: `Pause`＝ポモドーロ/フォーカスの一時停止とは別概念） |

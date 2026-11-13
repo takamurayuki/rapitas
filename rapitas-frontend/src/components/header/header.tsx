@@ -18,6 +18,7 @@ import {
   Folders,
   FolderGit2,
   ScrollText,
+  Mountain,
   BarChart3,
   GanttChartSquare,
   FileText,
@@ -73,6 +74,9 @@ export default function Header() {
   }
 
   const navItems: NavItem[] = [
+    // Goals come first: the product's axis is carrying a person's goal through
+    // its milestones; the task list is how the work for them gets done.
+    { href: '/goals', label: t('goals'), icon: Mountain },
     {
       href: '/',
       label: t('taskList'),
