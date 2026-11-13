@@ -26,8 +26,8 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &capture_item, &quit_item])?;
 
-    // NOTE: Purple glyph without the tile (operator request): it fills the
-    // tray slot and stays visible on light and dark taskbars.
+    // NOTE: Same purple tile + white glyph as the app icon (operator request),
+    // with the glyph enlarged so it reads at tray size.
     let _tray = TrayIconBuilder::new()
         .icon(crate::app_icon::tray_icon_image(app)?)
         .tooltip("Rapitas")

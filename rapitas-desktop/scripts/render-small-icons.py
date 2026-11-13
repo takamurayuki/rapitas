@@ -1,7 +1,7 @@
 """
 render-small-icons.py
 
-Renders the small app-icon frames (16-48px) and the glyph-only tray icons,
+Renders the small app-icon frames (16-48px) and the tray icons,
 and rebuilds icon.ico from them plus the existing large frames.
 
 Why this exists: app-icon.svg rotates the glyph by -10 degrees. Downscaled to
@@ -27,11 +27,11 @@ SMALL_SIZES = (16, 20, 24, 32, 48)
 # Frames kept as-is from the current icon.ico (rendered from app-icon.svg).
 LARGE_SIZES = (64, 128, 256)
 TRAY_SIZES = (16, 20, 24, 32)
-# Tray icons drop the tile (like Slack's) so the glyph can fill the slot: the
-# tile's padding and corners cost ~30% of a 16px tray icon. Brand purple stays
-# legible on both the light and the dark taskbar, where white or black vanish.
-TRAY_COLOR = (0x8B, 0x5C, 0xF6)
-TRAY_GLYPH_ENLARGE = 1.38
+# Tray icons keep the app icon's purple tile + white glyph, but enlarge the
+# glyph and tighten the corners: at 16px the app icon's padding leaves the
+# bars too small to read. (A tile-less purple glyph was tried and rejected.)
+TRAY_GLYPH_ENLARGE = 1.18
+TRAY_TILE_RADIUS = 0.18
 
 GRADIENT_FROM = (0x8B, 0x5C, 0xF6)
 GRADIENT_TO = (0x63, 0x66, 0xF1)
@@ -197,7 +197,7 @@ def render_icon(size: int) -> Image.Image:
 
 def render_tray(size: int) -> Image.Image:
     """
-    Render one tray icon: the tilted glyph alone in brand purple, no tile.
+    Render one tray icon: the app icon tile with an enlarged glyph.
 
     Args:
         size: edge length in pixels / 一辺のピクセル数
@@ -205,19 +205,15 @@ def render_tray(size: int) -> Image.Image:
     Returns:
         RGBA tray icon / トレイ用アイコン画像
     """
-    base = GLYPH_SCALE.get(size, 1.0)
-    GLYPH_SCALE[size] = base * TRAY_GLYPH_ENLARGE
+    global TILE_RADIUS
+    base_scale, base_radius = GLYPH_SCALE.get(size, 1.0), TILE_RADIUS
+    GLYPH_SCALE[size] = base_scale * TRAY_GLYPH_ENLARGE
+    TILE_RADIUS = TRAY_TILE_RADIUS
     try:
-        steps = [i / 8 - 0.5 for i in range(9)]
-        coverage = min(
-            (glyph_coverage(size, dx, dy) for dx in steps for dy in steps),
-            key=blur_score,
-        )
+        return render_icon(size)
     finally:
-        GLYPH_SCALE[size] = base
-    image = Image.new("RGBA", (size, size), TRAY_COLOR + (255,))
-    image.putalpha(coverage)
-    return image
+        GLYPH_SCALE[size] = base_scale
+        TILE_RADIUS = base_radius
 
 
 def png_bytes(image: Image.Image) -> bytes:
