@@ -32,7 +32,7 @@ The CI/CD pipeline consists of several workflow files:
 
 - **Purpose**: Build Tauri applications for all platforms
 - **Triggers**: Push to main branches, tags, PRs, manual dispatch
-- **Outputs**: Platform-specific installers (exe, msi, dmg, AppImage, deb, rpm)
+- **Outputs**: Platform-specific installers (exe via NSIS, msi, dmg, app, deb, rpm; AppImage is not built)
 - **Platforms**: Windows, macOS (Intel & Apple Silicon), Linux
 
 ### 2. `test-lint.yml`
@@ -143,7 +143,7 @@ Build artifacts are automatically uploaded for each platform:
 
 - **Windows**: `.exe` (NSIS installer) and `.msi` files
 - **macOS**: `.dmg` files and `.app` bundles
-- **Linux**: `.AppImage`, `.deb`, and `.rpm` files
+- **Linux**: `.deb` and `.rpm` files (`--bundles deb,rpm`)
 
 ## Auto-Update Configuration
 
@@ -161,11 +161,15 @@ The CI/CD pipeline uses a special configuration to avoid database dependencies a
 
 ### CI-Specific Configuration Files
 
-1. **tauri.ci.conf.json**: A CI-specific Tauri configuration that:
-   - Skips `beforeDevCommand` and `beforeBuildCommand`
-   - Uses pre-built frontend from `public` directory
-   - Disables database operations
-   - No development servers are started
+1. **tauri.build.conf.json**: The release configuration that `pnpm run build`
+   passes with `-c src-tauri/tauri.build.conf.json` (CI runs the same script).
+   It:
+   - Skips `beforeDevCommand` and `beforeBuildCommand`, so no development servers start
+   - Uses the pre-built frontend from the `public` directory
+   - Bundles the compiled backend from `src-tauri/binaries/` as a resource
+
+   `tauri.ci.conf.json` still exists, but only the version sync tooling
+   (`scripts/sync-version.cjs`, `version-check.yml`) touches it.
 
 2. **ci-build.js**: A CI-specific build preparation script that:
    - Copies frontend build output to the desktop public directory
@@ -176,13 +180,13 @@ The CI/CD pipeline uses a special configuration to avoid database dependencies a
 
 The CI/CD pipeline does NOT require PostgreSQL to be running because:
 
-- The Tauri CI configuration (`tauri.ci.conf.json`) bypasses the dev.js script
+- The build configuration (`tauri.build.conf.json`) empties `beforeDevCommand` and `beforeBuildCommand`, so dev.js never runs
 - Frontend and backend are built independently
 - No database operations are performed during the build process
 
 If you see PostgreSQL connection errors in CI, ensure:
 
-1. The build is using `--config src-tauri/tauri.ci.conf.json`
+1. The build is using `-c src-tauri/tauri.build.conf.json` (via `pnpm run build`)
 2. The `ci:prepare` script is run instead of the regular dev script
 
 ## Troubleshooting
