@@ -286,6 +286,7 @@
     "searchEnterHint": "Enter to search everything",
     "list": "List",
     "kanban": "Kanban",
+    "openBrowser": "Browser",
     "userMenu": "User menu",
     "rapiProfileLink": "What ラピ knows about you",
     "userMenuTitle": "{username} - User menu",
@@ -6650,5 +6651,9 @@
     "placeholder": "Choose a theme",
     "uncategorized": "Uncategorized",
     "manage": "Create and edit categories and themes"
+  },
+  "browser": {
+    "addressPlaceholder": "Enter a URL",
+    "opensExternally": "Pages open in your external browser"
   }
 }

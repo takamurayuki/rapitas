@@ -91,3 +91,4 @@ src/components/note/editor/useInlineLinks.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
+src/app/browser/_components/BrowserExternalStart.test.tsx

@@ -4,16 +4,18 @@
  *
  * Slide-out side navigation panel rendered by the main Header.
  * Renders the full nav tree via NavItemRenderer and an account footer: the
- * signed-in user on the left, a shortcut to the settings hub on the right.
+ * signed-in user on the left (a button opening the account menu), a shortcut
+ * to the settings hub on the right.
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Pin, PinOff, Settings, User } from 'lucide-react';
+import { Pin, PinOff, Settings } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
 import type { User as AuthUser } from '@/contexts/AuthContext';
+import { SideNavAccountMenu } from './side-nav-account-menu';
 
 type SideNavProps = {
   /** Ref attached to the nav element for click-outside detection. */
@@ -36,6 +38,8 @@ type SideNavProps = {
   user: AuthUser | null;
   /** Whether the auth state is still being resolved (name is left blank meanwhile). */
   isAuthLoading: boolean;
+  /** Logs the user out; moved here with the account menu from the header. / ログアウト */
+  handleLogout: () => void | Promise<void>;
 };
 
 /**
@@ -52,6 +56,7 @@ export function SideNav({
   toggleExpand,
   user,
   isAuthLoading,
+  handleLogout,
 }: SideNavProps) {
   const pathname = usePathname();
   const t = useTranslations('nav');
@@ -132,21 +137,18 @@ export function SideNav({
             The shortcut help itself is unchanged — ⌘/ and OPEN_SHORTCUTS_EVENT
             still open it. Kept outside the scroll area so it never scrolls away. */}
         <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
-          <div className="flex min-w-0 items-center gap-2.5" data-testid="side-nav-account">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
-              <User className="w-4 h-4" />
-            </span>
-            <span
-              className={`truncate text-sm ${
-                user
-                  ? 'font-medium text-zinc-800 dark:text-zinc-100'
-                  : 'text-zinc-500 dark:text-zinc-400'
-              }`}
-              title={user?.username}
-            >
-              {user ? user.username : isAuthLoading ? '' : t('notSignedIn')}
-            </span>
-          </div>
+          {/* NOTE: The account row became the user menu's button when the
+              header's user icon gave its slot to the in-app browser entry
+              (nav61). Items that leave the page follow the nav's own rule:
+              a pinned nav stays, an unpinned one closes. */}
+          <SideNavAccountMenu
+            user={user}
+            isAuthLoading={isAuthLoading}
+            onLogout={handleLogout}
+            onNavigate={() => {
+              if (!isMenuPinned) setIsMenuOpen(false);
+            }}
+          />
           <Link
             href="/settings/general"
             onClick={() => {

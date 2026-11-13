@@ -182,7 +182,7 @@ Object.defineProperty(window, 'dispatchEvent', {
 });
 
 describe('Header — the way in for someone not signed in', () => {
-  /** Open the user menu, which is where the entry points live. */
+  /** Open the user menu (the side nav's account row since nav61), where the entry points live. */
   async function openUserMenu(): Promise<void> {
     render(<Header />);
     fireEvent.click(await screen.findByLabelText('userMenu'));

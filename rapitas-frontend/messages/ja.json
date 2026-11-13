@@ -286,6 +286,7 @@
     "searchEnterHint": "Enterで全体検索",
     "list": "リスト",
     "kanban": "カンバン",
+    "openBrowser": "ブラウザ",
     "userMenu": "ユーザーメニュー",
     "rapiProfileLink": "ラピに渡す自己紹介",
     "userMenuTitle": "{username} - ユーザーメニュー",
@@ -6650,5 +6651,9 @@
     "placeholder": "テーマを選択",
     "uncategorized": "未分類",
     "manage": "カテゴリ・テーマの作成と編集"
+  },
+  "browser": {
+    "addressPlaceholder": "URL を入力",
+    "opensExternally": "ページは外部ブラウザで開きます"
   }
 }

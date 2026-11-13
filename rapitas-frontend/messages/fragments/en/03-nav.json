@@ -43,6 +43,7 @@
     "searchEnterHint": "Enter to search everything",
     "list": "List",
     "kanban": "Kanban",
+    "openBrowser": "Browser",
     "userMenu": "User menu",
     "rapiProfileLink": "What ラピ knows about you",
     "userMenuTitle": "{username} - User menu",
