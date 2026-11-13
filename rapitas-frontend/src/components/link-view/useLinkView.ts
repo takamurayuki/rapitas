@@ -11,8 +11,9 @@
  * been sent for THAT element, and no HTML overlay is registered in
  * `webview-occlusion-store`. `applyVisibility` is the only caller of
  * `setLinkViewVisible`; every other step (bounds sync, tab switch, creation,
- * a command finishing) just calls it again. Each decision carries a sequence
- * number the Rust side uses to drop stale commands.
+ * a command finishing, a tab closing, the host unmounting) just calls it
+ * again. Each decision carries a sequence number the Rust side uses to drop
+ * stale commands.
  *
  * Owned once, by LinkViewHost: unmounting destroys every webview, so a second
  * owner would reload pages whenever the layout switched.
@@ -29,6 +30,7 @@ import {
 } from '@/utils/link-view';
 import { useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
 import { useLinkViewStatusStore } from '@/stores/link-view-status-store';
+import { boundsOf, isCollapsed, nextVisibilitySeq, sameBounds } from './link-view-geometry';
 import type { LinkPageChange } from './link-tab-meta';
 import type { LinkTab } from '@/stores/link-view-store';
 
@@ -41,43 +43,6 @@ export interface UseLinkViewReturn {
    * changes position, not size. / 位置だけ変わった時の再同期
    */
   resync: () => void;
-}
-
-/**
- * The visibility sequence, shared by every tab and every hook instance.
- *
- * Seeded from the clock rather than 0: the Rust side keeps the last applied
- * number per webview for the app's lifetime, and a reloaded frontend starting
- * again at 1 would have every command dropped as stale.
- */
-let visibilitySeq = Date.now() * 1000;
-
-/** The next sequence number. Exported for tests only. */
-export function nextVisibilitySeq(): number {
-  visibilitySeq += 1;
-  return visibilitySeq;
-}
-
-/** Read an element's position in CSS pixels relative to the window. */
-function boundsOf(el: HTMLElement): LinkViewBounds {
-  const r = el.getBoundingClientRect();
-  return { x: r.left, y: r.top, width: r.width, height: r.height };
-}
-
-/** A collapsed box — the surface is not really on screen. */
-function isCollapsed(b: LinkViewBounds): boolean {
-  return b.width < 2 || b.height < 2;
-}
-
-/** Two rectangles close enough that moving the webview would be a no-op. */
-function sameBounds(a: LinkViewBounds | null, b: LinkViewBounds): boolean {
-  if (!a) return false;
-  return (
-    Math.abs(a.x - b.x) < 1 &&
-    Math.abs(a.y - b.y) < 1 &&
-    Math.abs(a.width - b.width) < 1 &&
-    Math.abs(a.height - b.height) < 1
-  );
 }
 
 /**
@@ -106,6 +71,8 @@ export function useLinkView(
   /** The rectangle confirmed for (tab, element); null until sent. */
   const placed = useRef<{ tabId: string; el: HTMLElement; bounds: LinkViewBounds } | null>(null);
   const pendingFrame = useRef<number | null>(null);
+  /** Webviews whose tab has gone: the next pass hides, then closes them. */
+  const retiring = useRef<Set<string>>(new Set());
 
   const occluded = useWebviewOcclusionStore((s) => s.occluders.length > 0);
   const epoch = useLinkViewStatusStore((s) => s.webviewEpoch);
@@ -138,6 +105,13 @@ export function useLinkView(
         // A refused command is retried by the next pass with a new number.
         if (!ok) lastSent.current.delete(tabId);
       });
+    }
+    // NOTE: Closing goes through here too (it used to send its own hide), so
+    // the final hide is ordered with every other command. Hidden before it
+    // is closed — the surface staying painted after its tab closed was #1068.
+    for (const tabId of Array.from(retiring.current)) {
+      retiring.current.delete(tabId);
+      void setLinkViewVisible(tabId, false, nextVisibilitySeq()).then(() => closeLinkView(tabId));
     }
   }, []);
 
@@ -288,20 +262,23 @@ export function useLinkView(
     applyVisibility();
   }, [occluded, applyVisibility]);
 
-  // Destroy the webview of any tab that has gone: hidden first — the
-  // surface staying painted after its tab closed was #1068 — then closed.
+  // Destroy the webview of any tab that has gone (applyVisibility hides it,
+  // then closes it).
   useEffect(() => {
     const liveIds = new Set(tabs.map((tab) => tab.id));
+    let gone = false;
     for (const id of Array.from(opened.current.keys())) {
       if (liveIds.has(id)) continue;
+      gone = true;
       cancelPending();
       opened.current.delete(id);
       created.current.delete(id);
       lastSent.current.delete(id);
       if (placed.current?.tabId === id) placed.current = null;
-      void setLinkViewVisible(id, false, nextVisibilitySeq()).then(() => closeLinkView(id));
+      retiring.current.add(id);
     }
-  }, [tabs, cancelPending]);
+    if (gone) applyVisibility();
+  }, [tabs, cancelPending, applyVisibility]);
 
   // Keep the surface's rectangle current. Re-bound whenever the surface
   // element itself changes, so moving between pane and screen observes the
@@ -325,14 +302,14 @@ export function useLinkView(
   // unmounts, so this does.
   useEffect(() => {
     const createdTabs = opened.current;
+    const toRetire = retiring.current;
     return () => {
       cancelPending();
-      for (const id of Array.from(createdTabs.keys())) {
-        void setLinkViewVisible(id, false, nextVisibilitySeq()).then(() => closeLinkView(id));
-      }
+      for (const id of Array.from(createdTabs.keys())) toRetire.add(id);
       createdTabs.clear();
+      applyVisibility();
     };
-  }, [cancelPending]);
+  }, [cancelPending, applyVisibility]);
 
   return { history, resync };
 }

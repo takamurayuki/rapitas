@@ -149,6 +149,54 @@ describe('moving between pane and screen', () => {
   });
 });
 
+describe('closing goes through the same decision', () => {
+  /** The order of every hide and close, as `hide:t1` / `close:t1`. */
+  const timeline = () => {
+    const events: Array<{ at: number; what: string }> = [];
+    setLinkViewVisible.mockImplementation(async (id: string, visible: boolean) => {
+      events.push({ at: events.length, what: `${visible ? 'show' : 'hide'}:${id}` });
+      return true;
+    });
+    closeLinkView.mockImplementation(async (id: string) => {
+      events.push({ at: events.length, what: `close:${id}` });
+      return true;
+    });
+    return () => events.map((e) => e.what);
+  };
+
+  it('hides a closed tab with the newest number, then closes it', async () => {
+    const events = timeline();
+    const el = surface();
+    const { rerender } = render({ t: TABS, a: 't1', s: el });
+    await waitFor(() => expect(lastFor('t1')).toBe(true));
+
+    rerender({ t: [TABS[1]], a: 't2', s: el });
+    await waitFor(() => expect(closeLinkView).toHaveBeenCalledWith('t1'));
+    const seen = events();
+    expect(seen.indexOf('hide:t1')).toBeLessThan(seen.indexOf('close:t1'));
+    expect(seen.filter((e) => e.endsWith(':t1')).at(-1)).toBe('close:t1');
+    const seqs = setLinkViewVisible.mock.calls.map((c) => c[2] as number);
+    for (let i = 1; i < seqs.length; i += 1) expect(seqs[i]).toBeGreaterThan(seqs[i - 1]);
+    await waitFor(() => expect(lastFor('t2')).toBe(true));
+  });
+
+  it('hides then closes every webview when the host unmounts', async () => {
+    const events = timeline();
+    const el = surface();
+    const { rerender, unmount } = render({ t: TABS, a: 't1', s: el });
+    await waitFor(() => expect(lastFor('t1')).toBe(true));
+    rerender({ t: TABS, a: 't2', s: el });
+    await waitFor(() => expect(lastFor('t2')).toBe(true));
+
+    unmount();
+    await waitFor(() => expect(closeLinkView).toHaveBeenCalledTimes(2));
+    for (const id of ['t1', 't2']) {
+      const mine = events().filter((e) => e.endsWith(`:${id}`));
+      expect(mine.slice(-2)).toEqual([`hide:${id}`, `close:${id}`]);
+    }
+  });
+});
+
 describe('after browsing data is cleared', () => {
   it('rebuilds the shown tab from its URL', async () => {
     render({ t: TABS, a: 't1', s: surface() });
