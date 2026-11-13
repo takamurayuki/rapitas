@@ -52,6 +52,7 @@ When rules conflict, follow this order:
 `rapitas-desktop/scripts/dev.js` (`npm run dev:tauri`, desktop / SQLite) handles on each start:
 
 1. Pin the checkout to the primary branch (`RAPITAS_PRIMARY_BRANCH`, default `develop`)
+   then fast-forward it to its upstream (`rapitas-desktop/scripts/dev-pull.cjs`; skipped with a printed reason when the tree is dirty, diverged or offline — the launch continues; off with `--no-pull` or `RAPITAS_DEV_PULL=0`; never on `--stop`)
 2. Kill stale rapitas processes and free ports 3001/3000 (identity-guarded: only rapitas-owned node/bun processes are killed)
 3. `bun run db:prepare:sqlite` — regenerate the SQLite init SQL and the SQLite Prisma client (skipped when the schema hash is unchanged); the backend applies the init SQL to the desktop DB on boot (`rapitas-backend/config/desktop-sqlite.ts`)
 4. Start the backend (`bun run dev:stable`), wait for it to be ready, then start the frontend (`pnpm run dev`)

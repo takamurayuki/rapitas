@@ -38,12 +38,17 @@
  *   --stop     起動は行わず、rapitas関連の全プロセス(バックエンド/フロントエンド/
  *              ローカルLLMサイドカー/エージェントCLIプロセス)を強制停止して終了する
  *              （npm run stop 参照。タスクマネージャーで手動検索・終了する手間を省く）
+ *              このモードでは git pull もしない（停止だけの操作で取得はしない）
+ *   --no-pull  起動冒頭の git pull（fast-forward のみ）を行わない
+ *              （環境変数 RAPITAS_DEV_PULL=0 でも同じ。pnpm run tauri 経由など
+ *              引数を渡せない経路向け。dev-pull.cjs 参照）
  *
  * 使用例:
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  *   node scripts/dev.js --force  # エージェント実行中でも強制停止して再起動
  *   node scripts/dev.js --stop   # 起動せず全プロセスを強制停止するのみ
+ *   node scripts/dev.js --no-pull  # 起動前の git pull を行わず現在のコードで起動
  */
 const { spawn, execSync, execFileSync } = require('child_process');
 const path = require('path');
@@ -56,6 +61,7 @@ const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 const { syncForLaunch } = require('./dep-sync.cjs');
+const { pullOnLaunch, describePull, isPullEnabled } = require('./dev-pull.cjs');
 // ─── セッションログ ───
 // NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
 // 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
@@ -2689,6 +2695,30 @@ function ensurePrimaryBranch() {
   }
 }
 
+/**
+ * 起動冒頭でリポジトリを upstream へ fast-forward し、結果を表示する。
+ * 判断と git 操作は dev-pull.cjs が持ち、ここは呼び出しと表示だけ。
+ * プルできない理由（未コミット変更・分岐・接続不可など）は表示して続行する。
+ */
+async function pullLatestOnLaunch() {
+  const enabled = isPullEnabled(args, process.env);
+  if (enabled) console.log('\nChecking for new commits (git pull --ff-only)...');
+  let result;
+  try {
+    result = await pullOnLaunch({ repoRoot: REPO_ROOT, enabled });
+  } catch (err) {
+    log.warn(`[dev-pull] unexpected failure, starting with the current code: ${err.message}`);
+    return;
+  }
+  const { level, lines } = describePull(result);
+  for (const line of lines) (level === 'warn' ? console.warn : console.log)(line);
+  devSessionLog.appendDevEvent('dev_pull', {
+    action: result.action,
+    from: result.from || null,
+    to: result.to || null,
+  });
+}
+
 async function main() {
   // CI環境では実行しない
   if (process.env.CI === 'true' || process.env.CI === '1') {
@@ -2699,6 +2729,11 @@ async function main() {
   // 開発バックエンドはこのチェックアウトのブランチで動くため、テーマのデフォルト
   // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
   ensurePrimaryBranch();
+
+  // 主ブランチに固定した直後、依存同期・DB準備・サーバー起動より前に最新を取り込む。
+  // 先に入れることで、後段の dep-sync／tauri-rebuild／.next キャッシュ判定が
+  // 新しい HEAD とロックファイルに対して働く。失敗しても起動は止めない。
+  await pullLatestOnLaunch();
 
   // 前回実行が終了ハンドラを通らずに終わった場合の、記録済みバックエンド/
   // フロントエンドPIDのターゲットkill。ポート/netstatヒューリスティックより先に、
