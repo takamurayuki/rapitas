@@ -19,3 +19,15 @@ npx tauri icon path/to/your/icon.png
 ```
 
 これにより、すべての必要なサイズが自動生成されます。
+
+## マスターと図形の構成
+
+| マスター | 用途 |
+| --- | --- |
+| `app-icon.svg` | アプリアイコンのすべてのサイズ（`*.png`、`icon.ico` の全フレーム、`icon.icns` の全フレーム） |
+| `tray-icon.svg` | `tray-icon.png`（同じ図形をトレイ用の配色にしたもの） |
+
+図形はスマホ版アイコン（`rapitas-mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`）と同じ構成です。
+スマホ版は全面塗りで、デスクトップ版はそこに角丸タイル（`rx=213`）をかけただけです。図形を縮小しないでください。タイルの内側はスマホ版と 1px 単位で一致します。
+
+システムトレイは `src/app_setup.rs` が `32x32.png` を読み込んで表示します。
