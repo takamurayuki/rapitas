@@ -156,6 +156,44 @@ describe('web frames', () => {
   });
 });
 
+describe('favourites → an existing tab', () => {
+  const tabButton = (host: string) =>
+    screen
+      .getAllByRole('button')
+      .find((b) => b.getAttribute('title')?.includes(`https://${host}/`)) as HTMLElement;
+
+  it('returns to the page of the tab picked on the web', async () => {
+    renderWeb();
+    typeAddress('one.example');
+    act(() => useLinkViewStore.getState().openLink('https://two.example/'));
+    await waitFor(() => expect(screen.getAllByTestId('browser-web-frame')).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: 'favourites' }));
+    expect(screen.getByTestId('browser-start')).toBeTruthy();
+
+    fireEvent.click(tabButton('one.example'));
+    expect(screen.queryByTestId('browser-start')).toBeNull();
+    expect(useLinkViewStore.getState().view).toBe('page');
+    const [first, second] = screen.getAllByTestId('browser-web-frame');
+    expect(first.hidden).toBe(false);
+    expect(second.hidden).toBe(true);
+  });
+
+  it('brings the surface back for the picked tab on the desktop', () => {
+    act(() => {
+      useLinkViewStore.getState().openLink('https://one.example/');
+      useLinkViewStore.getState().openLink('https://two.example/');
+      useLinkViewStore.getState().showLibrary();
+    });
+    render(<BrowserScreen isDesktop surfaceRef={() => {}} onHistory={vi.fn()} />);
+    expect(screen.queryByTestId('browser-surface')).toBeNull();
+
+    fireEvent.click(tabButton('one.example'));
+    expect(screen.getByTestId('browser-surface')).toBeTruthy();
+    expect(useLinkViewStore.getState().activeId).toBe(useLinkViewStore.getState().tabs[0].id);
+  });
+});
+
 describe('shared history caveat (Q10)', () => {
   it('is always shown on the web and returns to the screen before /browser', async () => {
     renderWeb();

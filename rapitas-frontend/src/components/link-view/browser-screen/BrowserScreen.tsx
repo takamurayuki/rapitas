@@ -51,7 +51,7 @@ export function BrowserScreen({ isDesktop, surfaceRef, onHistory }: BrowserScree
   const tabs = useLinkViewStore((s) => s.tabs);
   const activeId = useLinkViewStore((s) => s.activeId);
   const view = useLinkViewStore((s) => s.view);
-  const { activateTab, closeTab, newTab, openLink, setTabUrl, showLibrary } =
+  const { activateTab, closeTab, newTab, openLink, setTabUrl, showLibrary, showPage } =
     useLinkViewStore.getState();
   const showBand = useLinkViewStatusStore((s) => s.showBand);
   const desktopLoading = useLinkViewStatusStore((s) =>
@@ -88,6 +88,14 @@ export function BrowserScreen({ isDesktop, surfaceRef, onHistory }: BrowserScree
     else setReloads((r) => ({ ...r, [page.id]: (r[page.id] ?? 0) + 1 }));
   }, [page, isDesktop, onHistory]);
 
+  // NOTE: The tab strip stays visible over the favourites here (the pane
+  // swaps it out instead), so picking a tab must also leave the library view;
+  // activateTab alone only moved the id and the page stayed hidden.
+  const pickTab = (id: string) => {
+    activateTab(id);
+    showPage();
+  };
+
   const goToPreviousScreen = () => {
     const { entries, index } = useNavigationHistoryStore.getState();
     router.push(previousAppRoute(entries, index));
@@ -102,7 +110,7 @@ export function BrowserScreen({ isDesktop, surfaceRef, onHistory }: BrowserScree
         <TabStrip
           tabs={tabs}
           activeId={page?.id ?? ''}
-          onActivate={activateTab}
+          onActivate={pickTab}
           onCloseTab={closeTab}
           onNewTab={newTab}
         />
