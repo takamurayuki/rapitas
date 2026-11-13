@@ -310,6 +310,7 @@
     },
     "layout": {
       "navAriaLabel": "Settings",
+      "modalTitle": "Settings",
       "personalTab": "Personal",
       "generalTab": "General",
       "shortcutsTab": "Shortcuts",

@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { SlidersHorizontal, Globe, ExternalLink, Columns2 } from 'lucide-react';
+import { Globe, ExternalLink, Columns2 } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
 import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
 import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/link-view';
-import BackupCard from '../_components/BackupCard';
-import RecentErrorsCard from '../_components/RecentErrorsCard';
-import { UserDatabaseCard } from '../_components/user-database';
-import { MobileLinkCard } from '../_components/mobile-link';
+import BackupCard from '../../components/BackupCard';
+import RecentErrorsCard from '../../components/RecentErrorsCard';
+import { UserDatabaseCard } from '../../components/user-database';
+import { MobileLinkCard } from '../../components/mobile-link';
 import Link from 'next/link';
+import { useSettingsModalStore } from '../../settings-modal-store';
 
 const LOCALE_LABELS: Record<Locale, string> = {
   ja: '日本語',
@@ -29,6 +30,7 @@ const BROWSER_OPTIONS: { value: string; label: string }[] = [
 export default function GeneralSettingsPage() {
   const t = useTranslations('settings');
   const { locale, setLocale } = useLocaleStore();
+  const closeSettings = useSettingsModalStore((s) => s.close);
 
   // External-link browser preference (persisted in localStorage; read by
   // openExternalUrl). Loaded on mount to avoid SSR hydration mismatch.
@@ -54,18 +56,8 @@ export default function GeneralSettingsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <SlidersHorizontal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('generalTitle')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('generalDescription')}</p>
-        </div>
-      </div>
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('generalDescription')}</p>
 
       <div className="space-y-6">
         {/* External link browser */}
@@ -225,8 +217,10 @@ export default function GeneralSettingsPage() {
           <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
             {t('generalPage.setupCheckDescription')}
           </p>
+          {/* /setup is a full page: leaving for it closes the settings modal. */}
           <Link
             href="/setup"
+            onClick={closeSettings}
             className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             {t('generalPage.openSetupScreen')}

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Terminal, RefreshCcw, Info } from 'lucide-react';
+import { RefreshCcw, Info } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import Pagination from '@/components/ui/pagination/Pagination';
@@ -12,7 +12,10 @@ import { ToolCard } from './ToolCard';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
 import type { CLITool } from './types';
 
-/** Page header — reused by the loading skeleton so its layout matches exactly. */
+/**
+ * Section intro and the refresh button — reused by the loading skeleton so its
+ * layout matches exactly. The section title itself is the settings modal's.
+ */
 function PageHeader({
   onRefresh,
   isRefreshing,
@@ -22,20 +25,12 @@ function PageHeader({
 }) {
   const t = useTranslations('settings.cliToolsPage');
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <Terminal className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
-        </div>
-      </div>
+    <div className="flex items-center justify-between gap-4 mb-6">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
       <button
         onClick={onRefresh}
         disabled={isRefreshing}
-        className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
+        className="flex shrink-0 items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
       >
         <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         {t('refresh')}
@@ -114,7 +109,7 @@ function CLIToolsPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         <PageHeader />
         <div className="space-y-2.5">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -130,7 +125,7 @@ function CLIToolsPage() {
   const paginatedTools = tools.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div>
       <PageHeader onRefresh={refreshTools} isRefreshing={isRefreshing} />
 
       {/* How install/auth works here */}

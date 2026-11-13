@@ -1,7 +1,7 @@
 'use client';
 // DeveloperModeSettingsPage
 
-import { Bot, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
@@ -11,7 +11,7 @@ import { ExecutionDashboardSettingsCard } from './components/ExecutionDashboardS
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
 import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
-import { TaskCleanupSection } from '../_components/TaskCleanupSection';
+import { TaskCleanupSection } from '../../components/TaskCleanupSection';
 import { CiTimingDashboard } from './components/CiTimingDashboard';
 
 export default function DeveloperModeSettingsPage() {
@@ -34,18 +34,8 @@ export default function DeveloperModeSettingsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <Bot className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('devModeTitle')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('devModeSubtitle')}</p>
-        </div>
-      </div>
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('devModeSubtitle')}</p>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">

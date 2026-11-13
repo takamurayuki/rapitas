@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { SideNav } from '../side-nav';
 import type { User } from '@/contexts/AuthContext';
+import { useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -82,8 +83,7 @@ describe('SideNav footer', () => {
     expect(within(account).getByTestId('User-icon')).toBeTruthy();
     expect(within(account).getByText('Yuki')).toBeTruthy();
 
-    const settings = screen.getByRole('link', { name: 'settings' });
-    expect(settings.getAttribute('href')).toBe('/settings/general');
+    const settings = screen.getByRole('button', { name: 'settings' });
     // Same row, account first.
     expect(settings.parentElement).toBe(account.parentElement);
     expect(account.compareDocumentPosition(settings)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -103,13 +103,20 @@ describe('SideNav footer', () => {
 
   it('closes the unpinned nav when settings is opened, keeps a pinned one', () => {
     renderNav({ user });
-    fireEvent.click(screen.getByRole('link', { name: 'settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'settings' }));
     expect(setIsMenuOpen).toHaveBeenCalledWith(false);
 
     setIsMenuOpen.mockClear();
     renderNav({ user, pinned: true });
-    fireEvent.click(screen.getAllByRole('link', { name: 'settings' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings' })[1]);
     expect(setIsMenuOpen).not.toHaveBeenCalled();
+  });
+
+  it('opens the settings modal instead of navigating to a settings page', () => {
+    useSettingsModalStore.setState({ isOpen: false, section: 'general' });
+    renderNav({ user });
+    fireEvent.click(screen.getByRole('button', { name: 'settings' }));
+    expect(useSettingsModalStore.getState().isOpen).toBe(true);
   });
 
   it('no longer has the keyboard-shortcuts footer button', () => {

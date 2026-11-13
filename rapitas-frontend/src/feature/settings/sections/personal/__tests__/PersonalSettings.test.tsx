@@ -1,7 +1,8 @@
 /**
- * settings/personal/__tests__/page.test.tsx
+ * PersonalSettings.test
  *
- * The page the self-introduction moved to (#1275).
+ * The personal section of the settings modal — where the self-introduction
+ * moved to in #1275 (then a page, now a modal section).
  *
  * It was a card on /settings/general, reached by an anchor jump from the
  * header, next to the UI language and the backup controls. It is the one
@@ -11,11 +12,11 @@
  *
  * What these tests hold: the page actually renders the card (an anchor link
  * to a page that does not render it is the failure mode of a move like
- * this), and the heading says whose settings these are.
+ * this), and the section says whose settings these are.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import PersonalSettingsPage from '../page';
+import PersonalSettingsPage from '../PersonalSettings';
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
@@ -58,8 +59,8 @@ describe('the personal settings page', () => {
     expect(await screen.findByText('settings.rapiProfile.characterTitle')).toBeInTheDocument();
   });
 
-  it('names itself in its heading', () => {
+  it('explains what the section is for (its title is the settings modal header)', () => {
     render(<PersonalSettingsPage />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('personal.title');
+    expect(screen.getByText('personal.subtitle')).toBeInTheDocument();
   });
 });

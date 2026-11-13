@@ -2,15 +2,15 @@
 // SettingsPage
 
 import { useTranslations } from 'next-intl';
-import { KeyRound, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/utils/api';
-import { useSettingsData } from './_hooks/useSettingsData';
-import { ApiKeySection } from './_components/ApiKeySection';
-import { DefaultProviderSection } from './_components/DefaultProviderSection';
-import { LocalLlmSection } from './_components/LocalLlmSection';
-import { DevToolsSection } from './_components/DevToolsSection';
+import { useSettingsData } from '../../hooks/useSettingsData';
+import { ApiKeySection } from '../../components/ApiKeySection';
+import { DefaultProviderSection } from '../../components/DefaultProviderSection';
+import { LocalLlmSection } from '../../components/LocalLlmSection';
+import { DevToolsSection } from '../../components/DevToolsSection';
 
 function SettingsPage() {
   const t = useTranslations('settings');
@@ -42,17 +42,8 @@ function SettingsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Page header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <KeyRound className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
-        </div>
-      </div>
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
 
       {/* Global error banner */}
       {error && (

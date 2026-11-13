@@ -5,12 +5,14 @@ import { useTranslations } from 'next-intl';
 import { Terminal, ChevronRight } from 'lucide-react';
 import { WebhookSettings } from '@/components/settings/WebhookSettings';
 import { MCPSetupGuide } from '@/components/settings/MCPSetupGuide';
+import { useSettingsModalStore } from '../settings-modal-store';
 
 /**
  * Developer tools and integrations panels.
  */
 export function DevToolsSection() {
   const t = useTranslations('settings');
+  const setSection = useSettingsModalStore((s) => s.setSection);
 
   return (
     <>
@@ -26,9 +28,12 @@ export function DevToolsSection() {
           </div>
         </div>
         <div className="p-6">
-          <a
-            href="/settings/cli-tools"
-            className="block group p-4 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+          {/* NOTE: Was a link to the /settings/cli-tools page; CLI tools is now
+              a section of the same settings modal, so this switches to it. */}
+          <button
+            type="button"
+            onClick={() => setSection('cli-tools')}
+            className="block w-full text-left group p-4 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -46,7 +51,7 @@ export function DevToolsSection() {
               </div>
               <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors" />
             </div>
-          </a>
+          </button>
         </div>
       </div>
 

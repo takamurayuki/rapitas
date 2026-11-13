@@ -34,6 +34,7 @@ import OfflineIndicatorLoader from '@/components/common/OfflineIndicatorLoader';
 import UpdateBanner from '@/components/common/UpdateBanner';
 import GlobalErrorReporter from '@/components/common/GlobalErrorReporter';
 import SetupGate from '@/components/common/SetupGate';
+import { SettingsModal } from '@/feature/settings/SettingsModal';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 export const metadata: Metadata = {
@@ -202,6 +203,9 @@ export default function RootLayout({
                           {/* Main-window-only for the same reason: a popup
                               window would get its own avatar in the corner. */}
                           <RapiAvatarHost />
+                          {/* Settings are a modal over the current page, not
+                              /settings routes; one instance serves the app. */}
+                          <SettingsModal />
                         </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>

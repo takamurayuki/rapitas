@@ -14,27 +14,16 @@
  * endpoint yet.
  */
 import { useTranslations } from 'next-intl';
-import { UserPen } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
-import { RapiProfileCard } from '../_components/rapi-profile';
-import CalendarShareCard from '../_components/CalendarShareCard';
+import { RapiProfileCard } from '../../components/rapi-profile';
+import CalendarShareCard from '../../components/CalendarShareCard';
 
 function PersonalSettingsPage() {
   const t = useTranslations('settings');
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <UserPen className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('personal.title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('personal.subtitle')}</p>
-        </div>
-      </div>
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('personal.subtitle')}</p>
 
       <div className="space-y-6">
         <RapiProfileCard />

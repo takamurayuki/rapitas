@@ -5,7 +5,7 @@
 # of this gate unnoticed.
 #
 # The coverage floors in vitest.config.ts are calibrated to this list.
-src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
+src/feature/settings/sections/developer-mode/components/AutoRunSettingsCard.test.tsx
 src/components/__tests__/ErrorBoundary.test.tsx
 src/components/__tests__/LanguageSwitcher.test.tsx
 src/components/__tests__/header-guest-auth-links.test.tsx

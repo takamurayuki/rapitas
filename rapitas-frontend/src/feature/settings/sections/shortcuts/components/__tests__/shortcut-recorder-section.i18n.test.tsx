@@ -10,7 +10,7 @@ import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { ShortcutRecorderSection } from '../shortcut-recorder-section';
 import { useTranslations } from 'next-intl';
-import ja from '../../../../../../messages/ja.json';
+import ja from '../../../../../../../messages/ja.json';
 
 const BASE_PROPS = {
   currentShortcut: 'Ctrl+Alt+I',

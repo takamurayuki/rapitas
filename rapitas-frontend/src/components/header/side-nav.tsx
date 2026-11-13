@@ -7,13 +7,13 @@
  * signed-in user on the left, a shortcut to the settings hub on the right.
  */
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Pin, PinOff, Settings, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
 import type { User as AuthUser } from '@/contexts/AuthContext';
+import { openSettings, useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 type SideNavProps = {
   /** Ref attached to the nav element for click-outside detection. */
@@ -55,6 +55,7 @@ export function SideNav({
 }: SideNavProps) {
   const pathname = usePathname();
   const t = useTranslations('nav');
+  const isSettingsOpen = useSettingsModalStore((s) => s.isOpen);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname === '/kanban';
@@ -147,13 +148,16 @@ export function SideNav({
               {user ? user.username : isAuthLoading ? '' : t('notSignedIn')}
             </span>
           </div>
-          <Link
-            href="/settings/general"
+          {/* NOTE: Opens the settings modal (was a link to /settings/general).
+              The only settings entry besides the account menu's personal one. */}
+          <button
+            type="button"
             onClick={() => {
               if (!isMenuPinned) setIsMenuOpen(false);
+              openSettings();
             }}
             className={`shrink-0 p-2 rounded-lg transition-colors ${
-              pathname?.startsWith('/settings')
+              isSettingsOpen
                 ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
                 : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
@@ -161,7 +165,7 @@ export function SideNav({
             title={t('settings')}
           >
             <Settings className="w-5 h-5" />
-          </Link>
+          </button>
         </div>
       </nav>
     </>

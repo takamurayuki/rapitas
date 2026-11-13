@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { UserSettings } from '@/types';
 import { ClaudeIcon, ChatGPTIcon, GeminiIcon } from '@/components/icons/ProviderIcons';
-import type { ProviderState, ModelOption } from '../_hooks/useSettingsData';
+import type { ProviderState, ModelOption } from '../hooks/useSettingsData';
 
 type ProviderConfig = {
   key: string;

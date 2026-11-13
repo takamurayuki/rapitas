@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HeaderToolbar } from '../header-toolbar';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -228,20 +229,21 @@ describe('HeaderToolbar', () => {
       render(
         <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
       );
-      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /rapiProfileLink/ })).toBeInTheDocument();
     });
 
-    it('opens the personal settings page, not an anchor on the general one', () => {
-      // #1275 moved the profile onto its own page. The anchor it used to
-      // jump to (/settings/general#rapi-profile) now lands on a page that
-      // no longer holds the card.
+    it('opens the settings modal on the personal section', () => {
+      // Settings are a modal now (the /settings/* pages are gone), and the
+      // profile lives in its personal section — not on the general one.
+      useSettingsModalStore.setState({ isOpen: false, section: 'general' });
       render(
         <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
       );
-      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toHaveAttribute(
-        'href',
-        '/settings/personal',
-      );
+      fireEvent.click(screen.getByRole('button', { name: /rapiProfileLink/ }));
+      expect(useSettingsModalStore.getState()).toMatchObject({
+        isOpen: true,
+        section: 'personal',
+      });
     });
 
     it('keeps the account rows for a real session', () => {
@@ -326,10 +328,9 @@ describe('HeaderToolbar', () => {
       expect(screen.getByTestId('sun-icon')).toBeInTheDocument();
     });
 
-    it('shows settings link in the more menu', () => {
+    it('has no app-settings item in the more menu (the side-nav gear opens settings)', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
-      const settingsLink = screen.getByRole('link', { name: /generalSettings/i });
-      expect(settingsLink).toHaveAttribute('href', '/settings/general');
+      expect(screen.queryByText('generalSettings')).toBeNull();
     });
 
     it('calls handleRestartClick when restart button is clicked', () => {

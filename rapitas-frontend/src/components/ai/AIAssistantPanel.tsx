@@ -16,10 +16,10 @@ import { useAIChat } from '../note/useAIChat';
 import { Spinner } from '@/components/ui/spinner';
 import { isImeComposing } from '@/utils/ime';
 import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-service';
-import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
 import { useUIModeStore } from '@/stores/ui-mode-store';
 import { formatTime } from '@/utils/date';
+import { openSettings } from '@/feature/settings/settings-modal-store';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -248,13 +248,14 @@ export default function AIAssistantPanel() {
                     })}
                   </div>
                   {configuredProviders.length === 0 && (
-                    <Link
-                      href="/settings"
+                    <button
+                      type="button"
+                      onClick={() => openSettings('api-keys')}
                       className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
                     >
                       <Settings className="w-4 h-4" />
                       {t('registerApiKeyLink')}
-                    </Link>
+                    </button>
                   )}
                 </div>
 
@@ -335,13 +336,14 @@ export default function AIAssistantPanel() {
                 <p className="text-sm">{error}</p>
                 {(error.includes('APIキーが設定されていません') ||
                   error.includes('APIキーが無効です')) && (
-                  <Link
-                    href="/settings"
+                  <button
+                    type="button"
+                    onClick={() => openSettings('api-keys')}
                     className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
                   >
                     <Settings className="w-4 h-4" />
                     {t('setApiKeyLink')}
-                  </Link>
+                  </button>
                 )}
               </div>
             </div>

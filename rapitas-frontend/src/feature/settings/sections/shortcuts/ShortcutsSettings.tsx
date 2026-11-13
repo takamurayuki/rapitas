@@ -1,7 +1,7 @@
 'use client';
 // ShortcutSettingsPage
 
-import { Keyboard, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useShortcutSettings } from './hooks/useShortcutSettings';
@@ -68,17 +68,8 @@ export default function ShortcutSettingsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Page header */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="flex items-center justify-center w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-          <Keyboard className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{t('description')}</p>
-        </div>
-      </div>
+    <div>
+      <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">{t('description')}</p>
 
       <ShortcutRecorderSection
         title={t('globalShortcuts')}

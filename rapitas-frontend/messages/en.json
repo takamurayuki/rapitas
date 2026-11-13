@@ -273,9 +273,7 @@
     "memoryAdmin": "Memory Admin",
     "growthReport": "Daily Report",
     "settings": "Settings",
-    "generalSettings": "App Settings",
     "apiKeySettings": "API Key Settings",
-    "cliTools": "CLI Tools",
     "shortcutSettings": "Shortcut Settings",
     "openMenu": "Open menu",
     "goBack": "Back",
@@ -1450,6 +1448,7 @@
     },
     "layout": {
       "navAriaLabel": "Settings",
+      "modalTitle": "Settings",
       "personalTab": "Personal",
       "generalTab": "General",
       "shortcutsTab": "Shortcuts",

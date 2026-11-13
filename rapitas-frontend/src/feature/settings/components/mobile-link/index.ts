@@ -1,5 +1,5 @@
 /**
- * settings/_components/mobile-link
+ * feature/settings/components/mobile-link
  *
  * Pairing phones with this desktop (#1421): the settings card and its hook.
  */
