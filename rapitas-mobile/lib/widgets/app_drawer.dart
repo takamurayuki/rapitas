@@ -15,6 +15,7 @@ const String _categories = '/categories';
 const String _ideas = '/ideas';
 const String _concerns = '/concerns';
 const String _hypotheses = '/hypotheses';
+const String _notes = '/notes';
 const String _dashboard = '/dashboard';
 const String _notifications = '/notifications';
 const String _settings = '/settings';
@@ -36,29 +37,21 @@ const List<_DrawerDestination> _destinations = [
   _DrawerDestination('アイデア', Icons.lightbulb_outline, _ideas),
   _DrawerDestination('懸念', Icons.report_problem_outlined, _concerns),
   _DrawerDestination('仮説', Icons.science_outlined, _hypotheses),
+  _DrawerDestination('ノート', Icons.description_outlined, _notes),
   _DrawerDestination('ダッシュボード', Icons.dashboard, _dashboard),
   _DrawerDestination('通知', Icons.notifications_outlined, _notifications),
   _DrawerDestination('設定', Icons.settings_outlined, _settings),
 ];
 
 /// ドロワー項目「通知」のインデックス（未読バッジ用）
-const int _notificationsIndex = 6;
+final int _notificationsIndex = _destinations.indexWhere((d) => d.path == _notifications);
 
 /// 現在のパスに対応するドロワー項目のインデックス。該当なしは -1。
 ///
 /// 下タブの画面（/、/tasks 配下、/executions、/approvals）はドロワーに無いので -1。
 /// 一覧の配下（/themes/new、/ideas/new など）は一覧項目として扱わない（完全一致のみ）。
-int drawerSelectedIndex(String location) {
-  if (location == _themes) return 0;
-  if (location == _categories) return 1;
-  if (location == _ideas) return 2;
-  if (location == _concerns) return 3;
-  if (location == _hypotheses) return 4;
-  if (location == _dashboard) return 5;
-  if (location == _notifications) return 6;
-  if (location == _settings) return 7;
-  return -1;
-}
+int drawerSelectedIndex(String location) =>
+    _destinations.indexWhere((d) => d.path == location);
 
 /// 全タブ画面に付けるハンバーガーメニュー。デスクトップのサイドナビ相当。
 class AppDrawer extends ConsumerWidget {

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../config/routes.dart';
+import '../config/note_paths.dart';
 import '../models/note.dart';
 import '../providers/note_provider.dart';
 import '../utils/date_formatter.dart';
 
 /// タスク詳細の「資料」節。そのタスクに紐づくノートを、サーバーの並び
 /// （ピン留め優先・更新の新しい順）のまま出し、タップでノート詳細へ進む。
+/// 「資料を追加」で作ったノートは、保存の後にこのタスクへ紐づく。
 ///
 /// NOTE: 読み込み中はくるくる回る表示を使わない。タスク詳細のテストは pumpAndSettle で
 /// 落ち着くのを待つので、終わらないアニメーションを置くとそれらが全部タイムアウトする。
@@ -27,11 +28,24 @@ class TaskNotesSection extends ConsumerWidget {
       key: const ValueKey('task-notes-section'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          notes == null || notes.isEmpty ? '資料' : '資料 (${notes.length})',
-          style: theme.textTheme.titleSmall,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                notes == null || notes.isEmpty ? '資料' : '資料 (${notes.length})',
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            // 作ったノートは保存の後にこのタスクへ紐づく（NoteFormScreen の taskId）
+            TextButton.icon(
+              key: const ValueKey('task-notes-add'),
+              onPressed: () => context.push(NotePaths.createPath(taskId: taskId)),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('資料を追加'),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         if (notes != null)
           if (notes.isEmpty)
             Text('このタスクの資料はまだありません。', style: muted)
@@ -75,7 +89,7 @@ class TaskNoteTile extends StatelessWidget {
         trailing: note.isPinned
             ? Icon(Icons.push_pin, size: 18, color: scheme.onSurfaceVariant, semanticLabel: 'ピン留め')
             : null,
-        onTap: () => context.push(AppRoutes.noteDetailPath(note.id)),
+        onTap: () => context.push(NotePaths.detailPath(note.id)),
       ),
     );
   }

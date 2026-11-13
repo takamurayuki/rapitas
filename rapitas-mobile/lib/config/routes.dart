@@ -21,8 +21,8 @@ import '../screens/backlog/idea_form_screen.dart';
 import '../screens/backlog/concerns_screen.dart';
 import '../screens/backlog/concern_form_screen.dart';
 import '../screens/backlog/hypotheses_screen.dart';
-import '../screens/notes/note_detail_screen.dart';
 import '../screens/rapi/rapi_screen.dart';
+import 'note_routes.dart';
 import '../services/compose_requests.dart';
 import '../services/voice_route_tracker.dart';
 
@@ -53,12 +53,6 @@ class AppRoutes {
   static const String concernsNew = '/concerns/new';
   static const String hypotheses = '/hypotheses';
   static const String rapi = '/rapi';
-
-  /// ノート詳細（タスク詳細の「資料」節から開く）。id は文字列なので [noteDetailPath] で組み立てる
-  static const String noteDetail = '/notes/:id';
-
-  /// ノート詳細へのパス。id はサーバーが受ける任意の文字列なので符号化する
-  static String noteDetailPath(String id) => '/notes/${Uri.encodeComponent(id)}';
 
   /// ディープリンク（rapitas://app/rapi?compose=1）で入力欄にフォーカスを求めるクエリ
   static const String composeQuery = 'compose';
@@ -212,10 +206,8 @@ class AppRoutes {
           path: hypotheses,
           builder: (context, state) => const HypothesesScreen(),
         ),
-        GoRoute(
-          path: noteDetail,
-          builder: (context, state) => NoteDetailScreen(noteId: state.pathParameters['id']!),
-        ),
+        // ノート（一覧・新規・編集・詳細。パスは note_paths.dart）
+        ...noteRoutes,
       ],
     );
   }
@@ -225,7 +217,7 @@ class AppRoutes {
     for (final path in [
       home, tasks, taskNew, taskDetail, taskEdit, taskDecide, executions, approvals, notifications,
       dashboard, settings, voiceLearning, themes, themeNew, themeEdit, categories, categoryNew, categoryEdit,
-      ideas, ideasNew, concerns, concernsNew, hypotheses, rapi, noteDetail,
+      ideas, ideasNew, concerns, concernsNew, hypotheses, rapi, ...noteKnownPaths,
     ])
       RegExp('^${path.replaceAll(RegExp(r':[A-Za-z]+'), '[^/]+')}\$'),
   ];

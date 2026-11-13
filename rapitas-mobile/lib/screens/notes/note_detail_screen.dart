@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../config/note_paths.dart';
 import '../../models/note.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/task_provider.dart';
@@ -11,7 +12,7 @@ import '../../widgets/voice_mode_indicator.dart';
 /// ノート詳細（読むだけ）。タイトル・種類・タグ・紐づくタスク・本文（Markdown）を出す。
 ///
 /// 本文の Mermaid は図にせずコードのまま見せ、図は PC で表示する旨を添える（[NoteContentMarkdown]）。
-/// 編集・削除はここでは扱わない（ノートの作成・編集と合わせて AppBar に足す）。
+/// 編集は AppBar の鉛筆から（/notes/:id/edit）。削除はノート一覧の横スワイプで行い、ここには置かない。
 class NoteDetailScreen extends ConsumerWidget {
   final String noteId;
 
@@ -25,7 +26,16 @@ class NoteDetailScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ノート'),
-        actions: const [VoiceModeIndicator()],
+        actions: [
+          // 読み込み前は右にアイコンが無いので右端用の余白を取る
+          VoiceModeIndicator(trailing: noteAsync.valueOrNull == null),
+          if (noteAsync.valueOrNull != null)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              tooltip: '編集',
+              onPressed: () => context.push(NotePaths.editPath(noteId)),
+            ),
+        ],
       ),
       body: noteAsync.when(
         data: (note) => note == null
