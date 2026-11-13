@@ -108,7 +108,7 @@ every phase/retry meant a discovery-cache rollover or a provider briefly
 flapping in/out of cooldown could silently switch the model for what should
 be the same phase attempt.
 
-**Approach chosen: in-process `Map` cache**, not a DB column. Investigated
+**Approach chosen: an in-process `Map` backed by timeline events**, not a DB column. Investigated
 existing nullable columns first — `AgentExecutionConfig` is one row per
 *task* (not per role) and its fields are all user-facing execution settings;
 `AgentSession.mode` stores the role label (`workflow-<role>`) but
@@ -119,26 +119,29 @@ schema changes, no column was added.
 
 New module: `services/ai/model-route-stability.ts`.
 
-- `getStableSmartRoute(taskId, role, options)` — pins the routing decision in
-  a `Map` keyed `` `${taskId}:${role}:${minTier}` `` (not just `taskId:role`:
-  folding in `minTier` means a **deliberate** escalation — a retry/theme-outcome
-  escalation or a risk-based floor raise computed in
-  `workflow-orchestrator.ts`'s `routing-policy` — still re-routes, because it
+- `getStableSmartRoute(taskId, role, options)` — pins the routing decision for
+  up to `PIN_TTL_MS` (24 hours), keyed by task, role and the tier constraints
+  `minTier`, `capTier` and `hardCapTier` (not just `taskId:role`: folding in
+  `minTier` means a **deliberate** escalation — a retry/theme-outcome
+  escalation or a risk-based floor raise computed by
+  `services/workflow/routing-policy.ts` — still re-routes, because it
   produces a different `minTier` and therefore a different cache key).
 - `invalidateStableRoute(taskId, role)` — called from
-  `workflow-orchestrator.ts`'s `tryProviderFallback()` (the deliberate
+  `services/workflow/workflow-provider-fallback.ts` (the deliberate
   provider-failure re-route path) right after a failure is classified as
   retry-worthy, so the *next* ordinary retry recomputes fresh instead of
   reusing a pin that is now known-bad.
-- Wired into `services/workflow/workflow-orchestrator.ts` (the main
-  auto-select call) and `routes/agents/execution/routes/execute-route.ts` (the
-  manual dev-mode auto-select call). `tryProviderFallback`'s own
+- Called from `services/workflow/role-route-inputs.ts` (`routeModelForRole`,
+  the auto-select path for workflow phases). The provider-fallback path's own
   `getSmartRoute` call is intentionally left calling the router directly —
   it *is* the deliberate re-route this cache defers to.
 
-**Resets on backend restart** (documented in the module's file header) — this
-is process memory only, same category as `provider-cooldown` and
-`outcome-reinforcement`'s in-memory traces, which already reset on restart.
+**Survives a backend restart.** Each pin is also written to the timeline as a
+`model_route_pin` event and read back after a restart. It used to be process
+memory only; measured on 2026-10-21, the backend restarts on every deploy and
+at every auto-run quiet point, so a task spanning a restart could change model
+between its own phases (see the module's file header). Reading or writing the
+pin fails open to a fresh routing decision.
 
 ## Accepted structural residual
 
