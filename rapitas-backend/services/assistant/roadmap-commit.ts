@@ -2,7 +2,8 @@
  * RoadmapCommit
  *
  * Creating what the user approved: a theme if the plan asked for one, a
- * project if it asked for one, and a task per step.
+ * project if it asked for one, its milestones (節目) under that project, and
+ * a task per step filed under its milestone.
  *
  * **No model runs here.** What gets created is exactly the plan that was on
  * screen, which is the whole reason a model was allowed to draft it: the
@@ -27,6 +28,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
+import { normalizeCriteria } from './criteria-text';
 
 const logger = createLogger('assistant-roadmap-commit');
 
@@ -52,6 +54,17 @@ export interface ApprovedStep {
   userAcceptanceChecks?: string[];
   /** When it should be finished, as the approved plan dated it (YYYY-MM-DD). */
   dueDate?: string;
+  /** Index into `ApprovedPlan.milestones` of the milestone this step builds towards. */
+  milestoneIndex?: number;
+}
+
+/** A milestone (節目) as the user approved it. */
+export interface ApprovedMilestone {
+  name: string;
+  /** What must be true to call it reached — Milestone.acceptanceCriteria. */
+  acceptanceCriteria: string[];
+  /** Target date (YYYY-MM-DD), when the plan dated it. */
+  dueDate?: string;
 }
 
 export interface ApprovedPlan {
@@ -59,6 +72,8 @@ export interface ApprovedPlan {
   themeChoice: ApprovedPlacement;
   projectChoice: ApprovedPlacement;
   steps: ApprovedStep[];
+  /** Created under the project only; ignored when the plan has none. */
+  milestones?: ApprovedMilestone[];
 }
 
 export interface RoadmapResult {
@@ -68,6 +83,8 @@ export interface RoadmapResult {
   projectId: number | null;
   /** Every task created, in plan order. */
   taskIds: number[];
+  /** Every milestone created, in plan order. */
+  milestoneIds: number[];
   /**
    * How many steps were created before something went wrong, or null when
    * nothing did. Zero is a real answer: it failed on the very first one.
@@ -95,7 +112,43 @@ async function resolve(
 }
 
 /**
- * Create the theme, project and tasks an approved plan describes.
+ * Create the approved milestones under a project, after the ones it has.
+ *
+ * @param projectId - The goal's project / ゴールのプロジェクト
+ * @param milestones - The approved milestones, in order / 承認された節目
+ * @returns The created ids, in plan order / 作成した節目のID
+ */
+async function createMilestones(
+  projectId: number,
+  milestones: ApprovedMilestone[],
+): Promise<number[]> {
+  if (milestones.length === 0) return [];
+  // An existing goal may already have milestones; a roadmap adds the next
+  // stages after them rather than interleaving with the person's order.
+  const last = await prisma.milestone.findFirst({
+    where: { projectId },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true },
+  });
+  const base = last ? last.sortOrder + 1 : 0;
+  const ids: number[] = [];
+  for (const [i, m] of milestones.entries()) {
+    const made = await prisma.milestone.create({
+      data: {
+        projectId,
+        name: m.name,
+        acceptanceCriteria: JSON.stringify(normalizeCriteria(m.acceptanceCriteria)),
+        ...(m.dueDate ? { dueDate: new Date(m.dueDate) } : {}),
+        sortOrder: base + i,
+      },
+    });
+    ids.push(made.id);
+  }
+  return ids;
+}
+
+/**
+ * Create the theme, project, milestones and tasks an approved plan describes.
  *
  * @param plan - Exactly what the user confirmed / ユーザーが承認した計画
  * @returns What was created, and where it stopped if it did / 作成結果
@@ -104,7 +157,7 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
   if (plan.steps.length === 0) {
     // Nothing to place the work in matters when there is no work. Creating a
     // theme for an empty plan would leave debris behind a no-op.
-    return { themeId: null, projectId: null, taskIds: [], failedAfter: null };
+    return { themeId: null, projectId: null, taskIds: [], milestoneIds: [], failedAfter: null };
   }
 
   const themeId = await resolve(plan.themeChoice, (name) =>
@@ -113,6 +166,10 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
   const projectId = await resolve(plan.projectChoice, (name) =>
     prisma.project.create({ data: { name, description: plan.goal } }),
   );
+
+  // Before any task, so a task is never filed under a milestone that does not exist yet.
+  const milestoneIds =
+    projectId !== null ? await createMilestones(projectId, plan.milestones ?? []) : [];
 
   const taskIds: number[] = [];
   let failedAfter: number | null = null;
@@ -127,6 +184,9 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
         ...(step.dueDate ? { dueDate: step.dueDate } : {}),
         ...(themeId !== null ? { themeId } : {}),
         ...(projectId !== null ? { projectId } : {}),
+        ...(step.milestoneIndex !== undefined && milestoneIds[step.milestoneIndex] !== undefined
+          ? { milestoneId: milestoneIds[step.milestoneIndex] }
+          : {}),
         acceptanceCriteria: step.acceptanceCriteria,
         ...(step.userAcceptanceChecks?.length
           ? { userAcceptanceChecks: step.userAcceptanceChecks }
@@ -143,6 +203,9 @@ export async function commitRoadmap(plan: ApprovedPlan): Promise<RoadmapResult> 
     }
   }
 
-  logger.info({ themeId, projectId, created: taskIds.length, failedAfter }, 'roadmap committed');
-  return { themeId, projectId, taskIds, failedAfter };
+  logger.info(
+    { themeId, projectId, milestones: milestoneIds.length, created: taskIds.length, failedAfter },
+    'roadmap committed',
+  );
+  return { themeId, projectId, taskIds, milestoneIds, failedAfter };
 }

@@ -36,6 +36,7 @@ export interface RawDraft {
   projectChoice?: unknown;
   questions?: unknown;
   steps?: unknown;
+  milestones?: unknown;
   deadlineInDays?: unknown;
   assumptions?: unknown;
   comparisonAxes?: unknown;

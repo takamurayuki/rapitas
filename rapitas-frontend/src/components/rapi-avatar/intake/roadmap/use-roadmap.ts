@@ -21,6 +21,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useNoteStore } from '@/stores/note-store';
 import { composeRoadmapNote } from './roadmap-note';
+import { postRoadmapCommit } from './roadmap-commit-request';
 import type {
   Committed,
   Decision,
@@ -244,19 +245,7 @@ export function useRoadmap(handedOver?: string) {
     setCommitting(true);
     setFailure(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/assistant/roadmap/commit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirmed: true,
-          goal: draft.goal,
-          themeChoice: draft.themeChoice,
-          projectChoice: draft.projectChoice,
-          steps: draft.steps,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const made = (await res.json()) as Committed;
+      const made = await postRoadmapCommit(draft);
       setCommitted(made);
       const noteId = writeNote(draft, made);
       if (noteId) await attachNote(noteId, draft, made);

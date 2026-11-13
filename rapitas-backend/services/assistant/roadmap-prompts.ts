@@ -22,6 +22,9 @@
 /** Most steps one draft may propose. A roadmap is not a backlog dump. */
 export const MAX_ROADMAP_STEPS = 12;
 
+/** Most milestones one draft may propose; more stops reading as stages. */
+export const MAX_ROADMAP_MILESTONES = 6;
+
 /**
  * Most questions the first round may ask.
  *
@@ -40,7 +43,8 @@ const SHAPE = `{
   "assumptions": string[],
   "comparisonAxes": string[],
   "questions": [{ "question": string, "options": string[], "recommended": string, "recommendedReason": string }],
-  "steps": [{ "title": string, "action": string, "done": string[], "dueInDays": number | null }]
+  "milestones": [{ "name": string, "done": string[], "dueInDays": number | null }],
+  "steps": [{ "title": string, "action": string, "done": string[], "dueInDays": number | null, "milestone": number | null }]
 }`;
 
 /** Rules both rounds follow, so the two prompts cannot drift apart. */
@@ -54,6 +58,14 @@ const COMMON = `テーマとプロジェクトについて:
 - action は着手した人が読んで、そのまま手を動かせる一文。背景や目的の説明は書かない。
 - done は完了条件の配列。「終わったかどうか」を他人が見て判断できる形にする（件数・枚数・レビュー済みなど）。3〜7個。「使いやすい」「きちんと」のような確かめられない言葉は使わず、数・操作・結果で書く。
 - steps は多くても ${MAX_ROADMAP_STEPS} 個。1つで終わるならそれでよい。
+
+節目（milestones）について:
+- 節目は、ゴールと各ステップの間にある「ここまで来たら一区切り」という段階。ステップを順番どおりにまとめたもの。
+- projectChoice が none のとき、またはステップが3個以下のときは milestones を空配列にする（節目はプロジェクトの下に置くため、また小さな計画に段階は要らない）。
+- それ以外は2〜${MAX_ROADMAP_MILESTONES}個。name は段階の名前（例:「基礎固め」「試作版を人に見せる」）。
+- done はその節目に着いたと**本人が確かめられる**条件。1〜5個。各ステップの完了条件の寄せ集めではなく、「この段階で何が言えるようになっているか」を書く。
+- 各ステップの milestone には、そのステップが向かう節目の番号（milestones の 0 始まりの添字）を入れる。milestones が空なら null。
+- dueInDays はステップと同じ規則（期限があるときだけ、期限内で）。
 
 期限について:
 - 日付は書かない。**今日から何日後か**を整数で書く（dueInDays / deadlineInDays）。

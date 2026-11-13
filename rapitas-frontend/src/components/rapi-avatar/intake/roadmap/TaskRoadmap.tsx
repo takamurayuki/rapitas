@@ -30,6 +30,7 @@
 import { useTranslations } from 'next-intl';
 import { useRoadmap, type Placement } from './use-roadmap';
 import { RoadmapQuestions } from './RoadmapQuestions';
+import { RoadmapPlanList } from './RoadmapPlanList';
 
 export interface TaskRoadmapProps {
   /** What the user asked for, handed over by the single input. */
@@ -108,26 +109,7 @@ export function TaskRoadmap({ handedOver }: TaskRoadmapProps = {}) {
             </p>
           )}
 
-          <ul className="max-h-52 space-y-1 overflow-y-auto">
-            {draft.steps.map((s) => (
-              <li
-                key={s.title}
-                className="rounded border border-zinc-200 p-1.5 dark:border-zinc-700"
-              >
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-[11px] font-medium text-zinc-800 dark:text-zinc-100">
-                    {s.title}
-                  </span>
-                  {s.dueDate && (
-                    <span className="shrink-0 text-[10px] text-zinc-400">{s.dueDate}</span>
-                  )}
-                </span>
-                <span className="block whitespace-pre-wrap text-[10px] text-zinc-500 dark:text-zinc-400">
-                  {s.description}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <RoadmapPlanList steps={draft.steps} milestones={draft.milestones} />
 
           {/* Only when the goal is a choice between things. Searching takes
               the better part of a minute and reaches outside the machine,

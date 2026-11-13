@@ -10,6 +10,7 @@
  */
 import type { RoadmapAnswer } from './roadmap-prompts';
 import type { CriteriaQuality, ProposedCriterion } from './criteria-proposal';
+import type { RoadmapMilestone } from '../goals/roadmap-milestones';
 
 /** Where the work should go, once the invented ids are stripped out. */
 export type Placement =
@@ -41,6 +42,8 @@ export interface RoadmapStep {
   criteriaQuality?: CriteriaQuality;
   /** When it should be finished, only when a deadline was named (YYYY-MM-DD). */
   dueDate?: string;
+  /** Index into `RoadmapDraft.milestones` of the milestone this step builds towards. */
+  milestoneIndex?: number;
 }
 
 export interface RoadmapQuestion {
@@ -57,6 +60,11 @@ export interface RoadmapDraft {
   projectChoice: Placement;
   questions: RoadmapQuestion[];
   steps: RoadmapStep[];
+  /**
+   * The milestones (節目) between the goal and its steps. Empty unless the
+   * work is filed under a project: a milestone belongs to a project.
+   */
+  milestones: RoadmapMilestone[];
   /** The deadline the request implied, as a date (YYYY-MM-DD). */
   deadline?: string;
   /** What the plan takes for granted, for the note rather than the tasks. */
