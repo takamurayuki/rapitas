@@ -22,24 +22,20 @@
 
 ## 2. アーキテクチャ概要
 
-```
-src/config/benign-error-patterns.ts   ← 設定の単一ソース (パターン定義 + matchesPattern)
-         │
-         │ import
-         ▼
-src/components/common/GlobalErrorReporter.tsx
-         │  isBenign(message, ctx?)
-         │
-         ▼
-    send(payload)  →  isBenign?  → YES → 抑制 (fetch しない)
-                          │
-                          NO
-                          │
-                    shouldReport?  → NO → 重複除去
-                          │
-                         YES
-                          │
-                    POST /system/errors
+```mermaid
+flowchart TD
+  cfg["src/config/benign-error-patterns.ts<br/>設定の単一ソース（パターン定義と matchesPattern）"]
+  rep["src/components/common/GlobalErrorReporter.tsx<br/>isBenign(message, ctx?)"]
+  send["send(payload)"]
+  benign{"isBenign?"}
+  dedupe{"shouldReport?"}
+  post["POST /system/errors"]
+  cfg -->|import| rep
+  rep --> send --> benign
+  benign -->|YES| drop["抑制（fetch しない）"]
+  benign -->|NO| dedupe
+  dedupe -->|NO| dup["重複除去"]
+  dedupe -->|YES| post
 ```
 
 ### 設計ファイルの役割分担
@@ -84,7 +80,8 @@ UA フィルタは `navigator.userAgent.includes(entry.ua)` で評価します�
 - UA 文字列は `includes` で十分な粒度が得られる
 - レビューコストと誤設定リスクが不必要に増える
 
-> ⚠️ バックエンド `cli-output-filter.ts` の `BENIGN_DIAGNOSTIC_PATTERNS` は正規表現を使用していますが、本フィルタは別ライフサイクル・別用途のため統合しません。
+> [!NOTE]
+> バックエンド `cli-output-filter.ts` の `BENIGN_DIAGNOSTIC_PATTERNS` は正規表現を使用していますが、本フィルタは別ライフサイクル・別用途のため統合しません。
 
 ---
 
@@ -197,19 +194,19 @@ if (isBenign(payload.message, { ua, env })) return;
 ## 8. アンチパターン
 
 ```typescript
-// ❌ note を省略 — なぜ無害かが追跡不能になる
+// 悪い例: note を省略 — なぜ無害かが追跡不能になる
 { pattern: 'ResizeObserver loop limit exceeded' }
 
-// ❌ 短すぎる prefix — 本物のエラーを握り潰す危険あり
+// 悪い例: 短すぎる prefix — 本物のエラーを握り潰す危険あり
 { pattern: 'Network error', note: '...' }  // "Network error: 503" も抑制してしまう
 
-// ❌ 動的な部分を含めた prefix — バージョンが変わると一致しなくなる
+// 悪い例: 動的な部分を含めた prefix — バージョンが変わると一致しなくなる
 { pattern: 'ChunkLoadError: Loading chunk 123', note: '...' }  // 番号は毎回変わる
 
-// ❌ 正規表現による ua マッチ — 不採用 (§3 参照)
+// 悪い例: 正規表現による ua マッチ — 不採用 (§3 参照)
 { pattern: 'WebGL error', ua: /Firefox\/\d+/, note: '...' }  // ua は文字列のみ
 
-// ✅ 適切なエントリ
+// 良い例: 適切なエントリ
 {
   pattern: 'ResizeObserver loop limit exceeded',
   note: 'Chrome/Edge: ブラウザが自動リトライ。データ損失なし。',
@@ -220,24 +217,16 @@ if (isBenign(payload.message, { ua, env })) return;
 
 ## 9. フィルタが適用される位置
 
-```
-browser error / unhandled rejection
-        │
-        ▼
-   send(payload)
-        │
-   isBenign(message, ctx)?  ──── YES ──→ [抑制: fetch せず終了]
-        │
-        NO
-        │
-   shouldReport()?  ─── NO ──→ [重複除去: 10 秒以内の同一メッセージ]
-        │
-       YES
-        │
-   POST /system/errors
-        │
-        ├─→ リングバッファ (最近のエラーパネル)
-        └─→ Sentry (設定時)
+```mermaid
+flowchart TD
+  err["browser error / unhandled rejection"] --> send["send(payload)"]
+  send --> benign{"isBenign(message, ctx)?"}
+  benign -->|YES| drop["抑制: fetch せず終了"]
+  benign -->|NO| dedupe{"shouldReport()?"}
+  dedupe -->|NO| dup["重複除去: 10 秒以内の同一メッセージ"]
+  dedupe -->|YES| post["POST /system/errors"]
+  post --> ring["リングバッファ（最近のエラーパネル）"]
+  post --> sentry["Sentry（設定時）"]
 ```
 
 `isBenign()` は `shouldReport()` より**前**に評価されます。
@@ -247,7 +236,7 @@ browser error / unhandled rejection
 
 ## 10. 将来の拡張 (スコープ外)
 
-- **DB + 管理画面**: `BenignErrorPattern` をデータベースに永続化し、設定ページ UI から動的追加・削除できるようにする。現時点では Prisma スキーマ変更（サーバー再起動必須）コストが高いためスコープ外。実装する場合は `prisma/schema/system.prisma` に `BenignErrorPattern` テーブルを追加し、新設するルートファイル（例: rapitas-backend/routes/system/error-filter-config.ts、未作成）で CRUD エンドポイントを設ける。
+- **DB + 管理画面**: `BenignErrorPattern` をデータベースに永続化し、設定モーダル（`rapitas-frontend/src/feature/settings/`）から動的追加・削除できるようにする。現時点では Prisma スキーマ変更（サーバー再起動必須）コストが高いためスコープ外。実装する場合は `prisma/schema/system.prisma` に `BenignErrorPattern` テーブルを追加し、新設するルートファイル（例: rapitas-backend/routes/system/error-filter-config.ts、未作成）で CRUD エンドポイントを設ける。
 - **バックエンドとの統合**: `cli-output-filter.ts` の `BENIGN_DIAGNOSTIC_PATTERNS`（正規表現・バックエンド専用）と設計を統一することも検討できるが、ライフサイクルが異なるため慎重に判断する。
 
 ---
