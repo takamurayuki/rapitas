@@ -86,23 +86,28 @@ afterEach(() => {
 });
 
 describe('layouts', () => {
-  it('portals the screen into the /browser slot and draws no pane there', () => {
+  // NOTE: The screen and the pane are loaded on demand (next/dynamic), so
+  // these tests wait for them instead of reading the first render.
+  it('portals the screen into the /browser slot and draws no pane there', async () => {
     pathname = '/browser';
     useLinkViewStore.getState().openLink('https://example.com/');
     expect(useLinkViewStore.getState().isOpen).toBe(true);
     const slot = mountSlot();
     render(<LinkViewHost />);
+    // The first on-demand import is transformed cold, which can outlast
+    // findBy's 1 s default.
+    await screen.findByTestId('browser-screen', {}, { timeout: 10_000 });
     expect(slot.querySelector('[data-testid="browser-screen"]')).toBeTruthy();
     expect(document.querySelectorAll('[data-testid="browser-screen"]')).toHaveLength(1);
     // The pane's ✕ (its close button) is not rendered on /browser.
     expect(screen.queryByTitle('close')).toBeNull();
   });
 
-  it('keeps the docked pane everywhere else', () => {
+  it('keeps the docked pane everywhere else', async () => {
     useLinkViewStore.getState().openLink('https://example.com/');
     render(<LinkViewHost />);
+    expect(await screen.findByTitle('close')).toBeTruthy();
     expect(screen.queryByTestId('browser-screen')).toBeNull();
-    expect(screen.getByTitle('close')).toBeTruthy();
   });
 
   it('renders nothing before the slot exists', () => {
@@ -204,7 +209,7 @@ describe('webview reports', () => {
 });
 
 describe('desktop first render', () => {
-  it('never builds a web iframe or asks the embed check on the desktop', () => {
+  it('never builds a web iframe or asks the embed check on the desktop', async () => {
     tauri = true;
     pathname = '/browser';
     // Earlier tests cached example.com's verdict; without a reset a web
@@ -213,8 +218,8 @@ describe('desktop first render', () => {
     useLinkViewStore.getState().openLink('https://example.com/');
     mountSlot();
     render(<LinkViewHost />);
+    expect(await screen.findByTestId('browser-surface')).toBeTruthy();
     expect(document.querySelector('iframe')).toBeNull();
-    expect(screen.getByTestId('browser-surface')).toBeTruthy();
     expect(fetch).not.toHaveBeenCalled();
   });
 });

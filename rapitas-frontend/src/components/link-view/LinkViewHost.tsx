@@ -13,20 +13,30 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { useLinkViewStore, LINK_VIEW_SPLIT_WIDTH_VW } from '@/stores/link-view-store';
 import { useLinkViewStatusStore } from '@/stores/link-view-status-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { LINK_PANE_Z } from '@/lib/pane-layering';
 import { isTauri, openExternalUrl } from '@/utils/tauri';
-import { BrowserScreen } from './browser-screen/BrowserScreen';
-import { LinkBandBar } from './browser-screen/LinkBandBar';
 import { isBrowserRoute, useBrowserScreenSlotStore } from './browser-screen/browser-screen-slot';
 import { useLinkViewReports } from './browser-screen/useLinkViewReports';
-import { LinkFavourites } from './LinkFavourites';
-import { LinkViewPane } from './LinkViewPane';
 import { useLinkView } from './useLinkView';
 import { useTaskPanelWidthVw } from './useTaskPanelWidth';
+
+// NOTE: Loaded on demand. This host is mounted in the root layout, so a static
+// import shipped the whole browser UI on every page and pushed an eager chunk
+// past the 500 KB bundle budget; these only render on /browser or while the
+// pane is open. Guarded by __tests__/LinkViewHost.lazy.test.ts.
+const BrowserScreen = dynamic(() =>
+  import('./browser-screen/BrowserScreen').then((m) => m.BrowserScreen),
+);
+const LinkBandBar = dynamic(() =>
+  import('./browser-screen/LinkBandBar').then((m) => m.LinkBandBar),
+);
+const LinkFavourites = dynamic(() => import('./LinkFavourites').then((m) => m.LinkFavourites));
+const LinkViewPane = dynamic(() => import('./LinkViewPane').then((m) => m.LinkViewPane));
 
 /**
  * The edge the link pane takes.

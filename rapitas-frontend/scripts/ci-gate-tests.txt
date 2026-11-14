@@ -93,6 +93,7 @@ src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-n
 src/components/link-view/browser-screen/__tests__/BrowserScreen.test.tsx
 src/components/link-view/useLinkView.visibility.test.ts
 src/components/link-view/browser-screen/__tests__/LinkViewHost.browser.test.tsx
+src/components/link-view/__tests__/LinkViewHost.lazy.test.ts
 src/utils/__tests__/browser-url-policy.test.ts
 src/__tests__/frame-ancestors-config.test.ts
 src/app/goals/_components/detail/__tests__/ConfirmAchievementDialog.test.tsx
