@@ -19,7 +19,7 @@ vi.mock('next-intl', () => ({
 }));
 vi.mock('@/utils/ime', () => ({ isImeComposing: () => false }));
 
-import { RapiPrompt, type Routed } from '../RapiPrompt';
+import { MIN_INPUT_PX, RapiPrompt, type Routed } from '../RapiPrompt';
 
 let requests: { url: string; body: Record<string, unknown> }[] = [];
 let answer: Record<string, unknown> = {
@@ -257,25 +257,34 @@ describe('the size of the box', () => {
     return box;
   };
 
-  it('starts as one line', () => {
+  // It started as one 12px line, which read as a search field and was
+  // reported as too cramped to write a request in (2026-11-14).
+  it('starts three lines tall', () => {
     mount();
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).rows).toBe(1);
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).rows).toBe(3);
+  });
+
+  it('does not shrink below those three lines when the content is short', () => {
+    mount();
+    const box = withContentHeight(20);
+    fireEvent.change(box, { target: { value: 'あ' } });
+    expect(box.style.height).toBe(`${MIN_INPUT_PX}px`);
   });
 
   it('grows to fit what was typed', () => {
     // It was a fixed 30px line that shrank against the list below it; two or
     // three lines of plain Japanese were never visible at once.
     mount();
-    const box = withContentHeight(64);
+    const box = withContentHeight(120);
     fireEvent.change(box, { target: { value: 'ふたつ\nみっつ' } });
-    expect(box.style.height).toBe('64px');
+    expect(box.style.height).toBe('120px');
   });
 
   it('stops growing before it eats the panel', () => {
     mount();
     const box = withContentHeight(400);
     fireEvent.change(box, { target: { value: 'とても長い文章' } });
-    expect(box.style.height).toBe('108px');
+    expect(box.style.height).toBe('200px');
     expect(box.style.overflowY).toBe('auto');
   });
 

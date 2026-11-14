@@ -601,9 +601,11 @@
       "placeholder": "やりたいことをそのまま書いてください",
       "thinking": "読んでいます…",
       "cancel": "やめる",
-      "unplaced": "うまく分かりませんでした。下のタブから選んでください。",
+      "unplaced": "うまく分かりませんでした。やりたいことを、別の言い方で書いてみてください。",
       "tookItAs": "「{where}」として受け取りました — {reason}",
-      "ratherPlan": "計画として考える"
+      "ratherPlan": "計画として考える",
+      "send": "送る",
+      "hint": "Enter で送信、Shift+Enter で改行"
     },
     "tidy": {
       "byCondition": "条件で",
@@ -712,6 +714,15 @@
         "urgent": "緊急",
         "none": "なし"
       }
+    },
+    "backToChat": "対話に戻る",
+    "examplesLabel": "たとえばこんなふうに話しかけてください",
+    "examples": {
+      "watch": "いま対応が必要なものを教えて",
+      "create": "明日までに企画書を書くタスクを作って",
+      "ask": "期限切れのタスクは何件ある？",
+      "tidy": "重複しているタスクを片付けたい",
+      "roadmap": "英語を毎日続けられるようにしたい"
     }
   }
 }

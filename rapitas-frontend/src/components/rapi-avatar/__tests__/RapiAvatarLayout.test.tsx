@@ -2,7 +2,7 @@
  * RapiAvatarLayout.test
  *
  * The shape of the panel, as asked for on 2026-10-21: the composer at the
- * bottom rather than above the content, one row of tabs instead of two, and
+ * bottom rather than above the content, no tab bar (2026-11-14), and
  * a greeting where her own name used to be.
  *
  * Measured in the live 320px bubble before changing anything — a 30px
@@ -13,7 +13,7 @@
  * limit when this suite was added.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 /** Where the app thinks it is; drives the contextual tab. */
 let pathname = '/dashboard';
@@ -96,7 +96,7 @@ beforeEach(() => {
 const avatarButton = () => document.querySelector('[data-rapi-avatar="true"]') as HTMLElement;
 
 describe('what the panel looks like when it opens', () => {
-  /** The scrolling middle — everything that is not header, tabs or composer. */
+  /** The scrolling middle — everything that is not header or composer. */
   const scroller = () => document.querySelector('.overflow-y-auto');
 
   it('does not label itself 「ラピ」 above her own speech bubble', () => {
@@ -111,23 +111,38 @@ describe('what the panel looks like when it opens', () => {
     expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
   });
 
-  it('opens on the conversation tab', () => {
-    // Everything else on the bar is a form or a list; this is the one that
-    // answers a sentence, and it is what the box below is for.
+  it('opens on the conversation', () => {
+    // The conversation is the only place with nothing above it: every other
+    // mode carries a header saying where you are and the way back.
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    const chat = screen.getByLabelText('rapiAvatar.mode.chat');
-    expect(chat.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
   });
 
-  it('keeps the introduction to the conversation tab', () => {
+  it('keeps the introduction to the conversation', async () => {
     // It is the conversation's own prompt - it tells you to write in the box
     // below. On a list of overdue tasks it is just taking the first two
     // lines of the answer (reported 2026-10-22).
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(url).includes('/assistant/route')
+              ? { routed: true, intent: 'create', reason: '' }
+              : {},
+          ),
+      } as Response),
+    );
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
+    const box = screen.getByRole('textbox');
+    fireEvent.change(box, { target: { value: 'タスクを作って' } });
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: false });
+    await waitFor(() => expect(document.querySelector('[data-rapi-mode-header]')).not.toBeNull());
     expect(screen.queryByText('rapiAvatar.greeting')).toBeNull();
+    vi.unstubAllGlobals();
   });
 
   it('puts the box at the bottom, outside the part that scrolls', () => {
@@ -143,23 +158,23 @@ describe('what the panel looks like when it opens', () => {
     expect(boxIsAfter).toBe(true);
   });
 
-  it('keeps the tabs on one row, labelling only the one you are in', () => {
+  // Reported 2026-11-14: the box was too narrow to write a request in. A
+  // single 12px line read as a search field; it is three lines of 14px now.
+  it('gives the box room for a sentence or two before anything is typed', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    const tabs = Array.from(document.querySelectorAll('[data-rapi-mode-tab]'));
-    const labelled = tabs.filter((t) => (t.textContent ?? '').trim().length > 0);
-    expect(tabs.length).toBeGreaterThan(1);
-    expect(labelled).toHaveLength(1);
-    expect(labelled[0]?.getAttribute('aria-pressed')).toBe('true');
+    const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(box.rows).toBeGreaterThanOrEqual(3);
+    expect(parseInt(box.style.minHeight, 10)).toBeGreaterThanOrEqual(72);
+    expect(box.className).toContain('text-sm');
   });
 
-  it('still names every tab for a screen reader and a tooltip', () => {
+  it('can be sent with a button as well as with Enter, once there is something to send', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    const tabs = Array.from(document.querySelectorAll('[data-rapi-mode-tab]'));
-    expect(
-      tabs.every((t) => (t.getAttribute('aria-label') ?? '').startsWith('rapiAvatar.mode.')),
-    ).toBe(true);
-    expect(tabs.every((t) => !!t.getAttribute('title'))).toBe(true);
+    const send = screen.getByLabelText('rapiAvatar.prompt.send') as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'なにか' } });
+    expect(send.disabled).toBe(false);
   });
 });

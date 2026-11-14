@@ -23,26 +23,28 @@ interface Props {
   mode: PanelMode;
   hasOpenTask: boolean;
   onRouted: (routed: Routed) => void;
+  /** A sentence to put in the box. / 入力欄に入れる文 */
+  seed?: { text: string; n: number };
 }
 
 /**
  * @param props - The last routing, where we are, and how to route the next one
  */
-export function RapiComposer({ routed, mode, hasOpenTask, onRouted }: Props) {
+export function RapiComposer({ routed, mode, hasOpenTask, onRouted, seed }: Props) {
   const ta = useTranslations('rapiAvatar');
   const tm = useTranslations('rapiAvatar.mode');
 
   return (
     <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-700">
       {routed && routed.intent === mode && (
-        <div className="flex items-baseline gap-2 px-2 pt-1">
-          <p className="min-w-0 flex-1 text-[10px] text-zinc-400">
+        <div className="flex items-baseline gap-2 px-3 pt-1.5">
+          <p className="min-w-0 flex-1 text-[11px] text-zinc-400">
             {ta('prompt.tookItAs', { where: tm(routed.intent), reason: routed.reason })}
           </p>
           {/*
             The one correction worth offering. Routing is a model call and
-            will sometimes be wrong; every other destination is a tab away,
-            so the only one a misroute can strand you from is the roadmap.
+            will sometimes be wrong; every other destination is a rewording
+            away, and the roadmap is the one a misroute most often misses.
             Measured at 14/15, and the miss was exactly this —
             "英語を毎日続けられるようにしたい" read as a single task.
           */}
@@ -50,14 +52,14 @@ export function RapiComposer({ routed, mode, hasOpenTask, onRouted }: Props) {
             <button
               type="button"
               onClick={() => onRouted({ ...routed, intent: 'roadmap' })}
-              className="shrink-0 text-[10px] text-indigo-600 hover:underline dark:text-indigo-400"
+              className="shrink-0 text-[11px] text-indigo-600 hover:underline dark:text-indigo-400"
             >
               {ta('prompt.ratherPlan')}
             </button>
           )}
         </div>
       )}
-      <RapiPrompt hasOpenTask={hasOpenTask} onRouted={onRouted} />
+      <RapiPrompt hasOpenTask={hasOpenTask} onRouted={onRouted} seed={seed} />
     </div>
   );
 }

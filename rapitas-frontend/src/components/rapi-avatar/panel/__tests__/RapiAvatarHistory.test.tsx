@@ -41,22 +41,25 @@ vi.mock('../../intake', () => ({
   taskIdFromLocation: () => null,
 }));
 
-/** The composer, reduced to a way of routing a sentence from a test. */
+/**
+ * The composer, reduced to a way of routing a sentence from a test.
+ *
+ * Writing a sentence is the only way into a mode now that the tab bar is
+ * gone, so every move between modes in these tests goes through here.
+ */
+const SENTENCES: Record<string, string> = {
+  roadmap: '転職の計画',
+  tidy: '片付けたい',
+  watch: '何が止まってる？',
+};
 vi.mock('../RapiComposer', () => ({
   RapiComposer: ({ onRouted }: { onRouted: (r: unknown) => void }) => (
     <div>
-      <button
-        type="button"
-        onClick={() => onRouted({ intent: 'roadmap', reason: '', text: '転職の計画' })}
-      >
-        send-roadmap
-      </button>
-      <button
-        type="button"
-        onClick={() => onRouted({ intent: 'tidy', reason: '', text: '片付けたい' })}
-      >
-        send-tidy
-      </button>
+      {Object.entries(SENTENCES).map(([intent, text]) => (
+        <button key={intent} type="button" onClick={() => onRouted({ intent, reason: '', text })}>
+          send-{intent}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -74,8 +77,14 @@ const props = {
   onDismiss: vi.fn(),
   formatTimeAgo: () => '',
   onClose: vi.fn(),
-  bottomPx: 100,
-  tailOffsetPx: 34,
+  placement: {
+    side: 'above' as const,
+    right: 24,
+    bottom: 100,
+    width: 448,
+    tailOffsetPx: 34,
+    maxHeightPx: 600,
+  },
   dark: false,
   open: true,
 };
@@ -84,17 +93,20 @@ const show = () => render(<RapiAvatarPanel {...props} />);
 const panelFor = (mode: string) => document.querySelector(`[data-rapi-mode-panel="${mode}"]`);
 const showing = (mode: string) =>
   !!panelFor(mode) && (panelFor(mode) as HTMLElement).style.display !== 'none';
-const tab = (mode: string) => screen.getByLabelText(`rapiAvatar.mode.${mode}`);
 /**
- * Open the panel and leave the conversation tab it opens on.
- *
- * The panel opens on `chat` since 2026-10-22, so a test about the survey or
- * about keeping a mode mounted has to go there first — otherwise it is
- * asserting against a tab that was never pressed.
+ * Move to a mode the way a user now does: say something that goes there, or
+ * press the way back to the conversation.
  */
+const go = (mode: string) =>
+  fireEvent.click(
+    mode === 'chat'
+      ? screen.getByLabelText('rapiAvatar.backToChat')
+      : screen.getByText(`send-${mode}`),
+  );
+/** Open the panel and leave the conversation it opens on. */
 const showOn = (mode: string) => {
   show();
-  fireEvent.click(tab(mode));
+  go(mode);
 };
 
 beforeEach(() => {
@@ -107,20 +119,20 @@ describe('leaving a mode and coming back', () => {
     fireEvent.click(screen.getByText('send-roadmap'));
     await waitFor(() => expect(showing('roadmap')).toBe(true));
 
-    fireEvent.click(tab('tidy'));
+    go('tidy');
     // Still mounted, just not the one on screen.
     expect(panelFor('roadmap')).toBeTruthy();
     expect(showing('roadmap')).toBe(false);
     expect(showing('tidy')).toBe(true);
 
-    fireEvent.click(tab('watch'));
+    go('watch');
     expect(panelFor('roadmap')).toBeTruthy();
   });
 
   it('hides the ones not showing from assistive tech too', () => {
     // Kept for its state, not to be read out twice.
     showOn('watch');
-    fireEvent.click(tab('tidy'));
+    go('tidy');
     expect(panelFor('watch')?.getAttribute('aria-hidden')).toBe('true');
     expect(panelFor('tidy')?.getAttribute('aria-hidden')).toBeNull();
   });
@@ -146,7 +158,7 @@ describe('the session history', () => {
     fireEvent.click(screen.getByText('send-tidy'));
     // Routing moved us off the conversation; the list of what was asked
     // lives there, which is also where the panel opens.
-    fireEvent.click(tab('chat'));
+    go('chat');
     const chips = Array.from(
       screen.getByLabelText('rapiAvatar.history').querySelectorAll('button'),
     ).map((b) => b.textContent);
@@ -159,7 +171,7 @@ describe('the session history', () => {
     fireEvent.click(screen.getByText('send-tidy'));
     expect(showing('tidy')).toBe(true);
 
-    fireEvent.click(tab('chat'));
+    go('chat');
     fireEvent.click(screen.getByText('転職の計画'));
     expect(showing('roadmap')).toBe(true);
   });
@@ -169,9 +181,9 @@ describe('the session history', () => {
     // spend another model round-trip to arrive at the same screen.
     show();
     fireEvent.click(screen.getByText('send-roadmap'));
-    fireEvent.click(tab('watch'));
+    go('watch');
     const before = panelFor('roadmap');
-    fireEvent.click(tab('chat'));
+    go('chat');
     fireEvent.click(screen.getByText('転職の計画'));
     expect(panelFor('roadmap')).toBe(before);
   });

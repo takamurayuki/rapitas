@@ -18,6 +18,7 @@ export {
   SPEAK_DURATION_MS,
   BUBBLE_COLORS,
   speakOrigin,
+  bubbleRadius,
   type SpeechBubbleProps,
   type TailSide,
 } from './SpeechBubble';

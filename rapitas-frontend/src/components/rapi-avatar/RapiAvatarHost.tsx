@@ -13,32 +13,26 @@
  * a card parked in this same corner saying what the avatar says; the card
  * is gone and its contents open from the avatar instead.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useResumableExecutions } from '@/components/resumable-executions/useResumableExecutions';
 import { RapiAvatarDock } from './avatar/RapiAvatarDock';
 import { RapiAvatarPanel } from './panel/RapiAvatarPanel';
+import { placePanel, useRapiDrag } from './avatar/drag';
 import { useRapiAvatarState } from './state/useRapiAvatarState';
 import { isAppShellHidden } from '@/utils/app-shell';
 
 /**
- * Where the panel sits: just above ラピ's head.
+ * How wide the panel is on a window with room for it.
  *
- * She occupies 20..88 from the bottom (`bottom: 20` plus the 68px drawing),
- * so 100 leaves her 12px of clearance and the bubble's 11px tail reaches
- * down to 89 — touching the top of her without covering her.
+ * 448, up from 320: at 320 the box was too cramped to write a request in
+ * (reported 2026-11-14). Narrowed to the window by `placePanel`. Where it
+ * sits — above her by default, 12px clear so the tail touches her head — is
+ * worked out there too, from wherever she has been carried.
  */
-const PANEL_BOTTOM_PX = 100;
-
-/**
- * How far in from the panel's right edge ラピ's head is.
- *
- * Both sit at `right: 24`; the drawing is 68 wide, so her centre is 58 from
- * the viewport edge and 34 in from the panel's. The tail is aimed there.
- */
-const PANEL_TAIL_OFFSET_PX = 34;
+const PANEL_WIDTH_PX = 448;
 
 /** The resident avatar, bottom-right. Mounted only where she belongs. */
 function RapiAvatarResident() {
@@ -77,6 +71,11 @@ function RapiAvatarResident() {
   } = useResumableExecutions();
 
   const { state, agents } = useRapiAvatarState(interruptedCount);
+  const drag = useRapiDrag();
+  const placement = useMemo(
+    () => placePanel(drag.position, drag.viewport, PANEL_WIDTH_PX),
+    [drag.position, drag.viewport],
+  );
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -99,8 +98,7 @@ function RapiAvatarResident() {
           onDismiss={handleDismiss}
           formatTimeAgo={formatTimeAgo}
           onClose={close}
-          bottomPx={PANEL_BOTTOM_PX}
-          tailOffsetPx={PANEL_TAIL_OFFSET_PX}
+          placement={placement}
           dark={isDarkMode}
         />
       )}
@@ -112,6 +110,7 @@ function RapiAvatarResident() {
         // speaking at once in one corner is what this change removed.
         message={open ? undefined : message}
         onClick={toggle}
+        drag={drag}
       />
     </>
   );
