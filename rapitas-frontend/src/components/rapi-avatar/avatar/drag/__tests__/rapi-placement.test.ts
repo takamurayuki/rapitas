@@ -16,7 +16,6 @@ import {
   isOnLeft,
   moveBy,
   placePanel,
-  swayFor,
 } from '../rapi-placement';
 
 const desk = { width: 1400, height: 960 };
@@ -88,18 +87,5 @@ describe('which way her status bubble faces', () => {
   it('is on her left in the corner, and flips once she is on the left half', () => {
     expect(isOnLeft(DEFAULT_POSITION, desk)).toBe(false);
     expect(isOnLeft({ right: desk.width - 200, bottom: 20 }, desk)).toBe(true);
-  });
-});
-
-describe('how she swings while held', () => {
-  it('trails behind the hand: moving right swings her bottom left (clockwise)', () => {
-    expect(swayFor(0.5)).toBeGreaterThan(0);
-    expect(swayFor(-0.5)).toBeLessThan(0);
-    expect(swayFor(0)).toBe(0);
-  });
-
-  it('never swings past a limit however fast she is thrown', () => {
-    expect(swayFor(50)).toBeLessThanOrEqual(18);
-    expect(swayFor(-50)).toBeGreaterThanOrEqual(-18);
   });
 });

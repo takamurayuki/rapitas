@@ -48,10 +48,6 @@ const MIN_PANEL_ROOM_PX = 360;
 const MAX_PANEL_SHARE = 0.7;
 /** How far the tail may sit from a corner of the panel. */
 const TAIL_INSET_PX = 20;
-/** Her widest swing while held, in degrees. */
-const MAX_SWAY_DEG = 18;
-/** Degrees of swing per px/ms of horizontal speed. */
-const SWAY_PER_SPEED = 14;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 
@@ -171,19 +167,4 @@ export function placePanel(
     tailOffsetPx,
     maxHeightPx: Math.min(cap, roomBelow),
   };
-}
-
-/**
- * How far she swings from the pinch, given how fast she is being moved.
- *
- * She hangs from the top of her head, so her body lags behind the hand:
- * carried to the right, her bottom trails to the left, which is a clockwise
- * (positive) CSS rotation about the pinch.
- *
- * @param speedX - Horizontal pointer speed, px/ms (right is positive) / 横方向の速度
- * @returns Rotation in degrees / 回転角(度)
- */
-export function swayFor(speedX: number): number {
-  const deg = speedX * SWAY_PER_SPEED;
-  return Math.max(-MAX_SWAY_DEG, Math.min(MAX_SWAY_DEG, deg)) + 0;
 }
