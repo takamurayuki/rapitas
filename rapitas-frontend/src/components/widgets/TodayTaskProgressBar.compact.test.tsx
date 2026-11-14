@@ -128,3 +128,31 @@ describe('a day with something due', () => {
     expect(bar(container)).not.toBeNull();
   });
 });
+
+describe('beside the toolbar buttons', () => {
+  // Two rows made the card 62px against the buttons' 38px: on a day with
+  // something due the toolbar grew by 24px and pushed a page of ten tasks
+  // past the window, so a scrollbar came and went with the due date (#1537).
+  it('is as tall as the buttons beside it', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 33 });
+    const card = container.querySelector('[data-today-progress-card]');
+    expect(card?.className).toContain('h-[38px]');
+  });
+
+  // The fix was to tighten the padding, not to redesign the card: the label
+  // still sits above the bar.
+  it('keeps the label above the bar', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 33 });
+    const labelRow = screen.getByText('todayDueTask').parentElement?.parentElement;
+    expect(labelRow?.contains(bar(container))).toBe(false);
+    expect(labelRow?.nextElementSibling).toBe(bar(container));
+  });
+
+  // The knob is drawn with an inline colour; a literal there stays the old
+  // bright green whatever the palette says.
+  it('draws the finished knob in the palette’s green, not a literal', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 100 });
+    const knob = container.querySelector('[data-today-progress-knob]') as HTMLElement;
+    expect(knob.getAttribute('style')).toContain('var(--color-green-500)');
+  });
+});

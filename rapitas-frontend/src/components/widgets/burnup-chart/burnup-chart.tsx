@@ -167,7 +167,7 @@ export default function BurnupChart({
             })}
 
           {/* Cumulative completed area fill */}
-          <path d={chartConfig.areaPath} fill="#22c55e" fillOpacity={0.1} />
+          <path d={chartConfig.areaPath} className="fill-green-500" fillOpacity={0.1} />
 
           {/* Ideal pace reference line */}
           <path
@@ -182,7 +182,7 @@ export default function BurnupChart({
           <path
             d={chartConfig.completedPath}
             fill="none"
-            stroke="#22c55e"
+            className="stroke-green-500"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -199,10 +199,9 @@ export default function BurnupChart({
                 cx={chartConfig.xScale(i)}
                 cy={chartConfig.yScale(d.cumulativeCompleted)}
                 r={3}
-                fill="#22c55e"
+                className="cursor-pointer fill-green-500"
                 stroke="white"
                 strokeWidth={1.5}
-                className="cursor-pointer"
               >
                 <title>
                   {t('cumulativeTooltip', {
