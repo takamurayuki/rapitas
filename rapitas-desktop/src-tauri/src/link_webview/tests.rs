@@ -219,3 +219,52 @@ fn show_and_hide_are_called_only_inside_apply_visible() {
     assert_eq!(shows, 1, "show() must only be called by apply_visible");
     assert_eq!(hides, 1, "hide() must only be called by apply_visible");
 }
+
+/// Source of a link_webview file with `//` comment lines removed.
+fn code_of(name: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/link_webview")
+        .join(name);
+    std::fs::read_to_string(path)
+        .expect("read")
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn new_link_views_do_not_take_keyboard_focus() {
+    // A tab's webview is created hidden, off-screen at 1x1. With tauri's
+    // default `focus: true` it took keyboard focus at that moment, so typing
+    // went into a page nobody could see and the app looked frozen until a
+    // click moved focus back.
+    assert!(
+        code_of("builder.rs").contains(".focused(false)"),
+        "link views must be built with .focused(false)"
+    );
+}
+
+#[test]
+fn hiding_a_link_view_hands_focus_back_to_the_app() {
+    // Hiding only hides the window (wry's set_visible); it does not move
+    // focus. If the page had focus, keystrokes kept going to the hidden page.
+    let code = code_of("mod.rs");
+    let start = code.find("fn apply_visible(").expect("apply_visible");
+    let body = &code[start..];
+    let body = &body[..body.find("\n}").expect("end of apply_visible")];
+    assert!(
+        body.contains("focus::reclaim_after_hide("),
+        "apply_visible must hand focus back after a hide"
+    );
+}
+
+#[test]
+fn focus_is_reclaimed_only_on_hide_while_the_app_is_in_front() {
+    use super::focus::should_reclaim;
+    assert!(should_reclaim(false, true));
+    // Showing a page leaves focus where the user put it.
+    assert!(!should_reclaim(true, true));
+    // Another app is in front: taking focus would pull the user out of it.
+    assert!(!should_reclaim(false, false));
+}

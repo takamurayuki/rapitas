@@ -21,6 +21,7 @@
 
 mod builder;
 mod burst;
+mod focus;
 pub mod policy;
 mod visibility;
 
@@ -355,7 +356,9 @@ fn apply_visible(
     if visible {
         webview.show()
     } else {
-        webview.hide()
+        webview.hide()?;
+        focus::reclaim_after_hide(webview);
+        Ok(())
     }
 }
 
