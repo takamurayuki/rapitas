@@ -1853,6 +1853,24 @@
         "urgent": "Urgent",
         "none": "None"
       }
+    },
+    "spaces": {
+      "untitled": "New conversation",
+      "switch": "Switch conversation",
+      "startNew": "Start a new conversation",
+      "archived": "{kind} card (saved on mobile)",
+      "kind": {
+        "answer": "Answer",
+        "change": "Change",
+        "roadmap": "Plan",
+        "tidy": "Tidy",
+        "companion": "Companion"
+      },
+      "problem": {
+        "load": "Could not load this conversation.",
+        "save": "Could not save the conversation. It will be tried again as you keep talking.",
+        "limit": "There are too many conversations. Delete an old one to save this."
+      }
     }
   },
   "shortcuts": {

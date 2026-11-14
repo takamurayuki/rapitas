@@ -33,6 +33,24 @@ interface Options {
   greeting: string;
   /** Said when a sentence could not be sent. / 送信失敗の案内 */
   failedText: string;
+  /**
+   * The words of the routing note, which is what gets saved for it: the
+   * card is live only in this session. / 振り分け注記の文
+   */
+  routedText: (intent: PromptDestination, reason: string) => string;
+  /**
+   * Called with lines that were added or changed and should be saved to the
+   * conversation space. Lines marked `localOnly` are never passed. / 保存する行
+   */
+  onSave?: (lines: RapiMessage[]) => void;
+}
+
+/** A key no other line of any client will have. */
+function newClientId(): string {
+  const c = globalThis.crypto;
+  return c && typeof c.randomUUID === 'function'
+    ? `web-${c.randomUUID()}`
+    : `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export interface RapiConversation {
@@ -45,6 +63,17 @@ export interface RapiConversation {
   cancel: () => void;
   /** Send a sentence to the roadmap instead of where it went. / 計画として考え直す */
   rethinkAsPlan: (sentence: string) => void;
+  /**
+   * Show another conversation: what is on its way is called off and the
+   * thread becomes the greeting followed by `lines`. / 会話を入れ替える
+   */
+  replace: (lines: Omit<RapiMessage, 'id'>[]) => void;
+  /**
+   * Put a conversation's earlier lines in front of whatever has been said
+   * since the panel opened, without calling anything off — for the history
+   * that arrives after the user may already have started. / 過去の行を前に足す
+   */
+  prepend: (lines: Omit<RapiMessage, 'id'>[]) => void;
 }
 
 type RouteAnswer = { routed?: boolean; intent?: PromptDestination; reason?: string };
@@ -58,13 +87,26 @@ export function useRapiConversation({
   hasOpenTask,
   greeting,
   failedText,
+  routedText,
+  onSave,
 }: Options): RapiConversation {
   const nextId = useRef(1);
-  const [messages, setMessages] = useState<RapiMessage[]>(() => [
-    // The greeting is a line she says, not a caption above the thread
-    // (asked 2026-11-14). Not history: the model did not say it.
-    { id: 0, role: 'assistant', text: greeting, inHistory: false },
-  ]);
+  // The greeting is a line she says, not a caption above the thread
+  // (asked 2026-11-14). Not history, and not saved: the model did not say it.
+  const greetingLine = useCallback(
+    (): RapiMessage => ({
+      id: 0,
+      clientId: 'greeting',
+      role: 'assistant',
+      text: greeting,
+      inHistory: false,
+      localOnly: true,
+    }),
+    [greeting],
+  );
+  const [messages, setMessages] = useState<RapiMessage[]>(() => [greetingLine()]);
+  const save = useRef(onSave);
+  save.current = onSave;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const inFlight = useRef<AbortController | null>(null);
@@ -73,15 +115,24 @@ export function useRapiConversation({
   const latest = useRef(messages);
   latest.current = messages;
 
-  const add = useCallback((line: Omit<RapiMessage, 'id'>): number => {
+  const add = useCallback((line: Omit<RapiMessage, 'id' | 'clientId'>): number => {
     const id = nextId.current++;
-    setMessages((prev) => [...prev, { ...line, id }].slice(-MAX_MESSAGES));
+    const full: RapiMessage = { ...line, id, clientId: newClientId() };
+    setMessages((prev) => [...prev, full].slice(-MAX_MESSAGES));
+    if (!full.localOnly) save.current?.([full]);
     return id;
   }, []);
 
-  /** Take a sent sentence back out of the history and give it back to the box. */
+  /**
+   * Take a sent sentence back out of the history and give it back to the box.
+   *
+   * It stays in the thread — it was said — but no longer counts as a turn,
+   * and the saved row is rewritten to say so, as mobile does.
+   */
   const unsend = useCallback((userId: number, said: string) => {
+    const line = latest.current.find((m) => m.id === userId);
     setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, inHistory: false } : m)));
+    if (line) save.current?.([{ ...line, inHistory: false }]);
     // Only if nothing new was started meanwhile.
     setText((current) => (current.trim() ? current : said));
   }, []);
@@ -112,7 +163,7 @@ export function useRapiConversation({
       if (routed.routed && routed.intent) {
         add({
           role: 'system',
-          text: '',
+          text: routedText(routed.intent, routed.reason ?? ''),
           intent: routed.intent,
           reason: routed.reason ?? '',
           handedOver: said,
@@ -139,7 +190,7 @@ export function useRapiConversation({
       if (controller.signal.aborted) return;
       logger.warn({ err }, 'could not answer');
       unsend(userId, said);
-      add({ role: 'system', text: failedText, failed: true, inHistory: false });
+      add({ role: 'system', text: failedText, failed: true, inHistory: false, localOnly: true });
     } finally {
       // A cancelled request has already unlocked the box; a late `finally`
       // must not stamp on a newer send.
@@ -149,7 +200,7 @@ export function useRapiConversation({
         setSending(false);
       }
     }
-  }, [add, failedText, hasOpenTask, sending, text, unsend]);
+  }, [add, failedText, hasOpenTask, routedText, sending, text, unsend]);
 
   // Hands the sentence back here rather than in the request's `catch`: a
   // request that ignores the abort would otherwise keep the box locked and
@@ -166,15 +217,41 @@ export function useRapiConversation({
     (sentence: string) => {
       add({
         role: 'system',
-        text: '',
+        text: routedText('roadmap', ''),
         intent: 'roadmap',
         reason: '',
         handedOver: sentence,
         inHistory: false,
       });
     },
-    [add],
+    [add, routedText],
   );
 
-  return { messages, text, setText, sending, send, cancel, rethinkAsPlan };
+  const replace = useCallback(
+    (lines: Omit<RapiMessage, 'id'>[]) => {
+      // Anything still on its way belongs to the conversation being left;
+      // letting it land would put its answer in the wrong thread.
+      cancel();
+      setMessages([
+        greetingLine(),
+        ...lines.slice(-MAX_MESSAGES).map((l) => ({ ...l, id: nextId.current++ })),
+      ]);
+    },
+    [cancel, greetingLine],
+  );
+
+  const prepend = useCallback(
+    (lines: Omit<RapiMessage, 'id'>[]) => {
+      setMessages((prev) =>
+        [
+          greetingLine(),
+          ...lines.map((l) => ({ ...l, id: nextId.current++ })),
+          ...prev.filter((m) => m.clientId !== 'greeting'),
+        ].slice(-MAX_MESSAGES),
+      );
+    },
+    [greetingLine],
+  );
+
+  return { messages, text, setText, sending, send, cancel, rethinkAsPlan, replace, prepend };
 }

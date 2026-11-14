@@ -15,7 +15,7 @@
  * The executions come from `useResumableExecutions`, which the host owns so
  * it runs once; the conversation from `useRapiConversation`.
  */
-import { useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
@@ -27,6 +27,8 @@ import type { PanelPlacement } from '../avatar/drag';
 import { BUBBLE_COLORS, SpeechBubble } from '../avatar/SpeechBubble';
 import { RapiPrompt } from './RapiPrompt';
 import { RapiThread, useRapiConversation } from './conversation';
+import { RapiSpaceSwitcher, useRapiSpaces } from './spaces';
+import type { PromptDestination } from './RapiPrompt';
 import { usePanelPresence } from './usePanelPresence';
 
 /**
@@ -96,11 +98,49 @@ export function RapiAvatarPanel({
   const searchParams = useSearchParams();
   const hasTask = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null) !== null;
 
+  const tm = useTranslations('rapiAvatar.mode');
+  const tsp = useTranslations('rapiAvatar.spaces');
+  const routedText = useCallback(
+    (intent: PromptDestination, reason: string) =>
+      ta('prompt.tookItAs', { where: tm(intent), reason }),
+    [ta, tm],
+  );
+
+  // The conversation is kept in the mobile app's spaces, so the phone and
+  // the desktop read the same history (asked 2026-11-14).
+  const spaces = useRapiSpaces();
   const talk = useRapiConversation({
     hasOpenTask: hasTask,
     greeting: ta('greeting'),
     failedText: ta('prompt.failed'),
+    routedText,
+    onSave: spaces.save,
   });
+
+  // Back where the last visit left off. Once, on the first open: the panel
+  // stays mounted after that. Put in front rather than swapped in: the
+  // history can arrive after a first sentence was already sent, and that
+  // sentence was saved to this same space (it is opened before the read).
+  const { restore } = spaces;
+  const { replace, cancel, prepend } = talk;
+  useEffect(() => {
+    void restore().then((lines) => {
+      if (lines) prepend(lines);
+    });
+  }, [restore, prepend]);
+
+  // What is on its way is called off before the switch, so a cancelled
+  // sentence is put back into the conversation it was said in.
+  const openSpace = async (id: number) => {
+    cancel();
+    const lines = await spaces.open(id);
+    if (lines) replace(lines);
+  };
+  const startNew = () => {
+    cancel();
+    spaces.startNew();
+    replace([]);
+  };
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -146,11 +186,21 @@ export function RapiAvatarPanel({
           bubble said nothing the bubble did not: she is the thing you just
           clicked. Her greeting opens the conversation instead. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <span className="flex-1 text-[11px] text-zinc-400">
-          {runningCount > 0 && t('runningCount', { count: runningCount })}
-          {runningCount > 0 && interruptedCount > 0 && ' / '}
-          {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
-        </span>
+        <RapiSpaceSwitcher
+          spaces={spaces.spaces}
+          currentId={spaces.currentId}
+          currentTitle={spaces.currentTitle}
+          onOpenList={() => void spaces.refresh()}
+          onPick={(id) => void openSpace(id)}
+          onNew={startNew}
+        />
+        {(runningCount > 0 || interruptedCount > 0) && (
+          <span className="shrink-0 text-[11px] text-zinc-400">
+            {runningCount > 0 && t('runningCount', { count: runningCount })}
+            {runningCount > 0 && interruptedCount > 0 && ' / '}
+            {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
+          </span>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -160,6 +210,15 @@ export function RapiAvatarPanel({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {spaces.problem && (
+        <p
+          data-rapi-space-problem={spaces.problem}
+          className="shrink-0 border-b border-zinc-200 px-3 py-1.5 text-[11px] text-amber-700 dark:border-zinc-700 dark:text-amber-400"
+        >
+          {tsp(`problem.${spaces.problem}`)}
+        </p>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {executions.length > 0 && (
