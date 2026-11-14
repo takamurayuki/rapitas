@@ -9,13 +9,15 @@
 
 /**
  * Routes that render without the app shell: the sign-in pages, and the
- * frameless popup windows (quick capture, notification toast, pomodoro float).
+ * frameless popup windows (quick capture, notification toast, pomodoro float,
+ * and ラピ's own window on the desktop).
  */
 const SHELL_LESS_PREFIXES = [
   '/auth',
   '/quick-capture',
   '/notification-toast',
   '/pomodoro-float',
+  '/rapi-float',
 ] as const;
 
 /**

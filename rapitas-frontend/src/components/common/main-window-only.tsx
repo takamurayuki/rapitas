@@ -13,7 +13,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 /** Route prefixes served inside dedicated popup windows. */
-const POPUP_PREFIXES = ['/notification-toast', '/quick-capture', '/pomodoro-float'];
+const POPUP_PREFIXES = ['/notification-toast', '/quick-capture', '/pomodoro-float', '/rapi-float'];
 
 /**
  * Gate global chrome to the main window.

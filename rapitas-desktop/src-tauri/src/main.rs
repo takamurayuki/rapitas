@@ -42,6 +42,7 @@ mod link_webview;
 mod main_window;
 mod pomodoro_float;
 mod quick_capture;
+mod rapi_float;
 mod shortcuts;
 mod toast;
 mod today_todo;

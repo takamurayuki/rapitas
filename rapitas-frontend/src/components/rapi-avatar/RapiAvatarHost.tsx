@@ -13,7 +13,7 @@
  * a card parked in this same corner saying what the avatar says; the card
  * is gone and its contents open from the avatar instead.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
@@ -23,6 +23,9 @@ import { RapiAvatarPanel } from './panel/RapiAvatarPanel';
 import { placePanel, useRapiDrag } from './avatar/drag';
 import { useRapiAvatarState } from './state/useRapiAvatarState';
 import { isAppShellHidden } from '@/utils/app-shell';
+import { RapiFloatBridge } from './float/RapiFloatBridge';
+import { useRapiEnvironment } from './float/rapi-environment';
+import { isTauriDesktop } from './float/rapi-float-protocol';
 
 /**
  * How wide the panel is on a window with room for it.
@@ -34,10 +37,18 @@ import { isAppShellHidden } from '@/utils/app-shell';
  */
 const PANEL_WIDTH_PX = 448;
 
-/** The resident avatar, bottom-right. Mounted only where she belongs. */
-function RapiAvatarResident() {
+/**
+ * The resident avatar, bottom-right. Mounted only where she belongs.
+ *
+ * Exported for her own window on the desktop (`/rapi-float`), which mounts
+ * this same component so she looks as she does here.
+ */
+export function RapiAvatarResident() {
   const t = useTranslations('rapiAvatar');
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode: ownDark } = useDarkMode();
+  // In her own window the theme is the main window's, handed in (#1535).
+  const env = useRapiEnvironment();
+  const isDarkMode = env ? env.dark : ownDark;
   const [open, setOpen] = useState(false);
 
   /**
@@ -127,6 +138,19 @@ function RapiAvatarResident() {
  */
 export default function RapiAvatarHost() {
   const pathname = usePathname();
+  // Decided after mount: the server render has no Tauri, and choosing on the
+  // first render would make the two disagree. Nothing until then, rather
+  // than a guess: guessing "browser" would mount her here on the desktop
+  // for one render, and that render alone fetches the executions.
+  const [where, setWhere] = useState<'pending' | 'desktop' | 'browser'>('pending');
+  useEffect(() => setWhere(isTauriDesktop() ? 'desktop' : 'browser'), []);
+
+  if (where === 'pending') return null;
+  // On the desktop she is drawn in a window of her own laid over this one,
+  // because the in-app browser's pages are OS surfaces no element here can
+  // be drawn above (#1535). The bridge also decides when she is shown, so it
+  // stays mounted on the pages she is kept off.
+  if (where === 'desktop') return <RapiFloatBridge />;
   if (isAppShellHidden(pathname)) {
     return null;
   }

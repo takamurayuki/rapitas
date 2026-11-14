@@ -6,6 +6,7 @@
     "quick-capture",
     "notification-toast",
     "pomodoro-float",
+    "rapi-float",
     "today-todo"
   ],
   "permissions": [

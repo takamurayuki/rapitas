@@ -16,7 +16,6 @@
  * it runs once; the conversation from `useRapiConversation`.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../../resumable-executions/ExecutionItem';
@@ -30,6 +29,7 @@ import { RapiThread, useRapiConversation } from './conversation';
 import { RapiSpaceSwitcher, useRapiSpaces } from './spaces';
 import type { PromptDestination } from './RapiPrompt';
 import { usePanelPresence } from './usePanelPresence';
+import { useRapiEnvironment, useRapiLocation } from '../float/rapi-environment';
 
 /**
  * How tall the panel is when the window has room.
@@ -94,9 +94,10 @@ export function RapiAvatarPanel({
   // Whether `consult` exists right now. ラピ is in the app shell with no
   // props from the page, so the open task comes from the address bar —
   // `/tasks/42` for the page and `/?panel=42` for the slide panel.
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const hasTask = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null) !== null;
+  // On the desktop she is in a window of her own, so the address comes from
+  // the main window through the environment (#1535).
+  const { pathname, panelParam } = useRapiLocation();
+  const hasTask = taskIdFromLocation(pathname, panelParam) !== null;
 
   const tm = useTranslations('rapiAvatar.mode');
   const tsp = useTranslations('rapiAvatar.spaces');
@@ -152,7 +153,7 @@ export function RapiAvatarPanel({
         : ta('name');
 
   const bubble = useRef<HTMLDivElement>(null);
-  usePanelPresence(bubble, open, onClose);
+  usePanelPresence(bubble, open, onClose, !!useRapiEnvironment()?.floating);
 
   return (
     <SpeechBubble
