@@ -76,7 +76,7 @@ export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' |
    */
   drag?: Pick<
     RapiDrag,
-    'position' | 'viewport' | 'grabbed' | 'sway' | 'dropKey' | 'handlers' | 'consumeClick'
+    'position' | 'viewport' | 'grabbed' | 'dropKey' | 'handlers' | 'consumeClick'
   >;
 }
 
@@ -206,12 +206,7 @@ export function RapiAvatarDock({ message, onClick, drag, ...avatar }: RapiAvatar
           touchAction: drag ? 'none' : undefined,
         }}
       >
-        <RapiHeld
-          grabbed={!!drag?.grabbed}
-          sway={drag?.sway ?? 0}
-          dropKey={drag?.dropKey ?? 0}
-          theme={dark ? 'dark' : 'light'}
-        >
+        <RapiHeld grabbed={!!drag?.grabbed} dropKey={drag?.dropKey ?? 0}>
           <RapiAvatar
             size={DOCK_AVATAR_SIZE}
             startled={startled}

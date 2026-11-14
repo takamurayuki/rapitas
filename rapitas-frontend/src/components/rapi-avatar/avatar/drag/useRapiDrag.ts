@@ -4,7 +4,7 @@
  * Lets ラピ be picked up with the pointer and put down anywhere in the
  * window, and remembers where she was left.
  *
- * Owns the pointer gesture, the held state the pinch animation reads, and
+ * Owns the pointer gesture, the held state and the landing cue, and
  * the stored position. Not responsible for drawing her or for placing the
  * panel — those read `position` and `viewport` from here.
  *
@@ -18,7 +18,6 @@ import {
   DEFAULT_POSITION,
   clampPosition,
   moveBy,
-  swayFor,
   type AvatarPosition,
   type Viewport,
 } from './rapi-placement';
@@ -77,8 +76,6 @@ export interface RapiDrag {
   viewport: Viewport;
   /** True while she is being held. / つままれている間 true */
   grabbed: boolean;
-  /** Her swing from the pinch, in degrees. / 揺れの角度 */
-  sway: number;
   /** Bumped each time she is put down, to replay the landing. / 着地のたびに増える */
   dropKey: number;
   handlers: RapiDragHandlers;
@@ -97,8 +94,6 @@ interface Grab {
   moved: boolean;
   /** Where the last move put her, so release can store it without a render. */
   to: AvatarPosition;
-  lastX: number;
-  lastT: number;
 }
 
 /**
@@ -110,7 +105,6 @@ export function useRapiDrag(): RapiDrag {
   const [position, setPosition] = useState<AvatarPosition>(DEFAULT_POSITION);
   const [viewport, setViewport] = useState<Viewport>(FALLBACK_VIEWPORT);
   const [grabbed, setGrabbed] = useState(false);
-  const [sway, setSway] = useState(0);
   const [dropKey, setDropKey] = useState(0);
   const grab = useRef<Grab | null>(null);
   const swallowClick = useRef(false);
@@ -144,8 +138,6 @@ export function useRapiDrag(): RapiDrag {
       from: latest.current,
       moved: false,
       to: latest.current,
-      lastX: e.clientX,
-      lastT: e.timeStamp,
     };
     // Keeps the moves coming when the pointer outruns her, which it will.
     e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -163,10 +155,6 @@ export function useRapiDrag(): RapiDrag {
     }
     g.to = moveBy(g.from, dx, dy, readViewport());
     setPosition(g.to);
-    const dt = Math.max(1, e.timeStamp - g.lastT);
-    setSway(swayFor((e.clientX - g.lastX) / dt));
-    g.lastX = e.clientX;
-    g.lastT = e.timeStamp;
   }, []);
 
   const finish = useCallback((e: PointerEvent<HTMLElement>, cancelled: boolean) => {
@@ -185,7 +173,6 @@ export function useRapiDrag(): RapiDrag {
       }, 0);
     }
     setGrabbed(false);
-    setSway(0);
     setDropKey((n) => n + 1);
     writeStored(g.to);
   }, []);
@@ -202,7 +189,6 @@ export function useRapiDrag(): RapiDrag {
     position,
     viewport,
     grabbed,
-    sway,
     dropKey,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel },
     consumeClick,

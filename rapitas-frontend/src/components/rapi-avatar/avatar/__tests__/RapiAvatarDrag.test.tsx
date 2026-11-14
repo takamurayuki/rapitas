@@ -100,26 +100,24 @@ describe('carrying her', () => {
 });
 
 describe('how she looks while held', () => {
-  const pinch = () => document.querySelector('[data-rapi-pinch="true"]');
-  const hang = () => document.querySelector('[data-rapi-hang="true"]') as HTMLElement;
-
-  it('is pinched at the top of her head only while held', () => {
-    render(<Harness onClick={vi.fn()} />);
-    expect(pinch()).toBeNull();
+  const hold = () => {
     fireEvent.pointerDown(button(), { button: 0, pointerId: 1, clientX: 1000, clientY: 700 });
     fireEvent.pointerMove(button(), { pointerId: 1, clientX: 960, clientY: 650 });
-    expect(pinch()).not.toBeNull();
-    expect(button().getAttribute('data-rapi-grabbed')).toBe('true');
-    // Hanging from the pinch: stretched tall, pivoting near the top.
-    expect(hang().style.transform).toContain('scale(0.93, 1.1)');
-    expect(hang().style.transformOrigin).toBe('50% 16%');
+  };
 
-    fireEvent.pointerUp(button(), { pointerId: 1, clientX: 960, clientY: 650 });
-    expect(pinch()).toBeNull();
-    expect(hang().style.transform).toBe('none');
+  // The pinched-at-the-top pose (fingertips, a pulled-up peak, a stretch
+  // and a swing) was taken out on request (2026-11-14): she is carried as
+  // she is.
+  it('is drawn as she is at rest: no fingertips, no pinch, no stretch', () => {
+    render(<Harness onClick={vi.fn()} />);
+    hold();
+    expect(button().getAttribute('data-rapi-grabbed')).toBe('true');
+    expect(document.querySelector('[data-rapi-pinch]')).toBeNull();
+    expect(document.querySelector('[data-rapi-hang]')).toBeNull();
+    expect(button().innerHTML).not.toContain('scale(0.93');
   });
 
-  it('lands with a squash when let go', () => {
+  it('still lands with a squash when let go', () => {
     render(<Harness onClick={vi.fn()} />);
     dragBy(-200, -100);
     const land = document.querySelector('[data-rapi-land="true"]') as HTMLElement;
