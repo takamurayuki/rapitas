@@ -29,7 +29,6 @@ import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanu
 import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 import { retryTask } from './task-retry-handler';
-
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
@@ -367,9 +366,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         goals: t.Optional(t.Array(t.String())),
         constraints: t.Optional(t.Array(t.String())),
         acceptanceCriteria: t.Optional(t.Array(t.String())),
-        // NOTE: createTask already stores these; without the field here
-        // Elysia dropped them and a task kept none of the person's checks (#1547).
-        userAcceptanceChecks: t.Optional(t.Array(t.String())),
+        userAcceptanceChecks: t.Optional(t.Array(t.String())), // unnamed fields are dropped (#1547)
         searchMissId: t.Optional(t.Number()),
       }),
     },
