@@ -11,10 +11,10 @@
  * and the row wraps. A front door does not grow: a new capability becomes
  * another destination, not another tab.
  *
- * The tabs stay, as shortcuts and as the honest fallback. When she cannot
- * tell what was meant she says so and leaves them to it, because a shrug
- * costs a click and a confident wrong turn costs the belief that she
- * understood.
+ * The tabs are gone now (2026-11-14): this box is the only way in. When she
+ * cannot tell what was meant she says so and asks for it in other words,
+ * because a shrug costs a rewording and a confident wrong turn costs the
+ * belief that she understood.
  *
  * Routing itself is safe to hand a model because no destination writes
  * anything — the two that eventually can ask for their own confirmation
@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Send } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { isImeComposing } from '@/utils/ime';
 import { createLogger } from '@/lib/logger';
@@ -32,12 +33,19 @@ const logger = createLogger('rapi-prompt');
 /**
  * How tall the box may grow, in pixels.
  *
- * Five lines at this font. Past that the panel is a text editor and the
- * answer below it has nowhere left to go, so it scrolls instead — the point
- * is that two or three lines of plain Japanese are visible at once, which a
- * fixed single line never was.
+ * About eight lines at 14px. Past that the panel is a text editor and the
+ * answer below it has nowhere left to go, so it scrolls instead.
  */
-const MAX_INPUT_PX = 108;
+const MAX_INPUT_PX = 200;
+
+/**
+ * How tall the box is before anything is typed.
+ *
+ * Three lines, not one. A single line at 12px read as a search field and
+ * was reported as too cramped to write a request in (2026-11-14); a request
+ * to ラピ is a sentence or two, and the box should look like it takes one.
+ */
+export const MIN_INPUT_PX = 72;
 
 /** Where a sentence can be sent. Mirrors the server's routable intents. */
 export type PromptDestination =
@@ -62,9 +70,14 @@ export interface RapiPromptProps {
   hasOpenTask: boolean;
   /** Called when she has decided where this goes. */
   onRouted: (routed: Routed) => void;
+  /**
+   * A sentence to put in the box, e.g. a picked example. A new `n` puts it
+   * there again even when the text is the same. / 入力欄に入れる文
+   */
+  seed?: { text: string; n: number };
 }
 
-export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
+export function RapiPrompt({ hasOpenTask, onRouted, seed }: RapiPromptProps) {
   const t = useTranslations('rapiAvatar.prompt');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -93,9 +106,16 @@ export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
     const el = box.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_PX)}px`;
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, MIN_INPUT_PX), MAX_INPUT_PX)}px`;
     el.style.overflowY = el.scrollHeight > MAX_INPUT_PX ? 'auto' : 'hidden';
   }, [text]);
+
+  useEffect(() => {
+    if (!seed) return;
+    setText(seed.text);
+    setUnplaced(null);
+    box.current?.focus();
+  }, [seed]);
 
   const cancel = () => {
     inFlight.current?.abort();
@@ -124,8 +144,8 @@ export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
         reason?: string;
       };
       if (!data.routed || !data.intent) {
-        // Not an error — she looked and could not tell. The tabs are right
-        // there, so saying so is a complete answer.
+        // Not an error — she looked and could not tell. Saying so, with a
+        // nudge to put it another way, is a complete answer.
         setUnplaced(said);
         return;
       }
@@ -149,41 +169,57 @@ export function RapiPrompt({ hasOpenTask, onRouted }: RapiPromptProps) {
   };
 
   return (
-    <div className="space-y-1 px-2 pt-2">
-      <textarea
-        ref={box}
-        rows={1}
-        value={text}
-        placeholder={t('placeholder')}
-        aria-label={t('label')}
-        // Locked once it has gone: what comes back was routed on what was
-        // sent, so a box that still accepts typing says otherwise.
-        disabled={sending}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          // Enter sends, Shift+Enter breaks the line. Guarded against IME:
-          // the Enter that commits a Japanese conversion must not also send.
-          if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e.nativeEvent)) {
-            e.preventDefault();
-            void send();
-          }
-        }}
-        className="w-full resize-none rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-800 placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-      />
+    <div className="space-y-1 px-3 pt-2 pb-1">
+      <div className="relative">
+        <textarea
+          ref={box}
+          rows={3}
+          value={text}
+          placeholder={t('placeholder')}
+          aria-label={t('label')}
+          // Locked once it has gone: what comes back was routed on what was
+          // sent, so a box that still accepts typing says otherwise.
+          disabled={sending}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter sends, Shift+Enter breaks the line. Guarded against IME:
+            // the Enter that commits a Japanese conversion must not also send.
+            if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e.nativeEvent)) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          style={{ minHeight: MIN_INPUT_PX }}
+          className="block w-full resize-none rounded-lg border border-zinc-200 bg-white py-2 pr-11 pl-3 text-sm leading-relaxed text-zinc-800 placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:focus:border-indigo-500"
+        />
+        {/* Enter already sends; the button is for whoever does not know that,
+            and for a pointer that is already in the panel. */}
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={sending || !text.trim()}
+          aria-label={t('send')}
+          title={t('send')}
+          className="absolute right-2 bottom-2 rounded-md bg-indigo-600 p-1.5 text-white transition-colors hover:bg-indigo-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
+        >
+          <Send className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+      {!sending && !unplaced && <p className="text-[10px] text-zinc-400">{t('hint')}</p>}
       {sending && (
         <div className="flex items-baseline justify-between gap-2">
-          <p className="text-[10px] text-zinc-400">{t('thinking')}</p>
+          <p className="text-[11px] text-zinc-400">{t('thinking')}</p>
           <button
             type="button"
             onClick={cancel}
-            className="shrink-0 text-[10px] text-zinc-500 hover:underline dark:text-zinc-400"
+            className="shrink-0 text-[11px] text-zinc-500 hover:underline dark:text-zinc-400"
           >
             {t('cancel')}
           </button>
         </div>
       )}
       {unplaced && !sending && (
-        <p className="text-[11px] text-amber-700 dark:text-amber-400">{t('unplaced')}</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400">{t('unplaced')}</p>
       )}
     </div>
   );

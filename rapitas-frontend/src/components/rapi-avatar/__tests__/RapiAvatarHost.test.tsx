@@ -95,6 +95,13 @@ beforeEach(() => {
  */
 const avatarButton = () => document.querySelector('[data-rapi-avatar="true"]') as HTMLElement;
 
+/** Write a sentence into her box and press Enter — the only way into a mode. */
+const say = (what: string) => {
+  const box = screen.getByLabelText('rapiAvatar.prompt.label');
+  fireEvent.change(box, { target: { value: what } });
+  fireEvent.keyDown(box, { key: 'Enter', shiftKey: false });
+};
+
 describe('the corner', () => {
   // The whole point of the change: nothing is parked there any more.
   it('holds only the avatar until it is asked', () => {
@@ -119,25 +126,47 @@ describe('the corner', () => {
 
   // It used to stay shut with nothing running. The panel carries her own
   // modes as well as the executions, so there is always something to open.
-  //
-  // It opened on the intake until the survey became the default: the first
-  // question when you reach for her is "what needs me", and filing a task is
-  // the second thing. The intake has to stay one tab away, which is the part
-  // this still holds.
-  it('opens with nothing running, on the conversation, with the rest one tab away', () => {
-    // It used to open on the survey. The conversation is the tab the box at
-    // the bottom belongs to, so that is where it opens now (2026-10-22).
+  // It opens on the conversation, with examples of what can be said there in
+  // place of the tab bar that used to list her range (2026-11-14).
+  it('opens with nothing running, on the conversation, with examples to say', () => {
     executionState = { executions: [], runningCount: 0, interruptedCount: 0 };
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
     expect(screen.queryByTestId('exec-1')).toBeNull();
+    expect(document.querySelectorAll('[data-rapi-example]').length).toBeGreaterThan(2);
+  });
 
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.watch'));
-    expect(screen.getByText('rapiAvatar.watch.title')).toBeTruthy();
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
-    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+  // Asked for 2026-11-14: natural language instead of choosing from tabs.
+  it('has no tab bar to choose from', () => {
+    pathname = '/tasks/42';
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    expect(document.querySelectorAll('[data-rapi-mode-tab]')).toHaveLength(0);
+    expect(screen.queryByLabelText('rapiAvatar.mode.consult')).toBeNull();
+  });
+
+  // Picking an example writes it for you to edit, rather than sending it:
+  // a chip that went straight somewhere would be a tab by another name.
+  it('puts a picked example in the box without sending it', () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      calls.push(String(url));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      } as Response);
+    });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    fireEvent.click(document.querySelector('[data-rapi-example="tidy"]') as HTMLElement);
+    expect((screen.getByLabelText('rapiAvatar.prompt.label') as HTMLTextAreaElement).value).toBe(
+      'rapiAvatar.examples.tidy',
+    );
+    expect(calls.some((u) => u.includes('/assistant/route'))).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   // Dismissing something that reads as speech by hunting for its X is the
@@ -168,66 +197,13 @@ describe('the corner', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  // The task assistant moved off the task detail page into her, so the mode
-  // has to exist for the handover to have gone anywhere — but only where it
-  // can work. A tab whose entire content is "open a task first" spends a
-  // fifth of the bar saying so.
-  it('offers the task assistant only where there is a task', () => {
+  // 448, up from 320: the box was too cramped to write a request in
+  // (2026-11-14). One width for every mode — the panel jumping size when the
+  // mode changed read worse than a cramped column (2026-10-22).
+  it('opens wide enough to write in', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(screen.queryByText('rapiAvatar.mode.consult')).toBeNull();
-  });
-
-  it.each([
-    ['the task page', '/tasks/42', ''],
-    ['the slide panel over the list', '/', 'panel=42'],
-  ])('offers it on %s', (_label, path, query) => {
-    pathname = path;
-    search = query;
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    expect(screen.getByLabelText('rapiAvatar.mode.consult')).toBeTruthy();
-  });
-
-  // It used to widen for `consult` alone, on the argument that a conversation
-  // in a 320px column is unreadable. In use that reads as the panel jumping
-  // size when you press one tab, which is worse than the cramped column it
-  // was avoiding - reported 2026-10-22. One width, every tab.
-  it('keeps one width whichever tab is showing', () => {
-    pathname = '/tasks/42';
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    const panel = () => screen.getByRole('dialog');
-    const before = panel().className;
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.consult'));
-    expect(panel().className).toBe(before);
-    expect(panel().className).toContain('w-80');
-  });
-
-  // One job, described twice, was costing two tabs out of six.
-  it('offers one tidy tab rather than two ways of choosing', () => {
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    expect(screen.getByLabelText('rapiAvatar.mode.tidy')).toBeTruthy();
-    expect(screen.queryByText('rapiAvatar.mode.cleanup')).toBeNull();
-    expect(screen.queryByText('rapiAvatar.mode.bulk')).toBeNull();
-  });
-
-  // Five tabs off a task, six on one: the conversation tab joined them on
-  // 2026-10-22, which is also what let the greeting stop appearing above
-  // every list.
-  it.each([
-    ['off a task', '/dashboard', '', 5],
-    ['on a task', '/tasks/42', '', 6],
-  ])('shows %s exactly %i tabs', (_label, path, query, expected) => {
-    pathname = path;
-    search = query;
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    // Counted by accessible name, not by text: only the tab you are in
-    // shows its label now, the rest are their glyph plus a tooltip.
-    const tabs = Array.from(document.querySelectorAll('[data-rapi-mode-tab]'));
-    expect(tabs).toHaveLength(expected);
+    expect(screen.getByRole('dialog').style.width).toBe('448px');
   });
 
   // It is ラピ speaking, so it has a tail pointing at her — without one it is
@@ -273,21 +249,56 @@ describe('typing at her', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  const say = (what: string) => {
-    const box = screen.getByLabelText('rapiAvatar.prompt.label');
-    fireEvent.change(box, { target: { value: what } });
-    fireEvent.keyDown(box, { key: 'Enter', shiftKey: false });
-  };
-
-  it('switches to the tab she routed it to', async () => {
+  it('goes where she routed it, and says where that is', async () => {
     route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     // It opens on the conversation; the point is that a sentence moves it.
-    expect(screen.getByLabelText('rapiAvatar.mode.chat').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
 
     say('ブロックは何件？');
     await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
+    expect(document.querySelector('[data-rapi-mode-header="ask"]')).not.toBeNull();
+  });
+
+  // With no tabs, the way back has to be on screen wherever she took you.
+  it('offers the way back to the conversation, and the box stays', async () => {
+    route({ routed: true, intent: 'ask', reason: '' });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    say('ブロックは何件？');
+    await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
+    // The next request can be written from here.
+    expect(screen.getByLabelText('rapiAvatar.prompt.label')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('rapiAvatar.backToChat'));
+    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
+    expect(screen.queryByLabelText('rapiAvatar.backToChat')).toBeNull();
+  });
+
+  // The task assistant is only a destination where a task is open; the
+  // router is told so with every sentence.
+  it.each([
+    ['off a task', '/dashboard', '', false],
+    ['on the task page', '/tasks/42', '', true],
+    ['on the slide panel over the list', '/', 'panel=42', true],
+  ])('tells the router whether a task is open (%s)', async (_l, path, query, expected) => {
+    pathname = path;
+    search = query;
+    const bodies: string[] = [];
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      if (String(url).includes('/assistant/route')) bodies.push(String(init?.body));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ routed: false }),
+      } as Response);
+    });
+    render(<RapiAvatarHost />);
+    fireEvent.click(avatarButton());
+    say('このタスクについて');
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(JSON.parse(bodies[0]).hasOpenTask).toBe(expected);
   });
 
   // Without this a misroute looks like the feature simply doing something
@@ -311,7 +322,7 @@ describe('typing at her', () => {
     fireEvent.click(avatarButton());
     say('うーん');
     await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.unplaced')).toBeTruthy());
-    expect(screen.getByLabelText('rapiAvatar.mode.chat').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
   });
 });
 
@@ -327,8 +338,17 @@ describe('closing and reopening', () => {
   /** Resolved by the test, so a request can still be in flight on close. */
   let release: (() => void) | null = null;
 
+  /** Where a sentence written in these tests is routed. */
+  let routeTo = 'create';
   const serve = (answer: Record<string, unknown>, hold = false) =>
     vi.stubGlobal('fetch', (url: string) => {
+      if (String(url).includes('/assistant/route')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ routed: true, intent: routeTo, reason: '' }),
+        } as Response);
+      }
       if (hold && String(url).includes('/assistant/supervision')) {
         return new Promise((resolve) => {
           release = () =>
@@ -352,12 +372,13 @@ describe('closing and reopening', () => {
     fireEvent.click(avatarButton());
   };
 
-  it('keeps the tab you were on', () => {
+  it('keeps the mode you were in', async () => {
+    routeTo = 'create';
     serve({ total: 0, categories: [] });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.create'));
-    expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
+    say('タスクを作って');
+    await waitFor(() => expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy());
 
     reopen();
     expect(screen.getByText('rapiAvatar.intake.title')).toBeTruthy();
@@ -382,9 +403,10 @@ describe('closing and reopening', () => {
     serve({ total: 7, categories: [{ category: 'blocked', total: 7, tasks: [] }] }, true);
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    // The survey is a tab away now that the panel opens on the conversation,
-    // and it is the survey's request this test suspends.
-    fireEvent.click(screen.getByLabelText('rapiAvatar.mode.watch'));
+    // The survey is a sentence away now that the panel opens on the
+    // conversation, and it is the survey's request this test suspends.
+    routeTo = 'watch';
+    say('何が止まってる？');
     await waitFor(() => expect(release).not.toBeNull());
 
     // Shut while it is still thinking, then let the answer land.

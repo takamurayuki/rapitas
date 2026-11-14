@@ -1741,9 +1741,11 @@
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
       "cancel": "Cancel",
-      "unplaced": "I could not tell what that was about. Pick a tab below.",
+      "unplaced": "I could not quite tell. Try saying what you want in other words.",
       "tookItAs": "Took that as “{where}” — {reason}",
-      "ratherPlan": "Plan it out instead"
+      "ratherPlan": "Plan it out instead",
+      "send": "Send",
+      "hint": "Enter to send, Shift+Enter for a new line"
     },
     "tidy": {
       "byCondition": "By condition",
@@ -1852,6 +1854,15 @@
         "urgent": "Urgent",
         "none": "None"
       }
+    },
+    "backToChat": "Back to the conversation",
+    "examplesLabel": "For example, you could say",
+    "examples": {
+      "watch": "What needs my attention right now?",
+      "create": "Make a task to write the proposal by tomorrow",
+      "ask": "How many tasks are overdue?",
+      "tidy": "I want to clean up duplicate tasks",
+      "roadmap": "I want to keep up English every day"
     }
   },
   "shortcuts": {

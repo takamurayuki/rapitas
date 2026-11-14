@@ -47,8 +47,14 @@ const show = (open: boolean, onClose: () => void) =>
       onDismiss={() => {}}
       formatTimeAgo={() => '1分前'}
       onClose={onClose}
-      bottomPx={100}
-      tailOffsetPx={34}
+      placement={{
+        side: 'above' as const,
+        right: 24,
+        bottom: 100,
+        width: 448,
+        tailOffsetPx: 34,
+        maxHeightPx: 600,
+      }}
       dark={false}
     />,
   );

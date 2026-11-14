@@ -1,13 +1,15 @@
 /**
  * rapi-avatar/panel
  *
- * The panel that opens above ラピ: its mode tabs, content area, history and the composer.
+ * The panel that opens next to ラピ: where a sentence went, the content area,
+ * history, example sentences and the composer.
  */
 export { RapiAvatarPanel } from './RapiAvatarPanel';
 export { RapiComposer } from './RapiComposer';
 export { RapiHistory, type AskedFor } from './RapiHistory';
 export { RapiModeContent } from './RapiModeContent';
-export { RapiModeTabs } from './RapiModeTabs';
+export { RapiModeHeader } from './RapiModeHeader';
+export { RapiExamples, EXAMPLE_KEYS } from './RapiExamples';
 export {
   RapiPrompt,
   type PromptDestination,

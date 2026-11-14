@@ -2,9 +2,12 @@
 /**
  * RapiAvatarDock
  *
- * Puts the avatar in the bottom-right corner and gives it a speech bubble.
+ * Puts the avatar where she was last left — the bottom-right corner until
+ * she is carried somewhere else — and gives her a speech bubble.
  *
- * Positions and speaks; the drawing is `RapiAvatar`. Everything except the
+ * Positions and speaks; the drawing is `RapiAvatar`, the gesture that moves
+ * her is `useRapiDrag` (owned by the host, since the panel follows her too)
+ * and how she looks while held is `RapiHeld`. Everything except the
  * avatar and the bubble lets clicks through, because this floats over every
  * page in the app.
  *
@@ -23,6 +26,15 @@ import {
 } from './RapiAvatar';
 import { RAPI_AVATAR_Z } from '@/lib/pane-layering';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
+import {
+  AVATAR_BOX_PX,
+  DEFAULT_POSITION,
+  RapiHeld,
+  isOnLeft,
+  type AvatarPosition,
+  type RapiDrag,
+  type Viewport,
+} from './drag';
 
 /**
  * How big the avatar is drawn in the corner, overriding the drawing's own
@@ -33,7 +45,7 @@ import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
  * the app. At 68 the sphere is 42px, level with those controls, and the orbit
  * and badge still read at a glance (measured; below ~60 they stop).
  */
-const DOCK_AVATAR_SIZE = 68;
+const DOCK_AVATAR_SIZE = AVATAR_BOX_PX;
 
 /**
  * How far up the bubble's right edge the tail sits.
@@ -58,9 +70,20 @@ export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' |
   message?: string;
   /** アバタークリック時（詳細パネルを開く等） */
   onClick?: () => void;
+  /**
+   * Makes her draggable. Without it she stays in the corner, which is what
+   * every caller but the app shell wants. / ドラッグ移動（省略時は固定）
+   */
+  drag?: Pick<
+    RapiDrag,
+    'position' | 'viewport' | 'grabbed' | 'sway' | 'dropKey' | 'handlers' | 'consumeClick'
+  >;
 }
 
-export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockProps) {
+/** The fallback viewport only decides which side the bubble is on. */
+const WIDE: Viewport = { width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY };
+
+export function RapiAvatarDock({ message, onClick, drag, ...avatar }: RapiAvatarDockProps) {
   const label = useStateLabel();
   const name = useAvatarName();
 
@@ -88,7 +111,11 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
     if (message) setSpeakKey((n) => n + 1);
   }, [message]);
 
+  const consumeClick = drag?.consumeClick;
   const poke = useCallback(() => {
+    // The click that ends a drag is a put-down, not a poke: she should not
+    // jump, and the panel should not open or close as she lands.
+    if (consumeClick?.()) return;
     if (settleTimer.current !== null) clearTimeout(settleTimer.current);
     setStartleKey((n) => n + 1);
     setStartled(true);
@@ -97,18 +124,29 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       setStartled(false);
     }, STARTLE_DURATION_MS);
     onClick?.();
-  }, [onClick]);
+  }, [onClick, consumeClick]);
   const dark = avatar.theme === 'dark';
   const showBubble = avatar.state !== 'idle' && !!message;
+
+  const position: AvatarPosition = drag?.position ?? DEFAULT_POSITION;
+  const viewport = drag?.viewport ?? WIDE;
+  // On the left half the bubble moves to her right, or it would leave the
+  // window. Anchored by `left` then, so the bubble appearing does not shove
+  // her sideways — the container grows away from her either way.
+  const onLeft = !!drag && isOnLeft(position, viewport);
+  const anchor = onLeft
+    ? { left: viewport.width - position.right - AVATAR_BOX_PX }
+    : { right: position.right };
 
   return (
     <div
       style={{
         position: 'fixed',
-        right: 24,
-        bottom: 20,
+        ...anchor,
+        bottom: position.bottom,
         zIndex: RAPI_AVATAR_Z,
         display: 'flex',
+        flexDirection: onLeft ? 'row-reverse' : 'row',
         alignItems: 'flex-end',
         gap: 4,
         pointerEvents: 'none', // 下のコンテンツの操作を邪魔しない
@@ -117,7 +155,7 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       <div aria-live="polite" style={{ marginBottom: 24 }}>
         {showBubble && (
           <SpeechBubble
-            tailSide="right"
+            tailSide={onLeft ? 'left' : 'right'}
             tailOffsetPx={BUBBLE_TAIL_OFFSET_PX}
             {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
             // A new thing to say should look like a new thing being said,
@@ -152,6 +190,8 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
       <button
         type="button"
         onClick={poke}
+        {...drag?.handlers}
+        data-rapi-grabbed={drag?.grabbed ? 'true' : undefined}
         // Marked so the panel's close-on-outside-click can skip her: closing
         // on pointerdown here would be undone by her own toggle on the click.
         data-rapi-avatar="true"
@@ -161,15 +201,24 @@ export function RapiAvatarDock({ message, onClick, ...avatar }: RapiAvatarDockPr
           background: 'transparent',
           border: 0,
           padding: 0,
-          cursor: onClick ? 'pointer' : 'default',
+          cursor: drag ? (drag.grabbed ? 'grabbing' : 'grab') : onClick ? 'pointer' : 'default',
+          // A touch drag would otherwise scroll the page underneath her.
+          touchAction: drag ? 'none' : undefined,
         }}
       >
-        <RapiAvatar
-          size={DOCK_AVATAR_SIZE}
-          startled={startled}
-          startleKey={startleKey}
-          {...avatar}
-        />
+        <RapiHeld
+          grabbed={!!drag?.grabbed}
+          sway={drag?.sway ?? 0}
+          dropKey={drag?.dropKey ?? 0}
+          theme={dark ? 'dark' : 'light'}
+        >
+          <RapiAvatar
+            size={DOCK_AVATAR_SIZE}
+            startled={startled}
+            startleKey={startleKey}
+            {...avatar}
+          />
+        </RapiHeld>
       </button>
     </div>
   );

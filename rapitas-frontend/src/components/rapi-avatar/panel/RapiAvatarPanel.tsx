@@ -14,6 +14,7 @@
  * which the host owns so it runs once.
  */
 import { useEffect, useRef, useState } from 'react';
+import { usePanelPresence } from './usePanelPresence';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
@@ -22,17 +23,13 @@ import type { ResumableExecution } from '../../resumable-executions/types';
 import { taskIdFromLocation } from '../intake';
 import { RapiModeContent } from './RapiModeContent';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
+import type { PanelPlacement } from '../avatar/drag';
 import { type Routed } from './RapiPrompt';
 import { RapiComposer } from './RapiComposer';
-import { RapiModeTabs } from './RapiModeTabs';
+import { RapiExamples } from './RapiExamples';
+import { RapiModeHeader } from './RapiModeHeader';
 import { RapiHistory, type AskedFor } from './RapiHistory';
-import {
-  DEFAULT_MODE,
-  MAX_HISTORY,
-  reachableModes,
-  visibleModes,
-  type PanelMode,
-} from './rapi-modes';
+import { DEFAULT_MODE, MAX_HISTORY, reachableModes, type PanelMode } from './rapi-modes';
 
 export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
 import { BUBBLE_COLORS, SpeechBubble } from '../avatar/SpeechBubble';
@@ -48,13 +45,11 @@ interface RapiAvatarPanelProps {
   onDismiss: (id: number) => void;
   formatTimeAgo: (dateString: string) => string;
   onClose: () => void;
-  /** Lifted clear of the avatar below it. / アバターの上に出す余白 */
-  bottomPx: number;
   /**
-   * How far in from the panel's right edge ラピ's head is, so the tail can
-   * point at it. / 尻尾をラピに向けるための右端からの距離
+   * Where to draw it relative to ラピ, wherever she has been carried, and
+   * where its tail points. From `placePanel`. / ラピの位置から決めた配置
    */
-  tailOffsetPx: number;
+  placement: PanelPlacement;
   /** Which surface the bubble is drawn on. / 吹き出しの配色 */
   dark: boolean;
   /**
@@ -83,30 +78,28 @@ export function RapiAvatarPanel({
   onDismiss,
   formatTimeAgo,
   onClose,
-  bottomPx,
-  tailOffsetPx,
+  placement,
   dark,
   open,
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
 
-  // Two explicit modes rather than guessing from the sentence. Working out
-  // whether "重複しているタスク" means add one or delete several is a
-  // classification that can be wrong, and being wrong about it deletes
-  // things.
-  // Opens on the survey rather than on the task form: the first question
-  // when you reach for her is "what needs me", and answering it costs one
-  // read. Filing a task is the second thing, one tab away.
+  // Opens on the conversation. Every other mode is reached by writing what
+  // you want there — the tab bar that also led to them is gone (2026-11-14):
+  // two ways of doing one thing, one of which grew a button per capability.
   const [mode, setMode] = useState<PanelMode>(DEFAULT_MODE);
 
-  // Which tabs exist right now. ラピ is in the app shell with no props from
-  // the page, so the open task comes from the address bar — `/tasks/42` for
-  // the page and `/?panel=42` for the slide panel over the list.
+  // Whether `consult` exists right now. ラピ is in the app shell with no
+  // props from the page, so the open task comes from the address bar —
+  // `/tasks/42` for the page and `/?panel=42` for the slide panel.
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const hasTask = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null) !== null;
-  const modes = visibleModes(hasTask);
+
+  /** An example sentence to put in the box. */
+  const [seed, setSeed] = useState<{ text: string; n: number } | undefined>(undefined);
+  const pickExample = (text: string) => setSeed((prev) => ({ text, n: (prev?.n ?? 0) + 1 }));
 
   // Navigating off a task while reading about it would otherwise leave the
   // panel on a mode that can no longer be reached.
@@ -143,10 +136,6 @@ export function RapiAvatarPanel({
   /** Only hand the sentence on while that destination is still showing. */
   const handedOver = (to: PanelMode) => (routed && routed.intent === to ? routed.text : undefined);
 
-  // The consult mode hosts the task assistant that used to be a card on the
-  // task detail page. It needs room the other modes do not: a conversation
-  // with history in a 320px column is unreadable.
-
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
   const heading =
@@ -157,71 +146,22 @@ export function RapiAvatarPanel({
         : ta('name');
 
   const bubble = useRef<HTMLDivElement>(null);
-
-  /**
-   * Replays the entrance on each open, without remounting anything.
-   *
-   * A CSS animation does not run again on an element that already carries
-   * it, so keeping the panel mounted would otherwise have silently killed
-   * the grow-out-of-her-tail that makes this read as ラピ speaking.
-   *
-   * `SpeechBubble`'s `speakKey` would replay it — by giving the bubble a new
-   * element — and that is exactly the wrong tool here: a new element throws
-   * away the typed text, the chosen tab and the request in flight, which is
-   * the whole point of staying mounted. So the animation is restarted in
-   * place: clear it, force a reflow to make the clear take effect, put it
-   * back. The reflow read is load-bearing, not a leftover.
-   */
-  useEffect(() => {
-    if (!open) return;
-    const el = bubble.current;
-    if (!el) return;
-    const original = el.style.animation;
-    el.style.animation = 'none';
-    void el.offsetHeight;
-    el.style.animation = original;
-  }, [open]);
-
-  useEffect(() => {
-    // Nothing to dismiss while it is hidden, and the outside-click listener
-    // would otherwise call onClose on every click anywhere in the app.
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    // Looking away should end it. Hunting for an X is the wrong shape for
-    // something that reads as speech, and Escape is keyboard-only.
-    const onOutside = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (!target || bubble.current?.contains(target)) return;
-      // ラピ herself is excluded, or her own toggle would fight this: closed
-      // here on pointerdown, reopened by the click that follows.
-      if (target instanceof Element && target.closest('[data-rapi-avatar="true"]')) return;
-      onClose();
-    };
-
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onOutside);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onOutside);
-    };
-  }, [onClose, open]);
+  usePanelPresence(bubble, open, onClose);
 
   return (
     <SpeechBubble
       innerRef={bubble}
       role="dialog"
       aria-label={heading}
-      tailSide="bottom"
-      tailOffsetPx={tailOffsetPx}
+      tailSide={placement.side === 'above' ? 'bottom' : 'top'}
+      tailOffsetPx={placement.tailOffsetPx}
       {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
       style={{
         position: 'fixed',
-        right: 24,
-        bottom: bottomPx,
+        right: placement.right,
+        ...(placement.side === 'above' ? { bottom: placement.bottom } : { top: placement.top }),
+        width: placement.width,
+        maxHeight: placement.maxHeightPx,
         zIndex: RAPI_BUBBLE_Z,
         pointerEvents: 'auto',
         // Hidden rather than removed: out of the accessibility tree and out
@@ -231,11 +171,12 @@ export function RapiAvatarPanel({
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
       // overlays get one elevation level (docs/design/ui-design-language.md).
-      // One width for every tab. `consult` used to get w-[34rem] because a
-      // conversation in a 320px column is cramped, but the panel then jumped
-      // size when you pressed that one tab, which reads worse than the
-      // cramped column did (reported 2026-10-22).
-      className="flex max-h-[70vh] w-80 flex-col shadow-lg"
+      // One width for every mode, set from `placement` (448px, narrowed to
+      // the window). It was 320px, which made the box too cramped to write a
+      // request in (reported 2026-11-14). It used to widen for `consult`
+      // alone, and the panel jumping size between modes read worse than the
+      // cramped column did (2026-10-22), so it is wide everywhere instead.
+      className="flex flex-col shadow-lg"
     >
       {/* No name here any more. A bar reading 「ラピ」 above her own speech
           bubble said nothing the bubble did not: she is the thing you just
@@ -256,7 +197,7 @@ export function RapiAvatarPanel({
         </button>
       </div>
 
-      <RapiModeTabs modes={modes} mode={mode} onSelect={setMode} />
+      <RapiModeHeader mode={mode} onBack={() => setMode(DEFAULT_MODE)} />
 
       {/* Going back to something asked earlier. The mode it went to still
           holds what it produced, so this is a jump rather than a replay —
@@ -274,9 +215,12 @@ export function RapiAvatarPanel({
             elsewhere it was taking the first two lines of the answer. It
             still goes once a sentence has been routed. */}
         {mode === 'chat' && !routed && (
-          <p className="px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {ta('greeting')}
-          </p>
+          <>
+            <p className="px-3 py-2.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {ta('greeting')}
+            </p>
+            <RapiExamples onPick={pickExample} />
+          </>
         )}
 
         <RapiModeContent mode={mode} handedOver={handedOver} />
@@ -295,17 +239,18 @@ export function RapiAvatarPanel({
         </div>
       </div>
 
-      {/* The box belongs to the conversation, and only there. It was shared
-          by every tab because it is the ROUTER — a sentence typed anywhere
-          reaches the mode that answers it, and `roadmap` has no tab of its
-          own to reach. But a form tab with a "write what you want" box under
-          it reads as two ways of doing the same thing, and the conversation
-          is the default tab, so what is lost is one click (asked 2026-10-22).
-          Hidden rather than unmounted: unmounting throws away a half-typed
-          sentence, which is the complaint that put the tabs here. */}
-      <div {...(mode === 'chat' ? {} : { style: { display: 'none' }, 'aria-hidden': true })}>
-        <RapiComposer routed={routed} mode={mode} hasOpenTask={hasTask} onRouted={handleRouted} />
-      </div>
+      {/* The box is on every mode. It was kept to the conversation while the
+          tabs existed, because a form with a "write what you want" box under
+          it read as two ways of doing the same thing (2026-10-22). With the
+          tabs gone it is the only way, so it stays put: the next request can
+          be written from wherever the last one landed. */}
+      <RapiComposer
+        routed={routed}
+        mode={mode}
+        hasOpenTask={hasTask}
+        onRouted={handleRouted}
+        seed={seed}
+      />
 
       {/* Only offered when there is something to resume — everything
           running is already on its way. */}
