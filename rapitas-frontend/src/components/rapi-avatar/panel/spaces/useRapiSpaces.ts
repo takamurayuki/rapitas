@@ -20,6 +20,7 @@ import {
   fetchMessages,
   fetchSpaces,
   fromSaved,
+  isRoutingNote,
   putMessages,
   type RapiSpaceSummary,
 } from './rapi-spaces-api';
@@ -167,7 +168,7 @@ export function useRapiSpaces(): RapiSpaces {
         return [];
       }
       setProblem(null);
-      return rows.map(fromSaved);
+      return rows.filter((row) => !isRoutingNote(row)).map(fromSaved);
     } catch (err) {
       logger.warn({ err }, 'could not load the space');
       setProblem('load');

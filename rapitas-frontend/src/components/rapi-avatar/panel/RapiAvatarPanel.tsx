@@ -15,7 +15,7 @@
  * The executions come from `useResumableExecutions`, which the host owns so
  * it runs once; the conversation from `useRapiConversation`.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../../resumable-executions/ExecutionItem';
@@ -27,7 +27,6 @@ import { BUBBLE_COLORS, SpeechBubble } from '../avatar/SpeechBubble';
 import { RapiPrompt } from './RapiPrompt';
 import { RapiThread, useRapiConversation } from './conversation';
 import { RapiSpaceSwitcher, useRapiSpaces } from './spaces';
-import type { PromptDestination } from './RapiPrompt';
 import { usePanelPresence } from './usePanelPresence';
 import { useRapiEnvironment, useRapiLocation } from '../float/rapi-environment';
 
@@ -99,13 +98,7 @@ export function RapiAvatarPanel({
   const { pathname, panelParam } = useRapiLocation();
   const hasTask = taskIdFromLocation(pathname, panelParam) !== null;
 
-  const tm = useTranslations('rapiAvatar.mode');
   const tsp = useTranslations('rapiAvatar.spaces');
-  const routedText = useCallback(
-    (intent: PromptDestination, reason: string) =>
-      ta('prompt.tookItAs', { where: tm(intent), reason }),
-    [ta, tm],
-  );
 
   // The conversation is kept in the mobile app's spaces, so the phone and
   // the desktop read the same history (asked 2026-11-14).
@@ -114,7 +107,6 @@ export function RapiAvatarPanel({
     hasOpenTask: hasTask,
     greeting: ta('greeting'),
     failedText: ta('prompt.failed'),
-    routedText,
     onSave: spaces.save,
   });
 

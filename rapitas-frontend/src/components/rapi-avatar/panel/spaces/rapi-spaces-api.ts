@@ -135,6 +135,24 @@ export function toSaved(line: RapiMessage) {
 const ROLES: readonly RapiRole[] = ['user', 'assistant', 'system'];
 
 /**
+ * The "took it as" sentences the web saved before #1543, in both languages
+ * (`rapiAvatar.prompt.tookItAs` in messages/ja.json and en.json then).
+ */
+const ROUTING_NOTE = /^(「[^」]+」として受け取りました — |Took that as “[^”]+” — )/;
+
+/**
+ * Whether a saved row is one of those routing notes. They narrated how she
+ * routed a request, which read as procedure rather than conversation; new
+ * ones are no longer saved, and old ones are left out when a space opens.
+ *
+ * @param row - Saved row / 保存された行
+ * @returns True for an old routing note / 旧形式の振り分け注記なら true
+ */
+export function isRoutingNote(row: Pick<SavedMessage, 'role' | 'kind' | 'text'>): boolean {
+  return row.role === 'system' && row.kind === 'text' && ROUTING_NOTE.test(row.text);
+}
+
+/**
  * A saved row as a thread line. A card the mobile app saved keeps its kind,
  * so the thread can say it is a record rather than drawing nothing.
  *

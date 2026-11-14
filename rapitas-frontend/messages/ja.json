@@ -1740,7 +1740,6 @@
       "placeholder": "やりたいことをそのまま書いてください",
       "thinking": "読んでいます…",
       "cancel": "やめる",
-      "tookItAs": "「{where}」として受け取りました — {reason}",
       "ratherPlan": "計画として考える",
       "send": "送る",
       "hint": "Enter で送信、Shift+Enter で改行",

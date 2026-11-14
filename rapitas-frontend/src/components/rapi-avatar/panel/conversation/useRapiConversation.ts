@@ -34,11 +34,6 @@ interface Options {
   /** Said when a sentence could not be sent. / 送信失敗の案内 */
   failedText: string;
   /**
-   * The words of the routing note, which is what gets saved for it: the
-   * card is live only in this session. / 振り分け注記の文
-   */
-  routedText: (intent: PromptDestination, reason: string) => string;
-  /**
    * Called with lines that were added or changed and should be saved to the
    * conversation space. Lines marked `localOnly` are never passed. / 保存する行
    */
@@ -87,7 +82,6 @@ export function useRapiConversation({
   hasOpenTask,
   greeting,
   failedText,
-  routedText,
   onSave,
 }: Options): RapiConversation {
   const nextId = useRef(1);
@@ -163,11 +157,15 @@ export function useRapiConversation({
       if (routed.routed && routed.intent) {
         add({
           role: 'system',
-          text: routedText(routed.intent, routed.reason ?? ''),
+          // NOTE: holds the card, not words: the "took it as" sentence is no
+          // longer shown or saved (#1543). Local only, so the phone does not
+          // draw it as a note of its own either.
+          text: '',
           intent: routed.intent,
           reason: routed.reason ?? '',
           handedOver: said,
           inHistory: false,
+          localOnly: true,
         });
         return;
       }
@@ -200,7 +198,7 @@ export function useRapiConversation({
         setSending(false);
       }
     }
-  }, [add, failedText, hasOpenTask, routedText, sending, text, unsend]);
+  }, [add, failedText, hasOpenTask, sending, text, unsend]);
 
   // Hands the sentence back here rather than in the request's `catch`: a
   // request that ignores the abort would otherwise keep the box locked and
@@ -217,14 +215,15 @@ export function useRapiConversation({
     (sentence: string) => {
       add({
         role: 'system',
-        text: routedText('roadmap', ''),
+        text: '',
         intent: 'roadmap',
         reason: '',
         handedOver: sentence,
         inHistory: false,
+        localOnly: true,
       });
     },
-    [add, routedText],
+    [add],
   );
 
   const replace = useCallback(

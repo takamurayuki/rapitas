@@ -222,16 +222,15 @@ describe('saving to the shared spaces', () => {
     expect(server.posts).toBe(1);
   });
 
-  it('saves a routed request as its note', async () => {
+  // The routing note was procedure, not conversation, and the phone drew
+  // every saved one as a note of its own (#1543).
+  it('saves a routed request, but not a note about where it went', async () => {
     routeTo = 'create';
     render(<RapiAvatarPanel {...props} />);
     say('牛乳を買う');
-    await waitFor(() => expect(server.spaces[0].rows).toHaveLength(2));
-    expect(server.spaces[0].rows[1]).toMatchObject({
-      role: 'system',
-      kind: 'text',
-      text: 'rapiAvatar.prompt.tookItAs:rapiAvatar.mode.create,',
-    });
+    await waitFor(() => expect(server.spaces[0].rows).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(server.spaces[0].rows.map((r) => r.role)).toEqual(['user']);
   });
 
   it('remembers which conversation was open', async () => {
@@ -255,6 +254,35 @@ describe('switching', () => {
     fireEvent.click(await screen.findByText('英語の計画'));
     await waitFor(() => expect(screen.getByText('英語を続けたい')).toBeTruthy());
     expect(title()).toBe('英語の計画');
+  });
+
+  // Notes saved before #1543 are still in old conversations; they are left
+  // out when one is opened, in either language.
+  it('leaves out the routing notes saved before', async () => {
+    server.spaces[0].rows.push(
+      {
+        clientId: 'n1',
+        role: 'system',
+        kind: 'text',
+        text: '「タスク作成」として受け取りました — 作るため',
+        inHistory: false,
+        payload: null,
+      },
+      {
+        clientId: 'n2',
+        role: 'system',
+        kind: 'text',
+        text: 'Took that as “Ask” — counting',
+        inHistory: false,
+        payload: null,
+      },
+    );
+    render(<RapiAvatarPanel {...props} />);
+    openList();
+    fireEvent.click(await screen.findByText('英語の計画'));
+    await waitFor(() => expect(screen.getByText('英語を続けたい')).toBeTruthy());
+    expect(screen.queryByText(/として受け取りました/)).toBeNull();
+    expect(screen.queryByText(/Took that as/)).toBeNull();
   });
 
   // The phone's cards are snapshots; the web shows them as records.
