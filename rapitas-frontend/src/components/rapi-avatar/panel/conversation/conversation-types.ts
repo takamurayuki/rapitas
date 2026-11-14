@@ -13,6 +13,11 @@ export type RapiRole = 'user' | 'assistant' | 'system';
 
 export interface RapiMessage {
   id: number;
+  /**
+   * The line's key in its conversation space (`RapiChatMessage.clientId`),
+   * shared with the mobile app. A resend rewrites the same row.
+   */
+  clientId: string;
   role: RapiRole;
   text: string;
   /**
@@ -32,4 +37,15 @@ export interface RapiMessage {
   inHistory: boolean;
   /** A failure note, drawn in the warning colour. / 失敗の案内 */
   failed?: boolean;
+  /**
+   * Shown here only, never saved: the greeting and failure notes. Mobile
+   * keeps the same rule (`localOnly`). / 保存しない行
+   */
+  localOnly?: boolean;
+  /**
+   * For a line loaded from a space whose card was saved by the mobile app
+   * (`answer`, `roadmap`, ...): the card's kind. The web shows its text with
+   * a label; the card itself is a read-only record. / 記録のカードの種類
+   */
+  archivedKind?: string;
 }

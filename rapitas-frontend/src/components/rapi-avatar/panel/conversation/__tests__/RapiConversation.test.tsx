@@ -79,6 +79,8 @@ let calls: Call[] = [];
 let answer: (url: string) => Promise<{ ok: boolean; status: number; body: unknown }>;
 
 beforeEach(() => {
+  // The open space is remembered per browser; each test starts on a new one.
+  window.localStorage.clear();
   pathname = '/dashboard';
   search = '';
   calls = [];
@@ -86,12 +88,28 @@ beforeEach(() => {
     url.includes('/assistant/route')
       ? { ok: true, status: 200, body: { routed: false } }
       : { ok: true, status: 200, body: { success: true, content: 'こんにちは' } };
-  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+  const realFetch = async (url: string, init?: RequestInit) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) });
     if (init?.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
     const a = await answer(String(url));
     if (init?.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
     return { ok: a.ok, status: a.status, json: async () => a.body } as Response;
+  };
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    // The conversation-space calls are answered here and kept out of
+    // `calls`; they are the spaces tests' subject, not these.
+    if (String(url).includes('/rapi-chat/')) {
+      const body = String(url).endsWith('/rapi-chat/spaces')
+        ? init?.method === 'POST'
+          ? {
+              success: true,
+              space: { id: 1, title: null, messageCount: 0, lastMessageAt: null, createdAt: '' },
+            }
+          : { success: true, spaces: [] }
+        : { success: true, space: { title: null } };
+      return { ok: true, status: 200, json: async () => body } as Response;
+    }
+    return realFetch(url, init);
   });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -207,8 +225,9 @@ describe('talking', () => {
     search = query;
     render(<RapiAvatarPanel {...props} />);
     say('このタスクについて');
-    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
-    expect(calls[0].body.hasOpenTask).toBe(expected);
+    await waitFor(() => expect(calls.some((c) => c.url.includes('/assistant/route'))).toBe(true));
+    const route = calls.find((c) => c.url.includes('/assistant/route'));
+    expect(route?.body.hasOpenTask).toBe(expected);
   });
 });
 

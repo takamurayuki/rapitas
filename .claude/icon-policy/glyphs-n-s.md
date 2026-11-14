@@ -29,4 +29,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `PiggyBank`               | AI利用の予算計画（nav: /agents/usage-budget のページ見出し・メトリクス画面からのリンク、予算到達の確認ダイアログ、通知の種別 usage_budget_threshold — 同一概念「AI利用予算」の再利用。注: `src/components/category/icons` のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `Siren`                   | 通知の種別「カナリアトークン使用検知」（`NotificationBell` の canary_triggered — 隔離環境に置いたダミー認証情報が使われた警報。`TriangleAlert`＝エージェントエラーとは別概念） |
 | `Signpost`                | ラピの「計画を立てる」ロードマップモード（ラピの会話の振り分け注記のグリフ — 入力欄から到達するモード） |
+| `SquarePen`               | ラピの新しい会話を始める（パネル上部の会話タイトル横のボタンと、会話の切り替え一覧の先頭項目 `RapiSpaceSwitcher` — 同一概念の再利用。注: `MessageSquarePlus`＝エージェントへの追加指示、`Pencil`＝タスクの変更とは別概念） |
 | `OctagonAlert`            | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer）。ラピの「要対応」モード（会話の振り分け注記の watch — 手当てが要るバックログの一覧）も同一概念「対応待ち」の再利用。ICON_POLICY.md §3 のインライン表から本ファイルへ移行済み |

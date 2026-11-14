@@ -13,12 +13,26 @@
  * own card instead of replacing the first.
  */
 import { useEffect, useRef, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../../intake';
 import { TaskChange } from '../../intake/change';
 import { MODE_ICONS } from '../rapi-modes';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
+
+/**
+ * Her replies are Markdown (headings, lists, bold — the same text the mobile
+ * app renders as Markdown), drawn with the app's shared renderer.
+ *
+ * Loaded on demand: ラピ is in the root layout, so a static import would put
+ * react-markdown in the chunk every page loads (#1528 kept that under 500 KB).
+ * The first reply waits a moment for it; every later one is drawn at once.
+ */
+const MarkdownView = dynamic(
+  () => import('@/components/markdown/MarkdownView').then((m) => m.MarkdownView),
+  { loading: () => null },
+);
 
 /**
  * What each mode's card draws.
@@ -57,6 +71,34 @@ function Bubble({ from, children }: { from: 'user' | 'assistant'; children: Reac
       >
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A card the mobile app saved, shown as the record it is.
+ *
+ * Its snapshot is the phone's; drawing a live card from it here could re-run
+ * what the phone already did, so the web shows what it said and names the
+ * kind of card it was.
+ */
+function ArchivedCard({ message }: { message: RapiMessage }) {
+  const ts = useTranslations('rapiAvatar.spaces');
+  const kind = message.archivedKind as string;
+  const known = ['answer', 'change', 'roadmap', 'tidy', 'companion'].includes(kind);
+  return (
+    <div
+      data-rapi-archived={kind}
+      className="rounded-xl border border-dashed border-zinc-300 px-3 py-2 dark:border-zinc-700"
+    >
+      <p className="text-[11px] text-zinc-400">
+        {ts('archived', { kind: known ? ts(`kind.${kind}`) : kind })}
+      </p>
+      {message.text && (
+        <p className="mt-1 text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">
+          {message.text}
+        </p>
+      )}
     </div>
   );
 }
@@ -116,6 +158,7 @@ export function RapiThread({ messages, sending, rethinkAsPlan }: Props) {
   return (
     <div className="space-y-3 px-3 py-3" aria-live="polite">
       {messages.map((m) => {
+        if (m.archivedKind) return <ArchivedCard key={m.id} message={m} />;
         if (m.role === 'system') {
           return m.intent ? (
             <RoutedLine key={m.id} message={m} rethinkAsPlan={rethinkAsPlan} />
@@ -131,7 +174,11 @@ export function RapiThread({ messages, sending, rethinkAsPlan }: Props) {
         }
         return (
           <Bubble key={m.id} from={m.role}>
-            {m.text}
+            {m.role === 'assistant' && !m.localOnly ? (
+              <MarkdownView content={m.text} className="prose-p:my-1 prose-headings:my-2" />
+            ) : (
+              m.text
+            )}
           </Bubble>
         );
       })}
