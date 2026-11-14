@@ -16,9 +16,11 @@ describe('LinkViewHost imports', () => {
   it.each(['BrowserScreen', 'LinkBandBar', 'LinkFavourites', 'LinkViewPane'])(
     'loads %s on demand, not at startup',
     (name) => {
-      const staticImport = new RegExp(`^import\s[^;]*\b${name}\b[^;]*from\s`, 'm');
+      // String.raw keeps the backslashes: in a plain template literal `\s` is
+      // just "s" and `\b` a backspace, and the check could never fail.
+      const staticImport = new RegExp(String.raw`^import\s[^;]*\b${name}\b[^;]*from\s`, 'm');
       expect(source).not.toMatch(staticImport);
-      expect(source).toMatch(new RegExp(`import\\(['"][^'"]*/${name}['"]\\)`));
+      expect(source).toMatch(new RegExp(String.raw`import\(['"][^'"]*/${name}['"]\)`));
     },
   );
 });
