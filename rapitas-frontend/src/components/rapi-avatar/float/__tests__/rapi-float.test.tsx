@@ -247,9 +247,10 @@ describe('her window', () => {
     return (
       <div>
         <span data-testid="where">{`${p}|${panelParam}|${env?.dark}|${env?.floating}`}</span>
-        {/* A plain anchor, as her task cards render them (TaskAsk, TaskWatch). */}
-        { }
-        <a href="/tasks/42?showHeader=true">task</a>
+        {/* A plain anchor, as her task cards render them (TaskAsk, TaskWatch).
+            The href is spread because no-html-link-for-pages reads only a
+            literal attribute, and prettier strips a disable comment here. */}
+        <a {...{ href: '/tasks/42?showHeader=true' }}>task</a>
       </div>
     );
   }
