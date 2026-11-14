@@ -96,7 +96,7 @@ beforeEach(() => {
 const avatarButton = () => document.querySelector('[data-rapi-avatar="true"]') as HTMLElement;
 
 describe('what the panel looks like when it opens', () => {
-  /** The scrolling middle — everything that is not header or composer. */
+  /** The scrolling middle — the conversation, between the header and the box. */
   const scroller = () => document.querySelector('.overflow-y-auto');
 
   it('does not label itself 「ラピ」 above her own speech bubble', () => {
@@ -111,18 +111,17 @@ describe('what the panel looks like when it opens', () => {
     expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
   });
 
-  it('opens on the conversation', () => {
-    // The conversation is the only place with nothing above it: every other
-    // mode carries a header saying where you are and the way back.
+  it('opens on the conversation, her greeting first', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
+    const first = document.querySelector('[data-rapi-line]');
+    expect(first?.getAttribute('data-rapi-line')).toBe('assistant');
+    expect(first?.textContent).toBe('rapiAvatar.greeting');
   });
 
-  it('keeps the introduction to the conversation', async () => {
-    // It is the conversation's own prompt - it tells you to write in the box
-    // below. On a list of overdue tasks it is just taking the first two
-    // lines of the answer (reported 2026-10-22).
+  it('keeps the greeting where it was once a request is answered', async () => {
+    // It is a line in the conversation now, not a caption the next answer
+    // replaces: scrolling up finds it where it was said.
     vi.stubGlobal('fetch', (url: string) =>
       Promise.resolve({
         ok: true,
@@ -140,8 +139,8 @@ describe('what the panel looks like when it opens', () => {
     const box = screen.getByRole('textbox');
     fireEvent.change(box, { target: { value: 'タスクを作って' } });
     fireEvent.keyDown(box, { key: 'Enter', shiftKey: false });
-    await waitFor(() => expect(document.querySelector('[data-rapi-mode-header]')).not.toBeNull());
-    expect(screen.queryByText('rapiAvatar.greeting')).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-rapi-card="create"]')).not.toBeNull());
+    expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
     vi.unstubAllGlobals();
   });
 

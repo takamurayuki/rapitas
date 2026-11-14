@@ -1,26 +1,22 @@
 /**
  * rapi-avatar/panel
  *
- * The panel that opens next to ラピ: where a sentence went, the content area,
- * history, example sentences and the composer.
+ * The panel that opens next to ラピ: the conversation with her and the box
+ * you write in.
  */
 export { RapiAvatarPanel } from './RapiAvatarPanel';
-export { RapiComposer } from './RapiComposer';
-export { RapiHistory, type AskedFor } from './RapiHistory';
-export { RapiModeContent } from './RapiModeContent';
-export { RapiModeHeader } from './RapiModeHeader';
-export { RapiExamples, EXAMPLE_KEYS } from './RapiExamples';
 export {
   RapiPrompt,
+  MIN_INPUT_PX,
   type PromptDestination,
-  type Routed,
   type RapiPromptProps,
 } from './RapiPrompt';
+export { MODE_ICONS, type PanelMode } from './rapi-modes';
 export {
-  MAX_HISTORY,
-  DEFAULT_MODE,
-  MODE_ICONS,
-  visibleModes,
-  reachableModes,
-  type PanelMode,
-} from './rapi-modes';
+  RapiThread,
+  useRapiConversation,
+  MAX_MESSAGES,
+  type RapiConversation,
+  type RapiMessage,
+  type RapiRole,
+} from './conversation';

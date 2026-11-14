@@ -125,17 +125,17 @@ describe('the corner', () => {
   });
 
   // It used to stay shut with nothing running. The panel carries her own
-  // modes as well as the executions, so there is always something to open.
-  // It opens on the conversation, with examples of what can be said there in
-  // place of the tab bar that used to list her range (2026-11-14).
-  it('opens with nothing running, on the conversation, with examples to say', () => {
+  // conversation as well as the executions, so there is always something
+  // to open — and it opens on her greeting, said as a message (2026-11-14).
+  it('opens with nothing running, on her greeting', () => {
     executionState = { executions: [], runningCount: 0, interruptedCount: 0 };
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByText('rapiAvatar.greeting')).toBeTruthy();
+    expect(document.querySelector('[data-rapi-line="assistant"]')?.textContent).toBe(
+      'rapiAvatar.greeting',
+    );
     expect(screen.queryByTestId('exec-1')).toBeNull();
-    expect(document.querySelectorAll('[data-rapi-example]').length).toBeGreaterThan(2);
   });
 
   // Asked for 2026-11-14: natural language instead of choosing from tabs.
@@ -145,28 +145,6 @@ describe('the corner', () => {
     fireEvent.click(avatarButton());
     expect(document.querySelectorAll('[data-rapi-mode-tab]')).toHaveLength(0);
     expect(screen.queryByLabelText('rapiAvatar.mode.consult')).toBeNull();
-  });
-
-  // Picking an example writes it for you to edit, rather than sending it:
-  // a chip that went straight somewhere would be a tab by another name.
-  it('puts a picked example in the box without sending it', () => {
-    const calls: string[] = [];
-    vi.stubGlobal('fetch', (url: string) => {
-      calls.push(String(url));
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({}),
-      } as Response);
-    });
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    fireEvent.click(document.querySelector('[data-rapi-example="tidy"]') as HTMLElement);
-    expect((screen.getByLabelText('rapiAvatar.prompt.label') as HTMLTextAreaElement).value).toBe(
-      'rapiAvatar.examples.tidy',
-    );
-    expect(calls.some((u) => u.includes('/assistant/route'))).toBe(false);
-    vi.unstubAllGlobals();
   });
 
   // Dismissing something that reads as speech by hunting for its X is the
@@ -249,31 +227,15 @@ describe('typing at her', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it('goes where she routed it, and says where that is', async () => {
+  it('answers a request with that mode, in the conversation', async () => {
     route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
-    // It opens on the conversation; the point is that a sentence moves it.
-    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
-
     say('ブロックは何件？');
     await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
-    expect(document.querySelector('[data-rapi-mode-header="ask"]')).not.toBeNull();
-  });
-
-  // With no tabs, the way back has to be on screen wherever she took you.
-  it('offers the way back to the conversation, and the box stays', async () => {
-    route({ routed: true, intent: 'ask', reason: '' });
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    say('ブロックは何件？');
-    await waitFor(() => expect(screen.getByText('rapiAvatar.ask.title')).toBeTruthy());
-    // The next request can be written from here.
+    expect(document.querySelector('[data-rapi-card="ask"]')).not.toBeNull();
+    // The next request can be written straight under it.
     expect(screen.getByLabelText('rapiAvatar.prompt.label')).toBeTruthy();
-
-    fireEvent.click(screen.getByLabelText('rapiAvatar.backToChat'));
-    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
-    expect(screen.queryByLabelText('rapiAvatar.backToChat')).toBeNull();
   });
 
   // The task assistant is only a destination where a task is open; the
@@ -313,16 +275,6 @@ describe('typing at her', () => {
         screen.getByText('rapiAvatar.prompt.tookItAs:rapiAvatar.mode.ask,件数を尋ねているため'),
       ).toBeTruthy(),
     );
-  });
-
-  // A shrug has to leave everything usable, which means staying put.
-  it('stays where it was when she cannot tell', async () => {
-    route({ routed: false });
-    render(<RapiAvatarHost />);
-    fireEvent.click(avatarButton());
-    say('うーん');
-    await waitFor(() => expect(screen.getByText('rapiAvatar.prompt.unplaced')).toBeTruthy());
-    expect(document.querySelector('[data-rapi-mode-header]')).toBeNull();
   });
 });
 
@@ -372,7 +324,7 @@ describe('closing and reopening', () => {
     fireEvent.click(avatarButton());
   };
 
-  it('keeps the mode you were in', async () => {
+  it('keeps the conversation, cards and all', async () => {
     routeTo = 'create';
     serve({ total: 0, categories: [] });
     render(<RapiAvatarHost />);

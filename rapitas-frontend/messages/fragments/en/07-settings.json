@@ -594,18 +594,17 @@
       "noteWritten": "The assumptions and decisions are in a note.",
       "progress": "{current} / {total}"
     },
-    "history": "What you have asked",
     "greeting": "I am ラピ, the agent that works on rapitas with you. What are we doing today? Just write it in the box below.",
     "prompt": {
       "label": "Tell ラピ",
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
       "cancel": "Cancel",
-      "unplaced": "I could not quite tell. Try saying what you want in other words.",
       "tookItAs": "Took that as “{where}” — {reason}",
       "ratherPlan": "Plan it out instead",
       "send": "Send",
-      "hint": "Enter to send, Shift+Enter for a new line"
+      "hint": "Enter to send, Shift+Enter for a new line",
+      "failed": "Could not send that. Wait a moment and send it again."
     },
     "tidy": {
       "byCondition": "By condition",
@@ -714,15 +713,6 @@
         "urgent": "Urgent",
         "none": "None"
       }
-    },
-    "backToChat": "Back to the conversation",
-    "examplesLabel": "For example, you could say",
-    "examples": {
-      "watch": "What needs my attention right now?",
-      "create": "Make a task to write the proposal by tomorrow",
-      "ask": "How many tasks are overdue?",
-      "tidy": "I want to clean up duplicate tasks",
-      "roadmap": "I want to keep up English every day"
     }
   }
 }
