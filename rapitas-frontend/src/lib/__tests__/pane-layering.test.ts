@@ -8,7 +8,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  HEADER_Z,
   LINK_PANE_Z,
+  MODAL_Z,
   RAPI_AVATAR_Z,
   RAPI_BUBBLE_Z,
   TASK_DETAIL_OVERLAY_Z,
@@ -57,6 +59,17 @@ describe('the resident avatar', () => {
   // pressing her closed the task detail instead of opening her.
   it('stays above the overlay that swallows clicks', () => {
     expect(RAPI_AVATAR_Z).toBeGreaterThan(TASK_DETAIL_OVERLAY_Z);
+  });
+
+  // Reported 2026-11-14: carried up to the top of the window she went
+  // behind the header (#1535).
+  it('stays above the header', () => {
+    expect(RAPI_AVATAR_Z).toBeGreaterThan(HEADER_Z);
+  });
+
+  // A dialog asks for an answer; she must not sit on top of it.
+  it('stays under dialogs, bubble included', () => {
+    expect(RAPI_BUBBLE_Z).toBeLessThan(MODAL_Z);
   });
 
   it('draws her bubble in front of her, not behind', () => {
