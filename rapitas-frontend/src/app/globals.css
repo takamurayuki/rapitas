@@ -110,25 +110,27 @@ html.dark {
   --font-mono: var(--font-geist-mono);
 }
 
-/* NOTE: green is the app's colour for "done", and Tailwind's stock scale
-   (green-500 = chroma 0.219) glared on a list where many rows are done. This
-   replaces the whole scale with a calmer one — same hue, about half the
-   chroma, each step a little darker — so every `green-*` utility changes at
-   once and the meaning stays one colour (#1537). Plain `@theme`, not
-   `inline`: the variables must exist at runtime for the places that colour
-   with `var(--color-green-*)` inline (the due-today knob, the Gantt bar). */
+/* NOTE: green is the app's colour for "done". Tailwind's stock green
+   (green-500 = chroma 0.219) glared like a highlighter on a list where many
+   rows are done, and the half-chroma scale tried first (#1537) read as dull.
+   The scale is Tailwind's emerald, step for step: about 80% of the stock
+   chroma, a little towards blue, still clearly green (#1539). Every
+   `green-*` utility changes with it, and `emerald-*` now matches `green-*`.
+   Plain `@theme`, not `inline`: the variables must exist at runtime for the
+   places that colour with `var(--color-green-*)` inline (the due-today knob,
+   the Gantt bar). */
 @theme {
-  --color-green-50: oklch(97.6% 0.014 158);
-  --color-green-100: oklch(94.8% 0.03 158);
-  --color-green-200: oklch(90% 0.052 158);
-  --color-green-300: oklch(83% 0.078 158);
-  --color-green-400: oklch(74% 0.1 158);
-  --color-green-500: oklch(65% 0.11 158);
-  --color-green-600: oklch(56% 0.1 158);
-  --color-green-700: oklch(48.5% 0.088 158);
-  --color-green-800: oklch(41.5% 0.074 158);
-  --color-green-900: oklch(35.5% 0.06 158);
-  --color-green-950: oklch(25% 0.042 158);
+  --color-green-50: oklch(97.9% 0.021 166.113);
+  --color-green-100: oklch(95% 0.052 163.051);
+  --color-green-200: oklch(90.5% 0.093 164.15);
+  --color-green-300: oklch(84.5% 0.143 164.978);
+  --color-green-400: oklch(76.5% 0.177 163.223);
+  --color-green-500: oklch(69.6% 0.17 162.48);
+  --color-green-600: oklch(59.6% 0.145 163.225);
+  --color-green-700: oklch(50.8% 0.118 165.612);
+  --color-green-800: oklch(43.2% 0.095 166.913);
+  --color-green-900: oklch(37.8% 0.077 168.94);
+  --color-green-950: oklch(26.2% 0.051 172.552);
 }
 
 body {

@@ -129,18 +129,16 @@ describe('a day with something due', () => {
   });
 });
 
-describe('beside the toolbar buttons', () => {
-  // Two rows made the card 62px against the buttons' 38px: on a day with
-  // something due the toolbar grew by 24px and pushed a page of ten tasks
-  // past the window, so a scrollbar came and went with the due date (#1537).
-  it('is as tall as the buttons beside it', () => {
+describe('the card itself', () => {
+  // Squeezing the card to the buttons' 38px (#1537) was undone at the user's
+  // request: the card keeps its size, and the page's spacing makes room (#1539).
+  it('keeps its own padding, not squeezed to the buttons’ height', () => {
     const { container } = renderBar({ totalCount: 3, efficiency: 33 });
     const card = container.querySelector('[data-today-progress-card]');
-    expect(card?.className).toContain('h-[38px]');
+    expect(card?.className).toContain('py-2.5');
+    expect(card?.className).not.toContain('h-[38px]');
   });
 
-  // The fix was to tighten the padding, not to redesign the card: the label
-  // still sits above the bar.
   it('keeps the label above the bar', () => {
     const { container } = renderBar({ totalCount: 3, efficiency: 33 });
     const labelRow = screen.getByText('todayDueTask').parentElement?.parentElement;

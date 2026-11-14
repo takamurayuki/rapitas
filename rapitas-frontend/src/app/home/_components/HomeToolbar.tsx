@@ -65,7 +65,7 @@ export function HomeToolbar({
   return (
     // NOTE: wraps instead of squeezing — at 390px the actions were crushed into
     // one-character-wide columns of vertical text.
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-4">
         <TodayTaskProgressBar compact={true} className="w-60" />
       </div>

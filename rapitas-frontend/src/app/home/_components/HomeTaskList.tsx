@@ -144,6 +144,7 @@ export function HomeTaskList({
         itemsPerPage={itemsPerPage}
         onPageChange={onPageChange}
         onItemsPerPageChange={onItemsPerPageChange}
+        spacingClassName="mt-4"
       />
     </>
   );

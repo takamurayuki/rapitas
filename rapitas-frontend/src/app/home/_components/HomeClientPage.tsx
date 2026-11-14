@@ -338,7 +338,12 @@ function HomeClientPage() {
       }
       className="h-[calc(100vh-4.2rem)] overflow-auto scrollbar-thin bg-background"
     >
-      <div className="mx-auto max-w-6xl px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+      {/* NOTE: spacing is tight on purpose (pt-3 pb-1 here, mb-3 under the
+          toolbar and the filter panel, mt-4 above the pagination). The
+          due-today card is 62px against the buttons' 38px, and with the old
+          sm:py-4 / mb-4 / mt-6 a page of ten tasks overflowed a maximised
+          1080p window on a day with something due (#1539). */}
+      <div className="mx-auto max-w-6xl px-3 sm:px-4 md:px-6 pt-3 pb-1">
         <>
           {!isEmptyWorkspace && (
             <HomeToolbar

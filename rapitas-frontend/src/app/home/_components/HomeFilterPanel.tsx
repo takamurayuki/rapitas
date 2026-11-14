@@ -85,7 +85,7 @@ export function HomeFilterPanel({
 
   if (filtersError) {
     return (
-      <div className="relative overflow-hidden border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 shadow-sm mb-4">
+      <div className="relative overflow-hidden border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 shadow-sm mb-3">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="text-red-600 dark:text-red-400">⚠️</span>
@@ -113,7 +113,7 @@ export function HomeFilterPanel({
   // `&& tasks.length === 0` guard.
   if (filtersLoading && categories.length === 0) {
     return (
-      <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
+      <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-3 animate-skeleton-fade-in">
         <div className="flex items-center overflow-x-auto bg-slate-50 dark:bg-slate-800/50">
           <div className="flex gap-2 px-3 py-2 min-w-max">
             {(
@@ -159,7 +159,7 @@ export function HomeFilterPanel({
   if (categories.length === 0) return null;
 
   return (
-    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-4">
+    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-3">
       <HomeCategoryFilter
         categories={categories}
         themes={themes}

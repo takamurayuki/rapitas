@@ -108,18 +108,16 @@ export default function TodayTaskProgressBarCompact({
       {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
           toolbar controls; the old rounded-xl slate card with shadow-sm floated
           against its flat neighbours. */}
-      {/* NOTE: h-[38px], the height of the toolbar buttons beside it, reached
-          by tightening the padding (py-2.5 → py-0.5), the label's line height
-          (leading-none) and the gap to the bar (mb-1.5 → mb-1). At 62px the
-          card made the toolbar 24px taller on a day with something due, which
-          pushed a page of ten tasks past the window and brought up a
-          scrollbar that came and went with the due date (#1537). */}
+      {/* NOTE: the card keeps its own size (62px). Squeezing it to the
+          buttons' 38px (#1537) was undone at the user's request; the 24px it
+          adds to the toolbar is paid for by the page's spacing instead
+          (HomeClientPage, HomeToolbar, HomeFilterPanel — #1539). */}
       <div
         data-today-progress-card
-        className="flex h-[38px] flex-col justify-center rounded-lg border border-zinc-200 bg-white px-3 py-0.5 transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900"
+        className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900"
       >
         {/* Top row: label left, percentage right */}
-        <div className="mb-1 flex items-center justify-between leading-none">
+        <div className="mb-1.5 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <AnimatePresence>
               {isDone && (

@@ -17,6 +17,11 @@ interface PaginationProps {
    * pass false to hide the control entirely on single-page lists. / 1ページでも表示する
    */
   alwaysShow?: boolean;
+  /**
+   * The space above the control. Defaults to mt-6; the home list passes less so a
+   * page of ten tasks still fits the window (#1539). / 上側の余白クラス
+   */
+  spacingClassName?: string;
 }
 
 export default function Pagination({
@@ -27,6 +32,7 @@ export default function Pagination({
   onItemsPerPageChange,
   itemsPerPageOptions = [5, 10, 15],
   alwaysShow = true,
+  spacingClassName = 'mt-6',
 }: PaginationProps) {
   const t = useTranslations('common');
 
@@ -38,7 +44,7 @@ export default function Pagination({
 
   return (
     // flex-wrap: per-page sizes and page numbers did not fit one row on a phone.
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+    <div className={`${spacingClassName} flex flex-wrap items-center justify-center gap-3`}>
       {/* Items per page */}
       <div className="flex items-center gap-1">
         {itemsPerPageOptions.map((count) => (
