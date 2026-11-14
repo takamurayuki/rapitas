@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RestartDialogs } from '../restart-dialogs';
+import { useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
@@ -29,6 +30,28 @@ const defaultProps = {
 describe('RestartDialogs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useWebviewOcclusionStore.setState({ occluders: [] });
+  });
+
+  // The overlay covers the whole window; on the desktop ラピ stays in sight
+  // above it but must take no press or drag while the app restarts (#1541).
+  it('registers the restarting overlay as blocking', () => {
+    render(<RestartDialogs {...defaultProps} isRestarting />);
+    expect(
+      useWebviewOcclusionStore.getState().occluders.some((id) => id.startsWith('blocking-')),
+    ).toBe(true);
+  });
+
+  it('registers the confirmation as a dialog', () => {
+    render(
+      <RestartDialogs
+        {...defaultProps}
+        restartConfirmDialog={{ open: true, activeExecutions: 0 }}
+      />,
+    );
+    expect(
+      useWebviewOcclusionStore.getState().occluders.some((id) => id.startsWith('dialog-')),
+    ).toBe(true);
   });
 
   it('renders nothing when dialog is closed and not restarting', () => {

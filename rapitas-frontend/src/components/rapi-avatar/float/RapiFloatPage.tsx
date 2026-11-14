@@ -93,7 +93,10 @@ export function RapiFloatPage({ children }: { children: ReactNode }) {
   useTransparentPage();
   const location = useMainLocation();
   const shown = location?.shown ?? false;
-  useFloatHitRects(shown);
+  const inert = location?.inert ?? false;
+  // No rectangles while inert: the Rust side then passes every press
+  // through to the main window, so she can be neither pressed nor dragged.
+  useFloatHitRects(shown && !inert);
   useLinksOpenInMain();
   useThemeClass(location?.dark);
 
@@ -105,7 +108,10 @@ export function RapiFloatPage({ children }: { children: ReactNode }) {
     <RapiEnvironmentProvider value={{ ...location, floating: true }}>
       {/* Hidden, not unmounted: what was typed and any request in flight
           outlive a dialog opening in the main window. */}
-      <div data-rapi-float-shown={shown} style={shown ? undefined : { visibility: 'hidden' }}>
+      <div
+        data-rapi-float-shown={shown}
+        style={!shown ? { visibility: 'hidden' } : inert ? { pointerEvents: 'none' } : undefined}
+      >
         {children}
       </div>
     </RapiEnvironmentProvider>

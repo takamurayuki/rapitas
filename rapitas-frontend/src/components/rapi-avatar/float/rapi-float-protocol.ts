@@ -37,9 +37,15 @@ export interface MainLocation {
   dark: boolean;
   /**
    * Whether she may be seen: false on the pages without the app shell and
-   * while a dialog or menu of the main window is open.
+   * while a dialog of the main window is open. Menus leave her be (#1541).
    */
   shown: boolean;
+  /**
+   * Seen but not pressable: true while the app restarts, when a press or a
+   * drag on her would act on an app that is going away (#1541). Optional so
+   * a main window still on the old frontend reads as "pressable".
+   */
+  inert?: boolean;
 }
 
 /** A rectangle she is drawn in, in CSS pixels. Mirrors `HitRect` in Rust. */

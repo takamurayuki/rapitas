@@ -203,6 +203,27 @@ describe('the main window side', () => {
     expect(lastLocation()?.shown).toBe(true);
   });
 
+  // A menu (the bell, the side nav, a dropdown) hides the in-app browser but
+  // not her: in the browser build she is drawn above them too, and hiding
+  // her each time the bell was pressed made her flicker away (#1541).
+  it('keeps her in sight while a menu is open', async () => {
+    render(<RapiFloatBridge />);
+    await flush();
+    act(() => useWebviewOcclusionStore.getState().add('menu-1'));
+    await flush();
+    expect(lastLocation()).toMatchObject({ shown: true, inert: false });
+  });
+
+  // While the app restarts she stays where she is, but a press or a drag on
+  // her would act on an app that is going away (#1541).
+  it('keeps her in sight but out of reach while the app restarts', async () => {
+    render(<RapiFloatBridge />);
+    await flush();
+    act(() => useWebviewOcclusionStore.getState().add('blocking-1'));
+    await flush();
+    expect(lastLocation()).toMatchObject({ shown: true, inert: true });
+  });
+
   // Her window is never shown or hidden for this: showing a window takes
   // the keyboard, and that would happen every time a dialog closed.
   it('never asks the desktop to show or hide her window', async () => {
@@ -326,6 +347,30 @@ describe('her window', () => {
     expect(where.closest('[data-rapi-float-shown]')?.getAttribute('style')).toContain(
       'visibility: hidden',
     );
+  });
+
+  it('lets every press through her while the main window says she is out of reach', async () => {
+    render(
+      <RapiFloatPage>
+        <Probe />
+      </RapiFloatPage>,
+    );
+    await flush();
+    act(() =>
+      fire('rapi-float://location', {
+        pathname: '/',
+        panelParam: null,
+        dark: false,
+        shown: true,
+        inert: true,
+      }),
+    );
+    await flush();
+    const wrapper = screen.getByTestId('where').closest('[data-rapi-float-shown]');
+    expect(wrapper?.getAttribute('style')).toContain('pointer-events: none');
+    expect(wrapper?.getAttribute('style') ?? '').not.toContain('visibility: hidden');
+    const rects = invoked.filter((c) => c.cmd === 'set_rapi_float_hit_rects').at(-1);
+    expect(rects?.args).toEqual({ rects: [] });
   });
 
   it('makes the page itself transparent', async () => {

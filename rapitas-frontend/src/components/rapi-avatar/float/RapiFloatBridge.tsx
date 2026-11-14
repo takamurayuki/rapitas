@@ -7,9 +7,10 @@
  *
  * Tells her window where the app is and which theme it shows, opens in-app
  * links she was asked to follow, and decides when she may be shown: never
- * on the pages without the app shell, and not while one of this window's
- * overlays (a dialog, a menu, the unpinned side nav) is open — those are
- * drawn here, under her window, and she would sit on top of them.
+ * on the pages without the app shell, and not while a dialog of this window
+ * is open — it is drawn here, under her window, and she would sit on top of
+ * it. Menus leave her be; the restart overlay leaves her in sight but out of
+ * reach (`rapiPresenceOf`, #1541).
  *
  * "Not shown" is said in the location rather than by hiding her window:
  * showing a window again takes the keyboard from this one, which would
@@ -21,7 +22,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isAppShellHidden } from '@/utils/app-shell';
-import { useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
+import { rapiPresenceOf, useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
 import {
   HELLO_EVENT,
   LOCATION_EVENT,
@@ -58,13 +59,16 @@ export function RapiFloatBridge() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const dark = useDocumentDark();
-  const covered = useWebviewOcclusionStore((s) => s.occluders.length > 0);
+  // NOTE: by kind, not by count. Any overlay used to hide her, so pressing
+  // the bell or opening the side nav made her vanish (#1541).
+  const presence = useWebviewOcclusionStore((s) => rapiPresenceOf(s.occluders));
 
   const location: MainLocation = {
     pathname: pathname ?? '/',
     panelParam: searchParams?.get('panel') ?? null,
     dark,
-    shown: !isAppShellHidden(pathname) && !covered,
+    shown: !isAppShellHidden(pathname) && presence !== 'hidden',
+    inert: presence === 'inert',
   };
   const latest = useRef(location);
   latest.current = location;
