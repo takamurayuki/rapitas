@@ -53,7 +53,9 @@ export default function TodayTaskProgressBarCompact({
   const fillColor = isDone
     ? 'bg-gradient-to-r from-green-500 to-green-400'
     : 'bg-gradient-to-r from-blue-500 to-blue-400';
-  const circleColor = isDone ? '#22c55e' : '#3b82f6';
+  // NOTE: the palette's variable, not a hex — globals.css redefines green as
+  // the calmer done-green (#1537), and a literal here would stay the old one.
+  const circleColor = isDone ? 'var(--color-green-500)' : '#3b82f6';
   const pctColor = isDone
     ? 'text-green-600 dark:text-green-400'
     : 'text-zinc-500 dark:text-zinc-400';
@@ -106,9 +108,18 @@ export default function TodayTaskProgressBarCompact({
       {/* NOTE: rounded-lg + no shadow + zinc hues — matches the task cards and
           toolbar controls; the old rounded-xl slate card with shadow-sm floated
           against its flat neighbours. */}
-      <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2.5 transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900">
+      {/* NOTE: h-[38px], the height of the toolbar buttons beside it, reached
+          by tightening the padding (py-2.5 → py-0.5), the label's line height
+          (leading-none) and the gap to the bar (mb-1.5 → mb-1). At 62px the
+          card made the toolbar 24px taller on a day with something due, which
+          pushed a page of ten tasks past the window and brought up a
+          scrollbar that came and went with the due date (#1537). */}
+      <div
+        data-today-progress-card
+        className="flex h-[38px] flex-col justify-center rounded-lg border border-zinc-200 bg-white px-3 py-0.5 transition-all duration-500 dark:border-zinc-800 dark:bg-indigo-dark-900"
+      >
         {/* Top row: label left, percentage right */}
-        <div className="mb-1.5 flex items-center justify-between">
+        <div className="mb-1 flex items-center justify-between leading-none">
           <div className="flex items-center gap-1">
             <AnimatePresence>
               {isDone && (
@@ -136,14 +147,14 @@ export default function TodayTaskProgressBarCompact({
                   <AnimatePresence>
                     {isCelebrating &&
                       [
-                        '#22c55e',
-                        '#4ade80',
-                        '#16a34a',
-                        '#86efac',
-                        '#15803d',
-                        '#4ade80',
-                        '#22c55e',
-                        '#bbf7d0',
+                        'var(--color-green-500)',
+                        'var(--color-green-400)',
+                        'var(--color-green-600)',
+                        'var(--color-green-300)',
+                        'var(--color-green-700)',
+                        'var(--color-green-400)',
+                        'var(--color-green-500)',
+                        'var(--color-green-200)',
                       ].map((color, i, arr) => {
                         const angle = (i / arr.length) * Math.PI * 2;
                         const deg = (i / arr.length) * 360;
@@ -214,6 +225,7 @@ export default function TodayTaskProgressBarCompact({
           ))}
           {efficiency > 0 && (
             <motion.div
+              data-today-progress-knob
               className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
               style={{ backgroundColor: circleColor, transition: 'background-color 0.5s' }}
               animate={{ left: `${Math.min(efficiency, 100)}%` }}

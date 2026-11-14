@@ -103,7 +103,10 @@ export function taskToBar(
   const STATUS_COLORS: Record<string, string> = {
     todo: '#94A3B8', // slate-400 — neutral for not-started
     'in-progress': '#3B82F6', // blue-500
-    done: '#22c55e', // green-500
+    // NOTE: the palette variable, so the bar follows globals.css's calmer
+    // done-green (#1537); applied through `style` in GanttBar, since an SVG
+    // fill attribute does not resolve var().
+    done: 'var(--color-green-500)',
     blocked: '#F59E0B', // amber-500
   };
   const color = STATUS_COLORS[task.status] ?? '#94A3B8';
