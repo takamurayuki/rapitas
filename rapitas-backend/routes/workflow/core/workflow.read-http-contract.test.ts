@@ -148,3 +148,19 @@ describe('GET /tasks/:taskId/repair-iterations', () => {
     expect(mockComputeMetrics).toHaveBeenCalled();
   });
 });
+
+// The page's 「進める」 button posts here. The route was declared as
+// '/workflow/tasks/:taskId/advance' inside this '/workflow'-prefixed router,
+// so it answered only at /workflow/workflow/… and the button got 404 (#1547).
+describe('POST /workflow/tasks/:taskId/advance', () => {
+  it('is served where the page calls it', async () => {
+    const res = await workflowRoutes.handle(
+      new Request(`${BASE}/5/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: 'ja' }),
+      }),
+    );
+    expect(res.status).not.toBe(404);
+  });
+});

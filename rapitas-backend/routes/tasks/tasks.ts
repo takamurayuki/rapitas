@@ -367,6 +367,9 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         goals: t.Optional(t.Array(t.String())),
         constraints: t.Optional(t.Array(t.String())),
         acceptanceCriteria: t.Optional(t.Array(t.String())),
+        // NOTE: createTask already stores these; without the field here
+        // Elysia dropped them and a task kept none of the person's checks (#1547).
+        userAcceptanceChecks: t.Optional(t.Array(t.String())),
         searchMissId: t.Optional(t.Number()),
       }),
     },

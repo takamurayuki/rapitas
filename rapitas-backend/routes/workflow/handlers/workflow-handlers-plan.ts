@@ -411,7 +411,7 @@ export async function handleUpdateStatus({
 }
 
 /**
- * Handler for POST /workflow/tasks/:taskId/advance
+ * Handler for POST /workflow/tasks/:taskId/advance (the 「進める」 button)
  * Advances the workflow to the next phase asynchronously.
  *
  * @param params - Route params with taskId / ルートパラメータ
