@@ -18,12 +18,12 @@
  * Not responsible for the chat itself — see `components/copilot`.
  */
 import { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
 import { CopilotChatPanel } from '@/components/copilot';
 import type { Task } from '@/types';
+import { useRapiLocation } from '../float/rapi-environment';
 
 const logger = createLogger('rapi-consult');
 
@@ -56,9 +56,8 @@ export function taskIdFromLocation(
 
 export function TaskConsult() {
   const t = useTranslations('rapiAvatar.consult');
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const taskId = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null);
+  const { pathname, panelParam } = useRapiLocation();
+  const taskId = taskIdFromLocation(pathname, panelParam);
   const [task, setTask] = useState<Task | null>(null);
   const [failed, setFailed] = useState(false);
 

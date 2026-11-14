@@ -12,11 +12,13 @@ import { useEffect, type RefObject } from 'react';
  * @param bubble - The panel element / パネル要素
  * @param open - Whether it is showing / 表示中か
  * @param onClose - Called to dismiss it / 閉じる処理
+ * @param closeOnBlur - Also dismiss when her window loses focus / ウィンドウのフォーカス喪失でも閉じる
  */
 export function usePanelPresence(
   bubble: RefObject<HTMLDivElement | null>,
   open: boolean,
   onClose: () => void,
+  closeOnBlur = false,
 ): void {
   /**
    * Replays the entrance on each open, without remounting anything.
@@ -62,11 +64,17 @@ export function usePanelPresence(
       onClose();
     };
 
+    // In her own window a press on the app lands in another window, so it
+    // never reaches this document; her window losing focus is that press.
+    const onBlur = () => onClose();
+
     window.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', onOutside);
+    if (closeOnBlur) window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onOutside);
+      window.removeEventListener('blur', onBlur);
     };
-  }, [bubble, onClose, open]);
+  }, [bubble, onClose, open, closeOnBlur]);
 }

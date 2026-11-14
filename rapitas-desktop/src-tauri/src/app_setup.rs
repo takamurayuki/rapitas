@@ -223,6 +223,7 @@ pub fn run() {
     builder
         .manage(crate::terminal::TerminalManager::new())
         .manage(crate::link_webview::LinkViewState::default())
+        .manage(crate::rapi_float::RapiFloatState::default())
         .manage(crate::toast::PendingToast {
             pending: std::sync::Mutex::new(None),
             ready: std::sync::atomic::AtomicBool::new(false),
@@ -246,6 +247,7 @@ pub fn run() {
                     crate::pomodoro_float::focus_pomodoro_float,
                     crate::pomodoro_float::set_pomodoro_float_always_on_top,
                     crate::pomodoro_float::set_pomodoro_float_acrylic,
+                    crate::rapi_float::set_rapi_float_hit_rects,
                     crate::toast::show_toast_window,
                     crate::toast::toast_ready,
                     crate::toast::toast_dismiss,
@@ -288,6 +290,11 @@ pub fn run() {
             // here, first, so its responses get X-Frame-Options (see
             // main_window). Everything below expects it to exist.
             crate::main_window::build(app)?;
+            // Right after main, before any in-app browser tab can turn main
+            // into a multi-webview window that can no longer own it.
+            if let Err(e) = crate::rapi_float::prewarm(app.handle()) {
+                eprintln!("[Rapi] float window pre-warm failed: {e}");
+            }
             // Release-only sidecar startup (difference #2 of 3).
             #[cfg(not(debug_assertions))]
             crate::release::setup_sidecar(app);
@@ -325,6 +332,11 @@ pub fn run() {
                     let _ = window.hide();
                     let _ = window.emit("rapitas:window-hide", ());
                     println!("[Tray] Window hidden to system tray");
+                } else if window.label() == crate::rapi_float::RAPI_FLOAT_LABEL {
+                    // Alt+F4 with her focused would otherwise destroy her for
+                    // the rest of the session; the main window decides when
+                    // she is shown.
+                    api.prevent_close();
                 } else if window.label() == "pomodoro-float" {
                     // Hide instead of destroy: recreating this webview after a
                     // real close renders all-white on this WebView2 build, so
@@ -334,6 +346,16 @@ pub fn run() {
                     let _ = window.hide();
                     let _ = window.emit("pomodoro-float://visibility-changed", false);
                 }
+            }
+            // She is laid over main's client area, so she moves with it.
+            if matches!(
+                event,
+                tauri::WindowEvent::Moved(_)
+                    | tauri::WindowEvent::Resized(_)
+                    | tauri::WindowEvent::ScaleFactorChanged { .. }
+            ) && window.label() == "main"
+            {
+                crate::rapi_float::follow_main(window.app_handle());
             }
             // Native visibility signal for the frontend (useAppVisibility).
             // WebView2 occlusion is disabled to avoid a black-screen bug, so

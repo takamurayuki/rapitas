@@ -47,6 +47,11 @@ type Unsubscribe = () => void;
 export interface StaleReloadDeps {
   subscribe?: (event: string, handler: (event: { payload: boolean }) => void) => Unsubscribe;
   healthUrl?: string;
+  /**
+   * The show/hide event to watch. ラピ's window (#1535) reuses this check
+   * with its own event. / 監視する表示イベント名
+   */
+  event?: string;
 }
 
 /**
@@ -96,7 +101,11 @@ function tauriSubscribe(event: string, handler: (e: { payload: boolean }) => voi
  * @param deps - Test seams for the event source and health URL / テスト用の差し替え
  */
 export function useStaleDocumentReload(deps: StaleReloadDeps = {}): void {
-  const { subscribe = tauriSubscribe, healthUrl = 'http://127.0.0.1:3001/health' } = deps;
+  const {
+    subscribe = tauriSubscribe,
+    healthUrl = 'http://127.0.0.1:3001/health',
+    event = VISIBILITY_EVENT,
+  } = deps;
   const bootTimeAtLoad = useRef<number | null>(null);
   // Once per document: a reload that re-armed itself on a window whose probe
   // keeps answering "new boot" would spin the webview forever.
@@ -127,6 +136,6 @@ export function useStaleDocumentReload(deps: StaleReloadDeps = {}): void {
         location.reload();
       });
     };
-    return subscribe(VISIBILITY_EVENT, onVisibility);
-  }, [subscribe, healthUrl]);
+    return subscribe(event, onVisibility);
+  }, [subscribe, healthUrl, event]);
 }
