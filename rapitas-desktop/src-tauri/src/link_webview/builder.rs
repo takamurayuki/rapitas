@@ -168,7 +168,11 @@ pub fn build(
     let download = (app.clone(), tab_id.to_string());
     let limiter = Arc::new(Mutex::new(BurstLimiter::default()));
 
+    // NOTE: tauri defaults to `focus: true`, which moved keyboard focus into
+    // this webview while it was still hidden off-screen at 1x1. The user
+    // gives the page focus by clicking it (see `focus.rs`).
     let builder = WebviewBuilder::new(label, tauri::WebviewUrl::External(url))
+        .focused(false)
         .on_navigation(move |url| {
             let (app, tab_id) = &nav;
             if let Err(refusal) = policy::check_navigation(&parts_of(url)) {
