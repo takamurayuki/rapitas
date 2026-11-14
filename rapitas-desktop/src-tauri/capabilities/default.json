@@ -1,9 +1,8 @@
 {
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": [
+  "webviews": [
     "main",
-    "external-view",
     "quick-capture",
     "notification-toast",
     "pomodoro-float",

@@ -464,8 +464,8 @@
     }
   },
   "linkView": {
-    "back": "Back",
-    "forward": "Forward",
+    "back": "Page back",
+    "forward": "Page forward",
     "reload": "Reload",
     "openExternally": "Open in the external browser",
     "close": "Close",

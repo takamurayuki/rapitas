@@ -110,13 +110,30 @@ export function setLinkViewBounds(tabId: string, bounds: LinkViewBounds): Promis
 /**
  * Show or hide the docked webview without losing its page.
  *
- * The pane hides it whenever something that must draw on top is open: a child
- * webview is an OS surface and paints above all HTML regardless of z-index.
+ * Only `useLinkView`'s `applyVisibility` may call this. `seq` must grow with
+ * every call (across all tabs): the Rust side drops a command no newer than
+ * the last one it applied to that webview, so an out-of-order "show" can
+ * never undo a later "hide".
  *
+ * @param tabId - Which tab's webview / 対象タブ
  * @param visible - Whether the webview should be on screen / 表示するか
+ * @param seq - Monotonic decision number / 判定の連番
  */
-export function setLinkViewVisible(tabId: string, visible: boolean): Promise<boolean> {
-  return invokeLinkView('set_link_webview_visible', { tabId, visible });
+export function setLinkViewVisible(tabId: string, visible: boolean, seq: number): Promise<boolean> {
+  return invokeLinkView('set_link_webview_visible', { tabId, visible, seq });
+}
+
+/**
+ * Clear the in-app browser's cookies, storage and cache (desktop only).
+ *
+ * Only the link views' own data store is cleared — the app's sign-in, tabs
+ * and favourites stay. Every link view is closed by the command, so callers
+ * must forget the webviews they had created.
+ *
+ * @returns False when the command failed or is unavailable / 失敗時 false
+ */
+export function clearLinkViewData(): Promise<boolean> {
+  return invokeLinkView('clear_link_view_data');
 }
 
 /** Close the docked webview. */

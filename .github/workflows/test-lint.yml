@@ -459,6 +459,15 @@ jobs:
       - name: Import direction and cycles
         run: node scripts/import-graph/check-import-graph.cjs
 
+      # NOTE: unreachable source files, as a ratchet. Fails when a file under
+      # rapitas-backend/, rapitas-frontend/src/ or rapitas-desktop/scripts/ is
+      # reached by no entry point (framework entry files, configs, tests,
+      # package.json/workflow/hook references, string-path loads); today's
+      # ones are in scripts/import-graph/unused-files-baseline.json, which may
+      # only shrink. Dependency-free, before the installs. ~15s.
+      - name: Unused files
+        run: node scripts/import-graph/check-unused-files.cjs
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:

@@ -79,3 +79,6 @@ crash_log.txt
 
 # pubspec.lock (recommended to commit for app projects, but uncomment to ignore)
 # pubspec.lock
+
+# FVM Version Cache
+.fvm/

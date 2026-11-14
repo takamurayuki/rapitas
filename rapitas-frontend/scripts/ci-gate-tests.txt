@@ -41,7 +41,6 @@ src/stores/__tests__/note-store.test.ts
 src/stores/__tests__/shortcut-store.test.ts
 src/stores/__tests__/task-cache-store.test.ts
 src/stores/__tests__/task-detail-visibility-store.test.ts
-src/stores/__tests__/ui-mode-store.test.ts
 src/stores/__tests__/server-restart-store.test.ts
 src/feature/terminal/__tests__/terminal-store.test.ts
 src/feature/terminal/__tests__/terminal-context-store.test.ts
@@ -91,6 +90,11 @@ src/components/note/editor/useInlineLinks.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
 src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
+src/components/link-view/browser-screen/__tests__/BrowserScreen.test.tsx
+src/components/link-view/useLinkView.visibility.test.ts
+src/components/link-view/browser-screen/__tests__/LinkViewHost.browser.test.tsx
+src/utils/__tests__/browser-url-policy.test.ts
+src/__tests__/frame-ancestors-config.test.ts
 src/app/goals/_components/detail/__tests__/ConfirmAchievementDialog.test.tsx
 src/app/goals/_hooks/__tests__/goals-api.test.ts
 src/components/rapi-avatar/intake/roadmap/__tests__/TaskRoadmap.milestones.test.tsx

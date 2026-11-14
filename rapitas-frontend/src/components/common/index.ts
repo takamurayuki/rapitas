@@ -9,7 +9,6 @@ export { default as KeyboardShortcuts, OPEN_SHORTCUTS_EVENT } from './KeyboardSh
 export { default as WindowResizeOptimizer } from './WindowResizeOptimizer';
 export { default as CacheWarmupInitializer } from './CacheWarmupInitializer';
 export { default as HtmlLangUpdater } from './HtmlLangUpdater';
-export { BackendConnectionError } from './BackendConnectionError';
 export { default as ConditionalHeader } from './conditional-header';
 export { DarkModeToggle } from './DarkModeToggle';
 export { default as LanguageSwitcher } from './LanguageSwitcher';

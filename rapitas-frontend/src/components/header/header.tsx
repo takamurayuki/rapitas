@@ -312,14 +312,6 @@ export default function Header() {
           />
 
           <HeaderToolbar
-            hasMounted={h.hasMounted}
-            isAuthLoading={h.isAuthLoading}
-            isAuthenticated={h.isAuthenticated}
-            user={h.user}
-            isUserMenuOpen={h.isUserMenuOpen}
-            setIsUserMenuOpen={h.setIsUserMenuOpen}
-            userMenuRef={h.userMenuRef}
-            handleLogout={h.handleLogout}
             isMoreMenuOpen={h.isMoreMenuOpen}
             setIsMoreMenuOpen={h.setIsMoreMenuOpen}
             moreMenuRef={h.moreMenuRef}
@@ -344,6 +336,7 @@ export default function Header() {
         toggleExpand={h.toggleExpand}
         user={h.user}
         isAuthLoading={!h.hasMounted || h.isAuthLoading}
+        handleLogout={h.handleLogout}
       />
 
       <RestartDialogs

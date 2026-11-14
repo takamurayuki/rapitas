@@ -1,0 +1,5 @@
+{
+  "unused": [
+    "rapitas-frontend/src/components/common/WindowResizeOptimizer.tsx"
+  ]
+}

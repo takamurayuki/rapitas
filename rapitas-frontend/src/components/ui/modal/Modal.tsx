@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useFocusTrap } from './use-focus-trap';
@@ -49,6 +50,9 @@ export function Modal({
 }: ModalProps) {
   const t = useTranslations('common');
   const dialogRef = useRef<HTMLDivElement>(null);
+  // A dialog over the in-app browser would otherwise be painted over by its
+  // webview (an OS surface above all HTML), so the webview hides meanwhile.
+  useOccludesWebview(open);
 
   useEffect(() => {
     if (!open) return;

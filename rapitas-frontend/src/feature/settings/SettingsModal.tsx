@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { useSettingsModalStore } from './settings-modal-store';
 import { SETTINGS_SECTIONS } from './settings-sections';
 import { SettingsModalNav } from './SettingsModalNav';
@@ -27,6 +28,9 @@ export function SettingsModal() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(dialogRef, isOpen);
+  // The in-app browser's desktop webview is an OS surface painted above all
+  // HTML, so it would cover this modal on /browser; while open, hide it.
+  useOccludesWebview(isOpen);
 
   useEffect(() => {
     if (!isOpen) return;

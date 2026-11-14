@@ -46,16 +46,20 @@ jobs:
 
       - name: Read the pinned Flutter version
         id: flutter-version
-        run: echo "version=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          test -n "$version" || { echo "::error::no flutter version in .fvmrc"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          # NOTE: Pinned by rapitas-mobile/.flutter-version (also read by Xcode
-          # Cloud's ci_post_clone.sh). Unpinned `stable` moved to 3.50.0 on
-          # 2026-11-13 and resolved newer SDK-bundled packages (test_api, ...),
-          # so the committed pubspec.lock stopped matching. Bump the file and
-          # regenerate pubspec.lock together.
+          # NOTE: Pinned by rapitas-mobile/.fvmrc, the FVM config developers
+          # use locally (also read by Xcode Cloud's ci_post_clone.sh).
+          # Unpinned `stable` moved to 3.50.0 on 2026-11-13 and resolved newer
+          # SDK-bundled packages (test_api, ...), so the committed pubspec.lock
+          # stopped matching. Bump it with `fvm use <version>` and regenerate
+          # pubspec.lock together.
           channel: stable
           flutter-version: ${{ steps.flutter-version.outputs.version }}
           cache: true

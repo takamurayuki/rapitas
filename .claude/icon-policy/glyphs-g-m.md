@@ -23,7 +23,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Goal`                    | ビジネス目標の入力（効率フロンティアの what-if 推奨フォーム `GoalForm` 見出し。注: `Target` とは別概念） |
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
-| `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
+| `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `MoveUp`                  | リスト内の並び順を1つ上げる（AI利用予算の分類ルール一覧 `ClassificationRulesEditor` — 上にあるルールが優先。注: `ChevronUp`＝折りたたみ・優先度、`ArrowUp`＝ディレクトリピッカーの親フォルダへ移動とは別概念） |
 | `GitGraph`                | 失敗の系譜図（nav: /agents/failure-lineage、ページ見出し・空状態。ERROR/WARN ログの推定再発連鎖と根本原因候補の可視化。注: `GitBranch`＝ワークフローセクション/ブランチ名、`GitCompare`＝ドライラン差分比較とは別概念） |
@@ -31,6 +31,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `MessagesSquare`          | ラピの「対話」モード（`RapiModeTabs` の chat タブ — 文章で頼む入口、パネルの既定タブ。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
 | `Locate`                  | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |
 | `LogIn`                   | ログイン（`/auth/login` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。既存の `LogOut`＝ログアウトと自然に対になる。ワークスペース分離の導入でアカウントに意味が生まれたため 2026-10-28 にヘッダ導線を復活させ、その際に正式登録） |
+| `MonitorX`                | アプリ内ブラウザ（Web 版）で「このサイトはアプリ内での表示を許可していません」の案内カード（`BrowserWebFrames`）。注: `ShieldOff`＝権限確認スキップのトグルとは別概念 |
 | `Mountain`                | ゴール（nav: /goals、ゴール一覧の見出し・空状態 — 同一概念の再利用。ゴール＝利用者側から見たプロジェクト。注: `Goal`グリフは pareto の最適化目標・CLAUDE.md 生成ウィザードで既に使われているため流用しない） |
 | `Milestone`               | 節目（ゴールの段階。ゴール詳細の「節目」見出し・未達成の節目カード、ゴール一覧カードの「次の節目」、ラピのロードマップ下書きで節目ごとにステップをまとめる見出し `RoadmapPlanList` — 同一概念の再利用） |
 | `Medal`                   | 節目の達成（ゴール詳細の「達成を確認」ボタン・確認ダイアログ・達成済みの節目カード — 本人が根拠を書いて確かめた達成。注: `Trophy`/`Award`＝今日のタスク進捗ウィジェットの達成演出とは別概念） |

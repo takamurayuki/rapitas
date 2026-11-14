@@ -24,6 +24,7 @@ import {
 import { useLinkViewStore } from '@/stores/link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
+import { isBrowserRoute } from '@/components/link-view/browser-screen/browser-screen-slot';
 import { isAppShellHidden } from '@/utils/app-shell';
 import { useNavigationHistorySync } from '@/components/header/history/navigation-history-sync';
 
@@ -64,7 +65,10 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   // far edge with nothing beside it. The same mistake the other way round:
   // Ctrl+B on an empty pane opens the saved-pages library, which has no
   // tab and still occupies the width.
-  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen);
+  // NOTE: Not on /browser — the pane is not drawn there (the full screen
+  // shows the same tabs), so reserving its width would only squeeze the
+  // screen (nav60 §3.1).
+  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen) && !isBrowserRoute(pathname);
   const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
   // Must match the pane's own width, or the gap it was widened to fill
   // simply reappears as page padding on the other side — so it comes from

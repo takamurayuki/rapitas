@@ -4,10 +4,9 @@
  *
  * Right-side toolbar in the main header bar.
  * Contains: list/kanban view toggle, language switcher, notification bell,
- * user menu, and the "more" (⋮) dropdown menu.
+ * the in-app browser entry, and the "more" (⋮) dropdown menu.
  */
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Columns3,
@@ -18,11 +17,7 @@ import {
   Sun,
   SquareArrowDown,
   RotateCw,
-  User,
-  UserPen,
-  LogIn,
-  LogOut,
-  UserPlus,
+  Compass,
 } from 'lucide-react';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import NotificationBell from '@/components/NotificationBell';
@@ -32,19 +27,11 @@ import { useLocaleStore } from '@/stores/locale-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import { Spinner } from '@/components/ui/spinner';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import type { UseHeaderReturn } from './useHeader';
-import { openSettings } from '@/feature/settings/settings-modal-store';
 
 type HeaderToolbarProps = Pick<
   UseHeaderReturn,
-  | 'hasMounted'
-  | 'isAuthLoading'
-  | 'isAuthenticated'
-  | 'user'
-  | 'isUserMenuOpen'
-  | 'setIsUserMenuOpen'
-  | 'userMenuRef'
-  | 'handleLogout'
   | 'isMoreMenuOpen'
   | 'setIsMoreMenuOpen'
   | 'moreMenuRef'
@@ -61,17 +48,9 @@ type HeaderToolbarProps = Pick<
 
 /**
  * Toolbar displayed on the right side of the header bar.
- * Handles view toggle (list/kanban), user menu, and the more-actions dropdown.
+ * Handles view toggle (list/kanban), the browser entry, and the more-actions dropdown.
  */
 export function HeaderToolbar({
-  hasMounted,
-  isAuthLoading,
-  isAuthenticated,
-  user,
-  isUserMenuOpen,
-  setIsUserMenuOpen,
-  userMenuRef,
-  handleLogout,
   isMoreMenuOpen,
   setIsMoreMenuOpen,
   moreMenuRef,
@@ -92,6 +71,9 @@ export function HeaderToolbar({
   const { locale, setLocale } = useLocaleStore();
 
   const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
+  const isBrowserScreen = pathname === '/browser';
+  // The ⋮ menu drops over the in-app browser's webview area.
+  useOccludesWebview(isMoreMenuOpen);
 
   const toggleView = () => {
     if (isListView) {
@@ -192,88 +174,28 @@ export function HeaderToolbar({
         </span>
       </button>
 
-      {/* Sign-in is reachable again. It was hidden because an account bought
-          nothing on a local single-user app; workspace tenancy changed that —
-          an account now decides WHICH data you see, so a second one is how you
-          try something without it landing in the real pile. Signing in stays
-          optional: no session means no workspace, which is served unscoped
-          exactly as before.
-
-          The button itself is no longer gated on a session, though. It is
-          the way to the profile ラピ plans against, and since nothing can
-          sign in, gating it meant the icon never appeared at all — the
-          feature was unreachable (reported 2026-10-22). What the session
-          gates is the account rows inside: a blank name and a logout that
-          logs nothing out are worse than not offering them. */}
-      {hasMounted && !isAuthLoading && (
-        <div className="relative" ref={userMenuRef}>
-          <button
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label={t('userMenu')}
-            title={user ? t('userMenuTitle', { username: user.username }) : t('userMenu')}
-          >
-            <User className="w-5 h-5" />
-          </button>
-          {isUserMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-              {user && (
-                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {user.username}
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                    {user.role === 'admin' ? t('admin') : t('user')}
-                  </p>
-                </div>
-              )}
-              {/* Personal settings: what ラピ is told about you. It lives in
-                  this menu because it is the account's own data, and it is
-                  the point of the menu when nobody is signed in. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUserMenuOpen(false);
-                  openSettings('personal');
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-              >
-                <UserPen className="w-4 h-4" />
-                <span>{t('rapiProfileLink')}</span>
-              </button>
-              {user ? (
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>{t('logout')}</span>
-                </button>
-              ) : (
-                <>
-                  <Link
-                    href="/auth/login"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>{t('login')}</span>
-                  </Link>
-                  <Link
-                    href="/auth/register"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>{t('register')}</span>
-                  </Link>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {/* NOTE: The user menu that sat here moved to the side nav's account
+          row (side-nav-account-menu.tsx); its slot now opens the in-app
+          browser. Shown regardless of auth state, unlike the old button —
+          browsing needs no session. Pushing /browser while already on it
+          would stack a duplicate entry in the app history, so it no-ops. */}
+      <button
+        type="button"
+        onClick={() => {
+          if (!isBrowserScreen) router.push('/browser');
+        }}
+        aria-label={t('openBrowser')}
+        title={t('openBrowser')}
+        aria-current={isBrowserScreen ? 'page' : undefined}
+        data-testid="header-browser-button"
+        className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
+          isBrowserScreen
+            ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+        }`}
+      >
+        <Compass className="w-5 h-5" />
+      </button>
 
       <div className="relative" ref={moreMenuRef}>
         <button

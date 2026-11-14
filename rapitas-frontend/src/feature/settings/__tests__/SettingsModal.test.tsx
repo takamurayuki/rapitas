@@ -29,10 +29,12 @@ vi.mock('../settings-sections', async () => {
 
 import { SettingsModal } from '../SettingsModal';
 import { openSettings, useSettingsModalStore } from '../settings-modal-store';
+import { useWebviewOcclusionStore } from '@/stores/webview-occlusion-store';
 
 describe('SettingsModal', () => {
   beforeEach(() => {
     useSettingsModalStore.setState({ isOpen: false, section: 'general' });
+    useWebviewOcclusionStore.setState({ occluders: [] });
   });
 
   it('renders nothing until opened', () => {
@@ -81,5 +83,14 @@ describe('SettingsModal', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     act(() => openSettings());
     expect(screen.getByText('content:cli-tools')).toBeInTheDocument();
+  });
+
+  it('hides the in-app browser webview while open, so it cannot cover the modal', () => {
+    render(<SettingsModal />);
+    expect(useWebviewOcclusionStore.getState().occluders).toHaveLength(0);
+    act(() => openSettings());
+    expect(useWebviewOcclusionStore.getState().occluders).toHaveLength(1);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useWebviewOcclusionStore.getState().occluders).toHaveLength(0);
   });
 });
