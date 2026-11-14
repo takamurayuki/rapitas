@@ -12,7 +12,7 @@ Give an LLM agent write access to a repository and three things go wrong:
 
 1. **It edits in place.** Your working tree is now a mix of your changes and the agent's, mid-task. Concurrent runs collide.
 2. **It produces broken diffs.** "Done!" — but the code doesn't compile, or a rename left dangling references. You find out at review time, or worse, after merge.
-3. **It hallucinates success.** The agent writes "all tests pass ✅" in its summary while the diff clearly doesn't.
+3. **It hallucinates success.** The agent writes "all tests pass" in its summary while the diff clearly doesn't.
 
 A useful autonomous agent needs **isolation**, an **objective quality gate**, and **bounded self-correction** — not just a good prompt.
 
@@ -27,35 +27,35 @@ A useful autonomous agent needs **isolation**, an **objective quality gate**, an
 
 ## The execution lifecycle
 
-```
-POST /tasks/:id/execute
-   │  acquire per-task lock; require an explicit workingDirectory
-   ▼
-createWorktree(baseDir, branch, taskId)         ── git worktree add → .worktrees/task-<id>-<hex>/
-   │  store path in AgentSession.worktreePath
-   │  link node_modules / .env via setup-worktree.cjs (no install in worktree)
-   ▼
-AgentWorkerManager.executeTask(...)             ── agent CLI runs as a subprocess, cwd = worktree
-   │  (may pause as awaiting_question; resumes via executeContinuation)
-   ▼
-runVerificationGate(taskId, worktreePath, sid)  ── ESLint --format json + tsc --noEmit + scoped tests on CHANGED files
-   │
-   ├── ok ──▶ auto-commit → auto-PR (→ auto-merge) ──▶ removeWorktree()
-   │
-   └── not ok ──▶ retryOrBlock()
-                    ├── attempt ≤ maxRetries(=2): re-run agent in SAME worktree with
-                    │                              the lint/type errors as feedback → re-verify
-                    └── exhausted / unverifiable:  task → blocked, session → failed
+```mermaid
+flowchart TD
+  A["POST /tasks/:id/execute<br/>acquire per-task lock; require an explicit workingDirectory"]
+  B["createWorktree(baseDir, branch, taskId)<br/>git worktree add .worktrees/task-&lt;id&gt;-&lt;hex&gt;/<br/>path stored in AgentSession.worktreePath<br/>node_modules and .env linked, no install"]
+  C["AgentWorkerManager.executeTask(...)<br/>agent CLI runs as a subprocess, cwd = worktree"]
+  Q["awaiting_question<br/>resumes via executeContinuation"]
+  D["runVerificationGate(taskId, worktreePath, sid)<br/>ESLint, Prettier, tsc --noEmit and scoped tests on the changed files"]
+  E["auto-commit, auto-PR (optional auto-merge), then removeWorktree()"]
+  F["retryOrBlock()"]
+  G["re-run the agent in the same worktree<br/>with the failed checks as feedback"]
+  H["task blocked, session failed"]
+  A --> B --> C
+  C <--> Q
+  C --> D
+  D -->|ok| E
+  D -->|not ok| F
+  F -->|"attempt within maxRetries (2)"| G
+  G --> D
+  F -->|"exhausted or unverifiable"| H
 ```
 
 ---
 
 ## Part 1 — Isolation: a git worktree per execution
 
-Each execution gets its own worktree, created in `services/agents/orchestrator/git-operations/worktree/worktree-ops.ts`:
+Each execution gets its own worktree, created in `services/agents/orchestrator/git-operations/worktree/worktree-create.ts` (re-exported from `worktree-ops.ts`; removal and cleanup live in `worktree-remove.ts`, `worktree-cleanup.ts` and `worktree-cleanup-stale.ts` in the same folder):
 
 ```ts
-// worktree-ops.ts
+// worktree-create.ts
 export async function createWorktree(
   baseDir: string, branchName: string, taskId?: number, ...
 ): Promise<string>
@@ -85,6 +85,7 @@ What it does:
 
 - **Scopes to the agent's changes.** It diffs the worktree to find changed files and runs checks against *those*, so pre-existing project errors don't fail the gate (and the agent isn't blamed for them).
 - **Lint:** `eslint --format json` on changed files; counts **errors only** (warnings ignored). If ESLint is configured but the binary can't run, that's treated as *unverifiable* → fail-closed.
+- **Format:** `prettier --check` on the changed files with the extensions CI checks; skipped when the project has no Prettier binary.
 - **Type-check:** `tsc --noEmit --pretty false` when a `tsconfig.json` exists; errors are filtered to the files the agent touched.
 - **Test:** for bun/vitest projects, runs the changed test files plus tests related to changed sources (on by default; `RAPITAS_VERIFY_TESTS=0` disables). Failures are triaged into pre-existing vs. new so a baseline-red test doesn't block the agent.
 - **Bounded I/O:** each command runs via async `spawn` (never `execSync`) with a **180s timeout** and a **2KB** detail cap, so a runaway check can't hang or flood the log.
@@ -116,23 +117,35 @@ So the worst case is bounded: *original attempt + 2 repairs = 3 tries*, then a c
 
 ## Part 4 — A workflow state machine that can't regress
 
-The agent doesn't freely write files; it advances a state machine (`routes/workflow/handlers/workflow-handlers-files.ts`):
+The agent doesn't freely write files; it advances a state machine (`routes/workflow/handlers/workflow-handlers-files.ts`, with the save rules in `routes/workflow/handlers/file-save/`):
 
-```
-draft → research_done → plan_created → [plan_approved] → in_progress → verify_done → completed
-                                            (approval gate)        (+ awaiting_question pause/resume)
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> research_done
+  research_done --> plan_created
+  plan_created --> plan_approved: approval gate
+  plan_approved --> in_progress
+  in_progress --> verify_done
+  verify_done --> completed
 ```
 
-An invariant table gates which workflow file each status may write:
+Any status from `draft` to `in_progress` can pause as `awaiting_question` and
+resume to where it was.
+
+An invariant table (`routes/workflow/handlers/file-save/shared.ts`, enforced in `file-save/guards.ts`) gates which workflow file each status may write:
 
 ```ts
 const ALLOWED_FILE_TYPES_BY_STATUS = {
-  draft:         new Set(['research', 'question']),
-  research_done: new Set(['plan', 'question', 'research']),
-  plan_created:  new Set(['plan', 'question']),
-  in_progress:   new Set(['verify', 'question']),
-  verify_done:   new Set([]),  completed: new Set([]),
-  // …
+  draft:             new Set(['research', 'question']),
+  research_done:     new Set(['plan', 'question', 'research', 'verify']), // lightweight flow has no plan
+  plan_created:      new Set(['plan', 'question']),
+  plan_approved:     new Set(['verify', 'question']),
+  in_progress:       new Set(['verify', 'question']),
+  awaiting_question: new Set(['research', 'plan', 'verify', 'question']),
+  verify_done:       new Set(['question']),
+  completed:         new Set([]),
 };
 ```
 
@@ -155,7 +168,7 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 | Decision | Why | Cost |
 | --- | --- | --- |
 | Worktree per run | True isolation; safe concurrency; trivial cleanup | Disk; node_modules-linking step |
-| Gate = lint + type-check + scoped tests | Objective, fast signal, plus scoped test execution catches runtime regressions the type-checker can't | Full-suite / cross-cutting logic bugs outside the changed+related scope still aren't caught |
+| Gate = lint + format + type-check + scoped tests | Objective, fast signal, plus scoped test execution catches runtime regressions the type-checker can't | Full-suite / cross-cutting logic bugs outside the changed+related scope still aren't caught |
 | Changed-files-only | Measure the agent's marginal damage, not the repo's debt | Won't catch a change that breaks an *unedited* file's types (mitigated: tsc still surfaces cross-file errors in changed files) |
 | Fail-closed / unverifiable=block | A gate that passes blind is worse than none | Occasionally blocks on a tooling hiccup |
 | Retry cap = 2 | Bounded self-repair; no infinite loops | An agent that needs 4 tries gets parked for a human |
@@ -179,14 +192,14 @@ This makes "save research.md *after* verify.md" impossible — the agent can't q
 
 | Concern | File |
 | --- | --- |
-| Worktree create/remove/orphan-cleanup | `services/agents/orchestrator/git-operations/worktree/worktree-ops.ts` |
+| Worktree create/remove/orphan-cleanup | `services/agents/orchestrator/git-operations/worktree/` (`worktree-create.ts`, `worktree-remove.ts`, `worktree-cleanup.ts`, `worktree-cleanup-stale.ts`) |
 | Worktree cleanup scheduler | `services/scheduling/worktree-cleanup-scheduler.ts` |
 | Worktree dependency linking | `scripts/setup-worktree.cjs` |
 | Agent worker (separate process) | `services/agents/agent-worker-manager.ts` |
 | Verification gate (entry) | `services/agents/verification/verification-gate.ts` |
-| Lint / type-check runner | `services/agents/verification/automated-verifier.ts` |
+| Lint / format / type-check / test runner | `services/agents/verification/automated-verifier.ts` |
 | Self-repair retry loop | `services/agents/verification/verification-retry.ts` |
-| Workflow state machine + invariants | `routes/workflow/handlers/workflow-handlers-files.ts` |
+| Workflow state machine + invariants | `routes/workflow/handlers/workflow-handlers-files.ts`, `routes/workflow/handlers/file-save/shared.ts` |
 | Auto-commit / PR (gate-guarded) | `routes/workflow/workflow-auto-commit.ts` |
 | Post-execution review (gate-guarded) | `routes/agents/execution/post-handlers/post-execution-review.ts` |
 | Models: `AgentSession`, `AgentExecution` | `prisma/schema/agents.prisma` |

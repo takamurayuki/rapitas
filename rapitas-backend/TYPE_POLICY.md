@@ -6,6 +6,7 @@
 
 - **厳格禁止**: `any`型の使用は原則として禁止
 - **例外のみ**: フレームワーク制約や外部ライブラリの型定義不備による場合のみ、明示的なコメント付きで許可
+- **機械的な強制**: 本番コードでは ESLint の `@typescript-eslint/no-explicit-any` が error（`eslint-shared.mjs`）。例外には `// HACK(agent): <理由>` と `// eslint-disable-next-line @typescript-eslint/no-explicit-any` の両方を付ける。テストファイルと `.d.ts` は対象外
 - **代替手法**: `unknown`、Union型、ジェネリクス、型アサーションを活用
 
 ### 1.2 型安全性の優先
@@ -19,13 +20,13 @@
 ### 2.1 再利用可能な型定義
 
 ```typescript
-// ✅ Good: 共通の型定義を作成
+// Good: 共通の型定義を作成
 interface RequestBody {
   title: string;
   description?: string;
 }
 
-// ❌ Bad: インライン型やanyの使用
+// Bad: インライン型やanyの使用
 const handler = (body: any) => { ... }
 ```
 
@@ -39,8 +40,8 @@ const handler = (body: any) => { ... }
 
 | 種類 | 規則 | 例 |
 |-----|------|-----|
-| Interface | PascalCase + Interface suffix | `TaskInterface`, `UserInterface` |
-| Type alias | PascalCase + Type suffix | `StatusType`, `ConfigType` |
+| Interface | PascalCase（接尾辞なし） | `Task`, `AgentConfig` |
+| Type alias | PascalCase（接尾辞なし） | `WorkflowStatus`, `GateOutcome` |
 | Enum | PascalCase | `TaskStatus`, `UserRole` |
 | Generic | 単一大文字 | `T`, `K`, `V` |
 
@@ -49,24 +50,25 @@ const handler = (body: any) => { ... }
 ### 3.1 フレームワーク制約
 
 ```typescript
-// ✅ 許可: Elysia global.d.ts
-interface Context {
-  request: any; // フレームワーク制約
+// 許可: 型定義の無いモジュールの宣言（rapitas-backend/global.d.ts）
+declare module 'elysia' {
+  export const DEFS: any; // Elysia framework constraint
 }
 ```
 
 ### 3.2 動的JSON処理
 
 ```typescript
-// ✅ 許可: 外部APIの動的レスポンス（コメント必須）
+// 許可: 外部APIの動的レスポンス（コメント必須）
 const response: Record<string, any> = await fetchDynamicAPI(); // HACK(agent): 動的JSON構造のため
 ```
 
 ### 3.3 テスト用モック
 
 ```typescript
-// ✅ 許可: テスト環境でのモック（型付き代替を推奨）
-const mockFunction = jest.fn() as any; // HACK(agent): Jest型制約回避
+// テストファイルでは no-explicit-any が無効なので HACK コメントは不要。ただし型付きのモックを推奨
+import { mock } from 'bun:test';
+const mockFunction = mock(() => Promise.resolve(null));
 ```
 
 ## 4. 推奨パターン
@@ -74,7 +76,7 @@ const mockFunction = jest.fn() as any; // HACK(agent): Jest型制約回避
 ### 4.1 リクエストボディの型定義
 
 ```typescript
-// ✅ Good
+// Good
 interface CreateTaskRequest {
   title: string;
   description?: string;
@@ -85,7 +87,7 @@ app.post('/tasks', ({ body }: { body: CreateTaskRequest }) => {
   // 型安全な処理
 });
 
-// ❌ Bad
+// Bad
 app.post('/tasks', ({ body }) => {
   const taskData = body as any;
 });
@@ -94,14 +96,14 @@ app.post('/tasks', ({ body }) => {
 ### 4.2 エラーハンドリング
 
 ```typescript
-// ✅ Good
+// Good
 try {
   // 処理
 } catch (error: unknown) {
   const message = error instanceof Error ? error.message : 'Unknown error';
 }
 
-// ❌ Bad
+// Bad
 try {
   // 処理
 } catch (error: any) {
@@ -112,14 +114,14 @@ try {
 ### 4.3 外部ライブラリの型拡張
 
 ```typescript
-// ✅ Good: 型定義ファイルで拡張
+// Good: 型定義ファイルで拡張
 declare module 'external-library' {
   export interface LibraryOptions {
     newOption: string;
   }
 }
 
-// ❌ Bad: anyでキャスト
+// Bad: anyでキャスト
 const options = libraryOptions as any;
 ```
 
@@ -128,14 +130,14 @@ const options = libraryOptions as any;
 ### 5.1 コンパイル時チェック
 
 ```bash
-# 厳格な型チェック
-tsc --noEmit --strict --noImplicitAny
+# strict は tsconfig.base.json で有効。pre-push フックと同じコマンド
+cd rapitas-backend && bunx tsc --noEmit --skipLibCheck
 ```
 
 ### 5.2 実行時検証
 
 ```typescript
-// ✅ Good: ランタイム型ガード
+// Good: ランタイム型ガード
 function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
@@ -173,5 +175,3 @@ if (isString(data.title)) {
 - [ ] 型ガードが適切に実装されているか
 - [ ] ジェネリクスが効果的に活用されているか
 - [ ] 型定義が過度に複雑になっていないか
-
-このポリシーに従い、プロジェクト全体の型安全性を向上させていきます。

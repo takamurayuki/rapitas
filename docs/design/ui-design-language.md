@@ -32,11 +32,11 @@ real code we have already corrected or should watch for.
 | 2 | **Gradient-clipped text** (`bg-clip-text text-transparent`, often on a solid color so it isn't even a gradient) | The signature "AI hero" flourish; hurts legibility & contrast | Solid, high-contrast text (`text-indigo-600 dark:text-indigo-400`); weight & size for emphasis |
 | 3 | **Heavy elevation** — `shadow-2xl`, glows, layered drop shadows on every card | Fake depth; no real z-hierarchy; muddy in dark mode | Prefer **1px borders** for separation; at most one soft elevation (`shadow-sm`/`shadow-lg`) for true overlays |
 | 4 | **Decorative motion** — pulsing glows, long ambient fades, motion with no trigger | Motion that doesn't track a state change is noise; feels "look at me" | Motion only to explain a state change; keep it short and respect `prefers-reduced-motion`. Motion that *does* accompany a real state change can stay — see the nav expand animation in [§7 Signature elements](#7-signature-elements) |
-| 5 | **Sparkle / emoji as *decoration*** (✨, 🚀, 🤖 sprinkled on buttons/sections for flavor) | The universal "AI" garnish | Consistent line icons (`lucide-react`), sized to text. **Functional exception:** a `Sparkles`/star icon is fine when it *labels a feature or state* (e.g. the AI tab in `header-toolbar.tsx`) — what's banned is the same icon as ambient decoration. Emoji only as user content, never chrome |
+| 5 | **Sparkle / emoji as *decoration*** (sparkle, rocket and robot emoji sprinkled on buttons and sections for flavor) | The universal "AI" garnish | Consistent line icons (`lucide-react`), sized to text. **Functional exception:** a `Sparkles`/star icon is fine when it *labels a feature or state* (e.g. the "analyze" next action in `components/copilot/NextActionRecommendations.tsx`) — what's banned is the same icon as ambient decoration. Emoji only as user content, never chrome |
 | 6 | **Rounded-everything + uniform cards** — every block is a `rounded-xl` card with the same padding | No hierarchy; a wall of equally-loud boxes | Vary radius/elevation by role; group with whitespace and headings, not nested cards |
 | 7 | **Glassmorphism / neon gradients on controls** (`backdrop-blur` panels, gradient buttons) | Trend-chasing; poor contrast & focus visibility | Solid surfaces; accent fill for primary action; clear `:focus-visible` rings |
 | 8 | **No typographic scale** — one or two sizes, bold used for everything | Flat, undifferentiated reading order | Deliberate scale (e.g. 12/14/16/20/24) and limited weights; let size+spacing build hierarchy |
-| 9 | **Centered hero + generic empty states** ("Get started ✨", big centered CTA) | Template smell | Task-first layouts; empty states that state the *next concrete action* in the product's voice |
+| 9 | **Centered hero + generic empty states** ("Get started" plus a sparkle emoji, big centered CTA) | Template smell | Task-first layouts; empty states that state the *next concrete action* in the product's voice |
 | 10 | **Redundant chrome** (app name/icon repeated in header *and* nav) | Padding for its own sake | Say each thing once; give reclaimed space to content |
 
 ---
@@ -83,7 +83,7 @@ real code we have already corrected or should watch for.
 - **Elevation**: borders by default; `shadow-lg` only for overlays/menus. Avoid `shadow-2xl`.
 - **Motion**: `transition-colors`/`transition-transform`; default `duration-150`/`200` (≤200ms), overlays/panels up to `duration-300`. No keyframe draw-ins for decoration (functional ones that track a state change are allowed — see §7).
 - **Status hues (one meaning = one hue, app-wide)**: running / in-progress / active phase = **blue** (`blue-600 dark:blue-400`, bg `blue-50 dark:blue-900/30`); waiting-on-user & warning = **amber**; error / blocked = **red**; success / completed = **green** (`green-500/600`, never emerald — emerald near-misses green and reads as drift; it stays reserved for non-completion meanings like the auto-run active state and learning-goals domain theming). Blue is reserved for the *running state* and is distinct from the indigo *interactive accent* — do not swap them. Sources of truth: `rapitas-frontend/src/components/ui/status-card/StatusCard.tsx`, `rapitas-frontend/src/components/workflow/WorkflowStatusIndicator.tsx`, `rapitas-frontend/src/feature/tasks/config/StatusConfig.tsx`, `rapitas-frontend/src/components/ui/alert.tsx`.
-- **Focus**: always a visible ring in the **accent**, on `focus-visible`: `focus-visible:ring-2 focus-visible:ring-indigo-500`. **Do not use `ring-blue-*`.** The legacy `focus:ring-blue-500` instances have all been migrated (none remain as of 2026-11); do not reintroduce them.
+- **Focus**: always a visible ring in the **accent**, on `focus-visible`: `focus-visible:ring-2 focus-visible:ring-indigo-500`. **Do not use `ring-blue-*`.** The legacy `focus:ring-blue-500` instances have all been migrated; one `focus-visible:ring-blue-500` remains in `feature/tasks/components/priority/PriorityInlineSelect.tsx` (as of 2026-11). Do not add more.
 
 ### Type scale (role → recommended class)
 
@@ -237,7 +237,10 @@ on navigation and on hover. The fix is not one trick — it is a **rule**:
 </span>
 ```
 
-> Reference implementation: `app/home/_components/AutoExecutionMode.tsx`.
+> The pattern was first written for `app/home/_components/AutoExecutionMode.tsx`.
+> That component has since changed (an `h-3 w-3` spinner inside a status pill,
+> with a separate stop button and no overlay), so the snippet above is the
+> reference, not the file.
 > **Last resort:** if a rotating icon still warps in this WebView, switch to a
 > **radially-symmetric** spinner (`Loader2` / a circular border) — it looks
 > identical at every angle, so re-rasterization can never be perceived as warp.

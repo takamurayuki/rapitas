@@ -12,12 +12,13 @@ Split by responsibility first.
 
 ## 1. DECISION TREE — Should I split?
 
-```
-Does the file exceed 300 lines?
-├── YES → Split immediately. (See Section 2)
-└── NO  → Does the file have multiple responsibilities?
-           ├── YES → Split by responsibility. (See Section 3)
-           └── NO  → Leave as-is.
+```mermaid
+flowchart TD
+  Q1{"Does the file exceed 300 lines?"}
+  Q1 -->|YES| SPLIT["Split immediately (Section 2)"]
+  Q1 -->|NO| Q2{"Does the file have multiple responsibilities?"}
+  Q2 -->|YES| RESP["Split by responsibility (Section 3)"]
+  Q2 -->|NO| KEEP["Leave as-is"]
 ```
 
 ---
@@ -200,11 +201,11 @@ const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
 />
 ```
 
-- ❌ **Never** hand-roll prev/next buttons, page-number lists, or a custom
+- **Never** hand-roll prev/next buttons, page-number lists, or a custom
   items-per-page selector. If the shared component is missing a feature you
   need, extend `Pagination` itself (and update every caller) — do not fork it.
-- Reference callers: `ConcernsClient`, `IdeasClient`, `DecisionsClient`,
-  `KnowledgeClient`, the task list. Copy their wiring.
+- Reference callers: `ConcernsClient`, `IdeasClient`, `HypothesesClient`,
+  `KnowledgeClient`, `PullRequestsClient`, `SearchClient`, the task list. Copy their wiring.
 
 ### 7-2. The general rule
 

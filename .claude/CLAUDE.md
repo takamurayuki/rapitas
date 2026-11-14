@@ -99,6 +99,31 @@ per responsibility, and measure before and after.
 | Type definition files | kebab-case       | `agent-execution-types.ts` |
 | Test files            | (source file name) + `.test` | `TaskCard.test.tsx`, `useAgentExecution.test.ts`, `branch-name-generator.test.ts` |
 
+### Documentation style
+
+Docs must describe the current code. When you change behaviour, update the
+affected docs in the same PR. Write plain prose in the doc's language
+(Japanese or English):
+
+- Headings are short noun phrases without decoration; each section opens with
+  its conclusion or purpose.
+- No emoji. Status is words (対応済み / 未対応 / 一部, Done / Not done); task
+  lists are `- [ ]` / `- [x]`; good/bad examples are labelled Good / Bad
+  (良い例 / 悪い例).
+- Callouts use GitHub alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
+  `> [!WARNING]`, `> [!CAUTION]`.
+- Comparisons and options are tables, procedures are numbered lists, parallel
+  items are bullets.
+- Bold only key terms. No exclamation marks, closing pleasantries or repeated
+  summary sections. One idea per sentence; same term for the same thing.
+- Diagrams (flows, sequences, states, architecture) are ```` ```mermaid ````
+  blocks; directory trees stay plain text trees.
+
+`scripts/docs/check-docs-style.cjs` (CI step `Docs follow the style rules`)
+fails on emoji and box-drawing diagrams outside `docs/archive/`; literal UI or
+tool output goes in `scripts/docs/docs-style-ignore.json` with a reason.
+`scripts/docs/check-docs-drift.cjs` checks paths, scripts, versions and env vars.
+
 ### Commit message format
 
 ```
@@ -180,10 +205,21 @@ curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/status \
 
 The full set is `WORKFLOW_STATUSES` in `rapitas-backend/services/workflow/workflow-types.ts`:
 
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> research_done
+  research_done --> plan_created
+  plan_created --> plan_approved: approval
+  plan_approved --> in_progress
+  in_progress --> verify_done
+  verify_done --> completed
 ```
-draft → research_done → plan_created → [plan_approved] → in_progress → verify_done → completed
-                         (any active phase) ⇄ awaiting_question
-```
+
+Any status before `verify_done` (`draft` through `in_progress`) can move to
+`awaiting_question` and returns to that status once the question is answered
+(`ResumableWorkflowStatus` in `workflow-types.ts`).
 
 | File saved  | Auto-transition                                                     |
 | ----------- | ------------------------------------------------------------------- |

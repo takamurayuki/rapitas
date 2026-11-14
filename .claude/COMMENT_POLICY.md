@@ -9,16 +9,13 @@ If the comment only restates what the code does, delete it.
 
 ## DECISION TREE — Should I write a comment?
 
-```
-Is this a file, public function, or exported type?
-├── YES → Write a doc comment. (See Section 2)
-└── NO  → Does this line/block meet ANY of the following?
-           ├── A) The reason for this implementation is not obvious from the code
-           ├── B) There is a constraint from an external spec or API
-           ├── C) A future editor could break this by "improving" it
-           └── D) This is a known issue, workaround, or unfinished work
-               ├── YES to any → Write an inline comment. (See Section 3)
-               └── NO to all  → Write NO comment.
+```mermaid
+flowchart TD
+  Q1{"Is this a file, public function, or exported type?"}
+  Q1 -->|YES| DOC["Write a doc comment (Section 2)"]
+  Q1 -->|NO| Q2{"Does this line or block meet ANY of these?<br/>A) The reason for this implementation is not obvious from the code<br/>B) There is a constraint from an external spec or API<br/>C) A future editor could break this by improving it<br/>D) This is a known issue, workaround, or unfinished work"}
+  Q2 -->|"YES to any"| INLINE["Write an inline comment (Section 3)"]
+  Q2 -->|"NO to all"| NONE["Write NO comment"]
 ```
 
 ---
@@ -123,22 +120,22 @@ def func(param: str) -> int:
 ### Good vs Bad — Memorize these patterns
 
 ```typescript
-// ❌ NEVER — restates the code
+// Bad: restates the code
 const count = agents.length; // get the length of agents
 
-// ✅ ALWAYS — explains why
+// Good: explains why
 const count = agents.length; // cached to avoid O(n) on every loop iteration
 
-// ❌ NEVER — obvious initialization
+// Bad: obvious initialization
 let retries = 0; // initialize to 0
 
-// ✅ ALWAYS — external constraint
+// Good: external constraint
 const MAX_TOKENS = 8192; // Claude API hard limit per system prompt
 
-// ❌ NEVER — describes the call
+// Bad: describes the call
 await agent.stop(); // call stop
 
-// ✅ ALWAYS — non-obvious ordering or side effect
+// Good: non-obvious ordering or side effect
 await agent.stop(); // must complete before releasing the port; stop() is not idempotent
 ```
 
@@ -199,22 +196,22 @@ for (const agent of agents) {
 ## 6. ANTI-PATTERNS — Never do these
 
 ```typescript
-// ❌ Timestamped edit logs — use git
+// Bad: Timestamped edit logs — use git
 // Updated on 2025-01-01
 
-// ❌ Obvious type restatement
+// Bad: Obvious type restatement
 const name: string = "rapitas"; // string
 
-// ❌ Disabled code without explanation
+// Bad: Disabled code without explanation
 // await agent.reset();
 
-// ✅ Disabled code WITH explanation
+// Good: Disabled code WITH explanation
 // await agent.reset(); // NOTE: Disabled — reset() clears token budget mid-task. Re-enable after #142.
 
-// ❌ Vague intent
+// Bad: Vague intent
 // TODO: Fix this later
 
-// ✅ Specific and actionable
+// Good: Specific and actionable
 // TODO: Add exponential backoff — currently fails immediately on rate limit (HTTP 429).
 ```
 

@@ -45,10 +45,14 @@ pnpm run build:tauri    # TAURI_BUILD=true static export for the desktop app
 | --- | --- |
 | `app/` | App Router routes; page-private code lives in `_components/`, `_hooks/` |
 | `components/` | Shared components (`components/ui/` for reusable primitives) |
-| `feature/` | Feature folders (tasks, calendar, search, …) |
+| `feature/` | Feature folders (tasks, calendar, search, settings modal, terminal, …) |
 | `hooks/` | Shared hooks |
 | `stores/` | zustand stores |
 | `contexts/` | React context providers |
 | `lib/` | API clients and pure utilities (`lib/sse/` for the shared SSE client) |
 | `i18n/` | next-intl config; catalogs are in `messages/` (`en.json`, `ja.json`, `fragments/`) |
-| `styles/` | Tailwind entry and global styles |
+| `styles/` | CSS for the note editor and note modal (the Tailwind entry and global styles are `app/globals.css`) |
+| `config/` | Shared configuration (for example `benign-error-patterns.ts`) |
+| `data/` | Static UI data (achievement definitions) |
+| `types/` | Shared TypeScript types |
+| `utils/` | Shared utilities |

@@ -30,7 +30,7 @@
       "workflow": "test-lint.yml",
       "job": "rust-check",
       "mode": "required",
-      "reason": "cargo fmt/clippy plus the scripts/**/*.test.cjs, repo-hygiene and docs-drift gates."
+      "reason": "cargo fmt/clippy plus the scripts/**/*.test.cjs, repo-hygiene, docs-drift and docs-style gates."
     },
     {
       "name": "Check Rust Code (Windows)",

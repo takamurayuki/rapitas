@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>A local-first AI engineering workbench.</strong><br/>
-  Autonomous coding agents that research → plan → implement → verify a task <strong>inside an isolated git worktree</strong>, gated by an automated lint/type <strong>verification gate</strong> before any commit or PR — shipped as a Next.js web app <em>and</em> a Tauri/Rust desktop app over a Bun/Elysia backend.
+  Autonomous coding agents that research → plan → implement → verify a task <strong>inside an isolated git worktree</strong>, gated by an automated <strong>verification gate</strong> (lint, type-check and the tests of the changed files) before any commit or PR — shipped as a Next.js web app <em>and</em> a Tauri/Rust desktop app over a Bun/Elysia backend.
 </p>
 
 <p align="center">
@@ -40,33 +40,25 @@
 AI coding agents are powerful but **unsafe by default**: they edit files in place, happily produce broken diffs, and flood you with PRs to babysit. I wanted an agent that could take a task and *actually finish it* — without (a) touching my working tree while I work, (b) shipping code that doesn't lint or type-check, or (c) locking me into one AI CLI. So rapitas is built on three opinions:
 
 1. **Isolate the agent.** Every *code-mutating* run (implementer/verifier) happens in a throwaway git worktree — and if that isolation can't be established, the run is **refused** rather than falling back to the main checkout. Read-only research/plan phases run against the live tree with Bash/Edit/Write/git tools disabled at the CLI level.
-2. **Gate the output.** No diff becomes a commit/PR until an automated lint + type-check gate passes — and if it fails, the agent is sent back to fix its own mess (bounded retries).
+2. **Gate the output.** No diff becomes a commit/PR until an automated verification gate (lint, type-check, the tests of the changed files, and more) passes — and if it fails, the agent is sent back to fix its own mess (bounded retries).
 3. **Don't get locked in.** Claude Code / Codex / Gemini are interchangeable, with model-tier routing and fallback.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────┐     spawns / supervises
-│  Tauri 2 (Rust)  desktop     │ ─────────────────────────┐
-│  · tray, shortcuts, PTYs     │                           │
-│  · parent-liveness watchdog  │                           ▼
-└──────────────┬──────────────┘            ┌────────────────────────────────┐
-   loads :3000 │ (dev) / static (prod)     │  Bun + Elysia backend  :3001     │
-               ▼                           │  · orchestrator + worker manager │
-┌─────────────────────────────┐  HTTP/SSE  │  · workflow state machine        │
-│  Next.js 16 / React 19       │ ◀────────▶ │  · verification gate             │
-│  · tasks, kanban, dashboards │            │  · model discovery / router      │
-│  · integrated terminal       │            │  · RAG memory (embeddings)       │
-└─────────────────────────────┘            └───────────────┬──────────────────┘
-                                                            │ per-task isolation
-                                                            ▼
-                                            ┌────────────────────────────────┐
-                                            │  git worktree per execution      │
-                                            │  .worktrees/task-<id>-<hex>/     │
-                                            │  agent CLI runs HERE (subprocess)│
-                                            └────────────────────────────────┘
+```mermaid
+flowchart TB
+  desktop["Tauri 2 desktop (Rust)<br/>tray, shortcuts, PTYs, parent-liveness watchdog"]
+  frontend["Next.js 16 / React 19 frontend<br/>tasks, goals, kanban, dashboards, integrated terminal"]
+  mobile["rapitas-mobile (Flutter)<br/>companion app, QR pairing"]
+  backend["Bun + Elysia backend :3001<br/>orchestrator and worker manager, workflow state machine,<br/>verification gate, model router, RAG memory"]
+  worktree["git worktree per execution<br/>.worktrees/task-&lt;id&gt;-&lt;hex&gt;/<br/>agent CLI runs here as a subprocess"]
+  desktop -->|"spawns and supervises the backend sidecar"| backend
+  desktop -->|"loads :3000 (dev) or static export (prod)"| frontend
+  frontend <-->|"HTTP / SSE"| backend
+  mobile <-->|"HTTP (LAN, bearer token)"| backend
+  backend -->|"per-task isolation"| worktree
 ```
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · design decisions: [docs/adr/](docs/adr/).
@@ -77,7 +69,7 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · design decisions: [docs
 
 ### 1. Safe autonomous agent execution → **[full deep-dive](docs/deep-dive/safe-agent-execution.md)**
 
-An agent runs the `research → plan → verify` workflow inside an isolated worktree; an automated **verification gate** (ESLint `--format json` + `tsc --noEmit`, scoped to the files the agent changed) must pass before any commit/PR. On failure, a **self-repair loop** re-runs the agent in the *same* worktree with the lint/type errors as feedback (default 2 retries), and the gate guards **both** auto-PR paths. The gate is **fail-closed on the check result**: if a check can't run or its output can't be parsed, that check is treated as a failure and the task is blocked, never waved through. (One deliberate carve-out: an unexpected *crash in the verifier harness itself* fails open, so a bug in the gate can't wedge every task — the tradeoff is documented in the code.) A workflow state machine prevents out-of-order or regressive steps, and self-contradictory verify reports ("all tests pass" + failures) can't trigger a PR.
+An agent runs the `research → plan → implement → verify` workflow inside an isolated worktree; an automated **verification gate** (ESLint, `tsc --noEmit` and the tests for the files the agent changed, plus checks for missing tests, test tampering, plan scope, file size and a runtime smoke test) must pass before any commit/PR. On failure, a **self-repair loop** re-runs the agent in the *same* worktree with the failed checks as feedback (default 2 retries), and the gate guards **both** auto-PR paths. The gate is **fail-closed on the check result**: if a check can't run or its output can't be parsed, that check is treated as a failure and the task is blocked, never waved through. (One deliberate carve-out: an unexpected *crash in the verifier harness itself* fails open, so a bug in the gate can't wedge every task — the tradeoff is documented in the code.) A workflow state machine prevents out-of-order or regressive steps, and self-contradictory verify reports ("all tests pass" + failures) can't trigger a PR.
 
 ### 2. Resilient multi-process desktop lifecycle
 
@@ -93,19 +85,19 @@ Provider **probes** (Claude/OpenAI/Gemini/Ollama) discover available models, cla
 
 rapitas suits **a developer who wants AI to do real work on their own machine** — someone who:
 
-- 🔒 **won't ship source to a cloud** (client work, policy, or preference);
-- 🔀 **doesn't want to be locked to one AI CLI** — switch Claude Code / Codex / Gemini per task, fall back when one fails;
-- 🧹 **is tired of AI "noise PRs"** — wants broken diffs stopped *before* review;
-- 💰 **wants AI cost visibility** — token/cost tracking, response cache, local LLM.
+- **won't ship source to a cloud** (client work, policy, or preference);
+- **doesn't want to be locked to one AI CLI** — switch Claude Code / Codex / Gemini per task, fall back when one fails;
+- **is tired of AI "noise PRs"** — wants broken diffs stopped *before* review;
+- **wants AI cost visibility** — token/cost tracking, response cache, local LLM.
 
 ### vs. Linear / GitHub Copilot
 
 | | rapitas | Linear (AI Agents) | GitHub (Copilot agent) |
 | --- | --- | --- | --- |
-| **Pre-generation quality gate** | ✅ lint/type-check catches errors the agent introduced and **stops PR generation** | △ PR review, weak pre-generation block | ✕ generate first → human review |
-| **Multi-CLI / model fallback** | ✅ Claude Code / Codex / Gemini, `--resume → --continue → new session` | ✕ single agent | ✕ Copilot only |
-| **Local / privacy** | ✅ Tauri-native + local LLM + response cache | ✕ cloud SaaS | ✕ cloud / Actions |
-| **Team sync / collaboration** | △ single-user by design (GitHub = read + comment) | ◎ bidirectional sync | ◎ native |
+| **Pre-generation quality gate** | Yes: lint/type-check catches errors the agent introduced and **stops PR generation** | Partly: PR review, weak pre-generation block | No: generate first → human review |
+| **Multi-CLI / model fallback** | Yes: Claude Code / Codex / Gemini, `--resume → --continue → new session` | No: single agent | No: Copilot only |
+| **Local / privacy** | Yes: Tauri-native + local LLM + response cache | No: cloud SaaS | No: cloud / Actions |
+| **Team sync / collaboration** | Partly: single-user by design (GitHub = read + comment) | Yes, strong: bidirectional sync | Yes, strong: native |
 
 > Competitor column summarizes public info as of 2026-04. **Not a fit if** you need a team PM hub or bidirectional issue↔PR sync — Linear / GitHub are better there.
 
@@ -131,7 +123,6 @@ Full setup (Web/PostgreSQL build, individual processes, commands, troubleshootin
 
 ## Limitations & roadmap
 
-- Verification gate covers **lint + type-check**; **test execution** is the next gate (and persisting retry state in the DB).
 - **Local-first / single-user** by design; **cloud sync / multi-device / team** would need data scoped by `userId` + a sync service (intentionally out of scope today).
 - GitHub integration is **read + comment** oriented; bidirectional issue↔PR sync is not a goal.
 
@@ -139,10 +130,10 @@ Full setup (Web/PostgreSQL build, individual processes, commands, troubleshootin
 
 ## Documentation
 
-- 🔬 [Deep-dive: Safe autonomous agent execution](docs/deep-dive/safe-agent-execution.md)
-- 🏛️ [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/adr/)
-- 🛠️ [Setup & development](docs/SETUP.md) · [Performance notes](docs/PERFORMANCE.md) · [Runbook](docs/RUNBOOK.md)
-- 🧭 [.claude/CLAUDE.md](.claude/CLAUDE.md) — AI agent operating rules
+- [Deep-dive: Safe autonomous agent execution](docs/deep-dive/safe-agent-execution.md)
+- [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/adr/)
+- [Setup & development](docs/SETUP.md) · [Performance notes](docs/PERFORMANCE.md) · [Runbook](docs/RUNBOOK.md)
+- [.claude/CLAUDE.md](.claude/CLAUDE.md) — AI agent operating rules
 
 ## License
 

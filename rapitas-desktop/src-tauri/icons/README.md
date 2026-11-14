@@ -10,7 +10,13 @@ Pillow が必要です。デスクトップのPNG/ICO/ICNS、トレイ、Tauri�
 
 小サイズごとの太字化・拡大・位置移動・トレイ専用の間隔調整は行いません。すべて共通マスターから一度だけ高品質縮小し、同じサイズのアプリアイコンとトレイはピクセル単位で一致します。小さい斜線にはアンチエイリアスが入ります。
 
-外形だけはOSに合わせます。iOSとAndroidの通常ランチャーは全面塗り（RGB・透過なし）、デスクトップは角丸、round版は円です。中の図形の比率は共通です。
+外形だけは出力先に合わせます。中の図形の比率は共通です。
+
+| 外形 | 出力先 |
+| --- | --- |
+| 全面塗り（`square`、透過なし） | Tauri 同梱の iOS、Flutter の iOS、Flutter Android の `ic_launcher`、Web の maskable アイコン |
+| 角丸（`tile`、角は透過） | デスクトップの PNG、Tauri 同梱の Android（`_round` 以外）、Flutter の macOS、Web のその他のアイコンと favicon |
+| 円（`circle`） | Tauri 同梱の Android の `_round` 版 |
 
 トレイは `tray-atlas.png` の16〜64px全整数サイズから切り出します。WindowsのタスクバーDPIに合わせて選択し、2秒ごとに倍率変更を確認します。64pxより大きな表示は64pxが上限です。
 

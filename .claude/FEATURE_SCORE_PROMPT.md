@@ -1,6 +1,6 @@
 # rapitas 機能面スコアリング・プロンプト
 
-このファイルを読み込んだエージェントは、rapitas を **機能面に特化した 100 点満点** で採点する。
+このファイルを読み込んだエージェントは、rapitas を **機能面に特化した 97 点満点** で採点する（各カテゴリの配点の合計。撤去したサブシステムの分は満点から外してある）。
 コード品質ではなく **「ユーザーに提供される機能の幅 × 深さ × 競合優位」** を評価軸とする。
 すべての判断は **計測コマンドで取れる客観値** に基づくこと。印象採点は禁止。
 
@@ -55,7 +55,7 @@
 
 | サブ項目 | 計測コマンド | 配点 |
 | --- | --- | ---: |
-| 2-1. 階層構造 (Category → Theme → Task → Subtask) | Prisma に `Category`, `Theme`, `Task` (parentId), `Subtask` 関連が揃うか | 4 |
+| 2-1. 階層構造 (Category → Theme → Task → Subtask) | Prisma に `Category`, `Theme`, `Task` が揃い、サブタスクが `Task.parentId` で表現されているか | 4 |
 | 2-2. ビュー多様性 (List / Kanban / Gantt / Calendar / Focus) | `ls rapitas-frontend/src/app/{tasks,kanban,gantt,calendar,focus}` の存在数 | 4 |
 | 2-3. テンプレート / 繰り返し (TaskTemplate, TaskPattern) | Prisma model の存在 | 3 |
 | 2-4. 優先度 / ラベル / 時間トラッキング | `Label`, `TaskLabel`, `priority`, `estimatedHours`, `TimeEntry` 全て存在 | 4 |
@@ -66,7 +66,7 @@
 
 | サブ項目 | 計測コマンド | 配点 |
 | --- | --- | ---: |
-| 3-1. 5 ロール (researcher/planner/reviewer/implementer/verifier) | `grep "workflow_role_" rapitas-backend/routes/ai/system-prompts/*` で 5 ロール seed | 4 |
+| 3-1. 5 ロール (researcher/planner/implementer/verifier/auto_verifier) | `grep "workflow_role_" rapitas-backend/routes/ai/system-prompts/*` で 5 ロール seed | 4 |
 | 3-2. 自動 commit / PR / merge | `grep "autoCommit\|autoCreatePR\|autoMergePR" rapitas-backend/routes/workflow/*.ts` の hit 数 | 3 |
 | 3-3. plan_approved ヒューマンゲート | `grep "approve-plan\|plan_approved" rapitas-backend` の hit 数 | 2 |
 | 3-4. ステータス遷移監査ログ | Prisma に `WorkflowTransition` model | 3 |
@@ -124,7 +124,7 @@
 | 8-2. MCP (Model Context Protocol) | `services/mcp/*` + route 存在 | 2 |
 | 8-3. Local LLM | `services/local-llm/*` + route 存在 | 2 |
 | 8-4. 音声書き起こし (Voice → Idea/Task) | `services/transcription/*` + `routes/system/transcribe.ts` | 2 |
-| 8-5. スクリーンショット取込 (画面 → AI コンテキスト) | `services/screenshot/*` + route | 1 |
+| 8-5. スクリーンショット取込 (画面 → AI コンテキスト) | `services/screenshot/*` + route（2026-11 時点で該当実装は無く、0 点になる） | 1 |
 
 ---
 
@@ -144,7 +144,7 @@
 | サブ項目 | 評価軸 | 配点 |
 | --- | --- | ---: |
 | 10-1. AI agent + task system 縦串統合 | Linear/Notion は AI agent を持たない、Devin/Cursor は task tracking を持たない。両軸を 1 アプリ統合した稀少性 | 2 |
-| 10-2. 5-role workflow (research/plan/review/implement/verify) | 役割分業のあるエージェント実装は Devin と少数のみ | 1 |
+| 10-2. 5-role workflow (research/plan/implement/verify/auto-verify) | 役割分業のあるエージェント実装は Devin と少数のみ | 1 |
 | 10-3. PromptEvolution / Self-learning | システムプロンプトを自動進化させる機構を持つ task app は商用で確認できない | 1 |
 | 10-4. Local-first (Tauri + SQLite) + Web 両対応 | データ主権を保ちつつ Web 共有も可能なハイブリッド | 1 |
 
@@ -155,7 +155,7 @@
 ```markdown
 # rapitas 機能面評価（YYYY-MM-DD）
 
-## 総合: NN / 100
+## 総合: NN / 97
 
 | # | カテゴリ | スコア | 失点理由（1 行） |
 | -- | --- | ---: | --- |
@@ -164,8 +164,8 @@
 | 3 | ワークフロー自動化の深さ | NN/15 | ... |
 | 4 | ナレッジ・メモリ管理 | NN/10 | ... |
 | 5 | 自己学習・自己改善 | NN/10 | ... |
-| 6 | 学習・暗記サブシステム | NN/5 | ... |
-| 7 | 生産性 / 時間管理 | NN/10 | ... |
+| 6 | 学習・暗記サブシステム（撤去済み） | 0/0 | ... |
+| 7 | 生産性 / 時間管理 | NN/7 | ... |
 | 8 | 外部統合・拡張性 | NN/10 | ... |
 | 9 | クロスプラットフォーム / UX | NN/5 | ... |
 | 10 | 競合差別化要素 | NN/5 | ... |
@@ -174,14 +174,14 @@
 
 | 機能観点 | rapitas | 競合 A (例: Devin) | 競合 B (例: Linear) | 競合 C (例: Notion) |
 | --- | --- | --- | --- | --- |
-| 自律エンジニアリングエージェント | ✅ Multi-CLI (Claude/Codex/Gemini) | ✅ 独自 | ❌ | ❌ |
-| 階層タスク管理 | ✅ Cat/Theme/Task/Subtask | ❌ | ✅ Project/Issue/SubIssue | ✅ Page hierarchy |
-| 5-role workflow | ✅ | 部分的 | ❌ | ❌ |
-| RAG / Knowledge graph | ✅ | ❌ | ❌ | 部分的 |
-| ローカル DB (SQLite) | ✅ Tauri | ❌ | ❌ | ❌ |
-| プロンプト自動進化 | ✅ PromptEvolution | ❌ | ❌ | ❌ |
-| ポモドーロ / Habit | ✅ | ❌ | ❌ | プラグイン依存 |
-| 音声書き起こし入力 | ✅ | ❌ | ❌ | ❌ |
+| 自律エンジニアリングエージェント | あり（Multi-CLI: Claude / Codex / Gemini） | あり（独自） | なし | なし |
+| 階層タスク管理 | あり（Cat/Theme/Task/Subtask） | なし | あり（Project/Issue/SubIssue） | あり（Page hierarchy） |
+| 5-role workflow | あり | 部分的 | なし | なし |
+| RAG / Knowledge graph | あり | なし | なし | 部分的 |
+| ローカル DB (SQLite) | あり（Tauri） | なし | なし | なし |
+| プロンプト自動進化 | あり（PromptEvolution） | なし | なし | なし |
+| ポモドーロ | あり | なし | なし | プラグイン依存 |
+| 音声書き起こし入力 | あり | なし | なし | なし |
 
 ## カテゴリ別 改善アクション（定量・具体）
 
