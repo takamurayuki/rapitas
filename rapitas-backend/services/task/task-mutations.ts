@@ -8,6 +8,7 @@
  */
 import { PrismaClient } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { scopeFieldsForWrite } from './task-spec-requirements';
 import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted, createNotification } from '../communication/notification-service';
@@ -72,6 +73,9 @@ export interface CreateTaskInput {
    * by ラピ's create and roadmap commit; top-level tasks only.
    */
   userAcceptanceChecks?: string[];
+  /** 範囲外 and 成果物 (#1555); see task-spec-requirements. */
+  outOfScope?: string[];
+  deliverable?: string;
   /** SearchMiss ID to link on creation — bridges gap resolution flow. */
   searchMissId?: number;
   /**
@@ -200,6 +204,9 @@ export interface UpdateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  userAcceptanceChecks?: string[];
+  outOfScope?: string[];
+  deliverable?: string;
   /**
    * Criteria revision the caller's edit was based on (companion design 4.5).
    * Required whenever goals / constraints / acceptanceCriteria are sent
@@ -295,6 +302,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
       ...(fields.isProtected !== undefined && { isProtected: fields.isProtected }),
       ...(fields.autoRunExcluded !== undefined && { autoRunExcluded: fields.autoRunExcluded }),
+      ...scopeFieldsForWrite(fields), // 範囲外・成果物 (#1555)
       // NOTE: goals / constraints / acceptanceCriteria were written above by
       // writeTaskCriteria — never here, where the jury lock is not checked.
     },

@@ -560,7 +560,7 @@
     "createSubmit": "作成する",
     "titleGenerate": "タイトル生成",
     "titleGenerateTooltip": "説明からタイトルを自動生成",
-    "specTitle": "ゴール・制約・受入基準",
+    "specTitle": "タスクの仕様",
     "specGoals": "ゴール",
     "specConstraints": "制約",
     "specAcceptance": "受入基準",
@@ -1102,7 +1102,25 @@
       "taskFallback": "タスク",
       "breakEndTitle": "休憩終了！",
       "breakEndBody": "作業を再開しましょう"
-    }
+    },
+    "specOutOfScope": "範囲外（今回やらないこと）",
+    "specUserChecks": "本人が確かめること",
+    "specDeliverable": "成果物",
+    "specRequiredHint": "開発プロジェクトのタスクは、ゴールと完了条件（受入基準か、本人が確かめること）が必須です。",
+    "specRequiredToast": "必須の項目が入力されていません",
+    "specErrorGoals": "ゴールを1つ以上入力してください",
+    "specErrorCompletion": "受入基準か本人が確かめることを、どちらか1つ以上入力してください",
+    "deliverable": {
+      "pr": "PR（コードの変更）",
+      "note": "ノート",
+      "report": "報告",
+      "decision": "判断"
+    },
+    "specEdit": "仕様を編集",
+    "specSave": "保存",
+    "specCancel": "キャンセル",
+    "specSaved": "仕様を保存しました",
+    "specSaveFailed": "仕様を保存できませんでした"
   },
   "auth": {
     "loginTitle": "Rapitas にログイン",

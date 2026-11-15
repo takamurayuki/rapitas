@@ -6,6 +6,23 @@
  * implementer context — that is workflow-implementer-context's job.
  */
 import { prisma } from '../../config/database';
+import { parseDeliverable, type Deliverable } from '../task/task-spec-requirements';
+
+const DELIVERABLE_JA: Record<Deliverable, string> = {
+  pr: 'PR（コードの変更）',
+  note: 'ノート（作業の結果をノートにまとめる）',
+  report:
+    '報告（verify.md に結果を書く。直す必要がなければ「## 結論: 修正不要」と根拠を書いて完了）',
+  decision: '判断（選択肢と推奨を verify.md に書く。コードの変更は求めない）',
+};
+
+const DELIVERABLE_EN: Record<Deliverable, string> = {
+  pr: 'a PR (code change)',
+  note: 'a note summarising the result',
+  report:
+    'a report in verify.md; if nothing needs changing, write "## 結論: 修正不要" with the reasons',
+  decision: 'a decision: options and a recommendation in verify.md, no code change required',
+};
 
 /**
  * Build the implementer's GOAL ANCHOR (R7): a compact restatement of the
@@ -26,12 +43,15 @@ export async function buildGoalAnchor(
   task: { title: string },
   language: 'ja' | 'en',
 ): Promise<string> {
-  const row = await prisma.task
-    .findUnique({
-      where: { id: taskId },
-      select: { goals: true, acceptanceCriteria: true },
-    })
-    .catch(() => null);
+  // NOTE: no select, read through a narrow type — like intake-gate's row: a
+  // client generated before outOfScope / deliverable existed (#1555) reads
+  // them as undefined instead of failing to compile or throwing.
+  const row = (await prisma.task.findUnique({ where: { id: taskId } }).catch(() => null)) as {
+    goals?: unknown;
+    acceptanceCriteria?: unknown;
+    outOfScope?: unknown;
+    deliverable?: unknown;
+  } | null;
   const parseArr = (v: unknown): string[] => {
     if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
     if (typeof v === 'string' && v.trim()) {
@@ -47,6 +67,10 @@ export async function buildGoalAnchor(
   const goals = parseArr(row?.goals);
   const criteria = parseArr(row?.acceptanceCriteria);
   if (goals.length === 0 && criteria.length === 0) return '';
+  // 範囲外 and 成果物 (#1555): what not to touch keeps a change from widening,
+  // and a report or a decision may rightly end with no code change.
+  const outOfScope = parseArr(row?.outOfScope);
+  const deliverable = parseDeliverable(row?.deliverable);
 
   if (language === 'ja') {
     return [
@@ -54,6 +78,10 @@ export async function buildGoalAnchor(
       `- 目的: ${task.title}`,
       ...(goals.length > 0 ? ['- ゴール:', ...goals.map((g) => `  - ${g}`)] : []),
       ...(criteria.length > 0 ? ['- 受け入れ基準:', ...criteria.map((c) => `  - ${c}`)] : []),
+      ...(outOfScope.length > 0
+        ? ['- 範囲外（触れないこと）:', ...outOfScope.map((o) => `  - ${o}`)]
+        : []),
+      `- 成果物: ${DELIVERABLE_JA[deliverable]}`,
       '各変更の前に「この変更は上記ゴール・受け入れ基準に直結しているか」を確認してください。直結しない改善・リファクタ・スコープ外変更は行わないこと。',
     ].join('\n');
   }
@@ -62,6 +90,10 @@ export async function buildGoalAnchor(
     `- Purpose: ${task.title}`,
     ...(goals.length > 0 ? ['- Goals:', ...goals.map((g) => `  - ${g}`)] : []),
     ...(criteria.length > 0 ? ['- Acceptance criteria:', ...criteria.map((c) => `  - ${c}`)] : []),
+    ...(outOfScope.length > 0
+      ? ['- Out of scope (do not touch):', ...outOfScope.map((o) => `  - ${o}`)]
+      : []),
+    `- Deliverable: ${DELIVERABLE_EN[deliverable]}`,
     'Before each change, confirm it directly serves the goals/criteria above. Do not make unrelated improvements, refactors, or out-of-scope changes.',
   ].join('\n');
 }
