@@ -61,7 +61,7 @@ const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 const { syncForLaunch } = require('./dep-sync.cjs');
-const { pullOnLaunch, describePull, isPullEnabled } = require('./dev-pull.cjs');
+const { pullOnLaunch, describePull, isPullEnabled, recordPullOnLaunch } = require('./dev-pull.cjs');
 // ─── セッションログ ───
 // NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
 // 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
@@ -2703,19 +2703,15 @@ function ensurePrimaryBranch() {
 async function pullLatestOnLaunch() {
   const enabled = isPullEnabled(args, process.env);
   if (enabled) console.log('\nChecking for new commits (git pull --ff-only)...');
-  let result;
-  try {
-    result = await pullOnLaunch({ repoRoot: REPO_ROOT, enabled });
-  } catch (err) {
-    log.warn(`[dev-pull] unexpected failure, starting with the current code: ${err.message}`);
-    return;
-  }
-  const { level, lines } = describePull(result);
-  for (const line of lines) (level === 'warn' ? console.warn : console.log)(line);
-  devSessionLog.appendDevEvent('dev_pull', {
-    action: result.action,
-    from: result.from || null,
-    to: result.to || null,
+  await recordPullOnLaunch({
+    pull: () => pullOnLaunch({ repoRoot: REPO_ROOT, enabled }),
+    appendDevEvent: (name, fields) => devSessionLog.appendDevEvent(name, fields),
+    onResult: (result) => {
+      const { level, lines } = describePull(result);
+      for (const line of lines) (level === 'warn' ? console.warn : console.log)(line);
+    },
+    onError: (reason) =>
+      log.warn(`[dev-pull] unexpected failure, starting with the current code: ${reason}`),
   });
 }
 
