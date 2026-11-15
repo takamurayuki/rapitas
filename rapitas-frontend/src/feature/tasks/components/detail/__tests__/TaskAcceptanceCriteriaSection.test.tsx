@@ -60,7 +60,7 @@ describe('TaskAcceptanceCriteriaSection', () => {
         .getAllByRole('listitem')
         .map((li) => li.textContent),
     ).toEqual(['1.テストが通る', '2.型チェックが通る']);
-    expect(screen.queryByText('陪審が確かめる')).not.toBeInTheDocument();
+    expect(screen.queryByText('エージェントが確かめる')).not.toBeInTheDocument();
     expect(screen.queryByText('本人が確かめる')).not.toBeInTheDocument();
   });
 
@@ -69,7 +69,7 @@ describe('TaskAcceptanceCriteriaSection', () => {
       acceptanceCriteria: '["テストが通る"]',
       userAcceptanceChecks: '["実機で見た目に違和感がない"]',
     });
-    expect(screen.getByText('陪審が確かめる')).toBeInTheDocument();
+    expect(screen.getByText('エージェントが確かめる')).toBeInTheDocument();
     expect(screen.getByText('本人が確かめる')).toBeInTheDocument();
     expect(
       within(screen.getByTestId('task-criteria-jury-list')).getByText('テストが通る'),
