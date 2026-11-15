@@ -63,6 +63,15 @@ describe('the rule layer before start', () => {
     expect(writeTaskCriteria).not.toHaveBeenCalled();
   });
 
+  // Trial #1499: the task's deliverable must reach the rule, or a keyword in
+  // the title decides alone.
+  it('reads the deliverable: a PR task titled 点検 gets no "nothing to change" ending', async () => {
+    row = task({ title: '完了条件の点検の試験', deliverable: 'pr' } as Row);
+    expect(await applyCriteriaRuleFixes(7)).toEqual([]);
+    row = task({ title: '検索の使われ方', deliverable: 'report' } as Row);
+    expect(await applyCriteriaRuleFixes(7)).toEqual(['no_unchanged_route']);
+  });
+
   it('leaves a personal task alone', async () => {
     row = task({ acceptanceCriteria: '["CI が通る"]', theme: { isDevelopment: false } });
     expect(await applyCriteriaRuleFixes(7)).toEqual([]);

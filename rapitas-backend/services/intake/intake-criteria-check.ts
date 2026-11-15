@@ -28,6 +28,7 @@ type Row = {
   description: string | null;
   workflowStatus: string | null;
   acceptanceCriteria: unknown;
+  deliverable?: string | null;
   theme: { isDevelopment: boolean } | null;
 };
 
@@ -52,6 +53,7 @@ export async function applyCriteriaRuleFixes(taskId: number): Promise<string[]> 
     title: row.title,
     description: row.description,
     acceptanceCriteria: criteria,
+    deliverable: row.deliverable,
   });
   if (fix.changes.length === 0) return [];
   const written = await writeTaskCriteria(db, {
