@@ -52,7 +52,15 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
   const t = useTranslations('task');
   const { isDevelopment, specIssues, idPrefix = 'spec' } = props;
 
-  const lists = [
+  type Field = {
+    key: string;
+    label: string;
+    value: string;
+    set: (v: string) => void;
+    required?: boolean;
+    error?: string;
+  };
+  const above: Field[] = [
     {
       key: 'goals',
       label: t('specGoals'),
@@ -73,13 +81,15 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
       value: props.constraints,
       set: props.setConstraints,
     },
+  ];
+  // The two kinds of completion condition, under one heading (#1557): one is
+  // required, either will do, so the requirement and its error belong to the group.
+  const completion: Field[] = [
     {
       key: 'acceptance',
       label: t('specAcceptance'),
       value: props.acceptanceCriteria,
       set: props.setAcceptanceCriteria,
-      required: true,
-      error: specIssues.completionCriteria,
     },
     {
       key: 'userChecks',
@@ -88,49 +98,74 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
       set: props.setUserAcceptanceChecks,
     },
   ];
+  const completionError = specIssues.completionCriteria;
+  const completionErrorId = `${idPrefix}-completion-error`;
+
+  const renderField = (f: Field, invalid: boolean, describedBy?: string) => {
+    const id = `${idPrefix}-${f.key}`;
+    return (
+      <div key={f.key} data-spec-field={f.key}>
+        <label
+          htmlFor={id}
+          className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1"
+        >
+          {f.label}
+          {isDevelopment && f.required && (
+            <span className="ml-1 text-red-500" aria-hidden="true">
+              *
+            </span>
+          )}
+        </label>
+        <textarea
+          id={id}
+          value={f.value}
+          onChange={(e) => f.set(e.target.value)}
+          placeholder={t('specItemPlaceholder')}
+          rows={3}
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={describedBy}
+          className={`${FIELD_CLASS} ${invalid ? 'ring-2 ring-red-500/40' : ''}`}
+        />
+        {f.error && (
+          <p
+            id={`${id}-error`}
+            role="alert"
+            className="mt-1 text-xs text-red-600 dark:text-red-400"
+          >
+            {t(f.error)}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3">
       {isDevelopment && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('specRequiredHint')}</p>
       )}
-      {lists.map((f) => {
-        const id = `${idPrefix}-${f.key}`;
-        return (
-          <div key={f.key} data-spec-field={f.key}>
-            <label
-              htmlFor={id}
-              className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1"
-            >
-              {f.label}
-              {isDevelopment && f.required && (
-                <span className="ml-1 text-red-500" aria-hidden="true">
-                  *
-                </span>
-              )}
-            </label>
-            <textarea
-              id={id}
-              value={f.value}
-              onChange={(e) => f.set(e.target.value)}
-              placeholder={t('specItemPlaceholder')}
-              rows={3}
-              aria-invalid={f.error ? true : undefined}
-              aria-describedby={f.error ? `${id}-error` : undefined}
-              className={`${FIELD_CLASS} ${f.error ? 'ring-2 ring-red-500/40' : ''}`}
-            />
-            {f.error && (
-              <p
-                id={`${id}-error`}
-                role="alert"
-                className="mt-1 text-xs text-red-600 dark:text-red-400"
-              >
-                {t(f.error)}
-              </p>
-            )}
-          </div>
-        );
-      })}
+      {above.map((f) =>
+        renderField(f, !!f.error, f.error ? `${idPrefix}-${f.key}-error` : undefined),
+      )}
+      <fieldset data-spec-field="completion" className="space-y-2">
+        <legend className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+          {t('specCompletion')}
+          {isDevelopment && (
+            <span className="ml-1 text-red-500" aria-hidden="true">
+              *
+            </span>
+          )}
+        </legend>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('specCompletionNote')}</p>
+        {completion.map((f) =>
+          renderField(f, !!completionError, completionError ? completionErrorId : undefined),
+        )}
+        {completionError && (
+          <p id={completionErrorId} role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {t(completionError)}
+          </p>
+        )}
+      </fieldset>
       <div data-spec-field="deliverable">
         <label
           htmlFor={`${idPrefix}-deliverable`}
