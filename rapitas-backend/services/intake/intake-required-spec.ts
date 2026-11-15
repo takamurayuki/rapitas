@@ -2,7 +2,8 @@
  * Intake: required spec
  *
  * Pauses a development task at awaiting_question while its required items
- * (goals, a completion criterion) are missing (#1555). Runs after the intake
+ * (goals, a completion criterion) are missing (#1555). A subtask takes them
+ * from its parent when it has none of its own (#1559). Runs after the intake
  * gate's own checks and enrichment, so what the description already implies
  * is filled in first and only what is truly missing stops the task. Unlike a
  * thin spec, a missing required item is never proceeded past on best-guess:
@@ -17,9 +18,28 @@ import { createLogger } from '../../config/logger';
 import { writeWorkflowFile } from '../workflow/workflow-file-utils';
 import { recordTransition } from '../workflow/transition-recorder';
 import { notifyIntakeQuestionPending } from '../communication/notification-service';
-import { missingRequiredSpec, requiredSpecQuestion } from '../task/task-spec-requirements';
+import {
+  missingRequiredSpec,
+  requiredSpecQuestion,
+  type RequiredSpecInput,
+} from '../task/task-spec-requirements';
+import { parseSpecArray } from './spec-quality-checker';
 
 const log = createLogger('intake-required-spec');
+
+/** A subtask's spec with each empty part taken from its parent. */
+function withParent(own: RequiredSpecInput, parent: RequiredSpecInput): RequiredSpecInput {
+  const pick = (mine: unknown, theirs: unknown) =>
+    parseSpecArray(mine).length > 0 ? mine : theirs;
+  const ownHasCompletion =
+    parseSpecArray(own.acceptanceCriteria).length > 0 ||
+    parseSpecArray(own.userAcceptanceChecks).length > 0;
+  return {
+    goals: pick(own.goals, parent.goals),
+    acceptanceCriteria: ownHasCompletion ? own.acceptanceCriteria : parent.acceptanceCriteria,
+    userAcceptanceChecks: ownHasCompletion ? own.userAcceptanceChecks : parent.userAcceptanceChecks,
+  };
+}
 
 /** Transition cause of a pause for missing required items. */
 export const REQUIRED_SPEC_CAUSE = 'intake_required_spec';
@@ -42,6 +62,14 @@ export async function holdForRequiredSpec(taskId: number): Promise<boolean> {
       acceptanceCriteria: true,
       userAcceptanceChecks: true,
       theme: { select: { isDevelopment: true } },
+      parent: {
+        select: {
+          goals: true,
+          acceptanceCriteria: true,
+          userAcceptanceChecks: true,
+          theme: { select: { isDevelopment: true } },
+        },
+      },
     },
   })) as {
     id: number;
@@ -51,10 +79,19 @@ export async function holdForRequiredSpec(taskId: number): Promise<boolean> {
     acceptanceCriteria: unknown;
     userAcceptanceChecks: unknown;
     theme: { isDevelopment: boolean } | null;
+    parent?: {
+      goals: unknown;
+      acceptanceCriteria: unknown;
+      userAcceptanceChecks: unknown;
+      theme: { isDevelopment: boolean } | null;
+    } | null;
   } | null;
-  if (!row?.theme?.isDevelopment) return false;
-
-  const missing = missingRequiredSpec(row);
+  if (!row) return false;
+  // A subtask is a step of its parent (#1559): the parent defines the goals
+  // and the completion conditions, and its own count only when it has some.
+  const parent = row.parent ?? null;
+  if (!(row.theme?.isDevelopment ?? parent?.theme?.isDevelopment)) return false;
+  const missing = missingRequiredSpec(parent ? withParent(row, parent) : row);
   if (missing.length === 0) return false;
 
   await writeWorkflowFile(taskId, 'question', requiredSpecQuestion(row.title, missing));

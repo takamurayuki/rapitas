@@ -1120,7 +1120,16 @@
     "specSave": "保存",
     "specCancel": "キャンセル",
     "specSaved": "仕様を保存しました",
-    "specSaveFailed": "仕様を保存できませんでした"
+    "specSaveFailed": "仕様を保存できませんでした",
+    "specStartConditions": "開始条件（着手前に満たしておくこと）",
+    "prerequisites": "先に終わらせるタスク",
+    "prerequisitesNone": "ありません",
+    "prerequisitesInput": "タスク番号（カンマ区切り）",
+    "prerequisitesSave": "保存",
+    "prerequisitesSaved": "先に終わらせるタスクを保存しました",
+    "prerequisitesSaveFailed": "先に終わらせるタスクを保存できませんでした",
+    "prerequisiteDone": "完了",
+    "prerequisiteOpen": "未完了"
   },
   "auth": {
     "loginTitle": "Rapitas にログイン",

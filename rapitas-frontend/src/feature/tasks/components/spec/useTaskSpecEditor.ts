@@ -45,6 +45,7 @@ export function useTaskSpecEditor(task: Task, isDevelopment: boolean, onSaved?: 
   const [specIssues, setSpecIssues] = useState<SpecErrors>({});
   const [goals, setGoals] = useState('');
   const [outOfScope, setOutOfScope] = useState('');
+  const [startConditions, setStartConditions] = useState('');
   const [constraints, setConstraints] = useState('');
   const [acceptanceCriteria, setAcceptanceCriteria] = useState('');
   const [userAcceptanceChecks, setUserAcceptanceChecks] = useState('');
@@ -54,6 +55,7 @@ export function useTaskSpecEditor(task: Task, isDevelopment: boolean, onSaved?: 
   const begin = () => {
     setGoals(asText(task.goals));
     setOutOfScope(asText(task.outOfScope));
+    setStartConditions(asText(task.startConditions));
     setConstraints(asText(task.constraints));
     setAcceptanceCriteria(asText(task.acceptanceCriteria));
     setUserAcceptanceChecks(asText(task.userAcceptanceChecks));
@@ -80,6 +82,7 @@ export function useTaskSpecEditor(task: Task, isDevelopment: boolean, onSaved?: 
           acceptanceCriteria: toLines(acceptanceCriteria),
           userAcceptanceChecks: toLines(userAcceptanceChecks),
           outOfScope: toLines(outOfScope),
+          startConditions: toLines(startConditions),
           deliverable,
           expectedCriteriaRevision: task.criteriaRevision,
         }),
@@ -106,6 +109,8 @@ export function useTaskSpecEditor(task: Task, isDevelopment: boolean, onSaved?: 
     setGoals,
     outOfScope,
     setOutOfScope,
+    startConditions,
+    setStartConditions,
     constraints,
     setConstraints,
     acceptanceCriteria,

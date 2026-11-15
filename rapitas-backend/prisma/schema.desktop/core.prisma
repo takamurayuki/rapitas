@@ -150,6 +150,14 @@ model Task {
   /// What finishing hands over: 'pr' | 'note' | 'report' | 'decision' (成果物,
   /// #1555). Null reads as 'pr', the deliverable of a development task.
   deliverable           String?
+  /// JSON array of what must hold before this task starts, in words (開始条件,
+  /// #1559) — shown to the agent and the person, not machine-checked. Tasks
+  /// that must finish first are TaskDependency rows instead.
+  startConditions       String?
+  /// Tasks that must be done before this one starts (#1559).
+  dependencies          TaskDependency[] @relation("TaskDependencyWaiting")
+  /// Tasks that wait for this one.
+  dependents            TaskDependency[] @relation("TaskDependencyPrerequisite")
   developerModeConfig   DeveloperModeConfig?
   taskAnalysisConfig    TaskAnalysisConfig?
   agentExecutionConfig  AgentExecutionConfig?
@@ -330,6 +338,26 @@ model TaskLabel {
   createdAt DateTime @default(now())
 
   @@unique([taskId, labelId])
+  @@index([workspaceId])
+}
+
+/// One task waiting for another to be done before it starts (開始条件, #1559).
+/// Auto-run does not select a task while any of its prerequisites is not done,
+/// and a manual start is refused with the open prerequisites named.
+model TaskDependency {
+  id              Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId     Int?
+  /// The task that waits.
+  taskId          Int
+  /// The task that must be done first.
+  dependsOnTaskId Int
+  task            Task     @relation("TaskDependencyWaiting", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn       Task     @relation("TaskDependencyPrerequisite", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([dependsOnTaskId])
   @@index([workspaceId])
 }
 

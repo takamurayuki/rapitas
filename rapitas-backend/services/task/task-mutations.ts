@@ -76,6 +76,7 @@ export interface CreateTaskInput {
   /** 範囲外 and 成果物 (#1555); see task-spec-requirements. */
   outOfScope?: string[];
   deliverable?: string;
+  startConditions?: string[];
   /** SearchMiss ID to link on creation — bridges gap resolution flow. */
   searchMissId?: number;
   /**
@@ -207,6 +208,7 @@ export interface UpdateTaskInput {
   userAcceptanceChecks?: string[];
   outOfScope?: string[];
   deliverable?: string;
+  startConditions?: string[];
   /**
    * Criteria revision the caller's edit was based on (companion design 4.5).
    * Required whenever goals / constraints / acceptanceCriteria are sent

@@ -644,6 +644,15 @@
     "specSave": "Save",
     "specCancel": "Cancel",
     "specSaved": "Spec saved",
-    "specSaveFailed": "Could not save the spec"
+    "specSaveFailed": "Could not save the spec",
+    "specStartConditions": "Start conditions (what must hold before starting)",
+    "prerequisites": "Tasks to finish first",
+    "prerequisitesNone": "None",
+    "prerequisitesInput": "Task numbers (comma-separated)",
+    "prerequisitesSave": "Save",
+    "prerequisitesSaved": "Saved the tasks to finish first",
+    "prerequisitesSaveFailed": "Could not save the tasks to finish first",
+    "prerequisiteDone": "Done",
+    "prerequisiteOpen": "Not done"
   }
 }

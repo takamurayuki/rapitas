@@ -17,6 +17,7 @@ import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guard
 import type { WorkflowStatus } from './workflow-types';
 import { TASK_NOT_FOUND } from '../../utils/common/error-messages';
 import { resolveEffectiveWorkflowDisabled } from './workflow-disabled';
+import { refuseWhilePrerequisitesOpen } from './workflow-prerequisites-gate';
 import { computeMetadataComplexity } from './workflow-orchestrator-metadata-complexity';
 
 const log = createLogger('workflow-orchestrator');
@@ -103,6 +104,14 @@ export async function runPreflight(taskId: number) {
       error: `ステータス "${currentStatus}" では次のフェーズを実行できません`,
     };
     return { done: true as const, result };
+  }
+
+  // 開始条件 (#1559): never start while a prerequisite task is unfinished.
+  // Auto-run does not select such a task (UNMET_DEPENDENCIES_EXCLUDED); this
+  // refuses a manual start with the open prerequisites named.
+  if (currentStatus === 'draft' && transition.role === 'researcher') {
+    const waiting = await refuseWhilePrerequisitesOpen(taskId, transition.role, currentStatus);
+    if (waiting) return { done: true as const, result: waiting };
   }
 
   // Intake quality gate — runs once, just before the first (research) phase.

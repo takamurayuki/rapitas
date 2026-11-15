@@ -11,6 +11,7 @@
  * carried this risk into this single helper.
  */
 import type { Prisma } from '../../../generated/prisma-postgres';
+import { UNMET_DEPENDENCIES_EXCLUDED } from '../../task/task-dependencies';
 
 /**
  * Where-fragment for a top-level (parentId:null) 'todo' task that
@@ -41,6 +42,8 @@ export function eligibleTopLevelTodoWhere(
     // NOTE: iteration-budget halted tasks (task 881/995) are skipped by auto-run-advance-select's
     // skipIds; counting them here made the idle side resume a theme the selector then refuses.
     haltReason: null,
+    // Waiting for an unfinished prerequisite (開始条件, #1559) — mirrors selectNextTask.
+    ...(UNMET_DEPENDENCIES_EXCLUDED as unknown as Prisma.TaskWhereInput),
     AND: [
       {
         OR: [

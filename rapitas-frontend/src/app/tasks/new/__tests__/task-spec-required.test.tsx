@@ -108,6 +108,10 @@ describe('the spec section', () => {
     setGoals: noop,
     outOfScope: '',
     setOutOfScope: noop,
+    startConditions: '',
+    setStartConditions: noop,
+  startConditions: '',
+  setStartConditions: noop,
     constraints: '',
     setConstraints: noop,
     acceptanceCriteria: '',
@@ -134,13 +138,12 @@ describe('the spec section', () => {
     expect(screen.getByLabelText(/specGoals/).getAttribute('aria-invalid')).toBe('true');
   });
 
-  it('offers the four deliverables, PR selected', () => {
+  it('offers the deliverables an agent can produce, PR selected', () => {
     render(<TaskSpecSection {...props} isDevelopment specIssues={{}} />);
     const select = screen.getByLabelText('specDeliverable') as HTMLSelectElement;
     expect(select.value).toBe('pr');
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
       'pr',
-      'note',
       'report',
       'decision',
     ]);

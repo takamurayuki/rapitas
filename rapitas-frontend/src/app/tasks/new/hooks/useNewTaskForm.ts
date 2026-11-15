@@ -43,6 +43,7 @@ export function useNewTaskForm() {
   // 本人が確かめること・範囲外・成果物 (#1555). PR is what a development task hands over.
   const [userAcceptanceChecks, setUserAcceptanceChecks] = useState('');
   const [outOfScope, setOutOfScope] = useState('');
+  const [startConditions, setStartConditions] = useState('');
   const [deliverable, setDeliverable] = useState<DeliverableOption>('pr');
 
   // ── Remote data + derived values ──────────────────────────────────────────
@@ -68,6 +69,7 @@ export function useNewTaskForm() {
       acceptanceCriteria,
       userAcceptanceChecks,
       outOfScope,
+      startConditions,
       deliverable,
       selectedTheme,
       globalSettings,
@@ -117,6 +119,8 @@ export function useNewTaskForm() {
     setUserAcceptanceChecks,
     outOfScope,
     setOutOfScope,
+    startConditions,
+    setStartConditions,
     deliverable,
     setDeliverable,
     // remote data

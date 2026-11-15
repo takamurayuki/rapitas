@@ -104,3 +104,11 @@ describe('editing what the person checks', () => {
     });
   });
 });
+
+describe('writing 開始条件 in words (#1559)', () => {
+  it('writes the list as JSON', () => {
+    expect(scopeFieldsForWrite({ startConditions: ['API の #12 が終わっている'] })).toEqual({
+      startConditions: '["API の #12 が終わっている"]',
+    });
+  });
+});

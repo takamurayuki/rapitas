@@ -446,6 +446,7 @@ CREATE TABLE "Task" (
     "userAcceptanceChecks" TEXT,
     "outOfScope" TEXT,
     "deliverable" TEXT,
+    "startConditions" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" DATETIME,
@@ -537,6 +538,17 @@ CREATE TABLE "TaskLabel" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "TaskLabel_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "TaskLabel_labelId_fkey" FOREIGN KEY ("labelId") REFERENCES "Label" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "TaskDependency" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "dependsOnTaskId" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TaskDependency_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "TaskDependency_dependsOnTaskId_fkey" FOREIGN KEY ("dependsOnTaskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1993,6 +2005,15 @@ CREATE INDEX "TaskLabel_workspaceId_idx" ON "TaskLabel"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TaskLabel_taskId_labelId_key" ON "TaskLabel"("taskId", "labelId");
+
+-- CreateIndex
+CREATE INDEX "TaskDependency_dependsOnTaskId_idx" ON "TaskDependency"("dependsOnTaskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDependency_workspaceId_idx" ON "TaskDependency"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskDependency_taskId_dependsOnTaskId_key" ON "TaskDependency"("taskId", "dependsOnTaskId");
 
 -- CreateIndex
 CREATE INDEX "TaskTemplate_workspaceId_idx" ON "TaskTemplate"("workspaceId");

@@ -8,8 +8,12 @@
  * Personal tasks need neither. Pure; messages are i18n keys under `task`.
  */
 
-/** What finishing hands over, in the order the form offers them (PR is the default). */
-export const DELIVERABLE_OPTIONS = ['pr', 'note', 'report', 'decision'] as const;
+/**
+ * What finishing hands over, in the order the form offers them (PR is the
+ * default). 'note' is left out until an agent can write a note and link it
+ * to the task; the backend still accepts it (#1559).
+ */
+export const DELIVERABLE_OPTIONS = ['pr', 'report', 'decision'] as const;
 
 /** One of {@link DELIVERABLE_OPTIONS}. */
 export type DeliverableOption = (typeof DELIVERABLE_OPTIONS)[number];

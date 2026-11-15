@@ -87,6 +87,8 @@ export function requiredSpecQuestion(title: string, missing: RequiredSpecItem[])
 /** 範囲外, 成果物 and 本人が確かめること as the API takes them (#1555). */
 export interface ScopeFieldsInput {
   userAcceptanceChecks?: string[];
+  /** 開始条件 in words (#1559). */
+  startConditions?: string[];
   outOfScope?: string[];
   deliverable?: string;
 }
@@ -103,11 +105,13 @@ export interface ScopeFieldsInput {
 export function scopeFieldsForWrite(input: ScopeFieldsInput): {
   userAcceptanceChecks?: string | null;
   outOfScope?: string | null;
+  startConditions?: string | null;
   deliverable?: Deliverable;
 } {
   const out: {
     userAcceptanceChecks?: string | null;
     outOfScope?: string | null;
+    startConditions?: string | null;
     deliverable?: Deliverable;
   } = {};
   const list = (v: string[]) => {
@@ -115,6 +119,7 @@ export function scopeFieldsForWrite(input: ScopeFieldsInput): {
     return items.length > 0 ? JSON.stringify(items) : null;
   };
   if (input.outOfScope !== undefined) out.outOfScope = list(input.outOfScope);
+  if (input.startConditions !== undefined) out.startConditions = list(input.startConditions);
   // The person's own checks are not jury criteria: editable here without the
   // criteria revision (#1555).
   if (input.userAcceptanceChecks !== undefined) {

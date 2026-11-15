@@ -22,6 +22,9 @@ export interface TaskSpecValues {
   setGoals: (v: string) => void;
   outOfScope: string;
   setOutOfScope: (v: string) => void;
+  /** 開始条件 in words (#1559) / 着手前に満たすこと */
+  startConditions: string;
+  setStartConditions: (v: string) => void;
   constraints: string;
   setConstraints: (v: string) => void;
   acceptanceCriteria: string;
@@ -66,6 +69,12 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
       label: t('specOutOfScope'),
       value: props.outOfScope,
       set: props.setOutOfScope,
+    },
+    {
+      key: 'startConditions',
+      label: t('specStartConditions'),
+      value: props.startConditions,
+      set: props.setStartConditions,
     },
     {
       key: 'constraints',
