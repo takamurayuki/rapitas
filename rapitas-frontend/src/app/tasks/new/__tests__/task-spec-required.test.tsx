@@ -34,6 +34,7 @@ const values = (over: Partial<TaskPayloadValues> = {}): TaskPayloadValues => ({
   acceptanceCriteria: 'dev-pull.test.cjs が通る',
   userAcceptanceChecks: '',
   outOfScope: '再起動ボタン',
+  startConditions: '',
   deliverable: 'report',
   selectedTheme: { id: 1, isDevelopment: true } as TaskPayloadValues['selectedTheme'],
   globalSettings: null,
@@ -110,8 +111,6 @@ describe('the spec section', () => {
     setOutOfScope: noop,
     startConditions: '',
     setStartConditions: noop,
-  startConditions: '',
-  setStartConditions: noop,
     constraints: '',
     setConstraints: noop,
     acceptanceCriteria: '',
@@ -142,11 +141,7 @@ describe('the spec section', () => {
     render(<TaskSpecSection {...props} isDevelopment specIssues={{}} />);
     const select = screen.getByLabelText('specDeliverable') as HTMLSelectElement;
     expect(select.value).toBe('pr');
-    expect(Array.from(select.options).map((o) => o.value)).toEqual([
-      'pr',
-      'report',
-      'decision',
-    ]);
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['pr', 'report', 'decision']);
   });
 
   it('marks nothing as required for a personal task', () => {

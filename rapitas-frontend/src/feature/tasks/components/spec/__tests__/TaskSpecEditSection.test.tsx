@@ -41,7 +41,11 @@ beforeEach(() => {
   patches.length = 0;
   status = 200;
   showToast.mockReset();
-  vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    // The prerequisites list loads on its own (#1559); only PATCHes are recorded.
+    if (String(url).endsWith('/dependencies')) {
+      return new Response(JSON.stringify({ prerequisites: [] }), { status: 200 });
+    }
     patches.push(JSON.parse(String(init?.body)));
     return new Response(
       JSON.stringify(status === 200 ? {} : { error: '完了条件が変わっています' }),
@@ -104,6 +108,7 @@ describe('editing the spec', () => {
       acceptanceCriteria: ['テストが通る'],
       userAcceptanceChecks: ['見て分かる'],
       outOfScope: ['再起動ボタン'],
+      startConditions: [],
       deliverable: 'report',
       expectedCriteriaRevision: 'rev-1',
     });

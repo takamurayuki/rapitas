@@ -15,3 +15,4 @@ export {
 } from './task-spec-validation';
 export { default as TaskSpecEditSection } from './TaskSpecEditSection';
 export { useTaskSpecEditor } from './useTaskSpecEditor';
+export { TaskPrerequisites, parseTaskNumbers } from './TaskPrerequisites';

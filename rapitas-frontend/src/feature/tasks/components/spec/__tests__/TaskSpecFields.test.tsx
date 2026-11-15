@@ -19,6 +19,8 @@ const props = {
   setGoals: noop,
   outOfScope: '',
   setOutOfScope: noop,
+  startConditions: '',
+  setStartConditions: noop,
   constraints: '',
   setConstraints: noop,
   acceptanceCriteria: '',
