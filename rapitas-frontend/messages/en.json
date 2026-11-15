@@ -560,7 +560,7 @@
     "createSubmit": "Create",
     "titleGenerate": "Generate title",
     "titleGenerateTooltip": "Auto-generate title from description",
-    "specTitle": "Goals, Constraints & Acceptance",
+    "specTitle": "Task spec",
     "specGoals": "Goals",
     "specConstraints": "Constraints",
     "specAcceptance": "Acceptance criteria",
@@ -1102,7 +1102,25 @@
       "taskFallback": "Task",
       "breakEndTitle": "Break over!",
       "breakEndBody": "Time to get back to work"
-    }
+    },
+    "specOutOfScope": "Out of scope",
+    "specUserChecks": "What you will check yourself",
+    "specDeliverable": "Deliverable",
+    "specRequiredHint": "Tasks in a development project need goals and a completion criterion (an acceptance criterion or something you check yourself).",
+    "specRequiredToast": "Some required fields are empty",
+    "specErrorGoals": "Enter at least one goal",
+    "specErrorCompletion": "Enter at least one acceptance criterion or one thing you will check yourself",
+    "deliverable": {
+      "pr": "PR (code change)",
+      "note": "Note",
+      "report": "Report",
+      "decision": "Decision"
+    },
+    "specEdit": "Edit spec",
+    "specSave": "Save",
+    "specCancel": "Cancel",
+    "specSaved": "Spec saved",
+    "specSaveFailed": "Could not save the spec"
   },
   "auth": {
     "loginTitle": "Login to Rapitas",

@@ -31,6 +31,8 @@ export const UPDATE_SPEC_FIELDS = {
   goals: longList,
   constraints: longList,
   acceptanceCriteria: longList,
+  /** Not jury-checked, so written without the criteria revision (#1555). */
+  userAcceptanceChecks: longList,
   outOfScope: longList,
   deliverable,
 };

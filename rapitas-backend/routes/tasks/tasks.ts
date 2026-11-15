@@ -30,6 +30,7 @@ import { computeTaskActiveTime } from '../../services/agent-execution/task-activ
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 import { retryTask } from './task-retry-handler';
 import { CREATE_SPEC_FIELDS, UPDATE_SPEC_FIELDS } from './task-spec-body';
+import { computeCriteriaRevision } from '../../services/task/task-criteria-revision';
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
@@ -312,16 +313,18 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     // is exactly the shape that makes "is it gone?" unanswerable without
     // parsing. The status is part of the answer.
     if (!task) throw new NotFoundError(`Task ${id} not found`);
+    // What PATCH needs as expectedCriteriaRevision to edit the spec (#1555).
+    const criteriaRevision = computeCriteriaRevision(task);
 
     // Cumulative active time / current-cycle wall-clock / per-role breakdown
     // (task #560). Additive fields only — existing consumers are unaffected.
     // Best-effort: an aggregation failure must never break the task detail.
     try {
       const timing = await computeTaskActiveTime(prisma, id);
-      return { ...task, ...timing };
+      return { ...task, criteriaRevision, ...timing };
     } catch (error) {
       logger.warn({ err: error, taskId: id }, '[tasks] active-time aggregation failed');
-      return task;
+      return { ...task, criteriaRevision };
     }
   })
 

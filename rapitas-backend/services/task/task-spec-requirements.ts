@@ -84,8 +84,9 @@ export function requiredSpecQuestion(title: string, missing: RequiredSpecItem[])
   ].join('\n');
 }
 
-/** 範囲外 and 成果物 as the API takes them (#1555). */
+/** 範囲外, 成果物 and 本人が確かめること as the API takes them (#1555). */
 export interface ScopeFieldsInput {
+  userAcceptanceChecks?: string[];
   outOfScope?: string[];
   deliverable?: string;
 }
@@ -100,13 +101,24 @@ export interface ScopeFieldsInput {
  * @returns Prisma data fields / 書き込む列
  */
 export function scopeFieldsForWrite(input: ScopeFieldsInput): {
+  userAcceptanceChecks?: string | null;
   outOfScope?: string | null;
   deliverable?: Deliverable;
 } {
-  const out: { outOfScope?: string | null; deliverable?: Deliverable } = {};
-  if (input.outOfScope !== undefined) {
-    const items = input.outOfScope.map((s) => s.trim()).filter((s) => s.length > 0);
-    out.outOfScope = items.length > 0 ? JSON.stringify(items) : null;
+  const out: {
+    userAcceptanceChecks?: string | null;
+    outOfScope?: string | null;
+    deliverable?: Deliverable;
+  } = {};
+  const list = (v: string[]) => {
+    const items = v.map((s) => s.trim()).filter((s) => s.length > 0);
+    return items.length > 0 ? JSON.stringify(items) : null;
+  };
+  if (input.outOfScope !== undefined) out.outOfScope = list(input.outOfScope);
+  // The person's own checks are not jury criteria: editable here without the
+  // criteria revision (#1555).
+  if (input.userAcceptanceChecks !== undefined) {
+    out.userAcceptanceChecks = list(input.userAcceptanceChecks);
   }
   if (
     typeof input.deliverable === 'string' &&

@@ -204,6 +204,7 @@ export interface UpdateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  userAcceptanceChecks?: string[];
   outOfScope?: string[];
   deliverable?: string;
   /**

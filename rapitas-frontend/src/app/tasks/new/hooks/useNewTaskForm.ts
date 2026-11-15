@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { Priority, Theme, WorkflowMode } from '@/types';
 import { useTaskFormData } from './useTaskFormData';
 import { useTaskFormActions } from './useTaskFormActions';
+import type { DeliverableOption } from '@/feature/tasks/components/spec';
 
 /** Shape of a pending subtask before the parent task is created. */
 export interface PendingSubtask {
@@ -39,6 +40,10 @@ export function useNewTaskForm() {
   const [goals, setGoals] = useState('');
   const [constraints, setConstraints] = useState('');
   const [acceptanceCriteria, setAcceptanceCriteria] = useState('');
+  // 本人が確かめること・範囲外・成果物 (#1555). PR is what a development task hands over.
+  const [userAcceptanceChecks, setUserAcceptanceChecks] = useState('');
+  const [outOfScope, setOutOfScope] = useState('');
+  const [deliverable, setDeliverable] = useState<DeliverableOption>('pr');
 
   // ── Remote data + derived values ──────────────────────────────────────────
   const { themes, categories, globalSettings, selectedTheme, visibleThemes } = useTaskFormData({
@@ -61,6 +66,9 @@ export function useNewTaskForm() {
       goals,
       constraints,
       acceptanceCriteria,
+      userAcceptanceChecks,
+      outOfScope,
+      deliverable,
       selectedTheme,
       globalSettings,
     },
@@ -105,6 +113,12 @@ export function useNewTaskForm() {
     setConstraints,
     acceptanceCriteria,
     setAcceptanceCriteria,
+    userAcceptanceChecks,
+    setUserAcceptanceChecks,
+    outOfScope,
+    setOutOfScope,
+    deliverable,
+    setDeliverable,
     // remote data
     themes,
     categories,

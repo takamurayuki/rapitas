@@ -9,6 +9,12 @@ import { API_BASE_URL } from '@/utils/api';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { createLogger } from '@/lib/logger';
 import type { PendingSubtask } from './useNewTaskForm';
+import {
+  specErrors,
+  toLines,
+  type DeliverableOption,
+  type SpecErrors,
+} from '@/feature/tasks/components/spec';
 
 const logger = createLogger('useTaskSubmit');
 const API_BASE = API_BASE_URL;
@@ -30,16 +36,42 @@ export interface TaskPayloadValues {
   constraints: string;
   /** Newline-separated acceptance criteria / 改行区切りの受入基準 */
   acceptanceCriteria: string;
+  /** Newline-separated checks only the person makes / 改行区切りの本人確認 */
+  userAcceptanceChecks: string;
+  /** Newline-separated out-of-scope items (#1555) / 改行区切りの範囲外 */
+  outOfScope: string;
+  /** What finishing hands over (#1555) / 成果物 */
+  deliverable: DeliverableOption;
   selectedTheme: Theme | null;
   globalSettings: UserSettings | null;
 }
 
-/** Splits a newline-separated block into trimmed, non-empty items. */
-function toLines(raw: string): string[] {
-  return raw
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
+/**
+ * The POST /tasks body for the parent task.
+ *
+ * @param v - Current form values / フォームの値
+ * @param title - Title to send (typed or AI-generated) / 送るタイトル
+ * @returns Request body / リクエスト本文
+ */
+function taskBody(v: TaskPayloadValues, title: string) {
+  return {
+    title,
+    description: v.description || undefined,
+    status: 'todo',
+    priority: v.priority,
+    themeId: v.themeId || undefined,
+    labelIds: v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
+    estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : undefined,
+    dueDate: v.dueDate || undefined,
+    workflowMode: v.workflowMode,
+    workflowModeOverride: v.isWorkflowModeOverride,
+    goals: toLines(v.goals),
+    constraints: toLines(v.constraints),
+    acceptanceCriteria: toLines(v.acceptanceCriteria),
+    userAcceptanceChecks: toLines(v.userAcceptanceChecks),
+    outOfScope: toLines(v.outOfScope),
+    deliverable: v.deliverable,
+  };
 }
 
 /**
@@ -58,6 +90,17 @@ export function useTaskSubmit(
   const t = useTranslations('task');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Shown under the fields once a submit was refused for them (#1555).
+  const [specIssues, setSpecIssues] = useState<SpecErrors>({});
+
+  /** True (and the fields marked) when a development-project task lacks a required item. */
+  const blockedBySpec = (v: TaskPayloadValues): boolean => {
+    const errors = specErrors(v, v.selectedTheme?.isDevelopment === true);
+    setSpecIssues(errors);
+    if (Object.keys(errors).length === 0) return false;
+    showToast(t('specRequiredToast'), 'error');
+    return true;
+  };
 
   /** POSTs all pending subtasks under the given parent task ID. */
   const createSubtasks = async (parentId: number) => {
@@ -127,6 +170,7 @@ export function useTaskSubmit(
   const handleSubmitWithTitle = async (generatedTitle: string) => {
     if (isSubmitting || !generatedTitle.trim()) return;
     const v = getValues();
+    if (blockedBySpec(v)) return;
     const executeAfterCreate =
       (v.globalSettings?.autoExecuteAfterCreate ?? false) &&
       v.selectedTheme?.isDevelopment === true;
@@ -135,21 +179,7 @@ export function useTaskSubmit(
       const res = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: generatedTitle,
-          description: v.description || undefined,
-          status: 'todo',
-          priority: v.priority,
-          themeId: v.themeId || undefined,
-          labelIds: v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
-          estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : undefined,
-          dueDate: v.dueDate || undefined,
-          workflowMode: v.workflowMode,
-          workflowModeOverride: v.isWorkflowModeOverride,
-          goals: toLines(v.goals),
-          constraints: toLines(v.constraints),
-          acceptanceCriteria: toLines(v.acceptanceCriteria),
-        }),
+        body: JSON.stringify(taskBody(v, generatedTitle)),
       });
       if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
@@ -172,6 +202,7 @@ export function useTaskSubmit(
     e?.preventDefault();
     const v = getValues();
     if (isSubmitting || !v.title.trim()) return;
+    if (blockedBySpec(v)) return;
     const executeAfterCreate =
       (v.globalSettings?.autoExecuteAfterCreate ?? false) &&
       v.selectedTheme?.isDevelopment === true;
@@ -180,21 +211,7 @@ export function useTaskSubmit(
       const res = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: v.title,
-          description: v.description || undefined,
-          status: 'todo',
-          priority: v.priority,
-          themeId: v.themeId || undefined,
-          labelIds: v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
-          estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : undefined,
-          dueDate: v.dueDate || undefined,
-          workflowMode: v.workflowMode,
-          workflowModeOverride: v.isWorkflowModeOverride,
-          goals: toLines(v.goals),
-          constraints: toLines(v.constraints),
-          acceptanceCriteria: toLines(v.acceptanceCriteria),
-        }),
+        body: JSON.stringify(taskBody(v, v.title)),
       });
       if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
@@ -208,5 +225,5 @@ export function useTaskSubmit(
     }
   };
 
-  return { isSubmitting, handleSubmit, handleSubmitWithTitle };
+  return { isSubmitting, handleSubmit, handleSubmitWithTitle, specIssues };
 }

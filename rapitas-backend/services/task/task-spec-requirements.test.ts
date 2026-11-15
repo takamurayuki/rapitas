@@ -93,3 +93,14 @@ describe('writing 範囲外 and 成果物', () => {
     expect(scopeFieldsForWrite({ deliverable: 'report' })).toEqual({ deliverable: 'report' });
   });
 });
+
+describe('editing what the person checks', () => {
+  it('writes it as JSON, and clears it when emptied', () => {
+    expect(scopeFieldsForWrite({ userAcceptanceChecks: ['見て分かる'] })).toEqual({
+      userAcceptanceChecks: '["見て分かる"]',
+    });
+    expect(scopeFieldsForWrite({ userAcceptanceChecks: [' '] })).toEqual({
+      userAcceptanceChecks: null,
+    });
+  });
+});
