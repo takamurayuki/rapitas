@@ -80,8 +80,11 @@ export async function verifierConfirmedForCompletion(
   opts: { fromStatus?: string } = {},
 ): Promise<boolean> {
   try {
-    const { VERIFIER_ELIGIBILITY_DEFERRED_CAUSE, holdIfVerifierIneligible } =
-      await import('./verifier-eligibility');
+    const {
+      VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+      VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
+      holdIfVerifierIneligible,
+    } = await import('./verifier-eligibility');
     const { REVIEW_HOLD_CAUSE, REVIEW_HOLD_RESOLVED_CAUSE, probeReviewHold } =
       await import('./review-hold');
     // NOTE: Hold creations are part of the search — a re-hold written after an
@@ -93,6 +96,8 @@ export async function verifierConfirmedForCompletion(
           in: [
             'file_saved:verify',
             VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+            // NOTE: newer than the deferral it settles, so it unblocks completion (#1553).
+            VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
             REVIEW_HOLD_CAUSE,
             REVIEW_HOLD_RESOLVED_CAUSE,
           ],
