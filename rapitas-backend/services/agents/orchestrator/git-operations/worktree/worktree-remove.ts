@@ -67,13 +67,17 @@ export async function removeWorktree(
   const contentIsSafe = async (): Promise<boolean> => {
     if (!existsSync(worktreePath) || forceRemove) return true;
     // Without local metadata, Git can silently inspect the parent checkout.
+    // NOTE(#1565): info, not warn — both refusals are this guard doing its
+    // job, and they repeated per directory per sweep (103 of 215 warnings on
+    // 2026-11-16). The orphan sweep reports directories without Git metadata
+    // once, for a person; "Cannot prove…" below is a real failure and stays warn.
     if (!existsSync(join(worktreePath, '.git'))) {
-      logger.warn({ worktreePath }, '[removeWorktree] Missing Git metadata; preserving directory');
+      logger.info({ worktreePath }, '[removeWorktree] Missing Git metadata; preserving directory');
       return false;
     }
     try {
       if (!(await isWorktreeContentPreserved(worktreePath, preservedSnapshotTag))) {
-        logger.warn({ worktreePath }, '[removeWorktree] Preserving uncommitted work');
+        logger.info({ worktreePath }, '[removeWorktree] Preserving uncommitted work');
         return false;
       }
       return true;

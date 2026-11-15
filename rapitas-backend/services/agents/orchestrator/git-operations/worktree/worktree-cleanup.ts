@@ -13,6 +13,8 @@ import { normalizePath } from '../core/safety';
 import { resolveWorktreeBaseDir } from '../core/resolve-worktree-base-dir';
 import { prisma } from '../../../../../config/database';
 import { removeWorktree } from './worktree-remove';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import {
   shouldSkipRemovalAttempt,
   recordRemovalRefused,
@@ -126,6 +128,8 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
 
   let keptSessionCount = 0;
   let skippedCount = 0;
+  let refusedCount = 0;
+  const noMetadataPaths: string[] = [];
 
   for (const [worktreePath, sessionIds] of sessionsByPath) {
     const normalized = normalizePath(worktreePath);
@@ -178,6 +182,16 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
       continue;
     }
 
+    // NOTE(#1565): a directory with no `.git` can never be removed by git, so
+    // it is not attempted at all — it used to cost a removeWorktree call and
+    // two WARN lines per directory on every sweep after each restart (51 of
+    // 215 warnings on 2026-11-16). Reported once below, for a person.
+    if (existsSync(worktreePath) && !existsSync(join(worktreePath, '.git'))) {
+      recordRemovalRefused(normalized);
+      noMetadataPaths.push(worktreePath);
+      continue;
+    }
+
     try {
       const removed = await removeWorktree(ownerRoot, worktreePath);
       if (removed) {
@@ -196,7 +210,12 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
         );
       } else {
         recordRemovalRefused(normalized);
-        logger.warn(
+        refusedCount++;
+        // NOTE(#1565): debug, not warn — a refusal is removeWorktree's guard
+        // keeping uncommitted work, which is the system working; it repeated
+        // per directory per sweep (103 of 215 warnings on 2026-11-16). The
+        // count is summarised after the loop.
+        logger.debug(
           `[cleanupOrphanedWorktrees] removeWorktree refused for ${sessionIds.length} session(s) (ids: ${sessionIds.join(',')}): ${worktreePath}`,
         );
       }
@@ -214,6 +233,12 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
       `[cleanupOrphanedWorktrees] Kept ${keptSessionCount} session worktree(s) (owning tasks still live)`,
     );
   }
+  if (refusedCount > 0) {
+    logger.info(
+      `[cleanupOrphanedWorktrees] Kept ${refusedCount} worktree(s) whose removal was refused to preserve their work; retried after the cooldown`,
+    );
+  }
+  reportNoMetadataOnce(noMetadataPaths);
   if (skippedCount > 0) {
     // One line instead of a pair per worktree: the detail repeats every sweep,
     // and the count is what tells an operator the backlog is growing.
@@ -223,4 +248,28 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
   }
 
   return cleanedCount;
+}
+
+/** Directories without Git metadata already reported in this process. */
+const reportedNoMetadata = new Set<string>();
+
+/**
+ * Warn once per process about worktree directories git cannot remove.
+ *
+ * They need a person: with no `.git` there is nothing to prove the content is
+ * kept elsewhere, so nothing removes them automatically. Once per directory
+ * per process keeps that visible after a restart without repeating it on
+ * every sweep (#1565).
+ *
+ * @param paths - Directories found without Git metadata this sweep / .git の無いディレクトリ
+ */
+function reportNoMetadataOnce(paths: string[]): void {
+  const fresh = paths.filter((p) => !reportedNoMetadata.has(normalizePath(p)));
+  if (fresh.length === 0) return;
+  for (const p of fresh) reportedNoMetadata.add(normalizePath(p));
+  const shown = fresh.slice(0, 5).join(', ');
+  const more = fresh.length > 5 ? ` (+${fresh.length - 5} more)` : '';
+  logger.warn(
+    `[cleanupOrphanedWorktrees] ${fresh.length} worktree director${fresh.length === 1 ? 'y has' : 'ies have'} no Git metadata and cannot be removed automatically — check and delete by hand: ${shown}${more}`,
+  );
 }
