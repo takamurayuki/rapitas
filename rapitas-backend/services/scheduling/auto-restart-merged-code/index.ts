@@ -314,7 +314,9 @@ export class AutoRestartMergedCodeScheduler {
       logger.warn({ err }, '[AutoRestartMergedCode] Notification failed — restarting anyway');
     });
     writeLastRestartAt(Date.now());
-    logger.warn(
+    // NOTE(#1565): info, not warn — this is the planned activation of merged
+    // code at a quiet point, and the person is already told by the notification.
+    logger.info(
       { aheadCount, branch, startupCommit: this.startupCommit },
       '[AutoRestartMergedCode] Restarting to activate merged code',
     );

@@ -112,7 +112,14 @@ export async function setupWorker(state: WorkerState): Promise<void> {
     });
 
     state.workerProcess.on('exit', (code, signal) => {
-      logger.warn({ code, signal }, '[AgentWorkerManager] Worker process exited');
+      // NOTE(#1565): an exit while shutting down is the expected end of the
+      // worker (every restart logged it as a warning); only an exit outside a
+      // shutdown — a crash, handled below — is worth a warning.
+      (state.isShuttingDown ? logger.info : logger.warn).call(
+        logger,
+        { code, signal },
+        '[AgentWorkerManager] Worker process exited',
+      );
       if (state.workerProcess?.pid) {
         unregisterProcess(state.workerProcess.pid);
       }
