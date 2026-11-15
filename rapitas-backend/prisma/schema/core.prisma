@@ -144,6 +144,12 @@ model Task {
   /// self-check, landing classifier and replanning — which read only that
   /// column — never judge a diff against something no diff can show.
   userAcceptanceChecks  String?
+  /// JSON array of what this task deliberately leaves out (範囲外). Read by the
+  /// goal anchor so the agent does not widen the change (#1555).
+  outOfScope            String?
+  /// What finishing hands over: 'pr' | 'note' | 'report' | 'decision' (成果物,
+  /// #1555). Null reads as 'pr', the deliverable of a development task.
+  deliverable           String?
   developerModeConfig   DeveloperModeConfig?
   taskAnalysisConfig    TaskAnalysisConfig?
   agentExecutionConfig  AgentExecutionConfig?

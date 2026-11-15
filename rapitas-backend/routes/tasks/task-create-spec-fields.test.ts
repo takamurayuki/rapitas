@@ -50,3 +50,30 @@ describe('POST /tasks', () => {
     ]);
   });
 });
+
+// 範囲外 and 成果物 (#1555) come in on both create and edit.
+describe('範囲外 and 成果物', () => {
+  const post = (body: Record<string, unknown>) =>
+    tasksRoutes.handle(
+      new Request('http://localhost/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'ログに理由を残す', ...body }),
+      }),
+    );
+
+  it('keeps them on create', async () => {
+    const res = await post({ outOfScope: ['再起動ボタン'], deliverable: 'report' });
+    expect(res.status).toBe(200);
+    const data = createTask.mock.calls.at(-1)[1];
+    expect(data.outOfScope).toEqual(['再起動ボタン']);
+    expect(data.deliverable).toBe('report');
+  });
+
+  it('refuses a deliverable that is not one of pr, note, report, decision', async () => {
+    const before = createTask.mock.calls.length;
+    const res = await post({ deliverable: 'zip' });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(createTask.mock.calls.length).toBe(before);
+  });
+});

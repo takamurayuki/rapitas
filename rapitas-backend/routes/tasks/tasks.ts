@@ -29,6 +29,7 @@ import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanu
 import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 import { retryTask } from './task-retry-handler';
+import { CREATE_SPEC_FIELDS, UPDATE_SPEC_FIELDS } from './task-spec-body';
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
@@ -363,10 +364,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         themeId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
-        goals: t.Optional(t.Array(t.String())),
-        constraints: t.Optional(t.Array(t.String())),
-        acceptanceCriteria: t.Optional(t.Array(t.String())),
-        userAcceptanceChecks: t.Optional(t.Array(t.String())), // unnamed fields are dropped (#1547)
+        ...CREATE_SPEC_FIELDS,
         searchMissId: t.Optional(t.Number()),
       }),
     },
@@ -404,11 +402,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           projectId: t.Optional(t.Number()),
           milestoneId: t.Optional(t.Number()),
           autoApprovePlan: t.Optional(t.Boolean()),
-          goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
-          constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
-          acceptanceCriteria: t.Optional(
-            t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
-          ),
+          ...UPDATE_SPEC_FIELDS,
           expectedCriteriaRevision: t.Optional(t.String({ maxLength: 128 })),
           isProtected: t.Optional(t.Boolean()),
           autoRunExcluded: t.Optional(t.Boolean()),

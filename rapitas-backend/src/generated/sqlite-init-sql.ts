@@ -444,6 +444,8 @@ CREATE TABLE "Task" (
     "constraints" TEXT,
     "acceptanceCriteria" TEXT,
     "userAcceptanceChecks" TEXT,
+    "outOfScope" TEXT,
+    "deliverable" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" DATETIME,

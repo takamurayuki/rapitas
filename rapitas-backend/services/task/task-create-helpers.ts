@@ -6,6 +6,7 @@
  */
 import { PrismaClient, Prisma } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { scopeFieldsForWrite } from './task-spec-requirements';
 import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
@@ -113,6 +114,7 @@ export async function createSubtask(
             data.acceptanceCriteria.length > 0 && {
               acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
             }),
+          ...scopeFieldsForWrite(data),
         },
       });
 
@@ -175,6 +177,7 @@ export async function createParentTask(
       data.userAcceptanceChecks.length > 0 && {
         userAcceptanceChecks: JSON.stringify(data.userAcceptanceChecks),
       }),
+    ...scopeFieldsForWrite(data), // 範囲外・成果物 (#1555)
   };
 
   const companion = data.companion;

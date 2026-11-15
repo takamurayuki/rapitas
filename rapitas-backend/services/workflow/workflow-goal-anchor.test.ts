@@ -1,0 +1,46 @@
+/**
+ * workflow-goal-anchor.test
+ *
+ * The implementer re-reads the goal anchor before each change. 範囲外 and
+ * 成果物 (#1555) belong there: what not to touch is what keeps a change from
+ * widening, and the deliverable says what finishing hands over — for a
+ * report, that "nothing to change" is a valid ending.
+ */
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
+
+let row: Record<string, unknown> | null = null;
+mock.module('../../config/database', () => ({
+  prisma: { task: { findUnique: async () => row } },
+}));
+
+const { buildGoalAnchor } = await import('./workflow-goal-anchor');
+
+beforeEach(() => {
+  row = {
+    goals: '["ログから理由が読める"]',
+    acceptanceCriteria: '["dev-pull.test.cjs に足したテストが通る"]',
+    outOfScope: null,
+    deliverable: null,
+  };
+});
+
+describe('the goal anchor', () => {
+  it('lists what is out of scope', async () => {
+    row!.outOfScope = '["画面の再起動ボタン"]';
+    const anchor = await buildGoalAnchor(1, { title: 'ログに理由を残す' }, 'ja');
+    expect(anchor).toContain('範囲外');
+    expect(anchor).toContain('画面の再起動ボタン');
+  });
+
+  it('says a report may end with nothing to change', async () => {
+    row!.deliverable = 'report';
+    const anchor = await buildGoalAnchor(1, { title: '監査する' }, 'ja');
+    expect(anchor).toContain('成果物: 報告');
+    expect(anchor).toContain('修正不要');
+  });
+
+  it('reads a missing deliverable as a PR', async () => {
+    const anchor = await buildGoalAnchor(1, { title: 'ログに理由を残す' }, 'ja');
+    expect(anchor).toContain('成果物: PR');
+  });
+});
