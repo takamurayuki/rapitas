@@ -117,3 +117,34 @@ describe('what the model is told', () => {
     }
   });
 });
+
+// Found in the #1545 trial (task #1498): "`node --test a.test.cjs …` がすべて
+// 成功する" could not be met, because 12 tests in that file already failed
+// on Windows before the change. The verifier honestly wrote 一部失敗.
+describe('a criterion that asks a whole existing suite to pass', () => {
+  it.each([
+    '`node --test rapitas-desktop/scripts/dev-pull.test.cjs` がすべて成功する',
+    'bun test services/workflow の全テストが通る',
+    '既存のテストが全件パスする',
+  ])('flags %s', (text) => {
+    expect(codes(text)).toContain('whole_suite');
+  });
+
+  it('accepts the same check made against the state before the change', () => {
+    expect(
+      codes(
+        '`node --test dev-pull.test.cjs` を変更前と変更後で実行し、変更前に通っていたテストが変更後もすべて通る',
+      ),
+    ).not.toContain('whole_suite');
+  });
+
+  it('leaves the new tests alone', () => {
+    expect(codes('新しく足した dev-pull.test.cjs のテストがすべて通る')).not.toContain(
+      'whole_suite',
+    );
+  });
+
+  it('is in what the model is told', () => {
+    expect(CRITERIA_RULES_PROMPT).toContain('変更前');
+  });
+});

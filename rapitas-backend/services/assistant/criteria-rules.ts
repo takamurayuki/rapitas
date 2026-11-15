@@ -18,7 +18,11 @@
 import type { CriterionVerifier } from './criteria-wording';
 
 /** Which rule a criterion breaks. */
-export type CriterionIssueCode = 'unreachable' | 'negation_only' | 'no_check_method';
+export type CriterionIssueCode =
+  | 'unreachable'
+  | 'whole_suite'
+  | 'negation_only'
+  | 'no_check_method';
 
 /** Which rule a task's spec as a whole breaks. */
 export type SpecIssueCode = 'no_unchanged_route';
@@ -39,6 +43,18 @@ export interface CriterionIssue {
  */
 const UNREACHABLE =
   /(?:\bCI\b|GitHub\s*Actions|ワークフロー(?:が|の実行)|マージ(?:され|後|した後)|merged|本番|プロダクション|production|デプロイ(?:後|され)|リリース後|push\s*後|プッシュ後|レビュー(?:で|が)承認)/i;
+
+/**
+ * "All the tests pass": a whole suite or test file asked to pass. In the
+ * #1545 trial (task #1498) 12 tests of the named file already failed on
+ * Windows before the change, so the criterion could not be met however the
+ * work was done.
+ */
+const WHOLE_SUITE =
+  /(?:テスト|test|spec).{0,40}(?:すべて|全て|全件|全部|ぜんぶ|all).{0,6}(?:成功|通る|通過|パス|pass|green)|(?:すべて|全て|全件|全部)の(?:テスト|test)|全(?:テスト|test)/i;
+
+/** Wording that compares with the state before the change, or names only the new tests. */
+const BASELINE_RELATIVE = /変更前|ベース|baseline|新しく(?:足|追加)|追加した|足した/i;
 
 /** A sentence that ends on a negation: "…しないこと", "…が出ない". */
 const NEGATION_END =
@@ -82,6 +98,7 @@ const UNCHANGED_ROUTE = /変更不要|修正不要|変更なし|対応不要|no\
 export const CRITERIA_RULES_PROMPT = `受け入れ条件（acceptanceCriteria）の書き方:
 - 1件ごとに確認方法を添える。テスト名・コマンド・ファイル・API・数値のどれかで、作業者が自分で確かめられる形にする（例:「GET /tasks?q=abc が該当タスクだけを返す（確認方法: tasks.test.ts）」）。
 - 作業中の担当者が確かめられないことは書かない。CI の結果、PR のマージ後、本番やデプロイ後の状態、人の操作は受け入れ条件にしない。必要なら「確認してほしいことを verify.md に書く」のように、作業者の成果物に言い換える。
+- 既存のテストファイルやテスト全体が「すべて通る」ことを条件にしない。変更前から落ちているテストまで背負うことになる。「変更前に通っていたテストが変更後もすべて通り、新しく足したテストがすべて通る（変更前から落ちているテストは件数と原因を verify.md に書く）」と、変更前と比べる形で書く。
 - 「〜しない」「〜が出ない」だけで終わる条件は書かない。何もしなくても満たせてしまうので、代わりに何がどうなるかを書く（例:「エラーは出さず、『タスクはありません』と表示する」）。
 - 調査・監査・報告が成果物のタスクには、「直す必要がなければ、変更不要とその根拠を書いて完了とする」という条件を必ず入れる。
 - 見た目の好みや使い心地など、人にしか判断できないことは受け入れ条件ではなく、本人が確かめる項目に分ける。`;
@@ -106,6 +123,15 @@ export function findCriterionIssues(text: string, verifier: CriterionVerifier): 
       message: 'CI・マージ後・本番の状態は、作業中には確かめられません。',
       suggestion:
         'ローカルで確かめられる条件（該当テストが通る、など）に言い換えるか、確認してほしいことを verify.md に書く条件にしてください。',
+    });
+  }
+  if (WHOLE_SUITE.test(text) && !BASELINE_RELATIVE.test(text)) {
+    issues.push({
+      code: 'whole_suite',
+      message:
+        '既存のテスト全体の成功を求めると、変更前から落ちているテストまで直さないと満たせません。',
+      suggestion:
+        '「変更前に通っていたテストが変更後もすべて通り、新しく足したテストがすべて通る」と、変更前と比べる形で書いてください。',
     });
   }
   if (NEGATION_END.test(text) && !POSITIVE_CLAUSE.test(text)) {
