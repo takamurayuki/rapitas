@@ -159,6 +159,14 @@ export async function handleSaveFile({
     newStatus = critic.newStatus;
     const criticRejection = critic.criticRejection;
 
+    // The plan is made against the criteria, so they are settled first: the
+    // researcher's criteria review can stop a person's task here (#1561).
+    if (fileType === 'research' && newStatus === 'research_done') {
+      const { settleCriteriaFromResearch } =
+        await import('../../../services/workflow/research-criteria-review');
+      if (await settleCriteriaFromResearch(taskId, savedContent)) newStatus = 'awaiting_question';
+    }
+
     const planPost = await runPlanPostProcessing({
       taskId,
       fileType,

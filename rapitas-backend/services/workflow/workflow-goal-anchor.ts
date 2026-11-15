@@ -9,7 +9,9 @@ import { prisma } from '../../config/database';
 import { parseDeliverable, type Deliverable } from '../task/task-spec-requirements';
 
 const DELIVERABLE_JA: Record<Deliverable, string> = {
-  pr: 'PR（コードの変更）',
+  // NOTE: a PR is needed only when something changes (#1561): research may
+  // show the change is unnecessary, and saying so is a valid ending.
+  pr: 'PR（コードの変更）。調べた結果、変更が不要と分かったら、無理に変更せず verify.md に「## 結論: 修正不要」と根拠を書いて完了してよい',
   note: 'ノート（作業の結果をノートにまとめる）',
   report:
     '報告（verify.md に結果を書く。直す必要がなければ「## 結論: 修正不要」と根拠を書く。書かないと完了の判定で止まる）',
@@ -18,7 +20,7 @@ const DELIVERABLE_JA: Record<Deliverable, string> = {
 };
 
 const DELIVERABLE_EN: Record<Deliverable, string> = {
-  pr: 'a PR (code change)',
+  pr: 'a PR (code change); if the work shows no change is needed, do not force one — write "## 結論: 修正不要" with the reasons in verify.md',
   note: 'a note summarising the result',
   report:
     'a report in verify.md; if nothing needs changing, write "## 結論: 修正不要" with the reasons',

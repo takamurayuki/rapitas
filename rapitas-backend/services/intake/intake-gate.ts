@@ -42,6 +42,7 @@ import {
 import { resolveIntakePolicy, decideIntake } from './intake-policy';
 import { buildIntakeQuestion } from './intake-question-template';
 import { holdForRequiredSpec } from './intake-required-spec';
+import { applyCriteriaRuleFixes } from './intake-criteria-check';
 
 const log = createLogger('intake-gate');
 
@@ -82,6 +83,9 @@ export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> 
   if (await holdForRequiredSpec(taskId)) {
     return { status: 'awaiting_question', message: '必須の項目が未入力のため、入力を求めています' };
   }
+  // Then the criteria (#1561): the evidence-backed mistakes are fixed by
+  // rule here; the review that needs judgement is the researcher's.
+  await applyCriteriaRuleFixes(taskId).catch(() => []);
   return outcome;
 }
 
