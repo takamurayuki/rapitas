@@ -10,3 +10,4 @@ export { SubtaskForm } from './SubtaskForm';
 export { SubtaskList } from './SubtaskList';
 export { WorkflowSection } from './WorkflowSection';
 export { TaskSpecSection } from './TaskSpecSection';
+export { DescriptionAiActions } from './DescriptionAiActions';

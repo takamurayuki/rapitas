@@ -1,6 +1,6 @@
 'use client';
 // NewTaskClient
-import { Layers, Flag, FileText, GitBranch, ListTodo, Sparkles, Loader2 } from 'lucide-react';
+import { Layers, Flag, FileText, GitBranch, ListTodo } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskTitleAutocomplete from '@/feature/tasks/components/text/TaskTitleAutocomplete';
@@ -16,6 +16,7 @@ import {
   SubtaskForm,
   SubtaskList,
   TaskSpecSection,
+  DescriptionAiActions,
   WorkflowSection,
   usePriorityOptions,
 } from './components';
@@ -147,22 +148,6 @@ function NewTaskClient() {
             title={t('description')}
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
-            headerExtra={
-              <button
-                type="button"
-                onClick={() => form.handleGenerateTitle(false)}
-                disabled={!form.description.trim() || form.isGeneratingTitle}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={t('titleGenerateTooltip')}
-              >
-                {form.isGeneratingTitle ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                <span>{t('titleGenerate')}</span>
-              </button>
-            }
           >
             <textarea
               ref={(el) => {
@@ -180,6 +165,13 @@ function NewTaskClient() {
               }}
               placeholder={t('taskDetailPlaceholder')}
               className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
+            />
+            <DescriptionAiActions
+              hasDescription={form.description.trim().length > 0}
+              isGeneratingTitle={form.isGeneratingTitle}
+              onGenerateTitle={() => form.handleGenerateTitle(false)}
+              isDerivingSpec={form.isDerivingSpec}
+              onDeriveSpec={() => form.deriveSpec()}
             />
           </CompactAccordionGroup>
 
@@ -212,9 +204,6 @@ function NewTaskClient() {
             setDeliverable={form.setDeliverable}
             isDevelopment={form.selectedTheme?.isDevelopment === true}
             specIssues={form.specIssues}
-            canDerive={form.description.trim().length > 0}
-            isDeriving={form.isDerivingSpec}
-            onDerive={() => form.deriveSpec()}
           />
 
           {/* Subtasks accordion */}
