@@ -32,6 +32,16 @@ const {
   SKIPPED_MERGE_FAILED,
 } = require('./dev-pull.cjs');
 
+// NOTE(#1552): an empty file of our own, not os.devNull. On Windows that is
+// `\\.\nul`, which git refuses ("unable to access '\\.\nul': Invalid
+// argument"), so every real-repository case failed there while CI (Linux)
+// stayed green.
+const EMPTY_GIT_CONFIG = path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), 'dev-pull-gitconfig-')),
+  'config',
+);
+fs.writeFileSync(EMPTY_GIT_CONFIG, '');
+
 const GIT_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'test',
@@ -39,7 +49,7 @@ const GIT_ENV = {
   GIT_COMMITTER_NAME: 'test',
   GIT_COMMITTER_EMAIL: 'test@example.invalid',
   GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: os.devNull,
+  GIT_CONFIG_GLOBAL: EMPTY_GIT_CONFIG,
 };
 
 function git(cwd, ...args) {

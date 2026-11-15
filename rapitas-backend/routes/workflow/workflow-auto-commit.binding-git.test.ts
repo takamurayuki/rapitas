@@ -240,7 +240,14 @@ describe('コミット後の照合は内容のバイト列とモードで行う�
 
   test('ファイルモードがコミット中に変われば、公開しない', async () => {
     put('n.sh', 'echo\n');
-    duringCommit = () => chmodSync(join(repo, 'n.sh'), 0o755);
+    // NOTE(#1552): chmod alone changes nothing on Windows — NTFS has no exec
+    // bit and git runs there with core.fileMode=false — so the mode is also
+    // set in the index, which the commit then keeps. On Linux both agree.
+    duringCommit = () => {
+      chmodSync(join(repo, 'n.sh'), 0o755);
+      git('add', 'n.sh');
+      git('update-index', '--chmod=+x', 'n.sh');
+    };
     const r = await overrideAndPublish();
     expect(r.bindingMismatch).toContain('差分');
     expect(prs).toBe(0);
