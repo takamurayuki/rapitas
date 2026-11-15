@@ -551,3 +551,38 @@ describe('recordPullOnLaunch', () => {
     assert.equal(events[0][1].action, 'failed');
   });
 });
+
+// The app's 再起動 (backend exit 75) pulls too (#1563). The row says which
+// pulled, so a restart that brought nothing in can be told from a launch.
+describe('recordPullOnLaunch trigger', () => {
+  test('records what triggered the pull', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => ({ action: UP_TO_DATE, from: 'a', to: 'a' }),
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      trigger: 'restart',
+    });
+    assert.equal(events[0][1].trigger, 'restart');
+  });
+
+  test('records it on a failed pull too', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => {
+        throw new Error('x');
+      },
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      trigger: 'restart',
+    });
+    assert.deepEqual(events[0][1], { action: 'failed', reason: 'x', trigger: 'restart' });
+  });
+
+  test('leaves the row as it was when no trigger is given', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => ({ action: UP_TO_DATE, from: 'a', to: 'a' }),
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+    });
+    assert.equal('trigger' in events[0][1], false);
+  });
+});
