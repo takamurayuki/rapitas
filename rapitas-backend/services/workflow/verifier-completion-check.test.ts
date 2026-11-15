@@ -156,3 +156,12 @@ test('束縛が一致しなくても、検証役が適格なら通常どおり�
   verifierModel = 'claude-opus-5-5';
   expect(await verifierConfirmedForCompletion(1471, 'merge_watcher')).toBe(true);
 });
+
+// The deferral settled by the CLI epilogue is newer than the deferral, so the
+// completion paths judge the ended run as usual (#1553).
+test('先送りの後に「解消」の記録があれば、検証役が適格なら完了を許す', async () => {
+  latest = { cause: 'verifier_eligibility_settled', metadata: { source: 'cli_epilogue' } };
+  older = [{ cause: 'verifier_eligibility_deferred', metadata: {} }];
+  verifierModel = 'claude-opus-5-5';
+  expect(await verifierConfirmedForCompletion(1498, 'merge_recovery')).toBe(true);
+});

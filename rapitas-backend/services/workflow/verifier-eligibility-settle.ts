@@ -12,6 +12,7 @@
 import { createLogger } from '../../config/logger';
 import {
   VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+  VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
   holdIfVerifierIneligible,
 } from './verifier-eligibility';
 
@@ -41,7 +42,17 @@ export async function settleDeferredVerifierEligibility(
     if (task.haltReason) return 'none';
     // Only when the newest verify save was deferred and nothing acted on it since.
     const latest = await prisma.workflowTransition.findFirst({
-      where: { taskId, cause: { in: ['file_saved:verify', VERIFIER_ELIGIBILITY_DEFERRED_CAUSE] } },
+      // A deferral the CLI epilogue already settled is not a deferral (#1553).
+      where: {
+        taskId,
+        cause: {
+          in: [
+            'file_saved:verify',
+            VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+            VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
+          ],
+        },
+      },
       orderBy: { createdAt: 'desc' },
       select: { cause: true },
     });
