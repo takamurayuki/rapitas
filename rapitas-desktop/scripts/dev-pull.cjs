@@ -340,21 +340,23 @@ function safely(fn) {
  * @param opts.appendDevEvent - ndjson writer / ログ書き込み関数
  * @param opts.onResult - called with the result before logging (terminal output) / 表示用
  * @param opts.onError - called with the failure reason / 例外時の表示用
+ * @param opts.trigger - what pulled: 'launch' or 'restart' (#1563); left out of the row when absent / 取り込みのきっかけ
  * @returns The result, or null when the pull threw / 結果、例外時は null
  */
-async function recordPullOnLaunch({ pull, appendDevEvent, onResult, onError }) {
+async function recordPullOnLaunch({ pull, appendDevEvent, onResult, onError, trigger }) {
+  const tag = trigger ? { trigger } : {};
   let result;
   try {
     result = await pull();
   } catch (err) {
     const reason = err && err.message ? err.message : String(err);
-    safely(() => appendDevEvent('dev_pull', { action: 'failed', reason }));
+    safely(() => appendDevEvent('dev_pull', { action: 'failed', reason, ...tag }));
     safely(() => onError && onError(reason));
     return null;
   }
   // NOTE: display and logging are isolated from each other so one failing never drops the other.
   safely(() => onResult && onResult(result));
-  safely(() => appendDevEvent('dev_pull', buildPullLogFields(result)));
+  safely(() => appendDevEvent('dev_pull', { ...buildPullLogFields(result), ...tag }));
   return result;
 }
 

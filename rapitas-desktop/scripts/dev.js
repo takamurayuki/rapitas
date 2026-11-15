@@ -2294,21 +2294,30 @@ async function restartBackend(processAlreadyExited = false) {
 
 async function restartBackendInner(processAlreadyExited) {
   console.log('\n🔄 Restarting backend server...');
-  console.log('  Step 1/5: Stopping backend completely...');
+  console.log('  Step 1/6: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log('  Step 2/5: Cleaning up stray processes...');
+  console.log('  Step 2/6: Cleaning up stray processes...');
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
   killStrayBackendHelpers();
 
+  // NOTE(#1563): the app's 再起動 restarts only the backend, so dev.js lives
+  // on and main() never pulls again — a merge on origin stayed out until a
+  // full dev:tauri relaunch (2026-11-15: the new colours did not show). Pull
+  // here, before the dependency and Prisma steps below, so they see what was
+  // pulled. A no-op after a self-deploy, which has already pulled. A change
+  // to dev.js itself still needs a relaunch; describePull says so.
+  console.log('  Step 3/6: Pulling the latest commits...');
+  await pullLatestOnLaunch('restart');
+
   // NOTE(#1403): exit 75 follows a self-deploy `git merge --ff-only`, which
   // never reinstalls. Sync node_modules to the pulled lockfiles while the
   // backend is down (Windows locks its native files while it runs).
-  console.log('  Step 3/5: Syncing dependencies with the committed lockfiles...');
+  console.log('  Step 4/6: Syncing dependencies with the committed lockfiles...');
   if (!runDependencySync('restart')) return;
 
-  console.log('  Step 4/5: Syncing database and generating Prisma Client...');
+  console.log('  Step 5/6: Syncing database and generating Prisma Client...');
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
@@ -2316,7 +2325,7 @@ async function restartBackendInner(processAlreadyExited) {
     console.log('  Attempting to start backend without DB sync...');
   }
 
-  console.log('  Step 5/5: Starting backend...');
+  console.log('  Step 6/6: Starting backend...');
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log('✅ Backend restart completed.');
@@ -2696,14 +2705,18 @@ function ensurePrimaryBranch() {
 }
 
 /**
- * 起動冒頭でリポジトリを upstream へ fast-forward し、結果を表示する。
+ * 起動冒頭と、画面の「再起動」（backend の exit 75）で、リポジトリを upstream へ
+ * fast-forward し、結果を表示する（再起動での取り込みは #1563）。
  * 判断と git 操作は dev-pull.cjs が持ち、ここは呼び出しと表示だけ。
  * プルできない理由（未コミット変更・分岐・接続不可など）は表示して続行する。
+ *
+ * @param {'launch' | 'restart'} trigger - 取り込みのきっかけ。dev_pull 行に残す
  */
-async function pullLatestOnLaunch() {
+async function pullLatestOnLaunch(trigger = 'launch') {
   const enabled = isPullEnabled(args, process.env);
   if (enabled) console.log('\nChecking for new commits (git pull --ff-only)...');
   await recordPullOnLaunch({
+    trigger,
     pull: () => pullOnLaunch({ repoRoot: REPO_ROOT, enabled }),
     appendDevEvent: (name, fields) => devSessionLog.appendDevEvent(name, fields),
     onResult: (result) => {

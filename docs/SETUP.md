@@ -51,6 +51,8 @@ cd rapitas-desktop && node scripts/dev.js --watch  # backend hot reload
 
 `dev.js` runs the desktop (SQLite) stack. It handles: pinning the checkout to the primary branch and fast-forwarding it to its upstream (`rapitas-desktop/scripts/dev-pull.cjs`; skipped with a printed reason when the tree is dirty, diverged or offline; `--no-pull` turns it off), port-conflict cleanup (3000/3001), SQLite init SQL + Prisma client generation (`bun run db:prepare:sqlite`, cached when the schema is unchanged; the backend applies the init SQL on boot), and starting backend + frontend together.
 
+The app's 再起動 (the backend exiting with code 75) repeats the fast-forward, the dependency sync and the Prisma client generation before starting the backend again, so merged changes, schema changes included, reach the running app without relaunching `dev:tauri` (#1563). A change to `dev.js` itself still needs a relaunch.
+
 `cd rapitas-backend && bun run dev` (web / PostgreSQL) runs `prisma db push --skip-generate` + `prisma generate` for the active provider before starting (`rapitas-backend/scripts/dev/prisma-sync.ts`).
 
 ### Web only
