@@ -106,6 +106,25 @@ describe('a task whose deliverable is a report', () => {
     });
     expect(issues).toEqual([]);
   });
+
+  // Trial #1499: 「点検」 in a README-writing task's title asked for the
+  // ending although its deliverable was a PR. The deliverable decides.
+  it('goes by the deliverable over a keyword in the title', () => {
+    const pr = findSpecIssues({
+      title: '完了条件の点検の試験: README に書き足す',
+      description: null,
+      acceptanceCriteria: ['README.md に 3 点を書く'],
+      deliverable: 'pr',
+    });
+    expect(pr).toEqual([]);
+    const report = findSpecIssues({
+      title: '検索ボックスの使われ方',
+      description: null,
+      acceptanceCriteria: ['結果を docs/search.md にまとめる'],
+      deliverable: 'report',
+    });
+    expect(report.map((i) => i.code)).toContain('no_unchanged_route');
+  });
 });
 
 describe('what the model is told', () => {

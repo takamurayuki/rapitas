@@ -87,6 +87,15 @@ const CHECK_METHOD = new RegExp(
 /** Titles and descriptions that make the deliverable a report, not a change. */
 const REPORT_SHAPED = /調査|監査|棚卸|洗い出|分析|レポート|報告|診断|点検|audit|investigat/i;
 
+// NOTE: The deliverable decides when it is chosen; the keywords are only the
+// fallback. Trial #1499: 「点検」 in a PR task's title asked it for a report's
+// ending.
+function isReportShaped(deliverable: string | null | undefined, subject: string): boolean {
+  if (deliverable === 'report' || deliverable === 'decision') return true;
+  if (deliverable === 'pr' || deliverable === 'note') return false;
+  return REPORT_SHAPED.test(subject);
+}
+
 /** The ending a report-shaped task needs when nothing turns out to need changing. */
 const UNCHANGED_ROUTE = /変更不要|修正不要|変更なし|対応不要|no\s+change/i;
 
@@ -156,6 +165,8 @@ export interface SpecIssueInput {
   title: string;
   description: string | null;
   acceptanceCriteria: readonly string[];
+  /** The task's deliverable (pr / note / report / decision), when chosen. */
+  deliverable?: string | null;
 }
 
 /**
@@ -169,7 +180,7 @@ export function findSpecIssues(spec: SpecIssueInput): CriterionIssue[] {
   const subject = `${spec.title}\n${spec.description ?? ''}`;
   const criteria = spec.acceptanceCriteria.join('\n');
   if (
-    REPORT_SHAPED.test(subject) &&
+    isReportShaped(spec.deliverable, subject) &&
     !UNCHANGED_ROUTE.test(`${criteria}\n${spec.description ?? ''}`)
   ) {
     issues.push({

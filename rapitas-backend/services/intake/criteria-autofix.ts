@@ -39,6 +39,7 @@ export interface AutoFixInput {
   title: string;
   description: string | null;
   acceptanceCriteria: string[];
+  deliverable?: string | null;
 }
 
 /** The rewritten criteria, what moved to the handoff, and each change. */
@@ -80,6 +81,7 @@ export function autoFixCriteria(spec: AutoFixInput): AutoFixResult {
     title: spec.title,
     description: spec.description,
     acceptanceCriteria: out,
+    deliverable: spec.deliverable,
   });
   if (specIssues.some((i) => i.code === 'no_unchanged_route')) {
     out.push(UNCHANGED_ROUTE_CRITERION);
