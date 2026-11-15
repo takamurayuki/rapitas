@@ -89,3 +89,25 @@ describe('a task outside a development theme', () => {
     expect(update).not.toHaveBeenCalled();
   });
 });
+
+// A subtask is a step of its parent (#1559): the parent's goals and
+// completion conditions are enough, and its own replace them when given.
+describe('a subtask', () => {
+  const parent = {
+    goals: '["理由が読める"]',
+    acceptanceCriteria: '["テストが通る"]',
+    userAcceptanceChecks: null,
+    theme: { isDevelopment: true },
+  };
+
+  it('starts on its parent’s goals and completion conditions', async () => {
+    row = { ...devTask({ theme: null }), parent } as Row;
+    expect(await holdForRequiredSpec(7)).toBe(false);
+  });
+
+  it('waits when the parent has no goals either', async () => {
+    row = { ...devTask({ theme: null }), parent: { ...parent, goals: null } } as Row;
+    expect(await holdForRequiredSpec(7)).toBe(true);
+    expect(recordTransition.mock.calls[0][0].metadata).toMatchObject({ missing: ['goals'] });
+  });
+});

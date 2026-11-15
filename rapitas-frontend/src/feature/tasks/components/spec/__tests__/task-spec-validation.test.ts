@@ -47,7 +47,8 @@ describe('helpers', () => {
     expect(toLines(' a \n\n b ')).toEqual(['a', 'b']);
   });
 
-  it('offers the four deliverables, PR first', () => {
-    expect(DELIVERABLE_OPTIONS).toEqual(['pr', 'note', 'report', 'decision']);
+  // A note is left out until an agent can write one (#1559).
+  it('offers the deliverables an agent can produce, PR first', () => {
+    expect(DELIVERABLE_OPTIONS).toEqual(['pr', 'report', 'decision']);
   });
 });

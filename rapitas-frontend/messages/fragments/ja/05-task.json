@@ -648,6 +648,15 @@
     "specCompletion": "完了条件",
     "specCompletionNote": "エージェントが確かめる条件は、作業の検証に使われます。本人が確かめる条件は、結果を見てあなたが判断します。",
     "aiDraftLead": "説明をもとに AI で下書き:",
-    "aiDraftNeedsDescription": "説明を書くと使えます"
+    "aiDraftNeedsDescription": "説明を書くと使えます",
+    "specStartConditions": "開始条件（着手前に満たしておくこと）",
+    "prerequisites": "先に終わらせるタスク",
+    "prerequisitesNone": "ありません",
+    "prerequisitesInput": "タスク番号（カンマ区切り）",
+    "prerequisitesSave": "保存",
+    "prerequisitesSaved": "先に終わらせるタスクを保存しました",
+    "prerequisitesSaveFailed": "先に終わらせるタスクを保存できませんでした",
+    "prerequisiteDone": "完了",
+    "prerequisiteOpen": "未完了"
   }
 }

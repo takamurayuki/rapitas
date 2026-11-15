@@ -40,6 +40,8 @@ export interface TaskPayloadValues {
   userAcceptanceChecks: string;
   /** Newline-separated out-of-scope items (#1555) / 改行区切りの範囲外 */
   outOfScope: string;
+  /** Newline-separated start conditions in words (#1559) / 改行区切りの開始条件 */
+  startConditions: string;
   /** What finishing hands over (#1555) / 成果物 */
   deliverable: DeliverableOption;
   selectedTheme: Theme | null;
@@ -70,6 +72,7 @@ function taskBody(v: TaskPayloadValues, title: string) {
     acceptanceCriteria: toLines(v.acceptanceCriteria),
     userAcceptanceChecks: toLines(v.userAcceptanceChecks),
     outOfScope: toLines(v.outOfScope),
+    startConditions: toLines(v.startConditions),
     deliverable: v.deliverable,
   };
 }

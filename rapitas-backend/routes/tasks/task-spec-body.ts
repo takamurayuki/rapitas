@@ -22,6 +22,8 @@ export const CREATE_SPEC_FIELDS = {
   outOfScope: t.Optional(t.Array(t.String())),
   /** 成果物 (#1555). */
   deliverable,
+  /** 開始条件 in words (#1559). */
+  startConditions: t.Optional(t.Array(t.String())),
 };
 
 const longList = t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }));
@@ -35,4 +37,5 @@ export const UPDATE_SPEC_FIELDS = {
   userAcceptanceChecks: longList,
   outOfScope: longList,
   deliverable,
+  startConditions: longList,
 };

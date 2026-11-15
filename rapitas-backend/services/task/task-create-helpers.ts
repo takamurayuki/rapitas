@@ -13,8 +13,14 @@ import { scopeFieldsForWrite } from './task-spec-requirements';
  * set them leaves the columns out, so it looks like every older task.
  * userAcceptanceChecks is written by its own branch above.
  */
-const createScope = (data: { outOfScope?: string[]; deliverable?: string }) => ({
+const createScope = (data: {
+  outOfScope?: string[];
+  startConditions?: string[];
+  deliverable?: string;
+}) => ({
   ...(data.outOfScope && data.outOfScope.length > 0 && { outOfScope: data.outOfScope }),
+  ...(data.startConditions &&
+    data.startConditions.length > 0 && { startConditions: data.startConditions }),
   ...(data.deliverable && { deliverable: data.deliverable }),
 });
 import { isApiRecoveryMode } from '../system/api-recovery-mode';

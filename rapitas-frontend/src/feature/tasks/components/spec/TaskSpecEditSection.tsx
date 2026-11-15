@@ -21,6 +21,7 @@ import { parseCriteriaList } from '../detail/task-criteria.utils';
 import { TaskSpecFields } from './TaskSpecFields';
 import { DELIVERABLE_OPTIONS, type DeliverableOption } from './task-spec-validation';
 import { useTaskSpecEditor } from './useTaskSpecEditor';
+import { TaskPrerequisites } from './TaskPrerequisites';
 
 const SECTION_ID = 'spec';
 
@@ -109,6 +110,11 @@ export default function TaskSpecEditSection({
               </span>
               {t(`deliverable.${deliverable}`)}
             </p>
+            <SpecList
+              label={t('specStartConditions')}
+              items={parseCriteriaList(task.startConditions)}
+            />
+            <TaskPrerequisites taskId={task.id} />
             {isDevelopment && goals.length === 0 && (
               <p role="alert" className="text-xs text-red-600 dark:text-red-400">
                 {t('specErrorGoals')}

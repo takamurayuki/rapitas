@@ -192,6 +192,8 @@ function NewTaskClient() {
             setGoals={form.setGoals}
             outOfScope={form.outOfScope}
             setOutOfScope={form.setOutOfScope}
+            startConditions={form.startConditions}
+            setStartConditions={form.setStartConditions}
             constraints={form.constraints}
             setConstraints={form.setConstraints}
             acceptanceCriteria={form.acceptanceCriteria}

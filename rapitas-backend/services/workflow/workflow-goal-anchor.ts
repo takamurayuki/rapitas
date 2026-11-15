@@ -12,8 +12,9 @@ const DELIVERABLE_JA: Record<Deliverable, string> = {
   pr: 'PR（コードの変更）',
   note: 'ノート（作業の結果をノートにまとめる）',
   report:
-    '報告（verify.md に結果を書く。直す必要がなければ「## 結論: 修正不要」と根拠を書いて完了）',
-  decision: '判断（選択肢と推奨を verify.md に書く。コードの変更は求めない）',
+    '報告（verify.md に結果を書く。直す必要がなければ「## 結論: 修正不要」と根拠を書く。書かないと完了の判定で止まる）',
+  decision:
+    '判断（選択肢と推奨を verify.md に書く。コードの変更は求めない。変更しないときは「## 結論: 修正不要」と、判断が成果物であることを書く。書かないと完了の判定で止まる）',
 };
 
 const DELIVERABLE_EN: Record<Deliverable, string> = {
@@ -21,7 +22,8 @@ const DELIVERABLE_EN: Record<Deliverable, string> = {
   note: 'a note summarising the result',
   report:
     'a report in verify.md; if nothing needs changing, write "## 結論: 修正不要" with the reasons',
-  decision: 'a decision: options and a recommendation in verify.md, no code change required',
+  decision:
+    'a decision: options and a recommendation in verify.md, no code change required; without a change, write "## 結論: 修正不要" stating the decision is the deliverable, or the completion check stops it',
 };
 
 /**
@@ -46,12 +48,20 @@ export async function buildGoalAnchor(
   // NOTE: no select, read through a narrow type — like intake-gate's row: a
   // client generated before outOfScope / deliverable existed (#1555) reads
   // them as undefined instead of failing to compile or throwing.
-  const row = (await prisma.task.findUnique({ where: { id: taskId } }).catch(() => null)) as {
+  type AnchorRow = {
+    parentId?: number | null;
     goals?: unknown;
     acceptanceCriteria?: unknown;
     outOfScope?: unknown;
     deliverable?: unknown;
+    startConditions?: unknown;
   } | null;
+  const read = async (id: number) =>
+    (await prisma.task.findUnique({ where: { id } }).catch(() => null)) as AnchorRow;
+  const row = await read(taskId);
+  // A subtask is a step of its parent (#1559): it works toward the parent's
+  // goals, inside the parent's scope, toward the parent's deliverable.
+  const parent = row?.parentId ? await read(row.parentId) : null;
   const parseArr = (v: unknown): string[] => {
     if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
     if (typeof v === 'string' && v.trim()) {
@@ -64,13 +74,17 @@ export async function buildGoalAnchor(
     }
     return [];
   };
-  const goals = parseArr(row?.goals);
-  const criteria = parseArr(row?.acceptanceCriteria);
+  const own = (v: unknown, fallback: unknown) => (parseArr(v).length > 0 ? v : fallback);
+  const goals = parseArr(own(row?.goals, parent?.goals));
+  const criteria = parseArr(own(row?.acceptanceCriteria, parent?.acceptanceCriteria));
   if (goals.length === 0 && criteria.length === 0) return '';
   // 範囲外 and 成果物 (#1555): what not to touch keeps a change from widening,
   // and a report or a decision may rightly end with no code change.
-  const outOfScope = parseArr(row?.outOfScope);
-  const deliverable = parseDeliverable(row?.deliverable);
+  const outOfScope = [...parseArr(row?.outOfScope), ...parseArr(parent?.outOfScope)];
+  const deliverable = parseDeliverable(row?.deliverable ?? parent?.deliverable);
+  // 開始条件 in words (#1559): what should already hold. An agent that finds
+  // one does not hold should say so rather than build on it.
+  const startConditions = parseArr(row?.startConditions);
 
   if (language === 'ja') {
     return [
@@ -82,6 +96,12 @@ export async function buildGoalAnchor(
         ? ['- 範囲外（触れないこと）:', ...outOfScope.map((o) => `  - ${o}`)]
         : []),
       `- 成果物: ${DELIVERABLE_JA[deliverable]}`,
+      ...(startConditions.length > 0
+        ? [
+            '- 開始条件（着手前に満たされているはず。満たされていなければ作業せず verify.md に報告）:',
+            ...startConditions.map((c) => `  - ${c}`),
+          ]
+        : []),
       '各変更の前に「この変更は上記ゴール・受け入れ基準に直結しているか」を確認してください。直結しない改善・リファクタ・スコープ外変更は行わないこと。',
     ].join('\n');
   }
@@ -94,6 +114,12 @@ export async function buildGoalAnchor(
       ? ['- Out of scope (do not touch):', ...outOfScope.map((o) => `  - ${o}`)]
       : []),
     `- Deliverable: ${DELIVERABLE_EN[deliverable]}`,
+    ...(startConditions.length > 0
+      ? [
+          '- Start conditions (should already hold; if one does not, report it in verify.md instead of building on it):',
+          ...startConditions.map((c) => `  - ${c}`),
+        ]
+      : []),
     'Before each change, confirm it directly serves the goals/criteria above. Do not make unrelated improvements, refactors, or out-of-scope changes.',
   ].join('\n');
 }
