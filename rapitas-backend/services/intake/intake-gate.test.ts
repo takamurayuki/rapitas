@@ -78,6 +78,11 @@ mock.module('../communication/notification-service', () => ({
   createNotification,
   notifyIntakeQuestionPending,
 }));
+// The criteria rule fixes (#1561) have their own tests; here they change nothing.
+mock.module('./intake-criteria-check', () => ({
+  applyCriteriaRuleFixes: async () => [],
+  CRITERIA_AUTO_FIXED_CAUSE: 'criteria_auto_fixed',
+}));
 
 const { ensureIntakeReady } = await import('./intake-gate');
 

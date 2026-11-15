@@ -85,3 +85,13 @@ describe('a decision', () => {
     expect(anchor).toContain('## 結論: 修正不要');
   });
 });
+
+// A PR is needed only when something changes (#1561): research may show the
+// change is unnecessary, and the agent must not force one.
+describe('a PR task that needs no change', () => {
+  it('may end with the no-change heading', async () => {
+    const anchor = await buildGoalAnchor(1, { title: 'ログに理由を残す' }, 'ja');
+    expect(anchor).toContain('成果物: PR');
+    expect(anchor).toContain('## 結論: 修正不要');
+  });
+});
