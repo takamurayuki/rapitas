@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useFocusTrap } from '@/components/ui/modal/use-focus-trap';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 
 type RestartDialogsProps = {
   /** State for the confirmation dialog. */
@@ -52,6 +53,11 @@ export function RestartDialogs({
   // NOTE: no escape-to-close for the restarting overlay — the restart is
   // already in progress by the time it shows and cannot be cancelled.
   useFocusTrap(restartingDialogRef, isRestarting);
+  // Both cover the whole window, so the in-app browser hides for them. The
+  // restarting overlay keeps ラピ in sight but out of reach on the desktop:
+  // a press on her would act on an app that is going away (#1541).
+  useOccludesWebview(restartConfirmDialog.open, 'dialog');
+  useOccludesWebview(isRestarting, 'blocking');
 
   return (
     <>

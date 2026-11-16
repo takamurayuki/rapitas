@@ -28,22 +28,52 @@ export const useWebviewOcclusionStore = create<WebviewOcclusionState>()((set) =>
     set((s) => (s.occluders.includes(id) ? { occluders: s.occluders.filter((o) => o !== id) } : s)),
 }));
 
+/**
+ * What an overlay is, for ラピ's window on the desktop (#1541). All three
+ * hide the in-app browser alike.
+ *
+ * - `menu`: the bell, the side nav, a dropdown — she stays as she is, as in
+ *   the browser build, where she is drawn above them too.
+ * - `dialog`: she is hidden, so she never sits on top of one.
+ * - `blocking`: the restart overlay — she stays in sight but takes no press
+ *   or drag, since the app under her is going away.
+ */
+export type OccluderKind = 'menu' | 'dialog' | 'blocking';
+
+/** How ラピ is drawn given the overlays open now. */
+export type RapiPresence = 'shown' | 'inert' | 'hidden';
+
+/**
+ * How ラピ should be drawn while these overlays are open.
+ *
+ * @param occluders - Ids in the store, each prefixed with its kind / 登録中のID
+ * @returns shown, inert (seen but not pressable) or hidden / 表示状態
+ */
+export function rapiPresenceOf(occluders: readonly string[]): RapiPresence {
+  const kinds = occluders.map((id) => id.split('-')[0]);
+  if (kinds.includes('dialog')) return 'hidden';
+  if (kinds.includes('blocking')) return 'inert';
+  return 'shown';
+}
+
 let nextOccluderId = 0;
 
 /**
  * Register an overlay as covering the webview while `isOpen` is true.
  *
  * Each caller gets its own id, so two menus open at once both count and
- * closing one does not reveal the webview under the other.
+ * closing one does not reveal the webview under the other. The id starts
+ * with the kind, which is how `rapiPresenceOf` tells them apart.
  *
  * @param isOpen - Whether the overlay is on screen now / 表示中か
+ * @param kind - What the overlay is; a menu unless said otherwise / 種類
  */
-export function useOccludesWebview(isOpen: boolean): void {
+export function useOccludesWebview(isOpen: boolean, kind: OccluderKind = 'menu'): void {
   useEffect(() => {
     if (!isOpen) return;
-    const id = `occluder-${++nextOccluderId}`;
+    const id = `${kind}-${++nextOccluderId}`;
     const { add, remove } = useWebviewOcclusionStore.getState();
     add(id);
     return () => remove(id);
-  }, [isOpen]);
+  }, [isOpen, kind]);
 }

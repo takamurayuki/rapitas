@@ -30,7 +30,7 @@ export function SettingsModal() {
   useFocusTrap(dialogRef, isOpen);
   // The in-app browser's desktop webview is an OS surface painted above all
   // HTML, so it would cover this modal on /browser; while open, hide it.
-  useOccludesWebview(isOpen);
+  useOccludesWebview(isOpen, 'dialog');
 
   useEffect(() => {
     if (!isOpen) return;

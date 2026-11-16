@@ -52,7 +52,7 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   // A dialog over the in-app browser would otherwise be painted over by its
   // webview (an OS surface above all HTML), so the webview hides meanwhile.
-  useOccludesWebview(open);
+  useOccludesWebview(open, 'dialog');
 
   useEffect(() => {
     if (!open) return;
