@@ -152,5 +152,27 @@ describe('CopilotChatPanel', () => {
       await waitFor(() => expect(stamps()).toHaveLength(0));
       expect(document.querySelector('[data-chat-typing]')).toBeNull();
     });
+
+    // Codex review (nav62): the failed send settles with the user line still
+    // newest; that alone must not pull a reader who scrolled up meanwhile.
+    it('leaves a reader who scrolled up while waiting in place when the send fails', async () => {
+      send();
+      await waitFor(() => expect(stamps()).toHaveLength(1));
+      // jsdom has no layout, so give the log a tall body by hand.
+      const log = document.querySelector('[role="log"]') as HTMLElement;
+      Object.defineProperty(log, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => 2000 });
+      log.scrollTop = 100;
+      fireEvent.scroll(log);
+
+      finish(false);
+      await waitFor(() => expect(stamps()).toHaveLength(0));
+      expect(document.querySelector('[data-chat-typing]')).toBeNull();
+      expect(log.scrollTop).toBe(100);
+
+      // Sending again is a new user line, which still takes them down.
+      fireEvent.click(screen.getByText('actions.blocked.label'));
+      await waitFor(() => expect(log.scrollTop).toBe(1600));
+    });
   });
 });

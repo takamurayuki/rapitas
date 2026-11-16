@@ -6,7 +6,7 @@
  * AI-powered chat panel for task assistance, analysis, and action execution.
  * Supports quick prompts, message history, and contextual insights.
  */
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bot, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
@@ -50,11 +50,20 @@ export function CopilotChatPanel({
   // NOTE: no longer pulls to the bottom on every change: only after you send
   // or while you are at the bottom, with a ▽ to get back otherwise.
   const last = messages[messages.length - 1];
+  // NOTE: isLoading stays in the key so the dots row coming and going keeps
+  // a bottom reader at the bottom, but only a newly added user line forces
+  // the jump. A failed send settles with the same user line still newest;
+  // that must not pull a reader who scrolled up while waiting.
+  const seenLastId = useRef(last?.id);
   const follow = useChatFollow({
     ref: scrollRef,
     contentKey: `${last?.id}:${messages.length}:${isLoading}`,
-    sentByUser: last?.role === 'user',
+    sentByUser: last?.role === 'user' && last.id !== seenLastId.current,
   });
+  // Passive effect: runs after useChatFollow's layout effect has read sentByUser.
+  useEffect(() => {
+    seenLastId.current = last?.id;
+  }, [last?.id]);
   // A chat send has no pending note of its own (actions do); while its
   // answer is on the way, she shows the typing dots.
   const awaitingReply = isLoading && last?.role === 'user' && !last.failed;
