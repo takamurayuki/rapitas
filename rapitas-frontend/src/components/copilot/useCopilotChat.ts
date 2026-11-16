@@ -16,6 +16,7 @@ export interface CopilotMessage {
     label: string;
     params?: Record<string, unknown>;
   }>;
+  failed?: boolean; // A send that failed: shown, but not stamped as received.
   /** Structured data from action results (analysis, execution status, etc.). */
   actionData?: {
     type: string;
@@ -120,6 +121,7 @@ export function useCopilotChat(taskId?: number) {
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err) {
         setError(err instanceof Error ? err.message : t('sendMessageError'));
+        setMessages((prev) => prev.map((m) => (m.id === userMsg.id ? { ...m, failed: true } : m)));
       } finally {
         setIsLoading(false);
       }

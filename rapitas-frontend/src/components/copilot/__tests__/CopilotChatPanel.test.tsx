@@ -93,4 +93,86 @@ describe('CopilotChatPanel', () => {
     const log = container.querySelector('[role="log"]');
     expect(log).toHaveAttribute('aria-live', 'polite');
   });
+
+  // nav62: the consult chat feels like ラピ's thread — the sentence she took
+  // in gets a 👌, a failed one does not, and the wait is three dots.
+  describe('chat feel', () => {
+    const ctxBlocked: NextActionContext = { ...ctxTodoManual, status: 'blocked' };
+    let finish: (ok: boolean) => void;
+
+    beforeEach(() => {
+      global.fetch = vi.fn((url: string) => {
+        if (!String(url).includes('/copilot/chat') || String(url).includes('/history')) {
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
+        }
+        return new Promise((resolve) => {
+          finish = (ok) =>
+            resolve({
+              ok,
+              status: ok ? 200 : 500,
+              json: () =>
+                Promise.resolve(ok ? { success: true, content: '**理由** はこれです' } : {}),
+            });
+        });
+      }) as unknown as typeof fetch;
+    });
+
+    const send = () => {
+      render(
+        <CopilotChatPanel
+          taskId={1}
+          taskTitle="test"
+          taskStatus="blocked"
+          nextActionContext={ctxBlocked}
+        />,
+      );
+      fireEvent.click(screen.getByText('actions.blocked.label'));
+    };
+    const stamps = () => document.querySelectorAll('[data-chat-received]');
+
+    it('stamps the sentence and shows the dots while the answer is on its way', async () => {
+      send();
+      await waitFor(() => expect(stamps()).toHaveLength(1));
+      const typing = document.querySelector('[data-chat-typing]');
+      expect(typing?.querySelectorAll('[data-chat-typing-dot]')).toHaveLength(3);
+      expect(typing?.textContent).toBe('');
+
+      finish(true);
+      await waitFor(() => expect(document.querySelector('[data-chat-typing]')).toBeNull());
+      expect(stamps()).toHaveLength(1);
+      // The reply is Markdown at chat density, not the raw marks.
+      expect(screen.getByText('理由').tagName).toBe('STRONG');
+      expect(document.querySelector('[data-density="chat"]')).not.toBeNull();
+    });
+
+    it('takes the stamp off a sentence whose send failed', async () => {
+      send();
+      await waitFor(() => expect(stamps()).toHaveLength(1));
+      finish(false);
+      await waitFor(() => expect(stamps()).toHaveLength(0));
+      expect(document.querySelector('[data-chat-typing]')).toBeNull();
+    });
+
+    // Codex review (nav62): the failed send settles with the user line still
+    // newest; that alone must not pull a reader who scrolled up meanwhile.
+    it('leaves a reader who scrolled up while waiting in place when the send fails', async () => {
+      send();
+      await waitFor(() => expect(stamps()).toHaveLength(1));
+      // jsdom has no layout, so give the log a tall body by hand.
+      const log = document.querySelector('[role="log"]') as HTMLElement;
+      Object.defineProperty(log, 'clientHeight', { configurable: true, get: () => 400 });
+      Object.defineProperty(log, 'scrollHeight', { configurable: true, get: () => 2000 });
+      log.scrollTop = 100;
+      fireEvent.scroll(log);
+
+      finish(false);
+      await waitFor(() => expect(stamps()).toHaveLength(0));
+      expect(document.querySelector('[data-chat-typing]')).toBeNull();
+      expect(log.scrollTop).toBe(100);
+
+      // Sending again is a new user line, which still takes them down.
+      fireEvent.click(screen.getByText('actions.blocked.label'));
+      await waitFor(() => expect(log.scrollTop).toBe(1600));
+    });
+  });
 });
