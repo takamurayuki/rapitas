@@ -28,6 +28,7 @@ import { RapiPrompt } from './RapiPrompt';
 import { RapiThread, useRapiConversation } from './conversation';
 import { RapiSpaceSwitcher, useRapiSpaces } from './spaces';
 import { usePanelPresence } from './usePanelPresence';
+import { JumpToLatestButton, useChatFollow } from '@/components/ui/chat';
 import { useRapiEnvironment, useRapiLocation } from '../float/rapi-environment';
 
 /**
@@ -147,6 +148,21 @@ export function RapiAvatarPanel({
   const bubble = useRef<HTMLDivElement>(null);
   usePanelPresence(bubble, open, onClose, !!useRapiEnvironment()?.floating);
 
+  // Follow new lines only after you send or while you are at the bottom;
+  // otherwise offer the ▽. Keyed on the last line, not the count: the
+  // thread is capped, so a full one keeps its length as lines arrive.
+  const log = useRef<HTMLDivElement>(null);
+  const last = talk.messages[talk.messages.length - 1];
+  const follow = useChatFollow({
+    ref: log,
+    contentKey: `${last?.id}:${talk.messages.length}:${talk.sending}`,
+    sentByUser: last?.role === 'user',
+    // Her words load their Markdown renderer on first use, so the first
+    // reply grows after it lands; routed cards keep their heading in view.
+    followGrowth: last?.role === 'assistant',
+  });
+  const tc = useTranslations('copilot.chatFeel');
+
   return (
     <SpeechBubble
       innerRef={bubble}
@@ -213,27 +229,32 @@ export function RapiAvatarPanel({
         </p>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {executions.length > 0 && (
-          <div className="space-y-2 border-b border-zinc-200 p-2 dark:border-zinc-700">
-            {executions.map((exec) => (
-              <ExecutionItem
-                key={exec.id}
-                exec={exec}
-                isResuming={resumingIds.has(exec.id)}
-                isDismissing={dismissingIds.has(exec.id)}
-                onResume={onResume}
-                onDismiss={onDismiss}
-                formatTimeAgo={formatTimeAgo}
-              />
-            ))}
-          </div>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={log} onScroll={follow.onScroll} className="min-h-0 flex-1 overflow-y-auto">
+          {executions.length > 0 && (
+            <div className="space-y-2 border-b border-zinc-200 p-2 dark:border-zinc-700">
+              {executions.map((exec) => (
+                <ExecutionItem
+                  key={exec.id}
+                  exec={exec}
+                  isResuming={resumingIds.has(exec.id)}
+                  isDismissing={dismissingIds.has(exec.id)}
+                  onResume={onResume}
+                  onDismiss={onDismiss}
+                  formatTimeAgo={formatTimeAgo}
+                />
+              ))}
+            </div>
+          )}
+          <RapiThread
+            messages={talk.messages}
+            sending={talk.sending}
+            rethinkAsPlan={talk.rethinkAsPlan}
+          />
+        </div>
+        {follow.showJump && (
+          <JumpToLatestButton onClick={follow.jumpToLatest} label={tc('jumpToLatest')} />
         )}
-        <RapiThread
-          messages={talk.messages}
-          sending={talk.sending}
-          rethinkAsPlan={talk.rethinkAsPlan}
-        />
       </div>
 
       <RapiPrompt
