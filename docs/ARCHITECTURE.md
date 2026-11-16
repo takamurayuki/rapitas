@@ -47,7 +47,10 @@ It pins the primary branch and fast-forwards it to its upstream (`rapitas-deskto
 regenerates the SQLite Prisma client + init SQL (`bun run db:prepare:sqlite`,
 cached by schema hash), then launches the backend (`bun run dev:stable`) and
 the frontend. The backend applies the init SQL to the SQLite DB on boot
-(`rapitas-backend/config/desktop-sqlite.ts`). The web dev entry
+(`rapitas-backend/config/desktop-sqlite.ts`).
+The app's restart (the backend exiting with code 75) repeats the fast-forward,
+the dependency sync and the Prisma generation before the backend comes back,
+so a merge reaches the running app without relaunching `dev:tauri` (#1563). The web dev entry
 (`cd rapitas-backend && bun run dev`, i.e. `scripts/dev.ts`) instead runs
 `prisma db push --skip-generate` + `prisma generate` via
 `rapitas-backend/scripts/dev/prisma-sync.ts`. **Never** run `prisma generate`

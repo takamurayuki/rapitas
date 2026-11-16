@@ -125,6 +125,20 @@ export type Task = {
    * Same JSON-string-array form; never used by the jury.
    */
   userAcceptanceChecks?: string | null;
+  /** Goals and constraints, as JSON-encoded string arrays (Task.goals / Task.constraints). */
+  goals?: string | null;
+  constraints?: string | null;
+  /** What the task deliberately leaves out — JSON string array (#1555). */
+  outOfScope?: string | null;
+  /** What finishing hands over: 'pr' | 'note' | 'report' | 'decision'; null reads as 'pr' (#1555). */
+  deliverable?: string | null;
+  /** What must hold before the task starts, in words — JSON string array (#1559). */
+  startConditions?: string | null;
+  /**
+   * The criteria revision GET /tasks/:id serves; PATCH needs it back as
+   * expectedCriteriaRevision to change goals, constraints or criteria.
+   */
+  criteriaRevision?: string;
   developerModeConfig?: DeveloperModeConfig | null;
   taskAnalysisConfig?: TaskAnalysisConfig | null;
   agentExecutionConfig?: AgentExecutionConfig | null;

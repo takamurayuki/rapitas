@@ -65,7 +65,7 @@ export function useTaskFormActions(
   const subtasksRef = useRef(subtasks);
   subtasksRef.current = subtasks;
 
-  const { isSubmitting, handleSubmit, handleSubmitWithTitle } = useTaskSubmit(
+  const { isSubmitting, handleSubmit, handleSubmitWithTitle, specIssues } = useTaskSubmit(
     () => valuesRef.current,
     () => subtasksRef.current,
   );
@@ -307,6 +307,7 @@ export function useTaskFormActions(
 
   return {
     isSubmitting,
+    specIssues,
     isGeneratingTitle,
     showTemplateDialog,
     setShowTemplateDialog,

@@ -65,9 +65,10 @@ mock.module('./automation-policy', () => ({
 }));
 
 let canContinue = true;
-mock.module('./auto-merge-task-guard', () => ({
-  canContinueAutoMerge: () => Promise.resolve(canContinue),
-}));
+const canContinueAutoMerge = mock((_taskId: number, _opts?: { mergeLanded?: boolean }) =>
+  Promise.resolve(canContinue),
+);
+mock.module('./auto-merge-task-guard', () => ({ canContinueAutoMerge }));
 
 const notify = mock(() => Promise.resolve());
 mock.module('./auto-merge-notify', () => ({ notify }));
@@ -235,6 +236,14 @@ describe('recoverMergedTasks — 回収してはいけないケース', () => {
 
     expect(await recoverMergedTasks()).toEqual([]);
     expect(readAuthoritativeMergeState).not.toHaveBeenCalled();
+  });
+
+  // Trial #1499: the landed merge is the fact; the auto-run toggle must not
+  // withhold it, so the guard is asked without that check.
+  test('マージ済みの回収は自動実行のオン/オフを問わない（停止だけを見る）', async () => {
+    canContinueAutoMerge.mockClear();
+    await recoverMergedTasks();
+    expect(canContinueAutoMerge.mock.calls[0][1]).toEqual({ mergeLanded: true });
   });
 
   test('GitHub確認後に停止されていたら完了させない', async () => {

@@ -1,15 +1,6 @@
 'use client';
 // NewTaskClient
-import {
-  Layers,
-  Flag,
-  FileText,
-  GitBranch,
-  ListTodo,
-  Sparkles,
-  Loader2,
-  Target,
-} from 'lucide-react';
+import { Layers, Flag, FileText, GitBranch, ListTodo } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskTitleAutocomplete from '@/feature/tasks/components/text/TaskTitleAutocomplete';
@@ -24,6 +15,8 @@ import {
   PrioritySelector,
   SubtaskForm,
   SubtaskList,
+  TaskSpecSection,
+  DescriptionAiActions,
   WorkflowSection,
   usePriorityOptions,
 } from './components';
@@ -38,23 +31,6 @@ function NewTaskClient() {
   const t = useTranslations('task');
   const tc = useTranslations('common');
   const priorityOptions = usePriorityOptions(t);
-
-  // Structured spec fields: rendered as one item per line.
-  const specFields = [
-    { key: 'goals', label: t('specGoals'), value: form.goals, onChange: form.setGoals },
-    {
-      key: 'constraints',
-      label: t('specConstraints'),
-      value: form.constraints,
-      onChange: form.setConstraints,
-    },
-    {
-      key: 'acceptance',
-      label: t('specAcceptance'),
-      value: form.acceptanceCriteria,
-      onChange: form.setAcceptanceCriteria,
-    },
-  ] as const;
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
@@ -172,22 +148,6 @@ function NewTaskClient() {
             title={t('description')}
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
-            headerExtra={
-              <button
-                type="button"
-                onClick={() => form.handleGenerateTitle(false)}
-                disabled={!form.description.trim() || form.isGeneratingTitle}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={t('titleGenerateTooltip')}
-              >
-                {form.isGeneratingTitle ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                <span>{t('titleGenerate')}</span>
-              </button>
-            }
           >
             <textarea
               ref={(el) => {
@@ -206,6 +166,13 @@ function NewTaskClient() {
               placeholder={t('taskDetailPlaceholder')}
               className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
             />
+            <DescriptionAiActions
+              hasDescription={form.description.trim().length > 0}
+              isGeneratingTitle={form.isGeneratingTitle}
+              onGenerateTitle={() => form.handleGenerateTitle(false)}
+              isDerivingSpec={form.isDerivingSpec}
+              onDeriveSpec={() => form.deriveSpec()}
+            />
           </CompactAccordionGroup>
 
           {/* Related knowledge + past search-miss panels (shown when title is meaningful) */}
@@ -220,47 +187,24 @@ function NewTaskClient() {
             </div>
           )}
 
-          {/* Structured spec: goals / constraints / acceptance criteria.
-              NOTE: Folded into description as markdown on submit (see useTaskSubmit),
-              so they reach the agent prompt and verify.md without a schema change. */}
-          <CompactAccordionGroup
-            title={t('specTitle')}
-            icon={<Target className="w-3.5 h-3.5" />}
-            defaultExpanded={false}
-            headerExtra={
-              <button
-                type="button"
-                onClick={() => form.deriveSpec()}
-                disabled={!form.description.trim() || form.isDerivingSpec}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={t('specDeriveTooltip')}
-              >
-                {form.isDerivingSpec ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                <span>{t('specDerive')}</span>
-              </button>
-            }
-          >
-            <div className="space-y-3">
-              {specFields.map((f) => (
-                <div key={f.key}>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                    {f.label}
-                  </label>
-                  <textarea
-                    value={f.value}
-                    onChange={(e) => f.onChange(e.target.value)}
-                    placeholder={t('specItemPlaceholder')}
-                    rows={3}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500"
-                  />
-                </div>
-              ))}
-            </div>
-          </CompactAccordionGroup>
+          <TaskSpecSection
+            goals={form.goals}
+            setGoals={form.setGoals}
+            outOfScope={form.outOfScope}
+            setOutOfScope={form.setOutOfScope}
+            startConditions={form.startConditions}
+            setStartConditions={form.setStartConditions}
+            constraints={form.constraints}
+            setConstraints={form.setConstraints}
+            acceptanceCriteria={form.acceptanceCriteria}
+            setAcceptanceCriteria={form.setAcceptanceCriteria}
+            userAcceptanceChecks={form.userAcceptanceChecks}
+            setUserAcceptanceChecks={form.setUserAcceptanceChecks}
+            deliverable={form.deliverable}
+            setDeliverable={form.setDeliverable}
+            isDevelopment={form.selectedTheme?.isDevelopment === true}
+            specIssues={form.specIssues}
+          />
 
           {/* Subtasks accordion */}
           <CompactAccordionGroup

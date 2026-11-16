@@ -126,6 +126,19 @@ export function awaitWorktreeDependencies(worktreePath: string): Promise<void> {
 }
 
 /**
+ * Wait for a setup already in flight for this worktree, without starting one.
+ * For teardown: starting a setup there ran the project bootstrap on a leftover
+ * rapitas worktree with no setup script, i.e. `prisma generate` in the live
+ * primary (2026-11-16).
+ *
+ * @param worktreePath - Absolute path to the worktree root / worktreeのルート絶対パス
+ * @returns The in-flight setup, or a settled promise / 実行中のセットアップ
+ */
+export function settleInflightWorktreeDependencies(worktreePath: string): Promise<void> {
+  return inflightInstalls.get(worktreePath) ?? Promise.resolve();
+}
+
+/**
  * Drop tracking for a worktree (call after the worktree is removed).
  *
  * @param worktreePath - Worktree path that was removed / 削除されたworktreeのパス

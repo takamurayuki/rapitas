@@ -10,6 +10,7 @@
  * Not responsible for what the jobs do — only for WHEN they run.
  */
 import { createLogger } from '../../config/logger';
+import { logCycleEvent } from '../observability/cycle-event-logger';
 import {
   listSchedules,
   markScheduleRun,
@@ -164,11 +165,13 @@ export async function runBacklogJobNow(
   const releaseSection = markEventLoopSection(`backlog-job:${kind}`);
   try {
     const count = kind === 'health_check' ? await runLogHealthCheck(since) : await HANDLERS[kind]();
-    // WARN (not info) so slow runs reach the file log — instrumentation for
-    // the daily ~06:00 event-loop stalls (concern #514).
+    // Instrumentation for the daily ~06:00 event-loop stalls (concern #514). A
+    // slow run is not a defect (the jobs call LLMs and scan logs), so it goes to
+    // the cycle log, not the warning log; a stall itself is event-loop-lag's warn.
     const tookMs = Date.now() - startedAtMs;
     if (tookMs > 3000) {
-      log.warn({ kind, tookMs }, `Backlog job ran ${Math.round(tookMs / 100) / 10}s`);
+      logCycleEvent('backlog.slow_job', { cause: kind, durationMs: tookMs });
+      log.info({ kind, tookMs }, `Backlog job ran ${Math.round(tookMs / 100) / 10}s`);
     }
     if (source === 'manual') {
       await recordManualRunOutcome(kind, { kind: 'success', count });

@@ -33,6 +33,57 @@ const log = createLogger('workflow:verifier-eligibility');
 /** Transition cause of a completion withheld until the verifier's model is reported. */
 export const VERIFIER_ELIGIBILITY_DEFERRED_CAUSE = 'verifier_eligibility_deferred';
 
+/**
+ * Transition cause recorded when the CLI epilogue judges the ended run
+ * eligible after a deferral. Without it the deferral stayed the newest verify
+ * record and every completion path refused, even once the PR merged
+ * (trial task #1498, #1553).
+ */
+export const VERIFIER_ELIGIBILITY_SETTLED_CAUSE = 'verifier_eligibility_settled';
+
+/**
+ * Record that a deferral is settled, when the newest verify record is one.
+ * Never throws: a failed write leaves the deferral, which only withholds.
+ */
+async function settleDeferral(
+  taskId: number,
+  fromStatus: string | undefined,
+  sessionId: number | undefined,
+  verifierModel: string | null,
+): Promise<void> {
+  try {
+    const { prisma } = await import('../../config/database');
+    const latest = await prisma.workflowTransition.findFirst({
+      where: {
+        taskId,
+        cause: {
+          in: [
+            'file_saved:verify',
+            VERIFIER_ELIGIBILITY_DEFERRED_CAUSE,
+            VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { cause: true },
+    });
+    if (latest?.cause !== VERIFIER_ELIGIBILITY_DEFERRED_CAUSE) return;
+    const { recordTransition } = await import('./transition-recorder');
+    await recordTransition({
+      taskId,
+      fromStatus: fromStatus ?? 'verify_done',
+      toStatus: fromStatus ?? 'verify_done',
+      actor: 'system',
+      cause: VERIFIER_ELIGIBILITY_SETTLED_CAUSE,
+      phase: 'verify',
+      sessionId,
+      metadata: { source: 'cli_epilogue', verifierModel },
+    });
+  } catch (err) {
+    log.warn({ err, taskId }, '[verifier-eligibility] could not record the deferral settled');
+  }
+}
+
 /** Run statuses in which a missing modelName only means "not reported YET". */
 const LIVE_RUN_STATUSES = new Set(['pending', 'running', 'waiting_for_input']);
 
@@ -181,6 +232,17 @@ export async function holdIfVerifierIneligible(p: {
 }): Promise<{ outcome: EligibilityGateOutcome; judgement: VerifierEligibility }> {
   const judgement = await judgeVerifierEligibility(p.taskId, p.phase ?? 'after_run');
   if (judgement.status === 'eligible' || judgement.status === 'no_verifier_run') {
+    // Only the CLI epilogue: it judges the ENDED run and then goes on to the
+    // PR, so its verdict is what the deferral was waiting for. The manual
+    // route settles through verifier-eligibility-settle.ts instead.
+    if (p.source === 'cli_epilogue') {
+      await settleDeferral(
+        p.taskId,
+        p.fromStatus,
+        p.sessionId,
+        judgement.status === 'eligible' ? judgement.model : null,
+      );
+    }
     return { outcome: 'ok', judgement };
   }
   if (judgement.status === 'unreported') {

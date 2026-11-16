@@ -20,6 +20,7 @@ import {
 } from './verify-verdict-scope-guidance';
 import { PLAN_DECLARATION_GUIDANCE } from './plan-deviation/declaration-parser';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
+import { RESEARCH_CRITERIA_REVIEW_EN, RESEARCH_CRITERIA_REVIEW_JA } from './criteria-review';
 
 /** Researcher-role prompt texts. */
 export interface ResearcherTexts {
@@ -127,7 +128,10 @@ export function buildRoleTexts(
         output:
           '調査結果をresearch.mdとしてMarkdown形式でまとめてください。\n\n' +
           '出力整形: 見出しはテンプレートの形（例: `## 影響範囲分析`）のまま書き、`[...]` のプレースホルダ説明を見出しや本文に残さない（`## 影響範囲: [変更が及ぶファイル一覧]` のような見出しは不可）。類似コードのセクション見出しは「類似機能」を使う（「類似実装」ではなく）。\n\n' +
-          '**重要**: 既存コードで修正が不要なら research.md に `## 結論: 修正不要` と根拠を記載してください。これはコード変更の要否の判断であり、タスク完了の証拠ではありません。未実施のテスト・運用確認・受入条件を明記し、通常の検証と必要な完了ゲートを維持してください。不要な実装や重複PRは作らず、既存成果の確認を後続作業として示してください。',
+          '**重要**: 既存コードで修正が不要なら research.md に `## 結論: 修正不要` と根拠を記載してください。これはコード変更の要否の判断であり、タスク完了の証拠ではありません。未実施のテスト・運用確認・受入条件を明記し、通常の検証と必要な完了ゲートを維持してください。不要な実装や重複PRは作らず、既存成果の確認を後続作業として示してください。' +
+          // Criteria before the plan (#1561): reviewed by whoever read the code.
+          '\n\n' +
+          RESEARCH_CRITERIA_REVIEW_JA,
       },
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
@@ -263,7 +267,9 @@ export function buildRoleTexts(
         output:
           'Please summarize the research results as research.md in Markdown format.\n\n' +
           'Formatting: keep headings in their template form (e.g. `## 影響範囲分析`) — never leave `[...]` placeholder notes in headings or body (a heading like `## 影響範囲: [list of affected files]` is invalid). Use 「類似機能」 as the similar-code section heading (not 「類似実装」).\n\n' +
-          '**Important**: If existing code needs no change, include `## Conclusion: No change needed` with justification. This is a code-change assessment, not completion evidence. List outstanding tests, operational verification, and acceptance criteria; preserve normal verification and required completion gates. Avoid unnecessary implementation or duplicate PRs and identify verification of existing work as the next step.',
+          '**Important**: If existing code needs no change, include `## Conclusion: No change needed` with justification. This is a code-change assessment, not completion evidence. List outstanding tests, operational verification, and acceptance criteria; preserve normal verification and required completion gates. Avoid unnecessary implementation or duplicate PRs and identify verification of existing work as the next step.' +
+          '\n\n' +
+          RESEARCH_CRITERIA_REVIEW_EN,
       },
       planner: {
         researchHeader: '# Research Results (research.md)',

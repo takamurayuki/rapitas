@@ -145,7 +145,7 @@ async function recoverOne(t: HeldTask): Promise<boolean> {
 
   // Re-read the stop intent AFTER the network call: a task stopped meanwhile
   // must not be completed, even though its PR did land.
-  if (!(await canContinueAutoMerge(t.id))) return false;
+  if (!(await canContinueAutoMerge(t.id, { mergeLanded: true }))) return false;
   // NOTE: A merged PR proves the code landed, not that the verify verdict
   // counted — re-check the verifier and any open deferral; "could not check"
   // never completes (G2 routing1 re-review 3).
@@ -194,7 +194,8 @@ async function recoverOne(t: HeldTask): Promise<boolean> {
     message: `PR #${prNumber} は既にマージ済みでしたが、タスクの完了記録が残っていませんでした。GitHub の MERGED 状態を確認のうえ完了にしました。`,
   }).catch(() => {});
 
-  log.warn(
+  // Info: a person merging the PR by hand ends here by design (#1571).
+  log.info(
     { taskId: t.id, prNumber, mergedAt: remote.mergedAt },
     '[auto-merge-recovery] PR was already merged on GitHub but the task was still held — completed from the authoritative merge state',
   );

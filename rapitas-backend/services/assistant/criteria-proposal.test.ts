@@ -300,3 +300,32 @@ describe('descriptionForJury', () => {
     ).toBe('本文\n\n## 受入基準\n- J');
   });
 });
+
+describe('the writing rules on the confirmation card (#1545)', () => {
+  test('marks a criterion the agent cannot reach, and says so in the reasons', () => {
+    const out = proposeCriteria({
+      title: '検索ボックスを追加する',
+      proposed: [
+        'CI がすべて通ること',
+        'GET /tasks?q=abc が該当タスクだけを返す',
+        'search.test.ts が通る',
+      ],
+    });
+    const ci = out.items.find((i) => i.text === 'CI がすべて通ること');
+    expect(ci?.issues?.map((i) => i.code)).toContain('unreachable');
+    expect(out.quality.issueCount).toBe(1);
+    expect(out.quality.reasons.some((r) => r.includes('CI がすべて通ること'))).toBe(true);
+  });
+
+  test('asks a report for its "nothing to change" ending', () => {
+    const out = proposeCriteria({
+      title: '依存パッケージの脆弱性を監査する',
+      proposed: [
+        '結果を docs/audit.md にまとめる',
+        'audit.test.ts が通る',
+        '件数を 1 件ずつ表にする',
+      ],
+    });
+    expect(out.quality.specIssues.map((i) => i.code)).toEqual(['no_unchanged_route']);
+  });
+});

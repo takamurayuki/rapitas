@@ -18,6 +18,8 @@ const { execFileSync } = require('child_process');
 const {
   pullOnLaunch,
   describePull,
+  buildPullLogFields,
+  recordPullOnLaunch,
   isPullEnabled,
   PULLED,
   UP_TO_DATE,
@@ -30,6 +32,16 @@ const {
   SKIPPED_MERGE_FAILED,
 } = require('./dev-pull.cjs');
 
+// NOTE(#1552): an empty file of our own, not os.devNull. On Windows that is
+// `\\.\nul`, which git refuses ("unable to access '\\.\nul': Invalid
+// argument"), so every real-repository case failed there while CI (Linux)
+// stayed green.
+const EMPTY_GIT_CONFIG = path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), 'dev-pull-gitconfig-')),
+  'config',
+);
+fs.writeFileSync(EMPTY_GIT_CONFIG, '');
+
 const GIT_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'test',
@@ -37,7 +49,7 @@ const GIT_ENV = {
   GIT_COMMITTER_NAME: 'test',
   GIT_COMMITTER_EMAIL: 'test@example.invalid',
   GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: os.devNull,
+  GIT_CONFIG_GLOBAL: EMPTY_GIT_CONFIG,
 };
 
 function git(cwd, ...args) {
@@ -459,5 +471,128 @@ describe('describePull', () => {
       assert.match(d.lines.join('\n'), /git pull skipped/, s.action);
       assert.match(d.lines.join('\n'), /Starting with the code already checked out/, s.action);
     }
+  });
+});
+
+describe('dev_pull log fields', () => {
+  test('keeps reason, branch and upstream, and only the count of dirty files', () => {
+    const fields = buildPullLogFields({
+      action: SKIPPED_DIRTY,
+      branch: 'develop',
+      upstream: 'origin/develop',
+      files: ['a.ts', 'b.ts', 'c.ts'],
+      reason: 'dirty tree',
+    });
+    assert.equal(fields.action, SKIPPED_DIRTY);
+    assert.equal(fields.reason, 'dirty tree');
+    assert.equal(fields.branch, 'develop');
+    assert.equal(fields.upstream, 'origin/develop');
+    assert.equal(fields.dirtyCount, 3);
+    assert.equal(JSON.stringify(fields).includes('a.ts'), false);
+  });
+
+  test('omits absent items and keeps from/to as null', () => {
+    const fields = buildPullLogFields({ action: UP_TO_DATE });
+    assert.deepEqual(fields, { action: UP_TO_DATE, from: null, to: null });
+  });
+});
+
+describe('recordPullOnLaunch', () => {
+  test('writes a failed dev_pull row with the exception message and does not throw', async () => {
+    const events = [];
+    const result = await recordPullOnLaunch({
+      pull: async () => {
+        throw new Error('git exploded');
+      },
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+    });
+    assert.equal(result, null);
+    assert.deepEqual(events, [['dev_pull', { action: 'failed', reason: 'git exploded' }]]);
+  });
+
+  test('stringifies non-Error throws', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => {
+        throw 'boom';
+      },
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+    });
+    assert.equal(events[0][1].reason, 'boom');
+  });
+
+  test('writes the result fields on success and returns the result', async () => {
+    const events = [];
+    const res = { action: SKIPPED_OFFLINE, reason: 'timeout', upstream: 'origin/develop' };
+    const result = await recordPullOnLaunch({
+      pull: async () => res,
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+    });
+    assert.equal(result, res);
+    assert.equal(events[0][1].reason, 'timeout');
+  });
+
+  test('a throwing onResult does not drop the dev_pull row', async () => {
+    const events = [];
+    const result = await recordPullOnLaunch({
+      pull: async () => ({ action: UP_TO_DATE }),
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      onResult: () => {
+        throw new Error('print failed');
+      },
+    });
+    assert.equal(result.action, UP_TO_DATE);
+    assert.equal(events.length, 1);
+    assert.equal(events[0][1].action, UP_TO_DATE);
+  });
+
+  test('a throwing onError does not propagate', async () => {
+    const events = [];
+    const result = await recordPullOnLaunch({
+      pull: async () => {
+        throw new Error('x');
+      },
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      onError: () => {
+        throw new Error('warn failed');
+      },
+    });
+    assert.equal(result, null);
+    assert.equal(events[0][1].action, 'failed');
+  });
+});
+
+// The app's 再起動 (backend exit 75) pulls too (#1563). The row says which
+// pulled, so a restart that brought nothing in can be told from a launch.
+describe('recordPullOnLaunch trigger', () => {
+  test('records what triggered the pull', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => ({ action: UP_TO_DATE, from: 'a', to: 'a' }),
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      trigger: 'restart',
+    });
+    assert.equal(events[0][1].trigger, 'restart');
+  });
+
+  test('records it on a failed pull too', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => {
+        throw new Error('x');
+      },
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+      trigger: 'restart',
+    });
+    assert.deepEqual(events[0][1], { action: 'failed', reason: 'x', trigger: 'restart' });
+  });
+
+  test('leaves the row as it was when no trigger is given', async () => {
+    const events = [];
+    await recordPullOnLaunch({
+      pull: async () => ({ action: UP_TO_DATE, from: 'a', to: 'a' }),
+      appendDevEvent: (name, fields) => events.push([name, fields]),
+    });
+    assert.equal('trigger' in events[0][1], false);
   });
 });

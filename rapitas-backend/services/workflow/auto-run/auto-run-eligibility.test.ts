@@ -12,6 +12,8 @@ const BASE = {
   workflowDisabled: false,
   autoRunExcluded: false,
   haltReason: null,
+  // 開始条件 (#1559): not while a prerequisite is unfinished.
+  dependencies: { none: { dependsOn: { status: { not: 'done' } } } },
   AND: [
     {
       OR: [

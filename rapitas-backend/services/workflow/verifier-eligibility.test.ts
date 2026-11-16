@@ -19,9 +19,13 @@ let implementerRuns: string[] = [];
 let roleConfigModel: string | null = null;
 let pinModel: string | null = null;
 let dbDown = false;
+let latestVerifyCause: string | null = null;
 
 mock.module('../../config/database', () => ({
   prisma: {
+    workflowTransition: {
+      findFirst: async () => (latestVerifyCause ? { cause: latestVerifyCause } : null),
+    },
     agentExecution: {
       findFirst: async () => {
         if (dbDown) throw new Error('db down');
@@ -62,6 +66,7 @@ beforeEach(() => {
   roleConfigModel = null;
   pinModel = null;
   dbDown = false;
+  latestVerifyCause = null;
   holdForHumanReview.mockReset().mockResolvedValue('held');
   recordTransition.mockClear();
 });
@@ -195,5 +200,35 @@ describe('holdIfVerifierIneligible', () => {
     holdForHumanReview.mockRejectedValueOnce(new Error('db down'));
     const r = await holdIfVerifierIneligible({ taskId: 1, source: 'cli_epilogue' });
     expect(r.outcome).not.toBe('ok');
+  });
+});
+
+// The CLI epilogue judges the ended run after a mid-run verify.md save was
+// deferred. Without a record of that, the deferral stayed the newest verify
+// record and every completion path refused, even after the PR merged
+// (trial task #1498, #1553).
+describe('settling a deferral after the run', () => {
+  test('records the deferral settled when the epilogue finds the verifier eligible', async () => {
+    verifierRun = run('claude-opus-5-5');
+    latestVerifyCause = 'verifier_eligibility_deferred';
+    const out = await holdIfVerifierIneligible({ taskId: 1498, source: 'cli_epilogue' });
+    expect(out.outcome).toBe('ok');
+    expect(recordTransition.mock.calls.map((c) => c[0].cause)).toEqual([
+      'verifier_eligibility_settled',
+    ]);
+  });
+
+  test('records nothing when the newest verify record is not a deferral', async () => {
+    verifierRun = run('claude-opus-5-5');
+    latestVerifyCause = 'file_saved:verify';
+    await holdIfVerifierIneligible({ taskId: 1498, source: 'cli_epilogue' });
+    expect(recordTransition).not.toHaveBeenCalled();
+  });
+
+  test('leaves the deferral alone for any other caller', async () => {
+    verifierRun = run('claude-opus-5-5');
+    latestVerifyCause = 'verifier_eligibility_deferred';
+    await holdIfVerifierIneligible({ taskId: 1498, source: 'merge_watcher' });
+    expect(recordTransition).not.toHaveBeenCalled();
   });
 });

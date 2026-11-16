@@ -475,6 +475,9 @@ CREATE TABLE "Task" (
     "constraints" TEXT,
     "acceptanceCriteria" TEXT,
     "userAcceptanceChecks" TEXT,
+    "outOfScope" TEXT,
+    "deliverable" TEXT,
+    "startConditions" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" TIMESTAMP(3),
@@ -563,6 +566,17 @@ CREATE TABLE "TaskLabel" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "TaskLabel_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TaskDependency" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "dependsOnTaskId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TaskDependency_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2140,6 +2154,15 @@ CREATE INDEX "TaskLabel_workspaceId_idx" ON "TaskLabel"("workspaceId");
 CREATE UNIQUE INDEX "TaskLabel_taskId_labelId_key" ON "TaskLabel"("taskId", "labelId");
 
 -- CreateIndex
+CREATE INDEX "TaskDependency_dependsOnTaskId_idx" ON "TaskDependency"("dependsOnTaskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDependency_workspaceId_idx" ON "TaskDependency"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskDependency_taskId_dependsOnTaskId_key" ON "TaskDependency"("taskId", "dependsOnTaskId");
+
+-- CreateIndex
 CREATE INDEX "TaskTemplate_workspaceId_idx" ON "TaskTemplate"("workspaceId");
 
 -- CreateIndex
@@ -2915,6 +2938,12 @@ ALTER TABLE "TaskLabel" ADD CONSTRAINT "TaskLabel_taskId_fkey" FOREIGN KEY ("tas
 
 -- AddForeignKey
 ALTER TABLE "TaskLabel" ADD CONSTRAINT "TaskLabel_labelId_fkey" FOREIGN KEY ("labelId") REFERENCES "Label"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskDependency" ADD CONSTRAINT "TaskDependency_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskDependency" ADD CONSTRAINT "TaskDependency_dependsOnTaskId_fkey" FOREIGN KEY ("dependsOnTaskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TaskTemplate" ADD CONSTRAINT "TaskTemplate_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
