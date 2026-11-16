@@ -38,11 +38,20 @@ describe('the AI drafts under the description', () => {
     expect(button('spec').textContent).toContain('specDerive');
   });
 
-  it('waits for a description, and says so', () => {
+  // One compact line (2026-11-16): the reason a draft waits is the button's
+  // hint, not a sentence that stays on screen beside it.
+  it('waits for a description, and says so on the button', () => {
     renderActions(false);
     expect(button('title').disabled).toBe(true);
     expect(button('spec').disabled).toBe(true);
-    expect(screen.getByText('aiDraftNeedsDescription')).toBeTruthy();
+    expect(button('title').title).toBe('aiDraftNeedsDescription');
+    expect(screen.queryByText('aiDraftNeedsDescription')).toBeNull();
+  });
+
+  it('explains what each draft makes behind the ?', () => {
+    renderActions(true);
+    fireEvent.click(screen.getByRole('button', { name: 'aiDraftHelpLabel' }));
+    expect(screen.getByRole('tooltip').textContent).toBe('aiDraftHelp');
   });
 
   it('runs the draft that was pressed', () => {
