@@ -7,7 +7,7 @@
  * missing condition is reported once, for the group, since either will do.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 
@@ -55,5 +55,52 @@ describe('the completion conditions', () => {
     expect(screen.getAllByText('specErrorCompletion')).toHaveLength(1);
     expect(screen.getByLabelText('specAcceptance').getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByLabelText('specUserChecks').getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+describe('the layout', () => {
+  it('asks each field with its own example, not one shared placeholder', () => {
+    render(<TaskSpecFields {...props} isDevelopment={false} specIssues={{}} />);
+    expect(screen.getByLabelText(/specGoals/).getAttribute('placeholder')).toBe(
+      'specGoalsPlaceholder',
+    );
+    expect(screen.getByLabelText('specAcceptance').getAttribute('placeholder')).toBe(
+      'specAcceptancePlaceholder',
+    );
+  });
+
+  it('offers the deliverable as visible choices', () => {
+    const setDeliverable = vi.fn();
+    render(
+      <TaskSpecFields
+        {...props}
+        setDeliverable={setDeliverable}
+        isDevelopment={false}
+        specIssues={{}}
+      />,
+    );
+    const group = screen.getByRole('radiogroup', { name: 'specDeliverable' });
+    expect(group.querySelectorAll('[role="radio"]')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('radio', { name: /deliverable\.report/ }));
+    expect(setDeliverable).toHaveBeenCalledWith('report');
+  });
+
+  it('folds the optional scope fields while they are empty', () => {
+    render(<TaskSpecFields {...props} isDevelopment={false} specIssues={{}} />);
+    expect(screen.queryByLabelText('specOutOfScope')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /specScope/ }));
+    expect(screen.getByLabelText('specOutOfScope')).toBeTruthy();
+  });
+
+  it('shows them open when one is filled in', () => {
+    render(
+      <TaskSpecFields
+        {...props}
+        constraints="既存APIは変えない"
+        isDevelopment={false}
+        specIssues={{}}
+      />,
+    );
+    expect(screen.getByLabelText('specConstraints')).toBeTruthy();
   });
 });

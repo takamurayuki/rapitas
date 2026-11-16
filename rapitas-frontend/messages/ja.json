@@ -564,7 +564,6 @@
     "specGoals": "ゴール",
     "specConstraints": "制約",
     "specAcceptance": "エージェントが確かめる",
-    "specItemPlaceholder": "1行に1項目",
     "specDerive": "仕様（ゴール・完了条件など）",
     "specDeriveTooltip": "説明をもとに、ゴール・制約・完了条件（エージェントが確かめる）を AI が下書きします。入力済みの内容は置き換わります",
     "specDerived": "説明から仕様を下書きしました",
@@ -1128,12 +1127,27 @@
     "specStartConditions": "開始条件（着手前に満たしておくこと）",
     "prerequisites": "先に終わらせるタスク",
     "prerequisitesNone": "ありません",
-    "prerequisitesInput": "タスク番号（カンマ区切り）",
-    "prerequisitesSave": "保存",
     "prerequisitesSaved": "先に終わらせるタスクを保存しました",
     "prerequisitesSaveFailed": "先に終わらせるタスクを保存できませんでした",
     "prerequisiteDone": "完了",
-    "prerequisiteOpen": "未完了"
+    "prerequisiteOpen": "未完了",
+    "specGoalsPlaceholder": "例: 再起動でも develop の最新が取り込まれる",
+    "specOutOfScopePlaceholder": "例: 画面のデザインは変えない",
+    "specStartConditionsPlaceholder": "例: API の仕様が決まっている",
+    "specConstraintsPlaceholder": "例: 既存の API の形は変えない",
+    "specAcceptancePlaceholder": "例: dev-pull.test.cjs に足したテストが通る（確認方法も書く）",
+    "specUserChecksPlaceholder": "例: 再起動後に画面の一覧が最新になっている",
+    "specPurpose": "目的",
+    "specScope": "範囲と前提",
+    "specOptional": "任意",
+    "deliverableHint": {
+      "pr": "コードを変えて PR を作ります。調べて変更が不要なら、その根拠を書いて完了できます。",
+      "report": "調べた結果を verify.md に報告します。コードは変えません。",
+      "decision": "選択肢を比べて、どれにするかの判断とその理由を残します。"
+    },
+    "prerequisitesSearch": "タイトルか番号（#12）で探す",
+    "prerequisitesNoMatch": "見つかりません",
+    "prerequisitesRemove": "外す"
   },
   "auth": {
     "loginTitle": "Rapitas にログイン",

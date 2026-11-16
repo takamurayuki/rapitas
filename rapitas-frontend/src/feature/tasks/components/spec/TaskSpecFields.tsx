@@ -8,13 +8,17 @@
  * same way. In a development project the goals and a completion criterion are
  * marked required, and a refused save shows what is missing under the field.
  * Not responsible for the rule (`task-spec-validation.ts`) or for saving.
+ *
+ * Laid out in three groups: what the task is for (goals, deliverable), when
+ * it is done (the two kinds of completion condition, side by side), and its
+ * scope and preconditions, which are optional and folded while empty.
  */
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  DELIVERABLE_OPTIONS,
-  type DeliverableOption,
-  type SpecErrors,
-} from './task-spec-validation';
+import { ChevronDown } from 'lucide-react';
+import type { DeliverableOption, SpecErrors } from './task-spec-validation';
+import { SpecTextField, type SpecField } from './SpecTextField';
+import { DeliverablePicker } from './DeliverablePicker';
 
 /** The spec values and setters, one item per line for the lists. */
 export interface TaskSpecValues {
@@ -45,8 +49,7 @@ export interface TaskSpecFieldsProps extends TaskSpecValues {
   idPrefix?: string;
 }
 
-const FIELD_CLASS =
-  'w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-500 dark:placeholder:text-zinc-500';
+const GROUP_TITLE = 'text-xs font-semibold text-zinc-700 dark:text-zinc-200';
 
 /**
  * @param props - Spec values, setters and the required state / 仕様の値と必須の状態
@@ -54,110 +57,78 @@ const FIELD_CLASS =
 export function TaskSpecFields(props: TaskSpecFieldsProps) {
   const t = useTranslations('task');
   const { isDevelopment, specIssues, idPrefix = 'spec' } = props;
+  const field = (
+    key: string,
+    labelKey: string,
+    value: string,
+    set: (v: string) => void,
+    extra: Partial<SpecField> = {},
+  ): SpecField => ({
+    key,
+    label: t(labelKey),
+    placeholder: t(`${labelKey}Placeholder`),
+    value,
+    set,
+    ...extra,
+  });
 
-  type Field = {
-    key: string;
-    label: string;
-    value: string;
-    set: (v: string) => void;
-    required?: boolean;
-    error?: string;
-  };
-  const above: Field[] = [
-    {
-      key: 'goals',
-      label: t('specGoals'),
-      value: props.goals,
-      set: props.setGoals,
-      required: true,
-      error: specIssues.goals,
-    },
-    {
-      key: 'outOfScope',
-      label: t('specOutOfScope'),
-      value: props.outOfScope,
-      set: props.setOutOfScope,
-    },
-    {
-      key: 'startConditions',
-      label: t('specStartConditions'),
-      value: props.startConditions,
-      set: props.setStartConditions,
-    },
-    {
-      key: 'constraints',
-      label: t('specConstraints'),
-      value: props.constraints,
-      set: props.setConstraints,
-    },
-  ];
+  const goals = field('goals', 'specGoals', props.goals, props.setGoals, {
+    required: true,
+    error: specIssues.goals,
+  });
   // The two kinds of completion condition, under one heading (#1557): one is
   // required, either will do, so the requirement and its error belong to the group.
-  const completion: Field[] = [
-    {
-      key: 'acceptance',
-      label: t('specAcceptance'),
-      value: props.acceptanceCriteria,
-      set: props.setAcceptanceCriteria,
-    },
-    {
-      key: 'userChecks',
-      label: t('specUserChecks'),
-      value: props.userAcceptanceChecks,
-      set: props.setUserAcceptanceChecks,
-    },
+  const completion = [
+    field('acceptance', 'specAcceptance', props.acceptanceCriteria, props.setAcceptanceCriteria),
+    field(
+      'userChecks',
+      'specUserChecks',
+      props.userAcceptanceChecks,
+      props.setUserAcceptanceChecks,
+    ),
   ];
+  const scope = [
+    field('outOfScope', 'specOutOfScope', props.outOfScope, props.setOutOfScope),
+    field('constraints', 'specConstraints', props.constraints, props.setConstraints),
+    field(
+      'startConditions',
+      'specStartConditions',
+      props.startConditions,
+      props.setStartConditions,
+    ),
+  ];
+  const scopeFilled = scope.some((f) => f.value.trim() !== '');
+  const [scopeOpen, setScopeOpen] = useState(scopeFilled);
+  const showScope = scopeOpen || scopeFilled;
+
   const completionError = specIssues.completionCriteria;
   const completionErrorId = `${idPrefix}-completion-error`;
-
-  const renderField = (f: Field, invalid: boolean, describedBy?: string) => {
-    const id = `${idPrefix}-${f.key}`;
-    return (
-      <div key={f.key} data-spec-field={f.key}>
-        <label
-          htmlFor={id}
-          className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1"
-        >
-          {f.label}
-          {isDevelopment && f.required && (
-            <span className="ml-1 text-red-500" aria-hidden="true">
-              *
-            </span>
-          )}
-        </label>
-        <textarea
-          id={id}
-          value={f.value}
-          onChange={(e) => f.set(e.target.value)}
-          placeholder={t('specItemPlaceholder')}
-          rows={3}
-          aria-invalid={invalid ? true : undefined}
-          aria-describedby={describedBy}
-          className={`${FIELD_CLASS} ${invalid ? 'ring-2 ring-red-500/40' : ''}`}
-        />
-        {f.error && (
-          <p
-            id={`${id}-error`}
-            role="alert"
-            className="mt-1 text-xs text-red-600 dark:text-red-400"
-          >
-            {t(f.error)}
-          </p>
-        )}
-      </div>
-    );
-  };
+  const goalsErrorId = goals.error ? `${idPrefix}-goals-error` : undefined;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {isDevelopment && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('specRequiredHint')}</p>
       )}
-      {above.map((f) =>
-        renderField(f, !!f.error, f.error ? `${idPrefix}-${f.key}-error` : undefined),
-      )}
+
+      <section className="space-y-3" aria-label={t('specPurpose')}>
+        <h4 className={GROUP_TITLE}>{t('specPurpose')}</h4>
+        <SpecTextField
+          field={goals}
+          idPrefix={idPrefix}
+          showRequired={isDevelopment}
+          invalid={!!goals.error}
+          describedBy={goalsErrorId}
+        />
+        <DeliverablePicker
+          value={props.deliverable}
+          onChange={props.setDeliverable}
+          idPrefix={idPrefix}
+        />
+      </section>
+
       <fieldset data-spec-field="completion" className="space-y-2">
-        <legend className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+        <legend className={GROUP_TITLE}>
           {t('specCompletion')}
           {isDevelopment && (
             <span className="ml-1 text-red-500" aria-hidden="true">
@@ -166,35 +137,53 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
           )}
         </legend>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('specCompletionNote')}</p>
-        {completion.map((f) =>
-          renderField(f, !!completionError, completionError ? completionErrorId : undefined),
-        )}
+        <div className="grid gap-3 md:grid-cols-2">
+          {completion.map((f) => (
+            <SpecTextField
+              key={f.key}
+              field={f}
+              idPrefix={idPrefix}
+              showRequired={false}
+              invalid={!!completionError}
+              describedBy={completionError ? completionErrorId : undefined}
+            />
+          ))}
+        </div>
         {completionError && (
           <p id={completionErrorId} role="alert" className="text-xs text-red-600 dark:text-red-400">
             {t(completionError)}
           </p>
         )}
       </fieldset>
-      <div data-spec-field="deliverable">
-        <label
-          htmlFor={`${idPrefix}-deliverable`}
-          className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1"
+
+      <section className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setScopeOpen((o) => !o)}
+          aria-expanded={showScope}
+          disabled={scopeFilled}
+          className={`flex items-center gap-1 ${GROUP_TITLE} disabled:cursor-default`}
         >
-          {t('specDeliverable')}
-        </label>
-        <select
-          id={`${idPrefix}-deliverable`}
-          value={props.deliverable}
-          onChange={(e) => props.setDeliverable(e.target.value as DeliverableOption)}
-          className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20"
-        >
-          {DELIVERABLE_OPTIONS.map((d) => (
-            <option key={d} value={d}>
-              {t(`deliverable.${d}`)}
-            </option>
+          <ChevronDown
+            className={`w-3.5 h-3.5 transition-transform ${showScope ? '' : '-rotate-90'}`}
+            aria-hidden="true"
+          />
+          {t('specScope')}
+          <span className="ml-1 font-normal text-zinc-500 dark:text-zinc-400">
+            {t('specOptional')}
+          </span>
+        </button>
+        {showScope &&
+          scope.map((f) => (
+            <SpecTextField
+              key={f.key}
+              field={f}
+              idPrefix={idPrefix}
+              showRequired={false}
+              invalid={false}
+            />
           ))}
-        </select>
-      </div>
+      </section>
     </div>
   );
 }

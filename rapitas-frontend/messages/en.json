@@ -564,7 +564,6 @@
     "specGoals": "Goals",
     "specConstraints": "Constraints",
     "specAcceptance": "Checked by the agent",
-    "specItemPlaceholder": "One item per line",
     "specDerive": "Spec (goals, completion conditions…)",
     "specDeriveTooltip": "AI drafts the goals, constraints and the conditions the agent checks from the description. What is already entered is replaced",
     "specDerived": "Drafted the spec from the description",
@@ -1128,12 +1127,27 @@
     "specStartConditions": "Start conditions (what must hold before starting)",
     "prerequisites": "Tasks to finish first",
     "prerequisitesNone": "None",
-    "prerequisitesInput": "Task numbers (comma-separated)",
-    "prerequisitesSave": "Save",
     "prerequisitesSaved": "Saved the tasks to finish first",
     "prerequisitesSaveFailed": "Could not save the tasks to finish first",
     "prerequisiteDone": "Done",
-    "prerequisiteOpen": "Not done"
+    "prerequisiteOpen": "Not done",
+    "specGoalsPlaceholder": "e.g. A restart also pulls the latest develop",
+    "specOutOfScopePlaceholder": "e.g. The screen design stays as it is",
+    "specStartConditionsPlaceholder": "e.g. The API spec is decided",
+    "specConstraintsPlaceholder": "e.g. The shape of the existing API does not change",
+    "specAcceptancePlaceholder": "e.g. The test added to dev-pull.test.cjs passes (say how to check)",
+    "specUserChecksPlaceholder": "e.g. After a restart the list shows the latest",
+    "specPurpose": "Purpose",
+    "specScope": "Scope and preconditions",
+    "specOptional": "optional",
+    "deliverableHint": {
+      "pr": "Changes code and opens a PR. If nothing needs changing, it can finish with the reason.",
+      "report": "Reports what was found in verify.md. No code changes.",
+      "decision": "Compares the options and records which to take and why."
+    },
+    "prerequisitesSearch": "Search by title or number (#12)",
+    "prerequisitesNoMatch": "No match",
+    "prerequisitesRemove": "Remove"
   },
   "auth": {
     "loginTitle": "Login to Rapitas",
