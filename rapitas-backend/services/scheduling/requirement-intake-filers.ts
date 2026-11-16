@@ -68,13 +68,11 @@ export async function fileBootstrapTask(
   state: { hasManifest?: boolean } = {},
 ): Promise<number> {
   if (hasBootstrapTaskFiled(existing)) {
-    // WARN, not INFO: this hold is indistinguishable from normal throttling in
-    // the logs, and it has no exit of its own. Measured 2026-10-12 — #1212
-    // completed, produced the config and pushed it on a task branch that was
-    // never merged, so the project read as "still needs setting up" while this
-    // check suppressed re-filing. Feature tasks were held indefinitely with no
-    // error anywhere. Naming what is missing is what makes that state findable.
-    log.warn(
+    // This hold has no exit of its own: #1212 pushed the config on a branch that
+    // was never merged and feature tasks were held with no error (2026-10-12).
+    // The person is told by reportIntakeOutcome (environment_pending: a warning
+    // plus a notification), so this detail line is info and not a second warning.
+    log.info(
       { themeId, workingDirectory, missing: 'preview config on the authoritative branch' },
       'Environment setup is already filed but the project still lacks preview config — ' +
         'feature tasks stay held. If the setup task is already done, its branch is probably unmerged',
