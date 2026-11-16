@@ -103,6 +103,17 @@ jobs:
       # registration in scripts/ci-gate-tests.txt, and is green only when
       # bun's junit report shows each one ran and bun exited 0. Separate from
       # the coverage-measured gate above so it cannot move the floors.
+      # NOTE: A changed test may use the isolated SQLite client
+      # (generated/prisma-sqlite), as Full Suite prepares it. Without it the
+      # develop -> main sync PR failed 26 such tests with "Cannot find module".
+      - name: Prepare SQLite client for isolated database tests
+        if: github.event_name == 'pull_request'
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: file:./isolated-tests.db
+          RAPITAS_DB_PROVIDER: sqlite
+        run: bun run db:generate:sqlite
+
       - name: Run the tests this PR adds or changes (backend)
         if: github.event_name == 'pull_request'
         env:
