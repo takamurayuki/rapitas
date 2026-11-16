@@ -20,6 +20,7 @@ import 'rapi_companion_card.dart';
 import 'rapi_criteria_change_card.dart';
 import 'rapi_digest_card.dart';
 import 'rapi_digest_visibility.dart';
+import 'rapi_jump_to_latest.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_space_widgets.dart';
 import 'rapi_spaces_sheet.dart';
@@ -131,6 +132,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
   /// 一覧の上端のうち、透明なバーの裏で薄くなる帯の高さ（見える範囲に数えない）
   double _listTopInset = 0;
   bool _digestCheckScheduled = false;
+
+  /// 最下部から離れて読んでいる間だけ、右下に末尾ジャンプの ▽ を出す
+  bool _showJump = false;
 
   /// 入力欄のフォーカス。ウィジェットやショートカットから開いたとき、ここに当ててキーボードを出す
   final _inputFocus = FocusNode();
@@ -248,6 +252,24 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     });
   }
 
+  /// 最下部付近にいるか（まだ一覧が無いときは付近として扱う）
+  bool get _atEnd => !_scroll.hasClients || rapiFollowsNew(_scroll.position);
+
+  /// 一覧のスクロール位置が変わったら、ジャンプボタンを出すか決め直す
+  void _updateJump(ScrollMetrics metrics) {
+    final show = rapiShowsJump(metrics);
+    if (show != _showJump) setState(() => _showJump = show);
+  }
+
+  /// ▽ を押したとき：最下部へ滑らかにスクロールする（着けばボタンは消える）
+  void _jumpToLatest() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      _scroll.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   /// 要約カードは挨拶のすぐ後（先頭付近）に差し込まれる。末尾を見ていたなら、差し込んだ後も末尾に留める
   // NOTE: 履歴があると initState で末尾へ移るが、要約はその後で届く。そのままだとカードの高さの分だけ
@@ -263,10 +285,16 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
   /// provider 側の変化のうち、画面固有の副作用が要るものを拾う
   void _onChatChanged(RapiChatState? prev, RapiChatState next) {
-    // 発言が足されたら末尾へスクロールする（足されるときは必ず新しい id が末尾に付く）
+    // 発言が足されたら末尾へスクロールする（足されるときは必ず新しい id が末尾に付く）。
+    // NOTE: 寄せるのは自分が送った直後と、既に最下部付近にいたときだけ。上へ戻って読んでいる間に
+    // ラピの返答や案内が届いても読む位置は動かさず、▽ で末尾へ戻れるようにする。
+    // ここは build の前に呼ばれるので、位置は新しい行を描く前のもの（足す前に末尾にいたか）
     final prevLast = prev?.messages.lastOrNull?.id ?? -1;
-    final nextLast = next.messages.lastOrNull?.id ?? -1;
-    if (nextLast > prevLast) _scrollToEnd();
+    final last = next.messages.lastOrNull;
+    if (last != null && last.id > prevLast) {
+      final mine = last.role == RapiRole.user && !last.archived;
+      if (mine || _atEnd) _scrollToEnd();
+    }
 
     // provider が文を書き換えたとき（送信で空にする・失敗で戻す・新しい下書き）だけ欄へ反映する。
     // 画面での入力は _onInputChanged で provider へ書き戻しているので、ここでは一致する
@@ -475,6 +503,11 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                               if (n is ScrollNotification || n is ScrollMetricsNotification) {
                                 _scheduleDigestCheck();
                               }
+                              // カードの中の横スクロール（コードブロックなど）は数えない
+                              if (n is ScrollNotification && n.depth == 0) _updateJump(n.metrics);
+                              if (n is ScrollMetricsNotification && n.depth == 0) {
+                                _updateJump(n.metrics);
+                              }
                               return false;
                             },
                             child: ListView(
@@ -490,6 +523,12 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     }),
                   ),
                 ),
+                if (_showJump)
+                  Positioned(
+                    right: 16,
+                    bottom: 12,
+                    child: RapiJumpToLatestButton(onPressed: _jumpToLatest),
+                  ),
               ],
             ),
           ),
@@ -664,7 +703,9 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         onDismiss: () => _chat.dismissConsultPicker(m.id),
         // 一覧が届くとカードの背が伸びる。カードが末尾なら、伸びた分まで見せる
         onListLoaded: () {
-          if (ref.read(rapiChatProvider).messages.lastOrNull?.id == m.id) _scrollToEnd();
+          if (ref.read(rapiChatProvider).messages.lastOrNull?.id == m.id && _atEnd) {
+            _scrollToEnd();
+          }
         },
       ));
     }
