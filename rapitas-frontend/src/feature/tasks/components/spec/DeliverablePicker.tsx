@@ -2,11 +2,12 @@
 /**
  * DeliverablePicker
  *
- * The task's deliverable as visible choices with what each one means, in
- * place of a dropdown that hid the other options and their difference.
+ * The task's deliverable as visible choices, in place of a dropdown that hid
+ * the other options; what each one means is behind the ? beside the label.
  * Not responsible for which deliverables exist (`task-spec-validation.ts`).
  */
 import { useTranslations } from 'next-intl';
+import { HelpTip } from '@/components/ui/help-tip/HelpTip';
 import { DELIVERABLE_OPTIONS, type DeliverableOption } from './task-spec-validation';
 
 /**
@@ -27,9 +28,22 @@ export function DeliverablePicker({
   const labelId = `${idPrefix}-deliverable-label`;
   return (
     <div data-spec-field="deliverable">
-      <p id={labelId} className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1">
-        {t('specDeliverable')}
-      </p>
+      <div className="mb-1 flex items-center">
+        <p id={labelId} className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+          {t('specDeliverable')}
+        </p>
+        <HelpTip label={t('specDeliverableHelp')}>
+          <span className="block space-y-1">
+            {DELIVERABLE_OPTIONS.map((d) => (
+              <span key={d} className="block">
+                <span className="font-medium">{t(`deliverable.${d}`)}</span>
+                {': '}
+                {t(`deliverableHint.${d}`)}
+              </span>
+            ))}
+          </span>
+        </HelpTip>
+      </div>
       <div role="radiogroup" aria-labelledby={labelId} className="flex flex-wrap gap-1.5">
         {DELIVERABLE_OPTIONS.map((d) => {
           const selected = d === value;
@@ -51,9 +65,6 @@ export function DeliverablePicker({
           );
         })}
       </div>
-      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-        {t(`deliverableHint.${value}`)}
-      </p>
     </div>
   );
 }

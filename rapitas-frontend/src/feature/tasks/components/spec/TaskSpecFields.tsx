@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
+import { HelpTip } from '@/components/ui/help-tip/HelpTip';
 import type { DeliverableOption, SpecErrors } from './task-spec-validation';
 import { SpecTextField, type SpecField } from './SpecTextField';
 import { DeliverablePicker } from './DeliverablePicker';
@@ -128,15 +129,15 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
       </section>
 
       <fieldset data-spec-field="completion" className="space-y-2">
-        <legend className={GROUP_TITLE}>
+        <legend className={`flex items-center ${GROUP_TITLE}`}>
           {t('specCompletion')}
           {isDevelopment && (
             <span className="ml-1 text-red-500" aria-hidden="true">
               *
             </span>
           )}
+          <HelpTip label={t('specCompletionHelp')}>{t('specCompletionNote')}</HelpTip>
         </legend>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('specCompletionNote')}</p>
         <div className="grid gap-3 md:grid-cols-2">
           {completion.map((f) => (
             <SpecTextField
@@ -157,22 +158,25 @@ export function TaskSpecFields(props: TaskSpecFieldsProps) {
       </fieldset>
 
       <section className="space-y-3">
-        <button
-          type="button"
-          onClick={() => setScopeOpen((o) => !o)}
-          aria-expanded={showScope}
-          disabled={scopeFilled}
-          className={`flex items-center gap-1 ${GROUP_TITLE} disabled:cursor-default`}
-        >
-          <ChevronDown
-            className={`w-3.5 h-3.5 transition-transform ${showScope ? '' : '-rotate-90'}`}
-            aria-hidden="true"
-          />
-          {t('specScope')}
-          <span className="ml-1 font-normal text-zinc-500 dark:text-zinc-400">
-            {t('specOptional')}
-          </span>
-        </button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => setScopeOpen((o) => !o)}
+            aria-expanded={showScope}
+            disabled={scopeFilled}
+            className={`flex items-center gap-1 ${GROUP_TITLE} disabled:cursor-default`}
+          >
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${showScope ? '' : '-rotate-90'}`}
+              aria-hidden="true"
+            />
+            {t('specScope')}
+            <span className="ml-1 font-normal text-zinc-500 dark:text-zinc-400">
+              {t('specOptional')}
+            </span>
+          </button>
+          <HelpTip label={t('specScopeHelp')}>{t('specScopeNote')}</HelpTip>
+        </div>
         {showScope &&
           scope.map((f) => (
             <SpecTextField
