@@ -64,8 +64,11 @@ export function HomeToolbar({
 
   return (
     // NOTE: wraps instead of squeezing — at 390px the actions were crushed into
-    // one-character-wide columns of vertical text.
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    // one-character-wide columns of vertical text. min-h-[62px] is the
+    // due-today card's height: on a day with nothing due the card shrinks to
+    // one line, and the row fell to the buttons' 38px, leaving them less room
+    // above and below than on a day with the card (2026-11-16).
+    <div className="mb-3 flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex items-center gap-4">
         <TodayTaskProgressBar compact={true} className="w-60" />
       </div>
