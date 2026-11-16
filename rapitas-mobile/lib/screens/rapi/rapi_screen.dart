@@ -15,6 +15,7 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/rapi_criteria_list.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import '../../widgets/voice_scroll_target.dart';
+import 'rapi_chat_lines.dart';
 import 'rapi_companion_card.dart';
 import 'rapi_criteria_change_card.dart';
 import 'rapi_digest_card.dart';
@@ -73,7 +74,7 @@ const Map<String, String> _statusLabels = {
 /// バックエンドの free text 上限（assistant-intake.routes.ts MAX_TEXT_LENGTH）
 const int _maxTextLength = 2000;
 
-const _indigo = Color(0xFF4F46E5);
+const _indigo = rapiUserBubbleColor;
 
 /// 聞き取り中のマイクボタンの色
 const _listeningRed = Color(0xFFEF4444);
@@ -82,13 +83,6 @@ const _bubbleGray = Color(0xFFF4F4F5);
 const _violetBg = Color(0xFFF5F3FF);
 const _violetBorder = Color(0xFFDDD6FE);
 const _violetButton = Color(0xFF7C3AED);
-
-/// ラピの発言の本文色（デスクトップ RapiAvatarDock.tsx の light 本文色）
-const _rapiText = Color(0xFF1F2937);
-
-/// ラピの発言カードの地色と枠
-const _rapiCardBg = Color(0xFFFFFFFF);
-const _rapiCardBorder = Color(0xFFE4E4E7);
 
 /// 発言どうしの間隔
 const double _messageGap = 14;
@@ -254,6 +248,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     });
   }
 
+
   /// 要約カードは挨拶のすぐ後（先頭付近）に差し込まれる。末尾を見ていたなら、差し込んだ後も末尾に留める
   // NOTE: 履歴があると initState で末尾へ移るが、要約はその後で届く。そのままだとカードの高さの分だけ
   // 中身が下へずれ、最新の発言が画面の外へ押し出される
@@ -410,7 +405,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         if (i == 0) ..._spaceRows(spaces),
       ],
       if (chat.messages.isEmpty && digestCard != null) digestCard,
-      if (chat.sending) const _ThinkingRow(),
+      if (chat.sending) const RapiThinkingRow(gap: _messageGap),
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -676,9 +671,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     switch (m.role) {
       case RapiRole.user:
-        return _spaced(_UserMessage(text: m.text));
+        // 受け付けた発言（履歴に入っている発言）にだけスタンプ。送信に失敗すると履歴から外れて消える
+        return _spaced(RapiUserMessage(text: m.text, accepted: m.inHistory));
       case RapiRole.assistant:
-        return _spaced(_RapiMessage(text: m.text));
+        return _spaced(RapiReplyMessage(text: m.text));
       case RapiRole.system:
         final taskId = m.taskId;
         final draftId = m.externalDraftId;
@@ -1029,7 +1025,7 @@ class _GlassMenuButton extends StatelessWidget {
               icon: const Icon(Icons.menu),
               style: IconButton.styleFrom(
                 backgroundColor: Colors.white.withValues(alpha: 0.55),
-                foregroundColor: _rapiText,
+                foregroundColor: rapiChatText,
                 side: BorderSide(color: Colors.white.withValues(alpha: 0.9)),
                 shape: const CircleBorder(),
                 iconSize: 20,
@@ -1051,98 +1047,8 @@ class _GlassMenuButton extends StatelessWidget {
   }
 }
 
-/// ユーザーの発言：尻尾のない角丸の塊を右寄せ（藍色）
-class _UserMessage extends StatelessWidget {
-  final String text;
-
-  const _UserMessage({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width * 0.8;
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: _indigo,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: SelectableText(
-            text,
-            style: const TextStyle(fontSize: 15, height: 1.45, color: Colors.white),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// ラピの発言を載せる白いカード（全幅・尻尾なし・アバターなし。左右の余白は一覧の 16）
-class _RapiCard extends StatelessWidget {
-  final Widget child;
-
-  const _RapiCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _rapiCardBg,
-        border: Border.all(color: _rapiCardBorder),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: child,
-    );
-  }
-}
-
-/// ラピの発言：全幅の白いカードに本文
-class _RapiMessage extends StatelessWidget {
-  final String text;
-
-  const _RapiMessage({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return _RapiCard(
-      child: SelectableText(
-        text,
-        style: const TextStyle(fontSize: 15, height: 1.6, color: _rapiText),
-      ),
-    );
-  }
-}
-
-/// 送信中の行：ラピの発言と同じ白いカードに、小さなスピナー＋「考え中…」
-class _ThinkingRow extends StatelessWidget {
-  const _ThinkingRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: _messageGap),
-      child: _RapiCard(
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6)),
-            ),
-            const SizedBox(width: 8),
-            Text('考え中…', style: TextStyle(fontSize: 14, color: muted)),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// NOTE: ユーザーの発言・ラピの発言カード・考え中の行は rapi_chat_lines.dart へ移した
+// （受け取りスタンプと波打つ三点を足すにあたり、この画面を増やさないため）。
 
 class _SystemNote extends StatelessWidget {
   final String text;
