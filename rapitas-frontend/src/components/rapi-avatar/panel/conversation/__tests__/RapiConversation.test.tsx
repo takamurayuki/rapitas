@@ -180,9 +180,9 @@ describe('talking', () => {
     await waitFor(() =>
       expect(screen.getByTestId('card-ask').textContent).toBe('期限切れは何件？'),
     );
-    expect(
-      screen.getByText('rapiAvatar.prompt.tookItAs:rapiAvatar.mode.ask,件数のため'),
-    ).toBeTruthy();
+    // The card says what she is doing; a line on how she routed it was
+    // procedure the user did not want to read (#1543).
+    expect(screen.queryByText(/tookItAs/)).toBeNull();
     expect(calls.some((c) => c.url.includes('/copilot/chat'))).toBe(false);
   });
 

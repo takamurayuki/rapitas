@@ -1791,7 +1791,6 @@
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
       "cancel": "Cancel",
-      "tookItAs": "Took that as “{where}” — {reason}",
       "ratherPlan": "Plan it out instead",
       "send": "Send",
       "hint": "Enter to send, Shift+Enter for a new line",

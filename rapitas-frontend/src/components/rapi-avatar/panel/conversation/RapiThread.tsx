@@ -17,7 +17,6 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../../intake';
 import { TaskChange } from '../../intake/change';
-import { MODE_ICONS } from '../rapi-modes';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
 
@@ -111,16 +110,14 @@ function RoutedLine({
   rethinkAsPlan: (sentence: string) => void;
 }) {
   const ta = useTranslations('rapiAvatar');
-  const tm = useTranslations('rapiAvatar.mode');
   const intent = message.intent as PromptDestination;
-  const Icon = MODE_ICONS[intent];
   return (
     <div data-rapi-card={intent} className="space-y-1.5">
-      <div className="flex items-baseline gap-2 px-1">
-        <p className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-zinc-400">
-          <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>{ta('prompt.tookItAs', { where: tm(intent), reason: message.reason ?? '' })}</span>
-        </p>
+      {/* NOTE: no "「タスク作成」として受け取りました — <reason>" line any more.
+          It narrated her routing, which read as procedure rather than
+          conversation (#1543); the card below already shows what she is
+          doing, and a misroute is still one press away from a plan. */}
+      <div className="flex justify-end px-1">
         {/* The one correction worth offering. Routing is a model call and
             will sometimes be wrong, and the roadmap is the one a misroute
             most often misses ("英語を毎日続けられるようにしたい" read as one

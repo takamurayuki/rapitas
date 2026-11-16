@@ -263,18 +263,15 @@ describe('typing at her', () => {
     expect(JSON.parse(bodies[0]).hasOpenTask).toBe(expected);
   });
 
-  // Without this a misroute looks like the feature simply doing something
-  // else, rather than like her having misread you.
-  it('says where she took it, and why', async () => {
+  // "Took that as Ask — because ..." read as the machinery talking (#1543).
+  // The card itself shows what she is doing.
+  it('does not narrate where she took it', async () => {
     route({ routed: true, intent: 'ask', reason: '件数を尋ねているため' });
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     say('ブロックは何件？');
-    await waitFor(() =>
-      expect(
-        screen.getByText('rapiAvatar.prompt.tookItAs:rapiAvatar.mode.ask,件数を尋ねているため'),
-      ).toBeTruthy(),
-    );
+    await waitFor(() => expect(document.querySelector('[data-rapi-card="ask"]')).toBeTruthy());
+    expect(screen.queryByText(/tookItAs/)).toBeNull();
   });
 });
 
