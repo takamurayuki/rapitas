@@ -55,6 +55,20 @@ pnpm run dev
 - SQLite 用 Prisma Client と初期化 SQL を生成 (`bun run db:prepare:sqlite`。スキーマ未変更ならスキップ)
 - バックエンド (`bun run dev:stable`, http://localhost:3001) を起動し、続けて Next.js 開発サーバー (http://localhost:3000) を起動
 
+#### 画面の「再起動」での取り込み
+
+画面の「再起動」でも、起動時と同じく develop の最新が取り込まれます。再起動はバックエンドだけを立て直し `dev.js` は動き続けるため、`dev.js` が再起動の手順の中で `scripts/dev-pull.cjs` を呼び、依存同期と Prisma の準備より前に fast-forward します。
+
+取り込みがスキップされる条件は起動時と同じです。スキップしても再起動は続行され、理由が表示されます。
+
+- 作業ツリーが dirty である
+- ローカルが upstream と分岐している
+- オフラインである
+- `--no-pull` または `RAPITAS_DEV_PULL=0` で無効にしている
+
+> [!NOTE]
+> 取り込んだ中に `dev.js` 自体の変更があっても、動いている `dev.js` には反映されません。反映するには再起動ではなく、`pnpm run dev` を起動し直してください。
+
 Tauri ウィンドウも含めて起動する場合は `pnpm run tauri`（`scripts/dep-sync.cjs --only desktop` の後に `tauri dev`）を使います。`src-tauri/tauri.conf.json` の `beforeDevCommand` が `node scripts/dev.js` を実行するため、上記のサーバー起動も同時に行われます。
 
 ## ビルド
