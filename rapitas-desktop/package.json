@@ -14,7 +14,7 @@
     "ci:prepare": "node scripts/ci-build.js"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.3"
+    "@tauri-apps/cli": "^2.12.4"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4"
