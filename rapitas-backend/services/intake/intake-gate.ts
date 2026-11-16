@@ -41,6 +41,8 @@ import {
 } from './spec-quality-checker';
 import { resolveIntakePolicy, decideIntake } from './intake-policy';
 import { buildIntakeQuestion } from './intake-question-template';
+import { holdForRequiredSpec } from './intake-required-spec';
+import { applyCriteriaRuleFixes } from './intake-criteria-check';
 
 const log = createLogger('intake-gate');
 
@@ -74,6 +76,20 @@ interface IntakeTaskRow extends SpecQualityInput {
  * @returns The intake outcome the orchestrator must act on. / オーケストレータが扱う結果
  */
 export async function ensureIntakeReady(taskId: number): Promise<IntakeOutcome> {
+  const outcome = await checkSpec(taskId);
+  if (outcome.status === 'awaiting_question') return outcome;
+  // Last, after enrichment: a development task never starts without its
+  // required items, best-guess policy or not (#1555).
+  if (await holdForRequiredSpec(taskId)) {
+    return { status: 'awaiting_question', message: '必須の項目が未入力のため、入力を求めています' };
+  }
+  // Then the criteria (#1561): the evidence-backed mistakes are fixed by
+  // rule here; the review that needs judgement is the researcher's.
+  await applyCriteriaRuleFixes(taskId).catch(() => []);
+  return outcome;
+}
+
+async function checkSpec(taskId: number): Promise<IntakeOutcome> {
   const row = await prisma.task.findUnique({ where: { id: taskId } });
   if (!row) return { status: 'ready' };
 

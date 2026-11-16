@@ -33,6 +33,7 @@
 import { checkSpecQuality } from '../intake/spec-quality-checker';
 import { normalizeCriteria, withoutCriteriaSection, MAX_CRITERION_LENGTH } from './criteria-text';
 import { classifyVerifier, findVagueTerm, type CriterionVerifier } from './criteria-wording';
+import { findCriterionIssues, findSpecIssues, type CriterionIssue } from './criteria-rules';
 import {
   detectTaskKind,
   supplementCandidates,
@@ -66,6 +67,11 @@ export interface ProposedCriterion {
   /** True when ラピ added it to reach the minimum, rather than the reader proposing it. */
   supplemented?: boolean;
   /**
+   * The writing rules it breaks (#1545): unreachable for an agent, only a
+   * "does not", or no way to check it. Each says how to rewrite.
+   */
+  issues?: CriterionIssue[];
+  /**
    * True for a sentence ラピ wrote without enough material to be specific. It
    * is always the person's to check, and the card asks for it to be reworded.
    */
@@ -80,6 +86,10 @@ export interface CriteriaQuality {
   isAdequate: boolean;
   /** How many criteria carry a vague term. */
   vagueCount: number;
+  /** How many criteria break a writing rule (#1545). */
+  issueCount: number;
+  /** Rules the spec breaks as a whole, such as a report with no "nothing to change" ending. */
+  specIssues: CriterionIssue[];
   /** Plain reasons: the checker's, then one per vague criterion. */
   reasons: string[];
 }
@@ -156,10 +166,15 @@ function describe(text: string, ctx: Context, supplemented: boolean): ProposedCr
   // else (the reader's, the user's own rewording) is classified by its words.
   const own = ctx.candidates.get(text);
   const vague = findVagueTerm(text);
+  const verifier = own?.verifier ?? classifyVerifier(text, ctx.kind);
+  // A sentence ラピ wrote without material is already flagged as generic;
+  // listing rule breaks on top would only repeat "reword this".
+  const issues = own?.generic ? [] : findCriterionIssues(text, verifier);
   return {
     text,
-    verifier: own?.verifier ?? classifyVerifier(text, ctx.kind),
+    verifier,
     ...(vague ? { vague } : {}),
+    ...(issues.length > 0 ? { issues } : {}),
     ...(supplemented ? { supplemented: true } : {}),
     ...(own?.generic ? { generic: true } : {}),
   };
@@ -175,13 +190,23 @@ function qualityOf(input: CriteriaProposalInput, items: ProposedCriterion[]): Cr
   });
   const vague = items.filter((i) => i.vague);
   const generic = items.filter((i) => i.generic);
+  const broken = items.filter((i) => i.issues && i.issues.length > 0);
+  const specIssues = findSpecIssues({
+    title: input.title,
+    description: input.description ?? null,
+    acceptanceCriteria: items.map((i) => i.text),
+  });
   return {
     score: spec.score,
     isAdequate: spec.isAdequate,
     vagueCount: vague.length,
+    issueCount: broken.length,
+    specIssues,
     reasons: [
       ...spec.reasons,
       ...vague.map((i) => `「${i.text}」の「${i.vague!.term}」は確かめにくい言葉です。`),
+      ...broken.map((i) => `「${i.text}」: ${i.issues![0].message}${i.issues![0].suggestion}`),
+      ...specIssues.map((i) => `${i.message}${i.suggestion}`),
       ...(generic.length > 0
         ? [
             `タスクの内容から具体的な条件を作れなかったため、${generic.length}件は仮の文です。何ができたら終わりかが分かる文に直してください。`,

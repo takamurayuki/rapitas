@@ -78,6 +78,13 @@ mock.module('./verify-self-repair', () => ({
   hasFreshVerifyRejection: mock(() => Promise.resolve(false)),
 }));
 
+// NOTE: Unmocked, the stuck branch's review-hold check queried the real
+// config/database, which on Windows did not answer inside the test's window
+// (#1552). Holds are covered by workflow-runner-verify-settle.review-hold.test.ts.
+mock.module('./review-hold', () => ({
+  readReviewHold: mock(() => Promise.resolve(null)),
+}));
+
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
   resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),

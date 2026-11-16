@@ -45,6 +45,7 @@ const {
   installWorktreeDependencies,
   startWorktreeDependenciesInstall,
   awaitWorktreeDependencies,
+  settleInflightWorktreeDependencies,
   clearWorktreeDependenciesTracking,
   taskNeedsDependencies,
   prepareWorktreeDependencies,
@@ -179,6 +180,21 @@ describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
     // Only one setup was triggered for the shared worktree.
     expect(mockExec).toHaveBeenCalledTimes(1);
 
+    clearWorktreeDependenciesTracking(worktree);
+  });
+
+  // 2026-11-16: removing a leftover rapitas worktree with no setup script
+  // STARTED a setup, which fell to the generated-project bootstrap and ran
+  // `prisma generate` in the live primary (EPERM on the loaded engine DLL).
+  test('settling for a removal never starts a setup, only waits for one in flight', async () => {
+    const worktree = join(TMP_ROOT, 'wt-settle');
+    await makeWorktreeWithSetup(worktree);
+    await settleInflightWorktreeDependencies(worktree);
+    expect(mockExec).toHaveBeenCalledTimes(0);
+
+    const running = startWorktreeDependenciesInstall(worktree);
+    expect(settleInflightWorktreeDependencies(worktree)).toBe(running);
+    await running;
     clearWorktreeDependenciesTracking(worktree);
   });
 

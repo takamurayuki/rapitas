@@ -152,7 +152,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     handleDryRunDrift(ctx as Parameters<typeof handleDryRunDrift>[0]),
   )
 
-  .post('/workflow/tasks/:taskId/advance', (ctx) =>
+  // NOTE: was '/workflow/tasks/:taskId/advance' — under this router's
+  // '/workflow' prefix that served /workflow/workflow/…, and the page's
+  // 「進める」 button, which posts to /workflow/tasks/:id/advance, got 404 (#1547).
+  .post('/tasks/:taskId/advance', (ctx) =>
     handleAdvanceWorkflow(ctx as Parameters<typeof handleAdvanceWorkflow>[0]),
   )
 

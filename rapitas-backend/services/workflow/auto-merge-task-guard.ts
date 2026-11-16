@@ -15,9 +15,13 @@ import { isLatestExecutionCancelled } from './publication-cancellation-guard';
  * state must not be read as permission.
  *
  * @param taskId - Candidate task. / 対象タスクID
+ * @param opts.mergeLanded - The PR is already merged; only a stop withholds the completion. / マージ済み
  * @returns True when the merge/completion may proceed. / 続行してよい場合 true
  */
-export async function canContinueAutoMerge(taskId: number): Promise<boolean> {
+export async function canContinueAutoMerge(
+  taskId: number,
+  opts: { mergeLanded?: boolean } = {},
+): Promise<boolean> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -25,7 +29,10 @@ export async function canContinueAutoMerge(taskId: number): Promise<boolean> {
     });
     if (!task || !['in-progress', 'in_progress', 'done', 'completed'].includes(task.status))
       return false;
-    if (task.themeId != null) {
+    // NOTE: The auto-run toggle governs what the watcher STARTS (a merge). A
+    // merge someone already made is a fact; a task run by hand while auto-run
+    // was off stayed at verify_done after its PR merged (trial #1499).
+    if (task.themeId != null && !opts.mergeLanded) {
       const run = await prisma.themeAutoRun.findFirst({
         where: { themeId: task.themeId },
         select: { enabled: true, status: true },

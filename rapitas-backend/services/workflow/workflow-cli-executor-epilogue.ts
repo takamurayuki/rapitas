@@ -374,6 +374,16 @@ export async function runPhaseEpilogue(params: {
           }
         }
 
+        // Criteria before the plan (#1561): the researcher's criteria review
+        // can stop a person's task at awaiting_question here, on the path most
+        // research.md arrives by. A no-op when the HTTP save already asked.
+        if (transition.outputFile === 'research' && !criticRejected) {
+          const { settleCriteriaFromResearch } = await import('./research-criteria-review');
+          if (await settleCriteriaFromResearch(taskId, fileContent)) {
+            phaseStatus = 'awaiting_question' as WorkflowAdvanceResult['status'];
+          }
+        }
+
         // Auto-approve plan when the user's settings allow it. Without
         // this, the orchestrator-driven planner phase would land on
         // `plan_created` and wait for a UI click — even when

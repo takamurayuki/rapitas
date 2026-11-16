@@ -28,6 +28,7 @@ import CompactTaskDetailHeader from './CompactTaskDetailHeader';
 import CompactTaskDetailWorkloadSection from './CompactTaskDetailWorkloadSection';
 import CiStatusBadge from './CiStatusBadge';
 import TaskAcceptanceCriteriaSection from './TaskAcceptanceCriteriaSection';
+import { TaskSpecEditSection } from '../spec';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -61,6 +62,7 @@ export default function CompactTaskDetailCard({
   const filterThemes = useFilterDataStore((s) => s.themes);
   const filterCategories = useFilterDataStore((s) => s.categories);
   const resolvedTheme = filterThemes.find((t) => t.id === task.themeId);
+  const isDevelopment = (task.theme?.isDevelopment ?? resolvedTheme?.isDevelopment) === true;
   const resolvedCategory = resolvedTheme?.categoryId
     ? filterCategories.find((c) => c.id === resolvedTheme.categoryId)
     : null;
@@ -159,7 +161,12 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Completion criteria — read-only; renders nothing when the task has none. */}
+        {/* Spec (goals, scope, deliverable) with its editor; criteria listed below (#1555). */}
+        <TaskSpecEditSection
+          task={task}
+          isDevelopment={isDevelopment}
+          onTaskUpdated={onTaskUpdated}
+        />
         <TaskAcceptanceCriteriaSection task={task} />
 
         {/* Labels — flat (non-accordion) section right above the workload

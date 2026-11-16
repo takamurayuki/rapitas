@@ -203,7 +203,7 @@ export async function deployNow(startupCommit: string | null): Promise<DeployNow
     logger.warn({ err }, 'notification failed — restarting anyway');
   });
 
-  logger.warn({ aheadCount, branch, startupCommit }, 'deploy requested — restarting to activate');
+  logger.info({ aheadCount, branch, startupCommit }, 'deploy requested — restarting to activate');
   scheduleShutdownSequence('[deploy-now]', 75);
   return { deployed: true, reason: 'deployed', aheadCount };
 }

@@ -29,7 +29,8 @@ import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanu
 import { computeTaskActiveTime } from '../../services/agent-execution/task-active-time';
 import { TASK_NOT_FOUND, INVALID_ID } from '../../utils/common/error-messages';
 import { retryTask } from './task-retry-handler';
-
+import { CREATE_SPEC_FIELDS, UPDATE_SPEC_FIELDS } from './task-spec-body';
+import { computeCriteriaRevision } from '../../services/task/task-criteria-revision';
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
@@ -312,16 +313,18 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     // is exactly the shape that makes "is it gone?" unanswerable without
     // parsing. The status is part of the answer.
     if (!task) throw new NotFoundError(`Task ${id} not found`);
+    // What PATCH needs as expectedCriteriaRevision to edit the spec (#1555).
+    const criteriaRevision = computeCriteriaRevision(task);
 
     // Cumulative active time / current-cycle wall-clock / per-role breakdown
     // (task #560). Additive fields only — existing consumers are unaffected.
     // Best-effort: an aggregation failure must never break the task detail.
     try {
       const timing = await computeTaskActiveTime(prisma, id);
-      return { ...task, ...timing };
+      return { ...task, criteriaRevision, ...timing };
     } catch (error) {
       logger.warn({ err: error, taskId: id }, '[tasks] active-time aggregation failed');
-      return task;
+      return { ...task, criteriaRevision };
     }
   })
 
@@ -364,9 +367,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         themeId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
-        goals: t.Optional(t.Array(t.String())),
-        constraints: t.Optional(t.Array(t.String())),
-        acceptanceCriteria: t.Optional(t.Array(t.String())),
+        ...CREATE_SPEC_FIELDS,
         searchMissId: t.Optional(t.Number()),
       }),
     },
@@ -404,11 +405,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           projectId: t.Optional(t.Number()),
           milestoneId: t.Optional(t.Number()),
           autoApprovePlan: t.Optional(t.Boolean()),
-          goals: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
-          constraints: t.Optional(t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 })),
-          acceptanceCriteria: t.Optional(
-            t.Array(t.String({ maxLength: 20000 }), { maxItems: 200 }),
-          ),
+          ...UPDATE_SPEC_FIELDS,
           expectedCriteriaRevision: t.Optional(t.String({ maxLength: 128 })),
           isProtected: t.Optional(t.Boolean()),
           autoRunExcluded: t.Optional(t.Boolean()),

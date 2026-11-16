@@ -303,9 +303,68 @@ function describePull(result) {
   }
 }
 
+/**
+ * Build the dev_pull ndjson fields from a pullOnLaunch result. Uncommitted
+ * files are reduced to a count so paths never reach the log.
+ *
+ * @param result - pullOnLaunch's result / pullOnLaunch の結果
+ * @returns Fields for appendDevEvent / ログ項目
+ */
+function buildPullLogFields(result) {
+  const fields = {
+    action: result.action,
+    from: result.from || null,
+    to: result.to || null,
+  };
+  if (result.reason) fields.reason = String(result.reason);
+  if (result.branch) fields.branch = result.branch;
+  if (result.upstream) fields.upstream = result.upstream;
+  if (Array.isArray(result.files)) fields.dirtyCount = result.files.length;
+  return fields;
+}
+
+/** Run fn and swallow any throw: logging/printing must never stop the launch. */
+function safely(fn) {
+  try {
+    fn();
+  } catch {
+    // NOTE: intentionally ignored; the launch continues without this side effect.
+  }
+}
+
+/**
+ * Run the pull and log a dev_pull row whatever happens; a throw becomes a
+ * `failed` row so the reason survives the terminal. Never throws.
+ *
+ * @param opts.pull - async function returning a pullOnLaunch result / 取り込み関数
+ * @param opts.appendDevEvent - ndjson writer / ログ書き込み関数
+ * @param opts.onResult - called with the result before logging (terminal output) / 表示用
+ * @param opts.onError - called with the failure reason / 例外時の表示用
+ * @param opts.trigger - what pulled: 'launch' or 'restart' (#1563); left out of the row when absent / 取り込みのきっかけ
+ * @returns The result, or null when the pull threw / 結果、例外時は null
+ */
+async function recordPullOnLaunch({ pull, appendDevEvent, onResult, onError, trigger }) {
+  const tag = trigger ? { trigger } : {};
+  let result;
+  try {
+    result = await pull();
+  } catch (err) {
+    const reason = err && err.message ? err.message : String(err);
+    safely(() => appendDevEvent('dev_pull', { action: 'failed', reason, ...tag }));
+    safely(() => onError && onError(reason));
+    return null;
+  }
+  // NOTE: display and logging are isolated from each other so one failing never drops the other.
+  safely(() => onResult && onResult(result));
+  safely(() => appendDevEvent('dev_pull', { ...buildPullLogFields(result), ...tag }));
+  return result;
+}
+
 module.exports = {
   pullOnLaunch,
   describePull,
+  buildPullLogFields,
+  recordPullOnLaunch,
   isPullEnabled,
   LAUNCHER_PATHS,
   PULLED,

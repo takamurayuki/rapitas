@@ -35,6 +35,7 @@ mock.module('../core/git-exec', () => ({ clearGitCache: mock(() => {}) }));
 mock.module('../../../../github/git-exec', () => ({ clearGitRemoteCache: mock(() => {}) }));
 mock.module('./dependency-installer', () => ({
   awaitWorktreeDependencies: mock(() => Promise.resolve()),
+  settleInflightWorktreeDependencies: mock(() => Promise.resolve()),
   clearWorktreeDependenciesTracking: mock(() => {}),
 }));
 mock.module('../core/safety', () => ({
