@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'rapi_message_markdown.dart';
 import 'rapi_typing_indicator.dart';
 
 // ラピの会話の行：ユーザーの発言（受け取りスタンプ付き）、ラピの発言の白いカード、考え中の行。
@@ -128,7 +129,7 @@ class RapiCard extends StatelessWidget {
   }
 }
 
-/// ラピの発言：全幅の白いカードに本文
+/// ラピの発言：全幅の白いカードに本文（返答は Markdown で返るので、体裁を整えて描く）
 class RapiReplyMessage extends StatelessWidget {
   final String text;
 
@@ -136,12 +137,9 @@ class RapiReplyMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RapiCard(
-      child: SelectableText(
-        text,
-        style: const TextStyle(fontSize: 15, height: 1.6, color: rapiChatText),
-      ),
-    );
+    // NOTE: SelectableText のプレーン表示から Markdown へ替えた（記法が記号のまま見えていた）。
+    // 選択は RapiMessageMarkdown の SelectionArea で続けてできる
+    return RapiCard(child: RapiMessageMarkdown(data: text));
   }
 }
 

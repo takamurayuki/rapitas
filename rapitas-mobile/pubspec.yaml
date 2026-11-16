@@ -47,6 +47,8 @@ dependencies:
   # ラピのアバター（assets/rapi_avatar.svg）
   flutter_svg: ^2.0.17
   flutter_markdown_plus: ^1.0.12
+  # ラピの発言の Markdown でインラインコードをチップにする（MarkdownElementBuilder が md.Element を受け取る）
+  markdown: ^7.3.1
   url_launcher: ^6.3.3
 
 dev_dependencies:
