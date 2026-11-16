@@ -21,8 +21,9 @@ export async function observeWorkflowStage<T>(
     return await operation();
   } finally {
     clearTimeout(timer);
+    // The slow stage was already warned about; its end is the follow-up.
     if (reported)
-      log.warn(
+      log.info(
         { taskId, stage, elapsedMs: Date.now() - startedAt },
         'Workflow preparation stage settled',
       );

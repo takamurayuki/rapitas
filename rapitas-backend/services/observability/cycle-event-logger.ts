@@ -113,8 +113,11 @@ export type CycleEventName =
   | 'pr.created'
   | 'pr.merged'
   | 'pr.merge_failed'
-  // self-deploy
+  // self-deploy; restart.waiting = merged code held back by a boundary or gate
   | 'restart.triggered'
+  | 'restart.waiting'
+  // a backlog job that ran longer than 3s (concern #514 instrumentation)
+  | 'backlog.slow_job'
   // self-CPU heartbeat (services/system/cpu-usage-monitor.ts), opt-in
   // diagnostic for sustained-high-CPU investigations
   | 'system.cpu_sample';

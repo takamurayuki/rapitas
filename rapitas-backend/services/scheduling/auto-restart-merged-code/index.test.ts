@@ -147,6 +147,16 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
+// A held restart is recorded in the cycle log, not warned: waiting is the
+// design (#1573). The once-per-reason rule is what these tests pin.
+const cycleEvents: { evt: string; cause?: string }[] = [];
+mock.module('../../observability/cycle-event-logger', () => ({
+  logCycleEvent: (evt: string, fields: { cause?: string } = {}) =>
+    cycleEvents.push({ evt, cause: fields.cause }),
+  getCycleLogFilePath: () => '/tmp/fake-cycle.ndjson',
+  _resetForTests: () => {},
+}));
+
 const { AutoRestartMergedCodeScheduler } = await import('./index');
 const { resetUiActivity, recordUiRequest } = await import('./ui-activity-tracker');
 
@@ -163,6 +173,7 @@ function makeScheduler(startupCommit: string | null = 'startup123'): {
 beforeEach(() => {
   callOrder.length = 0;
   warnings.length = 0;
+  cycleEvents.length = 0;
   enabled = true;
   aheadCount = 3;
   changedPaths = ['rapitas-backend/services/workflow/workflow-runner.ts'];
@@ -265,14 +276,15 @@ describe('runOnce — early-exit gates', () => {
   describe('a held restart says so', () => {
     const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
 
-    test('warns which gate is holding it', async () => {
+    test('records which gate is holding it, without a warning', async () => {
       changedPaths = uiOnly;
       auxChildren = 1; // a live aux CLI child: a system-busy wait
       snapshots = [idleSnapshot, idleSnapshot];
       await makeScheduler().evaluateBoundaryRestart();
-      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      const held = cycleEvents.filter((e) => e.evt === 'restart.waiting');
       expect(held).toHaveLength(1);
-      expect(held[0].reason).toBeTruthy();
+      expect(held[0].cause).toBeTruthy();
+      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toEqual([]);
     });
 
     // Once per reason, not once per poll: a stuck deploy should be visible,
@@ -284,7 +296,7 @@ describe('runOnce — early-exit gates', () => {
       const scheduler = makeScheduler();
       await scheduler.evaluateBoundaryRestart();
       await scheduler.evaluateBoundaryRestart();
-      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toHaveLength(1);
+      expect(cycleEvents.filter((e) => e.evt === 'restart.waiting')).toHaveLength(1);
     });
 
     test('says it again when a different gate takes over', async () => {
@@ -298,9 +310,9 @@ describe('runOnce — early-exit gates', () => {
       isMergingFlag = true;
       await scheduler.evaluateBoundaryRestart();
 
-      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      const held = cycleEvents.filter((e) => e.evt === 'restart.waiting');
       expect(held).toHaveLength(2);
-      expect(held[0].reason).not.toBe(held[1].reason);
+      expect(held[0].cause).not.toBe(held[1].cause);
     });
   });
 
@@ -555,6 +567,7 @@ describe('start() guards', () => {
     delete process.env.TAURI_BUILD;
     delete process.env.RAPITAS_RESTART_SUPERVISED;
     warnings.length = 0;
+    cycleEvents.length = 0;
     await new AutoRestartMergedCodeScheduler().start(60_000);
     expect(warnings.some((w) => w.msg.includes('RAPITAS_RESTART_SUPERVISED'))).toBe(true);
     if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;

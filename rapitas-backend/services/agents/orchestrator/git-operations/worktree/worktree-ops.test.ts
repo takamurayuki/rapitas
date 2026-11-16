@@ -125,6 +125,7 @@ mock.module('../core/safety', () => ({
 }));
 mock.module('./dependency-installer', () => ({
   awaitWorktreeDependencies: mockAwaitWorktreeDependencies,
+  settleInflightWorktreeDependencies: mockAwaitWorktreeDependencies,
   clearWorktreeDependenciesTracking: mockClearWorktreeDependenciesTracking,
 }));
 mock.module('../../../../github/git-exec', () => ({
@@ -244,7 +245,7 @@ describe('removeWorktree', () => {
     );
   });
 
-  test('calls awaitWorktreeDependencies before git worktree remove', async () => {
+  test('waits for an in-flight dependency setup before git worktree remove', async () => {
     const callOrder: string[] = [];
 
     mockAwaitWorktreeDependencies.mockImplementation(async () => {
@@ -317,7 +318,7 @@ describe('removeWorktree', () => {
     expect(mockFsRm).toHaveBeenCalledWith(mockWorktreePath, { recursive: true, force: true });
   });
 
-  test('continues gracefully when awaitWorktreeDependencies rejects', async () => {
+  test('continues gracefully when the in-flight dependency setup rejects', async () => {
     mockAwaitWorktreeDependencies.mockImplementation(() =>
       Promise.reject(new Error('setup failed')),
     );
