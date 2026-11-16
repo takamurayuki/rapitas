@@ -1147,7 +1147,13 @@
     },
     "prerequisitesSearch": "Search by title or number (#12)",
     "prerequisitesNoMatch": "No match",
-    "prerequisitesRemove": "Remove"
+    "prerequisitesRemove": "Remove",
+    "specDeliverableHelp": "About the deliverable",
+    "specCompletionHelp": "About the completion conditions",
+    "specScopeHelp": "About scope and preconditions",
+    "specScopeNote": "Out of scope: what this task does not do, so the agent does not widen the change. Constraints: rules to keep (an API that must not change, and so on). Start conditions: what must hold before work starts.",
+    "prerequisitesHelp": "About the tasks to finish first",
+    "prerequisitesNote": "Auto-run does not start this task until every task listed here is done. Starting it by hand is refused, with the unfinished tasks named."
   },
   "auth": {
     "loginTitle": "Login to Rapitas",

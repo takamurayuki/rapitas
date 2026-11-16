@@ -88,7 +88,7 @@ describe('the layout', () => {
   it('folds the optional scope fields while they are empty', () => {
     render(<TaskSpecFields {...props} isDevelopment={false} specIssues={{}} />);
     expect(screen.queryByLabelText('specOutOfScope')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /specScope/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^specScope ?specOptional$/ }));
     expect(screen.getByLabelText('specOutOfScope')).toBeTruthy();
   });
 
@@ -102,5 +102,21 @@ describe('the layout', () => {
       />,
     );
     expect(screen.getByLabelText('specConstraints')).toBeTruthy();
+  });
+});
+
+describe('the explanations', () => {
+  // Shown on demand behind a ? beside the label, not as text under every
+  // field (2026-11-16): the form reads as fields, the details are a hover away.
+  it('are behind a help button, not printed under the fields', () => {
+    render(<TaskSpecFields {...props} isDevelopment={false} specIssues={{}} />);
+    expect(screen.queryByText('specCompletionNote')).toBeNull();
+    expect(screen.queryByText('deliverableHint.pr')).toBeNull();
+    expect(screen.getByRole('button', { name: 'specCompletionHelp' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'specDeliverableHelp' }));
+    const tip = screen.getByRole('tooltip');
+    for (const d of ['pr', 'report', 'decision']) {
+      expect(tip.textContent).toContain(`deliverableHint.${d}`);
+    }
   });
 });

@@ -1147,7 +1147,13 @@
     },
     "prerequisitesSearch": "タイトルか番号（#12）で探す",
     "prerequisitesNoMatch": "見つかりません",
-    "prerequisitesRemove": "外す"
+    "prerequisitesRemove": "外す",
+    "specDeliverableHelp": "成果物の説明",
+    "specCompletionHelp": "完了条件の説明",
+    "specScopeHelp": "範囲と前提の説明",
+    "specScopeNote": "範囲外: 今回やらないこと。エージェントが手を広げすぎないための線引きです。制約: 守るべき決まりごと（変えてはいけない API など）。開始条件: 着手する前に満たしておくこと。",
+    "prerequisitesHelp": "先に終わらせるタスクの説明",
+    "prerequisitesNote": "ここに入れたタスクがすべて完了するまで、自動実行はこのタスクを始めません。手動で始めようとすると、未完了のタスクを挙げて断ります。"
   },
   "auth": {
     "loginTitle": "Rapitas にログイン",

@@ -14,6 +14,7 @@ import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useToast } from '@/components/ui/toast/ToastContainer';
+import { HelpTip } from '@/components/ui/help-tip/HelpTip';
 import { PrerequisiteSearch, type PrerequisiteCandidate } from './PrerequisiteSearch';
 
 type Prerequisite = PrerequisiteCandidate;
@@ -83,7 +84,10 @@ export function TaskPrerequisites({ taskId }: { taskId: number }) {
   const ids = items.map((p) => p.id);
   return (
     <div data-prerequisites className="space-y-2">
-      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('prerequisites')}</p>
+      <div className="flex items-center">
+        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">{t('prerequisites')}</p>
+        <HelpTip label={t('prerequisitesHelp')}>{t('prerequisitesNote')}</HelpTip>
+      </div>
       {items.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('prerequisitesNone')}</p>
       ) : (
