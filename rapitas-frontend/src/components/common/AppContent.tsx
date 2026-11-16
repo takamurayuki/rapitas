@@ -24,12 +24,18 @@ import {
 import { useLinkViewStore } from '@/stores/link-view-store';
 import { linkPaneSide, linkPaneWidthVw } from '@/components/link-view/LinkViewHost';
 import { useTaskPanelWidthVw } from '@/components/link-view/useTaskPanelWidth';
+import { isBrowserRoute } from '@/components/link-view/browser-screen/browser-screen-slot';
 import { isAppShellHidden } from '@/utils/app-shell';
+import { useNavigationHistorySync } from '@/components/header/history/navigation-history-sync';
 
 /**
  * @param children - Page content to render / 描画するページコンテンツ
  */
 export default function AppContent({ children }: { children: React.ReactNode }) {
+  // NOTE: Hosted here, not in the header — AppContent is rendered on every
+  // route, so history is recorded even where the header is not (/auth etc.),
+  // and the header's back/forward state is right the moment it reappears.
+  useNavigationHistorySync();
   // The pin flag outlives the nav: it is remembered across navigation, while
   // the nav itself is not rendered on /auth or in the popup windows. Reserving
   // its width there left the sign-in form with an empty 18rem column on its
@@ -59,7 +65,10 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
   // far edge with nothing beside it. The same mistake the other way round:
   // Ctrl+B on an empty pane opens the saved-pages library, which has no
   // tab and still occupies the width.
-  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen);
+  // NOTE: Not on /browser — the pane is not drawn there (the full screen
+  // shows the same tabs), so reserving its width would only squeeze the
+  // screen (nav60 §3.1).
+  const isLinkViewOpen = useLinkViewStore((s) => s.isOpen) && !isBrowserRoute(pathname);
   const linkSide = linkPaneSide(isTaskDetailVisible, taskDetailDockSide);
   // Must match the pane's own width, or the gap it was widened to fill
   // simply reappears as page padding on the other side — so it comes from
@@ -75,7 +84,7 @@ export default function AppContent({ children }: { children: React.ReactNode }) 
 
   return (
     <div
-      className="transition-[padding] duration-200 ease-out"
+      className="app-page-content transition-[padding] duration-200 ease-out"
       style={{
         paddingRight: rightVw ? `${rightVw}vw` : undefined,
         paddingLeft: leftVw ? `${leftVw}vw` : undefined,

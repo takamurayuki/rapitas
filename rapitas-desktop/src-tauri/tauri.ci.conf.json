@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Rapitas - AI Task Manager",
+        "title": "Rapitas",
         "width": 1400,
         "height": 900,
         "minWidth": 800,

@@ -7,7 +7,19 @@
  * capability and records the act, keeping before/after so undo has what it needs.
  */
 
-export const TASK_UPDATE_STATUSES = ['todo', 'in-progress', 'done'] as const;
+/**
+ * The statuses ラピ may write. `done` is deliberately absent: completion is
+ * decided by the completion gate and the jury, never declared by ラピ (companion
+ * design ch.2, Q4 — every task, accompanied or not). Marking a task done by hand
+ * stays on the task screen, which does not go through `/assistant/*`.
+ */
+export const TASK_UPDATE_STATUSES = ['todo', 'in-progress'] as const;
+
+/** The status no `/assistant/*` path may write, as a draft, a write or an undo. */
+export const ASSISTANT_FORBIDDEN_STATUS = 'done';
+
+/** The error every refusal of a `done` write via ラピ carries (HTTP 409). */
+export const DONE_NOT_ALLOWED = 'done_not_allowed_via_assistant';
 export const TASK_UPDATE_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 const FIELDS = ['status', 'priority', 'themeId', 'dueDate'] as const;
 type Field = (typeof FIELDS)[number];

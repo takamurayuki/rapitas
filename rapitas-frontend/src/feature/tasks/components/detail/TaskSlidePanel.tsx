@@ -163,6 +163,7 @@ export default function TaskSlidePanel({
           className="fixed inset-x-0 top-16 bottom-0"
           onClick={handleClose}
           style={{
+            top: 'var(--app-chrome-bottom, 4rem)',
             zIndex: TASK_DETAIL_OVERLAY_Z,
             animation: isClosing
               ? `fadeOut ${ANIMATION_DURATION}ms ease-in forwards`
@@ -186,6 +187,8 @@ export default function TaskSlidePanel({
           isSplit ? 'w-full md:w-[50vw]' : 'w-full md:w-3/4 lg:w-2/3 xl:w-1/2'
         } flex flex-col bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden`}
         style={{
+          top: 'var(--app-chrome-bottom, 4rem)',
+          height: 'calc(100dvh - var(--app-chrome-bottom, 4rem))',
           zIndex: TASK_DETAIL_PANEL_Z,
           animation: isClosing
             ? `${slideOutAnim} ${ANIMATION_DURATION}ms ease-in forwards`

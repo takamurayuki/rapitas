@@ -24,6 +24,7 @@ import {
   updateAffectedTasks,
   createRecoveryNotification,
 } from './stale-recovery-helpers';
+import { NOT_REVIEW_COST_ROW } from '../review-cost-rows';
 
 // NOTE: Re-exported (not moved) on purpose — recovery-manager.ts and the
 // mock.module calls in recovery-manager.test.ts resolve these via THIS module
@@ -135,6 +136,7 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
         if (taskId) {
           const successor = await ctx.prisma.agentExecution.findFirst({
             where: {
+              ...NOT_REVIEW_COST_ROW,
               id: { gt: exec.id },
               status: { in: ['running', 'pending', 'waiting_for_input', 'completed'] },
               session: { config: { taskId } },

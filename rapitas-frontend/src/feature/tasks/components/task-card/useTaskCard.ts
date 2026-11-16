@@ -155,12 +155,13 @@ export function useTaskCard(
     };
   }, [showContextMenu]);
 
+  // NOTE: local only. SubtaskStatusButtons sends the PATCH itself; forwarding to
+  // onStatusChange made the home list send a second, concurrent PATCH for the
+  // same subtask, which surfaced as 「更新に失敗しました」 when it lost the race.
   const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
-    // Optimistic update
     setLocalSubtasks((prev) =>
       prev.map((s) => (s.id === subtaskId ? { ...s, status: newStatus as Status } : s)),
     );
-    onStatusChange(subtaskId, newStatus as Status);
   };
 
   const currentStatus = getStatusDisplay(t, task.status);

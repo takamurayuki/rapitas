@@ -106,6 +106,18 @@ describe('releaseTaskHalt', () => {
     expect(transitions).toEqual([]);
   });
 
+  // A review hold is resolved by accept/override (review-hold.routes.ts);
+  // releasing it as a cost halt would strand the task at verify_done.
+  test('レビュー待ち保留は解除しない（review_hold）', async () => {
+    taskRow = { haltReason: 'awaiting_review_decision', workflowStatus: 'verify_done' };
+    expect(await releaseTaskHalt(1114, HYPOTHESIS, 'ユーザー操作')).toEqual({
+      ok: false,
+      reason: 'review_hold',
+    });
+    expect(updates).toEqual([]);
+    expect(transitions).toEqual([]);
+  });
+
   test('存在しないタスクは not_found', async () => {
     taskRow = null;
     expect(await releaseTaskHalt(9999, HYPOTHESIS, 'ユーザー操作')).toEqual({

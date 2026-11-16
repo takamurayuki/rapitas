@@ -36,6 +36,9 @@ let snapshot = {
 };
 let auxChildren = 0;
 let merging = false;
+/** What the stand-in dependency gate answers for the pending change set. */
+let depBlocker: 'dependency-toolchain-mismatch' | null = null;
+let gatedPaths: readonly string[] | null = null;
 /** What happened. */
 let pulled = false;
 let shutdown: string | null = null;
@@ -47,12 +50,23 @@ let notified = false;
 // stop with one error and drop its forty-five tests from the count.
 mock.module('./git-io', () => ({
   captureStartupCommit: async () => 'abc1234',
-  listChangedPaths: async () => [],
+  listChangedPaths: async () => ['rapitas-backend/bun.lock'],
   fetchAndCountAhead: async () => ahead,
   isWorkingTreeClean: async () => clean,
   fastForwardToRemote: async () => {
     pulled = fastForwarded;
     return fastForwarded;
+  },
+}));
+
+// Every export, for the same process-wide reason as git-io above.
+mock.module('./dependency-preflight', () => ({
+  DEPENDENCY_LOCKFILES: [],
+  readPinnedBunVersion: () => '1.3.13',
+  checkDependencyToolchain: () => depBlocker,
+  dependencyGate: async (paths: readonly string[]) => {
+    gatedPaths = paths;
+    return depBlocker;
   },
 }));
 
@@ -80,7 +94,7 @@ mock.module('../../system/shutdown-sequence', () => ({
   },
 }));
 
-const { deployNow } = await import('./deploy-now');
+const { deployNow, inspectDeploy } = await import('./deploy-now');
 
 beforeEach(() => {
   ahead = 3;
@@ -95,6 +109,8 @@ beforeEach(() => {
   };
   auxChildren = 0;
   merging = false;
+  depBlocker = null;
+  gatedPaths = null;
   pulled = false;
   shutdown = null;
   notified = false;
@@ -161,6 +177,25 @@ describe('deploying on request', () => {
     expect(result).toMatchObject({ deployed: false, reason: 'working-tree-dirty' });
     expect(pulled).toBe(false);
     expect(shutdown).toBeNull();
+  });
+
+  // #1403: dev.js reinstalls a changed lockfile after the pull and refuses to
+  // start the backend if it cannot. When the pinned bun is not even there,
+  // that refusal is certain, so the pull must not happen at all.
+  test('refuses before pulling when the incoming lockfile cannot be installed', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: false, reason: 'dependency-toolchain-mismatch' });
+    expect(gatedPaths).toEqual(['rapitas-backend/bun.lock']);
+    expect(pulled).toBe(false);
+    expect(shutdown).toBeNull();
+  });
+
+  test('inspectDeploy reports the same dependency blocker without pulling', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    const result = await inspectDeploy('abc1234');
+    expect(result).toMatchObject({ ready: false, reason: 'dependency-toolchain-mismatch' });
+    expect(pulled).toBe(false);
   });
 
   // A diverged checkout cannot fast-forward. Restarting anyway would relaunch

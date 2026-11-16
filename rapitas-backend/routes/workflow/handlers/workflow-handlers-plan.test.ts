@@ -253,6 +253,23 @@ describe('handleApprovePlan — X-Rapitas-Source guard', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  // ラピ never approves; and an inherited object key must not pass as a
+  // source (human-source.ts — 'constructor' used to resolve to a function).
+  test.each(['assistant', 'rapi', 'constructor', '__proto__'])(
+    'rejects a %s-labelled caller and writes nothing',
+    async (source) => {
+      await expect(
+        handleApprovePlan({
+          params: { taskId: '1' },
+          body: { approved: true },
+          headers: { 'x-rapitas-source': source },
+          set: makeSet(),
+        }),
+      ).rejects.toMatchObject({ name: 'ValidationError' });
+      expect(mockUpdate).not.toHaveBeenCalled();
+    },
+  );
+
   test('rejects request with a source value not in ui|operator', async () => {
     await expect(
       handleApprovePlan({
@@ -279,6 +296,21 @@ describe('handleApprovePlan — forbiddenChangeOverride (task 1059)', () => {
       }),
     ).rejects.toMatchObject({ name: 'ValidationError' });
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  // NOTE: rapitas-mobile's decision screen (decision_service.dart) recognises this refusal by
+  // the field name in the message and then asks for a reason. Renaming it there breaks mobile.
+  test('the schema-change refusal names overrideForbiddenChange (mobile relies on it)', async () => {
+    mockFindUnique.mockResolvedValueOnce({ id: 1, workflowStatus: 'plan_created' });
+    planContentForApproval = '対象ファイル: `rapitas-backend/prisma/schema/pause.prisma`';
+    await expect(
+      handleApprovePlan({
+        params: { taskId: '1' },
+        body: { approved: true },
+        headers: UI_HEADERS,
+        set: makeSet(),
+      }),
+    ).rejects.toThrow(/overrideForbiddenChange/);
   });
 
   test('overrideForbiddenChange:true + overrideReason 付きで承認が成功し forbiddenChangeOverride が更新される', async () => {

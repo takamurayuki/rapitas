@@ -4,9 +4,11 @@ Operational guide for running rapitas locally. For *what rapitas is and why*, se
 
 ## Prerequisites
 
-- **Node.js** v20 (pinned in CI; other v20+ versions likely work but are untested)
-- **Bun** 1.3.11 (pinned in CI): `curl -fsSL https://bun.sh/install | bash`
-- **pnpm** 10 (frontend, pinned in CI): `npm i -g pnpm@10`
+Versions below are the ones CI installs; the single source of truth is [`.github/toolchain.json`](../.github/toolchain.json) (Node also in [`.nvmrc`](../.nvmrc)).
+
+- **Node.js** 24
+- **Bun** 1.3.13: `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.13"`
+- **pnpm** 10.34.9 (frontend / desktop): `npm i -g pnpm@10.34.9`
 - **Rust + rustup** (stable toolchain) — required by the Tauri desktop build: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Git**
 - **PostgreSQL** v14+ — only for the Web build; the desktop build uses bundled SQLite
@@ -47,7 +49,11 @@ cd rapitas-desktop && node scripts/dev.js          # stable mode (AI-agent frien
 cd rapitas-desktop && node scripts/dev.js --watch  # backend hot reload
 ```
 
-`dev.js` handles: port-conflict cleanup (3000/3001), schema sync (`prisma db push --skip-generate`), Prisma client generation (cached when the schema is unchanged), and starting backend + frontend together.
+`dev.js` runs the desktop (SQLite) stack. It handles: pinning the checkout to the primary branch and fast-forwarding it to its upstream (`rapitas-desktop/scripts/dev-pull.cjs`; skipped with a printed reason when the tree is dirty, diverged or offline; `--no-pull` turns it off), port-conflict cleanup (3000/3001), SQLite init SQL + Prisma client generation (`bun run db:prepare:sqlite`, cached when the schema is unchanged; the backend applies the init SQL on boot), and starting backend + frontend together.
+
+The app's 再起動 (the backend exiting with code 75) repeats the fast-forward, the dependency sync and the Prisma client generation before starting the backend again, so merged changes, schema changes included, reach the running app without relaunching `dev:tauri` (#1563). A change to `dev.js` itself still needs a relaunch.
+
+`cd rapitas-backend && bun run dev` (web / PostgreSQL) runs `prisma db push --skip-generate` + `prisma generate` for the active provider before starting (`rapitas-backend/scripts/dev/prisma-sync.ts`).
 
 ### Web only
 
@@ -87,9 +93,8 @@ npm run dev:tauri[:watch]                   # tauri from repo root
 
 # Database (backend)
 cd rapitas-backend
-npx prisma db push          # sync schema (dev)
+npx prisma db push          # sync schema (dev) — the project uses db push only, no migration history (see ADR-0003)
 bun run db:generate         # regenerate client
-npx prisma migrate dev      # migrations
 bun run db:studio           # GUI
 
 # Desktop
@@ -109,7 +114,7 @@ cd rapitas-backend && bun test
 
 - ORM: Prisma 6 (`prismaSchemaFolder` layout under `prisma/schema/` — see [ADR-0006](adr/0006-prisma-schema-folder-split.md))
 - Desktop: SQLite (`schema.desktop` is generated from the Postgres schema — never hand-edit; see [dev-schema-sync](design/dev-schema-sync.md))
-- Web: PostgreSQL 14+; Redis optional for sessions/realtime
+- Web: PostgreSQL 14+
 
 `rapitas-backend/.env` (web):
 
@@ -117,12 +122,13 @@ cd rapitas-backend && bun test
 DATABASE_URL="postgresql://user:password@localhost:5432/rapitas"
 ANTHROPIC_API_KEY="..."   # or configure provider keys in-app (encrypted at rest)
 OPENAI_API_KEY="..."
-REDIS_URL="redis://localhost:6379"   # optional
 ENCRYPTION_KEY="..."      # encrypts API keys at rest in the DB; auto-generated into the OS keychain if unset
 ADMIN_SECRET="..."        # required in production for /agents/shutdown, /agents/restart, /agents/diagnose
 ```
 
 See `rapitas-backend/.env.example` for the full, authoritative list of variables.
+
+`REDIS_URL` is not in `.env.example`: it is read only by `rapitas-backend/services/core/cache-service.ts`, which uses Redis (falling back to `redis://localhost:6379`) only when `NODE_ENV=production`; development uses the in-memory cache.
 
 ## Troubleshooting
 
@@ -132,7 +138,7 @@ lsof -ti:3000 | xargs kill -9        # macOS/Linux
 # (Windows) dev.js reclaims ports automatically on startup
 
 # Prisma schema sync error
-cd rapitas-backend && npx prisma migrate reset && npx prisma db push
+cd rapitas-backend && npx prisma db push   # add --force-reset to wipe and recreate a dev DB
 
 # Tauri build error
 rustup update && cd rapitas-desktop && npm run ci:prepare
@@ -145,5 +151,5 @@ Health check: `http://localhost:3001/agents/health` (there is no root `/health` 
 Commits run an auto-fix pre-commit hook (lint-staged → Prettier + ESLint, auto-restage, re-check). Details: [docs/pre-commit-guide.md](pre-commit-guide.md).
 
 - Branch naming: `feature/<issue>-desc` / `bugfix/<issue>-desc`
-- Conventional Commits; TypeScript strict; test coverage target ≥ 80% for new code
-- Agent operating rules: [CLAUDE.md](../CLAUDE.md)
+- Conventional Commits (enforced by commitlint); TypeScript strict; new code ships with tests (≥ 80% coverage is the long-term target, not today's gate — see ADR-0002)
+- Agent operating rules: [.claude/CLAUDE.md](../.claude/CLAUDE.md) and [AGENTS.md](../AGENTS.md)

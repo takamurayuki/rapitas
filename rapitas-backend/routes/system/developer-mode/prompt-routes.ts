@@ -19,6 +19,7 @@ import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-clie
 import { getLabelsArray, toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
 import { parseId } from '../../../middleware/error-handler';
+import { recordSessionActionUsage } from '../../../services/agents/session-cost-totals';
 
 const log = createLogger('routes:developer-mode:prompt');
 
@@ -93,12 +94,19 @@ export const developerModePromptRoutes = new Elysia({ prefix: '/developer-mode' 
           optimizeProvider,
         );
 
-        // Record token usage if session exists
+        // NOTE: Stored as an AgentAction and folded in by the recompute — a
+        // direct increment of totalTokensUsed was erased by the next execution
+        // save or jury cost record, which rewrite the total from rows.
         if (config?.agentSessions?.[0]) {
-          await prisma.agentSession.update({
-            where: { id: config.agentSessions[0].id },
-            data: { totalTokensUsed: { increment: tokensUsed }, lastActivityAt: new Date() },
-          });
+          await recordSessionActionUsage(
+            prisma as unknown as Parameters<typeof recordSessionActionUsage>[0],
+            {
+              sessionId: config.agentSessions[0].id,
+              actionType: 'prompt_optimization',
+              taskId,
+              tokensUsed,
+            },
+          );
         }
 
         // Save prompt if no clarification questions and save option is enabled

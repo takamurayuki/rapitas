@@ -12,7 +12,11 @@ pub fn get_window_decorations(window: tauri::Window) -> Result<serde_json::Value
         use serde_json::json;
 
         // NOTE: Fixed value without DPI scaling; sufficient for current use case
-        let title_bar_height = 32;
+        let title_bar_height = if window.is_decorated().unwrap_or(true) {
+            32
+        } else {
+            0
+        };
         Ok(json!({
             "titleBarHeight": title_bar_height,
             "hasDecorations": window.is_decorated().unwrap_or(true),

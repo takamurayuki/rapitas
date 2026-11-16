@@ -11,6 +11,7 @@ import { prisma } from '../../config/database';
 import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import type { RepeatLoopTransition } from './incident-signature-detectors';
 import { PLAN_HOLD_CAUSE } from './plan-hold-exclusion';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 /** One workflow transition rendered into the evidence timeline. */
 export interface TransitionEvidenceRow {
@@ -121,6 +122,7 @@ export async function gatherTaskState(
         status: true,
         updatedAt: true,
         agentExecutions: {
+          where: NOT_REVIEW_COST_ROW,
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: { id: true, status: true },

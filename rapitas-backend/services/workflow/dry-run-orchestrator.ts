@@ -126,7 +126,8 @@ export async function runDryRunVerification(
     resolveBaseBranchSha(worktreePath, preferredBaseBranch),
   ]);
 
-  const ok = gate.ok && completionGate.allow && jury.verdict !== 'fail';
+  // NOTE: A 'hold' (human decision needed) is not a pass either — production would park it.
+  const ok = gate.ok && completionGate.allow && jury.verdict !== 'fail' && jury.verdict !== 'hold';
 
   const { id: reportId } = await appendEvent({
     eventType: 'dry_run_executed',

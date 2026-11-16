@@ -13,37 +13,42 @@
  * a card parked in this same corner saying what the avatar says; the card
  * is gone and its contents open from the avatar instead.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useResumableExecutions } from '@/components/resumable-executions/useResumableExecutions';
 import { RapiAvatarDock } from './avatar/RapiAvatarDock';
 import { RapiAvatarPanel } from './panel/RapiAvatarPanel';
+import { placePanel, useRapiDrag } from './avatar/drag';
 import { useRapiAvatarState } from './state/useRapiAvatarState';
 import { isAppShellHidden } from '@/utils/app-shell';
+import { RapiFloatBridge } from './float/RapiFloatBridge';
+import { useRapiEnvironment } from './float/rapi-environment';
+import { isTauriDesktop } from './float/rapi-float-protocol';
 
 /**
- * Where the panel sits: just above ラピ's head.
+ * How wide the panel is on a window with room for it.
  *
- * She occupies 20..88 from the bottom (`bottom: 20` plus the 68px drawing),
- * so 100 leaves her 12px of clearance and the bubble's 11px tail reaches
- * down to 89 — touching the top of her without covering her.
+ * 448, up from 320: at 320 the box was too cramped to write a request in
+ * (reported 2026-11-14). Narrowed to the window by `placePanel`. Where it
+ * sits — above her by default, 12px clear so the tail touches her head — is
+ * worked out there too, from wherever she has been carried.
  */
-const PANEL_BOTTOM_PX = 100;
+const PANEL_WIDTH_PX = 448;
 
 /**
- * How far in from the panel's right edge ラピ's head is.
+ * The resident avatar, bottom-right. Mounted only where she belongs.
  *
- * Both sit at `right: 24`; the drawing is 68 wide, so her centre is 58 from
- * the viewport edge and 34 in from the panel's. The tail is aimed there.
+ * Exported for her own window on the desktop (`/rapi-float`), which mounts
+ * this same component so she looks as she does here.
  */
-const PANEL_TAIL_OFFSET_PX = 34;
-
-/** The resident avatar, bottom-right. Mounted only where she belongs. */
-function RapiAvatarResident() {
+export function RapiAvatarResident() {
   const t = useTranslations('rapiAvatar');
-  const { isDarkMode } = useDarkMode();
+  const { isDarkMode: ownDark } = useDarkMode();
+  // In her own window the theme is the main window's, handed in (#1535).
+  const env = useRapiEnvironment();
+  const isDarkMode = env ? env.dark : ownDark;
   const [open, setOpen] = useState(false);
 
   /**
@@ -77,6 +82,11 @@ function RapiAvatarResident() {
   } = useResumableExecutions();
 
   const { state, agents } = useRapiAvatarState(interruptedCount);
+  const drag = useRapiDrag();
+  const placement = useMemo(
+    () => placePanel(drag.position, drag.viewport, PANEL_WIDTH_PX),
+    [drag.position, drag.viewport],
+  );
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -99,8 +109,7 @@ function RapiAvatarResident() {
           onDismiss={handleDismiss}
           formatTimeAgo={formatTimeAgo}
           onClose={close}
-          bottomPx={PANEL_BOTTOM_PX}
-          tailOffsetPx={PANEL_TAIL_OFFSET_PX}
+          placement={placement}
           dark={isDarkMode}
         />
       )}
@@ -112,6 +121,7 @@ function RapiAvatarResident() {
         // speaking at once in one corner is what this change removed.
         message={open ? undefined : message}
         onClick={toggle}
+        drag={drag}
       />
     </>
   );
@@ -128,6 +138,19 @@ function RapiAvatarResident() {
  */
 export default function RapiAvatarHost() {
   const pathname = usePathname();
+  // Decided after mount: the server render has no Tauri, and choosing on the
+  // first render would make the two disagree. Nothing until then, rather
+  // than a guess: guessing "browser" would mount her here on the desktop
+  // for one render, and that render alone fetches the executions.
+  const [where, setWhere] = useState<'pending' | 'desktop' | 'browser'>('pending');
+  useEffect(() => setWhere(isTauriDesktop() ? 'desktop' : 'browser'), []);
+
+  if (where === 'pending') return null;
+  // On the desktop she is drawn in a window of her own laid over this one,
+  // because the in-app browser's pages are OS surfaces no element here can
+  // be drawn above (#1535). The bridge also decides when she is shown, so it
+  // stays mounted on the pages she is kept off.
+  if (where === 'desktop') return <RapiFloatBridge />;
   if (isAppShellHidden(pathname)) {
     return null;
   }

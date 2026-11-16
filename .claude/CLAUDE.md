@@ -19,7 +19,7 @@ When rules conflict, follow this order:
   Before killing any Node.js/bun process, verify it is NOT port 3001.
 
 - **Never run `prisma generate` or `prisma db push` manually.**
-  dev.js runs these automatically on startup. Running them manually requires a server restart, which severs the agent's own connection.
+  The dev startup scripts run them automatically (`rapitas-desktop/scripts/dev.js` for the desktop/SQLite stack, `rapitas-backend/scripts/dev/prisma-sync.ts` for `bun run dev`). Running them manually requires a server restart, which severs the agent's own connection.
   If any file under `rapitas-backend/prisma/schema/` (the `prismaSchemaFolder` layout — see ADR-0006) is modified, stop and instruct the user to restart the server.
 
 - **Never write workflow files directly** (mkdir, Write tool, etc.).
@@ -44,17 +44,25 @@ When rules conflict, follow this order:
 | Layer    | Stack                                     | Port |
 | -------- | ----------------------------------------- | ---- |
 | Frontend | Next.js 16 + Tailwind CSS v4 + TypeScript | 3000 |
-| Backend  | Elysia + Bun + Prisma ORM + PostgreSQL    | 3001 |
+| Backend  | Elysia + Bun + Prisma ORM — PostgreSQL (web) / SQLite (desktop) | 3001 |
 | Desktop  | Tauri 2.x                                 | —    |
 
-### Dev server startup (managed by `rapitas-desktop/scripts/dev.js`)
+Moving work between the backend and the desktop's Rust (`rapitas-desktop/src-tauri/`)?
+Follow [ADR-0010](../docs/adr/0010-desktop-rust-boundary.md): only desktop-only OS /
+process-lifetime concerns move to Rust, product logic stays in the backend, one owner
+per responsibility, and measure before and after.
 
-Automatically handles on each start:
+### Dev server startup
 
-1. Kill zombie processes on ports 3001/3000
-2. `prisma db push --skip-generate`
-3. `bun run db:generate`
-4. Start backend and frontend
+`rapitas-desktop/scripts/dev.js` (`npm run dev:tauri`, desktop / SQLite) handles on each start:
+
+1. Pin the checkout to the primary branch (`RAPITAS_PRIMARY_BRANCH`, default `develop`)
+   then fast-forward it to its upstream (`rapitas-desktop/scripts/dev-pull.cjs`; skipped with a printed reason when the tree is dirty, diverged or offline — the launch continues; off with `--no-pull` or `RAPITAS_DEV_PULL=0`; never on `--stop`)
+2. Kill stale rapitas processes and free ports 3001/3000 (identity-guarded: only rapitas-owned node/bun processes are killed)
+3. `bun run db:prepare:sqlite` — regenerate the SQLite init SQL and the SQLite Prisma client (skipped when the schema hash is unchanged); the backend applies the init SQL to the desktop DB on boot (`rapitas-backend/config/desktop-sqlite.ts`)
+4. Start the backend (`bun run dev:stable`), wait for it to be ready, then start the frontend (`pnpm run dev`)
+
+`bun run dev` in `rapitas-backend` (`scripts/dev.ts`, used for the web / PostgreSQL stack) instead runs `prisma db push --skip-generate` + `prisma generate` for the active provider via `scripts/dev/prisma-sync.ts` before starting the server.
 
 ---
 
@@ -91,22 +99,50 @@ Automatically handles on each start:
 | Type definition files | kebab-case       | `agent-execution-types.ts` |
 | Test files            | (source file name) + `.test` | `TaskCard.test.tsx`, `useAgentExecution.test.ts`, `branch-name-generator.test.ts` |
 
+### Documentation style
+
+Docs must describe the current code. When you change behaviour, update the
+affected docs in the same PR. Write plain prose in the doc's language
+(Japanese or English):
+
+- Headings are short noun phrases without decoration; each section opens with
+  its conclusion or purpose.
+- No emoji. Status is words (対応済み / 未対応 / 一部, Done / Not done); task
+  lists are `- [ ]` / `- [x]`; good/bad examples are labelled Good / Bad
+  (良い例 / 悪い例).
+- Callouts use GitHub alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
+  `> [!WARNING]`, `> [!CAUTION]`.
+- Comparisons and options are tables, procedures are numbered lists, parallel
+  items are bullets.
+- Bold only key terms. No exclamation marks, closing pleasantries or repeated
+  summary sections. One idea per sentence; same term for the same thing.
+- Diagrams (flows, sequences, states, architecture) are ```` ```mermaid ````
+  blocks; directory trees stay plain text trees.
+
+`scripts/docs/check-docs-style.cjs` (CI step `Docs follow the style rules`)
+fails on emoji and box-drawing diagrams outside `docs/archive/`; literal UI or
+tool output goes in `scripts/docs/docs-style-ignore.json` with a reason.
+`scripts/docs/check-docs-drift.cjs` checks paths, scripts, versions and env vars.
+
 ### Commit message format
 
 ```
-<type>(<scope>): <description under 50 chars>
+<type>(<scope>): <description, ideally under 50 chars>
 
 <body — optional>
 
 #<issue-number>
 ```
 
-Types: `feat` `fix` `docs` `style` `refactor` `test` `chore`
+Types (enforced by `commitlint.config.js` via the `.husky/commit-msg` hook): `feat` `fix` `docs` `style` `refactor` `test` `chore` `perf` `ci` `revert`.
+commitlint warns when the subject exceeds 72 characters and when the scope is not in its `scope-enum`; scope must be kebab-case.
 Language: English only. Use imperative mood ("Add", not "Added").
 
 ---
 
 ## 4. WORKFLOW
+
+Before research, check the task against the knowledge-base table in AGENTS.md (「ナレッジベース」) and read any matching guide in docs/ai-kb/.
 
 > **IMPORTANT — orchestrator-driven, single-phase execution.**
 > When the workflow system / auto-run dispatches you, your task prompt names a
@@ -167,15 +203,36 @@ curl -X PUT http://127.0.0.1:3001/workflow/tasks/{taskId}/status \
 
 ### Status transitions (automatic on file save)
 
-```
-draft → research_done → plan_created → [plan_approved] → in_progress → completed
+The full set is `WORKFLOW_STATUSES` in `rapitas-backend/services/workflow/workflow-types.ts`:
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> research_done
+  research_done --> plan_created
+  plan_created --> plan_approved: approval
+  plan_approved --> in_progress
+  in_progress --> verify_done
+  verify_done --> completed
 ```
 
-| File saved  | Auto-transition                    |
-| ----------- | ---------------------------------- |
-| research.md | `research_done`                    |
-| plan.md     | `plan_created` (awaiting approval) |
-| verify.md   | `completed`                        |
+Any status before `verify_done` (`draft` through `in_progress`) can move to
+`awaiting_question` and returns to that status once the question is answered
+(`ResumableWorkflowStatus` in `workflow-types.ts`).
+
+| File saved  | Auto-transition                                                     |
+| ----------- | ------------------------------------------------------------------- |
+| research.md | `research_done`                                                     |
+| question.md | `awaiting_question` (returns to the previous status once answered)  |
+| plan.md     | `plan_created` (awaiting approval)                                  |
+| verify.md   | `verify_done` (only when the verify gates pass)                     |
+
+`completed` is NOT set by saving verify.md. It is set only after the
+commit / PR pipeline finishes what the task requires
+(`rapitas-backend/routes/workflow/handlers/file-save/verify-commit-pr-pipeline.ts`;
+for auto-merged PRs, `rapitas-backend/services/workflow/auto-merge-watcher.ts`
+on merge). See `rapitas-backend/routes/workflow/handlers/file-save/status-transition.ts`.
 
 ### Step-by-step
 
@@ -381,7 +438,9 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 
 - Remote: `https://github.com/takamurayuki`
 - Use `gh` CLI for all GitHub operations.
-- Branch naming: `feature/<issue-number>-short-description` or `bugfix/<issue-number>-short-description`
+- Branch naming (human-created branches): `feature/<issue-number>-short-description` or `bugfix/<issue-number>-short-description` (`docs/`, `chore/` etc. are also used).
+  Branches created by the agent system are generated by `rapitas-backend/utils/common/branch-name-generator.ts`:
+  `<feature|bugfix|chore>/t<taskId>-<english-slug>` (≤ 50 chars, task id, not issue number).
 - `main` must always be deployable. Never push directly to `main`.
 - PR must always be linked to an Issue:
   - `Closes #<issue>` (also `Fixes` / `Resolves`) — **only when the PR finishes the issue.**

@@ -1,0 +1,38 @@
+# OSV-Scanner policy for rapitas-backend/bun.lock (read by the `security`
+# workflow's dependency-scan job, takamurayuki/security-ci).
+#
+# Each entry is a time-boxed risk acceptance for ONE advisory that has no
+# non-breaking fix. On `effectiveUntil` the finding comes back and the job fails
+# until someone re-checks it and either fixes the dependency or renews the
+# entry with a current reason. Keep expiries within ~3 months, in step with
+# .github/audit-exceptions.json (the npm-audit gate's list), which already
+# accepts the zod and deepmerge-ts advisories below for the same reasons.
+
+[[IgnoredVulns]]
+id = "GHSA-mrhx-c7xc-m3w5"
+effectiveUntil = 2027-02-03
+reason = """zod 3.25.76 via @elysiajs/swagger > @scalar/themes > @scalar/types (and \
+openai's optional peer). No zod 3.x release is patched; the fix is zod 4.6.6, \
+outside @scalar/types 0.1.7's declared ^3.23.8. It validates the OpenAPI \
+document we generate, not request bodies. Clears when the swagger plugin moves \
+to zod 4 or is replaced (a design change, not a lockfile bump)."""
+
+[[IgnoredVulns]]
+id = "GHSA-ggr8-5vv4-36mx"
+effectiveUntil = 2027-02-03
+reason = """deepmerge-ts 7.1.5 via prisma > @prisma/config 6.19.3, which pins 7.1.5 \
+exactly; the fix is the 8.x major, which only @prisma/config 7 (Prisma 7) \
+accepts. It merges Prisma's own config objects when the CLI/client loads, so no \
+recursive object graph from outside reaches it. Clears with the Prisma 7 upgrade."""
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+effectiveUntil = 2027-02-03
+reason = """minimatch 9.0.9, forced by this package's `overrides.minimatch: ^9.0.7`. \
+Its only dependents are dev lint tooling (eslint, @eslint/config-array, \
+@typescript-eslint/typescript-estree), matching globs from our own eslint and \
+tsconfig files, never attacker-supplied patterns (the advisory needs an \
+attacker-controlled pattern). The fix is minimatch 11.0.1: outside every \
+dependent's declared range (^10.2.x, including their latest releases) and it \
+needs brace-expansion ^5, which conflicts with `overrides.brace-expansion: \
+^2.1.5`. Re-check when eslint / typescript-eslint accept minimatch 11."""

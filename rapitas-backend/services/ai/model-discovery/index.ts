@@ -10,6 +10,7 @@
  * only place we acknowledge specific provider behaviors.
  */
 import { createLogger } from '../../../config/logger';
+import { findModelEntry, isSuitableForRole } from '../model-tier-table/tier-table';
 import { probeClaude } from './probes/claude-probe';
 import { probeGemini } from './probes/gemini-probe';
 import { probeOllama } from './probes/ollama-probe';
@@ -143,17 +144,34 @@ export async function selectBestModel(
     return selectBestModel({ ...ctx, excludeProviders: [] });
   }
 
+  const pool = filterForRole(eligible, ctx.role);
+
   const startIdx = TIER_FALLBACK.indexOf(ctx.desiredTier);
   for (let i = Math.max(0, startIdx); i < TIER_FALLBACK.length; i++) {
     const tier = TIER_FALLBACK[i];
-    const candidates = eligible.filter((m) => m.tier === tier);
+    const candidates = pool.filter((m) => m.tier === tier);
     if (candidates.length === 0) continue;
     const picked = pickPreferred(candidates, ctx);
     return { model: picked, tier };
   }
   // No tier had any candidates — surface anything we found.
-  const picked = pickPreferred(eligible, ctx);
+  const picked = pickPreferred(pool, ctx);
   return { model: picked, tier: picked.tier };
+}
+
+/**
+ * Drop candidates the tier table says may not fill the role, and deprecated
+ * rows. When that would leave nothing, the unfiltered list is kept: an empty
+ * pool would stop execution outright, and the router records the result as a
+ * shortfall rather than hiding it (smart-model-router.ts).
+ */
+function filterForRole(models: DiscoveredModel[], role: string | undefined): DiscoveredModel[] {
+  const kept = models.filter(
+    (m) => isSuitableForRole(m.id, role) && findModelEntry(m.id)?.status !== 'deprecated',
+  );
+  if (kept.length > 0) return kept;
+  log.warn({ role }, 'selectBestModel: no candidate is suitable for the role, ignoring the filter');
+  return models;
 }
 
 /** Apply preferred-provider / cost preferences to a candidate list. */

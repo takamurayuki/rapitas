@@ -19,6 +19,10 @@ export const statusConfig = {
   },
   done: {
     color: 'text-green-700 dark:text-green-300',
+    // NOTE: icons match the card's left line (user request, 2026-11-04). On a
+    // white card a green-700 check beside a green-500 line read as a duller
+    // green. Text stays green-700: green-500 is too light for text on white.
+    iconColor: 'text-green-500 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/40',
     borderColor: 'border-l-green-500 dark:border-l-green-400',
     labelKey: 'statusDone',
@@ -67,6 +71,15 @@ export const getStatusDisplay = (t: (key: string) => string, status: string | nu
   const config = resolveStatusConfig(status);
   return { ...config, label: t(config.labelKey) };
 };
+
+/**
+ * The class to colour a status icon with: its own icon colour, else its text colour.
+ *
+ * @param config - A status config entry (or a display derived from one) / ステータス設定
+ * @returns Tailwind text-colour classes for the icon / アイコンの文字色クラス
+ */
+export const statusIconColor = (config: { color: string; iconColor?: string }): string =>
+  config.iconColor ?? config.color;
 
 export const renderStatusIcon = (status: string) => {
   switch (status) {

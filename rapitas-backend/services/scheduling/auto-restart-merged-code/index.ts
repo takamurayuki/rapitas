@@ -9,6 +9,7 @@
  * and trigger); not responsible for selecting or creating tasks.
  */
 import { createLogger } from '../../../config/logger';
+import { logCycleEvent } from '../../observability/cycle-event-logger';
 import { createNotification } from '../../communication/notification-service';
 import { scheduleShutdownSequence } from '../../system/shutdown-sequence';
 import { getAgentSystemSnapshot } from '../../../routes/agents/system/agent-system-router';
@@ -40,6 +41,7 @@ import {
   writeDeferCount,
 } from './settings-store';
 import { getLastUiRequestAt } from './ui-activity-tracker';
+import { dependencyGate } from './dependency-preflight';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
 
@@ -197,11 +199,10 @@ export class AutoRestartMergedCodeScheduler {
     this.idlePollsWithBatchedMerge += 1;
     const needed = resolveIdleBoundaryPolls();
     if (this.idlePollsWithBatchedMerge < needed) {
-      // Warn, not debug: the log keeps warnings and above, and a silent
-      // decline every tick is exactly how this hid for a day. Once per batch,
-      // not once per poll.
+      // Cycle log, once per batch: a silent decline hid this for a day. Waiting is the design.
       if (this.idlePollsWithBatchedMerge === 1) {
-        logger.warn(
+        logCycleEvent('restart.waiting', { cause: 'task_boundary', aheadCount, changedFiles });
+        logger.info(
           { aheadCount, changedFiles, needed },
           '[AutoRestartMergedCode] merged code is waiting for a task boundary; it will activate if the system stays idle',
         );
@@ -209,7 +210,7 @@ export class AutoRestartMergedCodeScheduler {
       return false;
     }
 
-    logger.warn(
+    logger.info(
       { aheadCount, idlePolls: this.idlePollsWithBatchedMerge },
       '[AutoRestartMergedCode] system idle with merged code waiting — treating the idle as the boundary',
     );
@@ -273,6 +274,8 @@ export class AutoRestartMergedCodeScheduler {
       logger.warn('[AutoRestartMergedCode] Working tree dirty — skipping pull/restart this tick');
       return false;
     }
+    // #1403: a lockfile dev.js could not reinstall would strand the restart.
+    if (await dependencyGate(changedPaths)) return false;
 
     // Without this pull, exit(75) relaunches on the SAME old commit: dev.js's
     // ensurePrimaryBranch never pulls, and PR merge skips primary-checkout sync.
@@ -311,7 +314,9 @@ export class AutoRestartMergedCodeScheduler {
       logger.warn({ err }, '[AutoRestartMergedCode] Notification failed — restarting anyway');
     });
     writeLastRestartAt(Date.now());
-    logger.warn(
+    // NOTE(#1565): info, not warn — this is the planned activation of merged
+    // code at a quiet point, and the person is already told by the notification.
+    logger.info(
       { aheadCount, branch, startupCommit: this.startupCommit },
       '[AutoRestartMergedCode] Restarting to activate merged code',
     );
@@ -383,7 +388,8 @@ export class AutoRestartMergedCodeScheduler {
         // the reason has to be readable.
         if (this.lastBoundaryWaitReason !== decision.reason) {
           this.lastBoundaryWaitReason = decision.reason;
-          logger.warn(
+          logCycleEvent('restart.waiting', { cause: decision.reason, aheadCount, deferCount });
+          logger.info(
             {
               reason: decision.reason,
               aheadCount,
@@ -415,6 +421,7 @@ export class AutoRestartMergedCodeScheduler {
         logger.warn('[AutoRestartMergedCode] Working tree dirty at boundary — restart skipped');
         return false;
       }
+      if (await dependencyGate(await listChangedPaths(this.startupCommit, branch))) return false;
       if (!(await fastForwardToRemote(branch))) {
         return false;
       }

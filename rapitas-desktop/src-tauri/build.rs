@@ -224,5 +224,10 @@ fn main() {
         }
     }
 
+    // NOTE: tauri-build embeds icons/icon.ico as the exe resource (the taskbar
+    // icon) but only asks cargo to re-run on the config files, so a redrawn
+    // icon.ico kept shipping the old artwork until something else changed.
+    println!("cargo:rerun-if-changed=icons/icon.ico");
+
     tauri_build::build()
 }

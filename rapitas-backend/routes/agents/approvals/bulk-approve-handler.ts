@@ -14,6 +14,7 @@ import { fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
+import { readParentWorkspace } from '../../../services/tenancy/parent-workspace';
 
 const log = createLogger('routes:approvals:bulk-approve');
 
@@ -39,6 +40,10 @@ export async function createSubtasksInTransaction(
     existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()),
   );
 
+  // NOTE: Approvals run with no workspace in context, so the extension would
+  // leave each subtask NULL; take the parent's instead.
+  const workspace = await readParentWorkspace(tx, taskId);
+
   const created = [];
   for (const subtask of subtasksToCreate) {
     const normalizedTitle = subtask.title.toLowerCase().trim();
@@ -55,6 +60,7 @@ export async function createSubtasksInTransaction(
         priority: subtask.priority,
         estimatedHours: subtask.estimatedHours,
         parentId: taskId,
+        ...workspace,
         agentGenerated: true,
       },
     });

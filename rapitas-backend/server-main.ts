@@ -37,6 +37,7 @@ import {
 } from './services/core/orchestrator-instance';
 
 import { realtimeService } from './services/communication/realtime-service';
+import { exitCodeForShutdown } from './services/process-lifecycle';
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
@@ -52,6 +53,8 @@ import {
   UI_SOURCE_VALUE,
 } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
 import { wrapAppWithWorkspaceScope } from './services/tenancy/workspace-request-wrapper';
+import { initMobileLinkService } from './services/mobile-link';
+import { createAppForwarder } from './services/mobile-link/forward-to-app';
 
 const app = new Elysia();
 app.onRequest(apiRecoveryRequestGuard);
@@ -182,6 +185,13 @@ listener.listen({
   // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
 log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
+
+// Phone link (#1421): a separate LAN listener that admits only paired devices
+// and forwards them into `app`. The main listener above stays on loopback.
+const mobileLink = initMobileLinkService({
+  forward: createAppForwarder(app, process.env.RAPITAS_API_TOKEN),
+});
+if (!isApiRecoveryMode()) mobileLink.startIfEnabled();
 if (isApiRecoveryMode())
   log.info({ port: listener.server?.port, pid: process.pid }, 'api-recovery-listening');
 
@@ -197,6 +207,8 @@ if (isApiRecoveryMode())
 // then fire mid-teardown, which is exactly how the connections above got
 // orphaned under a PID that no longer exists.
 setServerStopCallback(async () => {
+  // The gateway holds :3002; a restart that left it bound would fail to reopen it.
+  mobileLink.stop();
   await listener.stop(true);
 });
 
@@ -232,6 +244,7 @@ const handleProcessSignal = async (signal: string) => {
       // process.exit() below before the force-close actually completed (and
       // a rejection here would have been an unhandled promise rejection
       // instead of landing in this catch block).
+      mobileLink.stop();
       await listener.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
@@ -279,6 +292,12 @@ const handleProcessSignal = async (signal: string) => {
       log.error({ err: error }, 'Error shutting down Agent Worker Manager');
     }
 
+    // Step 4.5: This process's pending session-total retries (routes, review cost)
+    // need the DB, so before Step 5; bounded, and startup recovery covers the rest.
+    const { drainSessionRecomputesForShutdown } =
+      await import('./services/agents/session-cost-recovery');
+    await drainSessionRecomputesForShutdown({ timeoutMs: 2000 });
+
     // Step 5: Close database connection
     log.info('Step 5: Closing database connection...');
     try {
@@ -294,7 +313,9 @@ const handleProcessSignal = async (signal: string) => {
     log.info('Waiting for socket cleanup...');
     setTimeout(() => {
       log.info('Shutdown complete.');
-      process.exit(0);
+      // NOTE: A crash must not leave with 0 — dev.js reads 0 as a requested stop
+      // and would not restart the backend (exit-policy.ts).
+      process.exit(exitCodeForShutdown(signal));
     }, 500);
   } catch (error) {
     log.error({ err: error }, 'Error during shutdown');
@@ -383,6 +404,21 @@ if (PARENT_PID && PARENT_PID > 1 && !isCiOrTest) {
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
+  // Jury-review locks (Task.juryRunId) left by a dead process. Both jury
+  // gates run in THIS (main) process, not the agent worker, so the reclaim
+  // lives here and runs before the worker wait below can return early.
+  // Runs started since boot are in this process's live set and are skipped.
+  try {
+    const { recoverJuryRunsAtStartup, startJuryRunSweep } =
+      await import('./services/workflow/jury-review-run-recovery');
+    const processStartedAt = new Date(Date.now() - process.uptime() * 1000);
+    const reclaimed = await recoverJuryRunsAtStartup(processStartedAt);
+    if (reclaimed > 0) log.info({ reclaimed }, 'Startup: reclaimed stale jury-review runs');
+    startJuryRunSweep();
+  } catch (err) {
+    log.warn({ err }, 'Startup: jury-review run recovery failed');
+  }
+
   // One-time data normalization: legacy agent-execution paths wrote the
   // non-canonical underscore 'in_progress' to task.status (canonical is the
   // hyphenated 'in-progress' — see the frontend StatusConfig). Such tasks render

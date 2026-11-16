@@ -1,21 +1,23 @@
 # アイコンの生成
 
-Tauriのビルドには以下のアイコンファイルが必要です：
+共通マスターは `app-icon-master.png`（元のスマホ用1024px画像）です。四角と線の間隔、行間、太さ、傾き、配置、色を全プラットフォームで揃えます。`app-icon.svg` は旧参考図で、生成には使いません。
 
-- `32x32.png` - 32x32ピクセル
-- `128x128.png` - 128x128ピクセル
-- `128x128@2x.png` - 256x256ピクセル (Retina用)
-- `icon.icns` - macOS用
-- `icon.ico` - Windows用
-
-## 自動生成方法
-
-1. 1024x1024以上の正方形PNG画像を用意
-2. Tauri CLIでアイコンを生成:
-
-```bash
-cd rapitas-desktop
-npx tauri icon path/to/your/icon.png
+```sh
+python rapitas-desktop/scripts/render-small-icons.py
 ```
 
-これにより、すべての必要なサイズが自動生成されます。
+Pillow が必要です。デスクトップのPNG/ICO/ICNS、トレイ、Tauri同梱のiOS/Android、FlutterのiOS/Android/macOS/Windows/Web、フロントエンドのfaviconを再生成します。既存PNGのサイズは保持します。
+
+小サイズごとの太字化・拡大・位置移動・トレイ専用の間隔調整は行いません。すべて共通マスターから一度だけ高品質縮小し、同じサイズのアプリアイコンとトレイはピクセル単位で一致します。小さい斜線にはアンチエイリアスが入ります。
+
+外形だけは出力先に合わせます。中の図形の比率は共通です。
+
+| 外形 | 出力先 |
+| --- | --- |
+| 全面塗り（`square`、透過なし） | Tauri 同梱の iOS、Flutter の iOS、Flutter Android の `ic_launcher`、Web の maskable アイコン |
+| 角丸（`tile`、角は透過） | デスクトップの PNG、Tauri 同梱の Android（`_round` 以外）、Flutter の macOS、Web のその他のアイコンと favicon |
+| 円（`circle`） | Tauri 同梱の Android の `_round` 版 |
+
+トレイは `tray-atlas.png` の16〜64px全整数サイズから切り出します。WindowsのタスクバーDPIに合わせて選択し、2秒ごとに倍率変更を確認します。64pxより大きな表示は64pxが上限です。
+
+トレイだけの再生成は `--tray-only`。図形を変更するときは共通マスターを更新して通常実行し、全プラットフォームに反映してください。

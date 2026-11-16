@@ -20,6 +20,7 @@ import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-sect
 import type { PlannerTexts } from './workflow-role-prompts';
 import { prisma } from '../../config/database';
 import { buildRequirementReplanContext } from './requirement-replan-context';
+import { buildReviewReplanContext } from './workflow-review-replan-context';
 import { buildGatePrecisionContext } from './workflow-gate-precision-context';
 
 /**
@@ -49,6 +50,10 @@ export async function buildPlannerContext(
   let ctx = taskInfo;
   const requirementReplan = await buildRequirementReplanContext(prisma, taskId, language);
   if (requirementReplan) ctx += `\n\n${requirementReplan}`;
+  // A diff review found the requirement/plan itself defective and sent the
+  // task back here instead of to the implementer (routing2a-fix1 item 4).
+  const reviewReplan = await buildReviewReplanContext(taskId, language);
+  if (reviewReplan) ctx += `\n\n${reviewReplan}`;
 
   // A human asked for a targeted change to THIS plan. Leads the context: it is
   // a direct instruction about the document being written, so it outranks the

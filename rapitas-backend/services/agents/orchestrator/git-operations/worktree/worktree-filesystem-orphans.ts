@@ -56,6 +56,25 @@ export function classifyPreservation(error: unknown): OrphanPreservation {
   return typeof code === 'string' && NONEMPTY_CODES.has(code) ? 'nonempty' : 'inaccessible';
 }
 
+/** run-checked.cjs writes its full output to `<cwd>/.verification-logs/<ts>_<slug>.log`. */
+const RUN_CHECKED_LOG = /(?:^|\/)\.verification-logs\/[^/]+\.log$/;
+
+/**
+ * Whether a leftover file is a run-checked.cjs log.
+ *
+ * Those logs are gitignored and rewritten on every verification run, so they
+ * are never anyone's work. Only a `.log` directly inside a `.verification-logs`
+ * directory qualifies; anything else in there still keeps the directory.
+ * Measured 2026-11-03 (#1403): `.worktrees/.verification-logs/` held exactly
+ * one such log and was preserved on every sweep.
+ *
+ * @param relative - Path relative to `.worktrees/`, `/`-separated / `.worktrees/` からの相対パス
+ * @returns True for a run-checked log / run-checked のログなら true
+ */
+export function isRunCheckedLog(relative: string): boolean {
+  return RUN_CHECKED_LOG.test(relative);
+}
+
 /** `task-<id>-<hash>`; other worktree names (wt-, redcheck-, triage-) carry no task. */
 const TASK_DIR_NAME = /^task-(\d+)-/;
 
@@ -145,7 +164,12 @@ export async function sweepFilesystemOrphans(
           // baseDir is the checkout those copies came from, so a stray file
           // is only disregarded when the same bytes are still sitting at the
           // same relative path here.
-          if (removeLinkSkeleton(dirPath, { repoRoot: baseDir })) {
+          if (
+            removeLinkSkeleton(dirPath, {
+              repoRoot: baseDir,
+              isDisposable: (relative) => isRunCheckedLog(`${dirEntry.name}/${relative}`),
+            })
+          ) {
             cleanedCount++;
             logger.info(
               `[cleanupOrphanedWorktrees] Removed link-skeleton orphan directory: ${dirPath}`,

@@ -44,6 +44,7 @@ mock.module('../../../../github/git-exec', () => ({
 }));
 mock.module('./dependency-installer', () => ({
   awaitWorktreeDependencies: mock(() => Promise.resolve()),
+  settleInflightWorktreeDependencies: mock(() => Promise.resolve()),
   clearWorktreeDependenciesTracking: mock(() => {}),
 }));
 mock.module('../core/safety', () => ({

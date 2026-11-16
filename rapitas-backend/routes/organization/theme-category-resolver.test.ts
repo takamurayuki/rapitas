@@ -2,8 +2,10 @@
  * theme-category-resolver.test
  *
  * Pins the category decision for a scaffolded theme: the caller's choice wins,
- * an unknown id is rejected rather than silently replaced, 開発 is created only
- * as a fallback, and isDevelopment follows the category's mode.
+ * an unknown id is rejected rather than silently replaced, the fallback prefers
+ * 開発 then any development-mode category, 開発 is re-created only into an
+ * empty table (a deleted 開発 must stay deleted), and isDevelopment follows the
+ * category's mode.
  *
  * Why the last one matters: setup-from-claude-md hardcoded `isDevelopment: true`
  * alongside a hardcoded 開発 category, so once the category became selectable a
@@ -13,6 +15,7 @@ import { describe, it, expect, mock } from 'bun:test';
 import {
   resolveThemeCategory,
   FALLBACK_CATEGORY,
+  NO_FALLBACK_CATEGORY_ERROR,
   type CategoryLike,
   type CategoryStore,
 } from './theme-category-resolver';
@@ -26,6 +29,7 @@ function makeStore(over: Partial<CategoryStore> = {}) {
     created,
     findUnique: mock(async () => null),
     findFirst: mock(async () => null),
+    count: mock(async () => 0),
     create: mock(async (args) => {
       created.push(args.data);
       return { id: 99, name: args.data.name, mode: args.data.mode };
@@ -70,14 +74,39 @@ describe('resolveThemeCategory', () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it('creates the 開発 category only when it does not exist yet', async () => {
-    const store = makeStore({ findFirst: mock(async () => null) });
+  it('re-creates 開発 only when there are no categories at all', async () => {
+    const store = makeStore({ findFirst: mock(async () => null), count: mock(async () => 0) });
     const result = await resolveThemeCategory(store, undefined);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.isDevelopment).toBe(true);
     expect(store.created).toEqual([
       { name: FALLBACK_CATEGORY.name, mode: FALLBACK_CATEGORY.mode, isDefault: true },
     ]);
+  });
+
+  it('falls back to another development-mode category when 開発 was deleted', async () => {
+    const MINE: CategoryLike = { id: 7, name: '仕事', mode: 'development' };
+    const findFirst = mock(async (args: { where: { name?: string; mode?: string } }) =>
+      args.where.mode === 'development' ? MINE : null,
+    );
+    const store = makeStore({ findFirst, count: mock(async () => 3) });
+    const result = await resolveThemeCategory(store, undefined);
+    expect(result).toEqual({ ok: true, category: MINE, isDevelopment: true });
+    expect(store.created).toEqual([]);
+  });
+
+  it('rejects instead of re-creating 開発 when other categories exist', async () => {
+    // The user deleted 開発 on purpose; re-creating it here is exactly the
+    // "it keeps coming back" bug. Filing under 学習 instead would silently
+    // clear isDevelopment, so the caller must pick a category.
+    const store = makeStore({ findFirst: mock(async () => null), count: mock(async () => 1) });
+    const result = await resolveThemeCategory(store, undefined);
+    expect(result).toEqual({
+      ok: false,
+      error: NO_FALLBACK_CATEGORY_ERROR,
+      code: 'category_required',
+    });
+    expect(store.created).toEqual([]);
   });
 
   it('treats categoryId 0 as "not named" rather than looking it up', async () => {

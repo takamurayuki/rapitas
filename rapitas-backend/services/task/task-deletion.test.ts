@@ -18,22 +18,34 @@ let tasksById: Record<number, { isProtected: boolean } | null> = {};
 /** What the delete throws, when something is meant to go wrong. */
 let deleteThrows: unknown = null;
 
-mock.module('../../config/database', () => ({
-  prisma: {
-    task: {
-      findUnique: async (args: { where: { id: number } }) => {
-        const id = args?.where?.id;
-        order.push(`guard:${id}`);
-        return id in tasksById ? tasksById[id] : task;
-      },
-      delete: async (args: { where: { id: number } }) => {
-        const id = args?.where?.id;
-        order.push(`delete:${id}`);
-        if (deleteThrows) throw deleteThrows;
-        return { id };
-      },
+const fakePrisma = {
+  // The delete runs in a transaction with the companion close (design 4.3);
+  // this stand-in runs the callback on itself.
+  $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(fakePrisma),
+  taskCompanion: {
+    updateMany: async (args: { where: { taskId: { in: number[] } } }) => {
+      order.push(`close:${args.where.taskId.in.join(',')}`);
+      return { count: 0 };
     },
   },
+  task: {
+    findMany: async () => [],
+    findUnique: async (args: { where: { id: number } }) => {
+      const id = args?.where?.id;
+      order.push(`guard:${id}`);
+      return id in tasksById ? tasksById[id] : task;
+    },
+    delete: async (args: { where: { id: number } }) => {
+      const id = args?.where?.id;
+      order.push(`delete:${id}`);
+      if (deleteThrows) throw deleteThrows;
+      return { id };
+    },
+  },
+};
+
+mock.module('../../config/database', () => ({
+  prisma: fakePrisma,
   ensureDatabaseConnection: async () => {},
 }));
 
@@ -79,7 +91,14 @@ beforeEach(() => {
 describe('deleteTaskWithTrash', () => {
   test('clears worktrees, snapshots, then deletes — in that order', async () => {
     const result = await deleteTaskWithTrash(1, 'user');
-    expect(order).toEqual(['guard:1', 'worktrees', 'snapshot', 'measurements', 'delete:1']);
+    expect(order).toEqual([
+      'guard:1',
+      'worktrees',
+      'snapshot',
+      'measurements',
+      'close:1',
+      'delete:1',
+    ]);
     expect(result).toEqual({ taskId: 1, outcome: 'deleted', trashId: 7 });
   });
 
@@ -109,7 +128,14 @@ describe('deleteTaskWithTrash', () => {
     deleteThrows = recordGone();
     const result = await deleteTaskWithTrash(625, 'assistant');
     expect(result).toEqual({ taskId: 625, outcome: 'not_found' });
-    expect(order).toEqual(['guard:625', 'worktrees', 'snapshot', 'measurements', 'delete:625']);
+    expect(order).toEqual([
+      'guard:625',
+      'worktrees',
+      'snapshot',
+      'measurements',
+      'close:625',
+      'delete:625',
+    ]);
   });
 
   // Only the row-is-gone case is absorbed. A database that is down must not

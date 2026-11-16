@@ -12,12 +12,13 @@ Split by responsibility first.
 
 ## 1. DECISION TREE — Should I split?
 
-```
-Does the file exceed 300 lines?
-├── YES → Split immediately. (See Section 2)
-└── NO  → Does the file have multiple responsibilities?
-           ├── YES → Split by responsibility. (See Section 3)
-           └── NO  → Leave as-is.
+```mermaid
+flowchart TD
+  Q1{"Does the file exceed 300 lines?"}
+  Q1 -->|YES| SPLIT["Split immediately (Section 2)"]
+  Q1 -->|NO| Q2{"Does the file have multiple responsibilities?"}
+  Q2 -->|YES| RESP["Split by responsibility (Section 3)"]
+  Q2 -->|NO| KEEP["Leave as-is"]
 ```
 
 ---
@@ -44,11 +45,11 @@ Split into the following structure:
 components/
 └── feature-name/
     ├── index.ts              # re-exports public API
-    ├── feature-name.tsx      # main component (orchestrator)
-    ├── feature-name-header.tsx
-    ├── feature-name-list.tsx
-    ├── feature-name-item.tsx
-    ├── use-feature-name.ts   # custom hook (state + logic)
+    ├── FeatureName.tsx       # main component (orchestrator)
+    ├── FeatureNameHeader.tsx
+    ├── FeatureNameList.tsx
+    ├── FeatureNameItem.tsx
+    ├── useFeatureName.ts     # custom hook (state + logic)
     ├── feature-name.types.ts # types/interfaces
     └── feature-name.utils.ts # pure helper functions
 ```
@@ -136,14 +137,19 @@ feature-validators.test.ts
 
 ## 4. NAMING CONVENTIONS
 
-| Target             | Convention  | Example                     |
-| ------------------ | ----------- | --------------------------- |
-| Component files    | kebab-case  | `task-card-header.tsx`      |
-| Hook files         | kebab-case  | `use-task-actions.ts`       |
-| Type files         | kebab-case  | `task.types.ts`             |
-| Util files         | kebab-case  | `date-utils.ts`             |
-| Test files         | kebab-case  | `task-card.test.tsx`        |
-| Index/barrel files | `index.ts`  | `index.ts`                  |
+These match the naming table in `.claude/CLAUDE.md` §3 and the existing code
+(component files are overwhelmingly PascalCase, hook files camelCase; a minority
+of older kebab-case files remain — do not rename them just for style).
+
+| Target             | Convention                   | Example                     |
+| ------------------ | ---------------------------- | --------------------------- |
+| Component files    | PascalCase                   | `TaskCardHeader.tsx`        |
+| Hook files         | camelCase                    | `useTaskActions.ts`         |
+| Type files         | kebab-case                   | `task.types.ts`             |
+| Util files         | kebab-case                   | `date-utils.ts`             |
+| Test files         | (source file name) + `.test` | `TaskCard.test.tsx`         |
+| Directories        | kebab-case                   | `task-card/`                |
+| Index/barrel files | `index.ts`                   | `index.ts`                  |
 
 ---
 
@@ -159,7 +165,7 @@ feature-validators.test.ts
 ## 6. WHEN NOT TO SPLIT
 
 - **Generated files** (e.g., Prisma client, icon registries from codegen) — these are maintained by tools.
-- **Configuration files** (e.g., `next.config.ts`, `tailwind.config.ts`).
+- **Configuration files** (e.g., `next.config.ts`, `vitest.config.ts`).
 - **Migration files** — never modify after creation.
 - **Single-purpose utility files** under 300 lines that would produce files under 50 lines each if split.
 
@@ -195,11 +201,11 @@ const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
 />
 ```
 
-- ❌ **Never** hand-roll prev/next buttons, page-number lists, or a custom
+- **Never** hand-roll prev/next buttons, page-number lists, or a custom
   items-per-page selector. If the shared component is missing a feature you
   need, extend `Pagination` itself (and update every caller) — do not fork it.
-- Reference callers: `ConcernsClient`, `IdeasClient`, `DecisionsClient`,
-  `KnowledgeClient`, the task list. Copy their wiring.
+- Reference callers: `ConcernsClient`, `IdeasClient`, `HypothesesClient`,
+  `KnowledgeClient`, `PullRequestsClient`, `SearchClient`, the task list. Copy their wiring.
 
 ### 7-2. The general rule
 

@@ -19,6 +19,7 @@ import { createLogger } from '../../config/logger';
 import { releaseTaskHalt, MIN_HYPOTHESIS_CHARS } from '../../services/workflow/halt-release';
 import { recordTransition } from '../../services/workflow/transition-recorder';
 import { isValidEntityId } from '../../utils/common/id-validation';
+import { humanSourceLabel } from '../../utils/common/human-source';
 
 const log = createLogger('routes:halt-release');
 
@@ -40,8 +41,7 @@ const haltReleaseRoutes = new Elysia({ prefix: '/workflow' }).post(
 
     const headers = ctx.headers as Record<string, string | undefined> | undefined;
     const rawSource = headers?.['x-rapitas-source'];
-    const source = typeof rawSource === 'string' ? rawSource.toLowerCase() : '';
-    const actorLabel = RELEASE_SOURCE_LABELS[source];
+    const actorLabel = humanSourceLabel(rawSource, RELEASE_SOURCE_LABELS);
     if (!actorLabel) {
       log.warn(
         { taskId, source: rawSource ?? null, ua: headers?.['user-agent'] ?? null },

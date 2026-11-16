@@ -2,13 +2,6 @@
   "_comment": "Read by scripts/security/audit-gate.cjs (#1340). Each entry excuses ONE advisory in ONE package scope until `expires`; on that date the gate fails until someone re-checks it and either fixes the dependency or renews the entry with a current reason. Keep expiries within ~3 months.",
   "exceptions": [
     {
-      "scope": "desktop",
-      "ghsa": "GHSA-mrhx-c7xc-m3w5",
-      "package": "zod 3.25.76 via jimp > @jimp/plugin-blit",
-      "reason": "Dev-only: jimp is used by create-icon.js to resize our own icon. The fix exists only in zod 4.6.6+, and the latest jimp (1.6.1) still requires zod ^3, which has no patched release. zod validates jimp's option objects that we construct, never external input.",
-      "expires": "2027-02-03"
-    },
-    {
       "scope": "backend",
       "ghsa": "GHSA-mrhx-c7xc-m3w5",
       "package": "zod 3.25.76 via @elysiajs/swagger > @scalar/types (and openai's optional peer)",

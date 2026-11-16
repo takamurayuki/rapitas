@@ -1,7 +1,7 @@
 # eslint-rules — カスタム ESLint ルール
 
 このディレクトリはプロジェクト固有の ESLint ルールを格納します。  
-各ルールは **`eslint-shared.mjs`** 経由でプロジェクト全体に適用されます。
+ルールは使うパッケージの ESLint 設定で登録する。バックエンド向けは `rapitas-backend/eslint.config.mjs`、`no-icon-collision` と `no-task-link-without-header` は `rapitas-frontend/eslint.config.mjs`。ルート の `eslint-shared.mjs` は共通の severity（`stagedSeverity()`）だけを提供し、ルールは登録しない。
 
 ---
 
@@ -10,7 +10,10 @@
 | ファイル | ルール名 | 概要 |
 |---|---|---|
 | `no-raw-prisma-insensitive.mjs` | `no-raw-prisma-insensitive` | Prisma クエリ内の生 `mode: 'insensitive'` を禁止。SQLite は非サポートのため `getInsensitiveMode()` を使う必要がある |
-| `no-icon-collision.mjs` | `no-icon-collision` | `lucide-react` アイコンの ICON_POLICY 違反を検知（`warn`）。既知衝突グリフ（`Gauge`）と所有グリフの許可パス外使用（`Lightbulb` など）を報告する |
+| `no-icon-collision.mjs` | `no-icon-collision` | `lucide-react` アイコンの ICON_POLICY 違反を検知（`warn`）。既知衝突グリフ（`KNOWN_COLLISIONS`、現在は空）と所有グリフの許可パス外使用（`Lightbulb` など）を報告する |
+| `no-unguarded-task-delete.mjs` | `no-unguarded-task-delete` | `<obj>.task.delete` / `deleteMany` を削除の集約点 `services/task/task-deletion.ts` 以外で書くことを禁止（`error`）。保護フラグ・worktree 掃除・ゴミ箱コピー・計測値退避を飛ばさないため |
+| `require-validated-id-param.mjs` | `require-validated-id-param` | パスパラメータを検証せずに `parseInt` / `Number` / `+` で数値化することを禁止（`error`）。`parseInt` は途中までの数字を返すため別の行を指してしまう |
+| `prefer-test-each-for-similar.mjs` | `prefer-test-each-for-similar` | 同じ describe 内で長い共通接頭辞を持つ `it` / `test` を `test.each` にまとめるよう促す（テストファイルのみ、`warn`） |
 | `no-unscoped-pr-number-lookup.mjs` | `no-unscoped-pr-number-lookup` | `gitHubPullRequest` クエリの `where` で `integrationId` を伴わない `prNumber` 単独指定を禁止（リポジトリ間PR取り違え防止）。正典 `services/github/pr-lookup.ts` のみ除外 |
 | `no-task-link-without-header.mjs` | `no-task-link-without-header` | タスク詳細ページへの画面遷移に `showHeader` が無いものを禁止（`error`）。このページは `showHeader=true` が無いとグローバルヘッダーを隠すため、戻る手段ごと消える。`withHeaderVisible()` 経由なら可。REST パスと区別するため、`router.push`/JSX `href`/`location.href`/`link`・`href` プロパティのみ検査する |
 
@@ -29,9 +32,9 @@ bun run test:ci
 
 ### no-icon-collision の severity 方針と拡張手順
 
-- **初期 severity は `warn`**。既存違反（`Lightbulb` 約10件、`Gauge` 1件）が多数あるため `error` 化はしない。
+- **severity は `warn`**。許可パス外の既存使用が残っているため `error` 化はしない。
 - `error` への昇格は、違反ファイルの修正（別タスク）完了後に `rapitas-frontend/eslint.config.mjs` の `'local/no-icon-collision': 'warn'` を `'error'` に変更する。
-- **ポリシーマップの拡張**: `eslint-rules/icon-policy-map.mjs` の `OWNED_ICONS` / `KNOWN_COLLISIONS` に追記し、`ICON_POLICY.md §3` と同期して更新する。
+- **ポリシーマップの拡張**: `eslint-rules/icon-policy-map.mjs` の `OWNED_ICONS` / `KNOWN_COLLISIONS` に追記し、`.claude/icon-policy/glyphs-*.md` の該当行と同期して更新する。
 
 ---
 
@@ -124,24 +127,25 @@ describe('<rule-name> — invalid', () => {
 
 ### 3. ESLint 設定に登録する
 
-`eslint-shared.mjs` の `plugins` と `rules` に追加する:
+ルールを使うパッケージの `eslint.config.mjs`（バックエンドなら `rapitas-backend/eslint.config.mjs`）の `localPlugin` と `rules` に追加する:
 
 ```js
 import myRule from './eslint-rules/<rule-name>.mjs';
 
+const localPlugin = {
+  rules: {
+    'no-raw-prisma-insensitive': noRawPrismaInsensitive,
+    '<rule-name>': myRule, // 追加
+  },
+};
+
 export default [
   {
-    plugins: {
-      local: {
-        rules: {
-          'no-raw-prisma-insensitive': noRawPrismaInsensitive,
-          '<rule-name>': myRule, // ← 追加
-        },
-      },
-    },
+    files: ['**/*.ts'],
+    plugins: { local: localPlugin },
     rules: {
       'local/no-raw-prisma-insensitive': 'error',
-      'local/<rule-name>': 'error', // ← 追加
+      'local/<rule-name>': 'error', // 追加
     },
   },
 ];

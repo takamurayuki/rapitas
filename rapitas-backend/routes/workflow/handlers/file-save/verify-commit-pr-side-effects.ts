@@ -10,8 +10,28 @@ import { prisma } from '../../../../config';
 import { createLogger } from '../../../../config/logger';
 import { recordWorkflowCompletion } from '../../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../../services/memory/task-knowledge-extractor';
+import { NOT_REVIEW_COST_ROW } from '../../../../services/agents/review-cost-rows';
 
 const log = createLogger('routes:workflow:handlers:files');
+
+/**
+ * The completed run whose reasoning trace is recorded for a finished task.
+ * Jury cost rows are `completed` too and finish after the run they judged, so
+ * they are excluded — they carry no reasoning (G2 review item 2).
+ *
+ * @param taskId - Completed task / 完了したタスク
+ * @returns Execution id, or null / 実行ID（無ければ null）
+ */
+export async function findReasoningTraceExecutionId(taskId: number): Promise<number | null> {
+  const exec = await prisma.agentExecution
+    .findFirst({
+      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } }, status: 'completed' },
+      orderBy: { completedAt: 'desc' },
+      select: { id: true },
+    })
+    .catch(() => null);
+  return exec?.id ?? null;
+}
 
 /**
  * Kicks off the post-completion fire-and-forget side effects for a completed
@@ -48,14 +68,9 @@ export function runVerifyCompletionSideEffects(taskId: number, savedContent: str
   // Record reasoning trace for temporal debugging (async)
   import('../../../../services/analytics/temporal-debugger')
     .then(({ recordReasoningTrace }) => {
-      // Find the latest execution for this task to record its trace
-      prisma.agentExecution
-        .findFirst({
-          where: { session: { config: { taskId } }, status: 'completed' },
-          orderBy: { completedAt: 'desc' },
-        })
-        .then((exec) => {
-          if (exec) recordReasoningTrace(exec.id).catch(() => {});
+      findReasoningTraceExecutionId(taskId)
+        .then((id) => {
+          if (id != null) recordReasoningTrace(id).catch(() => {});
         })
         .catch(() => {});
     })

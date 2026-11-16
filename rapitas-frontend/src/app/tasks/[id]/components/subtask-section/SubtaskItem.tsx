@@ -14,7 +14,11 @@ import type { ParallelExecutionStatus } from '@/feature/tasks/components/status/
 import PriorityIcon from '@/feature/tasks/components/priority/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/status/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  getStatusDisplay,
+  renderStatusIcon,
+  statusIconColor,
+} from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { SubtaskEditForm } from './SubtaskEditForm';
@@ -155,7 +159,7 @@ export function SubtaskItem({
                     const cfg = getStatusDisplay(t, subtask.status);
                     return (
                       <div
-                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} border ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
+                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${statusIconColor(cfg)} ${cfg.bgColor} border ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
                         aria-label={cfg.label}
                       >
                         {/* Spinner only while an agent is actually executing this

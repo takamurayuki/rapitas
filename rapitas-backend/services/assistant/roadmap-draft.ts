@@ -55,6 +55,7 @@ import {
   composeDescription,
   type RawDraft,
 } from './roadmap-resolve';
+import { resolveRoadmapMilestones, stepMilestoneIndexes } from '../goals/roadmap-milestones';
 import type {
   Placement,
   RoadmapDraft,
@@ -149,12 +150,26 @@ export async function draftRoadmap(
   if (steps.length === 0 && questions.length === 0) return null;
 
   const goal = asText(raw.goal, MAX_TITLE) ?? utterance.slice(0, MAX_TITLE);
+  const projectChoice = resolvePlacement(raw.projectChoice, world.projects, 'none');
+  // Milestones live under a project (the goal); with no project there is
+  // nowhere to put them, so the plan stays a flat list of steps.
+  const milestones =
+    projectChoice.kind === 'none'
+      ? []
+      : resolveRoadmapMilestones(raw.milestones, {
+          today,
+          ...(deadlineInDays !== undefined ? { deadlineInDays } : {}),
+        });
+  const indexes = stepMilestoneIndexes(raw.steps, milestones.length);
   const draft: RoadmapDraft = {
     goal,
     themeChoice: resolvePlacement(raw.themeChoice, world.themes, 'new'),
-    projectChoice: resolvePlacement(raw.projectChoice, world.projects, 'none'),
+    projectChoice,
     questions,
-    steps,
+    steps: steps.map((step, i) =>
+      indexes[i] !== undefined ? { ...step, milestoneIndex: indexes[i] } : step,
+    ),
+    milestones,
     assumptions: resolveList(raw.assumptions, MAX_NOTE_ITEMS),
     comparisonAxes: resolveList(raw.comparisonAxes, MAX_NOTE_ITEMS),
     ...(deadlineInDays !== undefined ? { deadline: dayAfter(today, deadlineInDays) } : {}),
@@ -164,6 +179,7 @@ export async function draftRoadmap(
     {
       final: isFinal,
       steps: steps.length,
+      milestones: milestones.length,
       questions: draft.questions.length,
       theme: draft.themeChoice.kind,
       deadline: draft.deadline ?? null,

@@ -2,7 +2,7 @@
  * WorktreeRemove
  *
  * Safe removal of a single git worktree: dependency-install wait, teardown
- * script, branch-deletion safety checks, and cache invalidation.
+ * script, branch deletion (worktree-branch-delete.ts), and cache invalidation.
  * Batch/startup cleanup lives in worktree-cleanup-stale.ts and worktree-cleanup.ts.
  */
 
@@ -17,10 +17,11 @@ import { clearGitCache } from '../core/git-exec';
 import { clearGitRemoteCache } from '../../../../github/git-exec';
 import {
   clearWorktreeDependenciesTracking,
-  awaitWorktreeDependencies,
+  settleInflightWorktreeDependencies,
 } from './dependency-installer';
 import { rmDirWithRetry } from './dir-remove-retry';
 import { isWorktreeContentPreserved } from './worktree-preservation';
+import { deleteWorktreeBranch } from './worktree-branch-delete';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, paths, and other caller-controlled values are passed as literal argv
@@ -67,13 +68,17 @@ export async function removeWorktree(
   const contentIsSafe = async (): Promise<boolean> => {
     if (!existsSync(worktreePath) || forceRemove) return true;
     // Without local metadata, Git can silently inspect the parent checkout.
+    // NOTE(#1565): info, not warn — both refusals are this guard doing its
+    // job, and they repeated per directory per sweep (103 of 215 warnings on
+    // 2026-11-16). The orphan sweep reports directories without Git metadata
+    // once, for a person; "Cannot prove…" below is a real failure and stays warn.
     if (!existsSync(join(worktreePath, '.git'))) {
-      logger.warn({ worktreePath }, '[removeWorktree] Missing Git metadata; preserving directory');
+      logger.info({ worktreePath }, '[removeWorktree] Missing Git metadata; preserving directory');
       return false;
     }
     try {
       if (!(await isWorktreeContentPreserved(worktreePath, preservedSnapshotTag))) {
-        logger.warn({ worktreePath }, '[removeWorktree] Preserving uncommitted work');
+        logger.info({ worktreePath }, '[removeWorktree] Preserving uncommitted work');
         return false;
       }
       return true;
@@ -89,14 +94,14 @@ export async function removeWorktree(
 
   // NOTE: Wait for any in-flight dependency setup (setup-worktree.cjs) to complete before
   // tearing down the directory. On Windows a running node process holds handles inside
-  // node_modules and causes EBUSY on the subsequent rm. When no setup is in flight
-  // (e.g. after a backend restart) awaitWorktreeDependencies starts a brief idempotent
-  // link-check that resolves within seconds, so rm proceeds safely either way.
+  // node_modules and causes EBUSY on the subsequent rm. Only an in-flight one: starting a
+  // setup here ran `prisma generate` in the live primary for a leftover worktree with no
+  // setup script (2026-11-16).
   try {
-    await awaitWorktreeDependencies(worktreePath);
+    await settleInflightWorktreeDependencies(worktreePath);
   } catch {
     // NOTE: Setup failure is non-fatal for removal — the worker may never have needed it.
-    logger.debug('[removeWorktree] awaitWorktreeDependencies failed (non-fatal), proceeding');
+    logger.debug('[removeWorktree] dependency setup failed (non-fatal), proceeding');
   }
 
   let branchName: string | null = null;
@@ -225,63 +230,7 @@ export async function removeWorktree(
     }
   }
 
-  if (deleteBranch && branchName) {
-    try {
-      const { stdout: mergedBranches } = await execFileAsync('git', ['branch', '--merged'], {
-        cwd: baseDir,
-        encoding: 'utf8',
-        timeout: GIT_OP_TIMEOUT_MS,
-      });
-
-      const isMerged = mergedBranches
-        .split('\n')
-        .some((line) => line.trim() === branchName || line.trim() === `* ${branchName}`);
-
-      if (isMerged) {
-        // Use -d for merged branches (safer)
-        await execFileAsync('git', ['branch', '-d', branchName], {
-          cwd: baseDir,
-          encoding: 'utf8',
-          timeout: GIT_OP_TIMEOUT_MS,
-        });
-        logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
-      } else {
-        // An unmerged branch is only safe to force-delete when every commit
-        // is reachable from some remote ref (i.e. the work was pushed).
-        // Commits that exist NOWHERE else would be destroyed with it — a
-        // stop-execution did exactly that to a branch holding verified,
-        // committed-but-unpushed work (task 536), recovered only via reflog.
-        const { stdout: uniqueCountRaw } = await execFileAsync(
-          'git',
-          ['rev-list', branchName, '--not', '--remotes', '--count'],
-          { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
-        );
-        const uniqueCount = parseInt(uniqueCountRaw.trim(), 10);
-        if (!forceRemove && Number.isFinite(uniqueCount) && uniqueCount > 0) {
-          const { stdout: tip } = await execFileAsync('git', ['rev-parse', '--short', branchName], {
-            cwd: baseDir,
-            encoding: 'utf8',
-            timeout: GIT_OP_TIMEOUT_MS,
-          });
-          logger.warn(
-            `[removeWorktree] KEEPING unmerged branch ${branchName} — ${uniqueCount} commit(s) exist on no remote (tip ${tip.trim()}). Push or recover (git checkout -b <name> ${tip.trim()}) before deleting.`,
-          );
-        } else {
-          // All commits are on a remote — -D only drops the local ref.
-          await execFileAsync('git', ['branch', '-D', branchName], {
-            cwd: baseDir,
-            encoding: 'utf8',
-            timeout: GIT_OP_TIMEOUT_MS,
-          });
-          logger.info(
-            `[removeWorktree] Force deleted unmerged branch (all commits pushed): ${branchName}`,
-          );
-        }
-      }
-    } catch (branchError) {
-      logger.warn({ err: branchError }, `[removeWorktree] Failed to delete branch ${branchName}`);
-    }
-  }
+  if (deleteBranch && branchName) await deleteWorktreeBranch(baseDir, branchName, forceRemove);
 
   // Prune stale worktree metadata regardless of removal success
   try {

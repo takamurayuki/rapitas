@@ -2,14 +2,14 @@
 /**
  * TaskDetailQuickNav
  *
- * Sticky toolbar for the task detail: section quick-jump chips (left, plus the
- * page-mode back button) and the task actions — time tracking + overflow menu —
+ * Sticky toolbar for the task detail: section quick-jump chips (left) and the
+ * task actions — time tracking + overflow menu —
  * right-aligned. It is the first element in the scroll area, so it sits directly
  * below the header in both the slide panel and the full-page view.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, LayoutTemplate, Trash2, type LucideIcon } from 'lucide-react';
+import { LayoutTemplate, Trash2, type LucideIcon } from 'lucide-react';
 import type { Task } from '@/types';
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskPomodoroButton from './TaskPomodoroButton';
@@ -29,10 +29,8 @@ interface PomodoroState {
 interface TaskDetailQuickNavProps {
   sections: QuickNavSection[];
   task: Task;
-  isPageMode: boolean;
   isThisTaskTimer: boolean;
   pomodoroState: PomodoroState;
-  onBack: () => void;
   onOpenPomodoro: () => void;
   onDeleteTask: () => void;
   onOpenSaveTemplate: () => void;
@@ -46,10 +44,8 @@ interface TaskDetailQuickNavProps {
 export function TaskDetailQuickNav({
   sections,
   task,
-  isPageMode,
   isThisTaskTimer,
   pomodoroState,
-  onBack,
   onOpenPomodoro,
   onDeleteTask,
   onOpenSaveTemplate,
@@ -167,17 +163,6 @@ export function TaskDetailQuickNav({
     >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-thin">
-          {isPageMode && (
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label={tc('back')}
-              title={tc('back')}
-              className="flex shrink-0 items-center rounded-full p-1 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          )}
           {sections.map(({ id, label, icon: Icon }) => {
             const isActive = isScrollable && activeId === id;
             return (

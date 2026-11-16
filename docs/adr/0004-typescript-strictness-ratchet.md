@@ -12,15 +12,15 @@ that, **none** of the optional strictness flags are enabled:
 
 | Flag | Backend | Frontend |
 |---|---|---|
-| `strict` | ✓ | ✓ |
-| `noImplicitOverride` | ✗ | ✗ |
-| `noFallthroughCasesInSwitch` | ✗ | ✗ |
-| `noUnusedLocals` | ✗ | ✗ |
-| `noUnusedParameters` | ✗ | ✗ |
-| `noImplicitReturns` | ✗ | ✗ |
-| `exactOptionalPropertyTypes` | ✗ | ✗ |
-| `noUncheckedIndexedAccess` | ✗ | ✗ |
-| `forceConsistentCasingInFileNames` | ✗ (default-on in TS 5+) | ✗ (same) |
+| `strict` | on | on |
+| `noImplicitOverride` | off | off |
+| `noFallthroughCasesInSwitch` | off | off |
+| `noUnusedLocals` | off | off |
+| `noUnusedParameters` | off | off |
+| `noImplicitReturns` | off | off |
+| `exactOptionalPropertyTypes` | off | off |
+| `noUncheckedIndexedAccess` | off | off |
+| `forceConsistentCasingInFileNames` | off (default-on in TS 5+) | off (same) |
 
 `CLAUDE.md` §3 forbids the `any` type ("If unavoidable, add `// HACK(agent):
 reason`"), but the type checker does not enforce this — the rule is
@@ -140,16 +140,16 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 
 ## Status of each flag
 
-(Update this table as steps land. Mark ✓ when active in the listed subproject.)
+(Update this table as steps land. Write "on" when active in the listed subproject.)
 
 | Flag | Backend | Frontend |
 |---|---|---|
-| `strict` | ✓ | ✓ |
-| `forceConsistentCasingInFileNames` | ✓ (via base) | ✓ (via base) |
-| `isolatedModules` | ✓ (via base) | ✓ (via base) |
-| `noImplicitOverride` | ✓ (2026-04-10) | ✓ (2026-04-10) |
-| `noFallthroughCasesInSwitch` | ✓ (2026-04-10) | ✓ (2026-04-10) |
-| `noUnusedLocals` | ✓ (2026-07-16) | ✓ (2026-07-16) |
+| `strict` | on | on |
+| `forceConsistentCasingInFileNames` | on (via base) | on (via base) |
+| `isolatedModules` | on (via base) | on (via base) |
+| `noImplicitOverride` | on (2026-04-10) | on (2026-04-10) |
+| `noFallthroughCasesInSwitch` | on (2026-04-10) | on (2026-04-10) |
+| `noUnusedLocals` | on (2026-07-16) | on (2026-07-16) |
 | `noUnusedParameters` | — | — |
 | `noImplicitReturns` | — | — |
 | `noUncheckedIndexedAccess` | — | — |

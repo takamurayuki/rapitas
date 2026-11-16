@@ -2,40 +2,42 @@
 /**
  * RapiAvatarPanel
  *
- * What the avatar opens: the running and interrupted executions, with the
- * actions that were on the resumable-executions banner.
+ * What the avatar opens: a conversation with her — laid out after the
+ * mobile app's ラピ screen — above the box you write in, and the running
+ * and interrupted executions with the actions that were on the
+ * resumable-executions banner.
  *
  * That banner used to sit in the corner permanently, saying the same thing
  * the avatar now says and taking the same space. The card is gone; its
  * contents live here, one click away, so nothing it could do was lost —
  * resuming an interrupted execution is reachable nowhere else in the app.
  *
- * Draws only. The data and the actions come from `useResumableExecutions`,
- * which the host owns so it runs once.
+ * The executions come from `useResumableExecutions`, which the host owns so
+ * it runs once; the conversation from `useRapiConversation`.
  */
-import { useEffect, useRef, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { ExecutionItem } from '../../resumable-executions/ExecutionItem';
 import type { ResumableExecution } from '../../resumable-executions/types';
 import { taskIdFromLocation } from '../intake';
-import { RapiModeContent } from './RapiModeContent';
 import { RAPI_BUBBLE_Z } from '@/lib/pane-layering';
-import { type Routed } from './RapiPrompt';
-import { RapiComposer } from './RapiComposer';
-import { RapiModeTabs } from './RapiModeTabs';
-import { RapiHistory, type AskedFor } from './RapiHistory';
-import {
-  DEFAULT_MODE,
-  MAX_HISTORY,
-  reachableModes,
-  visibleModes,
-  type PanelMode,
-} from './rapi-modes';
-
-export { visibleModes, reachableModes, type PanelMode } from './rapi-modes';
+import type { PanelPlacement } from '../avatar/drag';
 import { BUBBLE_COLORS, SpeechBubble } from '../avatar/SpeechBubble';
+import { RapiPrompt } from './RapiPrompt';
+import { RapiThread, useRapiConversation } from './conversation';
+import { RapiSpaceSwitcher, useRapiSpaces } from './spaces';
+import { usePanelPresence } from './usePanelPresence';
+import { useRapiEnvironment, useRapiLocation } from '../float/rapi-environment';
+
+/**
+ * How tall the panel is when the window has room.
+ *
+ * A conversation needs a fixed frame to scroll inside: sized to its
+ * content, the panel grew with every line and the box jumped down the
+ * screen as she answered.
+ */
+const PANEL_HEIGHT_PX = 600;
 
 interface RapiAvatarPanelProps {
   executions: ResumableExecution[];
@@ -48,13 +50,11 @@ interface RapiAvatarPanelProps {
   onDismiss: (id: number) => void;
   formatTimeAgo: (dateString: string) => string;
   onClose: () => void;
-  /** Lifted clear of the avatar below it. / アバターの上に出す余白 */
-  bottomPx: number;
   /**
-   * How far in from the panel's right edge ラピ's head is, so the tail can
-   * point at it. / 尻尾をラピに向けるための右端からの距離
+   * Where to draw it relative to ラピ, wherever she has been carried, and
+   * where its tail points. From `placePanel`. / ラピの位置から決めた配置
    */
-  tailOffsetPx: number;
+  placement: PanelPlacement;
   /** Which surface the bubble is drawn on. / 吹き出しの配色 */
   dark: boolean;
   /**
@@ -83,69 +83,57 @@ export function RapiAvatarPanel({
   onDismiss,
   formatTimeAgo,
   onClose,
-  bottomPx,
-  tailOffsetPx,
+  placement,
   dark,
   open,
 }: RapiAvatarPanelProps) {
   const t = useTranslations('banner');
   const ta = useTranslations('rapiAvatar');
 
-  // Two explicit modes rather than guessing from the sentence. Working out
-  // whether "重複しているタスク" means add one or delete several is a
-  // classification that can be wrong, and being wrong about it deletes
-  // things.
-  // Opens on the survey rather than on the task form: the first question
-  // when you reach for her is "what needs me", and answering it costs one
-  // read. Filing a task is the second thing, one tab away.
-  const [mode, setMode] = useState<PanelMode>(DEFAULT_MODE);
+  // Whether `consult` exists right now. ラピ is in the app shell with no
+  // props from the page, so the open task comes from the address bar —
+  // `/tasks/42` for the page and `/?panel=42` for the slide panel.
+  // On the desktop she is in a window of her own, so the address comes from
+  // the main window through the environment (#1535).
+  const { pathname, panelParam } = useRapiLocation();
+  const hasTask = taskIdFromLocation(pathname, panelParam) !== null;
 
-  // Which tabs exist right now. ラピ is in the app shell with no props from
-  // the page, so the open task comes from the address bar — `/tasks/42` for
-  // the page and `/?panel=42` for the slide panel over the list.
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const hasTask = taskIdFromLocation(pathname, searchParams?.get('panel') ?? null) !== null;
-  const modes = visibleModes(hasTask);
+  const tsp = useTranslations('rapiAvatar.spaces');
 
-  // Navigating off a task while reading about it would otherwise leave the
-  // panel on a mode that can no longer be reached.
-  //
-  // `reachableModes` is called inside rather than held in a variable: a
-  // fresh array each render is a new dependency each render, which would
-  // re-run this on every one. What matters is whether the current mode is
-  // still in it, and that only changes with `hasTask`.
+  // The conversation is kept in the mobile app's spaces, so the phone and
+  // the desktop read the same history (asked 2026-11-14).
+  const spaces = useRapiSpaces();
+  const talk = useRapiConversation({
+    hasOpenTask: hasTask,
+    greeting: ta('greeting'),
+    failedText: ta('prompt.failed'),
+    onSave: spaces.save,
+  });
+
+  // Back where the last visit left off. Once, on the first open: the panel
+  // stays mounted after that. Put in front rather than swapped in: the
+  // history can arrive after a first sentence was already sent, and that
+  // sentence was saved to this same space (it is opened before the read).
+  const { restore } = spaces;
+  const { replace, cancel, prepend } = talk;
   useEffect(() => {
-    if (!reachableModes(hasTask).includes(mode)) setMode(DEFAULT_MODE);
-  }, [hasTask, mode]);
+    void restore().then((lines) => {
+      if (lines) prepend(lines);
+    });
+  }, [restore, prepend]);
 
-  /**
-   * The last sentence she routed, and where it went.
-   *
-   * Kept so the destination can be told what was said — only `create` and
-   * `ask` can use a sentence; `watch`, `tidy` and `consult` are places, not
-   * questions — and so the note can say where it went, which is what makes
-   * a wrong turn visible rather than mysterious.
-   */
-  const [routed, setRouted] = useState<Routed | null>(null);
-  /**
-   * What has been asked this session, newest first.
-   *
-   * Capped: this is a way back to something, not a transcript, and the row
-   * it draws is one line in a 320px panel.
-   */
-  const [history, setHistory] = useState<AskedFor[]>([]);
-  const handleRouted = (next: Routed) => {
-    setRouted(next);
-    setMode(next.intent);
-    setHistory((prev) => [{ text: next.text, intent: next.intent }, ...prev].slice(0, MAX_HISTORY));
+  // What is on its way is called off before the switch, so a cancelled
+  // sentence is put back into the conversation it was said in.
+  const openSpace = async (id: number) => {
+    cancel();
+    const lines = await spaces.open(id);
+    if (lines) replace(lines);
   };
-  /** Only hand the sentence on while that destination is still showing. */
-  const handedOver = (to: PanelMode) => (routed && routed.intent === to ? routed.text : undefined);
-
-  // The consult mode hosts the task assistant that used to be a card on the
-  // task detail page. It needs room the other modes do not: a conversation
-  // with history in a 320px column is unreadable.
+  const startNew = () => {
+    cancel();
+    spaces.startNew();
+    replace([]);
+  };
 
   // With nothing running there is no list to head, so the panel is simply
   // ラピ. Repeating the intake's own heading here would say it twice.
@@ -157,71 +145,22 @@ export function RapiAvatarPanel({
         : ta('name');
 
   const bubble = useRef<HTMLDivElement>(null);
-
-  /**
-   * Replays the entrance on each open, without remounting anything.
-   *
-   * A CSS animation does not run again on an element that already carries
-   * it, so keeping the panel mounted would otherwise have silently killed
-   * the grow-out-of-her-tail that makes this read as ラピ speaking.
-   *
-   * `SpeechBubble`'s `speakKey` would replay it — by giving the bubble a new
-   * element — and that is exactly the wrong tool here: a new element throws
-   * away the typed text, the chosen tab and the request in flight, which is
-   * the whole point of staying mounted. So the animation is restarted in
-   * place: clear it, force a reflow to make the clear take effect, put it
-   * back. The reflow read is load-bearing, not a leftover.
-   */
-  useEffect(() => {
-    if (!open) return;
-    const el = bubble.current;
-    if (!el) return;
-    const original = el.style.animation;
-    el.style.animation = 'none';
-    void el.offsetHeight;
-    el.style.animation = original;
-  }, [open]);
-
-  useEffect(() => {
-    // Nothing to dismiss while it is hidden, and the outside-click listener
-    // would otherwise call onClose on every click anywhere in the app.
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    // Looking away should end it. Hunting for an X is the wrong shape for
-    // something that reads as speech, and Escape is keyboard-only.
-    const onOutside = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (!target || bubble.current?.contains(target)) return;
-      // ラピ herself is excluded, or her own toggle would fight this: closed
-      // here on pointerdown, reopened by the click that follows.
-      if (target instanceof Element && target.closest('[data-rapi-avatar="true"]')) return;
-      onClose();
-    };
-
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onOutside);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onOutside);
-    };
-  }, [onClose, open]);
+  usePanelPresence(bubble, open, onClose, !!useRapiEnvironment()?.floating);
 
   return (
     <SpeechBubble
       innerRef={bubble}
       role="dialog"
       aria-label={heading}
-      tailSide="bottom"
-      tailOffsetPx={tailOffsetPx}
+      tailSide={placement.side === 'above' ? 'bottom' : 'top'}
+      tailOffsetPx={placement.tailOffsetPx}
       {...BUBBLE_COLORS[dark ? 'dark' : 'light']}
       style={{
         position: 'fixed',
-        right: 24,
-        bottom: bottomPx,
+        right: placement.right,
+        ...(placement.side === 'above' ? { bottom: placement.bottom } : { top: placement.top }),
+        width: placement.width,
+        height: Math.min(PANEL_HEIGHT_PX, placement.maxHeightPx),
         zIndex: RAPI_BUBBLE_Z,
         pointerEvents: 'auto',
         // Hidden rather than removed: out of the accessibility tree and out
@@ -231,21 +170,30 @@ export function RapiAvatarPanel({
       // No radius or border class: the bubble owns both, and its radius is
       // asymmetric where the tail leaves. `shadow-lg` not `shadow-xl` —
       // overlays get one elevation level (docs/design/ui-design-language.md).
-      // One width for every tab. `consult` used to get w-[34rem] because a
-      // conversation in a 320px column is cramped, but the panel then jumped
-      // size when you pressed that one tab, which reads worse than the
-      // cramped column did (reported 2026-10-22).
-      className="flex max-h-[70vh] w-80 flex-col shadow-lg"
+      // Width from `placement` (448px, narrowed to the window). It was
+      // 320px, which made the box too cramped to write a request in
+      // (reported 2026-11-14).
+      className="flex flex-col shadow-lg"
     >
       {/* No name here any more. A bar reading 「ラピ」 above her own speech
           bubble said nothing the bubble did not: she is the thing you just
-          clicked. The greeting below says what she is FOR, once. */}
+          clicked. Her greeting opens the conversation instead. */}
       <div className="flex shrink-0 items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
-        <span className="flex-1 text-[11px] text-zinc-400">
-          {runningCount > 0 && t('runningCount', { count: runningCount })}
-          {runningCount > 0 && interruptedCount > 0 && ' / '}
-          {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
-        </span>
+        <RapiSpaceSwitcher
+          spaces={spaces.spaces}
+          currentId={spaces.currentId}
+          currentTitle={spaces.currentTitle}
+          onOpenList={() => void spaces.refresh()}
+          onPick={(id) => void openSpace(id)}
+          onNew={startNew}
+        />
+        {(runningCount > 0 || interruptedCount > 0) && (
+          <span className="shrink-0 text-[11px] text-zinc-400">
+            {runningCount > 0 && t('runningCount', { count: runningCount })}
+            {runningCount > 0 && interruptedCount > 0 && ' / '}
+            {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
+          </span>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -256,56 +204,45 @@ export function RapiAvatarPanel({
         </button>
       </div>
 
-      <RapiModeTabs modes={modes} mode={mode} onSelect={setMode} />
-
-      {/* Going back to something asked earlier. The mode it went to still
-          holds what it produced, so this is a jump rather than a replay —
-          nothing is asked of the model again. On the conversation tab only:
-          it is the home of what you have asked, and above a list of overdue
-          tasks it is another bar between you and the answer. */}
-      {mode === 'chat' && (
-        <RapiHistory history={history} onPick={(entry) => setMode(entry.intent)} />
+      {spaces.problem && (
+        <p
+          data-rapi-space-problem={spaces.problem}
+          className="shrink-0 border-b border-zinc-200 px-3 py-1.5 text-[11px] text-amber-700 dark:border-zinc-700 dark:text-amber-400"
+        >
+          {tsp(`problem.${spaces.problem}`)}
+        </p>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* The conversation tab's own prompt: it explains what the panel is
-            and tells you to write in the box below. That is only true where
-            writing a sentence is the point, so it stays on this tab —
-            elsewhere it was taking the first two lines of the answer. It
-            still goes once a sentence has been routed. */}
-        {mode === 'chat' && !routed && (
-          <p className="px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {ta('greeting')}
-          </p>
+        {executions.length > 0 && (
+          <div className="space-y-2 border-b border-zinc-200 p-2 dark:border-zinc-700">
+            {executions.map((exec) => (
+              <ExecutionItem
+                key={exec.id}
+                exec={exec}
+                isResuming={resumingIds.has(exec.id)}
+                isDismissing={dismissingIds.has(exec.id)}
+                onResume={onResume}
+                onDismiss={onDismiss}
+                formatTimeAgo={formatTimeAgo}
+              />
+            ))}
+          </div>
         )}
-
-        <RapiModeContent mode={mode} handedOver={handedOver} />
-        <div className="space-y-2 p-2">
-          {executions.map((exec) => (
-            <ExecutionItem
-              key={exec.id}
-              exec={exec}
-              isResuming={resumingIds.has(exec.id)}
-              isDismissing={dismissingIds.has(exec.id)}
-              onResume={onResume}
-              onDismiss={onDismiss}
-              formatTimeAgo={formatTimeAgo}
-            />
-          ))}
-        </div>
+        <RapiThread
+          messages={talk.messages}
+          sending={talk.sending}
+          rethinkAsPlan={talk.rethinkAsPlan}
+        />
       </div>
 
-      {/* The box belongs to the conversation, and only there. It was shared
-          by every tab because it is the ROUTER — a sentence typed anywhere
-          reaches the mode that answers it, and `roadmap` has no tab of its
-          own to reach. But a form tab with a "write what you want" box under
-          it reads as two ways of doing the same thing, and the conversation
-          is the default tab, so what is lost is one click (asked 2026-10-22).
-          Hidden rather than unmounted: unmounting throws away a half-typed
-          sentence, which is the complaint that put the tabs here. */}
-      <div {...(mode === 'chat' ? {} : { style: { display: 'none' }, 'aria-hidden': true })}>
-        <RapiComposer routed={routed} mode={mode} hasOpenTask={hasTask} onRouted={handleRouted} />
-      </div>
+      <RapiPrompt
+        text={talk.text}
+        onChange={talk.setText}
+        sending={talk.sending}
+        onSend={() => void talk.send()}
+        onCancel={talk.cancel}
+      />
 
       {/* Only offered when there is something to resume — everything
           running is already on its way. */}

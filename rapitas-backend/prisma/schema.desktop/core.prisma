@@ -78,6 +78,17 @@ model Milestone {
   name        String
   description String?
   dueDate     DateTime?
+  /// JSON array of 達成条件 — what must be true for this milestone to count as
+  /// reached, agreed with the person (services/goals/milestone-achievement.ts).
+  acceptanceCriteria String?
+  /// open | reached | paused. `reached` is set only by POST /milestones/:id/confirm,
+  /// after the person checks every criterion and writes the evidence.
+  status      String    @default("open")
+  /// The person's own account of why the milestone is reached.
+  evidence    String?
+  /// When the person confirmed it; null while not reached.
+  reachedAt   DateTime?
+  sortOrder   Int       @default(0)
   projectId   Int
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks       Task[]
@@ -128,6 +139,25 @@ model Task {
   goals                 String?       // JSON array of goal strings (Phase 2 structured spec)
   constraints           String?       // JSON array of constraint strings
   acceptanceCriteria    String?       // JSON array of acceptance-criteria strings
+  /// JSON array of completion checks only the person can make ("本人が確かめる",
+  /// companion design 4.1 案1). Kept apart from acceptanceCriteria so the jury,
+  /// self-check, landing classifier and replanning — which read only that
+  /// column — never judge a diff against something no diff can show.
+  userAcceptanceChecks  String?
+  /// JSON array of what this task deliberately leaves out (範囲外). Read by the
+  /// goal anchor so the agent does not widen the change (#1555).
+  outOfScope            String?
+  /// What finishing hands over: 'pr' | 'note' | 'report' | 'decision' (成果物,
+  /// #1555). Null reads as 'pr', the deliverable of a development task.
+  deliverable           String?
+  /// JSON array of what must hold before this task starts, in words (開始条件,
+  /// #1559) — shown to the agent and the person, not machine-checked. Tasks
+  /// that must finish first are TaskDependency rows instead.
+  startConditions       String?
+  /// Tasks that must be done before this one starts (#1559).
+  dependencies          TaskDependency[] @relation("TaskDependencyWaiting")
+  /// Tasks that wait for this one.
+  dependents            TaskDependency[] @relation("TaskDependencyPrerequisite")
   developerModeConfig   DeveloperModeConfig?
   taskAnalysisConfig    TaskAnalysisConfig?
   agentExecutionConfig  AgentExecutionConfig?
@@ -210,6 +240,13 @@ model Task {
   haltedAt              DateTime?
   // JSON: { requiresNewHypothesis: boolean, note: string }
   resumeCondition       String?
+  /// The JuryReviewRun currently judging this task, or null (companion design
+  /// 4.5.1). The lock lives on the task row so a criteria write and the lock
+  /// check are ONE conditional updateMany (services/workflow/jury-run-lock.ts,
+  /// task-criteria-write.ts); a unique index on the run table would leave the
+  /// writer a check-then-write gap a review could start inside.
+  /// @references JuryReviewRun.id
+  juryRunId             Int?
 
   @@index([status])
   @@index([themeId])
@@ -301,6 +338,26 @@ model TaskLabel {
   createdAt DateTime @default(now())
 
   @@unique([taskId, labelId])
+  @@index([workspaceId])
+}
+
+/// One task waiting for another to be done before it starts (開始条件, #1559).
+/// Auto-run does not select a task while any of its prerequisites is not done,
+/// and a manual start is refused with the open prerequisites named.
+model TaskDependency {
+  id              Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId     Int?
+  /// The task that waits.
+  taskId          Int
+  /// The task that must be done first.
+  dependsOnTaskId Int
+  task            Task     @relation("TaskDependencyWaiting", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn       Task     @relation("TaskDependencyPrerequisite", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([dependsOnTaskId])
   @@index([workspaceId])
 }
 

@@ -65,6 +65,28 @@ const nextConfig: NextConfig = {
       : path.resolve(__dirname, '..'),
   },
 
+  // NOTE(security): No app document may be framed anywhere (nav60 §3.3). The
+  // in-app browser's iframes and child webviews hold external pages that can
+  // redirect or link back to the app's origin; with `allow-same-origin` such
+  // a frame could otherwise lift its own sandbox. 'none' rather than 'self'
+  // for exactly that case: a frame that has moved to the app's origin has
+  // only the app as its ancestor, which 'self' would allow. The app frames
+  // none of its own pages (FileViewer frames backend or external URLs).
+  // headers() does not apply to `output: 'export'`; the packaged
+  // desktop gets the same frame-ancestors from tauri.conf.json's CSP, which
+  // Tauri sends as a response header.
+  ...(!isStaticExport && {
+    headers: async () => [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Frame-Options', value: 'DENY' },
+        ],
+      },
+    ],
+  }),
+
   // Tauri用の静的エクスポート設定（ビルド時のみ — 上記 isStaticExport 参照）
   ...(isStaticExport && {
     output: 'export',

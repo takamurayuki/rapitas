@@ -2,7 +2,7 @@
  * Local Whisper Transcription Service
  *
  * Runs OpenAI Whisper via @xenova/transformers locally — no API key required.
- * Uses a Node.js subprocess (whisper-worker.cjs) for Bun compatibility,
+ * Uses a Node.js subprocess (whisper-worker.mjs) for Bun compatibility,
  * following the same pattern as embedding-worker.cjs.
  */
 import { spawn } from 'child_process';
@@ -25,7 +25,7 @@ export interface LocalTranscriptionResult {
  * Transcribe an audio buffer using the local Whisper model.
  *
  * Writes the audio to a temp file, spawns a Node.js subprocess running
- * whisper-worker.cjs, and returns the transcribed text.
+ * whisper-worker.mjs, and returns the transcribed text.
  *
  * @param audioBuffer - Raw audio data (webm, wav, etc.) / 音声データ
  * @param language - Language hint (default: 'ja') / 言語ヒント
@@ -74,7 +74,7 @@ export async function transcribeLocal(
 }
 
 /**
- * Run the whisper-worker.cjs subprocess.
+ * Run the whisper-worker.mjs subprocess.
  *
  * @param audioPath - Path to the audio file / 音声ファイルパス
  * @param language - Language hint / 言語ヒント

@@ -162,7 +162,7 @@ export default function ReportsPage() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('taskCount')}</p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center">
+                <div key={day.date} className="flex-1 min-w-0 flex flex-col items-center">
                   <div
                     className="w-full bg-indigo-500 rounded-t transition-all"
                     style={{
@@ -170,7 +170,11 @@ export default function ReportsPage() {
                       minHeight: day.tasks > 0 ? '4px' : '0',
                     }}
                   />
-                  <span className="text-xs text-zinc-500 mt-1">{formatDate(day.date)}</span>
+                  {/* Year drops below sm: seven full dates overflowed a phone screen. */}
+                  <span className="text-xs text-zinc-500 mt-1 whitespace-nowrap">
+                    <span className="hidden sm:inline">{formatDate(day.date)}</span>
+                    <span className="sm:hidden">{formatDate(day.date, 'short')}</span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -180,7 +184,7 @@ export default function ReportsPage() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('studyHours')}</p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center">
+                <div key={day.date} className="flex-1 min-w-0 flex flex-col items-center">
                   <div
                     className="w-full bg-emerald-500 rounded-t transition-all"
                     style={{

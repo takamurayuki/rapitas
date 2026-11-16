@@ -19,7 +19,7 @@ beforeEach(() => {
   // Only columns touched by this transition; use the real generated client
   // and actual database rollback rather than simulating transaction behavior.
   observer.exec(`
-    CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, output TEXT,
+    CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', status TEXT, output TEXT,
       errorMessage TEXT, updatedAt DATETIME);
     CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT,
       updatedAt DATETIME);

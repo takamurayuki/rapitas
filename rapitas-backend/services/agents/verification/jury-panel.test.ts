@@ -37,11 +37,28 @@ describe('when every provider is reachable', () => {
 });
 
 describe('when only the Claude CLI is reachable', () => {
-  test('seats three distinct models instead of one juror', () => {
+  test('seats three jurors instead of one', () => {
     const panel = buildPanel({ auxMode: 'cli', implementerModel: null });
     expect(panel).toHaveLength(3);
     expect(panel.every((j) => j.provider === 'claude')).toBe(true);
-    expect(new Set(panel.map((j) => j.model)).size).toBe(3);
+  });
+
+  test('defaults to Opus / Sonnet / Sonnet — no seat below the usual implementer', () => {
+    // Owner decision 2026-11-10: "a reviewer is at least as capable as the
+    // implementer". Haiku sat below the Sonnet/Opus implementer, so the gate's
+    // weakest seat was its cheapest; three seats are kept for a majority.
+    const panel = buildPanel({ auxMode: 'cli', implementerModel: null });
+    expect(panel.map((j) => j.model)).toEqual([
+      JURY_MODEL_IDS.opus,
+      JURY_MODEL_IDS.sonnet,
+      JURY_MODEL_IDS.sonnet,
+    ]);
+    expect(panel.some((j) => j.model === JURY_MODEL_IDS.haiku)).toBe(false);
+  });
+
+  test('keeps the two Sonnet calls apart in labels', () => {
+    const panel = buildPanel({ auxMode: 'cli', implementerModel: null });
+    expect(panel.map((j) => j.label)).toEqual(['claude:opus', 'claude:sonnet', 'claude:sonnet#2']);
   });
 
   test('gives every juror its own label, so health and votes are not merged', () => {
@@ -69,12 +86,27 @@ describe('when only the Claude CLI is reachable', () => {
 });
 
 describe('choosing the juror models', () => {
-  test('defaults to the three tiers', () => {
+  test('defaults to Opus, Sonnet, Sonnet', () => {
     expect(juryModelIds(undefined)).toEqual([
       JURY_MODEL_IDS.opus,
       JURY_MODEL_IDS.sonnet,
-      JURY_MODEL_IDS.haiku,
+      JURY_MODEL_IDS.sonnet,
     ]);
+  });
+
+  test('RAPITAS_JURY_MODELS still overrides the default (and can bring Haiku back)', () => {
+    const prev = process.env.RAPITAS_JURY_MODELS;
+    process.env.RAPITAS_JURY_MODELS = 'opus,sonnet,haiku';
+    try {
+      expect(buildPanel({ auxMode: 'cli', implementerModel: null }).map((j) => j.model)).toEqual([
+        JURY_MODEL_IDS.opus,
+        JURY_MODEL_IDS.sonnet,
+        JURY_MODEL_IDS.haiku,
+      ]);
+    } finally {
+      if (prev === undefined) delete process.env.RAPITAS_JURY_MODELS;
+      else process.env.RAPITAS_JURY_MODELS = prev;
+    }
   });
 
   test('honours an explicit list', () => {

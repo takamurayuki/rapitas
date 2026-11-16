@@ -103,7 +103,7 @@ starts a second Prisma client against the live SQLite file and blocks
 indefinitely. That block has previously been misdiagnosed as a product hang.
 
 Keep dry-run scripts to pure modules. `services/organization/spec-*.ts`,
-`screen-task-*.ts` and `runtime-smoke/feature-reachability.ts` are all safe to
+`screen-task-*.ts` and `services/agents/verification/runtime-smoke/feature-reachability.ts` are all safe to
 import this way; anything that touches `prisma` is not.
 
 ## `pause` stops the next phase, not just the next task

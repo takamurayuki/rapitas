@@ -171,8 +171,32 @@ describe('every uniqueness constraint is reachable by a second workspace', () =>
    * invariant is enforced instead.
    */
 
-  /** The model a scalar field is a foreign key to, or null. */
+  /**
+   * A scalar that holds another model's id WITHOUT a foreign key, declared on
+   * the doc line right above it: `/// @references Task.id`. It is safe for the
+   * same reason a foreign key is — the referenced id is that model's global
+   * primary key, so its owner already decided the workspace — and it exists
+   * for rows that must outlive what they point at (TaskCompanion keeps a
+   * deleted task's row, closed as 'task_deleted', which a cascade would
+   * erase). Declared, not inferred from the name, so a stray `fooId @unique`
+   * still goes red here.
+   */
+  const declaredReference = (body: string, field: string): string | null => {
+    const lines = body.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (!new RegExp(`^\\s*${field}\\s`).test(lines[i])) continue;
+      for (let j = i - 1; j >= 0 && /^\s*\/\/\//.test(lines[j]); j--) {
+        const ref = lines[j].match(/@references\s+(\w+)\.id\b/);
+        if (ref) return ref[1];
+      }
+    }
+    return null;
+  };
+
+  /** The model a scalar field is a foreign key (or a declared reference) to, or null. */
   const relationTarget = (body: string, field: string): string | null => {
+    const declared = declaredReference(body, field);
+    if (declared) return declared;
     for (const line of body.split('\n')) {
       if (!line.includes('@relation')) continue;
       const fieldsPart = line.match(/fields:\s*\[([^\]]+)\]/);
@@ -233,6 +257,18 @@ describe('every uniqueness constraint is reachable by a second workspace', () =>
     expect(constraints.filter((c) => !c.byWorkspace && c.byParent !== null).length).toBeGreaterThan(
       10,
     );
+  });
+
+  it('counts a reference as safe only when it is declared, and only to an owned model', () => {
+    expect(declaredReference('  /// @references Task.id\n  taskId Int @unique', 'taskId')).toBe(
+      'Task',
+    );
+    expect(declaredReference('  /// the task\n  taskId Int @unique', 'taskId')).toBeNull();
+    expect(declaredReference('  taskId Int @unique', 'taskId')).toBeNull();
+    // The one declared today points at an owned model, so route 2 applies.
+    const companion = owned.find((m) => m.name === 'TaskCompanion');
+    expect(companion && relationTarget(companion.body, 'taskId')).toBe('Task');
+    expect(ownedNames.has('Task')).toBe(true);
   });
 
   it('leaves none that a second workspace would collide on', () => {

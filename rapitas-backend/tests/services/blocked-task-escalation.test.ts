@@ -136,6 +136,21 @@ describe('escalateBlockedTask', () => {
     expect(rt.metadata.reason).toBe('pr_recovery_exhausted');
   });
 
+  test('エスカレーション由来の懸念タスク自体の停滞: 通知と遷移は残し、懸念は再起票しない（連鎖抑止）', async () => {
+    const chained = {
+      id: 1305,
+      title: '[Concern] blocked タスク #1291 が自動再試行の対象外のまま滞留',
+      themeId: 1,
+    };
+
+    const did = await escalateBlockedTask(prisma, chained, 'verify_no_convergence', NOW);
+
+    expect(did).toBe(true);
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    expect(submitConcern).not.toHaveBeenCalled();
+    expect(recordTransition).toHaveBeenCalledTimes(1);
+  });
+
   test('detail 省略時は従来どおりの message になる（後方互換）', async () => {
     const did = await escalateBlockedTask(prisma, task, 'verify_repair_exhausted', NOW);
 

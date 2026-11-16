@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MODE_ICONS, reachableModes, type PanelMode } from './rapi-modes';
+import { MODE_ICONS, type PanelMode } from './rapi-modes';
 
 /**
  * Resolved from the package root rather than from `import.meta.url`: under
@@ -40,21 +40,14 @@ describe.each(['ja', 'en'])('the %s labels', (locale) => {
   it.each(MODES)('name the %s mode', (mode) => {
     expect(modeLabels(locale)[mode]).toBeTruthy();
   });
-
-  it('name every mode that can be reached, tab or not', () => {
-    // The one that was missing was reachable but not a tab, which is exactly
-    // the case a tab-shaped check would skip.
-    const missing = reachableModes(true).filter((m) => !modeLabels(locale)[m]);
-    expect(missing).toEqual([]);
-  });
 });
 
 describe('the glyphs', () => {
-  it('cover every mode, so no tab renders without one', () => {
-    expect(reachableModes(true).every((m) => !!MODE_ICONS[m])).toBe(true);
+  it('cover every mode, so no routing note renders without one', () => {
+    expect(MODES.every((m) => !!MODE_ICONS[m])).toBe(true);
   });
 
-  it('give each mode its own, so two tabs are never the same picture', () => {
+  it('give each mode its own, so two modes are never the same picture', () => {
     const used = MODES.map((m) => MODE_ICONS[m]);
     expect(new Set(used).size).toBe(used.length);
   });

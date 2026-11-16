@@ -1,6 +1,6 @@
 # 非公開評価セット（Private Evaluation Set）
 
-`docs/autonomy-audit-2026-09-06.md` P1「Rapitas 専用の非公開評価セットと故障注入E2Eを整備する」の再実装（旧task873/PR#610はdevelopから327コミット乖離・CI失敗により失効しクローズ済み。実ファイルは取得不能なため、本ドキュメントのみを一次情報として再設計している）。
+[`docs/archive/autonomy-audit-2026-09-06.md`](archive/autonomy-audit-2026-09-06.md) P1「Rapitas 専用の非公開評価セットと故障注入E2Eを整備する」の再実装（旧task873/PR#610はdevelopから327コミット乖離・CI失敗により失効しクローズ済み。実ファイルは取得不能なため、本ドキュメントのみを一次情報として再設計している）。
 
 ## 目的
 

@@ -38,12 +38,17 @@
  *   --stop     起動は行わず、rapitas関連の全プロセス(バックエンド/フロントエンド/
  *              ローカルLLMサイドカー/エージェントCLIプロセス)を強制停止して終了する
  *              （npm run stop 参照。タスクマネージャーで手動検索・終了する手間を省く）
+ *              このモードでは git pull もしない（停止だけの操作で取得はしない）
+ *   --no-pull  起動冒頭の git pull（fast-forward のみ）を行わない
+ *              （環境変数 RAPITAS_DEV_PULL=0 でも同じ。pnpm run tauri 経由など
+ *              引数を渡せない経路向け。dev-pull.cjs 参照）
  *
  * 使用例:
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  *   node scripts/dev.js --force  # エージェント実行中でも強制停止して再起動
  *   node scripts/dev.js --stop   # 起動せず全プロセスを強制停止するのみ
+ *   node scripts/dev.js --no-pull  # 起動前の git pull を行わず現在のコードで起動
  */
 const { spawn, execSync, execFileSync } = require('child_process');
 const path = require('path');
@@ -55,6 +60,8 @@ const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
+const { syncForLaunch } = require('./dep-sync.cjs');
+const { pullOnLaunch, describePull, isPullEnabled, recordPullOnLaunch } = require('./dev-pull.cjs');
 // ─── セッションログ ───
 // NOTE: dev.js の出力は起動したターミナルにしか残らない。2026-10-31、dev.js が
 // 消えたせいで backend の exit 75 自己再起動を拾う相手が居らず両サーバーが停止し、
@@ -1916,8 +1923,19 @@ async function verifyBackendListening() {
  * @param {number} crashes - ウィンドウ内のクラッシュ回数
  */
 function notifyBackendDown(crashes) {
-  const title = 'rapitas: バックエンドが停止しました';
-  const body = `${crashes}回連続でクラッシュし自動回復を停止。手動で再起動してください。`;
+  showBalloon(
+    'rapitas: バックエンドが停止しました',
+    `${crashes}回連続でクラッシュし自動回復を停止。手動で再起動してください。`,
+  );
+}
+
+/**
+ * Best-effort Windows balloon notification; a no-op elsewhere.
+ *
+ * @param {string} title - Balloon title / 通知タイトル
+ * @param {string} body - Balloon text / 通知本文
+ */
+function showBalloon(title, body) {
   try {
     // PowerShell のバルーン通知。Windows 以外では何も起きない。
     const ps = [
@@ -2019,6 +2037,14 @@ function startBackend(retryCount = 0) {
     //
     // dev.js から見れば意図しない終了はすべてクラッシュである。「どの終了コードなら
     // 死んでよいか」を列挙する設計自体が誤りだった。
+    // NOTE: Exit 0 stays "stopped on purpose" — the startup port retry stops the
+    // backend without isBackendRestarting, so restarting here could double-start
+    // it. The backend exits non-zero on failure (exit-policy.ts); this line only
+    // makes an unexplained clean exit visible instead of silent.
+    if (code === 0 && !isBackendRestarting) {
+      log.warn('Backend exited with code 0 without a restart request — not restarting it.');
+    }
+
     if (code !== 0) {
       const now = Date.now();
       // 古いクラッシュタイムスタンプを除去
@@ -2049,6 +2075,10 @@ function startBackend(retryCount = 0) {
           } catch {
             // ポート未解放でも試行
           }
+          // NOTE: The most common crash right after a merge is a dependency the
+          // pulled code needs but node_modules lacks (2026-11-07: `qrcode`).
+          // Retrying on the same tree crashes the same way; sync it first.
+          if (!runDependencySync('restart')) return;
           startBackend(crashTimestamps.length);
 
           // 起動を試みても、上がったかどうかは別の話。プロセスは残るが
@@ -2167,6 +2197,62 @@ async function stopBackendCompletely(skipShutdownApi = false) {
   removeBackendPidFile();
 }
 
+// Set when syncForLaunch stopped the frontend to reinstall it; the restart
+// path brings it back once the backend is up.
+let frontendStoppedForDeps = false;
+// Set when a dependency sync failed: the liveness check must not bring the
+// frontend back on the tree that failed to install.
+let dependencySyncBlocked = false;
+
+/**
+ * Bring node_modules in line with the committed lockfiles (see dep-sync.cjs).
+ * On failure nothing is started: running on dependencies that do not match
+ * the code is how the 2026-10-16 Tauri bump broke the next launch.
+ *
+ * @param {'startup'|'restart'} phase - Caller, for logs / 呼び出し元
+ * @returns {boolean} True when it is safe to start / 起動してよいか
+ */
+function runDependencySync(phase) {
+  const result = syncForLaunch({
+    repoRoot: REPO_ROOT,
+    log: { info: (m) => console.log(m), warn: (m) => log.warn(m), error: (m) => log.error(m) },
+    stopFrontend: () => {
+      console.log('  Stopping the frontend so its dependencies can be reinstalled...');
+      killProcessTree(frontend);
+      sleepSync(1000);
+      if (isPortListening(actualFrontendPort)) forceKillAllOnPort(actualFrontendPort);
+    },
+  });
+  if (result.frontendStopped && phase === 'restart') frontendStoppedForDeps = true;
+  if (result.desktopStale) {
+    showBalloon(
+      'rapitas: デスクトップの依存関係が更新されました',
+      'アプリを再起動すると反映されます (npm run tauri が自動でインストールします)。',
+    );
+  }
+  devSessionLog.appendDevEvent('dep_sync', {
+    phase,
+    ok: result.ok,
+    status: result.status,
+    reason: result.reason,
+    installed: result.installed,
+    failedPackage: result.failedPackage,
+  });
+  if (result.ok) return true;
+  dependencySyncBlocked = true;
+  frontendStoppedForDeps = false;
+  log.error(
+    `Dependency sync failed (${result.reason}) — ${phase === 'restart' ? 'backend restart refused' : 'startup aborted'}.`,
+  );
+  showBalloon(
+    phase === 'restart'
+      ? 'rapitas: 依存関係の更新に失敗し再起動を中止しました'
+      : 'rapitas: 依存関係の更新に失敗し起動を中止しました',
+    `${result.failedPackage || 'toolchain'}: ${result.reason}。ログの手順で修正後、アプリを再起動してください。`,
+  );
+  return false;
+}
+
 /**
  * バックエンドを再起動する（完全停止 → DB同期 → 起動）
  *
@@ -2208,15 +2294,30 @@ async function restartBackend(processAlreadyExited = false) {
 
 async function restartBackendInner(processAlreadyExited) {
   console.log('\n🔄 Restarting backend server...');
-  console.log('  Step 1/4: Stopping backend completely...');
+  console.log('  Step 1/6: Stopping backend completely...');
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log('  Step 2/4: Cleaning up stray processes...');
+  console.log('  Step 2/6: Cleaning up stray processes...');
   killStrayBunProcesses();
   killStrayPlaywrightWorkers();
   killStrayBackendHelpers();
 
-  console.log('  Step 3/4: Syncing database and generating Prisma Client...');
+  // NOTE(#1563): the app's 再起動 restarts only the backend, so dev.js lives
+  // on and main() never pulls again — a merge on origin stayed out until a
+  // full dev:tauri relaunch (2026-11-15: the new colours did not show). Pull
+  // here, before the dependency and Prisma steps below, so they see what was
+  // pulled. A no-op after a self-deploy, which has already pulled. A change
+  // to dev.js itself still needs a relaunch; describePull says so.
+  console.log('  Step 3/6: Pulling the latest commits...');
+  await pullLatestOnLaunch('restart');
+
+  // NOTE(#1403): exit 75 follows a self-deploy `git merge --ff-only`, which
+  // never reinstalls. Sync node_modules to the pulled lockfiles while the
+  // backend is down (Windows locks its native files while it runs).
+  console.log('  Step 4/6: Syncing dependencies with the committed lockfiles...');
+  if (!runDependencySync('restart')) return;
+
+  console.log('  Step 5/6: Syncing database and generating Prisma Client...');
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
@@ -2224,10 +2325,16 @@ async function restartBackendInner(processAlreadyExited) {
     console.log('  Attempting to start backend without DB sync...');
   }
 
-  console.log('  Step 4/4: Starting backend...');
+  console.log('  Step 6/6: Starting backend...');
   crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log('✅ Backend restart completed.');
+  if (frontendStoppedForDeps) {
+    frontendStoppedForDeps = false;
+    restartFrontend('dependencies-reinstalled').catch((err) =>
+      console.error('❌ Frontend restart after dependency sync failed:', err.message || err),
+    );
+  }
 
   // バックエンド再起動はユーザーが「コード変更を反映したい」タイミング。
   // フロントは長寿命プロセスで .next キャッシュだけが git HEAD から乖離していく
@@ -2597,6 +2704,30 @@ function ensurePrimaryBranch() {
   }
 }
 
+/**
+ * 起動冒頭と、画面の「再起動」（backend の exit 75）で、リポジトリを upstream へ
+ * fast-forward し、結果を表示する（再起動での取り込みは #1563）。
+ * 判断と git 操作は dev-pull.cjs が持ち、ここは呼び出しと表示だけ。
+ * プルできない理由（未コミット変更・分岐・接続不可など）は表示して続行する。
+ *
+ * @param {'launch' | 'restart'} trigger - 取り込みのきっかけ。dev_pull 行に残す
+ */
+async function pullLatestOnLaunch(trigger = 'launch') {
+  const enabled = isPullEnabled(args, process.env);
+  if (enabled) console.log('\nChecking for new commits (git pull --ff-only)...');
+  await recordPullOnLaunch({
+    trigger,
+    pull: () => pullOnLaunch({ repoRoot: REPO_ROOT, enabled }),
+    appendDevEvent: (name, fields) => devSessionLog.appendDevEvent(name, fields),
+    onResult: (result) => {
+      const { level, lines } = describePull(result);
+      for (const line of lines) (level === 'warn' ? console.warn : console.log)(line);
+    },
+    onError: (reason) =>
+      log.warn(`[dev-pull] unexpected failure, starting with the current code: ${reason}`),
+  });
+}
+
 async function main() {
   // CI環境では実行しない
   if (process.env.CI === 'true' || process.env.CI === '1') {
@@ -2607,6 +2738,11 @@ async function main() {
   // 開発バックエンドはこのチェックアウトのブランチで動くため、テーマのデフォルト
   // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
   ensurePrimaryBranch();
+
+  // 主ブランチに固定した直後、依存同期・DB準備・サーバー起動より前に最新を取り込む。
+  // 先に入れることで、後段の dep-sync／tauri-rebuild／.next キャッシュ判定が
+  // 新しい HEAD とロックファイルに対して働く。失敗しても起動は止めない。
+  await pullLatestOnLaunch();
 
   // 前回実行が終了ハンドラを通らずに終わった場合の、記録済みバックエンド/
   // フロントエンドPIDのターゲットkill。ポート/netstatヒューリスティックより先に、
@@ -2636,6 +2772,9 @@ async function main() {
     console.log(`  Port ${LLAMA_SERVER_PORT} (llama-server) in use, killing leftover...`);
     forceKillAllOnPort(LLAMA_SERVER_PORT);
   }
+
+  // Before Prisma generate and the first spawn: both run against node_modules.
+  if (!runDependencySync('startup')) process.exit(1);
 
   // syncDatabaseAndGenerateClient が EPERM で失敗した場合、bun が再び DLL を握っている
   // 可能性があるので 1 度だけリトライする。
@@ -3201,7 +3340,7 @@ function startFrontendLiveness() {
     `🩺 Frontend liveness check active (every ${FRONTEND_LIVENESS_INTERVAL_MS / 1000}s on :${actualFrontendPort}).`,
   );
   frontendLivenessTimer = setInterval(() => {
-    const busy = isCleaningUp || isFrontendRestarting;
+    const busy = isCleaningUp || isFrontendRestarting || dependencySyncBlocked;
     const decision = nextLiveness(
       state,
       {

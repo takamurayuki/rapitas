@@ -92,6 +92,25 @@ describe('executeContinuationInternal()', () => {
     expect(removeAgentMock).toHaveBeenCalledWith('agent-1');
   });
 
+  // G2 routing1 re-review 6: the epilogue must pass the session's run kind, or
+  // a workflow task still in draft is marked done without a verify phase.
+  test('ワークフロー実行のセッションで draft のタスクは、継続成功後も done にならない', async () => {
+    const execution = makeExecution({
+      session: { ...makeExecution().session, mode: 'workflow-researcher' },
+    });
+    const taskUpdate = mock(async () => ({}));
+    const prisma = makePrisma({
+      agentExecution: { findUnique: async () => execution, update: async () => ({}) },
+      task: { findUnique: async () => ({ workflowStatus: 'draft' }), update: taskUpdate },
+    });
+    const ctx = makeCtx({ prisma: prisma as unknown as OrchestratorContext['prisma'] });
+
+    const result = await executeContinuationInternal(ctx, 10, 'response');
+
+    expect(result.success).toBe(true);
+    expect(taskUpdate).not.toHaveBeenCalled();
+  });
+
   test('resume失敗を検知 → handleResumeFailureFallbacks の結果を最終結果として保存する', async () => {
     setSessionResumeFailure(() => true);
     const ctx = makeCtx();

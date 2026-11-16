@@ -24,6 +24,7 @@ import { createLogger } from '@/lib/logger';
 import { Spinner } from '@/components/ui/spinner';
 import AudioWaveform from './AudioWaveform';
 import { withHeaderVisible } from '@/components/header/task-detail-link';
+import { followInAppLink } from '@/feature/settings/settings-link';
 
 const logger = createLogger('SmartCommandBar');
 
@@ -183,7 +184,8 @@ export default function SmartCommandBar() {
             router.push(`${action.route}?title=${encodeURIComponent(action.prefill || input)}`);
             break;
           case 'navigate':
-            router.push(action.route);
+            // NOTE: "設定" resolves to /settings, which is now the settings modal.
+            followInAppLink(router, action.route);
             break;
           case 'search':
             router.push(`${action.route}?q=${encodeURIComponent(action.query || input)}`);

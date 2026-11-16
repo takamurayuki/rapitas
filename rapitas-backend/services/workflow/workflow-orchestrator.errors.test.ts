@@ -218,9 +218,11 @@ mock.module('../ai/agent-fallback', () => ({
   findFallbackAgentConfig: mock(() => Promise.resolve(null)),
 }));
 
+const HAIKU = 'claude-haiku-4-5-20251001';
 mock.module('../ai/model-route-stability', () => ({
-  getStableSmartRoute: mock(() =>
-    Promise.resolve({ recommendedModel: 'claude-haiku-4-5-20251001' }),
+  // NOTE: re-routes after a provider failure (excludeProviders) reach getSmartRoute.
+  getStableSmartRoute: mock((_t: number, _r: string, o?: { excludeProviders?: string[] }) =>
+    o?.excludeProviders?.[0] ? getSmartRouteImpl() : Promise.resolve({ recommendedModel: HAIKU }),
   ),
   invalidateStableRoute: mock(() => {}),
   _resetStableRouteCache: mock(() => {}),

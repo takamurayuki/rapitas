@@ -3,7 +3,7 @@
 
 import { use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAgentSettings } from './useAgentSettings';
@@ -68,12 +68,6 @@ export default function AgentSettingsClient({ params }: { params: Promise<{ id: 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link
-            href="/agents"
-            className="p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
-          </Link>
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${providerConfig.color}`}>
               {providerConfig.icon}

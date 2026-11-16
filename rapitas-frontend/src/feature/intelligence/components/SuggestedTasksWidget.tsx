@@ -153,8 +153,8 @@ export function SuggestedTasksWidget() {
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2 whitespace-nowrap">
           <Zap className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
           {t('title')}
         </h2>
@@ -168,13 +168,18 @@ export function SuggestedTasksWidget() {
         {filteredSuggestions.slice(0, 5).map((task, index) => (
           <div
             key={task.taskId}
-            className="flex items-center gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 group"
+            // NOTE: wraps so the actions drop under the title on a phone; without
+            // it the fixed-width actions squeezed the title to zero width.
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 group"
           >
             <div className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold shrink-0">
               {index + 1}
             </div>
 
-            <Link href={withHeaderVisible(`/tasks/${task.taskId}`)} className="flex-1 min-w-0">
+            <Link
+              href={withHeaderVisible(`/tasks/${task.taskId}`)}
+              className="flex-1 min-w-0 basis-48"
+            >
               <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 {task.title}
               </p>
@@ -185,7 +190,7 @@ export function SuggestedTasksWidget() {
               )}
             </Link>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
               <span
                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColors[task.priority] || ''}`}
               >
@@ -230,6 +235,7 @@ export function SuggestedTasksWidget() {
                 onClick={(e) => handleSnooze(task, e)}
                 className="p-1.5 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors"
                 title={t('snoozeTitle')}
+                aria-label={t('snoozeTitle')}
               >
                 <EyeOff className="w-3.5 h-3.5" />
               </button>

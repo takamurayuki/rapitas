@@ -113,6 +113,7 @@ mock.module('../core/safety', () => ({
 }));
 mock.module('./dependency-installer', () => ({
   awaitWorktreeDependencies: mockAwaitWorktreeDependencies,
+  settleInflightWorktreeDependencies: mockAwaitWorktreeDependencies,
   clearWorktreeDependenciesTracking: mockClearWorktreeDependenciesTracking,
 }));
 mock.module('../../../../github/git-exec', () => ({

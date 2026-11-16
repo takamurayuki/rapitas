@@ -7,6 +7,7 @@
  * API. It is NOT responsible for agent/workflow execution — that path lives under
  * services/agents/claude-code and manages its own process lifecycle.
  */
+import { toCliModelAlias } from './cli-model-alias';
 import { spawn, type ChildProcess } from 'child_process';
 import { tmpdir } from 'os';
 import { createLogger } from '../../config/logger';
@@ -20,6 +21,7 @@ import {
   escapeWindowsShellArgForTarget,
 } from '../common/windows-shell-escape';
 import { type AIMessage, type AIResponse } from './types';
+import { cliUsageFields } from './claude-cli-usage';
 import { describeCliFailure, extractLastJsonObject } from './cli-failure-reason';
 import { auxCliCleanup } from './aux-cli-cleanup';
 import { prepareAuxCli } from './aux-cli-launch';
@@ -124,20 +126,9 @@ export async function isClaudeCliAvailable(): Promise<boolean> {
   return availabilityPending;
 }
 
-/**
- * Map a full model id (or undefined) to a Claude Code `--model` alias.
- * Unspecified defaults to Haiku — aux calls should stay light on the shared
- * subscription rate limit.
- *
- * @param model - Requested model id, if any / 要求モデルID（任意）
- * @returns CLI model alias / CLIのモデルエイリアス
- */
-function toCliModel(model?: string): string {
-  const m = (model || '').toLowerCase();
-  if (m.includes('opus')) return 'opus';
-  if (m.includes('sonnet')) return 'sonnet';
-  return 'haiku';
-}
+// NOTE: Moved to cli-model-alias.ts so the jury resolves seats with the very
+// mapping the CLI is spawned with (independence check, G2 abc review item 3).
+const toCliModel = toCliModelAlias;
 
 /**
  * Build the spawn environment. Strips Anthropic API credentials so the CLI is
@@ -366,7 +357,14 @@ export async function callClaudeCli(
       result?: string;
       is_error?: boolean;
       subtype?: string;
-      usage?: { input_tokens?: number; output_tokens?: number };
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+      };
+      total_cost_usd?: number;
+      modelUsage?: Record<string, unknown>;
     };
     try {
       parsed = JSON.parse(jsonText);
@@ -381,7 +379,7 @@ export async function callClaudeCli(
       );
     }
     const tokensUsed = (parsed.usage?.input_tokens || 0) + (parsed.usage?.output_tokens || 0);
-    return { content: parsed.result, tokensUsed };
+    return { content: parsed.result, tokensUsed, ...cliUsageFields(parsed) };
   } finally {
     releaseSlot();
   }

@@ -75,6 +75,9 @@ mock.module('../common/cli-path-resolver', () => ({
 }));
 
 mock.module('./aux-cli-cleanup', () => ({
+  // Mirrors the real module's exports (bun replaces the whole module).
+  trackAuxCliChild: () => () => {},
+  createAuxCliCleanup: () => ({}),
   auxCliCleanup: {
     assertReady: () => {},
     stop: (child: MockChild) => {

@@ -38,11 +38,31 @@ export type AIRequestOptions = {
    * tools to offer and ignore it.
    */
   tools?: 'none' | 'web';
+  /**
+   * Which subscription CLI serves this call in `cli` aux mode. Omitted means
+   * the Claude Code CLI, as always. `'codex'` is set only by the review
+   * jury's OpenAI seats (routing2b) — the provider name is deliberately NOT
+   * used for this, so a chat that names `chatgpt` keeps going to Claude.
+   * Ignored outside `cli` mode.
+   */
+  cliRoute?: 'claude' | 'codex';
 };
 
 export type AIResponse = {
   content: string;
   tokensUsed: number;
+  /**
+   * What the call cost in USD, when the provider reports it. The subscription
+   * CLI's `total_cost_usd` is the plan-equivalent price of a `--print` call —
+   * consumption of the user's subscription, not an API charge.
+   */
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  /** Model that actually answered, when the provider says so. */
+  modelName?: string;
 };
 
 export type ProviderKeyColumn =

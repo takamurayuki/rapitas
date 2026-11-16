@@ -3,16 +3,20 @@
  * header/side-nav.tsx
  *
  * Slide-out side navigation panel rendered by the main Header.
- * Renders the full nav tree via NavItemRenderer and a keyboard-shortcuts footer button.
+ * Renders the full nav tree via NavItemRenderer and an account footer: the
+ * signed-in user on the left (a button opening the account menu), a shortcut
+ * to the settings hub on the right.
  */
 
 import { usePathname } from 'next/navigation';
-import { Keyboard, Pin, PinOff } from 'lucide-react';
-import { OPEN_SHORTCUTS_EVENT } from '@/components/common/KeyboardShortcuts';
+import { Pin, PinOff, Settings } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
-import type { ShortcutId } from '@/stores/shortcut-store';
+import type { User as AuthUser } from '@/contexts/AuthContext';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
+import { SideNavAccountMenu } from './side-nav-account-menu';
+import { openSettings, useSettingsModalStore } from '@/feature/settings/settings-modal-store';
 
 type SideNavProps = {
   /** Ref attached to the nav element for click-outside detection. */
@@ -31,8 +35,12 @@ type SideNavProps = {
   expandedItems: Set<string>;
   /** Toggles expanded state for a given label. */
   toggleExpand: (label: string) => void;
-  /** Returns a formatted shortcut string for a given id. */
-  getShortcutLabel: (id: ShortcutId) => string | undefined;
+  /** Signed-in user (same auth state as the header toolbar); null when signed out. */
+  user: AuthUser | null;
+  /** Whether the auth state is still being resolved (name is left blank meanwhile). */
+  isAuthLoading: boolean;
+  /** Logs the user out; moved here with the account menu from the header. / ログアウト */
+  handleLogout: () => void | Promise<void>;
 };
 
 /**
@@ -47,10 +55,17 @@ export function SideNav({
   filteredNavItems,
   expandedItems,
   toggleExpand,
-  getShortcutLabel,
+  user,
+  isAuthLoading,
+  handleLogout,
 }: SideNavProps) {
   const pathname = usePathname();
   const t = useTranslations('nav');
+  // Unpinned, the nav slides over the page — and over the in-app browser's
+  // webview, which would paint above it. Pinned, the page is laid out beside
+  // it, so nothing overlaps.
+  useOccludesWebview(isMenuOpen && !isMenuPinned);
+  const isSettingsOpen = useSettingsModalStore((s) => s.isOpen);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname === '/kanban';
@@ -121,26 +136,43 @@ export function SideNav({
               />
             ))}
           </div>
+        </div>
 
-          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-            <button
-              onClick={() => {
-                if (!isMenuPinned) {
-                  setIsMenuOpen(false);
-                }
-                window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
-              }}
-              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <Keyboard className="w-4 h-4" />
-                <span className="text-sm">{t('keyboardShortcuts')}</span>
-              </div>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-                {getShortcutLabel('shortcutHelp') || '⌘/'}
-              </kbd>
-            </button>
-          </div>
+        {/* NOTE: The keyboard-shortcuts button that used to sit here was
+            removed: the footer now carries the account and the settings entry.
+            The shortcut help itself is unchanged — ⌘/ and OPEN_SHORTCUTS_EVENT
+            still open it. Kept outside the scroll area so it never scrolls away. */}
+        <div className="relative shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
+          {/* NOTE: The account row became the user menu's button when the
+              header's user icon gave its slot to the in-app browser entry
+              (nav61). Items that leave the page follow the nav's own rule:
+              a pinned nav stays, an unpinned one closes. */}
+          <SideNavAccountMenu
+            user={user}
+            isAuthLoading={isAuthLoading}
+            onLogout={handleLogout}
+            onNavigate={() => {
+              if (!isMenuPinned) setIsMenuOpen(false);
+            }}
+          />
+          {/* NOTE: Opens the settings modal (was a link to /settings/general).
+              The only settings entry besides the account menu's personal one. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!isMenuPinned) setIsMenuOpen(false);
+              openSettings();
+            }}
+            className={`shrink-0 p-2 rounded-lg transition-colors ${
+              isSettingsOpen
+                ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+            aria-label={t('settings')}
+            title={t('settings')}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </nav>
     </>

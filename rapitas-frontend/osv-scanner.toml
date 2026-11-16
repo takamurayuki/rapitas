@@ -1,0 +1,18 @@
+# OSV-Scanner policy for rapitas-frontend/pnpm-lock.yaml (read by the
+# `security` workflow's dependency-scan job, takamurayuki/security-ci).
+#
+# Each entry is a time-boxed risk acceptance for ONE advisory that has no
+# non-breaking fix. On `effectiveUntil` the finding comes back and the job fails
+# until someone re-checks it and either fixes the dependency or renews the
+# entry with a current reason. Keep expiries within ~3 months.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+effectiveUntil = 2027-02-03
+reason = """minimatch 10.2.5 via @typescript-eslint/typescript-estree 8.59.1 (dev \
+only, lint), which matches globs from our own tsconfig/eslint config, never \
+attacker-supplied patterns (the advisory needs an attacker-controlled pattern). \
+The fix is minimatch 11.0.1, outside typescript-estree's declared ^10.2.2 \
+(still ^10.2.2 in its latest release, 8.72.2), so a pnpm override would run it \
+on a major it does not declare. Re-check when typescript-eslint accepts \
+minimatch 11."""

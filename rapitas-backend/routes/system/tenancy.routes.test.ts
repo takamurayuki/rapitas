@@ -21,6 +21,7 @@ import type { BackfillResult } from '../../services/tenancy/workspace-backfill';
 let claims: number[] = [];
 let ensured: [number, string][] = [];
 let cacheClears = 0;
+let adoptions = 0;
 let knownUser: { id: number; username: string } | null = { id: 7, username: 'alice' };
 let claimResult: BackfillResult = {
   workspaceId: 1,
@@ -53,6 +54,10 @@ const app = new Elysia().use(
     onClaimed: () => {
       cacheClears += 1;
     },
+    adoptSubtasks: async () => {
+      adoptions += 1;
+      return { adopted: 3, passes: 2 };
+    },
   }),
 );
 
@@ -69,6 +74,7 @@ beforeEach(() => {
   claims = [];
   ensured = [];
   cacheClears = 0;
+  adoptions = 0;
   knownUser = { id: 7, username: 'alice' };
   claimResult = {
     workspaceId: 1,
@@ -136,5 +142,21 @@ describe('POST /tenancy/claim', () => {
     const res = await post({});
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(claims).toEqual([]);
+  });
+});
+
+describe('POST /tenancy/adopt-subtasks', () => {
+  test('runs the adoption and reports how many subtasks it settled', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/tenancy/adopt-subtasks', { method: 'POST' }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ adopted: 3, passes: 2 });
+    expect(adoptions).toBe(1);
+  });
+
+  test('GET /tenancy/status does not adopt anything', async () => {
+    await app.handle(new Request('http://localhost/tenancy/status'));
+    expect(adoptions).toBe(0);
   });
 });

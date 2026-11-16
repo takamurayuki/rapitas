@@ -17,6 +17,9 @@ const mockPrisma = {
     findMany: mock(() => Promise.resolve([] as unknown[])),
     update: mock(() => Promise.resolve({})),
     updateMany: mock(() => Promise.resolve({ count: 1 })),
+    // The shared completion check reads the review hold; without this the read
+    // throws and the check now refuses ("could not confirm" ≠ "not held").
+    findUnique: mock(() => Promise.resolve({ haltReason: null, workflowStatus: 'blocked' })),
   },
   agentExecution: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   workflowTransition: {

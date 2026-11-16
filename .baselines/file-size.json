@@ -8,10 +8,7 @@
       "lineCount": 1051
     },
     "rapitas-backend/routes/agents/execution/routes/execute-route.ts": {
-      "lineCount": 759
-    },
-    "rapitas-backend/scripts/analyze-codebase/agent-report-generator.ts": {
-      "lineCount": 684
+      "lineCount": 677
     },
     "rapitas-backend/routes/tasks/tasks.ts": {
       "lineCount": 677

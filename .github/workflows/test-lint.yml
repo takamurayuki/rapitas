@@ -16,6 +16,12 @@ env:
   BUN_LOCKFILE_SKIP: true  # Skip lockfile validation in CI
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
 jobs:
   test-backend:
     name: Test Backend
@@ -43,10 +49,14 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
@@ -89,6 +99,30 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
 
+      # #1410: every test file this PR adds or modifies runs here, with no
+      # registration in scripts/ci-gate-tests.txt, and is green only when
+      # bun's junit report shows each one ran and bun exited 0. Separate from
+      # the coverage-measured gate above so it cannot move the floors.
+      # NOTE: A changed test may use the isolated SQLite client
+      # (generated/prisma-sqlite), as Full Suite prepares it. Without it the
+      # develop -> main sync PR failed 26 such tests with "Cannot find module".
+      - name: Prepare SQLite client for isolated database tests
+        if: github.event_name == 'pull_request'
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: file:./isolated-tests.db
+          RAPITAS_DB_PROVIDER: sqlite
+        run: bun run db:generate:sqlite
+
+      - name: Run the tests this PR adds or changes (backend)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+          # Passed through env, not expanded into the script: a branch name is
+          # attacker-chosen text (zizmor template-injection).
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/gates/changed-tests-gate.cjs --package backend --base "origin/${BASE_REF}"
+
   # Blocking, and deliberately SEPARATE from test-backend: these tests pin that
   # routes go through their choke points (delete guard, stop reporting, the
   # incremental-fetch boundary). Putting them in the coverage-measured gate
@@ -118,10 +152,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
@@ -176,10 +212,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
@@ -225,13 +263,15 @@ jobs:
         if: failure()
         working-directory: rapitas-backend
         run: |
-          echo "## Full Suite Advisory — Failed Files" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "These failures do **not** block the merge. Fix them to keep the advisory green." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          bun run test:parallel 2>&1 | grep 'FAIL ' >> "$GITHUB_STEP_SUMMARY" || true
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Full Suite Advisory — Failed Files"
+            echo ""
+            echo "These failures do **not** block the merge. Fix them to keep the advisory green."
+            echo ""
+            echo '```'
+            bun run test:parallel 2>&1 | grep 'FAIL ' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   test-order-check:
     name: Test Order Dependency Check
@@ -249,10 +289,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
@@ -287,10 +329,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
@@ -324,18 +368,24 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # Full history: the changed-tests step diffs against the PR base (#1410).
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.34.9
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.9
 
       - name: Setup pnpm cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         continue-on-error: true
         with:
           path: ~/.pnpm-store
@@ -369,104 +419,25 @@ jobs:
         working-directory: rapitas-frontend
         # NOTE: --coverage makes the vitest.config.ts threshold floor a real,
         # enforced gate (it was previously aspirational — coverage never ran in
-        # CI). The floor is calibrated to THIS file list; keep them in sync.
+        # CI). The floor is calibrated to the manifest's file list.
         #
-        # NOTE: vitest SILENTLY IGNORES a path that does not exist and still
-        # exits 0 — measured 2026-10-26. So deleting a test file named here
-        # does not go red; the gate just quietly runs one file fewer. Two
-        # entries were stale when this was measured: PomodoroTimer.test.tsx
-        # (deleted with the pomodoro checkpoint) and formatLogData.test.ts
-        # (gone for longer, with CI green the whole time). When you remove a
-        # test file, remove its line here too — nothing else will tell you.
-        run: >
-          pnpm exec vitest run --coverage
-          src/components/__tests__/AppIcon.test.tsx
-          src/app/settings/developer-mode/components/AutoRunSettingsCard.test.tsx
-          src/components/__tests__/ErrorBoundary.test.tsx
-          src/components/__tests__/LanguageSwitcher.test.tsx
-          src/components/__tests__/header-guest-auth-links.test.tsx
-          src/components/copilot/__tests__/CopilotChatPanel.test.tsx
-          src/feature/tasks/components/__tests__/TaskCard.test.tsx
-          src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
-          src/app/ideas/_components/__tests__/IdeasClient.test.tsx
-          src/hooks/__tests__/useBackendHealth.test.ts
-          src/hooks/__tests__/useDarkMode.test.ts
-          src/hooks/__tests__/useDebounce.test.ts
-          src/hooks/__tests__/useFilteredTasks.test.ts
-          src/hooks/__tests__/useLocalStorageState.test.ts
-          src/hooks/__tests__/useLoginForm.test.ts
-          src/hooks/__tests__/useNotificationPreferences.test.ts
-          src/hooks/__tests__/usePomodoroStats.test.ts
-          src/hooks/__tests__/useSearchFilters.test.ts
-          src/hooks/__tests__/useSplitView.test.ts
-          src/hooks/__tests__/useTaskSearch.test.ts
-          src/hooks/__tests__/useTaskSorting.test.ts
-          src/hooks/__tests__/useWindowResize.test.ts
-          src/hooks/__tests__/useWorkflowFiles.test.ts
-          src/lib/__tests__/cache-utils.test.ts
-          src/lib/__tests__/cache-warmup.test.ts
-          src/lib/__tests__/logger.test.ts
-          src/lib/__tests__/task-api.test.ts
-          src/lib/__tests__/utils.test.ts
-          src/lib/audio/__tests__/wav-codec.test.ts
-          src/stores/__tests__/app-mode-store.test.ts
-          src/stores/__tests__/execution-state-store.test.ts
-          src/stores/__tests__/filter-data-store.test.ts
-          src/stores/__tests__/locale-store.test.ts
-          src/stores/__tests__/note-store.test.ts
-          src/stores/__tests__/shortcut-store.test.ts
-          src/stores/__tests__/task-cache-store.test.ts
-          src/stores/__tests__/task-detail-visibility-store.test.ts
-          src/stores/__tests__/ui-mode-store.test.ts
-          src/stores/__tests__/server-restart-store.test.ts
-          src/feature/terminal/__tests__/terminal-store.test.ts
-          src/feature/terminal/__tests__/terminal-context-store.test.ts
-          src/utils/__tests__/api.test.ts
-          src/utils/__tests__/date.test.ts
-          src/utils/__tests__/external-links.test.ts
-          src/utils/__tests__/favicon.test.ts
-          src/utils/__tests__/holidays.test.ts
-          src/utils/__tests__/labels.test.ts
-          src/utils/__tests__/notification.test.ts
-          src/utils/__tests__/tauri.test.ts
-          src/utils/__tests__/validation.test.ts
-          src/feature/knowledge/hooks/__tests__/useContradictions.test.ts
-          src/feature/knowledge/hooks/__tests__/useKnowledgeSearch.test.ts
-          src/feature/developer-mode/components/__tests__/formatLogLine.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-handlers.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-terminal.test.ts
-          src/feature/developer-mode/hooks/__tests__/execution-poll-loop.test.ts
-          src/feature/developer-mode/components/deviation-timeline/DeviationTimeline.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/DeviationItem.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/DeviationContextDialog.test.tsx
-          src/feature/developer-mode/components/deviation-timeline/useDeviationTimeline.test.ts
-          src/feature/tasks/components/gantt/gantt-utils.test.ts
-          src/app/api/generate-claude-md/fallback-package.test.ts
-          src/app/api/generate-claude-md/__tests__/context-rendering.test.ts
-          src/app/api/review-spec/__tests__/review-prompt.test.ts
-          src/app/backlog/settings/_components/__tests__/backlog-job-meta.test.ts
-          src/stores/__tests__/link-library-store.test.ts
-          src/stores/__tests__/link-view-store.test.ts
-          src/components/link-view/useLinkView.test.ts
-          src/components/link-view/LinkViewPane.test.ts
-          src/components/link-view/link-tab-meta.test.ts
-          src/lib/__tests__/pane-layering.test.ts
-          src/components/link-view/group-actions.test.ts
-          src/components/link-view/tab-strip/tab-arrangement.test.ts
-          src/components/link-view/tab-strip/TabStrip.test.tsx
-          src/components/ui/dropdown/__tests__/DropdownMenu.test.tsx
-          src/components/common/__tests__/AppContent.test.tsx
-          src/components/common/__tests__/shortcut-editable-guard.test.ts
-          src/app/tasks/[id]/components/TaskNoteSplitView.test.tsx
-          src/components/header/__tests__/task-detail-link.test.ts
-          src/components/rapi-avatar/__tests__/rapi-avatar-state.test.ts
-          src/components/rapi-avatar/__tests__/RapiAvatar.test.tsx
-          src/components/rapi-avatar/__tests__/RapiAvatarHost.test.tsx
-          src/components/note/editor/inline-link.test.ts
-          src/components/note/editor/useInlineLinks.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/__tests__/stop-execution-request.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/__tests__/execution-requests.test.ts
-          src/feature/developer-mode/components/ai-accordion-panel/ExecutionSection.stop-notice.test.tsx
+        # NOTE(#1410): vitest SILENTLY IGNORES a path that does not exist and
+        # still exits 0 (measured 2026-10-26, and again when two files moved
+        # in #1376 dropped out of this gate unnoticed). So the list lives in
+        # rapitas-frontend/scripts/ci-gate-tests.txt and runs through
+        # vitest-manifest-gate, which fails when a listed file is missing or
+        # did not actually run according to vitest's own JSON report.
+        run: node ../scripts/gates/vitest-manifest-gate.cjs scripts/ci-gate-tests.txt -- --coverage
+
+      # #1410: every frontend test file this PR adds or modifies runs here
+      # without registration in the manifest, verified the same way as the
+      # gate above (each file must appear in vitest's own report).
+      - name: Run the tests this PR adds or changes (frontend)
+        if: github.event_name == 'pull_request'
+        env:
+          # Same as the backend step: keep the branch name out of the script.
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/gates/changed-tests-gate.cjs --package frontend --base "origin/${BASE_REF}"
 
   lint:
     name: Lint Code
@@ -480,27 +451,50 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
+      # NOTE (#1410): import direction and cycles, as a ratchet. Fails on a new
+      # backend services/ → routes/ (or utils|config → services|routes) import,
+      # a frontend components/ui → feature|app or lib|utils → app import, or a
+      # new runtime import cycle; today's ones are listed in
+      # scripts/import-graph/import-graph-baseline.json, which may only shrink
+      # (an entry that no longer occurs fails too). Dependency-free, so it
+      # runs before the installs and fails fast. ~4s.
+      - name: Import direction and cycles
+        run: node scripts/import-graph/check-import-graph.cjs
+
+      # NOTE: unreachable source files, as a ratchet. Fails when a file under
+      # rapitas-backend/, rapitas-frontend/src/ or rapitas-desktop/scripts/ is
+      # reached by no entry point (framework entry files, configs, tests,
+      # package.json/workflow/hook references, string-path loads); today's
+      # ones are in scripts/import-graph/unused-files-baseline.json, which may
+      # only shrink. Dependency-free, before the installs. ~15s.
+      - name: Unused files
+        run: node scripts/import-graph/check-unused-files.cjs
+
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.34.9
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.9
 
       - name: Get pnpm store directory
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Setup pnpm cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         continue-on-error: true
         with:
           path: ~/.pnpm-store
@@ -522,16 +516,23 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Check backend TypeScript
-        working-directory: rapitas-backend
-        run: bunx tsc --noEmit
-
+      # NOTE: Generate the SQLite client BEFORE the first tsc. Since a460cc8f the
+      # two clients live in separate folders (generated/prisma-postgres and
+      # generated/prisma-sqlite), and tsc type-checks test helpers that are not
+      # *.test.ts — e.g. services/workflow/acceptance/*.test-helpers.ts (#1477),
+      # which type the SQLite harness DB with the SQLite client. Generated after
+      # tsc, that import was unresolved (TS2307) and every PrismaClient value in
+      # those helpers degraded to any (TS7006), failing Lint Code on develop.
       - name: Check desktop SQLite Prisma generation
         working-directory: rapitas-backend
         run: bun run db:prepare:sqlite
         env:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Check backend TypeScript
+        working-directory: rapitas-backend
+        run: bunx tsc --noEmit
 
       - name: Verify SQLite generated artifacts match committed files
         working-directory: rapitas-backend
@@ -641,15 +642,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy, rustfmt
 
       - name: Setup Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
 
@@ -667,6 +670,41 @@ jobs:
       # whose workflow only runs after a merge. ~10s.
       - name: Test the root script tools
         run: node --test "scripts/**/*.test.cjs"
+
+      # #1403: the tracked tree had 76 files nobody meant to keep — agent
+      # scratch dumps, logs, ignored-but-tracked dirs, one-shot scripts long
+      # after use. Fails on any tracked-but-ignored file, any repo/package
+      # root file off scripts/repo-hygiene/root-allowlist.json, and any
+      # script under a scripts/ dir that nothing references. ~2s.
+      - name: Repo hygiene
+        run: node scripts/repo-hygiene/check-repo-hygiene.cjs
+
+      # #1403: the code is the source of truth for the docs. Fails when a
+      # current doc names a path that does not exist, a package.json script
+      # that does not exist, a Node/Bun/pnpm version other than the pins, a
+      # workflow status set other than WORKFLOW_STATUSES, or when the backend
+      # starts reading an env var .env.example does not document (ratchet).
+      # docs/archive, docs/adr and docs/lessons are history and exempt. ~2s.
+      - name: Docs match the code
+        run: node scripts/docs/check-docs-drift.cjs
+
+      # The machine-checkable half of the "Documentation style" rules in
+      # .claude/CLAUDE.md: no emoji or emoji-style status marks, and no
+      # box-drawing diagrams (draw them in mermaid). Directory trees pass.
+      # docs/archive is history and exempt; literal UI/tool output is
+      # allow-listed per file, with a reason, in docs-style-ignore.json. ~1s.
+      - name: Docs follow the style rules
+        run: node scripts/docs/check-docs-style.cjs
+
+      # NOTE: #1410 — .github/quality-gates.json is the one definition of which
+      # checks gate a merge (branch protection is generated from it, and the
+      # auto-merge reads it). On 2026-10-16 main required four job names that no
+      # longer existed and every PR sat BLOCKED. Fails when a listed name is
+      # reported by no job, a required check is path-filtered/continue-on-error/
+      # if-gated, an advisory entry is past its review date, or a PR job is
+      # unclassified. ~1s.
+      - name: Quality gates match the workflows
+        run: node scripts/gates/quality-gates.cjs --check
 
       # rapitas-desktop/scripts/*.test.cjs ran in NO workflow until now
       # (#1074): dev.js's helpers had tests that nothing executed, so they
@@ -712,7 +750,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # The guard hooks run on Windows in practice (Git Bash / PowerShell
       # paths), so their tests run here too, not only on Linux (#1367).
@@ -721,12 +761,12 @@ jobs:
         run: node --test "scripts/**/*.test.cjs"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
 
       - name: Setup Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: './rapitas-desktop/src-tauri -> target'
 
@@ -777,18 +817,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.34.9
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.9
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.3.13'
 

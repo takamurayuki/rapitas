@@ -74,7 +74,11 @@ export async function runVerifyPostSaveAutomation(params: {
       taskId,
       fileType,
       newStatus: adversarial.newStatus,
-      verifyGateBlocked: adversarial.verifyGateBlocked,
+      // NOTE: A deferred eligibility decision (verifier model not reported yet)
+      // lets the jury run above but never commit/PR/complete here — the run's
+      // epilogue or the manual post-run settle decides once the model is known.
+      verifyGateBlocked:
+        adversarial.verifyGateBlocked || completionGate.completionDeferred === true,
       staleVerifyRequest: adversarial.staleVerifyRequest,
       isConflictResolutionTask,
       conflictTask,

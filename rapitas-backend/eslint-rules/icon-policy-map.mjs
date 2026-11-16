@@ -24,7 +24,6 @@ export const OWNED_ICONS = [
   {
     // Lightbulb = アイデア (idea box) のみの意味。/ideas/ 配下に加え、
     // 「同一概念の正当な再利用」site を明示的に許可する:
-    //   - IdeaBoxPanel: ホーム画面のアイデアボックス起動ウィジェット本体
     //   - memo-section: メモ種別「アイデア」バッジ（アイデアそのもの）
     //   - category/icons: ユーザーが自由選択するアイコンピッカー登録
     //     （キーワードに「アイデア/ひらめき」を含み同一概念）
@@ -34,7 +33,6 @@ export const OWNED_ICONS = [
     //   - quick-capture: グローバルショートカットのアイデア即時投入ポップアップ（アイデアそのもの）
     allowedPathPatterns: [
       '/ideas',
-      'IdeaBoxPanel',
       'memo-section',
       'category/icons',
       'header/header.tsx',

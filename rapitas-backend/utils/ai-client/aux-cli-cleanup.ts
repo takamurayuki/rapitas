@@ -75,3 +75,31 @@ export const auxCliCleanup = createAuxCliCleanup({
     }),
   untrack: unregisterProcess,
 });
+
+/**
+ * Track an aux CLI child in the shared process tracker (concern #1284), so the
+ * task-boundary restart's "0 live aux CLI children" gate also covers it.
+ *
+ * NOTE: Lives here (not in a new module) because this file already holds the
+ * baselined utils→services edge to the tracker; a new importer would add an
+ * import-graph violation. The Claude provider keeps its own copy.
+ *
+ * @param child - Spawned CLI process / 起動した CLI プロセス
+ * @returns Idempotent untrack callback / 冪等な登録解除関数
+ */
+export function trackAuxCliChild(child: Pick<ChildProcess, 'pid'>): () => void {
+  const pid = child.pid;
+  if (typeof pid !== 'number') return () => {};
+  registerProcess({
+    pid,
+    role: 'cli-agent',
+    startedAt: new Date().toISOString(),
+    parentPid: process.pid,
+  });
+  let untracked = false;
+  return () => {
+    if (untracked) return;
+    untracked = true;
+    unregisterProcess(pid);
+  };
+}

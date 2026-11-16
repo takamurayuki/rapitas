@@ -82,6 +82,12 @@ mock.module('./verify-settle-artifact-recovery', () => ({
   isAwaitingRequiredMerge: () => Promise.resolve(awaitingRequiredMerge),
 }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real check in the *.verifier-eligibility.test.ts files.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 // NOTE: required-merge-hold.ts and blocked-pr-retry-recovery.ts's own
 // canReviveBlockedPrRetry are loaded FOR REAL (not mocked) — that is the point.
 const { attemptPrOnlyRecovery, canReviveBlockedPrRetry } =

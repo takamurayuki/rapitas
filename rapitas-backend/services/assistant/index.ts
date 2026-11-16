@@ -125,6 +125,8 @@ export {
   revertTaskUpdate,
   TASK_UPDATE_STATUSES,
   TASK_UPDATE_PRIORITIES,
+  ASSISTANT_FORBIDDEN_STATUS,
+  DONE_NOT_ALLOWED,
   type TaskChanges,
   type FieldValues,
   type TaskUpdateDb,

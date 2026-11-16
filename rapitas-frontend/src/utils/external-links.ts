@@ -4,6 +4,7 @@
 import { openExternalUrlInSplitView } from '@/utils/tauri';
 import { canShowInLinkView, getLinkOpenMode } from '@/utils/link-view';
 import { openLinkInPane } from '@/stores/link-view-store';
+import { canOpenInBrowser } from '@/utils/browser-url-policy';
 
 /**
  * Determine if a URL is an external link
@@ -41,7 +42,9 @@ export function isExternalLink(href: string): boolean {
  * reaching the OS even with the pane turned on.
  */
 export function openExternalLink(href: string): void {
-  if (getLinkOpenMode() === 'internal' && canShowInLinkView(href)) {
+  // The app's own and the backend's origins never open in-app (nav60 §5.3);
+  // they still open — in the browser, like the external setting.
+  if (getLinkOpenMode() === 'internal' && canShowInLinkView(href) && canOpenInBrowser(href)) {
     openLinkInPane(href);
     return;
   }

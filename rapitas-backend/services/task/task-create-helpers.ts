@@ -6,6 +6,23 @@
  */
 import { PrismaClient, Prisma } from '../../generated/prisma-postgres';
 import { createLogger } from '../../config/logger';
+import { scopeFieldsForWrite } from './task-spec-requirements';
+
+/**
+ * 範囲外 and 成果物 for an insert, only when given: an insert that does not
+ * set them leaves the columns out, so it looks like every older task.
+ * userAcceptanceChecks is written by its own branch above.
+ */
+const createScope = (data: {
+  outOfScope?: string[];
+  startConditions?: string[];
+  deliverable?: string;
+}) => ({
+  ...(data.outOfScope && data.outOfScope.length > 0 && { outOfScope: data.outOfScope }),
+  ...(data.startConditions &&
+    data.startConditions.length > 0 && { startConditions: data.startConditions }),
+  ...(data.deliverable && { deliverable: data.deliverable }),
+});
 import { isApiRecoveryMode } from '../system/api-recovery-mode';
 import { getInsensitiveMode } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
@@ -13,10 +30,23 @@ import {
   analyzeTaskComplexityWithLearning,
   type TaskComplexityInput,
 } from '../workflow/complexity-analyzer';
+import { inheritWorkspace } from '../tenancy/parent-workspace';
 import { TASK_FULL_INCLUDE } from './task-mutations';
 import type { CreateTaskInput } from './task-mutations';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
+
+/**
+ * The one TaskCompanion call made here. Typed locally so this file does not
+ * depend on the generated client having been regenerated for the model yet.
+ */
+interface CompanionInsertClient {
+  taskCompanion: {
+    create(args: {
+      data: { taskId: number; origin: string; workspaceId?: number };
+    }): Promise<unknown>;
+  };
+}
 
 const logger = createLogger('task-create-helpers');
 
@@ -44,7 +74,7 @@ export async function createSubtask(
 ) {
   const parentTask = await prisma.task.findUnique({
     where: { id: parentId },
-    select: { id: true },
+    select: { id: true, workspaceId: true },
   });
 
   if (!parentTask) {
@@ -80,6 +110,13 @@ export async function createSubtask(
           ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
           ...(data.subject && { subject: data.subject }),
           parentId,
+          // NOTE: Copied from the parent explicitly — the workspace extension
+          // stamps a workspace only when the request carries one, so a
+          // sessionless request (the agent, a page without its cookie) used to
+          // leave the subtask NULL and invisible to the parent's signed-in
+          // owner. Inside a scoped request the extension overrides this with
+          // the same value, since the parent was found inside that scope.
+          ...inheritWorkspace(parentTask),
           ...(data.projectId && { projectId: data.projectId }),
           ...(data.milestoneId && { milestoneId: data.milestoneId }),
           ...(data.themeId !== undefined && { themeId: data.themeId }),
@@ -93,6 +130,7 @@ export async function createSubtask(
             data.acceptanceCriteria.length > 0 && {
               acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
             }),
+          ...scopeFieldsForWrite(createScope(data)),
         },
       });
 
@@ -126,32 +164,56 @@ export async function createParentTask(
   labelIds: number[] | undefined,
   data: Omit<CreateTaskInput, 'title' | 'parentId' | 'labelIds'>,
 ) {
-  const task = await prisma.task.create({
-    data: {
-      title,
-      ...(data.description && { description: data.description }),
-      status: data.status ?? 'todo',
-      priority: data.priority ?? 'medium',
-      ...(data.labels && { labels: data.labels }),
-      ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
-      ...(data.actualHours && { actualHours: data.actualHours }),
-      ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
-      ...(data.subject && { subject: data.subject }),
-      ...(data.projectId && { projectId: data.projectId }),
-      ...(data.milestoneId && { milestoneId: data.milestoneId }),
-      ...(data.themeId !== undefined && { themeId: data.themeId }),
-      ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
-      ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
-      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
-      ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
-      ...(data.constraints &&
-        data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
-      ...(data.acceptanceCriteria &&
-        data.acceptanceCriteria.length > 0 && {
-          acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
-        }),
-    },
-  });
+  const taskData = {
+    title,
+    ...(data.description && { description: data.description }),
+    status: data.status ?? 'todo',
+    priority: data.priority ?? 'medium',
+    ...(data.labels && { labels: data.labels }),
+    ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
+    ...(data.actualHours && { actualHours: data.actualHours }),
+    ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
+    ...(data.subject && { subject: data.subject }),
+    ...(data.projectId && { projectId: data.projectId }),
+    ...(data.milestoneId && { milestoneId: data.milestoneId }),
+    ...(data.themeId !== undefined && { themeId: data.themeId }),
+    ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
+    ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+    // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+    ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+    ...(data.constraints &&
+      data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+    ...(data.acceptanceCriteria &&
+      data.acceptanceCriteria.length > 0 && {
+        acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+      }),
+    // NOTE: Only when there are some, so every other caller's insert is
+    // unchanged and an older task simply has no value (no migration).
+    ...(data.userAcceptanceChecks &&
+      data.userAcceptanceChecks.length > 0 && {
+        userAcceptanceChecks: JSON.stringify(data.userAcceptanceChecks),
+      }),
+    ...scopeFieldsForWrite(createScope(data)), // 範囲外・成果物 (#1555)
+  };
+
+  const companion = data.companion;
+  const task = companion
+    ? // NOTE: One transaction holding exactly the two inserts, so a task ラピ
+      // accompanies never exists without its TaskCompanion row (design 4.3).
+      // Nothing else runs inside it — the global-client writes below
+      // (behaviour, complexity) stay outside, so SQLite's single writer is
+      // never waited on from within. The row is not a nested write because
+      // it has no foreign key to Task (it must outlive a deleted task, see
+      // task-deletion.ts), and an explicit insert is also what lets it carry
+      // the task's workspace: nested writes bypass the workspace extension.
+      await prisma.$transaction(async (tx) => {
+        const created = await tx.task.create({ data: taskData });
+        await (tx as unknown as CompanionInsertClient).taskCompanion.create({
+          data: { taskId: created.id, origin: companion.origin, ...inheritWorkspace(created) },
+        });
+        return created;
+      })
+    : await prisma.task.create({ data: taskData });
 
   if (labelIds && labelIds.length > 0) {
     await prisma.taskLabel.createMany({

@@ -15,7 +15,7 @@
  * import.
  */
 import { prisma } from '../../config/database';
-import { commitVerifyRepair } from './verify-repair-commit';
+import { commitVerifyRepair, type RepairRoute } from './verify-repair-commit';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import {
@@ -34,6 +34,7 @@ import {
 import { ensureRunnerResumes, resolveRepairCaller } from './verify-self-repair-resume';
 import { buildUnchangedUnresolvedDetail } from './verify-unresolved-issues';
 import { attemptInvariantCutoff, INVARIANT_NON_CONVERGENCE_CAUSE } from './verify-invariant-repair';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:verify-self-repair');
 
@@ -99,6 +100,7 @@ export async function resolveImplementEntryStatus(
  * @param currentStatus - The workflowStatus at the time verify.md was saved / 現在のstatus
  * @param reason - Validator failure summary / 失敗要約
  * @param verifyContent - The rejected verify.md body / 却下されたverify.md
+ * @param grounds - Diff-review findings and route, stored atomically with the bounce / 差し戻しと同時に保存する陪審の指摘と戻し先
  * @returns Whether the workflow was bounced and to which status / 戻したか・戻し先
  */
 export async function attemptVerifyRepair(
@@ -106,6 +108,7 @@ export async function attemptVerifyRepair(
   currentStatus: string | null,
   reason: string,
   verifyContent: string,
+  grounds?: { findings?: unknown[]; route?: RepairRoute },
 ): Promise<VerifyRepairResult> {
   const max = await resolveMaxRepairs();
   if (max === 0) return { bounced: false };
@@ -133,7 +136,7 @@ export async function attemptVerifyRepair(
   )
     return { bounced: false, stale: true };
   const evaluatedExecution = await prisma.agentExecution.findFirst({
-    where: { session: { config: { taskId } } },
+    where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { id: true },
   });
@@ -302,6 +305,10 @@ export async function attemptVerifyRepair(
     reason,
     verifyContent,
     caller,
+    // NOTE: routing2a-fix1 — the grounds must land in the same transaction as
+    // the bounce; see RepairAdmission.findings.
+    findings: grounds?.findings,
+    route: grounds?.route,
   });
   if (!committed.committed) {
     log.info({ taskId, reason: committed.reason }, '[verify-repair] Repair admission held');
@@ -364,6 +371,8 @@ export async function hasFreshVerifyRejection(
     VERIFY_NON_CONVERGENCE_CAUSE,
     INVARIANT_NON_CONVERGENCE_CAUSE,
     'verify_pr_not_created',
+    // A review hold owns the next step until a human resolves it.
+    'adversarial_review_awaiting_human',
   ];
   if (!rejectionCauses.includes(last.cause)) return false;
   return Date.now() - last.createdAt.getTime() <= windowMs;

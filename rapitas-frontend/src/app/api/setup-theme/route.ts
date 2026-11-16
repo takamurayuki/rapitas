@@ -82,6 +82,8 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: data.message || 'テーマの作成に失敗しました',
+          // Lets the wizard show a localized reason (e.g. category_required).
+          ...(typeof data.code === 'string' ? { code: data.code } : {}),
         },
         { status: response.status },
       );

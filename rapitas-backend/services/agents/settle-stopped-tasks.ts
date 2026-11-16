@@ -1,6 +1,7 @@
 /** Atomically settle only tasks whose latest execution was actually cancelled by this stop. */
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { withTaskLifecycleLock } from '../workflow/task-lifecycle-lock';
+import { NOT_REVIEW_COST_ROW } from './review-cost-rows';
 
 export async function settleStoppedTasks(
   db: PrismaClient,
@@ -24,7 +25,7 @@ export async function settleStoppedTasks(
           if (!task || task.status !== 'in-progress' || task.workflowStatus === 'completed')
             return false;
           const latest = await tx.agentExecution.findFirst({
-            where: { session: { config: { taskId } } },
+            where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
             orderBy: { id: 'desc' },
             select: { id: true, status: true },
           });

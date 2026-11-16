@@ -153,3 +153,53 @@ export async function countUnownedRows(): Promise<{
     return { totalUnowned: models.reduce((s, m) => s + m.claimed, 0), models };
   });
 }
+
+/** How deep a subtask chain the adoption follows before giving up. */
+const MAX_ADOPTION_PASSES = 10;
+
+export interface SubtaskAdoptionResult {
+  /** Subtasks that were given their parent's workspace. */
+  adopted: number;
+  /** Statements run; more than one means a chain deeper than one level. */
+  passes: number;
+}
+
+/**
+ * Give every unowned subtask its parent's workspace.
+ *
+ * Subtasks created by a sessionless request were left NULL under parents that
+ * belong to a workspace, which made them invisible — and un-updatable — for
+ * the parent's signed-in owner (tasks 1428/1480/1481, found 2026-11-04).
+ * claimUnownedRows cannot settle that: it hands EVERY unowned row of every
+ * model to one workspace, whereas a subtask's owner is not a choice — it is
+ * its parent's.
+ *
+ * Same guarantees as the claim: touches only rows whose workspaceId IS NULL,
+ * so it never moves data between workspaces and a re-run finds nothing; and
+ * raw SQL naming only `workspaceId`, so `@updatedAt` is left alone. A child
+ * whose parent is itself unowned is skipped — it has nothing to inherit.
+ * Each pass resolves one more level of a chain, so it repeats until a pass
+ * changes nothing.
+ *
+ * @param db - Raw executor, the real client by default / 生SQL実行器(既定は実クライアント)
+ * @returns How many subtasks were adopted / 引き取ったサブタスク数
+ */
+export async function adoptOrphanedSubtasks(
+  db: RawExecutor = prisma,
+): Promise<SubtaskAdoptionResult> {
+  const statement =
+    'UPDATE "Task" SET "workspaceId" = ' +
+    '(SELECT p."workspaceId" FROM "Task" AS p WHERE p."id" = "Task"."parentId") ' +
+    'WHERE "workspaceId" IS NULL AND "parentId" IS NOT NULL AND EXISTS ' +
+    '(SELECT 1 FROM "Task" AS p WHERE p."id" = "Task"."parentId" AND p."workspaceId" IS NOT NULL)';
+  let adopted = 0;
+  let passes = 0;
+  while (passes < MAX_ADOPTION_PASSES) {
+    const changed = await db.$executeRawUnsafe(statement);
+    passes += 1;
+    adopted += changed;
+    if (changed === 0) break;
+  }
+  log.info({ adopted, passes }, 'unowned subtasks adopted their parent workspace');
+  return { adopted, passes };
+}

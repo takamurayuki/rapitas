@@ -41,7 +41,7 @@ const NODE_MODULES_DIRS = [
   'rapitas-backend',
   'rapitas-frontend',
   'rapitas-desktop',
-  'rapitas-manager',
+  'rapitas-mobile',
 ];
 
 /**

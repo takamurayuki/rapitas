@@ -10,8 +10,25 @@ import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
 import type { BaseSatisfiedFinding } from './base-satisfied-plan-items';
 
 import type { UnknownReason } from './juror-unknown-reason';
+import type { AwaitingHuman, DisputeSummary, SeatRecord } from './jury-seat-types';
+import {
+  parseFindings,
+  findingsExceedLimit,
+  capFindingsForStorage,
+  formatFindingReason,
+  findingSeverityScore,
+  type ReviewFinding,
+} from './review-findings';
+
+export type { ReviewFinding, FindingSeverity } from './review-findings';
 
 export type ReviewVerdict = 'pass' | 'fail' | 'unknown';
+
+/**
+ * The panel-level outcome. `hold` = the review cannot settle it and a human
+ * must decide (review hold); jurors themselves never answer `hold`.
+ */
+export type PanelVerdict = ReviewVerdict | 'hold';
 
 /** One juror's independent verdict (provider = model family). */
 export interface JurorVerdict {
@@ -29,11 +46,34 @@ export interface JurorVerdict {
    * (measured 2026-10-24). See juror-unknown-reason.ts.
    */
   unknownReason?: UnknownReason;
+  /** Structured findings this juror reported (pass or fail). */
+  findings?: ReviewFinding[];
+  /** What this one call cost, when the provider reported it. */
+  usage?: JurorUsage;
+}
+
+/** Spend of one juror call (subscription CLI reports these in its JSON). */
+export interface JurorUsage {
+  costUsd?: number;
+  tokensUsed: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  /** Model the provider says actually answered. */
+  modelName?: string;
+  startedAt: Date;
+  durationMs: number;
 }
 
 export interface DiffReviewResult {
-  /** 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable. */
-  verdict: ReviewVerdict;
+  /**
+   * 'fail' = the diff does NOT satisfy the task; 'unknown' = jury unavailable
+   * (low risk, proceed); 'hold' = park for a human decision (see awaitingHuman).
+   * NOTE: A caller that only checks `=== 'fail'` would wave a 'hold' through —
+   * both production gates handle it explicitly.
+   */
+  verdict: PanelVerdict;
   /** 0-100; higher = more serious. Only meaningful for 'fail'. */
   severity: number;
   /** Short human-readable reasons (used as self-repair feedback). */
@@ -46,7 +86,30 @@ export interface DiffReviewResult {
   jurors?: JurorVerdict[];
   /** Fail reasons dropped because the item already exists on the base ref. */
   baseSatisfied?: BaseSatisfiedFinding[];
+  /**
+   * Every structured finding across the panel, kept on PASS too so minor
+   * findings are recorded instead of discarded. Each carries its juror.
+   */
+  findings?: ReviewFinding[];
+  /**
+   * Fingerprint of the exact diff the jury reviewed (review-diff-fingerprint).
+   * Lets a later gate tell whether this verdict is about the CURRENT diff.
+   */
+  diffFingerprint?: string | null;
+  /** 'two_seat' for the two-reviewer form; absent on older recorded reviews. */
+  form?: 'two_seat';
+  /** Every seat by role (reviewer-1, reviewer-2, and the verifier when asked). */
+  seats?: SeatRecord[];
+  /** The verifier step, when the reviewers disagreed. */
+  dispute?: DisputeSummary;
+  /** Present exactly when verdict is 'hold'. */
+  awaitingHuman?: AwaitingHuman;
+  /** The evidence-based risk decision, recorded when the jury was undecided. */
+  unavailableRisk?: { high: boolean; reason: string; source: string; files?: string[] };
 }
+
+/** One juror's parsed reply: a juror never answers 'hold'. */
+export type ParsedJurorReply = Omit<DiffReviewResult, 'verdict'> & { verdict: ReviewVerdict };
 
 /**
  * Whether a "fail" rests on nothing but notes the prompt told the juror must
@@ -74,8 +137,8 @@ export function isNonVerdictOnlyFail(verdict: ReviewVerdict, reasons: string[]):
  * @param text - The judge's raw reply. / ジャッジの応答
  * @returns Parsed verdict. / 解析結果
  */
-export function parseReviewVerdict(text: string | null | undefined): DiffReviewResult {
-  const fail = (verdict: ReviewVerdict, severity: number, reasons: string[]): DiffReviewResult => ({
+export function parseReviewVerdict(text: string | null | undefined): ParsedJurorReply {
+  const fail = (verdict: ReviewVerdict, severity: number, reasons: string[]): ParsedJurorReply => ({
     verdict,
     severity,
     reasons,
@@ -106,20 +169,45 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
       verdict?: string;
       severity?: number;
       reasons?: unknown;
+      findings?: unknown;
     };
     const v = (obj.verdict || '').toLowerCase();
     let verdict: ReviewVerdict = v === 'fail' ? 'fail' : v === 'pass' ? 'pass' : 'unknown';
-    const reasons = Array.isArray(obj.reasons)
+    let reasons = Array.isArray(obj.reasons)
       ? obj.reasons.filter((r): r is string => typeof r === 'string').slice(0, 10)
       : [];
+    // An over-limit list cannot be judged in full; partial judging could drop
+    // the deciding blocker, so the reply counts as unreadable, not as a vote.
+    if (findingsExceedLimit(obj.findings)) return fail('unknown', 0, []);
+    const findings = parseFindings(obj.findings);
+
+    if (findings && verdict !== 'unknown') {
+      // Severity gate: the verdict follows the findings, not the juror's own
+      // label. Only an EVIDENCED blocker/major can fail; minor findings and
+      // unevidenced ones (要確認) are recorded but never bounce the work.
+      const gating = findings.filter((f) => f.gating);
+      verdict = gating.length > 0 ? 'fail' : 'pass';
+      const severity =
+        verdict === 'fail'
+          ? typeof obj.severity === 'number'
+            ? Math.max(0, Math.min(100, obj.severity))
+            : Math.max(...gating.map((f) => findingSeverityScore(f.severity)))
+          : 0;
+      // On fail only the gating findings become repair feedback, so the
+      // implementer is not sent chasing minor notes.
+      reasons = (verdict === 'fail' ? gating : findings).map(formatFindingReason);
+      // The verdict above saw every finding; only what is kept is bounded.
+      return { ...fail(verdict, severity, reasons), findings: capFindingsForStorage(findings) };
+    }
+
     if (isNonVerdictOnlyFail(verdict, reasons)) verdict = 'pass';
-    const severity =
-      verdict === 'fail'
-        ? typeof obj.severity === 'number'
-          ? Math.max(0, Math.min(100, obj.severity))
-          : 80
-        : 0;
-    return fail(verdict, severity, reasons);
+    if (verdict === 'fail') {
+      // A fail in the old reasons-only shape carries no evidence to gate on.
+      // Treat it as an unreadable reply rather than a vote: the caller's risk
+      // gate then decides (low risk proceeds, high risk fails closed).
+      return fail('unknown', 0, reasons);
+    }
+    return fail(verdict, 0, reasons);
   } catch {
     return fail('unknown', 0, []);
   }
@@ -135,21 +223,32 @@ export function parseReviewVerdict(text: string | null | undefined): DiffReviewR
  * zero judged verdicts → unknown (availability handled by the caller's risk
  * gate). Severity = max among failing jurors; reasons = deduped union.
  *
+ * The severity gate is applied per juror BEFORE this vote (parseReviewVerdict):
+ * a "fail vote" already means "this juror cited an evidenced blocker/major".
+ * The majority / tie→fail rules are unchanged on top of that, so a tie can
+ * only fail when half the answering panel independently evidenced a serious
+ * defect — not on minor or ungrounded notes.
+ *
  * @param jurors - Individual verdicts. / 各ジャッジの判定
  * @returns Aggregated verdict. / 集計結果
  */
 export function aggregateJuryVerdicts(jurors: JurorVerdict[]): DiffReviewResult {
+  // Findings from every juror, pass or fail — recorded even when they do not
+  // decide the vote (minor → 記録のみで完了).
+  const findings = jurors.flatMap((j) =>
+    (j.findings ?? []).map((f) => ({ ...f, juror: j.model ?? j.provider })),
+  );
   const judged = jurors.filter((j) => j.verdict !== 'unknown');
   if (judged.length === 0) {
-    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors };
+    return { verdict: 'unknown', severity: 0, reasons: [], judged: false, jurors, findings };
   }
   const fails = judged.filter((j) => j.verdict === 'fail');
   const passes = judged.filter((j) => j.verdict === 'pass');
   const verdict: ReviewVerdict = fails.length >= passes.length ? 'fail' : 'pass';
   if (verdict === 'pass') {
-    return { verdict, severity: 0, reasons: [], judged: true, jurors };
+    return { verdict, severity: 0, reasons: [], judged: true, jurors, findings };
   }
   const severity = Math.max(0, ...fails.map((j) => j.severity));
   const reasons = [...new Set(fails.flatMap((j) => j.reasons))].slice(0, 8);
-  return { verdict, severity, reasons, judged: true, jurors };
+  return { verdict, severity, reasons, judged: true, jurors, findings };
 }

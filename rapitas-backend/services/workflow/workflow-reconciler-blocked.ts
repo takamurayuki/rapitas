@@ -20,13 +20,10 @@
  *      can sit silently blocked past its first notification).
  * Not responsible for scheduling — called only from workflow-reconciler.
  */
-import { existsSync } from 'node:fs';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
-import { ACTIVE_EXEC } from './workflow-reconciler-requeue';
 import {
-  BLOCKED_RETRY_SETTLE_MS,
   classifyBlockedExclusion,
   EXPLICIT_RESUME_CAUSES,
   HUMAN_ADVANCED_WORKFLOW_STATUSES,
@@ -36,149 +33,22 @@ import {
   MANUAL_CORRECTION_PENDING_CAUSE,
 } from './blocked-task-policy';
 import { resolveBlockedTaskEvidence } from './blocked-task-evidence';
-import { resolveAutomationPolicy } from './automation-policy';
 import { loadResumeReleases } from './resume-condition';
 import { escalateBlockedTask, reescalateIfOverdue } from './blocked-task-escalation';
+import {
+  findBlockedCandidates,
+  hasLiveExecution,
+  resolveCwdForTask,
+} from './workflow-reconciler-blocked-candidates';
 
 const log = createLogger('workflow-reconciler');
 
-/** Transition cause for an evidence-based done correction. */
-export const BLOCKED_EVIDENCE_DONE_CAUSE = 'blocked_evidence_done';
-
-/** True when the task still has a live agent execution (requeue-consistent). */
-async function hasLiveExecution(taskId: number): Promise<boolean> {
-  const live = await prisma.agentExecution
-    .findFirst({
-      where: { session: { config: { taskId } }, status: { in: ACTIVE_EXEC } },
-      select: { id: true },
-    })
-    .catch(() => null);
-  return !!live;
-}
-
-/** One blocked-task candidate row, shared by both correction and escalation passes. */
-interface BlockedCandidate {
-  id: number;
-  title: string;
-  themeId: number | null;
-  workflowStatus: string | null;
-  completedAt: Date | null;
-  updatedAt: Date;
-  workingDirectory: string | null;
-  theme: { workingDirectory: string | null } | null;
-}
-
-/**
- * Resolve a repo working directory for a `gh` live re-verification call —
- * mirrors auto-merge-candidates.ts's own cwd fallback order (task worktree,
- * then theme's stable checkout, then this process's own cwd) so
- * {@link resolveBlockedTaskEvidence}'s live check and the AutoMergeWatcher
- * never disagree about which directory to run `gh` from.
- *
- * @param t - Candidate row with the two directory hints. / cwd 候補を持つ行
- * @returns The first directory that exists on disk, or undefined if none does. / 実在する最初のディレクトリ
- */
-function resolveCwdForTask(
-  t: Pick<BlockedCandidate, 'workingDirectory' | 'theme'>,
-): string | undefined {
-  return [t.workingDirectory, t.theme?.workingDirectory, process.cwd()].find(
-    (d): d is string => !!d && existsSync(d),
-  );
-}
-
-/** Blocked candidates for both passes: armed themes, settle elapsed, NO upper age bound. */
-async function findBlockedCandidates(nowMs: number): Promise<BlockedCandidate[]> {
-  // Respect user stops: only heal blocked tasks in themes that are still armed.
-  const armed = await prisma.themeAutoRun
-    .findMany({ where: { enabled: true, status: 'running' }, select: { themeId: true } })
-    .catch(() => [] as { themeId: number }[]);
-  const armedThemeIds = armed.map((a) => a.themeId);
-  if (armedThemeIds.length === 0) return [];
-
-  // Unlike the retry query there is deliberately NO `gt: notOlderThan` bound:
-  // an old blocked task must stay visible to correction/escalation forever —
-  // aging out of the query was exactly the abandonment being fixed (task 615).
-  const settleBefore = new Date(nowMs - BLOCKED_RETRY_SETTLE_MS);
-  return prisma.task
-    .findMany({
-      where: {
-        status: 'blocked',
-        parentId: null,
-        themeId: { in: armedThemeIds },
-        updatedAt: { lt: settleBefore },
-      },
-      select: {
-        id: true,
-        title: true,
-        themeId: true,
-        workflowStatus: true,
-        completedAt: true,
-        updatedAt: true,
-        workingDirectory: true,
-        theme: { select: { workingDirectory: true } },
-      },
-    })
-    .catch(() => [] as BlockedCandidate[]);
-}
-
-/**
- * Correct blocked tasks with decisive success evidence to done — the machine
- * version of what the operator did by hand for 6 tasks on 2026-08-16: check
- * the PR, and when the work provably landed, finalize instead of re-running
- * (a blind retry would open a duplicate PR; not retrying would discard a
- * finished implementation).
- *
- * Includes `awaiting_question` tasks ON PURPOSE: correction is NOT a blind
- * retry — it never resets workflowStatus to draft and never touches the
- * pending question, it only finalizes status directly (observed: #578→PR376 /
- * #576→PR381 were awaiting_question AND already succeeded). Ambiguous
- * evidence corrects nothing (fail-closed).
- *
- * @param nowMs - Current time (ms). / 現在時刻
- * @returns Number of tasks corrected to done. / 是正件数
- */
-export async function correctBlockedByEvidence(nowMs: number): Promise<number> {
-  const tasks = await findBlockedCandidates(nowMs);
-  let corrected = 0;
-  for (const t of tasks) {
-    // A live agent means it's not really stuck — skip.
-    if (await hasLiveExecution(t.id)) continue;
-
-    const evidence = await resolveBlockedTaskEvidence(prisma, t.id, resolveCwdForTask(t));
-    if (!evidence.isSuccess) continue;
-
-    // Local PR rows cannot prove a required remote merge. The authoritative
-    // merge watcher owns that completion; an unreadable policy also withholds it.
-    const policy = await resolveAutomationPolicy(prisma, t.id).catch(() => null);
-    if (!policy || policy.autoMergePR) continue;
-
-    await prisma.task
-      .update({
-        where: { id: t.id },
-        data: {
-          status: 'done',
-          workflowStatus: 'completed',
-          completedAt: t.completedAt ?? new Date(),
-          updatedAt: new Date(),
-        },
-      })
-      .catch(() => {});
-    await recordTransition({
-      taskId: t.id,
-      fromStatus: t.workflowStatus,
-      toStatus: 'completed',
-      actor: 'system',
-      cause: BLOCKED_EVIDENCE_DONE_CAUSE,
-      metadata: { source: evidence.source, prState: evidence.prState ?? null },
-    }).catch(() => {});
-    corrected++;
-    log.info(
-      { taskId: t.id, source: evidence.source, prState: evidence.prState },
-      '[reconciler] Corrected blocked task with success evidence -> done (no re-run)',
-    );
-  }
-  return corrected;
-}
+// NOTE: Pass 1 and the shared candidate helpers live in their own modules
+// (file-size split); re-exported so existing imports keep working.
+export {
+  BLOCKED_EVIDENCE_DONE_CAUSE,
+  correctBlockedByEvidence,
+} from './workflow-reconciler-blocked-evidence';
 
 /** Transition cause recorded when {@link healBlockedStatusDesync} restores `status`. */
 export const STATUS_DESYNC_HEALED_CAUSE = 'status_desync_healed';

@@ -53,8 +53,16 @@ const PLAN = {
   themeChoice: { kind: 'new' as const, name: '英語学習', reason: '既存に無い' },
   projectChoice: { kind: 'existing' as const, id: 7, name: '自己開発' },
   steps: [
-    { title: '教材を1つ選ぶ', description: 'エピソード30本以上' },
-    { title: '時間帯を決める', description: '毎日取れる枠を1つ' },
+    {
+      title: '教材を1つ選ぶ',
+      description: 'エピソード30本以上',
+      acceptanceCriteria: ['教材が1つ決まっている'],
+    },
+    {
+      title: '時間帯を決める',
+      description: '毎日取れる枠を1つ',
+      acceptanceCriteria: ['毎日の枠が決まっている'],
+    },
   ],
 };
 

@@ -37,6 +37,7 @@ import {
 } from './workflow-reconciler-requeue';
 import { flagOrphanTasks } from './workflow-reconciler-orphan-flag';
 import { clearStaleHalts } from './workflow-reconciler-stale-halt';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 export { STALE_TASK_MS } from './workflow-reconciler-requeue';
 
@@ -103,7 +104,12 @@ async function healZombieSessions(nowMs: number): Promise<number> {
         id: true,
         lastActivityAt: true,
         config: { select: { taskId: true } },
-        agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1, select: { status: true } },
+        agentExecutions: {
+          where: NOT_REVIEW_COST_ROW,
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { status: true },
+        },
       },
     })
     .catch(() => []);

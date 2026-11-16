@@ -7,7 +7,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  X,
   Check,
   Coffee,
   Target,
@@ -235,14 +234,9 @@ export default function FocusClient() {
           : 'bg-linear-to-br from-emerald-950 via-slate-900 to-teal-950'
       }`}
     >
-      <div className="flex items-center justify-between p-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-        >
-          <X className="w-6 h-6" />
-        </button>
-
+      {/* NOTE: The top-left ✕ (router.back) was removed — the app header is
+          shown on /focus and its back button does the same. */}
+      <div className="flex items-center justify-end p-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}

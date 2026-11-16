@@ -57,12 +57,15 @@ describe('parseReviewVerdict — 非決定的 fail の降格', () => {
     expect(r.judged).toBe(true);
   });
 
-  test('決定的な理由を含む fail は従来どおり', () => {
+  test('決定的な理由を含む fail でも findings（根拠）が無ければ判定に使わない', () => {
+    // NOTE: Before structured findings this stayed 'fail'. A reasons-only fail
+    // carries no evidence, so it is now an unreadable reply ('unknown') and the
+    // caller's risk gate decides — see the findings tests below.
     const r = parseReviewVerdict(
       '{"verdict":"fail","severity":70,"reasons":["受入基準2: 実装が差分に無い","要確認: x"]}',
     );
-    expect(r.verdict).toBe('fail');
-    expect(r.severity).toBe(70);
+    expect(r.verdict).toBe('unknown');
+    expect(r.judged).toBe(false);
   });
 
   test('降格した juror は多数決で pass 側に数えられる', () => {
@@ -91,5 +94,28 @@ describe('buildDiffReviewPrompt — 差分で判定できない基準の管轄�
     expect(p).toContain(
       'すべての reasons が「要確認:」「管轄外:」だけになるなら verdict は "pass"',
     );
+  });
+});
+
+describe('buildDiffReviewPrompt — 実測の入力と根拠必須の出力（段階1）', () => {
+  const base = { taskTitle: 't', planContent: '', acceptanceCriteria: ['a'], diffText: '+x' };
+
+  test('推測での fail 禁止は維持しつつ、実測と自己申告の矛盾だけは指摘してよいと明記する', () => {
+    const p = buildDiffReviewPrompt(base);
+    expect(p).toContain('機械検出可能な欠陥の「推測」は管轄外');
+    expect(p).toContain('実測との矛盾は指摘してよい');
+    expect(p).toContain('verify.md の自己申告が成功を主張している場合');
+  });
+
+  test('実測データが無いときはその旨を書き、推測の材料にさせない', () => {
+    expect(buildDiffReviewPrompt(base)).toContain('(実測データなし');
+  });
+
+  test('findings に重大度と evidence（必須）を求め、verdict を findings に一致させる', () => {
+    const p = buildDiffReviewPrompt(base);
+    expect(p).toContain('"findings"');
+    expect(p).toContain('"blocker"|"major"|"minor"');
+    expect(p).toContain('evidence は必須');
+    expect(p).toContain('evidence 付きの blocker か major が1件でもあれば "fail"');
   });
 });

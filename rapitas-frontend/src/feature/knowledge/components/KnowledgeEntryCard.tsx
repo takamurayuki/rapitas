@@ -101,12 +101,13 @@ export function KnowledgeEntryCard({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-2">
+      {/* Wraps: long tags such as file paths ran off a phone screen. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {t(`sourceTypes.${entry.sourceType}`)}
         </span>
         {stringTags.length > 0 && (
-          <div className="flex gap-1">
+          <div className="flex min-w-0 flex-wrap gap-1 [&>span]:break-all">
             {stringTags.slice(0, 3).map((tag) => (
               <span
                 key={tag}

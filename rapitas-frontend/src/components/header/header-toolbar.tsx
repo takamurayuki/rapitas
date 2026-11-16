@@ -4,45 +4,34 @@
  *
  * Right-side toolbar in the main header bar.
  * Contains: list/kanban view toggle, language switcher, notification bell,
- * user menu, and the "more" (⋮) dropdown menu.
+ * the in-app browser entry, and the "more" (⋮) dropdown menu.
  */
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Columns3,
   List,
   EllipsisVertical,
+  Languages,
   Moon,
   Sun,
-  Settings,
   SquareArrowDown,
   RotateCw,
-  User,
-  UserPen,
-  LogIn,
-  LogOut,
-  UserPlus,
+  Compass,
 } from 'lucide-react';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import NotificationBell from '@/components/NotificationBell';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useLocaleStore } from '@/stores/locale-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import { Spinner } from '@/components/ui/spinner';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import type { UseHeaderReturn } from './useHeader';
 
 type HeaderToolbarProps = Pick<
   UseHeaderReturn,
-  | 'hasMounted'
-  | 'isAuthLoading'
-  | 'isAuthenticated'
-  | 'user'
-  | 'isUserMenuOpen'
-  | 'setIsUserMenuOpen'
-  | 'userMenuRef'
-  | 'handleLogout'
   | 'isMoreMenuOpen'
   | 'setIsMoreMenuOpen'
   | 'moreMenuRef'
@@ -52,21 +41,16 @@ type HeaderToolbarProps = Pick<
   | 'isTauriEnv'
   | 'isRestarting'
   | 'handleRestartClick'
->;
+> & {
+  /** Extra classes for the toolbar root (e.g. layout tweaks from the header). / ルート要素への追加クラス */
+  className?: string;
+};
 
 /**
  * Toolbar displayed on the right side of the header bar.
- * Handles view toggle (list/kanban), user menu, and the more-actions dropdown.
+ * Handles view toggle (list/kanban), the browser entry, and the more-actions dropdown.
  */
 export function HeaderToolbar({
-  hasMounted,
-  isAuthLoading,
-  isAuthenticated,
-  user,
-  isUserMenuOpen,
-  setIsUserMenuOpen,
-  userMenuRef,
-  handleLogout,
   isMoreMenuOpen,
   setIsMoreMenuOpen,
   moreMenuRef,
@@ -76,6 +60,7 @@ export function HeaderToolbar({
   isTauriEnv,
   isRestarting,
   handleRestartClick,
+  className,
 }: HeaderToolbarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -83,8 +68,12 @@ export function HeaderToolbar({
   // True while the task detail is shown in the right slide panel (path stays on
   // the list/kanban route, so the pathname check alone can't detect it).
   const isTaskDetailVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
+  const { locale, setLocale } = useLocaleStore();
 
   const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
+  const isBrowserScreen = pathname === '/browser';
+  // The ⋮ menu drops over the in-app browser's webview area.
+  useOccludesWebview(isMoreMenuOpen);
 
   const toggleView = () => {
     if (isListView) {
@@ -95,39 +84,65 @@ export function HeaderToolbar({
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className={`flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3${className ? ` ${className}` : ''}`}
+    >
       {/* Hide the header pomodoro whenever a task detail is open — full-page
           (/tasks/...) or the slide panel — to avoid duplicating its controls. */}
       {!pathname?.startsWith('/tasks/') && !isTaskDetailVisible && <GlobalPomodoroWidget />}
 
       {(pathname === '/' || pathname === '/kanban') && (
-        <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+        <>
+          {/* NOTE: Below md the two-segment toggle is one button that switches
+              to the other view (its icon and label name where it goes). The
+              segment pair is 76px, and 390–767px widths need that room for the
+              search field now that back/forward and the Web wordmark share
+              the left block. */}
           <button
-            onClick={() => isListView || toggleView()}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              isListView
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
-            }`}
+            onClick={toggleView}
+            aria-label={isListView ? t('kanban') : t('list')}
+            title={isListView ? t('kanban') : t('list')}
+            data-testid="view-toggle-compact"
+            className="md:hidden p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            <List className="w-4 h-4" />
-            <span>{t('list')}</span>
+            {isListView ? <Columns3 className="w-5 h-5" /> : <List className="w-5 h-5" />}
           </button>
-          <button
-            onClick={() => !isListView || toggleView()}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-              !isListView
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
-            }`}
-          >
-            <Columns3 className="w-4 h-4" />
-            <span>{t('kanban')}</span>
-          </button>
-        </div>
+          <div className="hidden md:flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+            {/* Labels hide below lg (with the header's back/forward pair they
+                left no room for the search at 640–1023px); aria-label keeps
+                the icon-only buttons named. */}
+            <button
+              onClick={() => isListView || toggleView()}
+              aria-label={t('list')}
+              className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                isListView
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden lg:inline">{t('list')}</span>
+            </button>
+            <button
+              onClick={() => !isListView || toggleView()}
+              aria-label={t('kanban')}
+              className={`flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                !isListView
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
+              }`}
+            >
+              <Columns3 className="w-4 h-4" />
+              <span className="hidden lg:inline">{t('kanban')}</span>
+            </button>
+          </div>
+        </>
       )}
 
-      <LanguageSwitcher />
+      {/* Language and theme move into the more menu below sm. */}
+      <div className="hidden sm:flex">
+        <LanguageSwitcher />
+      </div>
 
       <NotificationBell />
 
@@ -137,7 +152,7 @@ export function HeaderToolbar({
         aria-checked={darkModeMounted ? isDarkMode : false}
         aria-label={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
         title={darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}
-        className="relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-full bg-zinc-100 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:bg-zinc-800"
+        className="relative hidden sm:inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-full bg-zinc-100 transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 dark:bg-zinc-800"
       >
         <span
           className={`pointer-events-none inline-flex h-[18px] w-[18px] items-center justify-center rounded-full shadow-sm transition-transform duration-200 ease-in-out ${
@@ -159,90 +174,33 @@ export function HeaderToolbar({
         </span>
       </button>
 
-      {/* Sign-in is reachable again. It was hidden because an account bought
-          nothing on a local single-user app; workspace tenancy changed that —
-          an account now decides WHICH data you see, so a second one is how you
-          try something without it landing in the real pile. Signing in stays
-          optional: no session means no workspace, which is served unscoped
-          exactly as before.
-
-          The button itself is no longer gated on a session, though. It is
-          the way to the profile ラピ plans against, and since nothing can
-          sign in, gating it meant the icon never appeared at all — the
-          feature was unreachable (reported 2026-10-22). What the session
-          gates is the account rows inside: a blank name and a logout that
-          logs nothing out are worse than not offering them. */}
-      {hasMounted && !isAuthLoading && (
-        <div className="relative" ref={userMenuRef}>
-          <button
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label={t('userMenu')}
-            title={user ? t('userMenuTitle', { username: user.username }) : t('userMenu')}
-          >
-            <User className="w-5 h-5" />
-          </button>
-          {isUserMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-              {user && (
-                <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                    {user.username}
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-                    {user.role === 'admin' ? t('admin') : t('user')}
-                  </p>
-                </div>
-              )}
-              {/* Personal settings: what ラピ is told about you. It lives in
-                  this menu because it is the account's own data, and it is
-                  the point of the menu when nobody is signed in. */}
-              <Link
-                href="/settings/personal"
-                onClick={() => setIsUserMenuOpen(false)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-              >
-                <UserPen className="w-4 h-4" />
-                <span>{t('rapiProfileLink')}</span>
-              </Link>
-              {user ? (
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>{t('logout')}</span>
-                </button>
-              ) : (
-                <>
-                  <Link
-                    href="/auth/login"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>{t('login')}</span>
-                  </Link>
-                  <Link
-                    href="/auth/register"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>{t('register')}</span>
-                  </Link>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {/* NOTE: The user menu that sat here moved to the side nav's account
+          row (side-nav-account-menu.tsx); its slot now opens the in-app
+          browser. Shown regardless of auth state, unlike the old button —
+          browsing needs no session. Pushing /browser while already on it
+          would stack a duplicate entry in the app history, so it no-ops. */}
+      <button
+        type="button"
+        onClick={() => {
+          if (!isBrowserScreen) router.push('/browser');
+        }}
+        aria-label={t('openBrowser')}
+        title={t('openBrowser')}
+        aria-current={isBrowserScreen ? 'page' : undefined}
+        data-testid="header-browser-button"
+        className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
+          isBrowserScreen
+            ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+        }`}
+      >
+        <Compass className="w-5 h-5" />
+      </button>
 
       <div className="relative" ref={moreMenuRef}>
         <button
           onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-          className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1.5 sm:p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           aria-label={t('moreMenu')}
           title={t('moreMenu')}
         >
@@ -250,14 +208,36 @@ export function HeaderToolbar({
         </button>
         {isMoreMenuOpen && (
           <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-            <Link
-              href="/settings/general"
-              onClick={() => setIsMoreMenuOpen(false)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            {/* NOTE: The "App settings" item was removed — settings open from
+                the gear in the side-nav footer. */}
+            {/* Stand-ins for the toolbar switches hidden below sm. */}
+            <button
+              role="menuitem"
+              onClick={() => {
+                toggleTheme();
+                setIsMoreMenuOpen(false);
+              }}
+              className="sm:hidden w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
             >
-              <Settings className="w-4 h-4" />
-              <span>{t('generalSettings')}</span>
-            </Link>
+              {darkModeMounted && isDarkMode ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+              <span>{darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}</span>
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                setLocale(locale === 'ja' ? 'en' : 'ja');
+                setIsMoreMenuOpen(false);
+              }}
+              className="sm:hidden w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Languages className="w-4 h-4" />
+              {/* Language names are written in their own language, never translated. */}
+              <span>{locale === 'ja' ? 'English' : '日本語'}</span>
+            </button>
             {isTauriEnv && (
               <button
                 onClick={() => {

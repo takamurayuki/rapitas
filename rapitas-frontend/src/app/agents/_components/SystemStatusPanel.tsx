@@ -44,7 +44,7 @@ interface HealthSnapshot {
 type PillStatus = 'healthy' | 'busy' | 'shutting_down' | 'interrupted' | 'unhealthy' | 'unknown';
 
 // Icon/color choices are recorded in .claude/ICON_POLICY.md §3 — Server ties
-// this pill to the same "backend server" meaning BackendConnectionError uses.
+// this pill to the "backend server" meaning.
 const PILL_STYLES: Record<PillStatus, string> = {
   healthy:
     'bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-600',

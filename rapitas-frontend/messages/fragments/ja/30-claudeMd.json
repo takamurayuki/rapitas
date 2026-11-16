@@ -336,6 +336,7 @@
     "themeCreated": "テーマが作成されました",
     "themeCreatedDescription": "Gitリポジトリが初期化され、要件・設計書（docs/）とエージェント指示書がコミットされました。",
     "themeCreateError": "テーマの作成に失敗しました",
+    "themeCategoryRequired": "開発モードのカテゴリがありません。カテゴリを選んでから作成してください",
     "createAnother": "別のテーマを作成",
     "proposalGenerateFailed": "プロポーザル生成に失敗しました",
     "claudeMdGenerateFailed": "CLAUDE.md生成に失敗しました",

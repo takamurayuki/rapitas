@@ -14,6 +14,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { nextTabMeta, type LinkPageChange } from '@/components/link-view/link-tab-meta';
+import { canOpenInBrowser } from '@/utils/browser-url-policy';
 
 /**
  * The pane's width, in vw. AppContent reserves exactly this much on the
@@ -138,6 +139,9 @@ export const useLinkViewStore = create<LinkViewState>()(
 
       openLink: (url) =>
         set((state) => {
+          // NOTE: The app's own and the backend's origins never become a tab
+          // (nav60 §5.3); callers that need to tell the user check first.
+          if (!canOpenInBrowser(url)) return state;
           // Re-opening a link that is already here focuses it rather than
           // stacking a second copy of the same page. Opening anything also
           // shows the pane, so a click still works while it is hidden.
@@ -190,9 +194,15 @@ export const useLinkViewStore = create<LinkViewState>()(
       // The title belongs to the page being left, so it goes with it; the
       // webview reports the new one a moment later.
       setTabUrl: (id, url) =>
-        set((state) => ({
-          tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, url, title: undefined } : tab)),
-        })),
+        set((state) =>
+          canOpenInBrowser(url)
+            ? {
+                tabs: state.tabs.map((tab) =>
+                  tab.id === id ? { ...tab, url, title: undefined } : tab,
+                ),
+              }
+            : state,
+        ),
 
       applyPageChange: (id, change) =>
         set((state) => ({

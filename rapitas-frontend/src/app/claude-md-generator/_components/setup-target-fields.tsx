@@ -21,7 +21,7 @@ interface Category {
 }
 
 interface SetupTargetFieldsProps {
-  /** Chosen category id; null means let the backend fall back to 開発. / 未選択はnull */
+  /** Chosen category id; null lets the backend pick a development-mode fallback. / 未選択はnull */
   categoryId: number | null;
   onSetCategoryId: (id: number | null) => void;
   /** Parent directory for the project folder; empty means ~/Projects. / 空で ~/Projects */

@@ -128,3 +128,29 @@ describe('a day with something due', () => {
     expect(bar(container)).not.toBeNull();
   });
 });
+
+describe('the card itself', () => {
+  // Squeezing the card to the buttons' 38px (#1537) was undone at the user's
+  // request: the card keeps its size, and the page's spacing makes room (#1539).
+  it('keeps its own padding, not squeezed to the buttons’ height', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 33 });
+    const card = container.querySelector('[data-today-progress-card]');
+    expect(card?.className).toContain('py-2.5');
+    expect(card?.className).not.toContain('h-[38px]');
+  });
+
+  it('keeps the label above the bar', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 33 });
+    const labelRow = screen.getByText('todayDueTask').parentElement?.parentElement;
+    expect(labelRow?.contains(bar(container))).toBe(false);
+    expect(labelRow?.nextElementSibling).toBe(bar(container));
+  });
+
+  // The knob is drawn with an inline colour; a literal there stays the old
+  // bright green whatever the palette says.
+  it('draws the finished knob in the palette’s green, not a literal', () => {
+    const { container } = renderBar({ totalCount: 3, efficiency: 100 });
+    const knob = container.querySelector('[data-today-progress-knob]') as HTMLElement;
+    expect(knob.getAttribute('style')).toContain('var(--color-green-500)');
+  });
+});

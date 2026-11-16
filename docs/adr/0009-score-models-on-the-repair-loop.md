@@ -113,3 +113,37 @@ this is an additional axis rather than a correction of their arithmetic.
 - **Count `phase_failed:*` transitions.** Rarer than bounces and dominated by
   infrastructure causes (timeouts, slot exhaustion), so it measures the host
   more than the model.
+
+## Addendum (2026-11-10): premium suppression suspended; bounces count as retries
+
+`resolvePremiumAdvantage` fed `computeMinTierWithReason`'s premium
+suppression: when it returned `justified: false`, every premium floor (risk
+and retry alike) was capped at standard. Its primary source settles a
+`model_tier` decision on `AgentExecution.status === 'completed'` — the
+process-exit axis this ADR found to carry no information — and the
+consistency checker counts a failed decision as "consistent" whenever its
+reason text mentions risk, so the verdict depends on wording rather than on
+outcomes. The suppression is therefore **suspended**
+(`services/workflow/routing-policy.ts`): the verdict is still computed and
+reported, a route it would have capped carries
+`(premium抑制は暫定停止中のため適用せず)` in `minTierReason` (and so in the
+SmartRouter decision trace), and `routeModelForRole` records
+`premiumSuppression: 'suspended'` / `premiumSuppressionWouldApply`.
+
+Re-introduce it only when **both** hold:
+
+1. the evidence is stratified by **role × tier × complexity-score band**, so
+   premium's hard-task selection bias (it is chosen on retries, risk and
+   scores ≥ 86) is not compared against standard's easy tasks; and
+2. the axis is **outcome-based** — the bounce-inclusive first-pass /
+   convergence measure this ADR defines — not process exit and not
+   reason-text consistency.
+
+In the same change, a repair bounce now counts as a retry for routing when it
+is a **verified capability gap** (`services/workflow/repair-cause.ts`,
+`repair-escalation.ts`). The repair loop never bumped the queue's
+`retryCount`, so a bounced implementer re-ran on the same floor and pin.
+Bounces are classified at read time from the existing `verify_repair` reason
+and the paired `adversarial_review_failed` findings: infrastructure failures,
+requirement defects and findings without grounds (no evidence, non-gating, or
+refuted/undetermined by the verifier seat) do not escalate.

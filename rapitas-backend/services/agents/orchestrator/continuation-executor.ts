@@ -344,7 +344,9 @@ export async function executeContinuationInternal(
     // the agent asked ANOTHER question — the workflow is still paused, not
     // finished.
     if (!result.waitingForInput) {
-      await applyTaskStatusFromWorkflow(ctx.prisma, taskId, '[ContinuationExecutor]');
+      await applyTaskStatusFromWorkflow(ctx.prisma, taskId, '[ContinuationExecutor]', {
+        sessionMode: execution.session.mode,
+      });
     }
 
     return result;

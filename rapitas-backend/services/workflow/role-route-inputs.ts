@@ -14,6 +14,9 @@
  */
 import { createLogger } from '../../config/logger';
 import { readWorkflowFile } from './workflow-file-utils';
+import type { Provider } from '../ai/model-discovery/types';
+import type { RouteShortfall } from '../ai/route-shortfall';
+import { raiseFloorToExecutor, REVIEW_ROLES } from './review-floor';
 
 const log = createLogger('role-route-inputs');
 
@@ -31,7 +34,23 @@ export interface RoleRouteResult {
   modelId: string;
   /** Structured log/audit payload describing how it was chosen. */
   details: Record<string, unknown>;
+  /**
+   * Set when the chosen model misses the route's requirement (floor, role
+   * suitability, no candidates, excluded provider). The phase may still run —
+   * that is the caller's decision — but a review role's verdict on such a
+   * model is not accepted as a verification (verifier-eligibility.ts).
+   */
+  constraintShortfall?: RouteShortfall;
+  /** True when routing itself failed and `modelId` is the bare fallback alias. */
+  routingFailed?: boolean;
 }
+
+/**
+ * Roles whose floor counts verified capability bounces as retries. A bounce
+ * rejects the implementer's diff; review roles follow it up through
+ * raiseFloorToExecutor rather than escalating on their own.
+ */
+const REPAIR_ESCALATED_ROLES = new Set(['implementer']);
 
 /** Roles whose routing also inspects plan.md for risky planned file paths. */
 const PLAN_AWARE_ROLES = new Set(['implementer', 'verifier', 'auto_verifier']);
@@ -67,6 +86,12 @@ export async function routeModelForRole(opts: {
   taskId: number;
   role: string;
   task: RoleRouteTask;
+  /**
+   * Providers to keep out of this route on top of the role's own preferences —
+   * the provider-failure fallback passes the provider that just failed, so the
+   * re-route keeps every floor and cap of a normal run.
+   */
+  excludeProviders?: Provider[];
 }): Promise<RoleRouteResult> {
   const { taskId, role, task } = opts;
   try {
@@ -93,7 +118,19 @@ export async function routeModelForRole(opts: {
       import('./role-evidence'),
     ]);
 
-    const prefs = await resolveRoleProviderPreferences(role, taskId);
+    const rolePrefs = await resolveRoleProviderPreferences(role, taskId);
+    const prefs = opts.excludeProviders?.length
+      ? {
+          ...rolePrefs,
+          excludeProviders: [
+            ...new Set([...(rolePrefs.excludeProviders ?? []), ...opts.excludeProviders]),
+          ],
+          // A preference for the provider that just failed would be pointless.
+          preferredProvider: opts.excludeProviders.includes(rolePrefs.preferredProvider as Provider)
+            ? undefined
+            : rolePrefs.preferredProvider,
+        }
+      : rolePrefs;
     const queueItem = await WorkflowQueueService.getInstance()
       .findByTaskId(taskId)
       .catch(() => null);
@@ -104,6 +141,16 @@ export async function routeModelForRole(opts: {
     // defense in depth.
     const themeEscalation = await recentThemeEscalation(task.themeId ?? null).catch(() => 0);
     const taskRetries = queueItem?.retryCount ?? 0;
+    // The repair loop bounces back to the implementer WITHOUT bumping the
+    // queue's retryCount, so a rejected weak model used to run again on the
+    // same floor and pin. Count the bounces by cause; only verified capability
+    // gaps escalate (infrastructure / requirement / unfounded ones do not).
+    const repairCauses = REPAIR_ESCALATED_ROLES.has(role)
+      ? await import('./repair-escalation')
+          .then((m) => m.summarizeRepairCauses(taskId))
+          .catch(() => null)
+      : null;
+    const capabilityRepairs = repairCauses?.capability ?? 0;
 
     const planContent = PLAN_AWARE_ROLES.has(role)
       ? await readWorkflowFile(taskId, 'plan').catch(() => null)
@@ -132,13 +179,12 @@ export async function routeModelForRole(opts: {
     // and high-risk work, keep their premium floors and never downgrade on
     // history.
     const provenTier =
-      taskRetries === 0 && !riskHigh
+      taskRetries === 0 && capabilityRepairs === 0 && !riskHigh
         ? await resolveProvenTier(role).catch(() => undefined)
         : undefined;
 
-    // Does the RECORD say premium outperforms standard for this role? An
-    // upgrade has to earn itself, the same way resolveProvenTier makes a
-    // downgrade earn itself. undefined = not enough evidence, floor unchanged.
+    // Premium suppression is suspended (routing-policy.ts); the verdict is
+    // still read so the trace shows where it WOULD have capped the floor.
     const premiumAdvantage = await resolvePremiumAdvantage(role).catch(() => undefined);
 
     // Spend backstop (task 658 ran four premium phases for $50.04 unnoticed).
@@ -157,7 +203,7 @@ export async function routeModelForRole(opts: {
       );
     }
 
-    const { tier: minTier, reason: minTierReason } = computeMinTierWithReason({
+    const policyFloor = computeMinTierWithReason({
       role,
       taskRetries,
       themeEscalation,
@@ -167,9 +213,17 @@ export async function routeModelForRole(opts: {
       // the previous failure - a spend limit or a timeout could not.
       retryCause: queueItem?.errorMessage ?? null,
       premiumJustified: premiumAdvantage?.justified,
+      capabilityRepairs,
     });
+    // A review role judges the implementer's work, so its floor is at least the
+    // executor's tier — the same rule the jury seats follow (G2 routing1 item 4).
+    const reviewFloor = REVIEW_ROLES.has(role)
+      ? await raiseFloorToExecutor(taskId, policyFloor)
+      : null;
+    const minTier = reviewFloor?.tier ?? policyFloor.tier;
+    const minTierReason = reviewFloor?.reason ?? policyFloor.reason;
 
-    // NOTE (determinism): pinned per taskId+role+minTier+capTier so a same-phase
+    // NOTE (determinism): pinned per taskId+role+minTier+capTier+hardCapTier so a same-phase
     // retry reuses the SAME model instead of silently re-routing. A genuine
     // escalation/risk/evidence change computes a different key.
     const route = await getStableSmartRoute(taskId, role, {
@@ -183,8 +237,16 @@ export async function routeModelForRole(opts: {
       includeAlternatives: false,
     });
 
+    const shortfall = route.constraintShortfall;
+    if (shortfall) {
+      log.warn(
+        { taskId, role, model: route.recommendedModel, shortfall },
+        '[role-route-inputs] route misses its requirement — returned to the caller, not hidden',
+      );
+    }
     return {
       modelId: route.recommendedModel,
+      ...(shortfall ? { constraintShortfall: shortfall } : {}),
       details: {
         taskId,
         role,
@@ -194,21 +256,32 @@ export async function routeModelForRole(opts: {
         minTierReason: minTierReason ?? null,
         provenTier: provenTier ?? null,
         taskRetries,
+        repairCauses,
         themeEscalation,
         riskHigh,
         riskReason: riskReason ?? null,
         riskSource: evidence?.source ?? 'task_text_keywords',
         premiumJustified: premiumAdvantage?.justified ?? null,
+        // Suspended for every route; `WouldApply` marks the routes it would have capped.
+        premiumSuppression: 'suspended',
+        premiumSuppressionWouldApply: policyFloor.premiumSuppressionSuspended ?? false,
         taskSpentUsd: budget?.spentUsd ?? null,
         budgetCapTier: budget?.capTier ?? null,
         budgetSpendUnknown: budget?.spendUnknown ?? false,
         budgetUnknownReason: budget?.unknownReason ?? null,
         preferredProvider: prefs.preferredProvider ?? null,
         excludeProviders: prefs.excludeProviders ?? [],
+        executorModel: reviewFloor?.executor.modelId ?? null,
+        executorVerified: reviewFloor?.executor.verified ?? null,
+        constraintShortfall: shortfall ?? null,
       },
     };
   } catch (err) {
     log.warn({ err, taskId, role }, 'Smart Router failed, falling back to the sonnet alias');
-    return { modelId: 'sonnet', details: { taskId, role, model: 'sonnet', fallback: true } };
+    return {
+      modelId: 'sonnet',
+      routingFailed: true,
+      details: { taskId, role, model: 'sonnet', fallback: true },
+    };
   }
 }

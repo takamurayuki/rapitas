@@ -32,6 +32,11 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
 mock.module('../../../../services/task/task-resolver', () => ({
   resolvePreferredBaseBranch: async () => 'develop',
 }));
+// The eligibility gate is pinned in verify-completion-gate.verifier-eligibility.test.ts;
+// here an eligible verifier is assumed so only the empty-diff gate is exercised.
+mock.module('../../../../services/workflow/verifier-eligibility', () => ({
+  holdIfVerifierIneligible: async () => ({ outcome: 'ok', judgement: { status: 'eligible' } }),
+}));
 const { runVerifyCompletionGate } = await import('./verify-completion-gate');
 beforeEach(() => {
   update.mockClear();

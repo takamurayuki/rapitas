@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -10,6 +11,8 @@ import { formatDate } from '@/utils/date';
 import { EmptyState } from '@/components/ui/empty-state';
 import { resolveNotificationIcon, resolveNotificationText } from './notification-type-icons';
 import { withHeaderVisible } from '@/components/header/task-detail-link';
+import { settingsSectionFromHref } from '@/feature/settings/settings-link';
+import { openSettings } from '@/feature/settings/settings-modal-store';
 
 // Re-exported so the existing import path keeps working; the rule itself
 // is shared now that more than notifications need it.
@@ -20,6 +23,8 @@ export default function NotificationBell() {
   const tc = useTranslations('common');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // The panel drops over the in-app browser's webview area.
+  useOccludesWebview(isOpen);
   const {
     notifications,
     unreadCount,
@@ -81,7 +86,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+        className="relative p-1.5 sm:p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
         aria-label={t('title')}
         aria-haspopup="true"
         aria-expanded={isOpen}
@@ -147,7 +152,16 @@ export default function NotificationBell() {
                     <Link
                       href={withHeaderVisible(notification.link)}
                       role="menuitem"
-                      onClick={() => handleNotificationClick(notification)}
+                      onClick={(e) => {
+                        handleNotificationClick(notification);
+                        // Settings links (e.g. the restart notice's /settings/general)
+                        // open the settings modal; those pages no longer exist.
+                        const section = settingsSectionFromHref(notification.link ?? '');
+                        if (section) {
+                          e.preventDefault();
+                          openSettings(section);
+                        }
+                      }}
                       className="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                     >
                       <NotificationContent notification={notification} formatTime={formatTime} />

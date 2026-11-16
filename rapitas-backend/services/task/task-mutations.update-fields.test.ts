@@ -95,12 +95,14 @@ mock.module('../memory/task-knowledge-extractor', () => ({
 }));
 
 const { updateTask } = await import('./task-mutations');
+const { computeCriteriaRevision } = await import('./task-criteria-revision');
 
 function createMockPrisma() {
   return {
     task: {
       findUnique: mock(() => Promise.resolve(null)) as ReturnType<typeof mock>,
       update: mock(() => Promise.resolve({})) as ReturnType<typeof mock>,
+      updateMany: mock(() => Promise.resolve({ count: 1 })) as ReturnType<typeof mock>,
       findMany: mock(() => Promise.resolve([])) as ReturnType<typeof mock>,
     },
     taskLabel: {
@@ -297,21 +299,72 @@ describe('updateTask — フィールドマッピング', () => {
     expect(call.data.startedAt).toBeInstanceOf(Date);
   });
 
-  test('goals/constraints/acceptanceCriteria を JSON 文字列化すること', async () => {
-    setupFindUnique({ status: 'todo', parentId: null }, { id: 1, status: 'todo', parentId: null });
+  test('goals/constraints/acceptanceCriteria を JSON 文字列化し、ロックつきの条件書き込みで書くこと', async () => {
+    // Call order: updateTask's state read, writeTaskCriteria's read, the post-update read.
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ status: 'todo', parentId: null })
+      .mockResolvedValueOnce({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: null,
+        status: 'todo',
+        workflowStatus: null,
+        haltReason: null,
+        juryRunId: null,
+      })
+      .mockResolvedValueOnce({ id: 1, status: 'todo', parentId: null });
 
     await updateTask(mockPrisma as never, 1, {
       goals: ['g1'],
       constraints: ['c1'],
       acceptanceCriteria: ['a1'],
+      expectedCriteriaRevision: computeCriteriaRevision({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: null,
+      }),
     });
 
-    const call = mockPrisma.task.update.mock.calls[0]![0] as {
+    // Design 4.5.1: one conditional write — lock empty and criteria as read.
+    const cas = mockPrisma.task.updateMany.mock.calls[0]![0] as {
+      where: Record<string, unknown>;
       data: { goals?: string; constraints?: string; acceptanceCriteria?: string };
     };
-    expect(call.data.goals).toBe(JSON.stringify(['g1']));
-    expect(call.data.constraints).toBe(JSON.stringify(['c1']));
-    expect(call.data.acceptanceCriteria).toBe(JSON.stringify(['a1']));
+    expect(cas.where).toEqual(
+      expect.objectContaining({ id: 1, juryRunId: null, acceptanceCriteria: null }),
+    );
+    expect(cas.data.goals).toBe(JSON.stringify(['g1']));
+    expect(cas.data.constraints).toBe(JSON.stringify(['c1']));
+    expect(cas.data.acceptanceCriteria).toBe(JSON.stringify(['a1']));
+    // ...and never through the unguarded update.
+    const call = mockPrisma.task.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(call.data).not.toHaveProperty('acceptanceCriteria');
+    expect(call.data).not.toHaveProperty('goals');
+  });
+
+  test('判定中（juryRunId あり）の条件変更は 409 review_in_progress で、何も書かないこと', async () => {
+    mockPrisma.task.findUnique
+      .mockResolvedValueOnce({ status: 'in-progress', parentId: null })
+      .mockResolvedValueOnce({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: '["a0"]',
+        status: 'in-progress',
+        workflowStatus: 'in_progress',
+        haltReason: null,
+        juryRunId: 42,
+      });
+    const err = await updateTask(mockPrisma as never, 1, {
+      acceptanceCriteria: ['a1'],
+      expectedCriteriaRevision: computeCriteriaRevision({
+        goals: null,
+        constraints: null,
+        acceptanceCriteria: '["a0"]',
+      }),
+    }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ statusCode: 409, code: 'review_in_progress' });
+    expect(mockPrisma.task.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
   });
 
   test('isProtected=false（falsy値）でも update data に含めること', async () => {

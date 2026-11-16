@@ -62,4 +62,10 @@ export interface SelectionContext {
    * mitigating the self-evaluation bias common across LLM-as-judge research.
    */
   excludeProviders?: Provider[];
+  /**
+   * Workflow role being routed. Candidates the tier table says may not fill
+   * this role (e.g. an unregistered or economy model for a reviewing role) are
+   * dropped before selection.
+   */
+  role?: string;
 }

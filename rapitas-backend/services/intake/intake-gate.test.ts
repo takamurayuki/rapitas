@@ -25,6 +25,8 @@ const taskFindUnique = mock(() =>
   }),
 );
 const taskUpdate = mock(() => Promise.resolve({}));
+// Criteria are written through writeTaskCriteria's conditional updateMany (design 4.5.1).
+const taskUpdateMany = mock((_a: unknown) => Promise.resolve({ count: 1 }));
 const transitionFindFirst = mock(() => Promise.resolve(null));
 
 // Referenced tasks, fetched by the coherence check.
@@ -45,7 +47,12 @@ const notifyIntakeQuestionPending = mock(() => Promise.resolve<unknown>({ id: 1 
 
 mock.module('../../config', () => ({
   prisma: {
-    task: { findUnique: taskFindUnique, update: taskUpdate, findMany: taskFindMany },
+    task: {
+      findUnique: taskFindUnique,
+      update: taskUpdate,
+      updateMany: taskUpdateMany,
+      findMany: taskFindMany,
+    },
     workflowTransition: { findFirst: transitionFindFirst },
   },
 }));
@@ -70,6 +77,11 @@ mock.module('../task/task-spec-deriver', () => ({
 mock.module('../communication/notification-service', () => ({
   createNotification,
   notifyIntakeQuestionPending,
+}));
+// The criteria rule fixes (#1561) have their own tests; here they change nothing.
+mock.module('./intake-criteria-check', () => ({
+  applyCriteriaRuleFixes: async () => [],
+  CRITERIA_AUTO_FIXED_CAUSE: 'criteria_auto_fixed',
 }));
 
 const { ensureIntakeReady } = await import('./intake-gate');
@@ -100,6 +112,7 @@ describe('ensureIntakeReady', () => {
   beforeEach(() => {
     taskFindUnique.mockReset();
     taskUpdate.mockReset().mockResolvedValue({});
+    taskUpdateMany.mockReset().mockResolvedValue({ count: 1 });
     transitionFindFirst.mockReset().mockResolvedValue(null);
     resolveWorkflowDir.mockReset().mockResolvedValue({ dir: '/wf/1' });
     readWorkflowFile.mockReset().mockResolvedValue(null);
@@ -208,9 +221,13 @@ describe('ensureIntakeReady', () => {
     });
     const r = await ensureIntakeReady(1);
     expect(r.status).toBe('ready');
-    // Enriched fields must be persisted to the task.
-    expect(taskUpdate).toHaveBeenCalledTimes(1);
-    const args = taskUpdate.mock.calls[0][0] as { data: { goals: string } };
+    // Enriched fields must be persisted to the task — under the jury lock.
+    expect(taskUpdateMany).toHaveBeenCalledTimes(1);
+    const args = taskUpdateMany.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+      data: { goals: string };
+    };
+    expect(args.where).toEqual(expect.objectContaining({ id: 1, juryRunId: null }));
     expect(JSON.parse(args.data.goals)).toEqual(['Derived goal']);
     // Enrichment success is recorded, and the gate must NOT also ask a question.
     const rt = recordTransition.mock.calls[0][0] as { cause: string };
@@ -272,6 +289,7 @@ describe('ensureIntakeReady: 受入基準の混入検出 (task 671 実データ)
   beforeEach(() => {
     taskFindUnique.mockReset();
     taskUpdate.mockReset().mockResolvedValue({});
+    taskUpdateMany.mockReset().mockResolvedValue({ count: 1 });
     taskFindMany.mockReset().mockResolvedValue([{ id: 662, title: TITLE_662 }]);
     transitionFindFirst.mockReset().mockResolvedValue(null);
     resolveWorkflowDir.mockReset().mockResolvedValue({ dir: '/wf/1' });

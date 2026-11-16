@@ -9,50 +9,14 @@
  * `<title>`, so a caller could name an internal address and read a line of it.
  */
 import { Elysia, t } from 'elysia';
-import { createLogger } from '../../config/logger';
-import { MAX_REDIRECTS, assertFetchableUrl, readCappedText } from './url-fetch-guard';
+import { assertFetchableUrl, readCappedText } from './url-fetch-guard';
+import { fetchWithCheckedRedirects } from './checked-redirect-fetch';
 
-const log = createLogger('routes:url-metadata');
+// NOTE: The redirect-following fetch moved to checked-redirect-fetch.ts so
+// /url-embed-check applies the exact same per-hop SSRF check.
 
 /** How long the whole fetch, redirects included, may take. */
 const FETCH_TIMEOUT_MS = 5000;
-
-const BROWSER_USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-/**
- * Fetch `startUrl`, following redirects MANUALLY so each hop is validated.
- *
- * NOTE: `redirect: 'follow'` would let an allowed public host bounce the
- * request to an internal address, which is the standard way past an
- * address allowlist.
- *
- * @param startUrl - Already-validated first URL / 検証済みの最初の URL
- * @param signal - Abort signal carrying the overall timeout / 全体タイムアウト
- * @returns The final response, or null when the chain could not be followed / 最終レスポンス
- */
-async function fetchWithCheckedRedirects(
-  startUrl: URL,
-  signal: AbortSignal,
-): Promise<Response | null> {
-  let current = startUrl;
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    const res = await fetch(current, {
-      signal,
-      redirect: 'manual',
-      headers: { 'User-Agent': BROWSER_USER_AGENT },
-    });
-    if (res.status < 300 || res.status >= 400) return res;
-
-    const location = res.headers.get('location');
-    if (!location) return res;
-    // Relative redirects are resolved against the hop that issued them, then
-    // validated like any other target.
-    current = await assertFetchableUrl(new URL(location, current).toString());
-  }
-  log.warn({ redirects: MAX_REDIRECTS }, 'url-metadata: too many redirects');
-  return null;
-}
 
 /** The page title from `<title>`, or from `og:title`, or null. */
 function extractTitle(html: string): string | null {
@@ -86,7 +50,7 @@ export const urlMetadataRoutes = new Elysia().post(
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     let title = target.hostname;
     try {
-      const res = await fetchWithCheckedRedirects(target, controller.signal);
+      const res = await fetchWithCheckedRedirects(target, { signal: controller.signal });
       if (res?.ok) {
         title = extractTitle(await readCappedText(res)) ?? title;
       }

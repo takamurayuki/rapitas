@@ -188,6 +188,7 @@ export function makeExecution(overrides: Record<string, unknown> = {}) {
     executionTimeMs: 0,
     session: {
       id: 20,
+      mode: null,
       config: {
         taskId: 30,
         task: { title: 'My Task', description: 'desc', workingDirectory: '/work' },

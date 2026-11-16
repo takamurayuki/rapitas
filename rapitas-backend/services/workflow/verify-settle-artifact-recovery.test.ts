@@ -45,6 +45,12 @@ mock.module('../../config', () => ({
   },
 }));
 
+// Eligibility is fixed as confirmed here; the refusal paths are covered through
+// the real gate in workflow-runner-verify-settle.verifier-eligibility.test.ts.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const recordTransitionMock = mock((_input: { cause: string; metadata?: unknown }) =>
   Promise.resolve(),
 );

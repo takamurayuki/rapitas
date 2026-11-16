@@ -46,6 +46,10 @@
 /* Class-based dark mode switching */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Desktop app (Tauri) only — layout.tsx's head script adds `tauri` to <html>
+   before first paint, so these rules apply without waiting for hydration. */
+@custom-variant tauri (&:where(.tauri, .tauri *));
+
 :root {
   --background: #f1f5f9;
   --background-secondary: #eef2f8;
@@ -104,6 +108,29 @@ html.dark {
   --color-indigo-dark-900: #151d31;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* NOTE: green is the app's colour for "done". Tailwind's stock green
+   (green-500 = chroma 0.219) glared like a highlighter on a list where many
+   rows are done, and the half-chroma scale tried first (#1537) read as dull.
+   The scale is Tailwind's emerald, step for step: about 80% of the stock
+   chroma, a little towards blue, still clearly green (#1539). Every
+   `green-*` utility changes with it, and `emerald-*` now matches `green-*`.
+   Plain `@theme`, not `inline`: the variables must exist at runtime for the
+   places that colour with `var(--color-green-*)` inline (the due-today knob,
+   the Gantt bar). */
+@theme {
+  --color-green-50: oklch(97.9% 0.021 166.113);
+  --color-green-100: oklch(95% 0.052 163.051);
+  --color-green-200: oklch(90.5% 0.093 164.15);
+  --color-green-300: oklch(84.5% 0.143 164.978);
+  --color-green-400: oklch(76.5% 0.177 163.223);
+  --color-green-500: oklch(69.6% 0.17 162.48);
+  --color-green-600: oklch(59.6% 0.145 163.225);
+  --color-green-700: oklch(50.8% 0.118 165.612);
+  --color-green-800: oklch(43.2% 0.095 166.913);
+  --color-green-900: oklch(37.8% 0.077 168.94);
+  --color-green-950: oklch(26.2% 0.051 172.552);
 }
 
 body {
@@ -1273,3 +1300,88 @@ iframe:not([src='']) + .iframe-loading {
    the add-idea modal's icon only (see .animate-idea-lamp-flash, triggered by
    an actual POST success — not this ambient header flash). Not a revert of
    this removal — see ui-design-language.md §5, 2026-07-25. */
+
+/* One shared geometry for the caption, header, navigation and content.
+   The 32px caption includes its divider; only page content can scroll. */
+html[data-desktop-frame] {
+  --desktop-titlebar-height: 0px;
+  --app-header-height: 0px;
+  --app-viewport-height: calc(100dvh - var(--desktop-titlebar-height));
+  --app-chrome-bottom: calc(var(--desktop-titlebar-height) + var(--app-header-height));
+  height: 100%;
+  overflow: hidden;
+}
+html[data-desktop-frame='caption'] {
+  --desktop-titlebar-height: 32px;
+}
+html[data-desktop-frame]:has(.app-main-header) {
+  --app-header-height: calc(4rem + 1px);
+}
+html[data-desktop-frame] body {
+  box-sizing: border-box;
+  height: 100dvh;
+  padding-top: var(--desktop-titlebar-height);
+  overflow: hidden;
+}
+.desktop-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  height: 32px;
+  border-bottom: 1px solid #e4e4e7;
+  z-index: 2147483647;
+}
+html.dark .desktop-titlebar {
+  border-bottom-color: #3f3f46;
+}
+/* Body already reserves the caption. With body as an overflow container,
+   sticky top adds that inset again and hides panel toolbars behind the header.
+   Only app-page-content scrolls, so the header can stay in normal flow. */
+html[data-desktop-frame] .app-main-header {
+  position: relative;
+  top: auto;
+}
+html[data-desktop-frame] .fixed.top-0,
+html[data-desktop-frame] .fixed.inset-0 {
+  top: var(--desktop-titlebar-height);
+}
+html[data-desktop-frame] .fixed.top-16 {
+  top: var(--app-chrome-bottom);
+}
+html[data-desktop-frame] .app-page-content {
+  height: calc(100dvh - var(--app-chrome-bottom));
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+/* Existing viewport-sized pages already own an inner scroller. Account for
+   the caption as well, so they fit inside app-page-content rather than adding
+   a second scrollbar. Retain each page's existing header allowance. */
+html[data-desktop-frame] .h-screen {
+  height: calc(100dvh - var(--app-chrome-bottom));
+}
+html[data-desktop-frame] .min-h-screen {
+  min-height: calc(100dvh - var(--app-chrome-bottom));
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-4rem)]'] {
+  height: calc(var(--app-viewport-height) - var(--app-header-height));
+}
+html[data-desktop-frame] [class~='min-h-[calc(100vh-4rem)]'] {
+  min-height: calc(var(--app-viewport-height) - var(--app-header-height));
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-4.2rem)]'] {
+  height: calc(var(--app-viewport-height) - 4.2rem);
+}
+html[data-desktop-frame] [class~='h-[calc(100vh-5rem)]'] {
+  height: calc(var(--app-viewport-height) - 5rem);
+}
+/* The slide panel has its own toolbar and scroll area. Loading/error views
+   must fit that area instead of using the full page's viewport height. */
+[data-task-slide-panel] [class~='h-[calc(100vh-5rem)]'] {
+  height: 100%;
+}
+html[data-desktop-frame] [data-task-slide-panel] [class~='h-[calc(100vh-5rem)]'] {
+  height: 100%;
+}

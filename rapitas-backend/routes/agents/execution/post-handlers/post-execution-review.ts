@@ -46,6 +46,8 @@ interface ReviewParams {
   executionDir: string;
   branchName?: string;
   executionOutput?: string;
+  /** AgentSession.mode of the run (null if none) — judged by markTaskDone. */
+  sessionMode: string | null;
 }
 
 /**
@@ -418,7 +420,7 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     );
     return;
   }
-  await markTaskDone(taskId);
+  await markTaskDone(taskId, { sessionMode: params.sessionMode });
 
   log.info({ taskId }, 'Post-execution review pipeline completed');
 }

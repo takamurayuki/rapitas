@@ -50,6 +50,16 @@ export type TimelineEventType =
   | 'memory_retrieval'
   | 'knowledge_effectiveness'
   | 'adversarial_review'
+  // Raw automated-verifier result measured for the verifier — see
+  // verification/verification-measurement-record.ts.
+  | 'verification_measured'
+  // A jury gate finished acting on a verdict, bound to verify.md's sha256 and
+  // the reviewed diff — see workflow/verify-jury-completion.ts.
+  | 'adversarial_review_gate_completed'
+  // A review could not be settled and the task was held for a human, and the
+  // human's resolution — see workflow/review-hold.ts.
+  | 'review_hold'
+  | 'review_hold_resolved'
   | 'ideation_calibration'
   | 'retro_review_failed'
   | 'playbook_generated'

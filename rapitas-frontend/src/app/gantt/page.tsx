@@ -6,12 +6,14 @@ import { Layers } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { GanttView } from '@/feature/tasks/components/gantt';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { ThemePicker } from '@/components/ui/theme-picker';
 
 export default function GanttPage() {
   const t = useTranslations('task');
   const tCommon = useTranslations('common');
   const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(undefined);
   const themes = useFilterDataStore((s) => s.themes);
+  const categories = useFilterDataStore((s) => s.categories);
   const initFilterData = useFilterDataStore((s) => s.initializeData);
 
   useEffect(() => {
@@ -29,39 +31,21 @@ export default function GanttPage() {
           <p className="text-gray-600 dark:text-gray-400">{t('ganttView.pageDescription')}</p>
         </div>
 
-        {/* テーマフィルタ */}
+        {/* テーマフィルタ
+            NOTE: was three rows of ~40 coloured chips; the picker groups them
+            by category behind one button, with "all" as its first choice. */}
         {themes.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="mb-4 flex items-center gap-2">
             <Layers className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-            <button
-              onClick={() => setSelectedThemeId(undefined)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                selectedThemeId === undefined
-                  ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {tCommon('all')}
-            </button>
-            {themes.map((theme) => {
-              const isSelected = selectedThemeId === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => setSelectedThemeId(isSelected ? undefined : theme.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    isSelected ? 'ring-1 ring-offset-1' : 'opacity-80 hover:opacity-100'
-                  }`}
-                  style={{
-                    backgroundColor: isSelected ? theme.color : `${theme.color}25`,
-                    color: isSelected ? '#fff' : theme.color,
-                    ['--tw-ring-color' as string]: theme.color,
-                  }}
-                >
-                  {theme.name}
-                </button>
-              );
-            })}
+            <ThemePicker
+              themes={themes}
+              categories={categories}
+              value={selectedThemeId ?? null}
+              onChange={(theme) => setSelectedThemeId(theme?.id)}
+              allLabel={tCommon('all')}
+              label={t('theme')}
+              className="w-full max-w-xs"
+            />
           </div>
         )}
 

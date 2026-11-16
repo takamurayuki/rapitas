@@ -1,0 +1,72 @@
+# OSV-Scanner policy for rapitas-desktop/src-tauri/Cargo.lock (read by the
+# `security` workflow's dependency-scan job, takamurayuki/security-ci).
+#
+# Every advisory below is a RustSec INFORMATIONAL notice (unmaintained or
+# unsound), not a vulnerability with an exploit path, and every crate arrives
+# transitively through tauri / its plugins with no compatible upgrade inside
+# their declared ranges. cargo-audit (security-scan.yml) reports these as
+# warnings and does not fail on them; .cargo/audit.toml holds its actual
+# vulnerability ignores. Each entry is time-boxed: on `effectiveUntil` the finding
+# returns and the job fails until it is re-checked against the current tauri
+# release. Keep expiries within ~3 months.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0057"
+effectiveUntil = 2027-02-03
+reason = """fxhash 0.2.1 is unmaintained (no fixed version exists). Path: \
+tauri > tauri-utils > dom_query > selectors 0.24 > fxhash. A non-cryptographic \
+hasher inside tauri-utils' HTML handling; nothing in src-tauri/src uses it. \
+Clears when selectors drops it upstream."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+effectiveUntil = 2027-02-03
+reason = """glib 0.18.5 unsoundness in VariantStrIter (also GHSA-wrw7-89jp-8q8g). \
+Fixed only in glib 0.20, but tauri 2 / wry / tray-icon are built on the gtk-rs \
+0.18 line (gtk, webkit2gtk, libappindicator), so 0.20 cannot be selected. Linux \
+build only; src-tauri/src never touches glib directly. Clears when tauri moves to \
+gtk-rs >= 0.20."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0441"
+effectiveUntil = 2027-02-03
+reason = """pin-utils 0.1.0 is unmaintained (no fixed version exists). Path: \
+tauri > reqwest > hyper-util > hyper 1.8 > pin-utils. Clears when hyper drops \
+it."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+effectiveUntil = 2027-02-03
+reason = """proc-macro-error 1.0.4 is unmaintained (no fixed version exists). \
+Compile-time proc-macro helper of glib-macros / gtk3-macros 0.18 (the gtk-rs \
+line tauri 2 uses on Linux); it never runs in the shipped binary."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0097"
+effectiveUntil = 2027-02-03
+reason = """rand 0.7.3 unsoundness with a custom logger calling rand::rng() (also \
+GHSA-cq8v-f236-94qc). 0.7.3 comes from phf_generator 0.8 (tauri-utils > \
+dom_query > html5ever > markup5ever > phf_codegen), a code generator that runs \
+in build scripts at compile time, where no custom logger is installed. The \
+0.8.6 fix is outside phf_generator 0.8's rand 0.7 requirement. The 0.8.6 and \
+0.9.5 copies in the lockfile are already fixed."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+effectiveUntil = 2027-02-03
+reason = """zbus_names 4.3.4 is unmaintained (no fixed version exists). Path: \
+tauri-plugin-notification > notify-rust > zbus 5.18 (D-Bus notifications, \
+Linux only). Clears when notify-rust / zbus move off it."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+effectiveUntil = 2027-02-03
+reason = """zvariant 5.13.1 is unmaintained (no fixed version exists). Same path \
+as zbus_names: tauri-plugin-notification > notify-rust > zbus 5.18 (Linux \
+only)."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+effectiveUntil = 2027-02-03
+reason = """zvariant_derive 5.13.1 is unmaintained (no fixed version exists). \
+Proc-macro of zvariant, same zbus path (Linux only); compile time only."""

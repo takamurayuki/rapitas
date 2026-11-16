@@ -11,11 +11,16 @@ const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () 
 
 const mockTaskUpdate = mock(() => Promise.resolve({}));
 const mockSessionUpdate = mock(() => Promise.resolve({}));
+let sessionRow: { mode: string | null } | null = { mode: null };
+let sessionReadFails = false;
+const mockSessionFindUnique = mock(() =>
+  sessionReadFails ? Promise.reject(new Error('db down')) : Promise.resolve(sessionRow),
+);
 
 mock.module('../../../../config/database', () => ({
   prisma: {
     task: { update: mockTaskUpdate },
-    agentSession: { update: mockSessionUpdate },
+    agentSession: { update: mockSessionUpdate, findUnique: mockSessionFindUnique },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
@@ -78,6 +83,8 @@ describe('handleContinueResult — PR自動リンク呼び出し (task #1058)', 
     mockUpdateSessionStatusWithRetry.mockClear();
     mockRemoveWorktree.mockClear();
     callOrder.length = 0;
+    sessionRow = { mode: null };
+    sessionReadFails = false;
     linkContinueExecutionPrMock = mock(() => Promise.resolve());
   });
 
@@ -113,5 +120,41 @@ describe('handleContinueResult — PR自動リンク呼び出し (task #1058)', 
 
     await expect(handleContinueResult(baseParams())).resolves.toBeUndefined();
     expect(mockApplyTaskStatusFromWorkflow).toHaveBeenCalledTimes(1);
+  });
+});
+
+// G2 routing1 re-review 6: the status sync must know a workflow run from a
+// single-shot run, or a workflow task left in draft is marked done unverified.
+describe('handleContinueResult — 状態同期へ実行種別を渡す', () => {
+  beforeEach(() => {
+    mockApplyTaskStatusFromWorkflow.mockClear();
+    sessionRow = { mode: null };
+    sessionReadFails = false;
+    linkContinueExecutionPrMock = mock(() => Promise.resolve());
+  });
+
+  function passedRun(): unknown {
+    return (mockApplyTaskStatusFromWorkflow.mock.calls[0] as unknown[])[3];
+  }
+
+  test('ワークフロー実行のセッションなら、その mode を渡す', async () => {
+    sessionRow = { mode: 'workflow-researcher' };
+    await handleContinueResult(baseParams());
+    expect(passedRun()).toEqual({ sessionMode: 'workflow-researcher' });
+  });
+
+  test('単発実行のセッションなら null を渡す', async () => {
+    await handleContinueResult(baseParams());
+    expect(passedRun()).toEqual({ sessionMode: null });
+  });
+
+  test.each([
+    ['セッションの読み取りに失敗した', true, { mode: null }],
+    ['セッションの行がない', false, null],
+  ])('%sときは undefined（不明）を渡す', async (_label, fails, row) => {
+    sessionReadFails = fails;
+    sessionRow = row;
+    await handleContinueResult(baseParams());
+    expect(passedRun()).toEqual({ sessionMode: undefined });
   });
 });

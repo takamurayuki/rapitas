@@ -20,6 +20,7 @@ import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { API_BASE_URL } from '@/utils/api';
 import { isTauri } from '@/utils/tauri';
 import { resolveNotificationText } from './notification-type-icons';
+import { followInAppLink } from '@/feature/settings/settings-link';
 
 /** Types worth an interruptive toast — quiet ones stay bell-only. */
 const TOASTED_TYPES = new Set(['schedule_reminder']);
@@ -110,7 +111,7 @@ export function NotificationToaster() {
       `${title}: ${message}`,
       'info',
       n.link
-        ? { action: { label: t('open'), onClick: () => router.push(n.link as string) } }
+        ? { action: { label: t('open'), onClick: () => followInAppLink(router, n.link as string) } }
         : undefined,
     );
   };
@@ -134,7 +135,9 @@ export function NotificationToaster() {
       showToast(
         `${title}: ${message}`,
         'info',
-        link ? { action: { label: t('open'), onClick: () => router.push(link) } } : undefined,
+        link
+          ? { action: { label: t('open'), onClick: () => followInAppLink(router, link) } }
+          : undefined,
       );
     },
   });
@@ -182,7 +185,7 @@ export function NotificationToaster() {
     let unlisten: (() => void) | undefined;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen<string>('rapitas:toast-navigate', (e) => {
-        if (e.payload) router.push(e.payload);
+        if (e.payload) followInAppLink(router, e.payload);
       }).then((fn) => {
         unlisten = fn;
       });

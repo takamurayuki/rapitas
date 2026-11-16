@@ -139,7 +139,8 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
       className={`bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 ${className}`}
     >
       {/* ヘッダー */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      {/* Wraps so the date controls move under the title on a phone instead of overflowing. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('title')}</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -148,7 +149,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
         </div>
 
         {/* コントロール */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* 日付ナビゲーション */}
           <div className="flex items-center space-x-1">
             <button

@@ -79,6 +79,13 @@ const REASON_COPY: Record<BlockedExclusionReason, { needs: string; notificationT
   },
 };
 
+const ESCALATION_CONCERN_TITLE_RE = /blocked タスク #\d+ が自動再試行の対象外のまま滞留/;
+
+/** True when the title is one {@link escalateBlockedTask} itself generated for a concern. / 自動起票懸念の題名か */
+function isEscalationConcernTitle(title: string): boolean {
+  return ESCALATION_CONCERN_TITLE_RE.test(title);
+}
+
 /**
  * Escalate one excluded blocked task, exactly once per task.
  *
@@ -163,7 +170,11 @@ export async function escalateBlockedTask(
     log.warn({ err, taskId: task.id, reason }, '[blocked-escalation] notification failed');
   }
 
-  if (reason !== 'awaiting_question') {
+  // NOTE: A concern filed by this very function stalling again must not file another
+  // concern about itself — that produced the #1283 → #1291 → #1305 chain. The
+  // notification above still tells the operator; only the concern cascade stops.
+  // Detection is by the filed title (no origin column is readable here).
+  if (reason !== 'awaiting_question' && !isEscalationConcernTitle(task.title)) {
     try {
       const selfThemeId = await resolveSelfDevelopmentThemeId();
       await submitConcern({

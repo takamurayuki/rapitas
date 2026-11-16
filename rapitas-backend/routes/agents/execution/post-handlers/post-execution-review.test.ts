@@ -95,7 +95,7 @@ const cleanupWorktree = mock(() => {
   steps.push('cleanup');
   return Promise.resolve();
 });
-const markTaskDone = mock(() => {
+const markTaskDone = mock((_taskId: number, _run: { sessionMode: string | null }) => {
   steps.push('done');
   return Promise.resolve();
 });
@@ -117,6 +117,7 @@ const params = {
   sessionId: 3,
   workDir: 'C:\\repo',
   executionDir: 'C:\\repo\\.worktrees\\t895',
+  sessionMode: 'workflow-researcher',
 };
 
 beforeEach(() => {
@@ -164,6 +165,8 @@ describe('reviewAndCommitWorktree — 必須マージ待ち (task 895)', () => {
 
     expect(steps).toEqual(['commit', 'pr', 'cleanup', 'done']);
     expect(holdForRequiredMerge).not.toHaveBeenCalled();
+    // markTaskDone judges the run kind itself, so the session mode is handed on.
+    expect(markTaskDone).toHaveBeenCalledWith(895, { sessionMode: 'workflow-researcher' });
   });
 });
 

@@ -18,6 +18,8 @@ let created: Record<string, unknown>[] = [];
 
 /** Audit rows the route wrote. */
 let audited: Record<string, unknown>[] = [];
+/** TaskCompanion source links the route wrote. */
+let linked: Record<string, unknown>[] = [];
 
 mock.module('../../config/database', () => ({
   prisma: {
@@ -25,6 +27,12 @@ mock.module('../../config/database', () => ({
       create: async ({ data }: { data: Record<string, unknown> }) => {
         audited.push(data);
         return { id: audited.length };
+      },
+    },
+    taskCompanion: {
+      updateMany: async (args: Record<string, unknown>) => {
+        linked.push(args);
+        return { count: 1 };
       },
     },
   },
@@ -41,7 +49,13 @@ mock.module('../../services/task/task-mutations', () => ({
 
 const { assistantIntakeRoutes } = await import('./assistant-intake.routes');
 
-const VALID_TASK = { title: 'アバターを直す', themeId: 1 };
+// Criteria are required since companion stage 1: what the card showed as
+// "done" is what the task is filed with.
+const VALID_TASK = {
+  title: 'アバターを直す',
+  themeId: 1,
+  acceptanceCriteria: ['アバターが崩れずに表示される'],
+};
 
 async function post(path: string, body: unknown) {
   const res = await assistantIntakeRoutes.handle(
@@ -58,6 +72,7 @@ beforeEach(() => {
   calls = [];
   created = [];
   audited = [];
+  linked = [];
 });
 
 describe('POST /assistant/task-create', () => {
@@ -65,7 +80,13 @@ describe('POST /assistant/task-create', () => {
     const { status, json } = await post('task-create', { confirmed: true, task: VALID_TASK });
     expect(status).toBe(200);
     expect(json.id).toBe(99);
-    expect(created[0]).toMatchObject({ title: 'アバターを直す', themeId: 1, status: 'todo' });
+    expect(created[0]).toMatchObject({
+      title: 'アバターを直す',
+      themeId: 1,
+      status: 'todo',
+      acceptanceCriteria: ['アバターが崩れずに表示される'],
+      companion: { origin: 'task_create' },
+    });
   });
 
   // The gate. Both shapes of "the user did not agree to this" are refused:

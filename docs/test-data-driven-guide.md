@@ -29,7 +29,7 @@
 ### ビフォー（Pattern B ブロック — 変換前）
 
 ```typescript
-// ❌ 変換前: 同じ関数への expect が散在している
+// 悪い例（変換前）: 同じ関数への expect が散在している
 test('無効なプレフィックスを拒否すること', () => {
   expect(isValidBranchName('invalid/branch')).toBe(false);
   expect(isValidBranchName('main')).toBe(false);
@@ -40,7 +40,7 @@ test('無効なプレフィックスを拒否すること', () => {
 ### アフター（Pattern A — 変換後）
 
 ```typescript
-// ✅ 変換後: test.each でテーブル化
+// 良い例（変換後）: test.each でテーブル化
 const invalidPrefixCases: [string, boolean][] = [
   ['invalid/branch', false],
   ['main',           false],
@@ -99,6 +99,13 @@ export type BoundaryCase<T> = {
 | `NULLABLE_ID_EDGES` | `BoundaryCase<number \| null>[]` | `ID_EDGES` + null |
 | `NONEXISTENT_ID` | `number` | 999（DB に存在しない ID のセンチネル） |
 | `TIME_BOUNDARIES` | `BoundaryCase<number>[]` | epoch=0 / -1 |
+| `DATE_EDGES` | `BoundaryCase<string>[]` | ISO 日付文字列の境界値（Unix epoch など） |
+| `ENUM_INVALID_EDGES` | `BoundaryCase<string>[]` | enum に該当しない文字列（空文字・未知の値・大文字化・空白のみ） |
+| `FLOAT_EDGES` | `BoundaryCase<number>[]` | 浮動小数点の境界値（0、-0、NaN など） |
+| `PG_INT_BOUNDARIES` | `BoundaryCase<number>[]` | PostgreSQL INT4 の最小値・最大値など |
+| `makeEnumBoundaries()` | 関数 | 有効値の配列から `{ valid, invalid }` の境界ケースを作る（invalid の既定は `ENUM_INVALID_EDGES`） |
+
+各定数の値は `rapitas-backend/tests/helpers/boundary-values.ts` と、そこから生成される `rapitas-backend/docs/boundary-guide.generated.md` を参照する。
 
 ### 使い方（`$label` 記法）
 
@@ -210,7 +217,7 @@ export const URL_BOUNDARY_STRINGS: readonly BoundaryCase<string>[] = [
 ### ビフォー（散在した it ブロック）
 
 ```typescript
-// ❌ 変換前: 複数の it に散在し、真偽が混在している
+// 悪い例（変換前）: 複数の it に散在し、真偽が混在している
 it('hides raw code-like lines', () => {
   expect(shouldHideRawCliLine('import { foo } from "./bar";')).toBe(true);
   expect(shouldHideRawCliLine('const value = createThing();')).toBe(true);
@@ -226,7 +233,7 @@ it('hides codex tool labels', () => {
 ### アフター（統合テーブル — 手動変換）
 
 ```typescript
-// ✅ 変換後: [input, expected] テーブルに統合
+// 良い例（変換後）: [input, expected] テーブルに統合
 const hideLineCases: [string, boolean][] = [
   // コードライン → 非表示
   ['import { foo } from "./bar";',               true],
@@ -252,7 +259,7 @@ test.each(hideLineCases)(
 ### NG: 同じ関数に対する expect の散在
 
 ```typescript
-// ❌ 変換候補 — ケースを追加するたびに test ブロックを増やす
+// 悪い例（変換候補）: ケースを追加するたびに test ブロックを増やす
 test('無効なプレフィックスを拒否すること', () => {
   expect(isValidBranchName('invalid/branch')).toBe(false);
   expect(isValidBranchName('main')).toBe(false);
@@ -267,7 +274,7 @@ test('特殊文字を含む名前を拒否すること', () => {
 ### NG: テーブルを関数内部に置く
 
 ```typescript
-// ❌ テーブルが test のコールバック内にあると読みにくい
+// 悪い例: テーブルが test のコールバック内にあると読みにくい
 test.each([['a', true], ['b', false]])('...', (input, expected) => {
   const cases = [/* ... */]; // ← これはアンチパターンではないが、外に出す方が見やすい
   expect(fn(input)).toBe(expected);
@@ -296,6 +303,6 @@ test.each([['a', true], ['b', false]])('...', (input, expected) => {
 
 ## 関連ドキュメント
 
-- **境界値定数の完全リスト**: `docs/boundary-guide.generated.md`（`bun run gen:boundary-guide` で再生成）
+- **境界値定数の完全リスト**: `rapitas-backend/docs/boundary-guide.generated.md`（`bun run gen:boundary-guide` で再生成）
 - **境界値定数の実装**: `rapitas-backend/tests/helpers/boundary-values.ts`
 - **コードモッド（自動変換）**: `rapitas-backend/scripts/codemods/README.md`

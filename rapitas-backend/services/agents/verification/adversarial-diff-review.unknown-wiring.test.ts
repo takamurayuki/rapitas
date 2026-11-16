@@ -58,6 +58,14 @@ mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
 // 'api' seats one juror per provider family, which is what lets a single
 // review carry three different causes at once.
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => 'api' }));
+// The host's configured vendors (configured-vendors.ts reads API keys and probes
+// the Claude CLI): fixed here so the seats do not depend on this machine.
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) => ({
+    configured: mode === 'cli' ? ['anthropic'] : ['anthropic', 'google', 'openai'],
+    unconfigured: [],
+  }),
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() => Promise.resolve({ dir: '/wf/1' })),
   readWorkflowFile: mock(() => Promise.resolve('plan content')),
@@ -74,7 +82,12 @@ mock.module('./base-satisfied-plan-items', () => ({
 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecution: {
+      findFirst: mock(() => Promise.resolve(null)),
+      // The implementer's run (executor-model.ts): a local model — no vendor and
+      // a free tier, so it neither raises a floor nor steers seat independence.
+      findMany: mock(() => Promise.resolve([{ modelName: 'llama3' }])),
+    },
     agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
     task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
   },
@@ -136,8 +149,10 @@ describe('each cause reaches the timeline with its own label', () => {
 });
 
 describe('the pre-registered claim', () => {
+  // NOTE: Two reviewer seats now (claude, gemini in API mode); the verifier is
+  // only asked on a disagreement, so a review where nobody answered has two rows.
   it('reports no unattributed unknown when every juror fails differently', async () => {
-    behaviour = { claude: 'hang', gemini: 'throw', chatgpt: 'garbage' };
+    behaviour = { claude: 'hang', gemini: 'throw' };
     const jurors = await recordedJurors();
     const rows: RecordedJuror[] = jurors.map((j) => ({
       label: j.provider,
@@ -149,21 +164,20 @@ describe('the pre-registered claim', () => {
     // Keyed by reason alone, and the counts sum to the number of unknowns —
     // so an unlabelled path cannot hide inside a neighbour's bucket.
     expect(breakdown.unattributed).toBeUndefined();
-    expect(breakdown).toEqual({ timeout: 1, error: 1, unparsable: 1 });
+    expect(breakdown).toEqual({ timeout: 1, error: 1 });
 
     // Which provider failed which way, since the slide this exists to catch
     // was one provider's unknowns climbing while the others held.
     expect(rows.find((r) => r.label === 'claude')?.unknownReason).toBe('timeout');
     expect(rows.find((r) => r.label === 'gemini')?.unknownReason).toBe('error');
-    expect(rows.find((r) => r.label === 'chatgpt')?.unknownReason).toBe('unparsable');
   });
 
   it('records a full panel that judged nothing, rather than a small panel', async () => {
     behaviour = { claude: 'hang', gemini: 'hang', chatgpt: 'hang' };
     await reviewDiffAdversarially({ taskId: 9001, worktreePath: '/wt/9001' });
     const panel = events.find((e) => e.eventType === 'adversarial_review')?.payload.panel;
-    expect(panel?.planned).toBe(3);
-    expect(panel?.asked).toBe(3);
+    expect(panel?.planned).toBe(2);
+    expect(panel?.asked).toBe(2);
     expect(panel?.judged).toBe(0);
   });
 });

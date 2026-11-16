@@ -22,7 +22,18 @@ const getDiff = mock(() =>
 const resolveBaseRef = mock(() => Promise.resolve(baseSha));
 let reasons: string[] = [];
 const sendAIMessage = mock(() =>
-  Promise.resolve({ content: JSON.stringify({ verdict: 'fail', severity: 80, reasons }) }),
+  Promise.resolve({
+    content: JSON.stringify({
+      verdict: 'fail',
+      severity: 80,
+      // Each reason as an evidenced major finding (the juror reply shape).
+      findings: reasons.map((summary) => ({
+        severity: 'major',
+        summary,
+        evidence: '変更ファイル一覧',
+      })),
+    }),
+  }),
 );
 
 mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
@@ -30,6 +41,14 @@ mock.module('../orchestrator/git-operations/core/diff-structured', () => ({
   resolveBaseRef,
 }));
 mock.module('../../../utils/ai-client', () => ({ sendAIMessage, getAuxAiMode: () => 'api' }));
+// The host's configured vendors (configured-vendors.ts reads API keys and probes
+// the Claude CLI): fixed here so the seats do not depend on this machine.
+mock.module('../../ai/model-tier-table/configured-vendors', () => ({
+  resolveConfiguredVendors: async (mode: string) => ({
+    configured: mode === 'cli' ? ['anthropic'] : ['anthropic', 'google', 'openai'],
+    unconfigured: [],
+  }),
+}));
 mock.module('../../workflow/workflow-file-utils', () => ({
   resolveWorkflowDir: mock(() => Promise.resolve({ dir: '/wf/1' })),
   readWorkflowFile: mock(() => Promise.resolve('plan content')),
@@ -39,7 +58,11 @@ mock.module('../../memory/timeline', () => ({
 }));
 mock.module('../../../config/database', () => ({
   prisma: {
-    agentExecution: { findFirst: mock(() => Promise.resolve(null)) },
+    agentExecution: {
+      findFirst: mock(() => Promise.resolve(null)),
+      // The implementer's run (executor-model.ts): Sonnet, a standard executor.
+      findMany: mock(() => Promise.resolve([{ modelName: 'claude-sonnet-5-5' }])),
+    },
     agentExecutionConfig: { findUnique: mock(() => Promise.resolve(null)) },
     task: { findUnique: mock(() => Promise.resolve({ title: 'Task', acceptanceCriteria: null })) },
   },
@@ -87,7 +110,7 @@ describe('reviewDiffAdversarially — plan item already on base', () => {
     reasons = ['計画の中核 `src/aux-cli-ownership.ts` の `guardOwner(` が差分に無い'];
     const r = await reviewDiffAdversarially({ taskId: 1196, worktreePath: repo });
     expect(r.verdict).toBe('fail');
-    expect(r.reasons).toEqual(reasons);
+    expect(r.reasons).toEqual(reasons.map((x) => `[major] ${x}（根拠: 変更ファイル一覧）`));
     expect(r.baseSatisfied).toBeUndefined();
   });
 });

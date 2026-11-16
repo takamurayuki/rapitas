@@ -9,6 +9,8 @@
  * place rather than three.
  */
 import type { RoadmapAnswer } from './roadmap-prompts';
+import type { CriteriaQuality, ProposedCriterion } from './criteria-proposal';
+import type { RoadmapMilestone } from '../goals/roadmap-milestones';
 
 /** Where the work should go, once the invented ids are stripped out. */
 export type Placement =
@@ -24,8 +26,24 @@ export interface RoadmapStep {
    * approves is character-for-character what gets created.
    */
   description: string;
+  /**
+   * The same completion criteria the description lists under `## 完了条件`,
+   * as the array `Task.acceptanceCriteria` stores. Never empty: a step the
+   * model gave no criteria gets one derived from its title, so the card always
+   * shows what the user is agreeing "done" means (companion stage 1).
+   */
+  acceptanceCriteria: string[];
+  /**
+   * The same criteria as the card shows them: who checks each, vague hints,
+   * whether ラピ added it (design 段B). Draft-only; the commit schema drops it.
+   */
+  criteriaItems?: ProposedCriterion[];
+  /** spec-quality-checker's score for this step's criteria. Draft-only. */
+  criteriaQuality?: CriteriaQuality;
   /** When it should be finished, only when a deadline was named (YYYY-MM-DD). */
   dueDate?: string;
+  /** Index into `RoadmapDraft.milestones` of the milestone this step builds towards. */
+  milestoneIndex?: number;
 }
 
 export interface RoadmapQuestion {
@@ -42,6 +60,11 @@ export interface RoadmapDraft {
   projectChoice: Placement;
   questions: RoadmapQuestion[];
   steps: RoadmapStep[];
+  /**
+   * The milestones (節目) between the goal and its steps. Empty unless the
+   * work is filed under a project: a milestone belongs to a project.
+   */
+  milestones: RoadmapMilestone[];
   /** The deadline the request implied, as a date (YYYY-MM-DD). */
   deadline?: string;
   /** What the plan takes for granted, for the note rather than the tasks. */

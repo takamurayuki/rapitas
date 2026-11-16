@@ -113,25 +113,22 @@ pub fn set_window_split_right(hwnd: HWND, screen_width: i32, screen_height: i32)
     }
 }
 
-#[cfg(target_os = "windows")]
+// Captions are intentionally empty. Keep the exact main-window handle so
+// split-view cannot accidentally pick the notification or capture window.
+static MAIN_WINDOW: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+
+pub fn register_main_window(hwnd: HWND) {
+    MAIN_WINDOW.store(hwnd as isize, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub fn find_rapitas_window() -> Option<HWND> {
-    let windows = get_all_windows();
-
-    for window in windows {
-        // NOTE: MAIN window only. The always-on-top notification toast
-        // ("Rapitas Notification") and the quick-capture popup also contain
-        // "Rapitas" and, being topmost, enumerate FIRST in Z-order — a bare
-        // contains() match made the split-view arranger grab the tiny toast
-        // window and snap it to half the screen (2026-08-05).
-        if window.title.contains("Rapitas")
-            && !window.title.contains("Notification")
-            && !window.title.contains("Quick Capture")
-        {
-            return Some(window.hwnd);
-        }
+    let hwnd = MAIN_WINDOW.load(std::sync::atomic::Ordering::Relaxed) as HWND;
+    // SAFETY: IsWindow accepts an arbitrary handle, including null/stale ones.
+    if !hwnd.is_null() && unsafe { winapi::um::winuser::IsWindow(hwnd) } != 0 {
+        Some(hwnd)
+    } else {
+        None
     }
-
-    None
 }
 
 #[cfg(target_os = "windows")]

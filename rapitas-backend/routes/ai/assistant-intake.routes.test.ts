@@ -159,7 +159,9 @@ describe('POST /assistant/task-draft', () => {
     expect(json.source).toBe('intent');
     expect(json.draft.themeId).toBe(1);
     expect(json.draft.themeReason).toBe('アバターは rapitas 本体の機能のため');
-    expect(json.draft.acceptanceCriteria).toEqual(['長文でも吹き出しの幅を超えない']);
+    // The model's criterion first; ラピ supplements to the design's minimum of 3 (段B).
+    expect(json.draft.acceptanceCriteria[0]).toBe('長文でも吹き出しの幅を超えない');
+    expect(json.draft.acceptanceCriteria).toHaveLength(3);
   });
 
   // RAPITAS_AUX_AI=off, no provider, CLI busy. The feature degrades to the

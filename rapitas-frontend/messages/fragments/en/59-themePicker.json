@@ -1,0 +1,8 @@
+{
+  "themePicker": {
+    "title": "Choose a theme",
+    "placeholder": "Choose a theme",
+    "uncategorized": "Uncategorized",
+    "manage": "Create and edit categories and themes"
+  }
+}

@@ -380,8 +380,8 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         // which is exactly the post-stop automatic action AGENTS.md forbids, or
         // would overwrite whatever state the row concurrently moved to (task
         // 895 verifier finding, 2nd repair round). Only a genuine 'failed'
-        // (real PR-creation failure) is safe for the existing fallback below.
-        if (outcome === 'declined_stopped' || outcome === 'cas_lost') {
+        // (real PR-creation failure) may fall back; 'verifier_unconfirmed' (awaiting a human) is left too.
+        if (outcome !== 'failed') {
           log.info(
             { taskId: t.id, outcome },
             '[reconciler] Lightweight PR retry declined (stop-derived or concurrent state change) — leaving blocked untouched, not falling through to full reset',

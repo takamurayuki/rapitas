@@ -15,7 +15,7 @@
 - `rapitas-frontend/`: Next.js + TypeScript + Tailwind CSS。Web UI。
 - `rapitas-backend/`: Bun + Elysia + Prisma。Web 版は PostgreSQL、デスクトップ版は SQLite。
 - `rapitas-desktop/`: Tauri 2 desktop shell。`npm run tauri` は SQLite 版バックエンドを使う。
-- `rapitas-manager/`: 管理系ツール。
+- `rapitas-mobile/`: スマホアプリ版（Flutter）。デスクトップ版のバックエンドに接続して操作する。
 - `.claude/`, `docs/`: Claude 向け運用資料や設計メモ。
 
 ## 重要な禁止事項
@@ -25,6 +25,18 @@
 - 自動化が未完了のタスクを `completed` や `done` として扱わない。
 - Claude 専用の CLI 機能やファイルが Codex/Gemini でも存在すると仮定しない。
 - **git worktree 内で `npm install` / `bun install` / `pnpm install` を実行しない。** 共有された `node_modules` を上書きし、メインチェックアウトと他の worktree を破壊する。依存追加は必ずメインチェックアウトで行う。
+
+## ナレッジベース（ai-dev-kb）
+
+複数プロジェクト共通の推奨手順を `docs/ai-kb/` にコピーして置いている（出典：非公開の ai-dev-kb。出典とコミットは各ファイル先頭に記録）。
+該当する作業では、変更前に対応するガイドを読み、報告にガイド ID と実施結果を書く。
+
+| 作業 | ガイド | rapitas での読み先 |
+| --- | --- | --- |
+| モバイル／フロントエンドが既存 API を呼ぶ変更（特にフィルタ・検索・並び替え） | [KB-G-0001 バックエンド契約を先に確認する](docs/ai-kb/KB-G-0001-backend-contract-first.md) | ルート `rapitas-backend/routes/`、クライアント `rapitas-mobile/lib/services/`・`rapitas-frontend` |
+
+- `docs/ai-kb/` のファイルは編集しない（更新は KB 側で行い、差分を取り込む）。rapitas 固有の補足はこの表の右列に書き、事故の記録は `docs/lessons/` に書く。
+- ガイドが古い・合わないと気づいても作業は止めない。報告に「ガイド不整合」として書く。
 
 ## よく使う検証
 
@@ -75,14 +87,17 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 - `POST /workflow/tasks/{taskId}/approve-plan`
 - `PUT /workflow/tasks/{taskId}/status`
 
-標準的な状態遷移:
+標準的な状態遷移（全集合は `rapitas-backend/services/workflow/workflow-types.ts` の `WORKFLOW_STATUSES`）:
 
+0. 作成直後: `draft`
 1. `research.md` 保存後: `research_done`
 2. `plan.md` 保存後: `plan_created`
 3. Plan 承認後: `plan_approved`
 4. 実装開始後: `in_progress`
 5. `verify.md` 保存後: `verify_done`
 6. 必要な commit / PR / merge などの完了ゲート通過後: `completed` またはタスク `done`
+
+`question.md` を保存すると、どのフェーズからでも `awaiting_question` になり、回答されると直前の状態に戻る。
 
 `verify.md` を保存しただけでタスクを完了扱いにしてはいけない。`autoCommit`、`autoCreatePR`、`autoMergePR` が有効な場合は、要求された最終ステップまで成功してから完了にする。
 
@@ -133,7 +148,7 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 
 3. **テスト・型チェック・lint はメインではなく worktree 内で実行する。** スクリプトを当てた後の worktree は完全にスタンドアロンに動作するため、テスト修正と再実行のループも worktree 内で完結できる。メインのバックエンドサーバー（ポート 3001）には触れない。
 
-4. **Prisma スキーマを worktree 内で変更しない。** 生成物 (`rapitas-backend/src/generated`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
+4. **Prisma スキーマを worktree 内で変更しない。** Prisma Client の生成物 (`rapitas-backend/generated/prisma-postgres` / `rapitas-backend/generated/prisma-sqlite`。出力先は PostgreSQL 用が `rapitas-backend/prisma/schema/_generators.prisma`、SQLite 用がそこから生成される `prisma/schema.desktop/_generators.prisma` の `output`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
 
 5. **DB を共有していることに注意する。** 統合テストは PostgreSQL を共有するため、複数 worktree 並行で破壊的なテストを走らせない。テスト用に独立した DB が必要な場合は `DATABASE_URL` を実行時に上書きして別スキーマに向ける。
 

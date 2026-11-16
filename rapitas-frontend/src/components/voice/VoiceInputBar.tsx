@@ -23,6 +23,7 @@ import { Spinner } from '@/components/ui/spinner';
 // vs localhost) is cross-site to the browser and the CSRF guard rejects POSTs.
 import { API_BASE_URL as BACKEND_URL } from '@/utils/api';
 import { VOICE_INPUT_DISABLED } from './VoiceInputProvider';
+import { followInAppLink } from '@/feature/settings/settings-link';
 
 /** Voice command from backend. */
 interface VoiceCommandResponse {
@@ -110,7 +111,7 @@ function VoiceInputBarInner({ isOpen, onClose, target }: VoiceInputBarProps) {
           if (cmd.path) {
             setInterimInfo(t('voice.inputBar.navigatingTo', { label: cmd.label || cmd.path }));
             setTimeout(() => {
-              router.push(cmd.path!);
+              followInAppLink(router, cmd.path!);
               onClose();
             }, 500);
           }

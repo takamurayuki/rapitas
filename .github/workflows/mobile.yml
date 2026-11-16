@@ -1,0 +1,148 @@
+name: Mobile (Flutter)
+
+# rapitas-mobile (Flutter) had no CI at all: every other check in this repository
+# is green regardless of whether the Dart code compiles. This job is the only
+# thing that verifies it.
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-mobile/**'
+      - '.github/workflows/mobile.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'rapitas-mobile/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+# Least privilege by default (zizmor excessive-permissions). This equals the
+# repository's default read-only token minus packages:read, which nothing here
+# uses. A job that needs more declares it at job level.
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Check Mobile (Flutter)
+    runs-on: ubuntu-latest
+    # Hang backstop, not a constraint (new job, no history yet). Two blocking checks
+    # hung in unrelated install steps on 2026-10-07 and held merges for over an hour
+    # against GitHub's 6-hour default.
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: rapitas-mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned Flutter version
+        id: flutter-version
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          test -n "$version" || { echo "::error::no flutter version in .fvmrc"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          # NOTE: Pinned by rapitas-mobile/.fvmrc, the FVM config developers
+          # use locally (also read by Xcode Cloud's ci_post_clone.sh).
+          # Unpinned `stable` moved to 3.50.0 on 2026-11-13 and resolved newer
+          # SDK-bundled packages (test_api, ...), so the committed pubspec.lock
+          # stopped matching. Bump it with `fvm use <version>` and regenerate
+          # pubspec.lock together.
+          channel: stable
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The committed pubspec.lock must be what pub resolves, or a phone build
+      # runs dependency versions nobody tested. Upload the resolved file so it
+      # can be committed even without a local Flutter SDK.
+      - name: Upload resolved pubspec.lock
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pubspec-lock
+          path: rapitas-mobile/pubspec.lock
+
+      - name: Lockfile is committed
+        # --text: .gitattributes marks *.lock binary, which would hide the diff
+        # that tells you what to commit when this fails.
+        run: git diff --exit-code --text -- pubspec.lock
+
+      - name: Analyze
+        if: ${{ !cancelled() }}
+        # Infos are style hints from flutter_lints; errors and warnings fail the job.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        # Run even when Analyze fails so one push reports both kinds of failure.
+        if: ${{ !cancelled() }}
+        run: flutter test
+
+  ios-post-clone:
+    # Runs the Xcode Cloud post-clone script exactly as Xcode Cloud does, on a clean
+    # GitHub macOS runner (no signing certificates, fresh Flutter). Xcode Cloud only
+    # reports "ci_post_clone.sh failed (exited with code N)" without a readable log,
+    # so this is where the failing step and its output can be seen.
+    # After the script it archives the app (unsigned) the way Xcode Cloud's
+    # "Archive - iOS" action does, so a green job means the whole build passes.
+    name: Xcode Cloud post-clone (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Use the newest installed Xcode
+        # NOTE: Xcode Cloud workflows default to the latest Xcode release; the runner
+        # image defaults to an older one.
+        run: |
+          # printf over the glob instead of `ls -d` (SC2012); same list, same sort.
+          XCODE=$(printf '%s\n' /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Remove CocoaPods to match Xcode Cloud
+        # NOTE: GitHub's macOS image ships CocoaPods but Xcode Cloud does not, so the
+        # script's "install CocoaPods" step (code 11) only runs once it is gone.
+        run: |
+          sudo gem uninstall cocoapods -aIx 2>/dev/null || true
+          brew uninstall --ignore-dependencies cocoapods 2>/dev/null || true
+          hash -r
+          if command -v pod; then echo "pod is still on PATH"; exit 1; fi
+
+      - name: Run ci_post_clone.sh
+        env:
+          CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
+          CI_BUILD_NUMBER: ${{ github.run_number }}
+        run: ./rapitas-mobile/ios/ci_scripts/ci_post_clone.sh
+
+      - name: Archive (unsigned) like Xcode Cloud
+        run: |
+          xcodebuild archive \
+            -workspace rapitas-mobile/ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/archive.log" 2>&1 || {
+              grep -E "error:" "$RUNNER_TEMP/archive.log" | sort -u | head -40
+              tail -40 "$RUNNER_TEMP/archive.log"
+              exit 1
+            }
+          tail -5 "$RUNNER_TEMP/archive.log"

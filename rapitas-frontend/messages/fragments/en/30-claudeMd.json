@@ -336,6 +336,7 @@
     "themeCreated": "Theme created",
     "themeCreatedDescription": "Git repository initialized with requirement and design docs (docs/) and agent instruction files committed.",
     "themeCreateError": "Failed to create theme",
+    "themeCategoryRequired": "No development category is left. Pick a category, then create the theme.",
     "createAnother": "Create another theme",
     "proposalGenerateFailed": "Failed to generate proposals",
     "claudeMdGenerateFailed": "Failed to generate CLAUDE.md",

@@ -16,13 +16,14 @@ is as confusing as two unrelated functions sharing one name.
 
 ## 1. DECISION TREE — Before adding an icon
 
-```
-What concept does this icon represent here?
-├── Is that concept already shown with an icon elsewhere?
-│     └── YES → reuse THAT icon (same meaning → same glyph).
-└── Is the glyph I want to use already used for a DIFFERENT concept?
-      ├── YES → pick a different glyph (different meaning → different icon).
-      └── NO  → OK to use it; it now "owns" this meaning.
+```mermaid
+flowchart TD
+  Q0["What concept does this icon represent here?"]
+  Q0 --> Q1{"Is that concept already shown with an icon elsewhere?"}
+  Q1 -->|YES| REUSE["Reuse THAT icon (same meaning, same glyph)"]
+  Q1 -->|NO| Q2{"Is the glyph I want already used for a DIFFERENT concept?"}
+  Q2 -->|YES| OTHER["Pick a different glyph (different meaning, different icon)"]
+  Q2 -->|NO| OWN["OK to use it; it now owns this meaning"]
 ```
 
 ---
@@ -39,18 +40,30 @@ What concept does this icon represent here?
 
 ## 3. ESTABLISHED MEANINGS (living reference — extend as you add)
 
-Keep this list accurate. If you assign a glyph a new meaning, add it to the
-file matching the glyph's first letter — never edit this file itself, so two
-unrelated icon additions never collide on the same lines (see task #675). This
-project's table currently still lives inline below; when splitting it out into
-the per-letter files (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`,
-`glyphs-n-s.md`, `glyphs-t-z.md`), carry every row below — including the
-entries added by task #672 — into the matching letter file so none of this
-history is lost.
+Keep this list accurate. The table is split by the glyph's first letter into
+`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md` and
+`glyphs-t-z.md`. If you assign a glyph a new meaning, add the row to the
+matching letter file — never to the table below — so two unrelated icon
+additions never collide on the same lines (see task #675).
+
+The table below is the older inline copy, kept until every row is ported.
+Neither copy is complete yet: 27 glyphs are only here (for example the
+notification glyphs from `BadgeCheck` to `GitPullRequestArrow`, and `Repeat`,
+`Thermometer`, `Workflow`), and newer glyphs such as `Milestone` and `Goal` are
+only in the letter files. **Check both before choosing a glyph.** When you
+port a row, move it with its full text (including the entries added by
+task #672) and delete it here in the same change.
+
+The lint rule `local/no-icon-collision` (logic in
+`rapitas-backend/eslint-rules/no-icon-collision.mjs`, data in
+`rapitas-backend/eslint-rules/icon-policy-map.mjs`, registered as a warning in
+`rapitas-frontend/eslint.config.mjs`) holds a small, hand-maintained subset of
+these meanings. When you change a row that the map covers, update the map in
+the same change.
 
 | Glyph (lucide)            | Meaning                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `memo-section`（メモ種別「アイデア」バッジ）、`rapitas-frontend/src/components/category/icons`（アイコンピッカー登録）、`rapitas-frontend/src/components/header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`rapitas-backend/eslint-rules/icon-policy-map.mjs`） |
 | `Beaker`                  | 仮説台帳 / 仮説 (hypothesis ledger)                                                                                                                                                                                                                                                                                                                                                                                 |
 | `Inbox`                   | 「バックログ」ナビ群                                                                                                                                                                                                                                                                                                                                                                                                |
 | `Bug`                     | 懸念バックログ / 懸念の種別「バグ」                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -62,7 +75,7 @@ history is lost.
 | `ListTodo`                | サブタスク                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `ListPlus`                | タスク作成 / タスク起票 (task_created、quick-capture のタスクモードタブ — 同一概念の再利用)                                                                                                                                                                                                                                                                                                                         |
 | `CopyCheck`               | 一括選択モード（複数タスク/サブタスクの一括操作。旧 `ListChecks` — `ListTodo`＝サブタスクと視覚的に紛らわしいため 2026-07 に移行）                                                                                                                                                                                                                                                                                  |
-| `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`）                                                                                                                                                                                                                                                                                                                                                              |
+| `ListChecks`              | 提案タスクの完了条件バレット（旧 `TaskSuggestionDetail` — 未使用のため #1403 で削除。この意味でグリフを使う画面は現在ない）                                                                                                                                                                                                                                                                                                                                                              |
 | `CheckCircle2`            | 完了したワークフロータブ（通知の種別「自動実行: 全タスク完了」auto_run_all_done、「CI通過で完了」pr_ci_completed も同一概念「完了」として再利用）                                                                                                                                                                                                                                                                   |
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                                                                                                                                                                                                                                                                                                                                                                                             |
 | `Globe`                   | スコープ「グローバル」                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -75,7 +88,7 @@ history is lost.
 | `SquareTerminal`          | 統合ターミナル                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割                                                                                                                                                                                                                                                                                                                                                                                          |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Server`                  | バックエンドサーバー本体の状態 (BackendConnectionError, agents SystemStatusPanel status pill)                                                                                                                                                                                                                                                                                                                       |
+| `Server`                  | バックエンドサーバー本体の状態 (agents SystemStatusPanel status pill)                                                                                                                                                                                                                                                                                                                       |
 | `PlayCircle`              | いま実際に実行中のエージェント数 (SystemStatusPanel activeExecutions)                                                                                                                                                                                                                                                                                                                                               |
 | `Layers3`                 | 自動実行キューの積み上げ件数 (SystemStatusPanel queueDepth。通知の種別「自動実行: キュー未消費」auto_run_queue_starved、「自動実行: キューが消費されていません（要調査）」auto_run_queue_stalled（ランナー稼働中でkickが無効な場合の別種別）、およびTaskCardの「自動実行: 順番待ち」バッジ(TaskCardAutoRunQueueBadge — 他タスク処理中で自分の番を待っている状態)も同一概念「キュー」の再利用)                                                                                                                                                                                                                                                                |
 | `CircleArrowRight`        | 自動実行が選択済みだが未着手（TaskCardAutoRunQueueBadgeの「自動実行: 次に着手」バッジ — currentTaskIdと一致するがエージェント未起動の状態。既存の`PlayCircle`＝実行中エージェント数/実行開始通知とは別概念、`Hourglass`＝承認待ち／回答待ちとも別概念）                                                                                                                                                                                                                                                                |
@@ -108,7 +121,7 @@ history is lost.
 | `ChartNoAxesCombined`     | 自己成長台帳ダッシュボード（nav: /agents/growth。ページ見出し・5指標カードの共通アイコン — 同一ページ内の同一概念として再利用）                                                                                                                                                                                                                                                                                     |
 | `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別）                                                                                                                                                                                                                                     |
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念）                                                                                                                                                                                                                                               |
-| `MessageSquarePlus`       | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用）                                                                                                                                                                                         |
+| `MessageSquarePlus`       | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用）                                                                                                                                                                                         |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー）                                                                                                                                                                                                                                                                                   |
 | `Repeat`                  | 修復反復のデータ表示（`RepairConvergenceCard` の反復収束集計、`RepairStagnationBanner` の verify_repair/ci_repair 反復回数閾値到達バナー — 同一概念「修復反復」の再利用。注: `TaskCard`/`RecurrenceSelector` 等の「繰り返しタスク」用途とはグリフが重複する既存の未解消事項 — アイデアボックスに改善提案として起票済み）                                                                                            |
 | `Thermometer`             | リソース競合ゲート（ホストCPU逼迫時のauto-run選定保留。`ResourceContentionPanel` ヘッダー、通知の種別「自動実行: リソース逼迫で見送り」auto_run_resource_hold も同一概念の再利用。注: `Gauge`＝懸念の種別「パフォーマンス」、`Cpu`は既存の未整理な複数用途と別概念）                                                                                                                                                |
@@ -138,21 +151,17 @@ history is lost.
 | `ClockFading`             | 判断の所要時間の目安（/triage の `DecisionTimerPanel` — 種別ごとの直近中央値と開始/完了計測。注: `Timer`＝ポモドーロ/見積時間、`Hourglass`＝承認待ちとは別概念）                                                                                                                                                                                                                                                  |
 | `Workflow`                | ワークフロー実行可視化ダッシュボード全般（nav: /agents/execution-dashboard、ページ見出し、設定カード`ExecutionDashboardSettingsCard`見出し。旧・カテゴリアイコンピッカー(`ui-other.ts`)のみの中立登録から本タスクで意味確定）                                                                                                                                                                                       |
 
-> The table above is also being split into per-letter reference files
-> (`.claude/icon-policy/glyphs-a-f.md`, `glyphs-g-m.md`, `glyphs-n-s.md`,
-> `glyphs-t-z.md`) by a separate initiative. Until that migration lands with
-> every row above (including the `IterationCw` … `Repeat` entries added by
-> task #672) ported over, this inline table remains the source of truth —
-> do not delete rows from here without confirming they exist in the split
-> files first.
+> [!IMPORTANT]
+> Do not delete a row from the table above unless the same row, with its full
+> text, already exists in the matching letter file.
 
 ### Known collisions
 
 _None outstanding._ Both previously-tracked collisions are resolved:
 
-- `Gauge` — 複雑度「標準」 moved to `ArrowRight` (`WorkflowModeSelector`); `Gauge`
+- `Gauge` — 複雑度「標準」 moved to `ArrowRight` (`WorkflowModeSelector`, since removed as unused in #1403); `Gauge`
   now uniquely means 懸念の種別「パフォーマンス」.
-- `ListChecks` — dev-mode `TaskAnalysisPanel`「提案されたサブタスク」 header moved
+- `ListChecks` — dev-mode `TaskAnalysisPanel` (since removed as unused)「提案されたサブタスク」 header moved
   to `ListTodo` (the established subtask glyph). 一括選択モード later moved from
   `ListChecks` to `CopyCheck` (2026-07, too similar to `ListTodo`); `ListChecks`
   now uniquely means 提案タスクの完了条件バレット.
@@ -162,14 +171,14 @@ _None outstanding._ Both previously-tracked collisions are resolved:
 ## 4. ANTI-PATTERNS — Never do these
 
 ```tsx
-// ❌ Same glyph, two unrelated meanings
+// Bad: Same glyph, two unrelated meanings
 <CheckCircle2 />  // here: "completed"
 <CheckCircle2 />  // elsewhere: "selected" — pick CheckSquare / Check instead
 
-// ❌ Reaching for a glyph already owned by another concept
+// Bad: Reaching for a glyph already owned by another concept
 <Lightbulb />     // already = "idea"; don't reuse it for "tip/hint/insight"
 
-// ✅ Distinct meanings, distinct glyphs
+// Good: Distinct meanings, distinct glyphs
 <Lightbulb />     // idea
 <Bug />           // concern / bug
 ```

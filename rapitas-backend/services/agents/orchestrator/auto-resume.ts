@@ -15,6 +15,7 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { isTaskExecutionLocked } from '../task-execution-lock';
+import { NOT_REVIEW_COST_ROW } from '../review-cost-rows';
 
 const log = createLogger('orchestrator:auto-resume');
 
@@ -169,6 +170,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
 
       const newer = await prisma.agentExecution.findFirst({
         where: {
+          ...NOT_REVIEW_COST_ROW,
           id: { gt: execution.id },
           status: { in: ['running', 'pending', 'waiting_for_input', 'completed'] },
           session: { config: { taskId: task.id } },

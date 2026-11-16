@@ -156,6 +156,8 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => {
     },
     isInProgressStatus: (status: string) => status === 'in-progress' || status === 'blocked',
     renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
+    statusIconColor: (config: { color: string; iconColor?: string }) =>
+      config.iconColor ?? config.color,
   };
 });
 

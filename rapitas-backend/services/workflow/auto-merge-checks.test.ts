@@ -6,6 +6,7 @@
  * `gh` CLI readers (readPrChecks / readMergeState / readHeadSha) including
  * their tolerant handling of gh's non-zero exit on red/pending/no-CI PRs.
  */
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // Mutable state driving the mocked exec's callback per test.
@@ -64,6 +65,7 @@ const {
   updatePrBranch,
   readIsDraft,
 } = await import('./auto-merge-checks');
+const { QUALITY_GATES_FILE } = await import('./quality-gates-definition');
 
 beforeEach(() => {
   execMock.mockClear();
@@ -74,18 +76,46 @@ beforeEach(() => {
 });
 
 describe('blockingChecks', () => {
-  it('returns the hardcoded default set when the env var is unset', () => {
+  it('returns the gates-file default set when the env var is unset', () => {
     const set = blockingChecks();
-    expect(set.has('Test Backend')).toBe(true);
-    expect(set.has('Lint Code')).toBe(true);
-    expect(set.has('Quick Build Check')).toBe(true);
+    expect(set?.has('Test Backend')).toBe(true);
+    expect(set?.has('Lint Code')).toBe(true);
+    expect(set?.has('Quick Build Check')).toBe(true);
   });
 
   it('includes CodeQL and the HACK/FIXME ceiling as blocking checks (task 950)', () => {
     const set = blockingChecks();
-    expect(set.has('CodeQL Analysis (javascript)')).toBe(true);
-    expect(set.has('CodeQL Analysis (typescript)')).toBe(true);
-    expect(set.has('Enforce HACK/FIXME ceilings (ADR-0004)')).toBe(true);
+    expect(set?.has('CodeQL Analysis (javascript)')).toBe(true);
+    expect(set?.has('CodeQL Analysis (typescript)')).toBe(true);
+    expect(set?.has('Enforce HACK/FIXME ceilings (ADR-0004)')).toBe(true);
+  });
+
+  it('#1410: the default set is exactly the required + conditional entries of quality-gates.json', () => {
+    const gates = JSON.parse(readFileSync(QUALITY_GATES_FILE, 'utf8')) as {
+      checks: { name: string; mode: string }[];
+    };
+    const expected = gates.checks.filter((c) => c.mode !== 'advisory').map((c) => c.name);
+    expect(blockingChecks()).toEqual(new Set(expected));
+  });
+
+  it('#1410: blocks on everything branch protection requires, and never on advisory checks', () => {
+    const set = blockingChecks();
+    for (const name of [
+      'Build (windows-latest)',
+      'Build (macos-latest)',
+      'Check Rust Code (Windows)',
+      'Dependency Security Check',
+      'NPM Security Audit',
+      'Rust Security Audit',
+      // Promoted to required on 2026-11-03 (25/25 green on the last 25 merged PRs).
+      'Route Regression',
+      'Frozen Install Verification',
+    ]) {
+      expect(set?.has(name)).toBe(true);
+    }
+    expect(set?.has('Full Suite (Advisory)')).toBe(false);
+    // Advisory since 2026-11-03, matching the workflow's own continue-on-error.
+    expect(set?.has('Lint Markdown files')).toBe(false);
   });
 
   it('parses a comma-separated RAPITAS_AUTOMERGE_CHECKS override', () => {
@@ -103,7 +133,7 @@ describe('blockingChecks', () => {
   it('an override of only whitespace/commas yields an empty set (not the default)', () => {
     process.env.RAPITAS_AUTOMERGE_CHECKS = ' , , ';
     const set = blockingChecks();
-    expect(set.size).toBe(0);
+    expect(set?.size).toBe(0);
   });
 });
 
@@ -178,7 +208,7 @@ describe('evaluateAutoMergeChecks', () => {
   });
 
   it('returns "fail" when CodeQL Analysis or the HACK/FIXME ceiling fails (task 950)', () => {
-    const realBlocking = blockingChecks();
+    const realBlocking = blockingChecks() ?? new Set<string>();
     const result = evaluateAutoMergeChecks(
       [
         { name: 'Lint Code', bucket: 'pass' },

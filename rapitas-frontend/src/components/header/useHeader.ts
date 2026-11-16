@@ -47,9 +47,6 @@ export type UseHeaderReturn = {
   isMoreMenuOpen: boolean;
   setIsMoreMenuOpen: (v: boolean) => void;
   moreMenuRef: React.RefObject<HTMLDivElement | null>;
-  isUserMenuOpen: boolean;
-  setIsUserMenuOpen: (v: boolean) => void;
-  userMenuRef: React.RefObject<HTMLDivElement | null>;
   isRestarting: boolean;
   restartConfirmDialog: { open: boolean; activeExecutions: number };
   setRestartConfirmDialog: (v: { open: boolean; activeExecutions: number }) => void;
@@ -91,7 +88,6 @@ export function useHeader(): UseHeaderReturn {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const isRestarting = useServerRestartStore((s) => s.isRestarting);
   const [restartConfirmDialog, setRestartConfirmDialog] = useState<{
     open: boolean;
@@ -104,7 +100,6 @@ export function useHeader(): UseHeaderReturn {
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
-  const userMenuRef = useRef<HTMLDivElement | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isUpdatingSearchRef = useRef(false);
 
@@ -117,7 +112,6 @@ export function useHeader(): UseHeaderReturn {
 
   // Click-outside handlers — stable references required by useClickOutside dep array
   const closeMoreMenu = useCallback(() => setIsMoreMenuOpen(false), []);
-  const closeUserMenu = useCallback(() => setIsUserMenuOpen(false), []);
 
   // NOTE: Side nav click-outside also checks isMenuPinned; pinned menu must not auto-close.
   useClickOutside(
@@ -128,22 +122,22 @@ export function useHeader(): UseHeaderReturn {
     isMenuOpen,
   );
   useClickOutside(moreMenuRef, closeMoreMenu, isMoreMenuOpen);
-  useClickOutside(userMenuRef, closeUserMenu, isUserMenuOpen);
 
   // Escape closes transient menus — a baseline keyboard expectation. The pinned
   // side nav is intentionally persistent, so Escape leaves it open (matching the
   // click-outside guard above).
+  // NOTE: The user menu moved into the side nav (SideNavAccountMenu), which
+  // owns its own open state and Escape handling, so it is no longer here.
   useEffect(() => {
-    if (!isMenuOpen && !isMoreMenuOpen && !isUserMenuOpen) return;
+    if (!isMenuOpen && !isMoreMenuOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (isMoreMenuOpen) setIsMoreMenuOpen(false);
-      if (isUserMenuOpen) setIsUserMenuOpen(false);
       if (isMenuOpen && !isMenuPinned) setIsMenuOpen(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isMenuOpen, isMoreMenuOpen, isUserMenuOpen, isMenuPinned]);
+  }, [isMenuOpen, isMoreMenuOpen, isMenuPinned]);
 
   /**
    * Converts a shortcut binding id into a displayable key combination string.
@@ -229,7 +223,6 @@ export function useHeader(): UseHeaderReturn {
 
   /** Logs the current user out and redirects to the login page. */
   const handleLogout = async () => {
-    setIsUserMenuOpen(false);
     await logout();
     router.push('/auth/login');
   };
@@ -363,9 +356,6 @@ export function useHeader(): UseHeaderReturn {
     isMoreMenuOpen,
     setIsMoreMenuOpen,
     moreMenuRef,
-    isUserMenuOpen,
-    setIsUserMenuOpen,
-    userMenuRef,
     isRestarting,
     restartConfirmDialog,
     setRestartConfirmDialog,

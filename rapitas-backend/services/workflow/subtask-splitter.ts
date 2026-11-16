@@ -13,6 +13,7 @@ import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import { resolveTaskWithThemeAndCategory } from '../task/task-resolver';
+import { inheritWorkspace } from '../tenancy/parent-workspace';
 
 const log = createLogger('subtask-splitter');
 
@@ -97,10 +98,8 @@ export type SplitResult = {
 export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   const lines = planContent.split('\n');
 
-  // Count checklist items
   const checklistItems = lines.filter((l) => /^\s*- \[[ xX]\]/.test(l));
 
-  // Extract file references
   const filePattern = /[\w\-./]+\.[a-zA-Z]{1,10}/g;
   const allFiles = new Set<string>();
   for (const line of lines) {
@@ -349,12 +348,14 @@ export async function createSubtasksFromPlan(
         );
       }
 
-      // Create subtask in DB
       const subtask = await prisma.task.create({
         data: {
           title: planned.title,
           description: descParts.join('\n') || instructionContent.slice(0, 1000),
           parentId: parentTaskId,
+          // NOTE: The splitter runs with no workspace in context, so the
+          // extension would leave the subtask NULL; take the parent's instead.
+          ...inheritWorkspace(parentTask),
           themeId: parentTask.themeId,
           priority: parentTask.priority,
           status: 'todo',
@@ -464,7 +465,6 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
     }
   }
 
-  // Last section
   if (currentSection && currentItems.length > 0) {
     order++;
     subtasks.push(buildPlannedSubtask(order, currentSection, currentItems, currentFiles, allFiles));
@@ -540,7 +540,6 @@ function buildInstructionMd(
 
   lines.push('## Context');
   if (researchContent) {
-    // Include first 500 chars of research as context
     lines.push(researchContent.slice(0, 500));
   }
   if (previousSubtaskIds && previousSubtaskIds.length > 0) {

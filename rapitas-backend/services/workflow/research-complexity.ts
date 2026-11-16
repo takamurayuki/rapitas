@@ -11,15 +11,23 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { getModeSettings, selectModeByComplexity } from './workflow-mode-config';
 import type { WorkflowMode } from './workflow-types';
+import { resolveComplexityScore } from './complexity-score';
 
 const log = createLogger('research-complexity');
 
 /**
  * Parse a 0-100 complexity score from a research report.
  *
- * Accepts the prompted format (`## 複雑度評価` / `スコア: NN`) plus common
- * variants ("複雑度: NN", "complexity: NN", "NN / 100"). Returns null when no
- * valid score is present so callers can fall back to the heuristic.
+ * Reads ONLY the `## 複雑度評価` section (also `複雑度`/`complexity` headings),
+ * the same way research-risk.ts reads only `## リスク判定`. Inside it accepts
+ * `スコア: NN`, `複雑度: NN`, `complexity: NN` and `NN / 100`. Returns null when
+ * the section or a valid score is absent; callers resolve null through
+ * resolveComplexityScore (complexity-score.ts).
+ *
+ * NOTE: This used to match the FIRST `スコア` anywhere in the report, so a body
+ * line like 「既存の信頼度スコア 0.8」 turned an assessed 78 into 0 (→ lightweight
+ * mode, economy tier). rapitas has many score features, so research reports
+ * quote such lines routinely (routing-eval §1.2).
  *
  * @param markdown - research.md content. / 調査レポート本文
  * @returns Integer 0-100, or null when absent/invalid. / 0-100 または null
@@ -27,8 +35,16 @@ const log = createLogger('research-complexity');
 export function parseResearchComplexity(markdown: string | null | undefined): number | null {
   if (!markdown) return null;
 
+  // NOTE: no `m` flag, for the same reason as research-risk.ts — with it `$`
+  // is end-of-LINE and the lazy body stops on the heading line itself.
+  const section = markdown.match(
+    /(?:^|\n)#{1,4}\s*(?:複雑度評価|複雑度|complexity(?:\s+assessment)?)[^\n]*\n([\s\S]{0,600}?)(?=\n#{1,4}\s|$)/i,
+  );
+  if (!section) return null;
+  const body = section[1];
+
   const patterns: RegExp[] = [
-    // "スコア: 65" / "スコア：65 / 100" (under the 複雑度評価 heading)
+    // "スコア: 65" / "スコア：65 / 100"
     /スコア[\s:：]*?(\d{1,3})\s*(?:\/\s*100)?/i,
     // "複雑度: 65" / "複雑度スコア 65" / "複雑度（0-100）: 65"
     /複雑度[^\n0-9]{0,24}?(\d{1,3})\s*(?:\/\s*100)?/i,
@@ -37,7 +53,7 @@ export function parseResearchComplexity(markdown: string | null | undefined): nu
   ];
 
   for (const re of patterns) {
-    const m = markdown.match(re);
+    const m = body.match(re);
     if (m) {
       const n = Number.parseInt(m[1], 10);
       if (Number.isFinite(n) && n >= 0 && n <= 100) return n;
@@ -59,16 +75,23 @@ export function parseResearchComplexity(markdown: string | null | undefined): nu
  * refine the mode identically (avoids the "標準 · 複雑度 18" mismatch where a low
  * code-grounded score was stuck in a metadata-picked 'standard').
  *
+ * A report with no readable score selects the mode for the shared default
+ * (resolveComplexityScore → 50), the same value SmartRouter uses for a null
+ * score, and clears any stored complexityScore to null — the task becomes
+ * "unassessed" for learning statistics and SmartRouter resolves its null to
+ * the same 50 the mode was chosen for. A user-pinned mode is not derived from
+ * the score, so its stored score (e.g. a conflict task's) is left alone.
+ *
  * @param taskId - Task whose research just completed. / 調査完了タスクID
  * @param researchContent - research.md body. / research.md 本文
- * @returns The applied score + resulting mode, or null when no score was found. / 適用結果、無ければnull
+ * @returns The parsed score (null when absent), the score actually applied, and the resulting mode / 解析値・適用値・モード
  */
 export async function applyResearchAssessedComplexity(
   taskId: number,
   researchContent: string,
-): Promise<{ assessed: number; workflowMode: WorkflowMode | null } | null> {
+): Promise<{ assessed: number | null; appliedScore: number; workflowMode: WorkflowMode | null }> {
   const assessed = parseResearchComplexity(researchContent);
-  if (assessed === null) return null;
+  const resolved = resolveComplexityScore(assessed);
 
   const current = await prisma.task
     .findUnique({
@@ -77,35 +100,51 @@ export async function applyResearchAssessedComplexity(
     })
     .catch(() => null);
 
-  const data: { complexityScore: number; workflowMode?: string } = { complexityScore: assessed };
+  const data: { complexityScore?: number | null; workflowMode?: string } = {};
+  if (resolved.assessed) data.complexityScore = resolved.score;
   let resultingMode: WorkflowMode | null = null;
 
   // Respect a manual override — never clobber a user-pinned mode.
   if (!current?.workflowModeOverride) {
-    const assessedMode = await selectModeByComplexity(assessed);
+    // NOTE: A stale stored score would make SmartRouter route on a value the
+    // mode was not chosen for; null resolves to the same default (G2 abc #4).
+    if (!resolved.assessed) data.complexityScore = null;
+    const assessedMode = await selectModeByComplexity(resolved.score);
     const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
     if (assessedMode !== currentMode) data.workflowMode = assessedMode;
     resultingMode = assessedMode;
   }
 
-  await prisma.task.update({ where: { id: taskId }, data }).catch((err) => {
-    log.warn({ err, taskId }, '[research-complexity] failed to persist assessed complexity');
-  });
+  if (Object.keys(data).length > 0) {
+    await prisma.task.update({ where: { id: taskId }, data }).catch((err) => {
+      log.warn({ err, taskId }, '[research-complexity] failed to persist assessed complexity');
+    });
+  }
   log.info(
-    { taskId, complexityScore: assessed, workflowMode: data.workflowMode ?? '(unchanged)' },
-    '[research-complexity] applied research-assessed complexity (both directions)',
+    {
+      taskId,
+      complexityScore: assessed,
+      appliedScore: resolved.score,
+      workflowMode: data.workflowMode ?? '(unchanged)',
+    },
+    resolved.assessed
+      ? '[research-complexity] applied research-assessed complexity (both directions)'
+      : '[research-complexity] no readable score in research.md — applied the default',
   );
 
   // Snapshot the prediction HERE — this is the only moment the score, the mode
   // it selected and the duration history that informed it all coexist. Recording
-  // it later would reconstruct a prediction rather than preserve one.
-  await snapshotPrediction(taskId, assessed, {
-    effectiveMode: resultingMode ?? ((current?.workflowMode as WorkflowMode) || 'comprehensive'),
-    wasOverridden: Boolean(current?.workflowModeOverride),
-    themeId: current?.themeId ?? null,
-  });
+  // it later would reconstruct a prediction rather than preserve one. A default
+  // is not a prediction, so nothing is recorded for it.
+  if (resolved.assessed) {
+    await snapshotPrediction(taskId, resolved.score, {
+      effectiveMode: resultingMode ?? ((current?.workflowMode as WorkflowMode) || 'comprehensive'),
+      wasOverridden: Boolean(current?.workflowModeOverride),
+      themeId: current?.themeId ?? null,
+    });
+  }
 
-  return { assessed, workflowMode: resultingMode };
+  return { assessed, appliedScore: resolved.score, workflowMode: resultingMode };
 }
 
 /**

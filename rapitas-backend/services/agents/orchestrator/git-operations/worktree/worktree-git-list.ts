@@ -30,6 +30,8 @@ export interface RegisteredWorktree {
   path: string;
   /** The same path normalized, for comparison against other paths. */
   normalized: string;
+  /** Checked-out branch without `refs/heads/`; null when detached or bare. */
+  branch: string | null;
 }
 
 /**
@@ -52,7 +54,8 @@ export async function listRegisteredWorktrees(baseDir: string): Promise<Register
   // the ordering of the attribute lines that follow.
   for (const entry of stdout.split('\n\n').filter(Boolean)) {
     const path = entry.match(/^worktree\s+(.+)$/m)?.[1];
-    if (path) result.push({ path, normalized: normalizePath(path) });
+    const branch = entry.match(/^branch\s+refs\/heads\/(.+)$/m)?.[1] ?? null;
+    if (path) result.push({ path, normalized: normalizePath(path), branch });
   }
   return result;
 }

@@ -11,9 +11,14 @@
  * access, so the keep list travels to it over IPC.
  */
 import { readdir } from 'fs/promises';
+// Namespace import: suites that load this module while replacing `node:fs`
+// with a partial stub must not fail at link time; a missing lstatSync throws
+// at call time instead, which hasGitEntry turns into "protect".
+import * as fs from 'node:fs';
 import { join } from 'path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { runAcrossAllWorkspaces } from '../tenancy/workspace-context';
 
 const log = createLogger('worktree-keep-list');
 
@@ -40,10 +45,37 @@ export function parseTaskIdFromWorktreeName(dirName: string): number | null {
 }
 
 /**
+ * Whether a directory holds a `.git` entry, i.e. is (or was) a git worktree.
+ *
+ * Only a definite ENOENT counts as "no": any other failure — a permission
+ * error, a stubbed fs — answers "yes", because this decides protection and
+ * the safe answer to "can't tell" is to protect.
+ *
+ * @param dirPath - Directory under `.worktrees/` / 調べるディレクトリ
+ * @returns False only when `.git` is proven absent / `.git` が無いと確定した場合のみ false
+ */
+function hasGitEntry(dirPath: string): boolean {
+  try {
+    fs.lstatSync(join(dirPath, '.git'));
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT';
+  }
+}
+
+/**
  * List the worktree paths that must NOT be removed: those owned by a task
  * that is not terminal (a blocked task's worktree is kept too — the user may
  * unblock and resume, and deleting it would repeat the lost-work bug), plus
- * any directory whose ownership can't be determined (unknown = don't delete).
+ * any WORKTREE whose ownership can't be determined (unknown = don't delete).
+ *
+ * NOTE(#1403): an unparseable directory with no `.git` entry is not a worktree,
+ * so there is no owner to be unsure about and it is no longer listed. Before
+ * this, `.worktrees/.verification-logs` (run-checked output from a command run
+ * with `.worktrees/` as cwd) and an empty `.worktrees/.worktrees` were kept
+ * forever by this rule alone. The only sweep that then reaches such a
+ * directory is worktree-filesystem-orphans.ts, which removes nothing but empty
+ * directories and provably-provisioned leftovers.
  *
  * Best-effort: on any failure it returns EVERY worktree dir (fail-safe:
  * when in doubt, delete nothing).
@@ -67,7 +99,8 @@ export async function computeWorktreeKeepPaths(baseDir: string): Promise<string[
     for (const dir of dirs) {
       const taskId = parseTaskIdFromWorktreeName(dir);
       if (taskId === null) {
-        unparseable.push(join(worktreeRoot, dir));
+        const dirPath = join(worktreeRoot, dir);
+        if (hasGitEntry(dirPath)) unparseable.push(dirPath);
         continue;
       }
       const list = byId.get(taskId) ?? [];
@@ -75,10 +108,15 @@ export async function computeWorktreeKeepPaths(baseDir: string): Promise<string[
       byId.set(taskId, list);
     }
 
-    const liveTasks = await prisma.task.findMany({
-      where: { id: { in: [...byId.keys()] }, status: { notIn: TERMINAL_STATUSES } },
-      select: { id: true },
-    });
+    // Unscoped on purpose: a caller inside a request runs in one workspace, and
+    // a live task of ANOTHER workspace must not read as absent and lose its
+    // protection.
+    const liveTasks = await runAcrossAllWorkspaces(() =>
+      prisma.task.findMany({
+        where: { id: { in: [...byId.keys()] }, status: { notIn: TERMINAL_STATUSES } },
+        select: { id: true },
+      }),
+    );
 
     const keep = [...unparseable];
     for (const { id } of liveTasks) keep.push(...(byId.get(id) ?? []));

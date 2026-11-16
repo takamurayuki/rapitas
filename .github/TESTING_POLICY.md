@@ -17,13 +17,15 @@
 | `scripts/run-gate.ts` | **汎用ランナー**。`bun scripts/run-gate.ts <gateId>` でゲートを実行 |
 | `scripts/gate-manifest-parser.ts` | **共有パーサー**。`.txt` マニフェストの解析と drift 検証を提供 |
 | `scripts/ci-gate-tests.txt` | バックエンドゲート（`backend-tests`）のファイルリスト |
+| `scripts/route-regression-tests.txt` | ルート配線ゲート（`route-regression`）のファイルリスト |
 | `scripts/sqlite-compat-tests.txt` | SQLite ゲート（`sqlite-tests`）のファイルリスト |
 
 ### 登録済みゲート
 
 | Gate ID | 種別 | コマンド | 説明 |
 | ------- | ---- | -------- | ---- |
-| `backend-tests` | `test-suite` | `bun run test:ci` | バックエンドCIゲート（coverage + isolate） |
+| `backend-tests` | `test-suite` | `bun run test:ci` | バックエンドCIゲート（coverage + isolate、`coverageFloor` 付き） |
+| `route-regression` | `test-suite` | `bun run test:routes` | ルート配線の回帰ゲート（isolate, no coverage — #1330） |
 | `sqlite-tests` | `test-suite` | `bun run test:sqlite` | SQLite 互換ゲート（isolate, no coverage） |
 
 ### 新しいゲートの追加手順
@@ -38,13 +40,13 @@
 > **ゲート種別について**:
 >
 > - `'test-suite'`: `bun test` でマニフェストのファイルを実行する（現在実装済み）
-> - `'command'`: `--check` 終了コード規約に従う任意コマンド（follow-up で実装予定）
+> - `'command'`: `--check` 終了コード規約に従う任意コマンド（型のみ定義済み。`run-gate.ts` の dispatch は未実装で、登録済みゲートも無い）
 
 ---
 
 ## 1. Baseline 定義
 
-**唯一の必須通過ゲート**: `test-backend` ジョブ
+**基準ゲート（baseline）**: `test-backend` ジョブ。必須通過ジョブはこれだけではない — 全 required チェックは §2 と `.github/quality-gates.json` を参照。
 
 | 項目 | 内容 |
 | ---- | ---- |
@@ -65,13 +67,26 @@
 
 ## 2. 失敗ティア表
 
+**どのチェックがマージを止めるかの唯一の定義は
+[`.github/quality-gates.json`](quality-gates.json)**（#1410）。全 PR で走るチェックは
+`required`（GitHub のブランチ保護 + アプリ内 auto-merge の両方が要求）、
+paths で絞られたチェックは `conditional`（走ったときだけ auto-merge が止まる。
+ブランチ保護には入れない — 報告されない必須コンテキストは永久に pending になる）、
+それ以外は `advisory`（理由と、昇格予定なら `expires` の見直し日を必須）。
+`node scripts/gates/quality-gates.cjs --check` が CI（`rust-check` ジョブ）で
+全名称が実在するジョブ名と一致することを検証し、ブランチ保護は
+`--print-protection <branch>` の出力から設定する。下表は `test-lint.yml` 分の抜粋。
+
 | ジョブ | ティア | マージへの影響 | 目的 |
 | ------ | ------ | -------------- | ---- |
-| `test-backend` | **hard-gate** | ブロックする | ゲートスイートの回帰を検出 |
-| `test-sqlite` | **hard-gate** | ブロックする | SQLite 互換性の維持 |
-| `lint` | **hard-gate** | ブロックする | TypeScript / ESLint / Prettier |
-| `check-frontend` | **hard-gate** | ブロックする | フロントエンド型検査 + gate テスト |
-| `rust-check` | **hard-gate** | ブロックする | Rust フォーマット / Clippy |
+| `test-backend` | **required** | ブロックする | ゲートスイートの回帰を検出 + カバレッジ下限 |
+| `test-sqlite` | **required** | ブロックする | SQLite 互換性の維持 |
+| `lint` | **required** | ブロックする | TypeScript / ESLint / Prettier |
+| `check-frontend` | **required** | ブロックする | フロントエンド型検査 + 指定テストを `vitest run --coverage` で実行（`vitest.config.ts` の閾値を強制） |
+| `rust-check` | **required** | ブロックする | Rust フォーマット / Clippy / ルートスクリプトのテスト・docs/ゲート定義の整合 |
+| `rust-check-windows` | **required** | ブロックする | Windows 上の Rust ビルド検査 |
+| `route-regression` | **required** | ブロックする | ルート配線の回帰を検出（2026-11-03 昇格。直近25件のマージPRで25/25成功） |
+| `frozen-install` | **required** | ブロックする | 全 lockfile が `--frozen-lockfile` でインストールできること（同上） |
 | `test-full-advisory` | **advisory** | ブロックしない | 全スイートの回帰を可視化 |
 | `test-order-check` | **advisory** | ブロックしない | テスト順序依存を検出 |
 
@@ -119,19 +134,15 @@ stale mock（`startExecutionLeaseSweep` export 欠落）を修正した。full-s
 
 ## 5. threshold 方針（カバレッジ閾値）
 
-**現時点では閾値を設定しない（deferred）。**
+閾値は [ADR-0002](../docs/adr/0002-coverage-gate-staging.md) のラチェットで管理し、
+**下げない**（落ちたらテストを足す）。
 
-### 理由
+| 対象 | 閾値の置き場所 | 強制するジョブ |
+| ---- | -------------- | -------------- |
+| バックエンド（`backend-tests` ゲートのファイルのみ） | `rapitas-backend/scripts/ci-gates.ts` の `coverageFloor`（lines / functions） | `test-backend`（`--files` 指定の部分実行では判定しない） |
+| フロントエンド（`check-frontend` が列挙したテストのみ） | `rapitas-frontend/vitest.config.ts` の `coverage.thresholds` | `check-frontend` |
 
-- ゲートスイートは全テストスイートの約 10% のみカバーしており、ゲートスイート単体の
-  カバレッジ % は全体の健全性を正確に反映しない。
-- 誤った閾値は偽の安心感を与えるか、不当にマージをブロックする。
-
-### 閾値導入の条件（昇格条件）
-
-1. `test-full-advisory` が develop で安定してグリーンになる（連続 10 runs 以上）。
-2. ゲートスイートが全テストの 50% 以上をカバーするよう `ci-gate-tests.txt` が拡張される。
-3. 上記 2 条件を満たした後、閾値（例: line coverage ≥ 70%）を別タスクで設定する。
+どちらもゲート対象ファイルのみの集計であり、全スイートのカバレッジではない。
 
 ---
 
@@ -145,7 +156,7 @@ stale mock（`startExecutionLeaseSweep` export 欠落）を修正した。full-s
 3. コメントを外して ci-gate-tests.txt を更新
 4. develop へ push → test-backend グリーン → PR マージ
 5. test-full-advisory が安定してグリーンになっていれば
-   ゲートスイート全体の mandatory 化（カバレッジ threshold 導入）を検討
+   full-suite の hard-gate 化（下記）を検討
 ```
 
 ### test-full-advisory → hard-gate 昇格の基準

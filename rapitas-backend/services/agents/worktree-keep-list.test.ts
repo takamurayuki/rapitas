@@ -3,7 +3,10 @@
  *
  * 非終端タスクのworktreeが保護されること(blockedも保護)、終端タスクと
  * 存在しないタスクのworktreeは保護されないこと、所有者不明ディレクトリは
- * 常に保護、DB失敗時は全保護(fail-safe)を検証する。
+ * `.git` を持つ限り保護（`.git` の無い所有者不明ディレクトリは worktree ではないので
+ * 保護しない — #1403: `.worktrees/.verification-logs` と空の `.worktrees/.worktrees`
+ * がこの規則だけで永久に残っていた）、DB失敗時は全保護(fail-safe)、そして生存判定が
+ * 呼び出し元のワークスペースに絞られないことを検証する。
  * Own file — mock.module is process-global.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
@@ -31,6 +34,20 @@ const taskFindMany = mock((args: { where: { id: { in: number[] } } }) => {
 });
 mock.module('../../config/database', () => ({ prisma: { task: { findMany: taskFindMany } } }));
 
+// Directories (by basename) that hold a `.git` entry, i.e. are real worktrees.
+let withGitEntry = new Set<string>();
+let lstatError: NodeJS.ErrnoException | null = null;
+const realFs = await import('node:fs');
+mock.module('node:fs', () => ({
+  ...realFs,
+  lstatSync: (p: string) => {
+    if (lstatError) throw lstatError;
+    const parts = p.replace(/\\/g, '/').split('/');
+    if (parts.at(-1) === '.git' && withGitEntry.has(parts.at(-2) ?? '')) return {};
+    throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' });
+  },
+}));
+
 const { computeWorktreeKeepPaths, parseTaskIdFromWorktreeName } =
   await import('./worktree-keep-list');
 
@@ -39,6 +56,8 @@ beforeEach(() => {
   liveTaskIds = [];
   readdirShouldFail = false;
   dbShouldFail = false;
+  withGitEntry = new Set();
+  lstatError = null;
   taskFindMany.mockClear();
 });
 
@@ -73,13 +92,50 @@ describe('computeWorktreeKeepPaths', () => {
     expect(keep[0]).toContain('task-494-aaaa');
   });
 
-  test('所有者不明のディレクトリは常に保護される', async () => {
+  test('所有者不明でも .git を持つ worktree は保護される', async () => {
     dirNames = ['task-494-aaaa', 'manual-experiment'];
+    withGitEntry = new Set(['manual-experiment']);
     liveTaskIds = [];
 
     const keep = await computeWorktreeKeepPaths('C:/repo');
     expect(keep).toHaveLength(1);
     expect(keep[0]).toContain('manual-experiment');
+  });
+
+  // #1403: `t944-qa-stop-deadlock` (a hand-made worktree) must stay protected,
+  // while `.verification-logs` (run-checked output) and an empty `.worktrees`
+  // are not worktrees at all and were kept only by this rule.
+  test('.git の無い所有者不明ディレクトリは保護しない(#1403)', async () => {
+    dirNames = ['t944-qa-stop-deadlock', '.verification-logs', '.worktrees'];
+    withGitEntry = new Set(['t944-qa-stop-deadlock']);
+
+    const keep = await computeWorktreeKeepPaths('C:/repo');
+    expect(keep).toHaveLength(1);
+    expect(keep[0]).toContain('t944-qa-stop-deadlock');
+  });
+
+  test('.git の有無が判定できなければ保護する(fail-safe)', async () => {
+    dirNames = ['.verification-logs'];
+    lstatError = Object.assign(new Error('EPERM'), { code: 'EPERM' });
+
+    const keep = await computeWorktreeKeepPaths('C:/repo');
+    expect(keep).toHaveLength(1);
+  });
+
+  // A request-scoped caller (the POST cleanup routes run inside the signed-in
+  // workspace) must not see another workspace's live task as "absent" — that
+  // would drop its worktree from the keep list.
+  test('生存判定はワークスペースに絞られない', async () => {
+    const { runInWorkspace, currentWorkspaceId } = await import('../tenancy/workspace-context');
+    let seen: number | null | undefined;
+    taskFindMany.mockImplementationOnce(() => {
+      seen = currentWorkspaceId();
+      return Promise.resolve([]);
+    });
+    dirNames = ['task-1-a'];
+
+    await runInWorkspace(7, () => computeWorktreeKeepPaths('C:/repo'));
+    expect(seen).toBeNull();
   });
 
   test('DB失敗時は全ディレクトリを保護する(fail-safe)', async () => {

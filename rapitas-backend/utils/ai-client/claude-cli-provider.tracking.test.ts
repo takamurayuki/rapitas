@@ -59,6 +59,9 @@ mock.module('../common/cli-path-resolver', () => ({
 const registerMock = mock((_info: { pid: number; role: string }) => {});
 const unregisterMock = mock((_pid: number) => {});
 mock.module('./aux-cli-cleanup', () => ({
+  // Mirrors the real module's exports (bun replaces the whole module).
+  trackAuxCliChild: () => () => {},
+  createAuxCliCleanup: () => ({}),
   auxCliCleanup: {
     assertReady: () => {},
     stop: (child: MockChild) => {

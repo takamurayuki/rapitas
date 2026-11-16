@@ -26,6 +26,7 @@ import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { TerminalProvider } from '@/feature/terminal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
+import DesktopTitleBar from '@/components/common/DesktopTitleBar';
 import AppContent from '@/components/common/AppContent';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
@@ -33,6 +34,7 @@ import OfflineIndicatorLoader from '@/components/common/OfflineIndicatorLoader';
 import UpdateBanner from '@/components/common/UpdateBanner';
 import GlobalErrorReporter from '@/components/common/GlobalErrorReporter';
 import SetupGate from '@/components/common/SetupGate';
+import { SettingsModal } from '@/feature/settings/SettingsModal';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 export const metadata: Metadata = {
@@ -86,6 +88,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // Desktop app marker for the tauri: CSS variant (globals.css).
+                // Tauri injects __TAURI_INTERNALS__ before any page script.
+                if ('__TAURI_INTERNALS__' in window) {
+                  document.documentElement.classList.add('tauri');
+                }
                 const setClassOnDocumentBody = (darkMode) => {
                   document.documentElement.classList.toggle('dark', darkMode);
                 };
@@ -145,6 +152,7 @@ export default function RootLayout({
         {/* First, and above AuthProvider: it must be evaluated before anything
             can fetch, or those requests go out with no session cookie and are
             served unscoped. */}
+        <DesktopTitleBar />
         <ApiCredentialsInitializer />
         <IntlProvider>
           <AuthProvider>
@@ -195,6 +203,9 @@ export default function RootLayout({
                           {/* Main-window-only for the same reason: a popup
                               window would get its own avatar in the corner. */}
                           <RapiAvatarHost />
+                          {/* Settings are a modal over the current page, not
+                              /settings routes; one instance serves the app. */}
+                          <SettingsModal />
                         </MainWindowOnly>
                       </Suspense>
                     </ExternalLinksProvider>

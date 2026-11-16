@@ -5,7 +5,9 @@
  * Selects the next eligible task for a given theme without side effects,
  * making the logic unit-testable without a live DB connection.
  */
-import type { PrismaClient } from '../../../generated/prisma-postgres';
+import type { Prisma, PrismaClient } from '../../../generated/prisma-postgres';
+import { UNMET_DEPENDENCIES_EXCLUDED } from '../../task/task-dependencies';
+import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -252,7 +254,7 @@ export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number)
   if (task?.workflowStatus === 'awaiting_question') return true;
 
   const latest = await prisma.agentExecution.findFirst({
-    where: { session: { config: { taskId } } },
+    where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
     orderBy: { createdAt: 'desc' },
     select: { question: true },
   });
@@ -435,6 +437,10 @@ export async function selectNextTask(
       // task card toggle for "keep this out of auto-run, but let it run
       // normally on demand." Independent of workflowDisabled.
       autoRunExcluded: false,
+      // A task waiting for a prerequisite that is not done yet (開始条件,
+      // #1559). The same fragment is in eligibleTopLevelTodoWhere, so the
+      // idle side never resumes a theme for a task selection then refuses.
+      ...(UNMET_DEPENDENCIES_EXCLUDED as unknown as Prisma.TaskWhereInput),
       id: skipTaskIds.length > 0 ? { notIn: skipTaskIds } : undefined,
       // Exclude subtasks — the theme scheduler drives top-level tasks only;
       // subtasks are handled by AIOrchestra.enqueueSubtasksForExecution().

@@ -405,6 +405,11 @@ CREATE TABLE "Milestone" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "dueDate" DATETIME,
+    "acceptanceCriteria" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "evidence" TEXT,
+    "reachedAt" DATETIME,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "projectId" INTEGER NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
@@ -438,6 +443,10 @@ CREATE TABLE "Task" (
     "goals" TEXT,
     "constraints" TEXT,
     "acceptanceCriteria" TEXT,
+    "userAcceptanceChecks" TEXT,
+    "outOfScope" TEXT,
+    "deliverable" TEXT,
+    "startConditions" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "prCreationLockedAt" DATETIME,
@@ -470,6 +479,7 @@ CREATE TABLE "Task" (
     "haltReason" TEXT,
     "haltedAt" DATETIME,
     "resumeCondition" TEXT,
+    "juryRunId" INTEGER,
     CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Task_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
@@ -528,6 +538,17 @@ CREATE TABLE "TaskLabel" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "TaskLabel_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "TaskLabel_labelId_fkey" FOREIGN KEY ("labelId") REFERENCES "Label" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "TaskDependency" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "dependsOnTaskId" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TaskDependency_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "TaskDependency_dependsOnTaskId_fkey" FOREIGN KEY ("dependsOnTaskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1215,6 +1236,37 @@ CREATE TABLE "PrRiskThresholdReview" (
 );
 
 -- CreateTable
+CREATE TABLE "RapiChatSpace" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "title" TEXT,
+    "titleSource" TEXT NOT NULL DEFAULT 'auto',
+    "clientKey" TEXT,
+    "messageCount" INTEGER NOT NULL DEFAULT 0,
+    "lastMessageAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "RapiChatMessage" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "spaceId" INTEGER NOT NULL,
+    "clientId" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'text',
+    "text" TEXT NOT NULL DEFAULT '',
+    "taskId" INTEGER,
+    "inHistory" BOOLEAN NOT NULL DEFAULT false,
+    "payload" TEXT,
+    "clientCreatedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "RapiChatMessage_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "RapiChatSpace" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Resource" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
@@ -1441,6 +1493,20 @@ CREATE TABLE "AssistantAction" (
     "errorMessage" TEXT,
     "taskId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "TaskCompanion" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "origin" TEXT NOT NULL,
+    "sourceActionId" INTEGER,
+    "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastDigestTransitionId" INTEGER,
+    "closedAt" DATETIME,
+    "closedReason" TEXT,
+    "retrospectiveNoteId" INTEGER
 );
 
 -- CreateTable
@@ -1738,6 +1804,25 @@ CREATE TABLE "ThemeAutoRun" (
     "updatedAt" DATETIME NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "JuryReviewRun" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "taskId" INTEGER NOT NULL,
+    "source" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'running',
+    "verifySha256" TEXT,
+    "criteriaRevision" TEXT,
+    "diffFingerprint" TEXT,
+    "verdict" TEXT,
+    "outcome" TEXT,
+    "ownerId" TEXT NOT NULL,
+    "heartbeatAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" DATETIME,
+    "discardReason" TEXT
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "DeveloperModeConfig_taskId_key" ON "DeveloperModeConfig"("taskId");
 
@@ -1920,6 +2005,15 @@ CREATE INDEX "TaskLabel_workspaceId_idx" ON "TaskLabel"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TaskLabel_taskId_labelId_key" ON "TaskLabel"("taskId", "labelId");
+
+-- CreateIndex
+CREATE INDEX "TaskDependency_dependsOnTaskId_idx" ON "TaskDependency"("dependsOnTaskId");
+
+-- CreateIndex
+CREATE INDEX "TaskDependency_workspaceId_idx" ON "TaskDependency"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskDependency_taskId_dependsOnTaskId_key" ON "TaskDependency"("taskId", "dependsOnTaskId");
 
 -- CreateIndex
 CREATE INDEX "TaskTemplate_workspaceId_idx" ON "TaskTemplate"("workspaceId");
@@ -2318,6 +2412,24 @@ CREATE INDEX "PrRiskThresholdReview_month_idx" ON "PrRiskThresholdReview"("month
 CREATE INDEX "PrRiskThresholdReview_workspaceId_idx" ON "PrRiskThresholdReview"("workspaceId");
 
 -- CreateIndex
+CREATE INDEX "RapiChatSpace_workspaceId_idx" ON "RapiChatSpace"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_lastMessageAt_idx" ON "RapiChatSpace"("lastMessageAt");
+
+-- CreateIndex
+CREATE INDEX "RapiChatSpace_clientKey_idx" ON "RapiChatSpace"("clientKey");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_spaceId_id_idx" ON "RapiChatMessage"("spaceId", "id");
+
+-- CreateIndex
+CREATE INDEX "RapiChatMessage_workspaceId_idx" ON "RapiChatMessage"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RapiChatMessage_spaceId_clientId_key" ON "RapiChatMessage"("spaceId", "clientId");
+
+-- CreateIndex
 CREATE INDEX "Resource_workspaceId_idx" ON "Resource"("workspaceId");
 
 -- CreateIndex
@@ -2433,6 +2545,15 @@ CREATE INDEX "AssistantAction_createdAt_idx" ON "AssistantAction"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "AssistantAction_workspaceId_idx" ON "AssistantAction"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskCompanion_taskId_key" ON "TaskCompanion"("taskId");
+
+-- CreateIndex
+CREATE INDEX "TaskCompanion_closedAt_idx" ON "TaskCompanion"("closedAt");
+
+-- CreateIndex
+CREATE INDEX "TaskCompanion_workspaceId_idx" ON "TaskCompanion"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Workspace_slug_key" ON "Workspace"("slug");
@@ -2571,4 +2692,13 @@ CREATE INDEX "ThemeAutoRun_workspaceId_idx" ON "ThemeAutoRun"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ThemeAutoRun_workspaceId_themeId_key" ON "ThemeAutoRun"("workspaceId", "themeId");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_taskId_startedAt_idx" ON "JuryReviewRun"("taskId", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_status_heartbeatAt_idx" ON "JuryReviewRun"("status", "heartbeatAt");
+
+-- CreateIndex
+CREATE INDEX "JuryReviewRun_workspaceId_idx" ON "JuryReviewRun"("workspaceId");
 `;

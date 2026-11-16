@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Send, Loader2, Trash2, Settings, AlertCircle, MessageCircle } from 'lucide-react';
-import Link from 'next/link';
 import { useAIChat } from './useAIChat';
 import { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';
 import ChatMessage from './chat-message';
 import type { ApiProvider } from '@/types';
 import { Spinner } from '@/components/ui/spinner';
 import { isImeComposing } from '@/utils/ime';
+import { openSettings } from '@/feature/settings/settings-modal-store';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -180,13 +180,14 @@ export default function AITabContent() {
               })}
             </div>
             {configuredProviders.length === 0 && (
-              <Link
-                href="/settings"
+              <button
+                type="button"
+                onClick={() => openSettings('api-keys')}
                 className="inline-flex items-center gap-1 mt-1.5 text-xs text-indigo-500 hover:text-indigo-600 dark:text-indigo-400"
               >
                 <Settings className="w-3 h-3" />
                 {t('aiTab.apiKeyLink')}
-              </Link>
+              </button>
             )}
           </div>
           {currentModels.length > 0 && (

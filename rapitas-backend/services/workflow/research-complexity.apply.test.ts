@@ -55,6 +55,7 @@ describe('applyResearchAssessedComplexity', () => {
   test('snapshots the score, the mode it selected and the band that selected it', async () => {
     expect(await applyResearchAssessedComplexity(658, RESEARCH)).toEqual({
       assessed: 42,
+      appliedScore: 42,
       workflowMode: 'standard',
     });
 
@@ -98,13 +99,61 @@ describe('applyResearchAssessedComplexity', () => {
 
     expect(await applyResearchAssessedComplexity(658, RESEARCH)).toEqual({
       assessed: 42,
+      appliedScore: 42,
       workflowMode: 'standard',
     });
     expect(update).toHaveBeenCalled();
   });
 
   test('no score means no prediction to record', async () => {
-    expect(await applyResearchAssessedComplexity(658, 'スコアの記載なし')).toBeNull();
+    await applyResearchAssessedComplexity(658, 'スコアの記載なし');
     expect(recordModePrediction).not.toHaveBeenCalled();
+  });
+
+  // Same default SmartRouter uses for a null score (complexity-score.ts):
+  // the mode is chosen for 50, never for 0, and the score stays unassessed.
+  test('no score selects the mode for the shared default 50 and clears the stored score', async () => {
+    expect(await applyResearchAssessedComplexity(658, 'スコアの記載なし')).toEqual({
+      assessed: null,
+      appliedScore: 50,
+      workflowMode: 'standard',
+    });
+    expect(selectModeByComplexity.mock.calls[0]).toEqual([50] as never);
+    const data = (update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    // null resolves to the same 50 in SmartRouter, so mode and routing agree.
+    expect(data.complexityScore).toBeNull();
+    expect(data.workflowMode).toBe('standard');
+  });
+
+  // G2 abc review item 4: a stale stored 0 must not survive a scoreless report
+  // — the mode was picked for 50, so SmartRouter must not keep routing on 0.
+  test('a stale stored score is cleared even when the mode does not change', async () => {
+    findUnique.mockResolvedValue({
+      workflowModeOverride: false,
+      workflowMode: 'standard',
+      complexityScore: 0,
+      themeId: 7,
+    });
+    await applyResearchAssessedComplexity(658, 'スコアの記載なし');
+    const data = (update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(data).toEqual({ complexityScore: null });
+  });
+
+  test('a misread score elsewhere in the report does not drive the mode', async () => {
+    const md = '既存の信頼度スコア 0.8\n\n## 複雑度評価\nスコア: 78\n';
+    selectModeByComplexity.mockResolvedValue('comprehensive');
+    const r = await applyResearchAssessedComplexity(658, md);
+    expect(r?.assessed).toBe(78);
+    expect(selectModeByComplexity.mock.calls[0]).toEqual([78] as never);
+  });
+
+  test('a user-pinned mode is not changed by the default either', async () => {
+    findUnique.mockResolvedValue({
+      workflowModeOverride: true,
+      workflowMode: 'lightweight',
+      themeId: 7,
+    });
+    await applyResearchAssessedComplexity(658, 'スコアの記載なし');
+    expect(update).not.toHaveBeenCalled();
   });
 });

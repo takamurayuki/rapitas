@@ -14,13 +14,15 @@ from a fresh clone to a merged PR**. For deeper context, see
 
 | Tool | Version | Why |
 |---|---|---|
-| Node.js | 20.x (see `.nvmrc`) | Frontend / desktop tooling |
-| Bun | 1.1.42+ | Backend runtime + compile |
-| pnpm | latest | Frontend / desktop package manager |
-| PostgreSQL | 14+ | Primary database |
+| Node.js | 24 (see `.nvmrc`) | Frontend / desktop tooling |
+| Bun | 1.3.13 | Backend runtime + compile |
+| pnpm | 10.34.9 | Frontend / desktop package manager |
+| PostgreSQL | 14+ | Web build database (the desktop build uses SQLite) |
 | Rust | stable | Tauri builds |
 
-Three runtimes coexist intentionally — see
+The versions CI installs are pinned in
+[`.github/toolchain.json`](.github/toolchain.json) — treat that file as the
+source of truth. Three runtimes coexist intentionally — see
 [ADR 0001](docs/adr/0001-three-runtimes-coexistence.md).
 
 ---
@@ -44,8 +46,9 @@ make dev-tauri
 # or: cd rapitas-desktop && node scripts/dev.js
 ```
 
-`scripts/preflight-check.cjs` runs first and validates Node, Bun, pnpm,
-PostgreSQL connectivity, and that ports 3000/3001 are free.
+`npm run dev` runs `scripts/preflight-check.cjs` first; it checks the Node,
+Bun and pnpm installs, the `.env` files, `node_modules`, that `DATABASE_URL`
+is set, and whether ports 3000/3001 are free.
 
 ---
 
@@ -101,11 +104,39 @@ See [`commitlint.config.js`](commitlint.config.js). Most common:
 |---|---|---|
 | Formatting | Prettier defaults | `lint-staged` on commit |
 | TS rules | ESLint + `@typescript-eslint` | `lint-staged` + CI |
-| `any` type | Forbidden (use `// HACK(agent): reason` if unavoidable) | review |
-| File size | ≤ 300 lines (hard limit 500) | review (see `COMPONENT_SPLITTING_POLICY.md`) |
-| Dir size | ≤ 10 files (hard limit 20) | review (see `FOLDER_ORGANIZATION_POLICY.md`) |
-| Public function docs | Required (JSDoc / rustdoc) | review (see `COMMENT_POLICY.md`) |
-| Comments | WHY, not WHAT | review (see `COMMENT_POLICY.md`) |
+| `any` type | Forbidden (use `// HACK(agent): reason` + an eslint-disable directive if unavoidable) | ESLint (`@typescript-eslint/no-explicit-any` is an error in prod code, `eslint-shared.mjs`) |
+| File size | ≤ 300 lines (hard limit 500) | `scripts/check-large-files.cjs` (`File Size Check` workflow, ratcheted against a baseline) + review (see `.claude/COMPONENT_SPLITTING_POLICY.md`) |
+| Dir size | ≤ 10 files (hard limit 20) | review (see `.claude/FOLDER_ORGANIZATION_POLICY.md`) |
+| Public function docs | Required (JSDoc / rustdoc) | review (see `.claude/COMMENT_POLICY.md`) |
+| Comments | WHY, not WHAT | review (see `.claude/COMMENT_POLICY.md`) |
+| Docs: no emoji, no box-drawing diagrams | See "Documentation style" below | `scripts/docs/check-docs-style.cjs` (CI step `Docs follow the style rules`) |
+| Docs: paths, scripts, versions match the code | See "Documentation style" below | `scripts/docs/check-docs-drift.cjs` (CI step `Docs match the code`) |
+
+### Documentation style
+
+Docs describe the code as it is today. A PR that changes behaviour updates the
+docs it affects in the same PR. Write in the doc's language (Japanese or
+English) and keep it plain:
+
+- **Structure.** Short noun-phrase headings with no decoration. The first
+  sentence of a section states its conclusion or purpose.
+- **Status as words.** Tables say 対応済み / 未対応 / 一部 (or Done / Not done).
+  Task lists use `- [ ]` / `- [x]`.
+- **Callouts.** Use GitHub alerts — `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`,
+  `> [!WARNING]`, `> [!CAUTION]` — not emoji.
+- **Examples.** Label them Good / Bad (良い例 / 悪い例), not with check marks.
+- **Shape.** Comparisons and options as tables, procedures as numbered lists,
+  parallel items as bullets.
+- **Tone.** Bold only key terms or the one thing not to miss. No exclamation
+  marks, no closing pleasantries, no repeated summary sections. One idea per
+  sentence, short paragraphs, the same term for the same thing.
+- **Diagrams.** Flows, sequences, states and architecture are ```` ```mermaid ````
+  blocks. Directory trees stay plain text trees.
+
+CI enforces the mechanical part: `scripts/docs/check-docs-style.cjs` fails on
+emoji or emoji-style marks and on box-drawing diagrams in any tracked Markdown
+outside `docs/archive/`. A symbol that is literal UI or tool output can be
+allow-listed in `scripts/docs/docs-style-ignore.json`, with a reason.
 
 ---
 
@@ -118,8 +149,9 @@ make test-frontend   # vitest
 ```
 
 Coverage targets are managed via a stepwise ratchet — see
-[ADR 0002](docs/adr/0002-coverage-gate-staging.md). At time of writing the
-frontend gate is **15%**; new PRs that meaningfully drop coverage will be
+[ADR 0002](docs/adr/0002-coverage-gate-staging.md). The enforced frontend
+thresholds live in `rapitas-frontend/vitest.config.ts` (`coverage.thresholds`);
+new PRs that meaningfully drop coverage will be
 asked to add tests.
 
 For new features, prioritize tests in this order:
@@ -152,13 +184,21 @@ fails:
 2. **Open a draft PR early** so CI runs against your branch.
 3. **Fill in the PR template** completely. The "test plan" section is not
    optional.
-4. **Wait for CI to pass.** The hard gates are:
-   - `Test and Lint` (test-lint.yml)
-   - `Version Sync Check` (version-check.yml)
-   - `Tauri Build` if you touched the Tauri pipeline
-   - `Security Scan` if you touched dependencies
+4. **Wait for CI to pass.** Which checks block a merge is defined in one
+   place, [`.github/quality-gates.json`](.github/quality-gates.json) (entries
+   with `"mode": "required"`). Today they are:
+   - the test and lint jobs in `test-lint.yml` (Lint Code, Check Frontend,
+     Check Rust Code on Linux and Windows, Test Backend, Test SQLite
+     Compatible Suite, Route Regression, Frozen Install Verification)
+   - `Build (ubuntu-latest)`, `Build (macos-latest)`, `Build (windows-latest)`
+     from `tauri-build.yml`
+   - the security scan jobs from `security-scan.yml` (CodeQL Analysis,
+     Dependency Security Check, NPM Security Audit, Rust Security Audit)
+   - `Secret scanning` from `gitleaks.yml`
+
+   `Version Sync Check` and the Markdown lint are advisory.
 5. **Mark "Ready for review"** and request a code owner (see `.github/CODEOWNERS`).
-6. **Squash-merge into `develop`.** `master` is reserved for releases.
+6. **Squash-merge into `develop`.** `main` is the release line; there is no `master`.
 
 ---
 

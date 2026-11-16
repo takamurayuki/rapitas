@@ -2,13 +2,14 @@
  * header/__tests__/header-toolbar.test.tsx
  *
  * Integration tests for the HeaderToolbar component.
- * Tests view toggle, user menu open/close, logout, more menu,
- * dark mode toggle, and restart button.
+ * Tests view toggle, the browser entry (which replaced the user menu), more
+ * menu, dark mode toggle, and restart button.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HeaderToolbar } from '../header-toolbar';
+import { useLocaleStore } from '@/stores/locale-store';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -81,27 +82,10 @@ vi.mock('lucide-react', async (importOriginal) => {
     Loader2: 'loader2-icon',
     Sparkles: 'sparkles-icon',
     NotebookTabs: 'notebook-tabs-icon',
-    User: 'user-icon',
-    LogOut: 'log-out-icon',
   });
 });
 
 const defaultProps = {
-  hasMounted: true,
-  isAuthLoading: false,
-  isAuthenticated: true,
-  user: {
-    id: 1,
-    username: 'TestUser',
-    email: 'test@example.com',
-    role: 'user' as const,
-    createdAt: '2024-01-01T00:00:00Z',
-    lastLoginAt: null,
-  },
-  isUserMenuOpen: false,
-  setIsUserMenuOpen: vi.fn(),
-  userMenuRef: { current: null } as React.RefObject<HTMLDivElement | null>,
-  handleLogout: vi.fn(),
   isMoreMenuOpen: false,
   setIsMoreMenuOpen: vi.fn(),
   moreMenuRef: { current: null } as React.RefObject<HTMLDivElement | null>,
@@ -181,79 +165,81 @@ describe('HeaderToolbar', () => {
     });
   });
 
-  describe('user menu', () => {
-    it('renders the user menu button when authenticated', () => {
+  describe('compact view toggle (below md)', () => {
+    it('offers the kanban view from the list view and goes there', () => {
+      mockPathname = '/';
       render(<HeaderToolbar {...defaultProps} />);
-      expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
+      const btn = screen.getByTestId('view-toggle-compact');
+      expect(btn).toHaveAttribute('aria-label', 'kanban');
+      expect(btn.className).toMatch(/(^|\s)md:hidden(\s|$)/);
+      fireEvent.click(btn);
+      expect(mockPush).toHaveBeenCalledWith('/kanban');
     });
 
-    it('still renders the button when nobody is signed in', () => {
-      // It is the way to the profile ラピ plans against, and this app has
-      // no sign-in: gating it on a session nobody has made it unreachable
-      // (reported 2026-10-22). The account rows inside are what the
-      // session gates, not the button.
-      render(<HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} />);
-      expect(screen.getByRole('button', { name: 'userMenu' })).toBeInTheDocument();
+    it('offers the list view from the kanban view and goes there', () => {
+      mockPathname = '/kanban';
+      render(<HeaderToolbar {...defaultProps} />);
+      const btn = screen.getByTestId('view-toggle-compact');
+      expect(btn).toHaveAttribute('aria-label', 'list');
+      fireEvent.click(btn);
+      expect(mockPush).toHaveBeenCalledWith('/');
     });
 
-    it('offers the profile whether or not anyone is signed in', () => {
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
-      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toBeInTheDocument();
+    it('is not rendered on other routes', () => {
+      mockPathname = '/dashboard';
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.queryByTestId('view-toggle-compact')).not.toBeInTheDocument();
     });
+  });
 
-    it('opens the personal settings page, not an anchor on the general one', () => {
-      // #1275 moved the profile onto its own page. The anchor it used to
-      // jump to (/settings/general#rapi-profile) now lands on a page that
-      // no longer holds the card.
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
-      expect(screen.getByRole('link', { name: /rapiProfileLink/ })).toHaveAttribute(
-        'href',
-        '/settings/personal',
-      );
-    });
-
-    it('keeps the account rows for a real session', () => {
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen />);
-      expect(screen.getByText('TestUser')).toBeInTheDocument();
-      expect(screen.getByText('logout')).toBeInTheDocument();
-    });
-
-    it('shows no account rows when there is no session', () => {
-      // An empty name and a logout button that logs nothing out is worse
-      // than not offering them.
-      render(
-        <HeaderToolbar {...defaultProps} isAuthenticated={false} user={null} isUserMenuOpen />,
-      );
+  describe('browser entry (replaces the user menu)', () => {
+    it('has no user menu button any more — it moved to the side nav', () => {
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.queryByRole('button', { name: 'userMenu' })).not.toBeInTheDocument();
       expect(screen.queryByText('logout')).not.toBeInTheDocument();
     });
 
-    it('does not render user menu button when hasMounted is false', () => {
-      render(<HeaderToolbar {...defaultProps} hasMounted={false} />);
-      expect(screen.queryByRole('button', { name: 'userMenu' })).not.toBeInTheDocument();
+    it('shows the Compass browser button, between the bell and the more menu', () => {
+      render(<HeaderToolbar {...defaultProps} />);
+      const browser = screen.getByRole('button', { name: 'openBrowser' });
+      expect(browser).toHaveAttribute('title', 'openBrowser');
+      expect(browser.querySelector('[data-testid="Compass-icon"]')).toBeTruthy();
+      const bell = screen.getByTestId('notification-bell');
+      const more = screen.getByRole('button', { name: 'moreMenu' });
+      expect(bell.compareDocumentPosition(browser)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(browser.compareDocumentPosition(more)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
-    it('calls setIsUserMenuOpen when user menu button is clicked', () => {
-      const setIsUserMenuOpen = vi.fn();
-      render(<HeaderToolbar {...defaultProps} setIsUserMenuOpen={setIsUserMenuOpen} />);
-      fireEvent.click(screen.getByRole('button', { name: 'userMenu' }));
-      expect(setIsUserMenuOpen).toHaveBeenCalled();
+    it('is shown whatever the auth state — browsing needs no session', () => {
+      // The old user button waited for hasMounted && !isAuthLoading; this
+      // one has no such gate because it depends on nothing auth-related.
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.getByTestId('header-browser-button')).toBeInTheDocument();
     });
 
-    it('shows username and email in dropdown when isUserMenuOpen=true', () => {
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen={true} />);
-      expect(screen.getByText('TestUser')).toBeInTheDocument();
-      expect(screen.getByText('test@example.com')).toBeInTheDocument();
+    it('opens /browser', () => {
+      render(<HeaderToolbar {...defaultProps} />);
+      fireEvent.click(screen.getByRole('button', { name: 'openBrowser' }));
+      expect(mockPush).toHaveBeenCalledWith('/browser');
     });
 
-    it('calls handleLogout when logout button is clicked', () => {
-      const handleLogout = vi.fn();
-      render(<HeaderToolbar {...defaultProps} isUserMenuOpen={true} handleLogout={handleLogout} />);
-      fireEvent.click(screen.getByText('logout'));
-      expect(handleLogout).toHaveBeenCalled();
+    it('is marked current on /browser and pushes nothing there', () => {
+      // A second push would stack a duplicate /browser in the app history.
+      mockPathname = '/browser';
+      render(<HeaderToolbar {...defaultProps} />);
+      const browser = screen.getByRole('button', { name: 'openBrowser' });
+      expect(browser).toHaveAttribute('aria-current', 'page');
+      expect(browser.className).toContain('text-indigo-600');
+      fireEvent.click(browser);
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('is not marked current elsewhere', () => {
+      mockPathname = '/dashboard';
+      render(<HeaderToolbar {...defaultProps} />);
+      expect(screen.getByRole('button', { name: 'openBrowser' })).not.toHaveAttribute(
+        'aria-current',
+      );
     });
   });
 
@@ -286,7 +272,8 @@ describe('HeaderToolbar', () => {
 
     it('shows Moon icon in light mode', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} isDarkMode={false} />);
-      expect(screen.getByTestId('moon-icon')).toBeInTheDocument();
+      // Both the toolbar switch and its narrow-screen menu item carry a moon.
+      expect(screen.getAllByTestId('moon-icon').length).toBeGreaterThan(0);
     });
 
     it('shows switchToLight label and aria-checked=true in dark mode', () => {
@@ -297,10 +284,9 @@ describe('HeaderToolbar', () => {
       expect(screen.getByTestId('sun-icon')).toBeInTheDocument();
     });
 
-    it('shows settings link in the more menu', () => {
+    it('has no app-settings item in the more menu (the side-nav gear opens settings)', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
-      const settingsLink = screen.getByRole('link', { name: /generalSettings/i });
-      expect(settingsLink).toHaveAttribute('href', '/settings/general');
+      expect(screen.queryByText('generalSettings')).toBeNull();
     });
 
     it('calls handleRestartClick when restart button is clicked', () => {
@@ -323,6 +309,22 @@ describe('HeaderToolbar', () => {
       expect(button).toBeDisabled();
     });
 
+    // Below `sm` the standalone language and theme switches are hidden so the
+    // header fits a 390px phone; the more menu is how they stay reachable.
+    it('offers the theme switch inside the more menu for narrow screens', () => {
+      const toggleTheme = vi.fn();
+      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} toggleTheme={toggleTheme} />);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'switchToDark' }));
+      expect(toggleTheme).toHaveBeenCalled();
+    });
+
+    it('offers the language switch inside the more menu for narrow screens', () => {
+      useLocaleStore.setState({ locale: 'ja' });
+      render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} />);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'English' }));
+      expect(useLocaleStore.getState().locale).toBe('en');
+    });
+
     it('does not show Tauri minimize button in non-Tauri environment', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} isTauriEnv={false} />);
       expect(screen.queryByText('minimizeToTray')).not.toBeInTheDocument();
@@ -331,6 +333,20 @@ describe('HeaderToolbar', () => {
     it('shows Tauri minimize button in Tauri environment', () => {
       render(<HeaderToolbar {...defaultProps} isMoreMenuOpen={true} isTauriEnv={true} />);
       expect(screen.getByText('minimizeToTray')).toBeInTheDocument();
+    });
+  });
+  describe('root className', () => {
+    it('appends the className prop to the root classes', () => {
+      const { container } = render(<HeaderToolbar {...defaultProps} className="tauri:ml-auto" />);
+      const root = container.firstElementChild as HTMLElement;
+      expect(root.className).toContain('shrink-0');
+      expect(root.className).toContain('tauri:ml-auto');
+    });
+
+    it('keeps the default root classes without a className prop', () => {
+      const { container } = render(<HeaderToolbar {...defaultProps} />);
+      const root = container.firstElementChild as HTMLElement;
+      expect(root.className).toBe('flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3');
     });
   });
 });

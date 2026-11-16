@@ -1,6 +1,9 @@
 /**
  * useLinkView.test
  *
+ * The visibility rules themselves (one decision point, sequence numbers,
+ * overlays, surface switches) are in useLinkView.visibility.test.ts.
+ *
  * Two things here are worth pinning. A desktop build made before tauri's
  * `unstable` feature has no link-view command, so the dock fails and the
  * link must still go somewhere — without that, the setting is switchable,
@@ -41,32 +44,25 @@ const TABS: LinkTab[] = [
   { id: 't2', url: 'https://two.example' },
 ];
 
-/** Give the hook a placeholder with a real box, as the pane does. */
-function attach(ref: React.RefObject<HTMLDivElement | null>) {
+/** A surface element with a real box, as the pane's placeholder has. */
+function makeSurface(): HTMLDivElement {
   const el = document.createElement('div');
   el.getBoundingClientRect = () => ({ left: 100, top: 50, width: 400, height: 600 }) as DOMRect;
   document.body.appendChild(el);
-  ref.current = el;
+  return el;
 }
 
-/** Render with the placeholder attached before the docking effect runs. */
+/** Render with a surface attached, as LinkViewHost passes one. */
 function renderWithBox(
   tabs: LinkTab[],
   activeId: string | null,
   onUnavailable?: (url: string) => void,
   onPageChange?: (tabId: string, change: LinkPageChange) => void,
 ) {
-  const el = document.createElement('div');
-  el.getBoundingClientRect = () => ({ left: 100, top: 50, width: 400, height: 600 }) as DOMRect;
-  document.body.appendChild(el);
-
+  const el = makeSurface();
   return renderHook(
-    ({ t, a }: { t: LinkTab[]; a: string | null }) => {
-      const view = useLinkView(t, a, onUnavailable, onPageChange);
-      // The pane assigns this during render; mirror that ordering.
-      view.placeholderRef.current = el;
-      return view;
-    },
+    ({ t, a }: { t: LinkTab[]; a: string | null }) =>
+      useLinkView(t, a, el, onUnavailable, onPageChange),
     { initialProps: { t: tabs, a: activeId } },
   );
 }
@@ -85,9 +81,8 @@ beforeEach(() => {
 });
 
 describe('useLinkView', () => {
-  it('docks the active tab at the placeholder box', async () => {
-    const { result } = renderWithBox(TABS, 't1');
-    attach(result.current.placeholderRef);
+  it('docks the active tab at the surface box', async () => {
+    renderWithBox(TABS, 't1');
 
     await waitFor(() =>
       expect(openLinkView).toHaveBeenCalledWith('t1', 'https://one.example', {
@@ -123,7 +118,9 @@ describe('useLinkView', () => {
 
     openLinkView.mockClear();
     rerender({ t: TABS, a: 't1' });
-    await waitFor(() => expect(setLinkViewVisible).toHaveBeenCalledWith('t1', true));
+    await waitFor(() =>
+      expect(setLinkViewVisible).toHaveBeenCalledWith('t1', true, expect.any(Number)),
+    );
     expect(openLinkView).not.toHaveBeenCalled();
   });
 
@@ -131,7 +128,9 @@ describe('useLinkView', () => {
     const { rerender } = renderWithBox(TABS, 't1');
     await waitFor(() => expect(openLinkView).toHaveBeenCalled());
     rerender({ t: TABS, a: 't2' });
-    await waitFor(() => expect(setLinkViewVisible).toHaveBeenCalledWith('t1', false));
+    await waitFor(() =>
+      expect(setLinkViewVisible).toHaveBeenCalledWith('t1', false, expect.any(Number)),
+    );
   });
 
   it('destroys the webview of a tab that was closed', async () => {
@@ -172,7 +171,7 @@ describe('tearing a tab down', () => {
     await waitFor(() => expect(openLinkView).toHaveBeenCalled());
     unmount();
     await waitFor(() => expect(closeLinkView).toHaveBeenCalledWith('t1'));
-    expect(setLinkViewVisible).toHaveBeenCalledWith('t1', false);
+    expect(setLinkViewVisible).toHaveBeenCalledWith('t1', false, expect.any(Number));
   });
 });
 
@@ -288,7 +287,7 @@ describe('a deferred resync must not resurrect a closed tab', () => {
 
       setLinkViewVisible.mockClear();
       await frames.run();
-      expect(setLinkViewVisible).not.toHaveBeenCalledWith('t1', true);
+      expect(setLinkViewVisible).not.toHaveBeenCalledWith('t1', true, expect.any(Number));
     } finally {
       frames.restore();
     }

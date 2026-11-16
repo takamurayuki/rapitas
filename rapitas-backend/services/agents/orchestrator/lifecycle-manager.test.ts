@@ -25,6 +25,28 @@ mock.module('../../workflow/transition-recorder', () => ({
   recordTransition: mockRecordTransition,
 }));
 
+// Mirrors every export of session-cost-recovery (bun replaces the whole module).
+const shutdownOrder: string[] = [];
+const mockDrain = mock(async (_opts: { timeoutMs: number }) => {
+  shutdownOrder.push('drain');
+});
+mock.module('../session-cost-recovery', () => ({
+  RECOVERY_WINDOW_MS: 86_400_000,
+  recoverSessionTotals: async () => ({ checked: 0, repaired: 0 }),
+  recoverSessionTotalsOnBoot: async () => 0,
+  flushPendingRecoveryRuns: async () => {},
+  pendingRecoveryRunCount: () => 0,
+  runBootRecovery: async () => ({
+    checked: 0,
+    repaired: 0,
+    sweep: {
+      done: Promise.resolve({ checked: 0, repaired: 0, deferred: 0, completed: false }),
+      stop: () => {},
+    },
+  }),
+  drainSessionRecomputesForShutdown: mockDrain,
+}));
+
 const { saveAgentState, saveAllAgentStates, gracefulShutdown, setupSignalHandlers } =
   await import('./lifecycle-manager');
 
@@ -423,6 +445,25 @@ describe('gracefulShutdown', () => {
     // per-agent stop loop never ran but state is still persisted once.
     expect(agentUpdate).toHaveBeenCalledTimes(1);
     expect(ctx.activeAgents.size).toBe(0);
+  });
+
+  test('drains pending session-total retries after agent state is saved (re-re-review P2)', async () => {
+    mockDrain.mockClear();
+    shutdownOrder.length = 0;
+    const agentUpdate = mock(async () => {
+      shutdownOrder.push('save');
+      return { count: 1 };
+    });
+    const info = makeAgentInfo({ executionId: 1 });
+    const ctx = makeCtx({
+      prisma: makePrisma({ agentExecutionUpdate: agentUpdate }),
+      activeAgents: new Map([[1, info]]),
+    });
+
+    await gracefulShutdown(ctx, { skipServerStop: true });
+
+    expect(mockDrain).toHaveBeenCalledTimes(1);
+    expect(shutdownOrder).toEqual(['save', 'drain']);
   });
 });
 

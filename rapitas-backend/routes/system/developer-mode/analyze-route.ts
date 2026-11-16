@@ -12,6 +12,11 @@ import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-clie
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { TASK_NOT_FOUND } from '../../../utils/common/error-messages';
 import { parseId } from '../../../middleware/error-handler';
+import {
+  recomputeSessionTotals,
+  type SessionTotalsDb,
+} from '../../../services/agents/session-cost-totals';
+import { readParentWorkspace } from '../../../services/tenancy/parent-workspace';
 
 const log = createLogger('routes:developer-mode:analyze');
 
@@ -81,10 +86,9 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
         },
       });
 
-      await prisma.agentSession.update({
-        where: { id: session.id },
-        data: { totalTokensUsed: tokensUsed, lastActivityAt: new Date() },
-      });
+      // NOTE: The analysis tokens live on the AgentAction above; the total is
+      // recomputed from rows (+ actions) so later recomputes keep them.
+      await recomputeSessionTotals(prisma as unknown as SessionTotalsDb, session.id);
 
       if (config.autoApprove) {
         // Atomic duplicate check and creation via transaction
@@ -97,6 +101,10 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
             const existingTitles = new Set(
               existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()),
             );
+
+            // NOTE: Taken from the parent because this can run with no
+            // workspace in context, which would leave the subtasks NULL.
+            const workspace = await readParentWorkspace(tx, taskId);
 
             const created = [];
             for (const subtask of result.suggestedSubtasks) {
@@ -113,6 +121,7 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
                   priority: subtask.priority,
                   estimatedHours: subtask.estimatedHours,
                   parentId: taskId,
+                  ...workspace,
                   agentGenerated: true,
                 },
               });

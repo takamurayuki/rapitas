@@ -3,7 +3,11 @@
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/status/SubtaskStatusButtons';
-import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  getStatusDisplay,
+  renderStatusIcon,
+  statusIconColor,
+} from '@/feature/tasks/config/StatusConfig';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 interface TaskCardSubtaskPanelProps {
@@ -56,9 +60,9 @@ export default function TaskCardSubtaskPanel({
             className={`flex items-center gap-2 p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor} dark:bg-indigo-dark-900`}
           >
             <div
-              className={`relative flex items-center justify-center w-6 h-6 rounded ${
-                subtaskStatus.color
-              } ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace('border-l-', 'border-')} shrink-0`}
+              className={`relative flex items-center justify-center w-6 h-6 rounded ${statusIconColor(
+                subtaskStatus,
+              )} ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace('border-l-', 'border-')} shrink-0`}
               aria-label={subtaskStatus.label}
             >
               {/* Spinner only while an agent is actually executing this subtask

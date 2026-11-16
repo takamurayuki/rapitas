@@ -4,12 +4,12 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 
 | Glyph (lucide)            | Meaning                                  |
 | ------------------------- | ---------------------------------------- |
-| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `IdeaBoxPanel`（ホームのアイデアボックス起動ウィジェット）、`memo-section`（メモ種別「アイデア」バッジ）、`category/icons`（アイコンピッカー登録）、`header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
+| `Lightbulb`               | アイデア (idea box / an idea) — 許可パスは `/ideas` に加え、同一概念の正当な再利用として `memo-section`（メモ種別「アイデア」バッジ）、`rapitas-frontend/src/components/category/icons`（アイコンピッカー登録）、`rapitas-frontend/src/components/header/header.tsx`（/ideas へのnavリンク）、`quick-capture`（グローバルショートカットのアイデア即時投入ポップアップ）を明示許可（`eslint-rules/icon-policy-map.mjs`） |
 | `Inbox`                   | 「バックログ」ナビ群                     |
 | `Layers`                  | 複雑度「詳細」                           |
 | `ListTodo`                | サブタスク                               |
 | `ListPlus`                | タスク作成 / タスク起票 (task_created、quick-capture のタスクモードタブ — 同一概念の再利用) |
-| `ListChecks`              | 提案タスクの完了条件バレット（`TaskSuggestionDetail`） |
+| `ListChecks`              | 提案タスクの完了条件バレット（旧 `TaskSuggestionDetail` — 未使用のため #1403 で削除。この意味でグリフを使う画面は現在ない） |
 | `Globe`                   | スコープ「グローバル」                   |
 | `LayoutDashboard`         | ダッシュボード (nav: /dashboard)         |
 | `LayoutList`              | タスク分類グループ (nav: category/theme/label umbrella) |
@@ -23,11 +23,15 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Goal`                    | ビジネス目標の入力（効率フロンティアの what-if 推奨フォーム `GoalForm` 見出し。注: `Target` とは別概念） |
 | `IterationCw`             | 品質ループレビュー（バックログ定期ジョブ loop_review — 差し戻し指標の週次自己観測と停滞の自動起票。カテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `MonitorCheck`            | 本線 CI 監視（バックログ定期ジョブ ci_watch — 本線ブランチの赤ワークフローを懸念に自動起票） |
-| `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`/`ExecutionCompletedPanel`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
+| `MessageSquarePlus`      | エージェントへの追加指示（実行完了後の継続指示 `ContinuationForm`、および計画の修正依頼 `PlanRevisionRequest` — いずれも「走っている/走り終えたエージェントに文章で指示を足す」同一概念の再利用） |
 | `LifeBuoy`                | リカバリーメトリクス（エージェント実行フォールバックの種別×戦略別 成功率/レイテンシ/コスト集計。`RecoveryMetricsPanel` ヘッダー） |
 | `MoveUp`                  | リスト内の並び順を1つ上げる（AI利用予算の分類ルール一覧 `ClassificationRulesEditor` — 上にあるルールが優先。注: `ChevronUp`＝折りたたみ・優先度、`ArrowUp`＝ディレクトリピッカーの親フォルダへ移動とは別概念） |
 | `GitGraph`                | 失敗の系譜図（nav: /agents/failure-lineage、ページ見出し・空状態。ERROR/WARN ログの推定再発連鎖と根本原因候補の可視化。注: `GitBranch`＝ワークフローセクション/ブランチ名、`GitCompare`＝ドライラン差分比較とは別概念） |
-| `ListFilter`              | ラピの「タスクを探す」モード（`RapiModeTabs` の ask タブ — 条件で絞って数える。注: `Search`＝知識ブラウザ、`ScanSearch`＝検出漏れ兆候とは別概念） |
-| `MessagesSquare`          | ラピの「対話」モード（`RapiModeTabs` の chat タブ — 文章で頼む入口、パネルの既定タブ。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
-| `Locate`                  | ラピの「このタスク」相談モード（`RapiModeTabs` の consult タブ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |
+| `ListFilter`              | ラピの「タスクを探す」モード（ラピの会話の振り分け注記のグリフ — 条件で絞って数える。注: `Search`＝知識ブラウザ、`ScanSearch`＝検出漏れ兆候とは別概念） |
+| `MessagesSquare`          | ラピの「対話」モード（旧・対話モード。2026-11-14 にタブと会話履歴チップを廃止して会話形式にしたため、ラピのパネルでは使っていない。2026-10-22 まで consult タブに付いていたが、グリフが「会話」を表していて「開いているタスク」を表していなかったため移設。注: `MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
+| `Locate`                  | ラピの「このタスク」相談モード（ラピの会話の振り分け注記のグリフ — いま開いている1件に照準を合わせる。注: `Crosshair`＝ウィザードの別用途、`ScanSearch`＝検出漏れ兆候、`Search`＝知識ブラウザとは別概念） |
 | `LogIn`                   | ログイン（`/auth/login` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。既存の `LogOut`＝ログアウトと自然に対になる。ワークスペース分離の導入でアカウントに意味が生まれたため 2026-10-28 にヘッダ導線を復活させ、その際に正式登録） |
+| `MonitorX`                | アプリ内ブラウザ（Web 版）で「このサイトはアプリ内での表示を許可していません」の案内カード（`BrowserWebFrames`）。注: `ShieldOff`＝権限確認スキップのトグルとは別概念 |
+| `Mountain`                | ゴール（nav: /goals、ゴール一覧の見出し・空状態 — 同一概念の再利用。ゴール＝利用者側から見たプロジェクト。注: `Goal`グリフは pareto の最適化目標・CLAUDE.md 生成ウィザードで既に使われているため流用しない） |
+| `Milestone`               | 節目（ゴールの段階。ゴール詳細の「節目」見出し・未達成の節目カード、ゴール一覧カードの「次の節目」、ラピのロードマップ下書きで節目ごとにステップをまとめる見出し `RoadmapPlanList` — 同一概念の再利用） |
+| `Medal`                   | 節目の達成（ゴール詳細の「達成を確認」ボタン・確認ダイアログ・達成済みの節目カード — 本人が根拠を書いて確かめた達成。注: `Trophy`/`Award`＝今日のタスク進捗ウィジェットの達成演出とは別概念） |

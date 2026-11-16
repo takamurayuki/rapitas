@@ -101,6 +101,12 @@ const performAutoCommitAndPR = mock(() => {
 });
 mock.module('../../routes/workflow/workflow-auto-commit', () => ({ performAutoCommitAndPR }));
 
+// Verifier eligibility is fixed as confirmed here; refusal is covered through the
+// real check in the *.verifier-eligibility.test.ts files.
+mock.module('./verifier-completion-check', () => ({
+  verifierConfirmedForCompletion: async () => true,
+}));
+
 const { onSubtaskCompleted } = await import('./subtask-completion-handler');
 
 /** Arrange one parent (#900) whose single subtask (#901) just passed. */

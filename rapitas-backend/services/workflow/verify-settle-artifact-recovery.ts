@@ -11,6 +11,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
+import { verifierConfirmedForCompletion } from './verifier-completion-check';
 import {
   resolveAutomationPolicy,
   resolveLandingMode,
@@ -113,6 +114,11 @@ export async function recoverFromLandedArtifact(taskId: number): Promise<boolean
     if (policy.autoMergePR) return false;
     const landed = await findLandedPullRequest(taskId);
     if (!landed) return false;
+    // NOTE: A PR on record does not prove the verify verdict counted. The
+    // eligibility gate's stop is not always persisted (unreadable record AND a
+    // failed hold write), so re-check here; "could not check" never completes
+    // (G2 routing1 re-review 2).
+    if (!(await verifierConfirmedForCompletion(taskId, 'runner_recovery'))) return false;
 
     const flipped = await prisma.task.updateMany({
       where: {

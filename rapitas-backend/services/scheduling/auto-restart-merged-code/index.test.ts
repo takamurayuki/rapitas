@@ -31,6 +31,7 @@ let deferCount = 0;
 let auxChildren = 0;
 let isMergingFlag = false;
 let notificationFails = false;
+let depBlocker: 'dependency-toolchain-mismatch' | null = null;
 
 const idleSnapshot = {
   isShuttingDown: false,
@@ -77,6 +78,17 @@ mock.module('./settings-store', () => ({
   writeDeferCount: (count: number) => {
     callOrder.push(`writeDeferCount:${count}`);
     deferCount = count;
+  },
+}));
+
+// Every export: mock.module replaces the module process-wide.
+mock.module('./dependency-preflight', () => ({
+  DEPENDENCY_LOCKFILES: [],
+  readPinnedBunVersion: () => '1.3.13',
+  checkDependencyToolchain: () => depBlocker,
+  dependencyGate: () => {
+    callOrder.push('dependencyGate');
+    return Promise.resolve(depBlocker);
   },
 }));
 
@@ -135,6 +147,16 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
+// A held restart is recorded in the cycle log, not warned: waiting is the
+// design (#1573). The once-per-reason rule is what these tests pin.
+const cycleEvents: { evt: string; cause?: string }[] = [];
+mock.module('../../observability/cycle-event-logger', () => ({
+  logCycleEvent: (evt: string, fields: { cause?: string } = {}) =>
+    cycleEvents.push({ evt, cause: fields.cause }),
+  getCycleLogFilePath: () => '/tmp/fake-cycle.ndjson',
+  _resetForTests: () => {},
+}));
+
 const { AutoRestartMergedCodeScheduler } = await import('./index');
 const { resetUiActivity, recordUiRequest } = await import('./ui-activity-tracker');
 
@@ -151,6 +173,7 @@ function makeScheduler(startupCommit: string | null = 'startup123'): {
 beforeEach(() => {
   callOrder.length = 0;
   warnings.length = 0;
+  cycleEvents.length = 0;
   enabled = true;
   aheadCount = 3;
   changedPaths = ['rapitas-backend/services/workflow/workflow-runner.ts'];
@@ -163,6 +186,7 @@ beforeEach(() => {
   auxChildren = 0;
   isMergingFlag = false;
   notificationFails = false;
+  depBlocker = null;
   resetUiActivity();
   delete process.env.RAPITAS_PRIMARY_BRANCH;
 });
@@ -177,6 +201,7 @@ describe('runOnce — success path', () => {
       'listChangedPaths:startup123:develop',
       'getAgentSystemSnapshot',
       'isWorkingTreeClean',
+      'dependencyGate',
       'fastForwardToRemote:develop',
       'getAgentSystemSnapshot',
       'createNotification:system',
@@ -251,14 +276,15 @@ describe('runOnce — early-exit gates', () => {
   describe('a held restart says so', () => {
     const uiOnly = ['rapitas-frontend/src/app/page.tsx'];
 
-    test('warns which gate is holding it', async () => {
+    test('records which gate is holding it, without a warning', async () => {
       changedPaths = uiOnly;
       auxChildren = 1; // a live aux CLI child: a system-busy wait
       snapshots = [idleSnapshot, idleSnapshot];
       await makeScheduler().evaluateBoundaryRestart();
-      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      const held = cycleEvents.filter((e) => e.evt === 'restart.waiting');
       expect(held).toHaveLength(1);
-      expect(held[0].reason).toBeTruthy();
+      expect(held[0].cause).toBeTruthy();
+      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toEqual([]);
     });
 
     // Once per reason, not once per poll: a stuck deploy should be visible,
@@ -270,7 +296,7 @@ describe('runOnce — early-exit gates', () => {
       const scheduler = makeScheduler();
       await scheduler.evaluateBoundaryRestart();
       await scheduler.evaluateBoundaryRestart();
-      expect(warnings.filter((w) => w.msg.includes('pulled but not activated'))).toHaveLength(1);
+      expect(cycleEvents.filter((e) => e.evt === 'restart.waiting')).toHaveLength(1);
     });
 
     test('says it again when a different gate takes over', async () => {
@@ -284,9 +310,9 @@ describe('runOnce — early-exit gates', () => {
       isMergingFlag = true;
       await scheduler.evaluateBoundaryRestart();
 
-      const held = warnings.filter((w) => w.msg.includes('pulled but not activated'));
+      const held = cycleEvents.filter((e) => e.evt === 'restart.waiting');
       expect(held).toHaveLength(2);
-      expect(held[0].reason).not.toBe(held[1].reason);
+      expect(held[0].cause).not.toBe(held[1].cause);
     });
   });
 
@@ -426,6 +452,8 @@ describe('evaluateBoundaryRestart — task-boundary path', () => {
       'fetchAndCountAhead:startup123:develop',
       'getAgentSystemSnapshot',
       'isWorkingTreeClean',
+      'listChangedPaths:startup123:develop',
+      'dependencyGate',
       'fastForwardToRemote:develop',
       'getAgentSystemSnapshot',
       'createNotification:system',
@@ -539,6 +567,7 @@ describe('start() guards', () => {
     delete process.env.TAURI_BUILD;
     delete process.env.RAPITAS_RESTART_SUPERVISED;
     warnings.length = 0;
+    cycleEvents.length = 0;
     await new AutoRestartMergedCodeScheduler().start(60_000);
     expect(warnings.some((w) => w.msg.includes('RAPITAS_RESTART_SUPERVISED'))).toBe(true);
     if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;
@@ -581,3 +610,25 @@ for (const field of ['activeExecutions', 'runningExecutions', 'queueDepth'] as c
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
 }
+
+// #1403: after the pull dev.js reinstalls changed lockfiles and refuses to
+// start the backend if it cannot. Both automatic paths must hold the pull when
+// that refusal is already certain, rather than pull and strand the system.
+describe('dependency gate', () => {
+  test('runOnce does not pull or restart when the dependency gate refuses', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    expect(await makeScheduler().runOnce()).toBe(false);
+    expect(callOrder).toContain('dependencyGate');
+    expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+
+  test('the task-boundary path does not pull or restart when the gate refuses', async () => {
+    depBlocker = 'dependency-toolchain-mismatch';
+    changedPaths = ['rapitas-backend/bun.lock'];
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder).toContain('dependencyGate');
+    expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+});

@@ -12,6 +12,7 @@
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 const log = createLogger('workflow:publication-cancellation-guard');
 
@@ -36,7 +37,7 @@ const CANCELLED_EXECUTION_STATUSES = new Set(['cancelled', 'canceled', 'cancelin
 export async function isLatestExecutionCancelled(taskId: number): Promise<boolean> {
   try {
     const latest = await prisma.agentExecution.findFirst({
-      where: { session: { config: { taskId } } },
+      where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true, status: true, startedAt: true },
     });

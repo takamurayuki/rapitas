@@ -57,6 +57,18 @@ user-visible generated artifact now pins `temperature: 0`:
 **CLI-driven phases (claude-code, codex, gemini CLI) were intentionally left
 untouched** — see "Accepted structural residual" below.
 
+#### Temperature is model-aware
+
+`temperature: 0` is pinned **only for models that still accept the parameter**.
+The Claude 5 family / Opus 4.7–4.8 / Sonnet 5 **removed** `temperature` and
+return HTTP 400 on any value, so the direct-SDK wrapper omits it entirely for
+those models. The gate is `modelAcceptsTemperature(modelId)` (exported from
+`rapitas-backend/services/agents/providers/anthropic-api-provider/agent.ts`):
+older models get `temperature: config.temperature ?? 0`; rejecting models get
+the parameter omitted. For those models determinism is steered by prompt
+content and model choice rather than a sampling parameter (temperature 0 never
+guaranteed identical output on prior models either).
+
 ### 4. No read-triggered mutation in memory retrieval
 
 `services/memory/rag/search.ts`'s `searchKnowledge()` used to fire-and-forget
@@ -79,7 +91,7 @@ longer mutate state; only a task's *outcome* does.
 
 ### 5. Sorted git-diff file listing
 
-`services/agents/orchestrator/git-operations/diff-structured.ts`'s `getDiff()`
+`services/agents/orchestrator/git-operations/core/diff-structured.ts`'s `getDiff()`
 now sorts the returned `FileDiffRecord[]` by `filename` (`localeCompare`)
 before returning. The previous order followed raw `git diff`/`git status`
 output, which is not a guaranteed-stable ordering (rename detection, index
@@ -96,7 +108,7 @@ every phase/retry meant a discovery-cache rollover or a provider briefly
 flapping in/out of cooldown could silently switch the model for what should
 be the same phase attempt.
 
-**Approach chosen: in-process `Map` cache**, not a DB column. Investigated
+**Approach chosen: an in-process `Map` backed by timeline events**, not a DB column. Investigated
 existing nullable columns first — `AgentExecutionConfig` is one row per
 *task* (not per role) and its fields are all user-facing execution settings;
 `AgentSession.mode` stores the role label (`workflow-<role>`) but
@@ -107,26 +119,29 @@ schema changes, no column was added.
 
 New module: `services/ai/model-route-stability.ts`.
 
-- `getStableSmartRoute(taskId, role, options)` — pins the routing decision in
-  a `Map` keyed `` `${taskId}:${role}:${minTier}` `` (not just `taskId:role`:
-  folding in `minTier` means a **deliberate** escalation — a retry/theme-outcome
-  escalation or a risk-based floor raise computed in
-  `workflow-orchestrator.ts`'s `routing-policy` — still re-routes, because it
+- `getStableSmartRoute(taskId, role, options)` — pins the routing decision for
+  up to `PIN_TTL_MS` (24 hours), keyed by task, role and the tier constraints
+  `minTier`, `capTier` and `hardCapTier` (not just `taskId:role`: folding in
+  `minTier` means a **deliberate** escalation — a retry/theme-outcome
+  escalation or a risk-based floor raise computed by
+  `services/workflow/routing-policy.ts` — still re-routes, because it
   produces a different `minTier` and therefore a different cache key).
 - `invalidateStableRoute(taskId, role)` — called from
-  `workflow-orchestrator.ts`'s `tryProviderFallback()` (the deliberate
+  `services/workflow/workflow-provider-fallback.ts` (the deliberate
   provider-failure re-route path) right after a failure is classified as
   retry-worthy, so the *next* ordinary retry recomputes fresh instead of
   reusing a pin that is now known-bad.
-- Wired into `services/workflow/workflow-orchestrator.ts` (the main
-  auto-select call) and `routes/agents/execution/execute-route.ts` (the
-  manual dev-mode auto-select call). `tryProviderFallback`'s own
+- Called from `services/workflow/role-route-inputs.ts` (`routeModelForRole`,
+  the auto-select path for workflow phases). The provider-fallback path's own
   `getSmartRoute` call is intentionally left calling the router directly —
   it *is* the deliberate re-route this cache defers to.
 
-**Resets on backend restart** (documented in the module's file header) — this
-is process memory only, same category as `provider-cooldown` and
-`outcome-reinforcement`'s in-memory traces, which already reset on restart.
+**Survives a backend restart.** Each pin is also written to the timeline as a
+`model_route_pin` event and read back after a restart. It used to be process
+memory only; measured on 2026-10-21, the backend restarts on every deploy and
+at every auto-run quiet point, so a task spanning a restart could change model
+between its own phases (see the module's file header). Reading or writing the
+pin fails open to a fresh routing decision.
 
 ## Accepted structural residual
 
@@ -138,7 +153,20 @@ the CLI runners themselves was explicitly out of scope for this pass. This
 means full determinism is only achievable end-to-end for direct-API-driven
 phases (Anthropic API provider, Ollama/llama-server); CLI-driven phases
 remain as reproducible as the upstream CLI's own (undocumented) sampling
-behavior allows.
+behavior allows. Their prompt *inputs* are still held deterministic, so the
+CLI-runner files are exempt from the temperature check in
+`check-determinism.cjs` but **not** from the wall-clock/random-in-prompt check.
+
+### Recommendation — pin explicit model versions, not aliases
+
+The one remaining low-risk determinism lever for CLI runs is **configuring an
+explicit, dated model version rather than a moving alias**. An alias silently
+re-points when a new snapshot ships, so the same task config can start behaving
+differently after a provider-side model update with no change on our side.
+Pinning a specific version makes model drift an explicit, reviewed config
+change. This is a configuration recommendation only — it does not remove the
+sampling residual above, and it is intentionally **not** enforced in code,
+since staying current with a model line is often the desired behavior.
 
 ## The 8-point determinism checklist
 
@@ -168,8 +196,12 @@ Use this when reviewing a new prompt-feeding code path:
    output, and similar OS-ordered listings that feed a prompt should be
    explicitly sorted (e.g. by path) rather than trusting OS/git iteration
    order.
-8. **CI guard** — (not implemented in this pass) a lint rule or CI check that
-   flags a new `findMany` missing an `orderBy`, a new `.sort()` on a
-   float/score without a tiebreak, or a new direct-SDK `messages.create`
-   call without an explicit `temperature`, so regressions are caught before
-   merge rather than rediscovered empirically.
+8. **CI guard** — `rapitas-backend/scripts/check-determinism.cjs`
+   (`bun run determinism:check`) scans the prompt-critical directories
+   (`services/memory`, `services/workflow`, `services/agents`, `services/ai`,
+   `routes/agents`) for the source patterns behind the points above
+   (heuristic, dependency-free). It runs in the `Lint Code` job of
+   `test-lint.yml` as an **advisory** step (`continue-on-error`, without
+   `--strict`); `--strict` exits 1 on any finding. Suppress a genuine false
+   positive with a `// determinism-ok: <reason>` comment on the line directly
+   above the flagged line.

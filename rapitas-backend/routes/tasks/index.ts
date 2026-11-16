@@ -17,6 +17,7 @@ import { taskQuickCreateRoutes } from './task-quick-create';
 import { taskAutoGenerateRoutes } from './task-auto-generate';
 import { resourcesRoutes } from './resources';
 import failureImpactTreeRoute from './failure-impact-tree.routes';
+import taskDependenciesRoute from './task-dependencies.routes';
 import taskTrashRoute from './task-trash.routes';
 
 export { tasksRoutes } from './tasks';
@@ -42,4 +43,5 @@ export const tasksDomainRoutes = new Elysia()
   .use(taskAutoGenerateRoutes)
   .use(resourcesRoutes)
   .use(failureImpactTreeRoute)
+  .use(taskDependenciesRoute)
   .use(taskTrashRoute);

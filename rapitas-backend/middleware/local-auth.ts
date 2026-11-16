@@ -121,15 +121,63 @@ function resolveAllowedOrigins(): Set<string> {
 }
 
 /**
+ * GET routes that change state, found by the nav60 §9 audit of every GET
+ * route. The guard's premise is "GET/HEAD do not change state"; these break
+ * it, so they get the same Origin check as a write until they are moved to
+ * POST. Each spawns processes, sends notifications, spends LLM quota or
+ * writes rows:
+ *   /agents/diagnose                        runs the CLI (and an LLM call)
+ *   /project-health/scan                    runs git, notifies, posts a webhook
+ *   /workflow/tasks/:id/analyze-complexity  updates the task
+ *   /workflow/learning/tasks/:id/duration-prediction  upserts a prediction
+ *   /tasks/suggestions/ai                   paid LLM call, replaces cache rows
+ *   /github/pull-requests/by-task/:id       relinks PR and task rows
+ *   /search                                 records a zero-hit query (SearchMiss upsert)
+ * Every app caller uses fetch(), which sends Origin cross-origin, so app
+ * traffic is unaffected; a page's `<img src>` or link to them is refused.
+ *
+ * NOTE: OAuth callbacks (/auth/google/callback, calendar-slots) also write on
+ * GET but are top-level navigations from the provider with no Origin, so they
+ * cannot be guarded this way; the Google callback's missing `state` check is
+ * reported separately.
+ */
+const STATE_CHANGING_GET_PATHS: RegExp[] = [
+  /^\/agents\/diagnose\/?$/,
+  /^\/project-health\/scan\/?$/,
+  /^\/workflow\/tasks\/[^/]+\/analyze-complexity\/?$/,
+  /^\/workflow\/learning\/tasks\/[^/]+\/duration-prediction\/?$/,
+  /^\/tasks\/suggestions\/ai\/?$/,
+  /^\/github\/pull-requests\/by-task\/[^/]+\/?$/,
+  // NOTE: Only the bare /search root records misses (search-route.ts →
+  // recordSearchMiss); /search/suggest etc. are pure reads and stay open.
+  /^\/search\/?$/,
+];
+
+/**
+ * Whether a request must pass the cross-site guard.
+ *
+ * @param request - The incoming request / リクエスト
+ * @returns True for writes and for the state-changing GETs above / 検査対象なら true
+ */
+export function isGuardedRequest(request: Request): boolean {
+  if (STATE_CHANGING_METHODS.has(request.method)) return true;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  const { pathname } = new URL(request.url);
+  return STATE_CHANGING_GET_PATHS.some((re) => re.test(pathname));
+}
+
+/**
  * Cross-site request guard (CSRF backstop for the default tokenless deployment).
  *
  * The backend binds to loopback with no user auth, so ANY web page the user has
  * open can POST to http://127.0.0.1:3001 — a classic drive-by-localhost CSRF
  * vector (CORS restricts who can READ the response, not who can SEND a
  * state-changing request). Browsers label such requests `Sec-Fetch-Site:
- * cross-site`; we reject state-changing methods carrying that label. Same-origin
- * / same-site / none (direct navigation) and non-browser clients that omit the
- * header (Tauri IPC, curl, EventSource) pass through, so app traffic is
+ * cross-site`; we reject state-changing methods carrying that label unless the
+ * Origin is allow-listed. `same-site` gets the same Origin check, because
+ * SameSite ignores ports (127.0.0.1:5173 is same-site with 127.0.0.1:3001).
+ * Same-origin / none (direct navigation) and non-browser clients that omit
+ * the header (Tauri IPC, curl, EventSource) pass through, so app traffic is
  * unaffected. Runs unconditionally, independent of RAPITAS_API_TOKEN.
  *
  * NOTE(security): Some non-browser HTTP clients (older WebViews, some
@@ -147,7 +195,7 @@ export function createCrossSiteGuard(): (ctx: { request: Request }) => Response 
   const allowedOrigins = resolveAllowedOrigins();
 
   return ({ request }) => {
-    if (!STATE_CHANGING_METHODS.has(request.method)) return undefined;
+    if (!isGuardedRequest(request)) return undefined;
 
     const block = (reason: string): Response => {
       log.warn(
@@ -160,6 +208,19 @@ export function createCrossSiteGuard(): (ctx: { request: Request }) => Response 
     };
 
     const site = request.headers.get('sec-fetch-site');
+    // NOTE(security): same-site used to pass unconditionally. SameSite looks
+    // at the registrable domain and ignores the port, so a page on
+    // http://127.0.0.1:5173 — a dev server opened in the in-app browser, or
+    // in any tab — is same-site with the API on 127.0.0.1:3001. A form post
+    // or a no-cors fetch from it needs no preflight, carried the session
+    // cookie (SameSite=Strict does not stop same-site) and reached the route.
+    // Same-site now needs an allow-listed Origin exactly like cross-site;
+    // the app's own pages (127.0.0.1:3000) always send one (nav60 §5.4.2).
+    if (site === 'same-site') {
+      const origin = request.headers.get('origin');
+      if (origin && allowedOrigins.has(origin)) return undefined;
+      return block(`sec-fetch-site: same-site, origin: ${origin ?? '(none)'}`);
+    }
     if (site === 'cross-site') {
       // NOTE: localhost:3000 → 127.0.0.1:3001 is "cross-site" by registrable
       // domain although both are loopback. The frontend targets 127.0.0.1 on

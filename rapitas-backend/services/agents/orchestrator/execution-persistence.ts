@@ -8,6 +8,7 @@ import type { ExecutionFileLogger } from '../execution-file-logger';
 import type { ExecutionState, OrchestratorEvent, PrismaClientInstance } from './types';
 import { toJsonString } from './execution-helpers-types';
 import { ExecutionCancelledError } from '../execution-cancelled-error';
+import { updateSessionUsage, type SessionTotalsDb } from '../session-cost-totals';
 
 /**
  * Coerce a possibly-stringified numeric value to a finite number.
@@ -259,17 +260,13 @@ export async function saveExecutionResult(
   const incTokens = toFiniteNumber(result.tokensUsed);
   const incCost = toFiniteNumber(result.costUsd);
   const incLlmCalls = !result.waitingForInput ? toFiniteNumber(result.llmCallCount) : null;
-  if (incTokens || incCost || incLlmCalls) {
-    await prisma.agentSession.update({
-      where: { id: sessionId },
-      data: {
-        totalTokensUsed: incTokens ? { increment: incTokens } : undefined,
-        totalCostUsd: incCost ? { increment: incCost } : undefined,
-        totalLlmCallCount: incLlmCalls ? { increment: incLlmCalls } : undefined,
-        lastActivityAt: new Date(),
-      },
+  // NOTE: cost/tokens are CLI-session cumulative, so they are recomputed from
+  // the rows instead of incremented (that double-counted every resume).
+  if (incTokens || incCost || incLlmCalls)
+    await updateSessionUsage(prisma as unknown as SessionTotalsDb, sessionId, {
+      incLlmCalls,
+      recompute: !!(incTokens || incCost),
     });
-  }
 
   if (result.commits && result.commits.length > 0) {
     for (const commit of result.commits) {

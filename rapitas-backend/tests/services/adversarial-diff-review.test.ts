@@ -51,25 +51,36 @@ describe('parseReviewVerdict', () => {
     expect(r.judged).toBe(true);
   });
 
-  test('fail と reasons/severity を抽出する', () => {
+  test('fail と findings/severity を抽出する（根拠つきの指摘だけが fail を作る）', () => {
     const r = parseReviewVerdict(
-      '{"verdict":"fail","severity":85,"reasons":["受入基準2が未実装","null チェック漏れ"]}',
+      JSON.stringify({
+        verdict: 'fail',
+        severity: 85,
+        findings: [
+          { severity: 'blocker', criterion: '2', summary: '未実装', evidence: 'src/a.ts:3' },
+          { severity: 'major', summary: 'null チェック漏れ', evidence: '+ const x = a.b;' },
+        ],
+      }),
     );
     expect(r.verdict).toBe('fail');
     expect(r.severity).toBe(85);
-    expect(r.reasons).toEqual(['受入基準2が未実装', 'null チェック漏れ']);
+    expect(r.reasons).toEqual([
+      '受入基準2: [blocker] 未実装（根拠: src/a.ts:3）',
+      '[major] null チェック漏れ（根拠: + const x = a.b;）',
+    ]);
   });
 
   test('前置き＋コードフェンスに包まれていても抽出する', () => {
-    const text =
-      '判定します。\n```json\n{"verdict":"fail","severity":70,"reasons":["x"]}\n```\n以上';
+    const json =
+      '{"verdict":"fail","severity":70,"findings":[{"severity":"major","summary":"x","evidence":"a.ts:1"}]}';
+    const text = `判定します。\n\`\`\`json\n${json}\n\`\`\`\n以上`;
     const r = parseReviewVerdict(text);
     expect(r.verdict).toBe('fail');
     expect(r.severity).toBe(70);
   });
 
-  test('fail で severity 欠落なら既定80', () => {
-    expect(parseReviewVerdict('{"verdict":"fail"}').severity).toBe(80);
+  test('findings の無い fail（旧形式）は判定として数えない', () => {
+    expect(parseReviewVerdict('{"verdict":"fail"}').verdict).toBe('unknown');
   });
 
   test('壊れJSON / 非JSON は unknown（フェイルオープン）', () => {

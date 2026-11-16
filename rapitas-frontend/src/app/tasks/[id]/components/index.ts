@@ -6,7 +6,6 @@
 
 export { default as TaskPomodoroButton } from './TaskPomodoroButton';
 export { default as TaskWorkflowSection } from './TaskWorkflowSection';
-export { default as TaskEditForm } from './TaskEditForm';
 export { default as SubtaskSection } from './SubtaskSection';
 export { default as TaskDetailModals } from './TaskDetailModals';
 export { default as TaskDetailErrorState } from './TaskDetailErrorState';

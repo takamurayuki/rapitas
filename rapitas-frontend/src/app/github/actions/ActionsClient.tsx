@@ -180,18 +180,19 @@ export default function ActionsClient() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Wraps so the repository picker drops under the title on a phone. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CI/CD</h1>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {t('actionsClient.subtitle')}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <select
             value={selectedIntegration}
             onChange={(e) => setSelectedIntegration(e.target.value)}
-            className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100"
+            className="min-w-0 max-w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-3 py-1.5 text-sm text-zinc-900 dark:text-zinc-100"
           >
             {integrations.map((it) => (
               <option key={it.id} value={it.id}>

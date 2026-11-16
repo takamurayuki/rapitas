@@ -11,6 +11,9 @@ import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
 import { AgentWorkerManager } from '../../../../services/agents/agent-worker-manager';
 import { updateSessionStatusWithRetry } from '../shared/session-helpers';
+// NOTE: readSessionMode moved to shared/session-mode so the success handler
+// reads the mode the same way (undefined = unknown, never null).
+import { readSessionMode } from '../shared/session-mode';
 import { releaseTaskExecutionLock } from '../shared/execution-lock';
 import { isShutdownError } from '../../../../services/agents/agent-worker/shutdown-error';
 import { applyTaskStatusFromWorkflow } from '../../../../services/workflow/apply-task-status-from-workflow';
@@ -63,7 +66,9 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
   }
 
   if (result.success) {
-    await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]');
+    await applyTaskStatusFromWorkflow(prisma, taskId, '[continue-execution]', {
+      sessionMode: await readSessionMode(targetSessionId),
+    });
 
     await updateSessionStatusWithRetry(targetSessionId, 'completed', '[continue-execution]', 3);
 

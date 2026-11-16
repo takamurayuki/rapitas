@@ -251,6 +251,22 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
 
   // Delegate to the subscription CLI instead of any paid API when in `cli` mode.
   if (auxMode === 'cli') {
+    // NOTE: Routed by the explicit cliRoute only, never by `provider` (routing2b):
+    // ai-chat passes the user's chosen provider and must keep reaching Claude.
+    // Loaded lazily so the many tests that mock this barrel's neighbours with a
+    // fixed export list never load the Codex provider.
+    if (options.cliRoute === 'codex') {
+      const { callCodexCli } = await import('./codex-cli-provider');
+      const codexResult = await callCodexCli(
+        options.model,
+        options.messages,
+        options.systemPrompt,
+        options.maxTokens || 2048,
+        options.timeoutMs,
+      );
+      incrementLlmCall();
+      return codexResult;
+    }
     const result = await callClaudeCli(
       options.model,
       options.messages,

@@ -42,9 +42,11 @@ const TAIL_LENGTH = 11;
  * Where ラピ is, so the tail can point at her.
  *
  * `bottom` is the panel's case — it sits above her. `right` is the status
- * line's case — it sits beside her.
+ * line's case — it sits beside her. `top` and `left` are the same two once
+ * she has been carried somewhere they would leave the window: the panel
+ * below her, the status line on her right.
  */
-export type TailSide = 'bottom' | 'right';
+export type TailSide = 'bottom' | 'top' | 'right' | 'left';
 
 export interface SpeechBubbleProps {
   children: ReactNode;
@@ -53,8 +55,8 @@ export interface SpeechBubbleProps {
   /**
    * Distance from the far corner of that edge to the tail's point, in px.
    *
-   * For a bottom tail, measured from the bubble's right edge; for a right
-   * tail, from its bottom edge. It is the caller's job to aim this at ラピ,
+   * For a bottom or top tail, measured from the bubble's right edge; for a
+   * right or left tail, from its bottom edge. It is the caller's job to aim this at ラピ,
    * since only the caller knows where both of them sit.
    */
   tailOffsetPx: number;
@@ -116,7 +118,37 @@ const SPEAK_KEYFRAMES = `
  * @returns A CSS transform-origin / CSS の transform-origin
  */
 export function speakOrigin(side: TailSide, offsetPx: number): string {
-  return side === 'bottom' ? `calc(100% - ${offsetPx}px) 100%` : `100% calc(100% - ${offsetPx}px)`;
+  switch (side) {
+    case 'bottom':
+      return `calc(100% - ${offsetPx}px) 100%`;
+    case 'top':
+      return `calc(100% - ${offsetPx}px) 0%`;
+    case 'right':
+      return `100% calc(100% - ${offsetPx}px)`;
+    case 'left':
+      return `0% calc(100% - ${offsetPx}px)`;
+  }
+}
+
+/**
+ * The bubble's radius, tight at the corner the tail leaves from.
+ *
+ * Four equal corners with a tail stuck on reads as a card with a
+ * decoration. Bottom and right tails both leave from the bottom-right
+ * corner, which is why they share one value.
+ *
+ * @param side - Which edge the tail leaves from / 尻尾が出る辺
+ * @returns A CSS border-radius / CSS の border-radius
+ */
+export function bubbleRadius(side: TailSide): string {
+  switch (side) {
+    case 'top':
+      return '14px 5px 14px 14px';
+    case 'left':
+      return '14px 14px 14px 5px';
+    default:
+      return '14px 14px 5px 14px';
+  }
 }
 
 /**
@@ -139,62 +171,30 @@ function Tail({
   borderColor: string;
 }) {
   const base: CSSProperties = { position: 'absolute', width: 0, height: 0 };
-
-  if (side === 'bottom') {
-    const sides = `${TAIL_HALF}px solid transparent`;
-    return (
-      <>
-        <span
-          data-bubble-tail="border"
-          style={{
-            ...base,
-            right: offsetPx - TAIL_HALF,
-            bottom: -TAIL_LENGTH,
-            borderLeft: sides,
-            borderRight: sides,
-            borderTop: `${TAIL_LENGTH}px solid ${borderColor}`,
-          }}
-        />
-        <span
-          data-bubble-tail="fill"
-          style={{
-            ...base,
-            right: offsetPx - TAIL_HALF,
-            bottom: -TAIL_LENGTH + 1.5,
-            borderLeft: sides,
-            borderRight: sides,
-            borderTop: `${TAIL_LENGTH}px solid ${background}`,
-          }}
-        />
-      </>
-    );
-  }
-
   const sides = `${TAIL_HALF}px solid transparent`;
+  const vertical = side === 'bottom' || side === 'top';
+
+  // The coloured border is the one against the bubble's edge; the two across
+  // it are transparent, which is what makes the triangle point away.
+  const pointing: Record<TailSide, keyof CSSProperties> = {
+    bottom: 'borderTop',
+    top: 'borderBottom',
+    right: 'borderLeft',
+    left: 'borderRight',
+  };
+  const layer = (color: string, inset: number): CSSProperties => ({
+    ...base,
+    ...(vertical
+      ? { right: offsetPx - TAIL_HALF, borderLeft: sides, borderRight: sides }
+      : { bottom: offsetPx - TAIL_HALF, borderTop: sides, borderBottom: sides }),
+    [side]: -TAIL_LENGTH + inset,
+    [pointing[side]]: `${TAIL_LENGTH}px solid ${color}`,
+  });
+
   return (
     <>
-      <span
-        data-bubble-tail="border"
-        style={{
-          ...base,
-          bottom: offsetPx - TAIL_HALF,
-          right: -TAIL_LENGTH,
-          borderTop: sides,
-          borderBottom: sides,
-          borderLeft: `${TAIL_LENGTH}px solid ${borderColor}`,
-        }}
-      />
-      <span
-        data-bubble-tail="fill"
-        style={{
-          ...base,
-          bottom: offsetPx - TAIL_HALF,
-          right: -TAIL_LENGTH + 1.5,
-          borderTop: sides,
-          borderBottom: sides,
-          borderLeft: `${TAIL_LENGTH}px solid ${background}`,
-        }}
-      />
+      <span data-bubble-tail="border" style={layer(borderColor, 0)} />
+      <span data-bubble-tail="fill" style={layer(background, 1.5)} />
     </>
   );
 }
@@ -219,11 +219,7 @@ export function SpeechBubble({
   'aria-label': ariaLabel,
   'aria-live': ariaLive,
 }: SpeechBubbleProps) {
-  // The corner nearest the tail is the tight one: four equal corners with a
-  // tail stuck on reads as a card with a decoration. ラピ lives in the
-  // bottom-right of the screen, so both tails leave from that corner and the
-  // radius is the same either way.
-  const radius = '14px 14px 5px 14px';
+  const radius = bubbleRadius(tailSide);
 
   const origin = speakOrigin(tailSide, tailOffsetPx);
 

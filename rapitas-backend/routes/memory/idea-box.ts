@@ -15,6 +15,7 @@ import {
   markIdeaAsUsed,
   normalizeIdeaPriority,
 } from '../../services/memory/idea-box-service';
+import { parseIdeaThemeQuery } from '../../services/memory/idea-box-theme-query';
 import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
 import { createTask } from '../../services/task/task-mutations';
@@ -42,7 +43,8 @@ export const ideaBoxRoutes = new Elysia()
     '/idea-box',
     async ({ query }) => {
       const categoryId = query.categoryId ? parseInt(query.categoryId) : undefined;
-      const themeId = query.themeId ? parseInt(query.themeId) : undefined;
+      // 'none' selects ideas without a theme; numeric values keep their old meaning.
+      const { themeId, noTheme } = parseIdeaThemeQuery(query.themeId);
       const unusedOnly = query.unusedOnly === 'true';
       const scope = query.scope as 'global' | 'project' | undefined;
       const status =
@@ -56,6 +58,7 @@ export const ideaBoxRoutes = new Elysia()
       const result = await listIdeas({
         categoryId,
         themeId,
+        noTheme,
         unusedOnly,
         scope,
         status,

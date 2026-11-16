@@ -5,32 +5,67 @@
  * LLM — Ollama was dropped for unreliable summarization quality), plus an
  * integration-style test locking that sendCopilotMessage's deterministic
  * intent shortcut (Step 0) returns without ever calling the LLM, and that
- * non-matching messages still fall through to Claude.
+ * non-matching messages still fall through to Claude, and that the system
+ * prompt (and with it the cache key) follows whether a task is attached.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 const mockPrismaCreate = mock(() => Promise.resolve({}));
 const mockTaskFindUnique = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+type StoredMessage = {
+  id: number;
+  taskId: number | null;
+  role: string;
+  content: string;
+  createdAt: Date;
+};
+type OrderBy = Partial<Record<'createdAt' | 'id', 'asc' | 'desc'>>;
+type FindManyArgs = {
+  where: { taskId: number };
+  orderBy: OrderBy | OrderBy[];
+  take?: number;
+};
+let storedMessages: StoredMessage[] = [];
+/** Minimal in-memory findMany honoring where.taskId, orderBy (object or array) and take. */
+const mockPrismaFindMany = mock((args: FindManyArgs) => {
+  const orders = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy];
+  const rows = storedMessages
+    .filter((m) => m.taskId === args.where.taskId)
+    .sort((a, b) => {
+      for (const order of orders) {
+        const [key, dir] = Object.entries(order)[0] as ['createdAt' | 'id', 'asc' | 'desc'];
+        const av = key === 'createdAt' ? a.createdAt.getTime() : a.id;
+        const bv = key === 'createdAt' ? b.createdAt.getTime() : b.id;
+        if (av !== bv) return dir === 'asc' ? av - bv : bv - av;
+      }
+      return 0;
+    });
+  return Promise.resolve(args.take === undefined ? rows : rows.slice(0, args.take));
+});
 mock.module('../../config/database', () => ({
   ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
-    copilotMessage: { create: mockPrismaCreate },
+    copilotMessage: { create: mockPrismaCreate, findMany: mockPrismaFindMany },
     task: { findUnique: mockTaskFindUnique },
   },
 }));
 
 const mockGetCachedResponse = mock(() => null as { content: string; tokensUsed: number } | null);
 const mockSetCachedResponse = mock(() => {});
+const mockGenerateCacheKey = mock(
+  (_kind: string, _model: string, _systemPrompt: string, _messages: unknown[]) => 'cache-key',
+);
 mock.module('../local-llm/response-cache', () => ({
   getCachedResponse: mockGetCachedResponse,
   setCachedResponse: mockSetCachedResponse,
-  generateCacheKey: () => 'cache-key',
+  generateCacheKey: mockGenerateCacheKey,
 }));
 
 const mockSendAIMessage = mock(() => Promise.resolve({ content: 'llm answer', tokensUsed: 10 }));
+const mockSendAIMessageStream = mock(() => Promise.resolve(new ReadableStream()));
 mock.module('../../utils/ai-client', () => ({
   sendAIMessage: mockSendAIMessage,
-  sendAIMessageStream: mock(() => Promise.resolve(new ReadableStream())),
+  sendAIMessageStream: mockSendAIMessageStream,
 }));
 
 // All four runtime exports mirrored: mock.module replaces the whole module.
@@ -48,13 +83,24 @@ mock.module('./copilot-intent-responder', () => ({
   respondToIntent: mockRespondToIntent,
 }));
 
-const { selectModelTier, sendCopilotMessage } = await import('./copilot-chat-service');
+const { selectModelTier, sendCopilotMessage, streamCopilotMessage, getCopilotHistory } =
+  await import('./copilot-chat-service');
+const { TASK_COPILOT_SYSTEM_PROMPT, GENERAL_COPILOT_SYSTEM_PROMPT } =
+  await import('./copilot-system-prompts');
+
+/** The systemPrompt option of the first call to an AI-client mock. */
+const systemPromptOf = (m: { mock: { calls: unknown[][] } }) =>
+  (m.mock.calls[0][0] as { systemPrompt: string }).systemPrompt;
 
 beforeEach(() => {
+  storedMessages = [];
+  mockPrismaFindMany.mockClear();
   mockPrismaCreate.mockReset().mockResolvedValue({});
   mockTaskFindUnique.mockReset().mockResolvedValue(null);
   mockGetCachedResponse.mockReset().mockReturnValue(null);
   mockSendAIMessage.mockReset().mockResolvedValue({ content: 'llm answer', tokensUsed: 10 });
+  mockSendAIMessageStream.mockReset().mockResolvedValue(new ReadableStream());
+  mockGenerateCacheKey.mockClear();
   mockMatchCopilotIntent.mockReset().mockReturnValue(null);
   mockRespondToIntent.mockReset().mockResolvedValue(null);
 });
@@ -120,5 +166,104 @@ describe('sendCopilotMessage — Step 0 deterministic intent shortcut', () => {
   it('skips the intent shortcut entirely when there is no taskId', async () => {
     await sendCopilotMessage({ message: 'ステータスは？' });
     expect(mockMatchCopilotIntent).not.toHaveBeenCalled();
+  });
+});
+
+describe('system prompt — task conversations vs task-free conversations', () => {
+  it('uses the general-assistant prompt when no taskId is given', async () => {
+    await sendCopilotMessage({ message: '「冗長」の意味を教えて' });
+
+    expect(systemPromptOf(mockSendAIMessage)).toBe(GENERAL_COPILOT_SYSTEM_PROMPT);
+  });
+
+  it('keeps the task-support prompt when a taskId is given', async () => {
+    await sendCopilotMessage({ message: '実装方針についてどう思う？', taskId: 1 });
+
+    expect(systemPromptOf(mockSendAIMessage)).toBe(TASK_COPILOT_SYSTEM_PROMPT);
+  });
+
+  it('applies the same split on the streaming path', async () => {
+    await streamCopilotMessage({ message: '「冗長」の意味を教えて' });
+    await streamCopilotMessage({ message: '実装方針についてどう思う？', taskId: 1 });
+
+    expect(mockSendAIMessageStream).toHaveBeenCalledTimes(2);
+    const prompts = mockSendAIMessageStream.mock.calls.map(
+      (call) => (call[0] as unknown as { systemPrompt: string }).systemPrompt,
+    );
+    expect(prompts).toEqual([GENERAL_COPILOT_SYSTEM_PROMPT, TASK_COPILOT_SYSTEM_PROMPT]);
+  });
+
+  it('keys the response cache by the chosen prompt, so the two never share an entry', async () => {
+    // Same message text, and buildTaskContext finds no task (null), so the
+    // cached user message is identical — only the system prompt tells them apart.
+    await sendCopilotMessage({ message: '同じ質問' });
+    await sendCopilotMessage({ message: '同じ質問', taskId: 1 });
+
+    const keyPrompts = mockGenerateCacheKey.mock.calls.map((call) => call[2]);
+    expect(keyPrompts).toEqual([GENERAL_COPILOT_SYSTEM_PROMPT, TASK_COPILOT_SYSTEM_PROMPT]);
+    expect(mockGenerateCacheKey.mock.calls[0][3]).toEqual(mockGenerateCacheKey.mock.calls[1][3]);
+  });
+
+  it('does not scope or cap the general prompt the way the task prompt does', () => {
+    expect(TASK_COPILOT_SYSTEM_PROMPT).toContain('200-400文字');
+    expect(GENERAL_COPILOT_SYSTEM_PROMPT).not.toContain('200-400文字');
+    expect(GENERAL_COPILOT_SYSTEM_PROMPT).not.toContain('タスクに関する質問に');
+  });
+});
+
+describe('getCopilotHistory — newest messages, oldest first', () => {
+  const seed = (taskId: number, count: number, startId = 1) => {
+    for (let i = 0; i < count; i++) {
+      storedMessages.push({
+        id: startId + i,
+        taskId,
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `m${i + 1}`,
+        createdAt: new Date(Date.UTC(2026, 10, 1, 10, 0, i)),
+      });
+    }
+  };
+
+  it('returns the newest 50 of 60 messages in chronological order', async () => {
+    seed(7, 60);
+    seed(8, 5, 1000); // another task's messages never leak in
+
+    const history = await getCopilotHistory(7);
+
+    expect(history).toHaveLength(50);
+    expect(history.map((m) => m.content)).toEqual(
+      Array.from({ length: 50 }, (_, i) => `m${i + 11}`),
+    );
+    expect(history.at(-1)?.content).toBe('m60');
+  });
+
+  it('returns every message oldest first when there are fewer than the limit', async () => {
+    seed(7, 3);
+
+    const history = await getCopilotHistory(7);
+
+    expect(history.map((m) => m.content)).toEqual(['m1', 'm2', 'm3']);
+  });
+
+  it('keeps insertion order (by id) for messages saved in the same instant', async () => {
+    const at = new Date(Date.UTC(2026, 10, 1, 10));
+    storedMessages.push(
+      { id: 2, taskId: 7, role: 'assistant', content: 'answer', createdAt: at },
+      { id: 1, taskId: 7, role: 'user', content: 'question', createdAt: at },
+    );
+
+    const history = await getCopilotHistory(7, 1);
+    expect(history.map((m) => m.content)).toEqual(['answer']);
+    expect((await getCopilotHistory(7)).map((m) => m.content)).toEqual(['question', 'answer']);
+  });
+
+  it('asks the database for the newest rows (desc) with the limit applied', async () => {
+    await getCopilotHistory(7, 20);
+
+    expect(mockPrismaFindMany).toHaveBeenCalledWith({
+      where: { taskId: 7 },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 20,
+    });
   });
 });

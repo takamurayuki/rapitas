@@ -11,4 +11,3 @@ export {
   CardLightSweep,
   useTaskCompletionAnimation,
 } from './TaskCompletionAnimation';
-export { default as TaskCompleteOverlay } from './TaskCompleteOverlay';

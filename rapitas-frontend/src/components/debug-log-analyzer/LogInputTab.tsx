@@ -150,7 +150,7 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
         {/* Sample log buttons */}
         <div className="flex items-center gap-4">
           <Label className="min-w-[100px]">{t('debugLogAnalyzer.input.sample')}</Label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(['json', 'nodejs', 'apache', 'nginx'] as SampleKey[]).map((key) => (
               <Button
                 key={key}

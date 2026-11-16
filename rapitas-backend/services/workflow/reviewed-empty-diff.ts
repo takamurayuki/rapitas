@@ -3,6 +3,7 @@ import type { PrismaClient } from '../../generated/prisma-postgres';
 import type { CompletionReviewReceipt } from './requirement-replan-commit';
 import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
 import { withTaskLifecycleLock } from './task-lifecycle-lock';
+import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 
 export async function blockReviewedEmptyDiff(
   db: PrismaClient,
@@ -14,7 +15,7 @@ export async function blockReviewedEmptyDiff(
     db.$transaction(
       async (tx) => {
         const execution = await tx.agentExecution.findFirst({
-          where: { session: { config: { taskId } } },
+          where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
           orderBy: { id: 'desc' },
           select: { id: true, status: true, startedAt: true },
         });

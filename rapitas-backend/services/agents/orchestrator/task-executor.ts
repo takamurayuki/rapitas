@@ -36,6 +36,7 @@ import { appendEvent } from '../../memory/timeline';
 import { memoryTaskQueue } from '../../memory';
 import { buildTaskRAGContext } from '../../memory/rag/context-builder';
 import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
+import { NOT_REVIEW_COST_ROW } from '../review-cost-rows';
 
 const logger = createLogger('task-executor');
 
@@ -186,10 +187,7 @@ async function loadPreviousOutput(
 
   try {
     const previousExecution = await ctx.prisma.agentExecution.findFirst({
-      where: {
-        sessionId: options.sessionId,
-        id: { not: executionId },
-      },
+      where: { ...NOT_REVIEW_COST_ROW, sessionId: options.sessionId, id: { not: executionId } },
       orderBy: { createdAt: 'desc' },
       select: { output: true },
     });

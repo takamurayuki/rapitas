@@ -310,6 +310,7 @@
     },
     "layout": {
       "navAriaLabel": "Settings",
+      "modalTitle": "Settings",
       "personalTab": "Personal",
       "generalTab": "General",
       "shortcutsTab": "Shortcuts",
@@ -438,11 +439,33 @@
       "restart": "The switch takes effect after the app restarts.",
       "escapeHatch": "If the app cannot start, RAPITAS_USER_DATABASE=off goes back.",
       "errorPrefix": "That did not work: {error}"
+    },
+    "mobileLinkCard": {
+      "title": "Connect your phone",
+      "description": "View and control this computer's tasks and runs from the Rapitas Mobile app. The phone must be on the same Wi-Fi.",
+      "stateOff": "Off",
+      "stateListening": "On (listening on port {port})",
+      "stateFailed": "Could not turn on: {error}",
+      "enable": "Turn on",
+      "disable": "Turn off",
+      "showQr": "Add a phone (show QR code)",
+      "qrHelp": "Scan this QR code with \"Connect to desktop\" in the phone app.",
+      "qrExpires": "This QR code works until {time} and only once.",
+      "qrAlt": "Pairing QR code",
+      "addresses": "If the phone cannot find this computer: {addresses}",
+      "devicesTitle": "Connected phones",
+      "noDevices": "None yet",
+      "pairedAt": "Added {time}",
+      "lastSeen": "Last seen {time}",
+      "neverSeen": "Not connected yet",
+      "revoke": "Remove",
+      "revokeConfirm": "Remove \"{name}\"? It will no longer be able to control this computer.",
+      "errorPrefix": "Something went wrong: {error}"
     }
   },
   "linkView": {
-    "back": "Back",
-    "forward": "Forward",
+    "back": "Page back",
+    "forward": "Page forward",
     "reload": "Reload",
     "openExternally": "Open in the external browser",
     "close": "Close",
@@ -571,16 +594,16 @@
       "noteWritten": "The assumptions and decisions are in a note.",
       "progress": "{current} / {total}"
     },
-    "history": "What you have asked",
     "greeting": "I am ラピ, the agent that works on rapitas with you. What are we doing today? Just write it in the box below.",
     "prompt": {
       "label": "Tell ラピ",
       "placeholder": "Just say what you want to do",
       "thinking": "Reading that…",
       "cancel": "Cancel",
-      "unplaced": "I could not tell what that was about. Pick a tab below.",
-      "tookItAs": "Took that as “{where}” — {reason}",
-      "ratherPlan": "Plan it out instead"
+      "ratherPlan": "Plan it out instead",
+      "send": "Send",
+      "hint": "Enter to send, Shift+Enter for a new line",
+      "failed": "Could not send that. Wait a moment and send it again."
     },
     "tidy": {
       "byCondition": "By condition",
@@ -688,6 +711,24 @@
         "high": "High",
         "urgent": "Urgent",
         "none": "None"
+      }
+    },
+    "spaces": {
+      "untitled": "New conversation",
+      "switch": "Switch conversation",
+      "startNew": "Start a new conversation",
+      "archived": "{kind} card (saved on mobile)",
+      "kind": {
+        "answer": "Answer",
+        "change": "Change",
+        "roadmap": "Plan",
+        "tidy": "Tidy",
+        "companion": "Companion"
+      },
+      "problem": {
+        "load": "Could not load this conversation.",
+        "save": "Could not save the conversation. It will be tried again as you keep talking.",
+        "limit": "There are too many conversations. Delete an old one to save this."
       }
     }
   }

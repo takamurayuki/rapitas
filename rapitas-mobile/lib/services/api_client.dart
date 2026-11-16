@@ -1,0 +1,105 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
+
+class ApiClient {
+  late final Dio _dio;
+  final ApiConfig _config;
+
+  ApiClient({required ApiConfig config}) : _config = config {
+    _dio = createDio(config);
+  }
+
+  /// この接続設定の Dio を作る（既定のヘッダ・タイムアウト・デバッグ用ログ）。
+  ///
+  /// 判断画面だけが使う別の窓口（HumanDecisionClient）も同じ設定から作る。
+  /// NOTE: 既定のヘッダに X-Rapitas-Source を入れてはいけない。全リクエストに付くと、
+  /// ラピ経由の送信と画面からの判断をバックエンドが見分けられなくなる（人間専用ルートの守りが外れる）
+  static Dio createDio(ApiConfig config) {
+    final dio = Dio(BaseOptions(
+      baseUrl: config.baseUrl,
+      connectTimeout: ApiConfig.connectTimeout,
+      receiveTimeout: ApiConfig.receiveTimeout,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // デスクトップ側で RAPITAS_API_TOKEN を設定して外部公開しているときに必要
+        ...config.authHeaders,
+      },
+    ));
+    // NOTE(security): Bodies and headers are deliberately NOT logged, and the
+    // interceptor is debug-only. It previously ran in release builds with
+    // `requestBody: true, responseBody: true`, so any API key or token sent in
+    // a request body — and every response body it came back in — was written in
+    // plain text wherever Dart's logs are collected. This package's own
+    // CLAUDE.md requires that raw keys never be exposed in the mobile app, and
+    // the API-client pattern it documents uses a bare LogInterceptor (bodies
+    // default to off). Method, path and status are what debugging a client
+    // needs; the payload is not.
+    if (kDebugMode) {
+      dio.interceptors.add(LogInterceptor(
+        request: true,
+        requestHeader: false,
+        requestBody: false,
+        responseHeader: false,
+        responseBody: false,
+      ));
+    }
+    return dio;
+  }
+
+  void updateBaseUrl(String baseUrl) {
+    _config.baseUrl = baseUrl;
+    _dio.options.baseUrl = _config.baseUrl;
+  }
+
+  /// [receiveTimeout] を渡すとこの要求だけ受信タイムアウトを上書きする
+  /// （省略時は BaseOptions の既定 = ApiConfig.receiveTimeout）。
+  static Options? _options(Duration? receiveTimeout) =>
+      receiveTimeout == null ? null : Options(receiveTimeout: receiveTimeout);
+
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
+  }) {
+    return _dio.get<T>(
+      path,
+      queryParameters: queryParameters,
+      options: _options(receiveTimeout),
+    );
+  }
+
+  Future<Response<T>> post<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
+  }) {
+    return _dio.post<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: _options(receiveTimeout),
+    );
+  }
+
+  Future<Response<T>> patch<T>(
+    String path, {
+    dynamic data,
+  }) {
+    return _dio.patch<T>(path, data: data);
+  }
+
+  /// NOTE: 仮説の状態上書き（PUT /hypotheses/:id/status）のように PUT しか受けない API 用
+  Future<Response<T>> put<T>(
+    String path, {
+    dynamic data,
+  }) {
+    return _dio.put<T>(path, data: data);
+  }
+
+  Future<Response<T>> delete<T>(String path) {
+    return _dio.delete<T>(path);
+  }
+}
