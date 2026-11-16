@@ -139,9 +139,16 @@ describe('the spec section', () => {
 
   it('offers the deliverables an agent can produce, PR selected', () => {
     render(<TaskSpecSection {...props} isDevelopment specIssues={{}} />);
-    const select = screen.getByLabelText('specDeliverable') as HTMLSelectElement;
-    expect(select.value).toBe('pr');
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(['pr', 'report', 'decision']);
+    const group = screen.getByRole('radiogroup', { name: 'specDeliverable' });
+    const radios = Array.from(group.querySelectorAll('[role="radio"]'));
+    expect(radios.map((r) => r.textContent)).toEqual([
+      'deliverable.pr',
+      'deliverable.report',
+      'deliverable.decision',
+    ]);
+    expect(screen.getByRole('radio', { name: 'deliverable.pr' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
   });
 
   it('marks nothing as required for a personal task', () => {
