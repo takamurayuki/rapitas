@@ -49,3 +49,17 @@ test('a durable stop or unreadable stop history withholds merge even while execu
   expect(await canContinueAutoMerge(1)).toBe(false);
   expect(await canContinueAutoMerge(1)).toBe(true);
 });
+
+// Trial #1499: a task run by hand while the theme's auto-run was off had its
+// PR merged by a person, and stayed at verify_done — the off toggle withheld
+// the completion. A landed merge needs only the stop checks.
+test('a merge that already landed completes while auto-run is off, but not after a stop', async () => {
+  run.mockResolvedValue({ enabled: false, status: 'idle' });
+  expect(await canContinueAutoMerge(1)).toBe(false);
+  expect(await canContinueAutoMerge(1, { mergeLanded: true })).toBe(true);
+  latestExecution.mockResolvedValueOnce({ id: 9, status: 'cancelled' });
+  expect(await canContinueAutoMerge(1, { mergeLanded: true })).toBe(false);
+  task.mockResolvedValueOnce({ status: 'cancelled', themeId: 1 });
+  expect(await canContinueAutoMerge(1, { mergeLanded: true })).toBe(false);
+  run.mockResolvedValue({ enabled: true, status: 'running' });
+});
