@@ -567,7 +567,7 @@ describe('start() guards', () => {
     delete process.env.TAURI_BUILD;
     delete process.env.RAPITAS_RESTART_SUPERVISED;
     warnings.length = 0;
-  cycleEvents.length = 0;
+    cycleEvents.length = 0;
     await new AutoRestartMergedCodeScheduler().start(60_000);
     expect(warnings.some((w) => w.msg.includes('RAPITAS_RESTART_SUPERVISED'))).toBe(true);
     if (originalTauri !== undefined) process.env.TAURI_BUILD = originalTauri;
