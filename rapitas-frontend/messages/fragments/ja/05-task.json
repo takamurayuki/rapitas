@@ -88,7 +88,7 @@
     "specGoals": "ゴール",
     "specConstraints": "制約",
     "specAcceptance": "エージェントが確かめる",
-    "specDerive": "仕様（ゴール・完了条件など）",
+    "specDerive": "仕様",
     "specDeriveTooltip": "説明をもとに、ゴール・制約・完了条件（エージェントが確かめる）を AI が下書きします。入力済みの内容は置き換わります",
     "specDerived": "説明から仕様を下書きしました",
     "specDeriveFailed": "仕様を下書きできませんでした",
@@ -646,7 +646,7 @@
     "specSaveFailed": "仕様を保存できませんでした",
     "specCompletion": "完了条件",
     "specCompletionNote": "エージェントが確かめる条件は、作業の検証に使われます。本人が確かめる条件は、結果を見てあなたが判断します。",
-    "aiDraftLead": "説明をもとに AI で下書き:",
+    "aiDraftLead": "AI で下書き",
     "aiDraftNeedsDescription": "説明を書くと使えます",
     "specStartConditions": "開始条件（着手前に満たしておくこと）",
     "prerequisites": "先に終わらせるタスク",
@@ -677,6 +677,8 @@
     "specScopeHelp": "範囲と前提の説明",
     "specScopeNote": "範囲外: 今回やらないこと。エージェントが手を広げすぎないための線引きです。制約: 守るべき決まりごと（変えてはいけない API など）。開始条件: 着手する前に満たしておくこと。",
     "prerequisitesHelp": "先に終わらせるタスクの説明",
-    "prerequisitesNote": "ここに入れたタスクがすべて完了するまで、自動実行はこのタスクを始めません。手動で始めようとすると、未完了のタスクを挙げて断ります。"
+    "prerequisitesNote": "ここに入れたタスクがすべて完了するまで、自動実行はこのタスクを始めません。手動で始めようとすると、未完了のタスクを挙げて断ります。",
+    "aiDraftHelpLabel": "AI で下書きの説明",
+    "aiDraftHelp": "説明をもとに AI が下書きします。タイトル: タイトルを考えます。仕様: ゴール・制約・完了条件を下書きします。どちらも入力済みの内容は置き換わります。説明を書くと使えます。"
   }
 }

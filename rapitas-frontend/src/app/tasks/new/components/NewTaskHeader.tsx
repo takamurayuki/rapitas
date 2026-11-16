@@ -1,7 +1,6 @@
 'use client';
 // NewTaskHeader
-import { ArrowLeft, LayoutTemplate, ListPlus, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { LayoutTemplate, ListPlus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { TaskTemplate } from '@/types';
 
@@ -21,7 +20,8 @@ interface NewTaskHeaderProps {
 }
 
 /**
- * Renders the back/template/create button bar above the form.
+ * Renders the template/create button bar above the form. No back button: the
+ * header's own back arrow already does that (removed by request, 2026-11-16).
  *
  * @param props.isSubmitting - Disables Create button while pending / 送信中はCreateボタンを無効化
  * @param props.hasTitle - Gates the Create button / タイトルがない場合Createボタンを無効化
@@ -37,8 +37,6 @@ export function NewTaskHeader({
   onClearTemplate,
   onSubmit,
 }: NewTaskHeaderProps) {
-  const router = useRouter();
-  const tc = useTranslations('common');
   const t = useTranslations('task');
 
   const canCreate = hasTitle && !isSubmitting;
@@ -48,15 +46,7 @@ export function NewTaskHeader({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm font-medium">{tc('back')}</span>
-        </button>
-
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           {/* Template button — フラット (テンプレート選択は表示補助操作) */}
           <button
