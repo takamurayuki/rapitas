@@ -76,3 +76,23 @@ describe('extractOperations', () => {
     expect(extractOperations('Bash', { command: 3 })).toEqual([]);
   });
 });
+
+// Audit 2026-11-17: across all recorded runs the most common "commands" were
+// `1` (from 2>&1) 1,255 times, `eof` 644, `const` 371 and `--data-binary` 362 —
+// redirects, heredoc bodies and continuation lines read as commands, so nearly
+// every Bash call came out 計画外.
+describe('splitCommandNames — shell syntax that is not a command', () => {
+  const cases: Array<[string, string[]]> = [
+    ['bun test a.ts 2>&1 | tail -5', ['bun', 'tail']],
+    ['node x.js >out.log 2>&1 &', ['node']],
+    ["cat > f.ts <<'EOF'\nconst a = 1;\nexport {};\nEOF\nbun test", ['cat', 'bun']],
+    ['curl -s -X POST http://127.0.0.1:3001/x \\n  --data-binary @f.json', ['curl']],
+    ['for f in a b; do echo $f; done', ['echo']],
+    ['if [ -f x ]; then rm x; fi', ['[', 'rm']],
+  ];
+  for (const [cmd, expected] of cases) {
+    test(JSON.stringify(cmd), () => {
+      expect(splitCommandNames(cmd)).toEqual(expected);
+    });
+  }
+});

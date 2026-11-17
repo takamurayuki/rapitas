@@ -89,6 +89,26 @@ describe('DeviationTimeline', () => {
     );
   });
 
+  // Several runs are judged together now (2026-11-17); a row's log lives in
+  // the run that recorded it, not in the newest run.
+  test('opens the log of the run that recorded the deviation', async () => {
+    const timeline = {
+      ...okTimeline,
+      entries: okTimeline.entries.map((e) => (e.seq === 2 ? { ...e, executionId: 6 } : e)),
+    };
+    mockFetch.mockReturnValueOnce(jsonResponse(timeline));
+    mockFetch.mockReturnValueOnce(
+      jsonResponse({ lines: [{ sequenceNumber: 7, text: 'the rm line', isTarget: true }] }),
+    );
+    render(<DeviationTimeline taskId={5} />);
+    await waitFor(() => expect(screen.getAllByTestId('deviation-item')).toHaveLength(2));
+    fireEvent.click(screen.getAllByTestId('deviation-item')[0]);
+    await waitFor(() => expect(screen.getByText('the rm line')).toBeInTheDocument());
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      'http://test:3001/workflow/executions/6/deviation-context?seq=7&before=5&after=5',
+    );
+  });
+
   test('more than 10 deviations are paginated', async () => {
     const entries = Array.from({ length: 12 }, (_, i) => ({
       category: 'out_of_plan',

@@ -63,6 +63,8 @@ export interface OperationRecord {
   displayMasked: string;
   /** AgentExecutionLog.sequenceNumber of the log chunk that announced this tool call. */
   logSequence?: number;
+  /** Execution that recorded it, when several runs are judged together. */
+  executionId?: number;
 }
 
 /** One classified timeline entry. */
@@ -75,6 +77,8 @@ export interface TimelineEntry {
   tool?: string;
   display: string;
   logSequence?: number;
+  /** Execution the operation belongs to (its log holds `logSequence`). */
+  executionId?: number;
   /** Declared item an unexecuted entry refers to. */
   declaredItem?: string;
 }

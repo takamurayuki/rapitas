@@ -19,6 +19,73 @@ const FILE_TOOLS: Record<string, string> = {
 /** Shell separators that start a new command: `&&`, `||`, `;`, `|`, `&`, newline. */
 const SEPARATOR_RE = /&&|\|\||[;|&\n]/;
 
+/** Redirections such as `2>&1`, `>&2`, `&>out`, `>out.log` — not commands. */
+const REDIRECT_RE = /\d*>>?&\d+|&>>?\S*|\d*[<>]>?\s*[^\s;|&]+/g;
+
+/** `<<EOF` / `<<'EOF'` / `<<-"EOF"` heredoc opener; group 2 is the terminator. */
+const HEREDOC_RE = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1/;
+
+/** Shell keywords that introduce the command after them, not a command of their own. */
+const SHELL_KEYWORDS: ReadonlySet<string> = new Set([
+  'do',
+  'done',
+  'while',
+  'until',
+  'if',
+  'then',
+  'elif',
+  'else',
+  'fi',
+  'case',
+  'esac',
+  'time',
+  '!',
+]);
+
+/**
+ * Whether a recorded name can be a command at all. Older recordings stored
+ * the pieces of redirects, heredoc bodies and options as names (`1`, `eof`,
+ * `const`, `--data-binary`); the classifier drops those too.
+ *
+ * @param name - Lower-case command name / コマンド名
+ * @returns True when it looks like a command / コマンド名として妥当なら true
+ */
+export function isPlausibleCommandName(name: string): boolean {
+  return /^[a-z_.[][a-z0-9_.+\-[]*$/.test(name) && !/^\d+$/.test(name) && !NOT_COMMANDS.has(name);
+}
+
+/** Heredoc terminators and source keywords that old recordings stored as names. */
+const NOT_COMMANDS: ReadonlySet<string> = new Set([
+  'eof',
+  'const',
+  'let',
+  'var',
+  'import',
+  'export',
+  'return',
+  'function',
+  'interface',
+  'async',
+  'await',
+]);
+
+/** Remove heredoc bodies and redirections, and join backslash-newline continuations. */
+function normalizeScript(command: string): string {
+  const lines = command.replace(/\\\r?\n/g, ' ').split(/\r?\n/);
+  const kept: string[] = [];
+  let terminator: string | null = null;
+  for (const line of lines) {
+    if (terminator !== null) {
+      if (line.trim() === terminator) terminator = null;
+      continue;
+    }
+    const heredoc = HEREDOC_RE.exec(line);
+    if (heredoc) terminator = heredoc[2];
+    kept.push(line.replace(HEREDOC_RE, ''));
+  }
+  return kept.join('\n').replace(REDIRECT_RE, ' ');
+}
+
 /** Leading `NAME=value` env assignment before the command word. */
 const ENV_PREFIX_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
@@ -47,14 +114,21 @@ export interface ExtractedOperation {
  */
 export function splitCommandNames(command: string): string[] {
   const names: string[] = [];
-  for (const segment of command.split(SEPARATOR_RE)) {
+  for (const segment of normalizeScript(command).split(SEPARATOR_RE)) {
     const tokens = segment
       .trim()
       .replace(/^[({]+\s*/, '')
       .split(/\s+/)
       .filter(Boolean);
+    // `for x in a b` only names a loop variable and its words; nothing runs.
+    if (tokens[0]?.toLowerCase() === 'for') continue;
     let i = 0;
-    while (i < tokens.length && ENV_PREFIX_RE.test(tokens[i])) i++;
+    while (
+      i < tokens.length &&
+      (ENV_PREFIX_RE.test(tokens[i]) || SHELL_KEYWORDS.has(tokens[i].toLowerCase()))
+    ) {
+      i++;
+    }
     const word = tokens[i];
     if (!word) continue;
     const name = word
@@ -62,7 +136,7 @@ export function splitCommandNames(command: string): string[] {
       .replace(/^.*[/\\]/, '')
       .replace(/\.exe$/i, '')
       .toLowerCase();
-    if (name && !names.includes(name)) names.push(name);
+    if (name && isPlausibleCommandName(name) && !names.includes(name)) names.push(name);
   }
   return names;
 }

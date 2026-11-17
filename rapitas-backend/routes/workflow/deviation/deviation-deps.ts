@@ -22,11 +22,25 @@ export interface ExecutionInfo {
   status: string;
   agentType: string | null;
   worktreePath: string | null;
+  /** When the run started (falls back to its creation); picks the plan in force. */
+  startedAt?: Date | null;
+}
+
+/** One version of plan.md and until when it was the plan in force. */
+export interface PlanVersion {
+  content: string;
+  /** When a newer version replaced it; null for the current plan. */
+  validUntil: Date | null;
 }
 
 /** Injected data access. */
 export interface DeviationDeps {
   readPlan(taskId: number): Promise<string | null>;
+  /**
+   * Every plan.md version, oldest first, the current one last. Optional: when
+   * absent the current plan is used for every run.
+   */
+  readPlanVersions?(taskId: number): Promise<PlanVersion[]>;
   /** Executions of the task, newest first (only `executionId` when given). */
   findExecutions(taskId: number, executionId?: number): Promise<ExecutionInfo[]>;
   readOperations(executionId: number): { operations: OperationRecord[]; warnings: string[] };
@@ -46,6 +60,23 @@ export function createDefaultDeviationDeps(): DeviationDeps {
       const { readWorkflowFile } = await import('../../../services/workflow/workflow-file-utils');
       return readWorkflowFile(taskId, 'plan');
     },
+    async readPlanVersions(taskId) {
+      const prisma = await db();
+      // NOTE: A WorkflowFileVersion row is a plan that was replaced at archivedAt,
+      // so it was the plan in force until then (audit 2026-11-17, task 1410).
+      const [archived, current] = await Promise.all([
+        prisma.workflowFileVersion.findMany({
+          where: { taskId, fileType: 'plan' },
+          orderBy: { archivedAt: 'asc' },
+          select: { content: true, archivedAt: true },
+        }),
+        this.readPlan(taskId),
+      ]);
+      return [
+        ...archived.map((v) => ({ content: v.content, validUntil: v.archivedAt })),
+        ...(current !== null ? [{ content: current, validUntil: null }] : []),
+      ];
+    },
     async findExecutions(taskId, executionId) {
       const prisma = await db();
       const rows = await prisma.agentExecution.findMany({
@@ -58,6 +89,8 @@ export function createDefaultDeviationDeps(): DeviationDeps {
         select: {
           id: true,
           status: true,
+          startedAt: true,
+          createdAt: true,
           agentConfig: { select: { agentType: true } },
           session: { select: { worktreePath: true } },
         },
@@ -67,6 +100,7 @@ export function createDefaultDeviationDeps(): DeviationDeps {
         status: r.status,
         agentType: r.agentConfig?.agentType ?? null,
         worktreePath: r.session?.worktreePath ?? null,
+        startedAt: r.startedAt ?? r.createdAt,
       }));
     },
     readOperations: (executionId) => getOperationStore().readOperations(executionId),
