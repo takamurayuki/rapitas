@@ -81,6 +81,22 @@ const String rapiSendFailedText = '送信に失敗しました';
 const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
     'デスクトップ側の処理が混んでいるかもしれません。もう一度送ってみてください。';
 
+/// 相談の意図（相談スレッドの発言の印）
+const String rapiIntentConsult = 'consult';
+
+/// 読み込んだ相談の履歴（copilot の過去のやりとり）の各行に付ける印。
+///
+/// 相談の履歴は会話スペースの記録（archived）ではないので rapiRestoreReadMarks では戻らない。
+/// すぐ後ろにラピの返答が続くユーザー行だけ相談（👌）とし、返答の無い発言（末尾で応答待ちのまま
+/// 閉じた発言や、次もユーザー行が続く発言）とラピの行には付けない。
+///
+/// @param fromUser - 履歴の各行がユーザーの発言か（並び順のまま） / 発言者
+/// @returns 各行の印（付けない行は null） / 各行の印
+List<String?> rapiConsultHistoryReadAs(List<bool> fromUser) => [
+      for (var i = 0; i < fromUser.length; i++)
+        fromUser[i] && i + 1 < fromUser.length && !fromUser[i + 1] ? rapiIntentConsult : null,
+    ];
+
 /// 記録の行 [m] が、そのターンの意図を示していればその意図。
 String? _intentOfLine(RapiMessage m) {
   if (m.role == RapiRole.system) {
