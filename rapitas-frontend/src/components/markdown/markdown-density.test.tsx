@@ -46,6 +46,8 @@ describe('MarkdownView note density', () => {
     expect(cls).toContain('[&_h2]:before:!hidden');
     expect(cls).toContain('[&_a]:!underline');
     expect(cls).toContain('[&_td]:!border');
+    // Typography wraps quotes in “ ” marks; the phone shows the text alone.
+    expect(cls).toContain('[&_blockquote_p]:before:!content-none');
   });
 
   it('keeps a single newline as a line break, as the phone does (softLineBreak)', () => {

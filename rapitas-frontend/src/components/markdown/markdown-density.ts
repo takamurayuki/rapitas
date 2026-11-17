@@ -53,6 +53,7 @@ const NOTE_DENSITY_CLASS = [
   '[&_a]:!underline [&_a]:underline-offset-2',
   '[&_pre]:!my-3 [&_pre]:!p-3 [&_pre]:!rounded-lg [&_pre]:!text-[12.6px]',
   '[&_blockquote]:!my-3 [&_blockquote]:!py-2 [&_blockquote]:!pl-3 [&_blockquote]:!border-l-[3px] [&_blockquote]:!border-indigo-500 [&_blockquote]:!bg-zinc-100 [&_blockquote]:!rounded-sm dark:[&_blockquote]:!bg-zinc-800/60',
+  '[&_blockquote_p]:before:!content-none [&_blockquote_p]:after:!content-none',
   '[&_hr]:!my-4',
   '[&_div:has(>table)]:!my-3 [&_div:has(>table)]:!rounded-none [&_div:has(>table)]:!border-0',
   '[&_table]:!text-sm',
