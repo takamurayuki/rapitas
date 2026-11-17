@@ -6374,7 +6374,15 @@
     "linkDismiss": "リンクのパネルを閉じる",
     "linkUrlLabel": "リンクのURL",
     "linkApply": "適用",
-    "linkPanelLabel": "リンクの操作"
+    "linkPanelLabel": "リンクの操作",
+    "markdownNote": {
+      "view": "表示",
+      "edit": "Markdown を編集",
+      "modeLabel": "表示と編集の切り替え",
+      "sourceLabel": "ノート本文（Markdown）",
+      "empty": "本文はありません。",
+      "formatHint": "Markdown で書かれたノートです（見出し・箇条書き・表・コード・Mermaid の図）"
+    }
   },
   "logs": {
     "title": "ログ分析",

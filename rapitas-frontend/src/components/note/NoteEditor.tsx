@@ -1,5 +1,12 @@
 'use client';
-// NoteEditor
+/**
+ * NoteEditor
+ *
+ * The note body surface behind the /notes page and the task detail's note
+ * split view. A Markdown body (ラピ, the phone, the roadmap) is shown rendered
+ * by MarkdownNoteEditor; a body written here in the rich editor (HTML) opens
+ * in the contentEditable editor below.
+ */
 import { useState, useCallback, useRef, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { type Note, useNoteStore } from '@/stores/note-store';
@@ -13,6 +20,8 @@ import { useTableControls } from './editor/useTableControls';
 import { TableControlsOverlay } from './editor/TableControlsOverlay';
 import { InlineLinkPopup } from './editor/InlineLinkPopup';
 import { useInlineLinks } from './editor/useInlineLinks';
+import MarkdownNoteEditor from './markdown-note/MarkdownNoteEditor';
+import { isMarkdownNoteContent } from './markdown-note/note-content-format';
 
 interface DiagramEditState {
   el: HTMLElement;
@@ -25,7 +34,27 @@ interface NoteEditorProps {
   children?: ReactNode;
 }
 
-export default function NoteEditor({ note, children }: NoteEditorProps) {
+/**
+ * Opens a note in the surface that matches its body format.
+ *
+ * @param note - The note to open / 開くノート
+ * @param children - Optional content in place of the rich editor body / リッチエディタ本文の代わりに出す内容（任意）
+ */
+export default function NoteEditor(props: NoteEditorProps) {
+  // Keyed by id so the format is read once per opened note: a draft that
+  // briefly stops looking like Markdown must not flip the surface mid-edit.
+  return <NoteEditorForFormat key={props.note.id} {...props} />;
+}
+
+function NoteEditorForFormat({ note, children }: NoteEditorProps) {
+  const [isMarkdown] = useState(() => isMarkdownNoteContent(note.content));
+  // NOTE: Markdown notes are not loaded into the rich editor: innerHTML would
+  // fold their newlines, show their marks, and save them back as HTML.
+  if (isMarkdown) return <MarkdownNoteEditor note={note} />;
+  return <RichNoteEditor note={note}>{children}</RichNoteEditor>;
+}
+
+function RichNoteEditor({ note, children }: NoteEditorProps) {
   const t = useTranslations('notes');
   const editor = useNoteEditor(note);
   const deleteNote = useNoteStore((s) => s.deleteNote);

@@ -13,7 +13,6 @@
 
 import { isValidElement, memo, useMemo, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   isIconOnlyCellContent,
   renderTableCellContent,
@@ -22,7 +21,7 @@ import {
 } from './emoji-to-lucide';
 import { renderBlockWithEmojiIcons } from './verdict-chip';
 import { MermaidBlock, extractMermaidSource } from './mermaid-block';
-import { densityClass, type MarkdownDensity } from './markdown-density';
+import { densityClass, remarkPluginsFor, type MarkdownDensity } from './markdown-density';
 
 /** Flattens a ReactMarkdown heading's children into plain text. / 子要素を素テキスト化。 */
 export function nodeToText(node: ReactNode): string {
@@ -45,7 +44,7 @@ interface MarkdownViewProps {
   getHeadingId?: (text: string) => string;
   /** Optional: scroll-margin-top (px) on H2 so sticky bars don't cover the target. */
   headingScrollMarginTop?: number;
-  /** Optional: `chat` sets it tighter for a chat bubble; default `document`. */
+  /** Optional: `chat` for a chat bubble, `note` for a note body; default `document`. */
   density?: MarkdownDensity;
 }
 
@@ -70,7 +69,7 @@ const PROSE_CLASS = [
  * @param className - Extra wrapper classes / 追加クラス
  * @param getHeadingId - Optional H2 id resolver / H2のid解決関数（任意）
  * @param headingScrollMarginTop - Optional H2 scroll-margin-top in px / H2のスクロール余白（任意）
- * @param density - `chat` for a chat bubble, else the document rhythm / 体裁の密度（任意）
+ * @param density - `chat` for a chat bubble, `note` for a note body, else the document rhythm / 体裁の密度（任意）
  */
 function MarkdownViewImpl({
   content,
@@ -281,7 +280,7 @@ function MarkdownViewImpl({
 
   return (
     <div className={`${PROSE_CLASS} ${densityClass(density)} ${className}`} data-density={density}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={remarkPluginsFor(density)} components={components}>
         {content}
       </ReactMarkdown>
     </div>
