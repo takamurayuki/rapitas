@@ -18,12 +18,16 @@ const execStatusLabels = {
 /// 並び順チップの表示名
 const execSortLabels = {ExecSort.newest: '新しい順', ExecSort.oldest: '古い順'};
 
-/// シートのテーマ候補（カテゴリ別グループ）
+/// シートのテーマ候補。開発テーマ（isDevelopment）だけをカテゴリでまとめる。
+///
+/// 開発テーマが1つも無いカテゴリはグループごと出ない。カテゴリに属さない開発テーマは
+/// 最後の「その他」グループに残す（実行画面では作業フォルダを持つ開発テーマが絞り込み対象なので、
+/// タスク画面のようにカテゴリなしを候補から外すと、そのテーマで絞る手段がなくなる）。
 ///
 /// @param themes - all themes from themeListProvider / 全テーマ
-/// @returns theme groups by category / カテゴリ別のテーマグループ
+/// @returns development-theme groups / 開発テーマだけのカテゴリ別グループ
 List<ThemeCategoryGroup> execThemeCandidateGroups(List<TaskTheme> themes) {
-  return groupThemesByCategory(themes);
+  return groupThemesByCategory([for (final t in themes) if (t.isDevelopment) t]);
 }
 
 /// 実行画面のフィルターシートを開く。
