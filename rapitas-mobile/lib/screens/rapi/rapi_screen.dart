@@ -712,7 +712,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         // ラピが読み取った発言（振り分けの結果が返った発言）にだけスタンプ。送信中・失敗した発言には無い
         return _spaced(RapiUserMessage(text: m.text, readAs: m.readAs));
       case RapiRole.assistant:
-        return _spaced(RapiReplyMessage(text: m.text, footer: rapiReplyNoteFooter(chat, m)));
+        return _spaced(RapiReplyMessage(text: m.text, footer: rapiReplyNoteFooter(m)));
       case RapiRole.system:
         final taskId = m.taskId;
         final draftId = m.externalDraftId;

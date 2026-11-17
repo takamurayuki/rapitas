@@ -8,11 +8,13 @@ import 'package:rapitas_mobile/providers/task_provider.dart';
 import 'package:rapitas_mobile/screens/rapi/rapi_reply_note_button.dart';
 import 'package:rapitas_mobile/screens/rapi/rapi_screen.dart';
 import 'package:rapitas_mobile/services/assistant_service.dart';
+import 'package:rapitas_mobile/services/note_service.dart';
 
 import '../support/note_fakes.dart';
 
-// ラピの文章の返答カードの「ノートに保存」：一般の会話は紐付けなし、相談はそのタスクへ紐付け、
-// 保存後は「保存済み」で再送しない、保存の失敗は成功と出さない。
+// ラピの文章の返答カードの「ノートに保存」：回答だけから下書きを作って保存する（質問は送らない）、
+// 一般の会話は紐付けなし、相談はそのタスクへ紐付け、保存後は「保存済み」で再送しない、
+// 下書き・保存の失敗は成功と出さない。
 
 class _Assistant implements AssistantService {
   @override
@@ -54,7 +56,8 @@ final _tasks = [
 void main() {
   late FakeNoteService notes;
 
-  setUp(() => notes = FakeNoteService());
+  setUp(() => notes = FakeNoteService()
+    ..draft = const NoteDraft(title: '【ダミー】ログの見方', content: '## 確認すること\n\n- **ログ** を見る\n'));
 
   Future<void> pumpScreen(WidgetTester tester) async {
     await tester.pumpWidget(ProviderScope(
@@ -82,7 +85,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('一般の会話：質問をタイトルに保存し、紐付けない。保存後は保存済みで再送しない', (tester) async {
+  testWidgets('一般の会話：回答だけから作った下書きで保存し、紐付けない。保存後は保存済みで再送しない', (tester) async {
     await pumpScreen(tester);
     // 挨拶（端末だけの行）には付けない
     expect(find.text('ノートに保存'), findsNothing);
@@ -91,15 +94,18 @@ void main() {
     expect(find.text('ノートに保存'), findsOneWidget);
     await tapSave(tester);
 
-    expect(notes.calls, hasLength(1));
-    expect(notes.calls.single, endsWith(':ログはどこを見ればいい？:## 質問\n\nログはどこを見ればいい？\n\n## ラピの回答\n\nまず **ログ** を見ます。\n'));
+    // 下書きには回答だけを送り、質問はどこにも出さない
+    expect(notes.calls, hasLength(2));
+    expect(notes.calls[0], 'draft:まず **ログ** を見ます。');
+    expect(notes.calls[1], matches(RegExp(r'^save:\d+:【ダミー】ログの見方:## 確認すること\n\n- \*\*ログ\*\* を見る\n$')));
+    expect(notes.calls.join(), isNot(contains('ログはどこを見ればいい？')));
     expect(find.text(rapiNoteSavedMessage), findsOneWidget);
     expect(find.text('保存済み'), findsOneWidget);
     expect(find.text('ノートに保存'), findsNothing);
 
     await tester.tap(find.text('保存済み'));
     await tester.pumpAndSettle();
-    expect(notes.calls, hasLength(1));
+    expect(notes.calls, hasLength(2));
   });
 
   testWidgets('相談：選んだタスクへ紐付ける', (tester) async {
@@ -109,9 +115,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tapSave(tester);
-    expect(notes.calls, hasLength(2));
-    expect(notes.calls[0], contains(':相談：どこから調べればいい？:'));
-    expect(notes.calls[1], matches(RegExp(r'^link:\d+:7:null$')));
+    expect(notes.calls, hasLength(3));
+    expect(notes.calls[0], 'draft:相談の答えです');
+    expect(notes.calls[1], startsWith('save:'));
+    expect(notes.calls[1], isNot(contains('相談：どこから調べればいい？')));
+    expect(notes.calls[2], matches(RegExp(r'^link:\d+:7:null$')));
     expect(find.text(rapiNoteSavedMessage), findsOneWidget);
   });
 
@@ -124,6 +132,27 @@ void main() {
 
     await tapSave(tester);
     expect(find.text(rapiNoteLinkFailedMessage), findsOneWidget);
+    expect(find.text('保存済み'), findsOneWidget);
+  });
+
+  testWidgets('下書きが作れなければ保存せず、成功と出さず、もう一度押せる', (tester) async {
+    notes.failDraft = true;
+    await pumpScreen(tester);
+    await send(tester, 'ログはどこを見ればいい？');
+    await tapSave(tester);
+
+    expect(notes.calls, ['draft:まず **ログ** を見ます。']);
+    expect(find.text(rapiNoteFailedMessage), findsOneWidget);
+    expect(find.text(rapiNoteSavedMessage), findsNothing);
+    expect(find.text('保存済み'), findsNothing);
+    expect(find.text('ノートに保存'), findsOneWidget);
+
+    // 再試行：下書きが作れるようになれば保存できる
+    notes.failDraft = false;
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    await tapSave(tester);
+    expect(notes.calls.where((c) => c.startsWith('save:')), hasLength(1));
     expect(find.text('保存済み'), findsOneWidget);
   });
 
@@ -143,7 +172,7 @@ void main() {
     await pumpScreen(tester);
     await send(tester, 'ログはどこを見ればいい？');
     await tapSave(tester);
-    expect(notes.calls, hasLength(1));
+    expect(notes.calls, hasLength(2));
     // スナックバーを消してから続ける（表示中の部品が残らないように）
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
@@ -162,6 +191,6 @@ void main() {
     expect(find.text('保存済み'), findsOneWidget);
     await tester.tap(find.text('保存済み'));
     await tester.pumpAndSettle();
-    expect(notes.calls, hasLength(1));
+    expect(notes.calls, hasLength(2));
   });
 }

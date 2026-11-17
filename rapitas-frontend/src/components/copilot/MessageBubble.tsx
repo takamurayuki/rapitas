@@ -22,7 +22,7 @@ import { SaveToNoteButton } from './SaveToNoteButton';
  *
  * @param msg - the line to show / 表示する発言
  * @param onAction - runs one of the reply's action buttons / 返答の操作ボタンの実行
- * @param saveNote - when set, a text reply offers "ノートに保存" with this question and task / 指定時は文章の返答に「ノートに保存」を出す
+ * @param saveNote - when set, a text reply offers "ノートに保存", linked to this task / 指定時は文章の返答に「ノートに保存」を出す
  */
 export function MessageBubble({
   msg,
@@ -31,7 +31,7 @@ export function MessageBubble({
 }: {
   msg: CopilotMessage;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
-  saveNote?: { question: string | null; taskId?: number };
+  saveNote?: { taskId?: number };
 }) {
   const tc = useTranslations('copilot.chatFeel');
   const isUser = msg.role === 'user';
@@ -90,13 +90,7 @@ export function MessageBubble({
                     {action.label}
                   </button>
                 ))}
-                {showSave && (
-                  <SaveToNoteButton
-                    question={saveNote.question}
-                    answer={msg.content}
-                    taskId={saveNote.taskId}
-                  />
-                )}
+                {showSave && <SaveToNoteButton answer={msg.content} taskId={saveNote.taskId} />}
               </div>
             )}
             <TierBadge tier={msg.tier} cached={msg.cached} model={msg.model} />

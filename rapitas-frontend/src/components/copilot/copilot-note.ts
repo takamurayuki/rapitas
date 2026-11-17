@@ -2,20 +2,18 @@
  * copilot-note
  *
  * Turns one of ラピ's text replies in the copilot panel into a note: the
- * title and Markdown body, the `PUT /notes/:id` write and the task link.
+ * draft from `POST /notes/draft-from-reply` (a generated title and the
+ * answer tidied into a document), the `PUT /notes/:id` write and the task link.
  * Not responsible for the button or its feedback — see `SaveToNoteButton`.
+ *
+ * NOTE: the note used to be built here from the question and the reply
+ * ("## 質問" / "## ラピの回答", titled with the question). Since nav70 only
+ * the answer is sent and saved; the question is not gathered at all.
  */
 import { API_BASE_URL } from '@/utils/api';
 import { useNoteStore, type Note } from '@/stores/note-store';
-import type { CopilotMessage } from './useCopilotChat';
 
-/** Title length before it is cut with an ellipsis. */
-export const NOTE_TITLE_MAX = 30;
-
-/** Title used when neither the question nor the reply has a line to use. */
-export const NOTE_FALLBACK_TITLE = 'ラピとの会話';
-
-/** The note built from one exchange. */
+/** The note drafted from one reply, ready to save. */
 export interface CopilotNoteDraft {
   title: string;
   content: string;
@@ -32,47 +30,27 @@ export interface CopilotNoteSaveResult {
   mirrored: boolean;
 }
 
-/** First non-empty line, with leading Markdown markers (#, >, -, *) removed. */
-function firstLine(text: string): string {
-  for (const raw of text.split('\n')) {
-    const line = raw.replace(/^[\s#>*-]+/, '').trim();
-    if (line) return line;
-  }
-  return '';
-}
-
-function shorten(line: string): string {
-  const chars = Array.from(line);
-  return chars.length > NOTE_TITLE_MAX ? `${chars.slice(0, NOTE_TITLE_MAX).join('')}…` : line;
-}
-
 /**
- * Builds the note for one question and ラピ's reply to it.
+ * Asks the server to draft a note from ラピ's reply: a title that fits it and
+ * the reply tidied into a document. Nothing is saved yet.
  *
- * @param question - the user's words just before the reply, if any / 直前のユーザーの発言（無ければ null）
  * @param answer - ラピ's reply, Markdown as-is / ラピの返答（Markdown のまま）
- * @returns title and body / タイトルと本文
+ * @returns title and body to save / 保存するタイトルと本文
+ * @throws {Error} when no usable draft came back (the caller saves nothing) / 下書きが得られなかったとき（呼び出し側は保存しない）
  */
-export function buildCopilotNote(question: string | null, answer: string): CopilotNoteDraft {
-  const asked = question?.trim() ?? '';
-  const title = shorten(firstLine(asked) || firstLine(answer)) || NOTE_FALLBACK_TITLE;
-  const sections = [...(asked ? ['## 質問', asked] : []), '## ラピの回答', answer.trim()];
-  return { title, content: `${sections.join('\n\n')}\n` };
-}
-
-/**
- * The user's words the reply answers: the nearest user line before it.
- *
- * @param messages - the panel's lines in order / パネルの発言（並び順）
- * @param replyId - id of ラピ's reply / ラピの返答の id
- * @returns the question, or null when there is none / 質問。無ければ null
- */
-export function questionBefore(messages: CopilotMessage[], replyId: string): string | null {
-  const index = messages.findIndex((m) => m.id === replyId);
-  for (let i = index - 1; i >= 0; i--) {
-    if (messages[i].role === 'user') return messages[i].content;
+export async function draftCopilotNote(answer: string): Promise<CopilotNoteDraft> {
+  const res = await fetch(`${API_BASE_URL}/notes/draft-from-reply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answer }),
+  });
+  if (!res.ok) throw new Error(`note draft failed: HTTP ${res.status}`);
+  const body: unknown = await res.json();
+  const { title, content } = (body ?? {}) as { title?: unknown; content?: unknown };
+  if (typeof title !== 'string' || typeof content !== 'string' || !content.trim()) {
+    throw new Error('note draft failed: no title or body');
   }
-  return null;
+  return { title, content };
 }
 
 /**
