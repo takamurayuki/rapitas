@@ -4,7 +4,7 @@
  * Pure constants and mappings for the IdeaBox feature (priority/source metadata).
  * No runtime logic — display lookups only.
  */
-import { Bot, MessageSquare, Sparkles, User } from 'lucide-react';
+import { MessageSquare, Rocket, Sparkles, User } from 'lucide-react';
 import type { IdeaPriority } from './idea-box.types';
 
 /**
@@ -25,7 +25,7 @@ export const PRIORITY_HINT_KEY: Record<IdeaPriority, string> = {
 // Sparkles here labels the AI "code_review" source (a real state), not decoration.
 export const SOURCE_ICONS: Record<string, typeof User> = {
   user: User,
-  agent_execution: Bot,
+  agent_execution: Rocket, // エージェント実行 is Rocket app-wide (2026-11-17)
   copilot: MessageSquare,
   code_review: Sparkles,
 };

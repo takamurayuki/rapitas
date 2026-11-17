@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Bot, MessageSquare, Sparkles, User } from 'lucide-react';
+import { MessageSquare, Rocket, Sparkles, User } from 'lucide-react';
 import { PRIORITY_ORDER, PRIORITY_HINT_KEY, SOURCE_ICONS } from '../idea-box.utils';
 
 describe('PRIORITY_ORDER', () => {
@@ -28,7 +28,7 @@ describe('PRIORITY_HINT_KEY', () => {
 describe('SOURCE_ICONS', () => {
   it('maps each known idea source to its lucide icon component', () => {
     expect(SOURCE_ICONS.user).toBe(User);
-    expect(SOURCE_ICONS.agent_execution).toBe(Bot);
+    expect(SOURCE_ICONS.agent_execution).toBe(Rocket);
     expect(SOURCE_ICONS.copilot).toBe(MessageSquare);
     expect(SOURCE_ICONS.code_review).toBe(Sparkles);
   });

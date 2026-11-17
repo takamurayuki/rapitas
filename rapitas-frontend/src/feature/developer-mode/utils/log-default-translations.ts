@@ -61,8 +61,6 @@ const JA_TEMPLATES: Record<string, string> = {
   pushCompleted: 'リモートにプッシュ完了',
   waitingForAnswer: '回答を待っています...',
   timedOut: 'タイムアウトしました',
-  mdContent: 'Markdownコンテンツ ({chars}文字)',
-  mdContentNamed: '{name} の内容 ({chars}文字)',
   jsonStatus: '状態: {status}',
   jsonStatusTranslated: '状態: {status} ({translated})',
   jsonTaskId: 'タスク: {taskId}',
