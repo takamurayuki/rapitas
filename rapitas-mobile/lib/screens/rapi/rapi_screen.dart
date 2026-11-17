@@ -523,12 +523,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     }),
                   ),
                 ),
+                // NOTE: 右下から下端の中央へ移した（nav63）。Center はボタンの外の当たりを取らない
                 if (_showJump)
-                  Positioned(
-                    right: 16,
-                    bottom: 12,
-                    child: RapiJumpToLatestButton(onPressed: _jumpToLatest),
-                  ),
+                  Positioned(left: 0, right: 0, bottom: 12,
+                      child: Center(child: RapiJumpToLatestButton(onPressed: _jumpToLatest))),
               ],
             ),
           ),

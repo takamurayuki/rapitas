@@ -12,7 +12,7 @@ import '../support/rapi_controlled_assistant.dart';
 
 // 確認済みスタンプ（nav63）：送信直後には付かず、ラピ側の最初の応答（振り分けの結果）が返った時点で
 // 付く。失敗した発言には付かない。字は意図で変わり（🫡・👀・👌）、読み直しでも同じ字になる。
-// 位置は吹き出しの右下。
+// 位置は吹き出しの右下、末尾ジャンプの ▽ は一覧の下端の中央。
 
 void main() {
   late ControlledAssistant assistant;
@@ -186,5 +186,27 @@ void main() {
     expect(mark.top, lessThan(bubble.bottom));
     // はみ出した分は画面の内側（一覧の左右の余白）に収まる
     expect(mark.right, lessThan(390));
+  });
+
+  testWidgets('末尾ジャンプの ▽ は一覧の下端の中央に出る', (tester) async {
+    assistant.reply = List.generate(14, (i) => '返答の${i + 1}行目です。').join('\n\n');
+    await showScreen(tester);
+    for (var i = 1; i <= 3; i++) {
+      await say(tester, '質問$i');
+      assistant.succeed();
+      await tester.pumpAndSettle();
+    }
+    await tester.drag(find.byType(ListView), const Offset(0, 700));
+    await tester.pumpAndSettle();
+
+    final jump = find.byKey(const ValueKey('rapi-jump-to-latest'));
+    expect(jump, findsOneWidget);
+    final button = tester.getRect(jump);
+    expect(button.center.dx, moreOrLessEquals(390 / 2, epsilon: 0.5));
+    // 入力欄には重ならない（一覧の領域の中の下端）
+    final list = tester.getRect(find.byType(ListView));
+    final field = tester.getRect(find.byType(TextField));
+    expect(button.bottom, lessThanOrEqualTo(list.bottom));
+    expect(button.bottom, lessThan(field.top));
   });
 }
