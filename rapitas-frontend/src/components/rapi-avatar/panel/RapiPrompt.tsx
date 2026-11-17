@@ -38,7 +38,8 @@ export type PromptDestination =
   | 'tidy'
   | 'consult'
   | 'roadmap'
-  | 'change';
+  | 'change'
+  | 'ideaTidy';
 
 export interface RapiPromptProps {
   text: string;

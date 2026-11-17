@@ -17,6 +17,7 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../../intake';
 import { TaskChange } from '../../intake/change';
+import { IdeaTidy } from '../../intake/cleanup';
 import { ReceivedStamp, TypingDots, stampGlyphFor } from '@/components/ui/chat';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
@@ -48,6 +49,7 @@ const CARDS: Record<PromptDestination, (handedOver?: string) => ReactNode> = {
   tidy: () => <TaskTidy />,
   roadmap: (h) => <TaskRoadmap handedOver={h} />,
   change: (h) => <TaskChange handedOver={h} />,
+  ideaTidy: () => <IdeaTidy />,
 };
 
 interface Props {

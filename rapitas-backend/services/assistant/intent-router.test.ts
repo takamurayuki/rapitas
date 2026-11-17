@@ -130,3 +130,38 @@ describe('what the model is told', () => {
     }
   });
 });
+
+// 「アイデアボックスのアイデアを整理して」 went to the task tidy (2026-11-17):
+// the only tidy destination was for tasks, and 整理 matched it. Tidying ideas
+// has its own destination, decided by rule so the model cannot send it to
+// the task tidy.
+describe('tidying the idea box', () => {
+  test.each([
+    'アイデアボックスのアイデアを整理して',
+    '今起票されているアイデアを整理して',
+    'アイデアの重複をまとめて',
+    '不要なアイデアを片付けて',
+  ])('%s → ideaTidy, without asking the model', async (sentence) => {
+    reply = says('tidy');
+    const out = await routeIntent(sentence, false);
+    expect(out?.intent).toBe('ideaTidy');
+    expect(sent).toHaveLength(0);
+  });
+
+  test('tidying tasks still goes to tidy', async () => {
+    reply = says('tidy');
+    expect((await routeIntent('古いタスクを整理して', false))?.intent).toBe('tidy');
+  });
+
+  test('a new idea is not a tidy', async () => {
+    reply = says('create');
+    expect((await routeIntent('アイデアを思いついた: 検索を速くする', false))?.intent).toBe(
+      'create',
+    );
+  });
+
+  test('the model is told tidy is for tasks and ideaTidy for ideas', async () => {
+    await routeIntent('なにか', false);
+    expect(sent[0].systemPrompt).toContain('ideaTidy');
+  });
+});

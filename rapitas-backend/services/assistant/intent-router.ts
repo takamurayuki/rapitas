@@ -42,6 +42,7 @@ export const ROUTABLE_INTENTS = [
   'consult',
   'roadmap',
   'change',
+  'ideaTidy',
 ] as const;
 
 export type RoutableIntent = (typeof ROUTABLE_INTENTS)[number];
@@ -85,7 +86,8 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 
 - create: これからやること・直したいこと・作りたいことを「述べている」とき。不具合の報告もここ（直す対象だから）。例「〜が崩れるのを直したい」「〜を追加する」
 - ask: 既存タスクの件数や一覧を「尋ねている」とき。例「ブロックは何件?」「〜のタスクを探して」
-- tidy: 不要なタスクを消す・片付ける・整理するとき。例「古いのを消して」「整理したい」
+- tidy: 不要な「タスク」を消す・片付ける・整理するとき。例「古いタスクを消して」「タスクを整理したい」
+- ideaTidy: アイデアボックスの「アイデア」をまとめる・片付ける・整理するとき。例「アイデアを整理して」「アイデアの重複をまとめて」
 - consult: 文が「いま開いているタスクそのもの」を指しているとき。例「このタスクを分析して」「これの工数は?」
 - roadmap: やりたいことが大きく、何から手を付けるか自体を一緒に考えたいとき。例「英語を続けられるようにしたい」「〜を実現したい」「段階的に進めたい」
 - change: 既にあるタスクの状態・優先度・テーマ・期限を「変えて」と頼んでいるとき。例「〜を完了にして」「〜の優先度を上げて」「〜の期限を金曜にして」
@@ -99,6 +101,7 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
    - roadmap = 習慣・能力・状態に到達したい。「〜を続けられるようにしたい」「〜できるようになりたい」「〜を実現したい」「〜を上達させたい」。到達までに複数の段取りが要る。
    迷ったら「これは1件のタスクで終わるか?」と自問する。終わらないなら roadmap。
 5. change と create の境目: 既存のタスクを名指しして状態や期限を変える文は change。新しくやることを述べる文は create。消す・片付けるは tidy。
+6. tidy と ideaTidy の境目: 整理する対象が「アイデア」なら ideaTidy、「タスク」なら tidy。
 
 守ること:
 1. 出力は JSON オブジェクトのみ。前後に説明文を付けない。
@@ -108,7 +111,18 @@ const SYSTEM_PROMPT = `あなたは rapitas というタスク管理アプリの
 4. reason には「なぜその行き先にしたか」を日本語で1文だけ書く。
 
 JSON の形:
-{ "intent": "watch" | "create" | "ask" | "tidy" | "consult" | "roadmap" | "change" | "unknown", "reason": string }`;
+{ "intent": "watch" | "create" | "ask" | "tidy" | "consult" | "roadmap" | "change" | "ideaTidy" | "unknown", "reason": string }`;
+
+/**
+ * A sentence that names ideas and asks to organise them. Decided by rule:
+ * 「アイデアを整理して」 went to the task tidy when only the model judged it,
+ * because 整理 matched the task tidy's description (2026-11-17).
+ */
+const IDEA_TIDY_RE =
+  /アイデア.*(整理|まとめ|片付け|片づけ|重複|掃除)|(整理|まとめ|片付け|片づけ|掃除).*アイデア/;
+
+/** Reason shown when the rule, not the model, decided. */
+const IDEA_TIDY_REASON = 'アイデアの整理を頼まれたため。';
 
 /** What the model returns, before any of it is believed. */
 interface RawRoute {
@@ -143,6 +157,10 @@ export async function routeIntent(
 ): Promise<RoutedIntent | null> {
   const utterance = text.trim();
   if (!utterance) return null;
+  if (IDEA_TIDY_RE.test(utterance)) {
+    logger.info({ utterance }, 'routed to the idea tidy by rule');
+    return { intent: 'ideaTidy', reason: IDEA_TIDY_REASON };
+  }
 
   // Stated rather than left for the model to infer: `consult` is the one
   // destination that can fail to exist, and routing to a tab that is not in
