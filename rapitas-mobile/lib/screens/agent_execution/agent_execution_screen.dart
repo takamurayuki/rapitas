@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/task.dart';
 import '../../models/task_execution.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
@@ -44,13 +43,8 @@ class AgentExecutionScreen extends ConsumerWidget {
         title: const Text('エージェント実行'),
         actions: const [VoiceModeIndicator()],
       ),
-      // タップで開ける実行導線。音声の「実行」と同じく todo の実行可能タスク一覧を使う。
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'execute_task',
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('タスクを実行'),
-        onPressed: () => _showTaskSelectionForExecution(context, ref, '実行'),
-      ),
+      // NOTE: 単一タスク実行の FAB（タスク選択→確認→実行）は削除した。タスクごとの実行は
+      // タスク詳細画面と音声コマンドの別経路で行う。
       body: VoiceScrollTarget(
         path: '/executions',
         child: RefreshIndicator(
@@ -73,8 +67,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
+                  // NOTE: FAB を外したので、下端の FAB 逃げ（88）は通常の余白に戻した
+                  padding: const EdgeInsets.all(8),
                   children: [
                     const AutoRunSection(),
                     const SectionTitle('実行中'),
@@ -258,114 +252,6 @@ class AgentExecutionScreen extends ConsumerWidget {
     container.invalidate(executingTasksProvider);
     container.invalidate(resumableExecutionsProvider);
     container.invalidate(taskExecutionLogsProvider);
-  }
-
-  Future<void> _showTaskSelectionForExecution(
-    BuildContext context,
-    WidgetRef ref,
-    String query,
-  ) async {
-    try {
-      final taskService = ref.read(taskServiceProvider);
-      List<Task> tasks;
-
-      // クエリが単純な実行コマンドの場合は実行可能なタスク一覧を取得
-      final isSimpleExecute =
-          RegExp(r'^(?:実行|自動実行|エージェント実行)(?:して|する)?$').hasMatch(query.trim());
-      if (isSimpleExecute) {
-        tasks = await taskService.getTasks(status: 'todo');
-      } else {
-        tasks = await taskService.searchTasks(query);
-        if (tasks.isEmpty) {
-          tasks = await taskService.getTasks(status: 'todo');
-        }
-      }
-
-      final executableTasks =
-          tasks.where((t) => t.canExecuteWithAgent).toList();
-
-      if (!context.mounted) return;
-
-      if (executableTasks.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('実行可能なタスクが見つかりませんでした')),
-        );
-        return;
-      }
-
-      final selected = await showDialog<Task>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('実行するタスクを選択'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: executableTasks.length,
-              itemBuilder: (context, index) {
-                final task = executableTasks[index];
-                return ListTile(
-                  title: Text(task.title,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(task.status),
-                  leading: const Icon(Icons.play_circle_outline),
-                  onTap: () => Navigator.pop(context, task),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-          ],
-        ),
-      );
-
-      if (selected == null || !context.mounted) return;
-
-      // 確認ダイアログ
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('タスクを実行'),
-          content: Text('「${selected.title}」をAIエージェントで実行しますか？'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('キャンセル')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('実行')),
-          ],
-        ),
-      );
-
-      if (confirmed != true || !context.mounted) return;
-
-      final container = ProviderScope.containerOf(context, listen: false);
-      final result =
-          await container.read(agentServiceProvider).executeTask(selected.id);
-      _invalidateExecutions(container);
-      // 実行開始（または質問作成）でタスクのステータスも変わる
-      container.invalidate(taskListProvider);
-      container.invalidate(taskDetailProvider(selected.id));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.isAwaitingQuestion
-              ? (result.message ?? '「${selected.title}」の仕様確認の質問を作成しました')
-              : '「${selected.title}」の実行を開始しました'),
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('実行に失敗しました: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _stopExecution(

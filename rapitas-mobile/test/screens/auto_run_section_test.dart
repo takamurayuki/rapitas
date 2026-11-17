@@ -161,8 +161,8 @@ void main() {
 
     expect(find.byKey(const ValueKey('auto-run-empty')), findsOneWidget);
     expect(find.textContaining('開発テーマがありません'), findsOneWidget);
-    // 単一タスク実行の FAB は残る
-    expect(find.text('タスクを実行'), findsOneWidget);
+    // 単一タスク実行の FAB は削除済み（タスク詳細から実行する）
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
   testWidgets('実行中タスクがある画面でも自動実行セクションが先頭に出る', (tester) async {
