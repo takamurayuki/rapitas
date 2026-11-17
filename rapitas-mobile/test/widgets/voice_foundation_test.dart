@@ -10,6 +10,7 @@ import 'package:rapitas_mobile/models/notification_model.dart';
 import 'package:rapitas_mobile/models/task.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
 import 'package:rapitas_mobile/providers/settings_provider.dart';
+import 'package:rapitas_mobile/providers/task_provider.dart';
 import 'package:rapitas_mobile/providers/voice_provider.dart';
 import 'package:rapitas_mobile/services/approval_service.dart';
 import 'package:rapitas_mobile/services/dictation_service.dart';
@@ -86,9 +87,6 @@ class _FakeTasks implements TaskService {
   int listCalls = 0;
   int searchCalls = 0;
 
-  /// true の間は検索が失敗する（検索失敗からの「再試行」を見るため）
-  bool failSearch = false;
-
   _FakeTasks(this.tasks);
 
   @override
@@ -106,8 +104,8 @@ class _FakeTasks implements TaskService {
 
   @override
   Future<List<Task>> searchTasks(String query) async {
+    // タスク画面はサーバ検索を使わない（nav72）。呼ばれた回数だけ数える
     searchCalls++;
-    if (failSearch) throw Exception('search failed');
     return tasks.where((t) => t.title.contains(query)).toList();
   }
 
@@ -176,7 +174,7 @@ void main() {
   late ProviderContainer container;
 
   VoiceModeListener listener() => container.read(voiceModeListenerProvider);
-  // タスク画面のインライン検索欄（nav71 で検索モードから置き換え）の入力
+  // タスク画面の検索モード（nav72 で実行画面と同じ形に戻した）の入力欄。閉じている間は無い
   final searchField = find.byKey(const ValueKey('task-search-field'));
   String searchText(WidgetTester tester) => tester.widget<TextField>(searchField).controller!.text;
   String location() => router.state.uri.path;
@@ -335,42 +333,28 @@ void main() {
       });
     }
 
-    testWidgets('検索語がある間の「更新」は、いまの検索語で検索し直す（検索語は消さない）', (tester) async {
-      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
+    testWidgets('検索中の「更新」は一覧を取り直し、絞りは掛かり直す（検索は閉じない・サーバ検索はしない）', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('3', '議事録')]);
       await say(tester, '検索 資料');
       await settle(tester, 5);
       expect(find.text('資料作成'), findsOneWidget);
-      // 検索の後で増えたタスクが、更新で結果に出ることまで確かめる
+      expect(find.text('議事録'), findsNothing);
+      // 検索の後で増えたタスクが、更新で絞った一覧に出ることまで確かめる
       tasks.tasks.add(_task('2', '資料の確認'));
-      final before = tasks.searchCalls;
+      final before = tasks.listCalls;
       await say(tester, '更新');
-      await settle(tester, 5);
+      await settle(tester, 10);
       expect(find.text('この画面では更新できません'), findsNothing);
       expect(find.text('再読み込みしています'), findsOneWidget);
-      expect(tasks.searchCalls, before + 1);
+      expect(tasks.listCalls, greaterThan(before));
       expect(find.text('資料の確認'), findsOneWidget);
+      expect(find.text('議事録'), findsNothing);
+      expect(tasks.searchCalls, 0, reason: 'この画面ではサーバ検索を使わない');
       expect(searchText(tester), '資料', reason: '検索語はそのまま');
       expectBackgroundListening();
     });
 
-    testWidgets('検索に失敗した画面で「再試行」と言うと、ボタンと同じく検索し直す', (tester) async {
-      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
-      tasks.failSearch = true;
-      await say(tester, '検索 資料');
-      await settle(tester, 5);
-      expect(find.text('検索に失敗しました'), findsOneWidget);
-      tasks.failSearch = false;
-      final before = tasks.searchCalls;
-      await say(tester, '再試行');
-      await settle(tester, 5);
-      expect(find.text('この画面では更新できません'), findsNothing);
-      expect(tasks.searchCalls, before + 1);
-      expect(find.text('検索に失敗しました'), findsNothing);
-      expect(find.text('資料作成'), findsOneWidget);
-      expectBackgroundListening();
-    });
-
-    testWidgets('検索語を消した後の「更新」は、通常の一覧の更新になる（検索はしない）', (tester) async {
+    testWidgets('検索語を消した後の「更新」も、通常の一覧の更新になる（検索はしない）', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
       await say(tester, '検索 資料');
       await settle(tester, 5);
@@ -446,29 +430,30 @@ void main() {
       });
     }
 
-    testWidgets('声の「検索」では検索欄に語句を入れるがフォーカスせず聞き取りを続け、「閉じる」で検索語を消す', (tester) async {
+    testWidgets('声の「検索」では検索モードを開いて語句を入れるがフォーカスせず聞き取りを続け、「閉じる」で検索を閉じる', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('2', '資料の確認')]);
       await say(tester, '検索 資料');
+      expect(find.byTooltip('検索を閉じる'), findsOneWidget);
       expect(searchText(tester), '資料');
-      expect(FocusManager.instance.primaryFocus?.context?.widget, isNot(isA<EditableText>()));
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<TextField>(), isNull);
       expectBackgroundListening();
 
       await say(tester, '閉じる');
-      expect(searchText(tester), isEmpty);
-      expect(searchField, findsOneWidget, reason: '検索欄は常に出ている');
-      expect(find.byTooltip('検索'), findsNothing, reason: '検索アイコンは廃止');
+      expect(searchField, findsNothing);
+      expect(find.byTooltip('検索を閉じる'), findsNothing);
+      expect(find.byTooltip('検索'), findsOneWidget);
       expectBackgroundListening();
     });
 
-    testWidgets('「戻る」でも検索語を消す。検索欄をタップすると従来どおりフォーカスし、聞き取りは止まる', (tester) async {
+    testWidgets('「戻る」でも検索を閉じる。タップで開いた検索は従来どおり入力欄にフォーカスする', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
       await say(tester, '資料を探して');
       expect(searchText(tester), '資料');
       await say(tester, '戻る');
-      expect(searchText(tester), isEmpty);
+      expect(searchField, findsNothing);
       expect(location(), '/tasks');
 
-      await tester.tap(searchField);
+      await tester.tap(find.byTooltip('検索'));
       await settle(tester);
       expect(listener().isListening, isFalse, reason: 'タップで開いたら入力欄にフォーカスし、聞き取りは止まる');
       expect(listener().status, VoiceModeStatus.paused);
@@ -487,19 +472,24 @@ void main() {
       expect(searchText(tester), '資料', reason: '検索語は残る');
     });
 
-    testWidgets('検索結果をタップして開いた詳細から戻ると、現在の語句で検索し直す', (tester) async {
-      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('2', '資料の確認')]);
+    testWidgets('絞った一覧から開いた詳細から戻ると、検索モードと語句は残り、最新の一覧で絞り直す', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('2', '資料の確認'), _task('3', '議事録')]);
       await say(tester, '検索 資料');
       await settle(tester, 5);
       await tester.tap(find.text('資料の確認'));
       await settle(tester, 10);
       expect(location(), '/tasks/2');
-      final searches = tasks.searchCalls;
+      // 詳細にいる間に一覧が変わった（編集や通知での読み直し）
+      tasks.tasks.add(_task('4', '資料の追加'));
+      container.invalidate(taskListProvider);
       router.pop();
       await settle(tester, 10);
       expect(location(), '/tasks');
-      expect(tasks.searchCalls, searches + 1);
+      expect(find.byTooltip('検索を閉じる'), findsOneWidget);
       expect(searchText(tester), '資料');
+      expect(find.text('資料の追加'), findsOneWidget);
+      expect(find.text('議事録'), findsNothing);
+      expect(tasks.searchCalls, 0);
     });
   });
 

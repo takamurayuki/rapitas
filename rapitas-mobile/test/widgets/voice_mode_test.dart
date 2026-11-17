@@ -593,18 +593,19 @@ void main() {
       expect(location(), AppRoutes.notifications);
     });
 
-    testWidgets('タスク画面：表示はフィルターの左隣。インライン検索欄に入力してもタイトルバーの表示は動かない', (tester) async {
+    testWidgets('タスクの検索バー：クリアがあればその左隣、無ければ右端（実行画面の検索バーと同じ）', (tester) async {
       await pumpApp(tester, '/tasks');
-      // NOTE: nav71 で検索アイコンと検索モードの AppBar を廃止した。検索欄は本文の上部に常にある
-      expect(find.byTooltip('検索'), findsNothing);
-      final filter = tester.getRect(find.byTooltip('フィルター'));
-      final before = tester.getRect(indicator);
-      expect(before.right, lessThanOrEqualTo(filter.left));
+      // 通常時はフィルター・検索の左隣
+      expect(tester.getRect(indicator).right, lessThanOrEqualTo(tester.getRect(find.byTooltip('検索')).left));
+      await tester.tap(find.byTooltip('検索'));
+      await settle(tester);
+      final screen = tester.getRect(find.byType(MaterialApp).first);
+      expect(tester.getRect(indicator).center.dx, closeTo(screen.right - 28, 0.01));
       await tester.enterText(find.byKey(const ValueKey('task-search-field')), 'abc');
       await settle(tester);
-      expect(tester.getRect(indicator), before);
       final clear = tester.getRect(find.byKey(const ValueKey('task-search-clear')));
-      expect(clear.top, greaterThanOrEqualTo(tester.getRect(appBarOfIndicator()).bottom), reason: 'クリアは検索欄の中');
+      expect(clear.right, closeTo(screen.right, 0.01), reason: 'クリアは右端');
+      expect(tester.getRect(indicator).right, lessThanOrEqualTo(clear.left));
     });
 
     testWidgets('ラピ画面：アバター・名前・ガラスのボタンと重ならず、ボタンと左右対称', (tester) async {
