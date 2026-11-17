@@ -84,7 +84,9 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                   else if (groups.isNotEmpty)
                     StatefulBuilder(
                       builder: (context, setSheetState) {
-                        selectedCategory ??= (id: _categoryIdOfThemes(groups, filter.themeIds) ?? groups.first.categoryId);
+                        // NOTE: グループで受ける。カテゴリIDの null は「その他」グループの正当な値なので、
+                        // ID の null を「該当なし」と見なして先頭へ置き換えてはいけない
+                        selectedCategory ??= (id: (_groupOfThemes(groups, filter.themeIds) ?? groups.first).categoryId);
                         final current = selectedCategory!.id;
                         return ExecThemeFilterSection(
                           groups: groups,
@@ -153,11 +155,11 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   );
 }
 
-/// 選択中のテーマを含む最初のグループのカテゴリID。どれも候補に無い（非開発テーマ・未選択）なら null
-String? _categoryIdOfThemes(List<ThemeCategoryGroup> groups, Set<String> themeIds) {
+/// 選択中のテーマを含む最初のグループ。どれも候補に無い（非開発テーマ・未選択）なら null
+ThemeCategoryGroup? _groupOfThemes(List<ThemeCategoryGroup> groups, Set<String> themeIds) {
   if (themeIds.isEmpty) return null;
   for (final group in groups) {
-    if (group.themes.any((t) => themeIds.contains(t.id))) return group.categoryId;
+    if (group.themes.any((t) => themeIds.contains(t.id))) return group;
   }
   return null;
 }

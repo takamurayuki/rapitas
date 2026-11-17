@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rapitas_mobile/models/task.dart';
 import 'package:rapitas_mobile/screens/agent_execution/agent_execution_screen.dart';
 import 'package:rapitas_mobile/screens/agent_execution/exec_filter.dart';
 import 'package:rapitas_mobile/screens/agent_execution/exec_filter_sheet.dart';
@@ -16,13 +17,13 @@ import '../support/theme_auto_run_fakes.dart';
 
 late ProviderContainer _container;
 
-Future<void> _pump(WidgetTester tester, {ExecFilter filter = const ExecFilter()}) async {
+Future<void> _pump(WidgetTester tester, {ExecFilter filter = const ExecFilter(), List<TaskTheme>? themes}) async {
   tester.view.physicalSize = const Size(1170, 4200);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   SharedPreferences.setMockInitialValues({});
   _container = ProviderContainer(
-      overrides: autoRunScreenOverrides(FakeThemeAutoRunService(const {}), categorizedThemes));
+      overrides: autoRunScreenOverrides(FakeThemeAutoRunService(const {}), themes ?? categorizedThemes));
   addTearDown(_container.dispose);
   _container.read(execFilterProvider.notifier).state = filter;
   await tester.pumpWidget(UncontrolledProviderScope(
@@ -116,5 +117,13 @@ void main() {
     expect(_selected(tester, 'exec-sheet-category-c1'), isTrue, reason: '候補に無いテーマなら先頭のカテゴリで開く');
     expect(_selected(tester, 'exec-sheet-theme-all'), isFalse);
     expect(_container.read(execFilterProvider).themeIds, {'6'});
+  });
+
+  testWidgets('カテゴリ未所属の開発テーマだけを選んで開くと「その他」グループで開く', (tester) async {
+    // カテゴリつき開発テーマと、カテゴリ未所属の開発テーマ（noFolderTheme, id 4）を混在させる
+    await _pump(tester, filter: const ExecFilter(themeIds: {'4'}), themes: [...categorizedThemes, noFolderTheme]);
+    expect(_selected(tester, 'exec-sheet-category-none'), isTrue, reason: '未所属テーマのグループ（カテゴリID null）を先頭へ置き換えない');
+    expect(_selected(tester, 'exec-sheet-category-c1'), isFalse);
+    expect(_selected(tester, 'exec-sheet-theme-4'), isTrue);
   });
 }
