@@ -10,6 +10,9 @@ import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import 'auto_run_section.dart';
+import 'exec_filter.dart';
+import 'exec_filter_bar.dart';
+import 'execution_section_states.dart';
 import 'section_title.dart';
 
 /// 上部に開発テーマの自動実行（AutoRunSection）、続いて実行中のタスクと、中断されて再開できる実行。
@@ -21,12 +24,14 @@ class AgentExecutionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final executingAsync = ref.watch(executingTasksProvider);
     final resumableAsync = ref.watch(resumableExecutionsProvider);
-    final titles = ref.watch(taskTitleLookupProvider);
-
-    final executing = executingAsync.valueOrNull;
-    final resumable = resumableAsync.valueOrNull
-        ?.where((e) => e.canResume)
-        .toList();
+    // NOTE: 一覧は絞り込み・並び替え後の表示一覧。音声の「2番目を停止」も同じ関数で数える（exec_filter.dart）
+    final filter = ref.watch(execFilterProvider);
+    final lookups = ref.watch(execLookupsProvider);
+    final titles = lookups.titles;
+    final allExecuting = executingAsync.valueOrNull;
+    final allResumable = resumableAsync.valueOrNull;
+    final executing = allExecuting == null ? null : applyExecutingFilter(allExecuting, filter, lookups);
+    final resumable = allResumable == null ? null : applyResumableFilter(allResumable, filter, lookups);
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -52,12 +57,16 @@ class AgentExecutionScreen extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(8),
             children: [
+              const ExecFilterBar(),
               const AutoRunSection(),
               const SectionTitle('実行中'),
               ..._buildSection<ExecutingTask>(
                 state: executingAsync,
                 items: executing,
-                empty: const _ExecutingEmptyState(),
+                total: allExecuting?.length ?? 0,
+                filtering: filter.filtersExecuting,
+                noMatchKey: const ValueKey('executing-no-match'),
+                empty: const ExecutingEmptyState(),
                 errorText: '実行中のタスクを取得できませんでした',
                 onRetry: () => ref.invalidate(executingTasksProvider),
                 itemBuilder: (task) =>
@@ -68,6 +77,9 @@ class AgentExecutionScreen extends ConsumerWidget {
               ..._buildSection<ResumableExecution>(
                 state: resumableAsync,
                 items: resumable,
+                total: allResumable?.where((e) => e.canResume).length ?? 0,
+                filtering: filter.filtersOthers,
+                noMatchKey: const ValueKey('resumable-no-match'),
                 empty: const Card(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -89,13 +101,16 @@ class AgentExecutionScreen extends ConsumerWidget {
   List<Widget> _buildSection<T>({
     required AsyncValue<Object?> state,
     required List<T>? items,
+    required int total,
+    required bool filtering,
+    required Key noMatchKey,
     required Widget empty,
     required String errorText,
     required VoidCallback onRetry,
     required Widget Function(T item) itemBuilder,
   }) {
     if (state.hasError) {
-      return [_SectionError(message: errorText, onRetry: onRetry)];
+      return [SectionError(message: errorText, onRetry: onRetry)];
     }
     if (items == null) {
       return const [
@@ -105,8 +120,12 @@ class AgentExecutionScreen extends ConsumerWidget {
         ),
       ];
     }
-    if (items.isEmpty) return [empty];
-    return items.map(itemBuilder).toList();
+    // 絞り込み中の0件は「条件に合うものなし」。本当に空の表示は絞り込みが無いときだけ
+    return [
+      if (filtering) FilterCountLine(total: total, shown: items.length),
+      if (items.isEmpty) filtering ? ExecNoMatch(key: noMatchKey) : empty,
+      ...items.map(itemBuilder),
+    ];
   }
 
   Widget _buildExecutingTile(
@@ -367,64 +386,6 @@ class AgentExecutionScreen extends ConsumerWidget {
           },
         );
       },
-    );
-  }
-}
-
-/// セクション単位の取得失敗表示。もう片方のセクションはそのまま出す。
-class _SectionError extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _SectionError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 8),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline, size: 20, color: colorScheme.error),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-            TextButton(onPressed: onRetry, child: const Text('再試行')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 実行中が空のときの表示。見出し「実行中」の直下に、枠つきのブロックで目立たせる
-class _ExecutingEmptyState extends StatelessWidget {
-  const _ExecutingEmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      key: const ValueKey('executing-empty'),
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.play_circle_outline, size: 36, color: colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '実行中のタスクはありません',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

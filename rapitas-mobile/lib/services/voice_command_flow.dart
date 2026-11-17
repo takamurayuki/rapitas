@@ -16,6 +16,7 @@ import '../providers/task_provider.dart';
 import '../providers/theme_data_provider.dart';
 import '../providers/voice_learning_provider.dart';
 import '../providers/voice_provider.dart';
+import '../screens/agent_execution/exec_filter.dart';
 import '../screens/task_form/task_form_screen.dart' show buildTaskFormBody;
 import 'backlog_service.dart';
 import 'dictation_service.dart';
@@ -748,7 +749,11 @@ class VoiceCommandFlow extends ChangeNotifier {
       note = '「${label(target)}」を対象にします';
     } else {
       // 実行ごとに変わる executionId ではなく taskId で覚える（設計 §4.2）
-      target = await _pick(executing, cmd.target, label,
+      // NOTE: 実行画面では表示中（絞り込み・並び替え後）の一覧で数え、番号を画面と一致させる
+      final shown = screen == VoiceScreen.executions
+          ? applyExecutingFilter(executing, container.read(execFilterProvider), container.read(execLookupsProvider))
+          : executing;
+      target = await _pick(shown, cmd.target, label,
           noun: '実行中のタスク', kind: VoiceTargetKind.executingTask, idOf: (t) => t.taskId);
     }
     await _confirm('「${label(target)}」の実行を停止しますか？');
@@ -762,8 +767,11 @@ class VoiceCommandFlow extends ChangeNotifier {
 
   Future<void> _resume(VoiceCommand cmd) async {
     final all = await _load(() => container.read(resumableExecutionsProvider.future), '再開可能な実行');
-    final resumable = all.where((e) => e.canResume).toList();
     final titles = await _taskTitles();
+    // NOTE: 実行画面では表示中（絞り込み・並び替え後）の一覧で数える。突合表はタスク一覧の取得後に読む
+    final resumable = screen == VoiceScreen.executions
+        ? applyResumableFilter(all, container.read(execFilterProvider), container.read(execLookupsProvider))
+        : all.where((e) => e.canResume).toList();
     String label(ResumableExecution e) => e.taskTitle ?? taskTitleOrFallback(titles, e.taskId);
     // タスクの外れた実行（taskId が null）は覚えない（id は実行ごとに変わるため）
     final target = await _pick(resumable, cmd.target, label,

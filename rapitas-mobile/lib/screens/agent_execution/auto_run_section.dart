@@ -8,6 +8,7 @@ import '../../providers/theme_auto_run_provider.dart';
 import '../../providers/theme_data_provider.dart';
 import '../../services/theme_auto_run_service.dart';
 import '../../widgets/color_dot.dart';
+import 'auto_run_theme_list.dart';
 import 'section_title.dart';
 
 /// 実行画面上部の「自動実行」セクション。開発テーマごとに自動実行の状態と
@@ -33,7 +34,7 @@ class AutoRunSection extends ConsumerWidget {
             Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
           ],
           error: (_, __) => [
-            _MessageCard(
+            AutoRunMessageCard(
               icon: Icons.error_outline,
               text: 'テーマを取得できませんでした',
               action: TextButton(
@@ -42,44 +43,11 @@ class AutoRunSection extends ConsumerWidget {
               ),
             ),
           ],
-          data: (themes) => themes.isEmpty
-              ? const [
-                  _MessageCard(
-                    key: ValueKey('auto-run-empty'),
-                    icon: Icons.info_outline,
-                    text: '開発テーマがありません。テーマの編集で「開発テーマ」をオンにして作業フォルダを設定すると、'
-                        'ここからテーマのタスクを自動実行できます。',
-                  ),
-                ]
-              : [for (final theme in themes) _AutoRunThemeCard(theme: theme)],
+          // NOTE: 絞り込み（実行画面上部のバー）と空の案内は auto_run_theme_list.dart
+          data: (themes) => autoRunThemeList(ref, themes, (t) => _AutoRunThemeCard(key: ValueKey(t.id), theme: t)),
         ),
         const SizedBox(height: 16),
       ],
-    );
-  }
-}
-
-class _MessageCard extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Widget? action;
-
-  const _MessageCard({super.key, required this.icon, required this.text, this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text)),
-            if (action != null) action!,
-          ],
-        ),
-      ),
     );
   }
 }
@@ -88,7 +56,7 @@ class _MessageCard extends StatelessWidget {
 class _AutoRunThemeCard extends ConsumerStatefulWidget {
   final TaskTheme theme;
 
-  const _AutoRunThemeCard({required this.theme});
+  const _AutoRunThemeCard({super.key, required this.theme});
 
   @override
   ConsumerState<_AutoRunThemeCard> createState() => _AutoRunThemeCardState();
