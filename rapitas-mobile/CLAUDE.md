@@ -106,11 +106,11 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Screen | Folder under `lib/screens/` | What it does |
 | --- | --- | --- |
 | Home | `home/` | In-progress tasks, running agents, pending approvals, unread count |
-| Task list | `task_list/` | Task list with a filter sheet (category, theme, status, priority) |
+| Task list | `task_list/` | Task list with an inline search field above the list (server search across all themes, results shown in place) and a filter sheet (category, theme, status, priority) |
 | Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls |
 | Task form | `task_form/` | Create and edit tasks |
 | Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
-| Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs |
+| Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs. Search mode plus a filter sheet (themes, multiple selection; status; sort) |
 | Approvals | `approvals/` | Approve or reject approval requests (with an optional reason) |
 | Notifications | `notifications/` | Notification list, mark as read, delete |
 | Dashboard | `dashboard/` | Task counts by status (未着手 / 進行中 / 完了 / 合計), computed on the phone from the task list |
