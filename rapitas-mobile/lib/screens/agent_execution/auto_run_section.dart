@@ -224,28 +224,11 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
 
   Widget _actions(ThemeAutoRunState state) {
     final buttons = <Widget>[];
-    if (state.isIdle) {
-      buttons.add(FilledButton.icon(
-        key: ValueKey('auto-run-start-${_theme.id}'),
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('自動実行を開始'),
-        onPressed: _busy || !_hasFolder ? null : _start,
-      ));
-    }
-    if (state.isPaused) {
-      buttons.add(FilledButton.tonalIcon(
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('再開'),
-        onPressed: _busy ? null : () => _run(() => _service.start(_theme.id, order: state.order), '自動実行を再開しました'),
-      ));
-    }
     if (state.isRunning) {
       buttons.add(TextButton.icon(
         icon: const Icon(Icons.pause),
         label: const Text('一時停止'),
-        onPressed: _busy
-            ? null
-            : () => _run(() => _service.pause(_theme.id), '一時停止しました（実行中のタスクは最後まで続きます）'),
+        onPressed: _busy ? null : () => _run(() => _service.pause(_theme.id), '一時停止しました（実行中のタスクは最後まで続きます）'),
       ));
     }
     if (state.isRunning || state.isPaused) {
@@ -257,8 +240,25 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
         onPressed: _busy ? null : _stop,
       ));
     }
+    if (state.isIdle) {
+      buttons.add(FilledButton.icon(
+        key: ValueKey('auto-run-start-${_theme.id}'),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('自動実行を開始'),
+        onPressed: _busy || !_hasFolder ? null : _start,
+      ));
+    }
+    if (state.isPaused) {
+      buttons.add(FilledButton.tonalIcon(
+        key: ValueKey('auto-run-resume-${_theme.id}'),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('再開'),
+        onPressed: _busy ? null : () => _run(() => _service.start(_theme.id, order: state.order), '自動実行を再開しました'),
+      ));
+    }
     if (buttons.isEmpty) return const SizedBox(height: 4);
-    return Padding(
+    return Container(
+      width: double.infinity, // NOTE: 開始・再開を常に右端に置く（一時停止・停止はその左）。Wrap は子の幅に縮むので広げないと左に寄る
       padding: const EdgeInsets.only(top: 4),
       child: Wrap(alignment: WrapAlignment.end, spacing: 8, children: buttons),
     );

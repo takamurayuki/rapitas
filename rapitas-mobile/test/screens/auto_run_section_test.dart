@@ -183,4 +183,24 @@ void main() {
     final executingTop = tester.getTopLeft(find.text('実行中')).dy;
     expect(autoRunTop, lessThan(executingTop));
   });
+
+  testWidgets('開始・再開ボタンはどのカードでも右端に揃い、再開は停止より右に並ぶ', (tester) async {
+    final service = FakeThemeAutoRunService({'1': idleSnapshot('1'), '2': pausedSnapshot('2')});
+    await _pump(tester, service, dummyThemes);
+
+    // カードの右内側（Card の既定 margin 4 + Padding の右 12）を右端とみなす
+    double innerRight(String themeId) =>
+        tester.getTopRight(find.byKey(ValueKey('auto-run-theme-$themeId'))).dx - 16;
+
+    final startRight = tester.getTopRight(find.byKey(const ValueKey('auto-run-start-1'))).dx;
+    final resume = find.byKey(const ValueKey('auto-run-resume-2'));
+    final resumeRight = tester.getTopRight(resume).dx;
+    expect(startRight, moreOrLessEquals(innerRight('1'), epsilon: 0.5));
+    expect(resumeRight, moreOrLessEquals(innerRight('2'), epsilon: 0.5));
+    expect(startRight, moreOrLessEquals(resumeRight, epsilon: 0.5));
+
+    // 同じ行の停止は再開の左
+    final stopRight = tester.getTopRight(find.byKey(const ValueKey('auto-run-stop-2'))).dx;
+    expect(stopRight, lessThan(tester.getTopLeft(resume).dx));
+  });
 }
