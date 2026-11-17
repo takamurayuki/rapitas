@@ -6023,6 +6023,15 @@
       "jumpToLatest": "最新のメッセージへ",
       "received": "ラピが確認しました",
       "thinking": "ラピが考えています"
+    },
+    "saveToNote": {
+      "save": "ノートに保存",
+      "saving": "保存中…",
+      "saved": "ノートに保存済み",
+      "savedToast": "ノートに保存しました",
+      "savedLinkFailed": "ノートに保存しました（タスクへの紐付けは失敗しました）",
+      "failed": "ノートに保存できませんでした",
+      "open": "開く"
     }
   },
   "intelligence": {

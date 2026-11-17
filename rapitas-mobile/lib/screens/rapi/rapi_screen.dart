@@ -21,6 +21,7 @@ import 'rapi_criteria_change_card.dart';
 import 'rapi_digest_card.dart';
 import 'rapi_digest_visibility.dart';
 import 'rapi_jump_to_latest.dart';
+import 'rapi_reply_note_button.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_space_widgets.dart';
 import 'rapi_spaces_sheet.dart';
@@ -87,8 +88,6 @@ const _violetButton = Color(0xFF7C3AED);
 
 /// 発言どうしの間隔
 const double _messageGap = 14;
-
-
 
 /// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より高くする
 /// （アバター約71.5 ＋ 間隔1 ＋ 名前12 ≈ 85 に上下の余白を足す）
@@ -406,6 +405,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final spaces = ref.watch(rapiChatSpacesProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
     ref.listen(companionDigestProvider, _onDigestChanged);
+    keepRapiReplyNotes(ref); // ノートの保存済みを、スクロールで行が破棄されても画面の間は保つ
     // 上に別の画面が積まれたら聞き取りを止める（build 中は setState できないので次のフレームで）
     if (_voiceActive && !(ModalRoute.of(context)?.isCurrent ?? true)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _cancelVoice());
@@ -435,7 +435,6 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       if (chat.messages.isEmpty && digestCard != null) digestCard,
       if (chat.sending) const RapiThinkingRow(gap: _messageGap),
     ];
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -713,7 +712,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         // ラピが読み取った発言（振り分けの結果が返った発言）にだけスタンプ。送信中・失敗した発言には無い
         return _spaced(RapiUserMessage(text: m.text, readAs: m.readAs));
       case RapiRole.assistant:
-        return _spaced(RapiReplyMessage(text: m.text));
+        return _spaced(RapiReplyMessage(text: m.text, footer: rapiReplyNoteFooter(chat, m)));
       case RapiRole.system:
         final taskId = m.taskId;
         final draftId = m.externalDraftId;

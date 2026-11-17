@@ -134,17 +134,25 @@ class RapiCard extends StatelessWidget {
   }
 }
 
-/// ラピの発言：全幅の白いカードに本文（返答は Markdown で返るので、体裁を整えて描く）
+/// ラピの発言：全幅の白いカードに本文（返答は Markdown で返るので、体裁を整えて描く）。
+/// [footer] があれば本文の下に置く（「ノートに保存」）
 class RapiReplyMessage extends StatelessWidget {
   final String text;
+  final Widget? footer;
 
-  const RapiReplyMessage({super.key, required this.text});
+  const RapiReplyMessage({super.key, required this.text, this.footer});
 
   @override
   Widget build(BuildContext context) {
     // NOTE: SelectableText のプレーン表示から Markdown へ替えた（記法が記号のまま見えていた）。
     // 選択は RapiMessageMarkdown の SelectionArea で続けてできる
-    return RapiCard(child: RapiMessageMarkdown(data: text));
+    final body = RapiMessageMarkdown(data: text);
+    final extra = footer;
+    return RapiCard(
+      child: extra == null
+          ? body
+          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [body, extra]),
+    );
   }
 }
 

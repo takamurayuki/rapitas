@@ -8,6 +8,12 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+// Replies carry the "ノートに保存" action, which needs a toast host and the router.
+vi.mock('@/components/ui/toast/ToastContainer', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
+}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 // Non-dev todo with an estimate and low complexity → a single "着手する" action.
 const ctxTodoManual: NextActionContext = {
   status: 'todo',
