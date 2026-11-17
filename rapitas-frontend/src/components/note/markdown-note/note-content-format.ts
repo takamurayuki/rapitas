@@ -16,6 +16,12 @@ const HTML_ENTITY = /&(nbsp|amp|lt|gt|quot|#\d+|#x[0-9a-f]+);/i;
 const FENCE_BLOCK = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(^ {0,3}\1[`~]*[ \t]*$|(?![\s\S]))/gm;
 const INLINE_CODE = /`[^`\n]+`/g;
 
+// Not preceded by an odd run of backslashes: `\*` is a literal, `\\*` is a mark.
+const UNESCAPED = String.raw`(?<!(?<!\\)\\(?:\\\\)*)`;
+// CommonMark: `_` cannot open or close emphasis inside a word (`foo__bar__baz`).
+const NOT_WORD_BEFORE = String.raw`(?<![\p{L}\p{N}_])`;
+const NOT_WORD_AFTER = String.raw`(?![\p{L}\p{N}_])`;
+
 // Line starts and inline marks that only Markdown gives a meaning to.
 const MARKDOWN_SIGNALS = [
   /^ {0,3}#{1,6}\s/m,
@@ -24,11 +30,16 @@ const MARKDOWN_SIGNALS = [
   /^ {0,3}>/m,
   /^\s*\|.*\|\s*$/m,
   /^ {0,3}(`{3,}|~{3,})/m,
-  /\*\*[^*\n]+\*\*/,
   // Paired marks only, hugging non-space text, so `3 * 5` or `a ~ b` stay plain.
-  /__[^\s_](?:[^_\n]*[^\s_])?__/,
-  /(?<![*\\])\*[^\s*](?:[^*\n]*[^\s*])?\*(?!\*)/,
-  /~~[^\s~](?:[^~\n]*[^\s~])?~~/,
+  // NOTE: Both delimiters must be unescaped; `*` and `~` may sit inside a word
+  // (CommonMark / GFM allow it), `__` may not.
+  new RegExp(String.raw`${UNESCAPED}\*\*[^*\n]+${UNESCAPED}\*\*`),
+  new RegExp(
+    String.raw`${NOT_WORD_BEFORE}${UNESCAPED}__[^\s_](?:[^_\n]*[^\s_])?${UNESCAPED}__${NOT_WORD_AFTER}`,
+    'u',
+  ),
+  new RegExp(String.raw`(?<!\*)${UNESCAPED}\*[^\s*](?:[^*\n]*[^\s*])?${UNESCAPED}\*(?!\*)`),
+  new RegExp(String.raw`${UNESCAPED}~~[^\s~](?:[^~\n]*[^\s~])?${UNESCAPED}~~`),
   /\[[^\]\n]+\]\([^)\s]+\)/,
   /`[^`\n]+`/,
 ];

@@ -57,6 +57,29 @@ describe('isMarkdownNoteContent', () => {
     expect(isMarkdownNoteContent('Just a plain one-line sentence.')).toBe(false);
   });
 
+  it('does not read __ inside a word as strong emphasis (CommonMark)', () => {
+    expect(isMarkdownNoteContent('foo__bar__baz')).toBe(false);
+    expect(isMarkdownNoteContent('__init__method')).toBe(false);
+    expect(isMarkdownNoteContent('call __init__ now')).toBe(true);
+    expect(isMarkdownNoteContent('これは __大事__ なメモ')).toBe(true);
+  });
+
+  it('does not read a backslash-escaped delimiter as a mark', () => {
+    expect(isMarkdownNoteContent('\\__bold__')).toBe(false);
+    expect(isMarkdownNoteContent('\\~~obsolete~~')).toBe(false);
+    expect(isMarkdownNoteContent('*important\\*')).toBe(false);
+    expect(isMarkdownNoteContent('~~obsolete\\~~')).toBe(false);
+    expect(isMarkdownNoteContent('__bold\\__')).toBe(false);
+    expect(isMarkdownNoteContent('**bold\\**')).toBe(false);
+    expect(isMarkdownNoteContent('\\*\\*bold\\*\\*')).toBe(false);
+  });
+
+  it('still reads a mark after an escaped backslash as Markdown', () => {
+    expect(isMarkdownNoteContent('\\\\__bold__')).toBe(true);
+    expect(isMarkdownNoteContent('\\\\*important*')).toBe(true);
+    expect(isMarkdownNoteContent('\\\\**bold**')).toBe(true);
+  });
+
   it('lets Markdown marks win over an HTML entity reference', () => {
     expect(isMarkdownNoteContent('## Plan\n\nAT&amp;T')).toBe(true);
     expect(isMarkdownNoteContent('- a &lt; b\n- c &gt; d')).toBe(true);
@@ -66,6 +89,7 @@ describe('isMarkdownNoteContent', () => {
 
   it('still reads rich editor HTML as not Markdown, with or without entities', () => {
     expect(isMarkdownNoteContent('<p>hello</p>')).toBe(false);
+    expect(isMarkdownNoteContent('<p>__bold__</p>')).toBe(false);
     expect(isMarkdownNoteContent('<p>AT&amp;T</p><div>a&nbsp;b</div>')).toBe(false);
     expect(isMarkdownNoteContent('## 見出し<br>AT&amp;T')).toBe(false);
     expect(isMarkdownNoteContent('AT&amp;T')).toBe(false);
