@@ -21,6 +21,7 @@ import 'rapi_criteria_change_card.dart';
 import 'rapi_digest_card.dart';
 import 'rapi_digest_visibility.dart';
 import 'rapi_jump_to_latest.dart';
+import 'rapi_reply_note_button.dart';
 import 'rapi_roadmap_card.dart';
 import 'rapi_space_widgets.dart';
 import 'rapi_spaces_sheet.dart';
@@ -87,8 +88,6 @@ const _violetButton = Color(0xFF7C3AED);
 
 /// 発言どうしの間隔
 const double _messageGap = 14;
-
-
 
 /// アバターの真下に名前を置くため、この画面の AppBar だけ標準（56）より高くする
 /// （アバター約71.5 ＋ 間隔1 ＋ 名前12 ≈ 85 に上下の余白を足す）
@@ -715,7 +714,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
         // 受け付けた発言（履歴に入っている発言）にだけスタンプ。送信に失敗すると履歴から外れて消える
         return _spaced(RapiUserMessage(text: m.text, accepted: m.inHistory));
       case RapiRole.assistant:
-        return _spaced(RapiReplyMessage(text: m.text));
+        return _spaced(RapiReplyMessage(text: m.text, footer: rapiReplyNoteFooter(chat, m)));
       case RapiRole.system:
         final taskId = m.taskId;
         final draftId = m.externalDraftId;
