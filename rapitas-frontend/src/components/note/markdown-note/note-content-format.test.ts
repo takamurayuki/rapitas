@@ -41,6 +41,35 @@ describe('isMarkdownNoteContent', () => {
     expect(isMarkdownNoteContent('**太字**のメモ')).toBe(true);
     expect(isMarkdownNoteContent('[リンク](https://example.com)')).toBe(true);
   });
+
+  it('reads a single line with __strong__, *emphasis* or ~~strikethrough~~ as Markdown', () => {
+    expect(isMarkdownNoteContent('__bold__')).toBe(true);
+    expect(isMarkdownNoteContent('*important*')).toBe(true);
+    expect(isMarkdownNoteContent('~~obsolete~~')).toBe(true);
+    expect(isMarkdownNoteContent('これは *大事* なメモ')).toBe(true);
+  });
+
+  it('does not read a lone asterisk or unpaired marks on one line as Markdown', () => {
+    expect(isMarkdownNoteContent('3 * 5')).toBe(false);
+    expect(isMarkdownNoteContent('3 * 5 * 7')).toBe(false);
+    expect(isMarkdownNoteContent('* 印だけ*')).toBe(true); // a list item, as before
+    expect(isMarkdownNoteContent('a ~ b ~~ c')).toBe(false);
+    expect(isMarkdownNoteContent('Just a plain one-line sentence.')).toBe(false);
+  });
+
+  it('lets Markdown marks win over an HTML entity reference', () => {
+    expect(isMarkdownNoteContent('## Plan\n\nAT&amp;T')).toBe(true);
+    expect(isMarkdownNoteContent('- a &lt; b\n- c &gt; d')).toBe(true);
+    expect(isMarkdownNoteContent('**AT&amp;T** の件')).toBe(true);
+    expect(isMarkdownNoteContent('# Q&amp;A &quot;x&quot; &#39;y&#39; a&nbsp;b')).toBe(true);
+  });
+
+  it('still reads rich editor HTML as not Markdown, with or without entities', () => {
+    expect(isMarkdownNoteContent('<p>hello</p>')).toBe(false);
+    expect(isMarkdownNoteContent('<p>AT&amp;T</p><div>a&nbsp;b</div>')).toBe(false);
+    expect(isMarkdownNoteContent('## 見出し<br>AT&amp;T')).toBe(false);
+    expect(isMarkdownNoteContent('AT&amp;T')).toBe(false);
+  });
 });
 
 describe('noteContentToPlainText', () => {

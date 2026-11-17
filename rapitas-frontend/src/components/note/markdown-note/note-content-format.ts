@@ -25,6 +25,10 @@ const MARKDOWN_SIGNALS = [
   /^\s*\|.*\|\s*$/m,
   /^ {0,3}(`{3,}|~{3,})/m,
   /\*\*[^*\n]+\*\*/,
+  // Paired marks only, hugging non-space text, so `3 * 5` or `a ~ b` stay plain.
+  /__[^\s_](?:[^_\n]*[^\s_])?__/,
+  /(?<![*\\])\*[^\s*](?:[^*\n]*[^\s*])?\*(?!\*)/,
+  /~~[^\s~](?:[^~\n]*[^\s~])?~~/,
   /\[[^\]\n]+\]\([^)\s]+\)/,
   /`[^`\n]+`/,
 ];
@@ -36,10 +40,12 @@ function withoutCode(content: string): string {
 /**
  * Whether a note body is Markdown rather than the rich editor's HTML.
  *
- * A body counts as Markdown when it carries no editor HTML and either has a
- * Markdown mark or spans several lines (the rich editor never saves a bare
+ * A body counts as Markdown when it carries no editor HTML tag and either has
+ * a Markdown mark or spans several lines (the rich editor never saves a bare
  * newline — it writes `<div>` / `<br>`). An empty body or one plain line stays
  * with the rich editor, which is how a note written on the desktop starts.
+ * An entity reference such as `&amp;` is valid in Markdown too, so it only
+ * keeps a body with the rich editor when no Markdown mark is present.
  *
  * @param content - The note body / ノート本文
  * @returns true when it should be rendered as Markdown / Markdown として描画するなら true
@@ -47,9 +53,13 @@ function withoutCode(content: string): string {
 export function isMarkdownNoteContent(content: string): boolean {
   if (content.trim() === '') return false;
   const prose = withoutCode(content);
-  if (EDITOR_HTML_TAG.test(prose) || HTML_ENTITY.test(prose)) return false;
-  if (content.trim().includes('\n')) return true;
-  return MARKDOWN_SIGNALS.some((signal) => signal.test(content));
+  if (EDITOR_HTML_TAG.test(prose)) return false;
+  const hasMarkdownMark = MARKDOWN_SIGNALS.some((signal) => signal.test(content));
+  if (hasMarkdownMark) return true;
+  // NOTE: Without a mark, an entity stays the conservative "editor HTML" signal
+  // it was before, even across several lines.
+  if (HTML_ENTITY.test(prose)) return false;
+  return content.trim().includes('\n');
 }
 
 /**
