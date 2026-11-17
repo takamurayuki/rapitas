@@ -136,3 +136,29 @@ describe('classifyOperations', () => {
     expect(r.entries[0].category).toBe('in_plan');
   });
 });
+
+// Audit 2026-11-17 (tasks 1349, 1357): the workflow's own scratch files and the
+// junk names old recordings stored for shell syntax counted as deviations.
+describe('classifyOperations — what is never a deviation', () => {
+  test('the workflow scratch files at the worktree root are in plan', () => {
+    const r = classifyOperations(
+      decl({ files: ['src/**'] }),
+      [
+        op('file_change', { path: '.wf-t1349-verify-r3.md' }),
+        op('file_change', { path: 'C:/wt/task-1/.wf-evidence-1.json' }),
+      ],
+      true,
+      'C:/wt/task-1',
+    );
+    expect(opCategories(r)).toEqual(['in_plan', 'in_plan']);
+  });
+
+  test('names recorded for redirects, heredoc bodies and options are ignored', () => {
+    const r = classifyOperations(
+      decl({ files: ['src/**'], commands: ['bun'] }),
+      [op('command', { commandNames: ['bun', '1', 'eof', 'const', '--data-binary', '調査'] })],
+      true,
+    );
+    expect(opCategories(r)).toEqual(['in_plan']);
+  });
+});

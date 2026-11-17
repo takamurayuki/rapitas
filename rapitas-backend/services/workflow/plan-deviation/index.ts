@@ -10,9 +10,14 @@ export {
   PLAN_DECLARATION_FENCE,
 } from './declaration-parser';
 export { normalizePath, matchesPattern, matchesAnyPattern } from './glob-match';
-export { extractOperations, splitCommandNames, extractUrlHosts } from './operation-extractor';
+export {
+  extractOperations,
+  splitCommandNames,
+  extractUrlHosts,
+  isPlausibleCommandName,
+} from './operation-extractor';
 export type { ExtractedOperation } from './operation-extractor';
-export { classifyOperations, ALWAYS_ALLOWED_COMMANDS } from './classifier';
+export { classifyOperations, ALWAYS_ALLOWED_COMMANDS, isWorkflowScratchFile } from './classifier';
 export { maskDeviationText } from './deviation-mask';
 export {
   createOperationStore,

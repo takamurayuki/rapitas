@@ -28,6 +28,8 @@ export interface DeviationEntry {
   tool?: string;
   display: string;
   logSequence?: number;
+  /** Run whose log holds `logSequence`, when several runs are judged together. */
+  executionId?: number;
   declaredItem?: string;
 }
 

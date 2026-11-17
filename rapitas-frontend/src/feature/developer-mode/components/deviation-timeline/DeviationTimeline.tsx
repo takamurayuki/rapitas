@@ -107,7 +107,7 @@ export function DeviationTimeline({ taskId }: DeviationTimelineProps) {
                 <DeviationItem
                   key={`${entry.seq ?? 'd'}-${entry.declaredItem ?? ''}-${i}`}
                   entry={entry}
-                  onSelect={timeline.executionId ? setSelected : undefined}
+                  onSelect={(entry.executionId ?? timeline.executionId) ? setSelected : undefined}
                 />
               ))}
             </div>
@@ -181,7 +181,8 @@ export function DeviationTimeline({ taskId }: DeviationTimelineProps) {
 
       <DeviationContextDialog
         open={selected !== null}
-        executionId={timeline?.executionId ?? null}
+        // NOTE: the entry's own run — the timeline now judges several runs together.
+        executionId={selected?.executionId ?? timeline?.executionId ?? null}
         seq={selected?.logSequence ?? null}
         fetchContext={fetchContext}
         onClose={() => setSelected(null)}

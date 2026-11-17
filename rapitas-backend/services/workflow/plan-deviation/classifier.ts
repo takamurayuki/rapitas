@@ -7,6 +7,7 @@
  * Pure function; no I/O.
  */
 import { matchesAnyPattern, matchesPattern } from './glob-match';
+import { isPlausibleCommandName } from './operation-extractor';
 import type {
   DeviationByKind,
   DeviationCounts,
@@ -49,6 +50,26 @@ export const ALWAYS_ALLOWED_COMMANDS: ReadonlySet<string> = new Set([
   'sleep',
 ]);
 
+/**
+ * The workflow's own scratch files at the worktree root (`.wf-<task>-verify.md`,
+ * `.wf-evidence-*.json`): written by every run and deleted before the commit,
+ * so a plan never declares them (audit 2026-11-17, tasks 1349 and 1357).
+ *
+ * @param path - Changed file path / 変更したファイルのパス
+ * @param workDir - Worktree root, when known / worktree のルート
+ * @returns True for a scratch file at the root / ルートの作業用ファイルなら true
+ */
+export function isWorkflowScratchFile(path: string, workDir?: string | null): boolean {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+  let rel = norm(path);
+  const root = workDir ? norm(workDir) : null;
+  if (root && rel.toLowerCase().startsWith(`${root.toLowerCase()}/`)) {
+    rel = rel.slice(root.length + 1);
+  }
+  rel = rel.replace(/^\.\//, '');
+  return !rel.includes('/') && rel.startsWith('.wf-');
+}
+
 /** Hosts the agent always talks to (its own backend). */
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1']);
 
@@ -74,6 +95,7 @@ function categorize(
 ): TimelineEntry['category'] {
   const { files, commands, externalHosts } = parsed.declaration;
   if (op.kind === 'file_change') {
+    if (op.features.path && isWorkflowScratchFile(op.features.path, workDir)) return 'in_plan';
     return op.features.path && matchesAnyPattern(op.features.path, files, workDir)
       ? 'in_plan'
       : 'out_of_plan';
@@ -81,7 +103,11 @@ function categorize(
   if (op.kind === 'command') {
     if (commands.length === 0) return 'skipped';
     const declared = commands.map((c) => c.toLowerCase());
-    const names = (op.features.commandNames ?? []).filter((n) => !ALWAYS_ALLOWED_COMMANDS.has(n));
+    // NOTE: isPlausibleCommandName drops the shell-syntax pieces older
+    // recordings stored as names (`1` from 2>&1, `eof`, heredoc words).
+    const names = (op.features.commandNames ?? []).filter(
+      (n) => isPlausibleCommandName(n) && !ALWAYS_ALLOWED_COMMANDS.has(n),
+    );
     return names.every((n) => declared.includes(n)) ? 'in_plan' : 'out_of_plan';
   }
   const hosts = (op.features.hosts ?? []).filter((h) => !LOOPBACK_HOSTS.has(h));
@@ -150,6 +176,7 @@ export function classifyOperations(
     tool: op.tool,
     display: op.displayMasked,
     logSequence: op.logSequence,
+    ...(op.executionId !== undefined ? { executionId: op.executionId } : {}),
   }));
 
   for (const { kind, item } of unexercisedItems(sorted, parsed, workDir)) {
