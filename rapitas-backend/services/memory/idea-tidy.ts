@@ -41,6 +41,8 @@ export interface TidyIdea {
 /** A group of near-duplicates and the one to keep. */
 export interface DuplicateGroup {
   keepId: number;
+  /** Why they are one idea, when the model judged it (おまかせ). */
+  reason?: string;
   ideas: Array<Pick<TidyIdea, 'id' | 'title' | 'priority'>>;
 }
 
@@ -48,7 +50,9 @@ export interface DuplicateGroup {
 export interface UnneededIdea {
   id: number;
   title: string;
-  reason: 'used' | 'stale';
+  reason: 'used' | 'stale' | 'judged';
+  /** The model's reason, for a judged one. */
+  note?: string;
 }
 
 /** What ラピ proposes. */
@@ -115,12 +119,12 @@ export function planIdeaTidy(ideas: TidyIdea[], now: Date): IdeaTidyPlan {
 }
 
 /**
- * Read the active ideas and propose a tidy.
+ * The active ideas, newest first.
  *
  * @param themeId - Limit to one theme, when given / テーマで絞る
- * @returns The proposal / 提案
+ * @returns Ideas as the tidy sees them / 整理対象のアイデア
  */
-export async function proposeIdeaTidy(themeId?: number): Promise<IdeaTidyPlan> {
+export async function loadActiveIdeas(themeId?: number): Promise<TidyIdea[]> {
   const rows = await prisma.knowledgeEntry.findMany({
     where: {
       sourceType: 'idea_box',
@@ -131,7 +135,7 @@ export async function proposeIdeaTidy(themeId?: number): Promise<IdeaTidyPlan> {
     take: MAX_IDEAS,
     select: { id: true, title: true, content: true, tags: true, sourceId: true, createdAt: true },
   });
-  const ideas: TidyIdea[] = rows.map((r) => {
+  return rows.map((r): TidyIdea => {
     const tags = JSON.parse(r.tags || '[]') as string[];
     const priorityTag = tags.find((t) => t.startsWith('priority:'));
     return {
@@ -143,7 +147,16 @@ export async function proposeIdeaTidy(themeId?: number): Promise<IdeaTidyPlan> {
       createdAt: r.createdAt,
     };
   });
-  return planIdeaTidy(ideas, new Date());
+}
+
+/**
+ * Read the active ideas and propose a tidy by the rules.
+ *
+ * @param themeId - Limit to one theme, when given / テーマで絞る
+ * @returns The proposal / 提案
+ */
+export async function proposeIdeaTidy(themeId?: number): Promise<IdeaTidyPlan> {
+  return planIdeaTidy(await loadActiveIdeas(themeId), new Date());
 }
 
 /** What the person confirmed. */

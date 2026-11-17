@@ -749,7 +749,15 @@
       "done": "Merged {merged} and archived {archived}.",
       "undone": "Undone.",
       "undo": "Undo",
-      "error": "That did not work. Please try again."
+      "error": "That did not work. Please try again.",
+      "byCondition": "By rules",
+      "byJudgement": "Let Rapi decide",
+      "conditionHint": "Lists near-identical ideas, and ideas already made into tasks or old at low priority.",
+      "judgementHint": "AI reads the ideas and lists the same idea in different words, and ideas not worth keeping.",
+      "reading": "Reading the ideas…",
+      "unavailable": "The AI did not give an answer. Please wait a moment and try again.",
+      "nothingTryJudgement": "No ideas match the rules. \"Let Rapi decide\" also looks for ideas close in meaning.",
+      "considered": "Read {count} ideas."
     }
   }
 }

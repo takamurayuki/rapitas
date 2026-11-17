@@ -12,6 +12,8 @@ import { API_BASE_URL } from '@/utils/api';
 /** A group of near-duplicate ideas and the one kept. */
 export interface IdeaDuplicateGroup {
   keepId: number;
+  /** Why they are one idea, when the model judged it. */
+  reason?: string;
   ideas: Array<{ id: number; title: string; priority: string }>;
 }
 
@@ -19,8 +21,13 @@ export interface IdeaDuplicateGroup {
 export interface UnneededIdea {
   id: number;
   title: string;
-  reason: 'used' | 'stale';
+  reason: 'used' | 'stale' | 'judged';
+  /** The model's reason, for a judged one. */
+  note?: string;
 }
+
+/** How the proposal is made: by the rules, or by the model reading the ideas. */
+export type IdeaTidyMode = 'rules' | 'judgement';
 
 /** What an applied tidy changed; sent back to undo it. */
 export interface IdeaTidyDone {
@@ -32,7 +39,11 @@ export interface IdeaTidyDone {
  * @returns Proposal, selection and the apply / undo actions / 提案・選択・適用と取り消し
  */
 export function useIdeaTidy() {
+  const [mode, setMode] = useState<IdeaTidyMode>('rules');
   const [loading, setLoading] = useState(true);
+  const [available, setAvailable] = useState(true);
+  const [considered, setConsidered] = useState<number | null>(null);
+  const [unclear, setUnclear] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<IdeaDuplicateGroup[]>([]);
   const [unneeded, setUnneeded] = useState<UnneededIdea[]>([]);
   const [groupsOn, setGroupsOn] = useState<Set<number>>(new Set());
@@ -42,16 +53,24 @@ export function useIdeaTidy() {
   const [undone, setUndone] = useState(false);
   const [error, setError] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (how: IdeaTidyMode) => {
     setLoading(true);
     setError(false);
+    setDone(null);
+    setUndone(false);
     try {
-      const res = await fetch(`${API_BASE_URL}/idea-box/tidy/proposal`);
+      const res = await fetch(`${API_BASE_URL}/idea-box/tidy/proposal?mode=${how}`);
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as {
         duplicates: IdeaDuplicateGroup[];
         unneeded: UnneededIdea[];
+        available?: boolean;
+        considered?: number;
+        unclear?: string[];
       };
+      setAvailable(body.available !== false);
+      setConsidered(body.considered ?? null);
+      setUnclear(body.unclear ?? []);
       setDuplicates(body.duplicates);
       setUnneeded(body.unneeded);
       // Everything proposed starts ticked; what is applied is what is still ticked.
@@ -65,8 +84,8 @@ export function useIdeaTidy() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(mode);
+  }, [load, mode]);
 
   const flip = (set: Set<number>, id: number) => {
     const next = new Set(set);
@@ -119,6 +138,11 @@ export function useIdeaTidy() {
   };
 
   return {
+    mode,
+    setMode,
+    available,
+    considered,
+    unclear,
     loading,
     duplicates,
     unneeded,
