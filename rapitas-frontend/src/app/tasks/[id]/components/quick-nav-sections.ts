@@ -11,7 +11,7 @@
  *
  * Not responsible for drawing anything — see `TaskDetailQuickNav`.
  */
-import { Bot, GitBranch, Info, ListTodo } from 'lucide-react';
+import { GitBranch, Info, ListTodo, Rocket } from 'lucide-react';
 import type { QuickNavSection } from './TaskDetailQuickNav';
 
 export interface QuickNavInputs {
@@ -44,13 +44,14 @@ export function buildQuickNavSections({
     // This chip was `{ id: 'td-ai', label: 'AI' }` and pointed at the
     // assistant chat, which is ラピ's now. It points at the execution card
     // instead and takes that card's own label and glyph — the panel header
-    // there is a `Bot` too, so the chip and its destination finally read as
-    // the same thing.
+    // there is a `Rocket` (ExecutionSection), so the chip and its destination
+    // read as the same thing. NOTE: was `Bot`, which also means the auto-run
+    // toggle; unified on Rocket for エージェント実行 (2026-11-17).
     //
     // Conditional, unlike the chat it replaces: `td-execution` is only
     // rendered when the panel is shown and the theme has a working directory,
     // and a chip that jumps nowhere is worse than no chip.
-    ...(showExecutionSection ? [{ id: 'td-execution', label: labels.execution, icon: Bot }] : []),
+    ...(showExecutionSection ? [{ id: 'td-execution', label: labels.execution, icon: Rocket }] : []),
 
     ...(isDevelopmentTheme ? [{ id: 'td-workflow', label: labels.workflow, icon: GitBranch }] : []),
 

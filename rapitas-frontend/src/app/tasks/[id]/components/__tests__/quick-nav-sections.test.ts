@@ -8,6 +8,7 @@
  * chat never was.
  */
 import { describe, it, expect } from 'vitest';
+import { Rocket } from 'lucide-react';
 import { buildQuickNavSections } from '../quick-nav-sections';
 
 const labels = {
@@ -39,6 +40,9 @@ describe('the header chips', () => {
     const execution = chips.find((c) => c.id === 'td-execution');
     expect(execution).toBeDefined();
     expect(execution?.label).toBe('エージェント実行');
+    // Same glyph as the execution card's header (2026-11-17): it was Bot here
+    // and Rocket there, and Bot already means the auto-run toggle.
+    expect(execution?.icon).toBe(Rocket);
   });
 
   // A chip that scrolls nowhere is worse than no chip: the execution card is

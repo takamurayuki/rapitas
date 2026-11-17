@@ -865,8 +865,6 @@
       "pushCompleted": "Pushed to remote",
       "waitingForAnswer": "Waiting for an answer...",
       "timedOut": "Timed out",
-      "mdContent": "Markdown content ({chars} chars)",
-      "mdContentNamed": "Contents of {name} ({chars} chars)",
       "jsonStatus": "Status: {status}",
       "jsonStatusTranslated": "Status: {status} ({translated})",
       "jsonTaskId": "Task: {taskId}",
