@@ -14,26 +14,18 @@ import { useRouter } from 'next/navigation';
 import { Loader2, NotebookPen } from 'lucide-react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { useNoteStore } from '@/stores/note-store';
-import { buildCopilotNote, saveCopilotNote } from './copilot-note';
+import { draftCopilotNote, saveCopilotNote } from './copilot-note';
 
 type SaveState = 'idle' | 'saving' | 'saved';
 
 /**
- * Saves ラピ's reply (with the question before it) as a note.
+ * Saves ラピ's reply as a note: drafted by the server (title and tidied
+ * body), saved, then linked to the panel's task. The question is not sent.
  *
- * @param question - the user's words before the reply / 直前のユーザーの発言
  * @param answer - ラピ's reply / ラピの返答
  * @param taskId - the panel's task; the note is linked to it / パネルのタスク（紐付け先）
  */
-export function SaveToNoteButton({
-  question,
-  answer,
-  taskId,
-}: {
-  question: string | null;
-  answer: string;
-  taskId?: number;
-}) {
+export function SaveToNoteButton({ answer, taskId }: { answer: string; taskId?: number }) {
   const t = useTranslations('copilot.saveToNote');
   const { showToast } = useToast();
   const router = useRouter();
@@ -49,7 +41,9 @@ export function SaveToNoteButton({
     if (state !== 'idle') return;
     setState('saving');
     try {
-      const result = await saveCopilotNote(buildCopilotNote(question, answer), taskId ?? null);
+      // A failed draft throws before anything is written: no unformatted fallback.
+      const draft = await draftCopilotNote(answer);
+      const result = await saveCopilotNote(draft, taskId ?? null);
       setState('saved');
       showToast(
         result.linked === false ? t('savedLinkFailed') : t('savedToast'),
