@@ -10,8 +10,10 @@ import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import 'auto_run_section.dart';
+import 'section_title.dart';
 
-/// 実行中のタスクと、中断されて再開できる実行の2セクション。
+/// 上部に開発テーマの自動実行（AutoRunSection）、続いて実行中のタスクと、中断されて再開できる実行。
 /// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
 class AgentExecutionScreen extends ConsumerWidget {
   const AgentExecutionScreen({super.key});
@@ -54,14 +56,16 @@ class AgentExecutionScreen extends ConsumerWidget {
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(taskListProvider);
-            _invalidateExecutions(
-                ProviderScope.containerOf(context, listen: false));
+            final container = ProviderScope.containerOf(context, listen: false);
+            _invalidateExecutions(container);
+            AutoRunSection.invalidate(container);
           },
           child: allEmpty
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
-                    SizedBox(height: 160),
+                    AutoRunSection(),
+                    SizedBox(height: 64),
                     Icon(Icons.play_circle_outline, size: 64, color: Colors.grey),
                     SizedBox(height: 16),
                     Center(child: Text('実行中のタスクはありません')),
@@ -72,7 +76,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                   // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
                   children: [
-                    const _SectionTitle('実行中'),
+                    const AutoRunSection(),
+                    const SectionTitle('実行中'),
                     ..._buildSection<ExecutingTask>(
                       state: executingAsync,
                       items: executing,
@@ -83,7 +88,7 @@ class AgentExecutionScreen extends ConsumerWidget {
                           _buildExecutingTile(context, ref, task, titles),
                     ),
                     const SizedBox(height: 16),
-                    const _SectionTitle('再開可能'),
+                    const SectionTitle('再開可能'),
                     ..._buildSection<ResumableExecution>(
                       state: resumableAsync,
                       items: resumable,
@@ -498,26 +503,6 @@ class AgentExecutionScreen extends ConsumerWidget {
           },
         );
       },
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      child: Text(
-        title,
-        style: Theme.of(context)
-            .textTheme
-            .titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
-      ),
     );
   }
 }

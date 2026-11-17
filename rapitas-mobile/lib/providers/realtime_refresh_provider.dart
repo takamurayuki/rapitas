@@ -5,6 +5,7 @@ import 'execution_provider.dart';
 import 'notification_provider.dart';
 import 'service_providers.dart';
 import 'task_provider.dart';
+import 'theme_auto_run_provider.dart';
 
 /// SSE のイベント名と、それを受けたら読み直す一覧の対応。
 ///
@@ -42,6 +43,8 @@ final realtimeRefreshProvider = Provider<void>((ref) {
           ref.invalidate(executingTasksProvider);
           ref.invalidate(resumableExecutionsProvider);
           ref.invalidate(taskExecutionLogsProvider);
+          // 実行画面の自動実行カード（現在のタスク・処理済み件数）も実行中一覧と同時に読み直す
+          ref.invalidate(themeAutoRunProvider);
         case RefreshTarget.notifications:
           ref.invalidate(notificationListProvider);
         case RefreshTarget.approvals:
