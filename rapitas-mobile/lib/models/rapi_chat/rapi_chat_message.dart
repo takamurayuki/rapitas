@@ -112,6 +112,11 @@ class RapiMessage {
   /// 端末だけの行（挨拶・保存の失敗の案内など）。会話スペースには保存しない（設計 6.1・4.4）
   final bool localOnly;
 
+  /// ユーザーの発言をラピが確認したときの意図（振り分け先。会話は 'chat'）。null ならまだ確認して
+  /// いない（送信中・送信失敗）。スタンプはこれがあるときだけ付き、字はこの意図で決まる
+  /// （rapi_read_mark.dart）。保存はしない：読み込んだ記録は後ろの応答から戻す
+  final String? readAs;
+
   const RapiMessage({
     required this.id,
     required this.role,
@@ -133,9 +138,11 @@ class RapiMessage {
     this.savedAt,
     this.unsupported = false,
     this.localOnly = false,
+    this.readAs,
   });
 
   RapiMessage _copy({
+    int? id,
     RapiChangeCard? change,
     RapiRoadmapCard? roadmap,
     RapiConsultPicker? consultPicker,
@@ -143,9 +150,10 @@ class RapiMessage {
     RapiCompanionCard? companion,
     RapiCriteriaCard? criteria,
     bool? inHistory,
+    Object? readAs = _unset,
   }) =>
       RapiMessage(
-        id: id,
+        id: id ?? this.id,
         role: role,
         text: text,
         answer: answer,
@@ -165,33 +173,17 @@ class RapiMessage {
         savedAt: savedAt,
         unsupported: unsupported,
         localOnly: localOnly,
+        readAs: identical(readAs, _unset) ? this.readAs : readAs as String?,
       );
 
   /// 同じ中身で端末内の id だけを [newId] にした行（読み込んだ記録に新しい id を振るとき）
-  RapiMessage withId(int newId) => RapiMessage(
-        id: newId,
-        role: role,
-        text: text,
-        answer: answer,
-        draftSlot: draftSlot,
-        change: change,
-        roadmap: roadmap,
-        consultPicker: consultPicker,
-        tidy: tidy,
-        companion: companion,
-        criteria: criteria,
-        consultTaskId: consultTaskId,
-        taskId: taskId,
-        inHistory: inHistory,
-        externalDraftId: externalDraftId,
-        clientId: clientId,
-        archived: archived,
-        savedAt: savedAt,
-        unsupported: unsupported,
-        localOnly: localOnly,
-      );
+  // NOTE: 項目を並べ直した複製をやめ、_copy に寄せた（項目の足し忘れを防ぐ。中身は同じ）
+  RapiMessage withId(int newId) => _copy(id: newId);
 
   RapiMessage withoutHistory() => _copy(inHistory: false);
+
+  /// ラピが意図 [intent] として確認した発言（null で確認の印を外す。送信失敗）
+  RapiMessage withReadAs(String? intent) => _copy(readAs: intent);
 
   RapiMessage withChange(RapiChangeCard change) => _copy(change: change);
 

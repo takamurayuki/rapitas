@@ -32,13 +32,20 @@ mixin _RapiSendOps on _RapiChatBase {
     state = state.copyWith(sending: true, input: '');
 
     try {
+      // スタンプ（確認済みの印）は、ラピ側の最初の応答が返った時点で付ける：振り分けの結果、
+      // 伴走の確認カード、相談モードなら相談の返答（振り分けを通らないので、返答が最初の応答）
       if (consult != null) {
         // 相談モード中は振り分けを通さず、そのタスクの相談として送る。
         // ただし「伴走して」「伴走をやめて」なら、相談ではなく伴走の確認カードを出す
-        if (!await _offerCompanion(text, consultTaskId: consult.id)) {
+        if (await _offerCompanion(text, consultTaskId: consult.id)) {
+          _markRead(userId, rapiIntentCompanion);
+        } else {
           await _sendConsult(consult, text, history);
+          _markRead(userId, 'consult');
         }
-      } else if (!await _offerCompanion(text, userId: userId, externalDraftId: externalDraftId)) {
+      } else if (await _offerCompanion(text, userId: userId, externalDraftId: externalDraftId)) {
+        _markRead(userId, rapiIntentCompanion);
+      } else {
         await _routeAndHandle(text, history, userId, externalDraftId: externalDraftId);
       }
       delivered = true;
@@ -64,14 +71,15 @@ mixin _RapiSendOps on _RapiChatBase {
   void _sendFailed(Object e, String text, int userId) {
     final messages = [...state.messages];
     final i = messages.indexWhere((m) => m.id == userId);
-    if (i >= 0) messages[i] = messages[i].withoutHistory();
+    // 履歴から外し、確認の印も外す（振り分けの後で失敗しても、失敗した発言には付けない）
+    if (i >= 0) messages[i] = messages[i].withoutHistory().withReadAs(null);
     // 失敗したら送れなかった文を欄に戻す（直して送り直せる）。
     // 応答待ちの間に次の文を書き始めていたら、それは消さない（送れなかった文は発言として残っている）
     state = state.copyWith(
       messages: messages,
       input: state.input.trim().isEmpty ? text : null,
     );
-    _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '送信に失敗しました');
+    _system(e is AssistantTimeoutException ? rapiTimeoutMessage : rapiSendFailedText);
   }
 
   Future<void> _routeAndHandle(String text, List<Map<String, String>> history, int userId,
@@ -80,6 +88,8 @@ mixin _RapiSendOps on _RapiChatBase {
     // 相談モード中は true（相談モード中の送信はここを通らないので、効くのはそれ以外の経路）
     final routed =
         await service.routeIntent(text, hasOpenTask: state.consultTask != null);
+    // 意図が分かった＝ラピが読み取った。ここで印を付ける（会話の返答を待たない）
+    _markRead(userId, routed.intent ?? rapiIntentChat);
 
     String took(String where) {
       final reason = routed.reason;
@@ -90,27 +100,27 @@ mixin _RapiSendOps on _RapiChatBase {
 
     switch (routed.intent) {
       case 'create':
-        _system(took('タスク作成'));
+        _system(took(rapiRoutedLabels['create']!));
         await _runDraft(text);
       case 'ask':
-        _system(took('タスクへの問い合わせ'));
+        _system(took(rapiRoutedLabels['ask']!));
         await _runAsk(text);
       case 'watch':
-        _system(took('見守り'));
+        _system(took(rapiRoutedLabels['watch']!));
         // 読み込み完了を待ち、失敗は send() の失敗処理へ伝える
         // （再読み込みボタンが始めた読み込みがあればそれに合流する）
         await loadSurvey(propagateError: true);
       case 'change':
-        _system(took('タスクの変更'));
+        _system(took(rapiRoutedLabels['change']!));
         await _runChangeDraft(text);
       case 'roadmap':
-        _system(took('計画づくり'));
+        _system(took(rapiRoutedLabels['roadmap']!));
         await _runRoadmapDraft(text);
       case 'consult':
-        _system(took('タスクについての相談'));
+        _system(took(rapiRoutedLabels['consult']!));
         _askConsultTask(text, userId, externalDraftId: externalDraftId);
       case 'tidy':
-        _system(took('タスクの片付け'));
+        _system(took(rapiRoutedLabels['tidy']!));
         _runTidy(text);
       default:
         // chat と未振り分けは会話として返す

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
+import { markRead, toHistoryMessages } from './copilot-read-marks';
 
 export interface CopilotMessage {
   id: string;
@@ -16,7 +17,8 @@ export interface CopilotMessage {
     label: string;
     params?: Record<string, unknown>;
   }>;
-  failed?: boolean; // A send that failed: shown, but not stamped as received.
+  failed?: boolean; // A send that failed: shown, but never stamped.
+  readAs?: string; // Set once her answer came back: the stamp goes on (copilot-read-marks).
   /** Structured data from action results (analysis, execution status, etc.). */
   actionData?: {
     type: string;
@@ -47,16 +49,7 @@ export function useCopilotChat(taskId?: number) {
           messages?: Array<{ id: number; role: string; content: string; createdAt: string }>;
         };
         if (cancelled || !Array.isArray(data.messages) || data.messages.length === 0) return;
-        setMessages((prev) =>
-          prev.length === 0
-            ? data.messages!.map((m) => ({
-                id: `hist-${m.id}`,
-                role: m.role === 'user' ? 'user' : 'assistant',
-                content: m.content,
-                createdAt: m.createdAt,
-              }))
-            : prev,
-        );
+        setMessages((prev) => (prev.length === 0 ? toHistoryMessages(data.messages!) : prev));
       } catch {
         /* non-fatal — start with an empty panel */
       }
@@ -118,7 +111,8 @@ export function useCopilotChat(taskId?: number) {
           cached: data.cached,
           createdAt: new Date().toISOString(),
         };
-        setMessages((prev) => [...prev, assistantMsg]);
+        // NOTE: the stamp goes on with her answer, not when the words are sent (nav63).
+        setMessages((prev) => [...markRead(prev, userMsg.id), assistantMsg]);
       } catch (err) {
         setError(err instanceof Error ? err.message : t('sendMessageError'));
         setMessages((prev) => prev.map((m) => (m.id === userMsg.id ? { ...m, failed: true } : m)));

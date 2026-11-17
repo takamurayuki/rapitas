@@ -42,6 +42,8 @@ mixin _RapiCompanionOps on _RapiChatBase {
       int messageId, RapiConsultPicker picker, RapiConsultTask task) async {
     _setPicker(messageId, picker.copyWith(phase: RapiConsultPickPhase.chosen, chosen: task));
     state = state.copyWith(sending: true);
+    var sent = false;
+    var refilled = false;
     try {
       final draft =
           await ref.read(assistantServiceProvider).companionDraft(picker.text, taskId: task.id);
@@ -50,14 +52,22 @@ mixin _RapiCompanionOps on _RapiChatBase {
       } else {
         _system('伴走の依頼として読み取れませんでした。「伴走して」「伴走をやめて」と送ってください。');
       }
-      if (picker.externalDraftId != null) await _consumeExternalDraft(picker.externalDraftId!);
+      sent = true;
     } catch (e) {
-      _releaseExternalDraft(picker.externalDraftId);
-      _system(e is AssistantTimeoutException ? rapiTimeoutMessage : '「${task.title}」の伴走の状態を確かめられませんでした');
+      // NOTE: 相談のタスク選び（chooseConsultTask）と同じ共通の失敗処理を通す。送信時に付けた印を
+      // 元の発言から外し、保存される案内も送信失敗の案内にする（独自の文言だと読み直しで失敗と
+      // 分からず、印が戻っていた。nav63 レビュー指摘 P2）
+      refilled = state.input.trim().isEmpty;
+      _sendFailed(e, picker.text, picker.utteranceId);
     } finally {
       state = state.copyWith(sending: false);
     }
-    _fillNextExternalDraft();
+    if (sent) {
+      if (picker.externalDraftId != null) await _consumeExternalDraft(picker.externalDraftId!);
+      _fillNextExternalDraft();
+    } else {
+      _releaseExternalDraft(picker.externalDraftId, refilled: refilled);
+    }
   }
 
   /// 下書きを、確認カードか「今は当てはまらない」理由の返事として並べる

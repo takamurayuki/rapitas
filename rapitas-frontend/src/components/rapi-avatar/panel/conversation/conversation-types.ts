@@ -48,4 +48,12 @@ export interface RapiMessage {
    * a label; the card itself is a read-only record. / 記録のカードの種類
    */
   archivedKind?: string;
+  /**
+   * For a `user` line: what she read it as, once her first answer to it
+   * came back (the routing result). Unset while it is on its way and after a
+   * failed send. Drives the stamp and its glyph (`stampGlyphFor`). Never
+   * saved; a loaded line gets it back from what follows it
+   * (`restoreReadMarks`). / ラピが確認したときの意図
+   */
+  readAs?: string;
 }

@@ -100,6 +100,17 @@ describe('useChatFollow', () => {
     expect(screen.getByLabelText('jump')).toBeInTheDocument();
   });
 
+  // nav63: the button sits at the bottom centre of the log, not the bottom right.
+  it('floats the button at the bottom centre of the log', () => {
+    setup(10);
+    scrollTo(log(), 0);
+    const cls = screen.getByLabelText('jump').className;
+    expect(cls).toContain('left-1/2');
+    expect(cls).toContain('-translate-x-1/2');
+    expect(cls).toContain('bottom-3');
+    expect(cls).not.toContain('right-3');
+  });
+
   it('leaves a reader who scrolled up where they are when a reply arrives', () => {
     const view = setup(10);
     scrollTo(log(), 300);

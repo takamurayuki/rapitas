@@ -8,7 +8,8 @@ import 'package:rapitas_mobile/screens/rapi/rapi_typing_indicator.dart';
 
 import '../support/rapi_controlled_assistant.dart';
 
-// 受け取りスタンプ（受け付けた発言にだけ付き、返答後・タブ往復後も残る。失敗した発言には付かない）と、
+// 確認済みスタンプ（ラピが読み取った発言にだけ付き、返答後・タブ往復後も残る。失敗した発言には付かない。
+// 付く時点と字の詳細は rapi_read_stamp_test.dart）と、
 // 考え中の波打つ三点（文言・スピナーなし。pumpAndSettle が終わる）を確かめる。
 
 void main() {
@@ -52,18 +53,19 @@ void main() {
       .getTranslation()
       .y;
 
-  group('受け取りスタンプ', () {
-    testWidgets('考え中が始まった時点で付き、返答後もタブを往復しても残る', (tester) async {
+  group('確認済みスタンプ', () {
+    // NOTE: 送信と同時に付く「受け付け」から、応答が返ってから付く「確認済み」に替えた（nav63）
+    testWidgets('送信中は付かず、応答が返ると付き、返答後もタブを往復しても残る', (tester) async {
       await showScreen(tester);
       expect(stamp, findsNothing);
 
       await say(tester, '明日の会議の資料を作る');
       expect(typing, findsOneWidget);
-      expect(stampOf('明日の会議の資料を作る'), findsOneWidget);
-      expect(find.bySemanticsLabel('ラピが受け付けました'), findsOneWidget);
+      expect(stamp, findsNothing);
 
       assistant.succeed();
       await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('ラピが確認しました'), findsOneWidget);
       expect(find.text('わかりました'), findsOneWidget);
       expect(typing, findsNothing);
       expect(stampOf('明日の会議の資料を作る'), findsOneWidget);
@@ -73,7 +75,7 @@ void main() {
       expect(stampOf('明日の会議の資料を作る'), findsOneWidget);
     });
 
-    testWidgets('送信に失敗した発言には付かない（受け付けた別の発言には付いたまま）', (tester) async {
+    testWidgets('送信に失敗した発言には付かない（確認済みの別の発言には付いたまま）', (tester) async {
       await showScreen(tester);
       await say(tester, '一つ目');
       assistant.succeed();

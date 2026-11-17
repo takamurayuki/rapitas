@@ -130,34 +130,38 @@ describe('CopilotChatPanel', () => {
     };
     const stamps = () => document.querySelectorAll('[data-chat-received]');
 
-    it('stamps the sentence and shows the dots while the answer is on its way', async () => {
+    const typing = () => document.querySelector('[data-chat-typing]');
+
+    // NOTE: the stamp now means "she has read it" (nav63): it waits for her answer.
+    it('shows the dots and no stamp while the answer is on its way, then stamps it', async () => {
       send();
-      await waitFor(() => expect(stamps()).toHaveLength(1));
-      const typing = document.querySelector('[data-chat-typing]');
-      expect(typing?.querySelectorAll('[data-chat-typing-dot]')).toHaveLength(3);
-      expect(typing?.textContent).toBe('');
+      await waitFor(() => expect(typing()).not.toBeNull());
+      expect(typing()?.querySelectorAll('[data-chat-typing-dot]')).toHaveLength(3);
+      expect(typing()?.textContent).toBe('');
+      expect(stamps()).toHaveLength(0);
 
       finish(true);
-      await waitFor(() => expect(document.querySelector('[data-chat-typing]')).toBeNull());
+      await waitFor(() => expect(typing()).toBeNull());
       expect(stamps()).toHaveLength(1);
+      expect(stamps()[0].textContent).toBe('👌');
       // The reply is Markdown at chat density, not the raw marks.
       expect(screen.getByText('理由').tagName).toBe('STRONG');
       expect(document.querySelector('[data-density="chat"]')).not.toBeNull();
     });
 
-    it('takes the stamp off a sentence whose send failed', async () => {
+    it('never stamps a sentence whose send failed', async () => {
       send();
-      await waitFor(() => expect(stamps()).toHaveLength(1));
+      await waitFor(() => expect(typing()).not.toBeNull());
       finish(false);
-      await waitFor(() => expect(stamps()).toHaveLength(0));
-      expect(document.querySelector('[data-chat-typing]')).toBeNull();
+      await waitFor(() => expect(typing()).toBeNull());
+      expect(stamps()).toHaveLength(0);
     });
 
     // Codex review (nav62): the failed send settles with the user line still
     // newest; that alone must not pull a reader who scrolled up meanwhile.
     it('leaves a reader who scrolled up while waiting in place when the send fails', async () => {
       send();
-      await waitFor(() => expect(stamps()).toHaveLength(1));
+      await waitFor(() => expect(typing()).not.toBeNull());
       // jsdom has no layout, so give the log a tall body by hand.
       const log = document.querySelector('[role="log"]') as HTMLElement;
       Object.defineProperty(log, 'clientHeight', { configurable: true, get: () => 400 });
@@ -166,8 +170,8 @@ describe('CopilotChatPanel', () => {
       fireEvent.scroll(log);
 
       finish(false);
-      await waitFor(() => expect(stamps()).toHaveLength(0));
-      expect(document.querySelector('[data-chat-typing]')).toBeNull();
+      await waitFor(() => expect(typing()).toBeNull());
+      expect(stamps()).toHaveLength(0);
       expect(log.scrollTop).toBe(100);
 
       // Sending again is a new user line, which still takes them down.

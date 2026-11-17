@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../models/rapi_chat/rapi_read_mark.dart';
 import 'rapi_message_markdown.dart';
 import 'rapi_typing_indicator.dart';
 
-// ラピの会話の行：ユーザーの発言（受け取りスタンプ付き）、ラピの発言の白いカード、考え中の行。
+// ラピの会話の行：ユーザーの発言（確認済みのスタンプ付き）、ラピの発言の白いカード、考え中の行。
 //
 // NOTE: rapi_screen.dart（1,700行超）から移した。構造化カード（提案・整理・計画・伴走など）は
 // ここには置かない（それぞれのファイルが持つ）。
@@ -18,21 +19,20 @@ const Color rapiChatText = Color(0xFF1F2937);
 const Color rapiCardBg = Color(0xFFFFFFFF);
 const Color rapiCardBorder = Color(0xFFE4E4E7);
 
-/// 受け取りスタンプの直径
+/// 確認済みスタンプの直径
 const double rapiStampSize = 21;
 
-/// 受け取りスタンプの字（ラピがその発言を受け付けた印）
-const String rapiStampGlyph = '👌';
+// NOTE: 字は一律の 👌 から、発言の意図で決める字に替えた（rapiStampGlyphFor。nav63）
 
 /// ユーザーの発言：尻尾のない角丸の塊を右寄せ（藍色）。
-/// [accepted] のときは、ラピが受け付けた印のスタンプを吹き出しの左下の角に重ねる。
+/// [readAs] があるとき（ラピが読み取った発言）は、その意図の字のスタンプを吹き出しの右下の角に重ねる。
 class RapiUserMessage extends StatelessWidget {
   final String text;
 
-  /// ラピがこの発言を受け付けたか（送信に失敗した発言・取り消した発言は false）
-  final bool accepted;
+  /// ラピがこの発言を確認したときの意図（null なら付けない：送信中・送信に失敗した発言）
+  final String? readAs;
 
-  const RapiUserMessage({super.key, required this.text, this.accepted = false});
+  const RapiUserMessage({super.key, required this.text, this.readAs});
 
   @override
   Widget build(BuildContext context) {
@@ -52,13 +52,15 @@ class RapiUserMessage extends StatelessWidget {
       alignment: Alignment.centerRight,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        // スタンプは吹き出しの外へ少しはみ出す。下にはみ出した分は次の行との間隔（14）に収まる
-        child: accepted
+        // スタンプは吹き出しの外へ少しはみ出す。下にはみ出した分は次の行との間隔（14）に、
+        // 右にはみ出した分は一覧の左右の余白（16）に収まる
+        // NOTE: 左下（会話の側）から右下へ移した（既読の印の位置。nav63 のフィードバック）
+        child: readAs != null
             ? Stack(
                 clipBehavior: Clip.none,
                 children: [
                   bubble,
-                  const Positioned(left: -7, bottom: -8, child: RapiReceivedStamp()),
+                  Positioned(right: -7, bottom: -8, child: RapiReadStamp(glyph: rapiStampGlyphFor(readAs))),
                 ],
               )
             : bubble,
@@ -67,14 +69,17 @@ class RapiUserMessage extends StatelessWidget {
   }
 }
 
-/// 受け取りスタンプ：白い円（薄い枠と影）の中に 👌
-class RapiReceivedStamp extends StatelessWidget {
-  const RapiReceivedStamp({super.key});
+/// 確認済みスタンプ：白い円（薄い枠と影）の中に意図の字（🫡・👀・👌）
+class RapiReadStamp extends StatelessWidget {
+  /// スタンプの字（rapiStampGlyphFor で決める）
+  final String glyph;
+
+  const RapiReadStamp({super.key, required this.glyph});
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'ラピが受け付けました',
+      label: 'ラピが確認しました',
       child: Container(
         key: const ValueKey('rapi-received-stamp'),
         width: rapiStampSize,
@@ -88,12 +93,12 @@ class RapiReceivedStamp extends StatelessWidget {
             BoxShadow(color: Color(0x1F000000), blurRadius: 4, offset: Offset(0, 1)),
           ],
         ),
-        child: const ExcludeSemantics(
+        child: ExcludeSemantics(
           child: Text(
-            rapiStampGlyph,
+            glyph,
             // NOTE: 字形は端末の絵文字フォントに任せる。名前を挙げるのは、端末側に無い名前は
             // 無視されるだけで、画面テストのキャプチャで読み込んだ絵文字フォントを使うため
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
               height: 1,
               fontFamilyFallback: ['Apple Color Emoji', 'Noto Color Emoji'],

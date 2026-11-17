@@ -523,12 +523,10 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
                     }),
                   ),
                 ),
+                // NOTE: 右下から下端の中央へ移した（nav63）。Center はボタンの外の当たりを取らない
                 if (_showJump)
-                  Positioned(
-                    right: 16,
-                    bottom: 12,
-                    child: RapiJumpToLatestButton(onPressed: _jumpToLatest),
-                  ),
+                  Positioned(left: 0, right: 0, bottom: 12,
+                      child: Center(child: RapiJumpToLatestButton(onPressed: _jumpToLatest))),
               ],
             ),
           ),
@@ -712,8 +710,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     switch (m.role) {
       case RapiRole.user:
-        // 受け付けた発言（履歴に入っている発言）にだけスタンプ。送信に失敗すると履歴から外れて消える
-        return _spaced(RapiUserMessage(text: m.text, accepted: m.inHistory));
+        // ラピが読み取った発言（振り分けの結果が返った発言）にだけスタンプ。送信中・失敗した発言には無い
+        return _spaced(RapiUserMessage(text: m.text, readAs: m.readAs));
       case RapiRole.assistant:
         return _spaced(RapiReplyMessage(text: m.text));
       case RapiRole.system:

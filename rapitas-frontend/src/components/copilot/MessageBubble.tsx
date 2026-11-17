@@ -4,7 +4,7 @@
  * MessageBubble
  *
  * One line of the task consult chat: the user's words (plain, with the 👌
- * received stamp once she took them in), her Markdown reply at chat density
+ * read stamp once her answer came back), her Markdown reply at chat density
  * with its action buttons and tier badge, or the pending note of an action.
  * Split out of CopilotChatComponents to keep that file under 300 lines.
  */
@@ -13,7 +13,7 @@ import { Loader2, Play } from 'lucide-react';
 import type { CopilotMessage } from './useCopilotChat';
 import type { AnalysisData } from './copilot-chat-types';
 import { MarkdownView } from '../markdown/MarkdownView';
-import { ReceivedStamp } from '@/components/ui/chat';
+import { ReceivedStamp, stampGlyphFor } from '@/components/ui/chat';
 import { AnalysisResultCard, TierBadge } from './CopilotChatComponents';
 
 /**
@@ -62,8 +62,10 @@ export function MessageBubble({
           // chat density so headings and margins fit the bubble.
           <MarkdownView content={msg.content} density="chat" />
         )}
-        {/* Taken in unless the send failed; history lines were taken in. */}
-        {isUser && !msg.failed && <ReceivedStamp label={tc('received')} />}
+        {/* Read once her answer came back (nav63); never on a failed send. */}
+        {isUser && msg.readAs && !msg.failed && (
+          <ReceivedStamp label={tc('received')} glyph={stampGlyphFor(msg.readAs)} />
+        )}
         {!isUser && !isAnalysis && (
           <div className="mt-2 flex items-center justify-between">
             {msg.actions && msg.actions.length > 0 && (
