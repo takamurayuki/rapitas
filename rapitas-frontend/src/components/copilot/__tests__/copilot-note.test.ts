@@ -1,12 +1,11 @@
 /**
  * copilot-note tests
  *
- * The note built from a copilot reply (title and body), the PUT it is saved
- * with, and the task link that follows only when the panel has a task.
+ * The draft asked for from a copilot reply (answer only), the PUT the note
+ * is saved with, and the task link that follows only when the panel has a task.
  */
-import { buildCopilotNote, questionBefore, saveCopilotNote } from '../copilot-note';
+import { draftCopilotNote, saveCopilotNote } from '../copilot-note';
 import { useNoteStore } from '@/stores/note-store';
-import type { CopilotMessage } from '../useCopilotChat';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 
@@ -22,55 +21,47 @@ function calls() {
   }));
 }
 
-describe('buildCopilotNote', () => {
-  it('titles the note with the question and keeps both question and answer', () => {
-    const note = buildCopilotNote(
-      'ログインのバグはどこから調べる？\n補足です',
-      '- まずログを見る\n- **再現手順**を書く',
-    );
-    expect(note.title).toBe('ログインのバグはどこから調べる？');
-    expect(note.content).toBe(
-      '## 質問\n\nログインのバグはどこから調べる？\n補足です\n\n## ラピの回答\n\n- まずログを見る\n- **再現手順**を書く\n',
-    );
+describe('draftCopilotNote', () => {
+  it('sends only the answer and returns the drafted title and body', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            title: 'ログの見方',
+            content: '## 手順\n\n- ログを見る\n',
+          }),
+      }),
+    ) as unknown as typeof fetch;
+
+    const draft = await draftCopilotNote('まず **ログ** を見ます。');
+
+    expect(draft).toEqual({ title: 'ログの見方', content: '## 手順\n\n- ログを見る\n' });
+    expect(calls()).toEqual([
+      {
+        url: 'http://test/notes/draft-from-reply',
+        method: 'POST',
+        body: { answer: 'まず **ログ** を見ます。' },
+      },
+    ]);
   });
 
-  it('cuts a long question at 30 characters', () => {
-    const question = 'あ'.repeat(40);
-    expect(buildCopilotNote(question, '答え').title).toBe(`${'あ'.repeat(30)}…`);
+  it('throws when the server could not draft (502)', async () => {
+    global.fetch = vi.fn(() => status(502)) as unknown as typeof fetch;
+    await expect(draftCopilotNote('答え')).rejects.toThrow();
   });
 
-  it('falls back to the reply first line, then to a fixed title', () => {
-    expect(buildCopilotNote(null, '## 今週の進め方\n本文').title).toBe('今週の進め方');
-    expect(buildCopilotNote(null, '## 今週の進め方').content).toBe(
-      '## ラピの回答\n\n## 今週の進め方\n',
-    );
-    expect(buildCopilotNote('  ', '   ').title).toBe('ラピとの会話');
-  });
-});
-
-describe('questionBefore', () => {
-  const m = (id: string, role: CopilotMessage['role'], content: string): CopilotMessage => ({
-    id,
-    role,
-    content,
-    createdAt: '2026-11-17T00:00:00Z',
-  });
-
-  it('takes the nearest user line before the reply', () => {
-    const lines = [
-      m('1', 'user', '最初'),
-      m('2', 'assistant', 'a'),
-      m('3', 'user', '次'),
-      m('4', 'assistant', 'b'),
-    ];
-    expect(questionBefore(lines, '4')).toBe('次');
-    expect(questionBefore(lines, '2')).toBe('最初');
-    expect(questionBefore([m('9', 'assistant', '振り返り')], '9')).toBeNull();
+  it('throws when the reply has no body', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ title: 't', content: '  ' }) }),
+    ) as unknown as typeof fetch;
+    await expect(draftCopilotNote('答え')).rejects.toThrow();
   });
 });
 
 describe('saveCopilotNote', () => {
-  const draft = { title: '質問', content: '## 質問\n\n質問\n\n## ラピの回答\n\n答え\n' };
+  const draft = { title: 'ログの見方', content: '## 手順\n\n- ログを見る\n' };
 
   beforeEach(() => {
     useNoteStore.setState({ notes: [] });

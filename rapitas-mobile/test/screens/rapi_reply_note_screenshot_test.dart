@@ -1,6 +1,8 @@
 /// Rapi reply → note: writes PNG captures with DUMMY data for visual review —
 /// the save button on a reply card, the snackbar and saved state after a
 /// save, and the saved note opened in the note detail screen, at 390pt wide.
+/// The saved note is the answer only, under the title and tidied body that
+/// POST /notes/draft-from-reply returns — stubbed here with a dummy draft.
 ///
 /// Set RAPI_SCREENSHOT_DIR to write them (real Noto CJK fonts);
 /// CI leaves it unset, so the test is skipped there.
@@ -19,6 +21,7 @@ import 'package:rapitas_mobile/config/note_routes.dart';
 import 'package:rapitas_mobile/config/theme.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
 import 'package:rapitas_mobile/screens/rapi/rapi_screen.dart';
+import 'package:rapitas_mobile/services/note_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/note_fakes.dart';
@@ -33,6 +36,27 @@ const _reply = '''ログインのバグは、次の順に見ていくのが早�
 - 直近で変えた認証まわりの差分を読む
 
 > まずは再現できる条件を1つに絞りましょう。''';
+
+/// What the draft endpoint would return for [_reply] (dummy, written by hand).
+const _draft = NoteDraft(
+  title: '【ダミー】ログイン不具合の調べ方',
+  content: '''## 調べる順番
+
+1. **再現手順**を書き出す（どの端末・どの画面で起きるか）
+2. サーバーのログで `401` が出ていないか確かめる
+3. 直近で変えた認証まわりの差分を読む
+
+## 最初に絞ること
+
+> 再現できる条件を1つに絞る。
+
+| 確認先 | 見るもの |
+| --- | --- |
+| 端末 | 起きる画面と操作 |
+| サーバー | `401` の有無 |
+| 差分 | 認証まわりの直近の変更 |
+''',
+);
 
 void main() {
   final dir = Platform.environment['RAPI_SCREENSHOT_DIR'];
@@ -56,7 +80,7 @@ void main() {
 
     SharedPreferences.setMockInitialValues({});
     final assistant = ControlledAssistant()..reply = _reply;
-    final notes = FakeNoteService();
+    final notes = FakeNoteService()..draft = _draft;
     final router = GoRouter(
       initialLocation: '/rapi',
       routes: [

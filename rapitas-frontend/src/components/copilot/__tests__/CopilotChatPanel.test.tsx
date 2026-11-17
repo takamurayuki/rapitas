@@ -163,6 +163,25 @@ describe('CopilotChatPanel', () => {
       expect(stamps()).toHaveLength(0);
     });
 
+    // nav70: the saved note is drafted from ラピ's answer alone; the user's
+    // sentence before it is not sent anywhere.
+    it('drafts the note from the answer only, without the question', async () => {
+      send();
+      finish(true);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'save' })).toBeInTheDocument());
+      const before = vi.mocked(global.fetch).mock.calls.length;
+      fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      await waitFor(() =>
+        expect(vi.mocked(global.fetch).mock.calls.length).toBeGreaterThan(before),
+      );
+      const [url, init] = vi.mocked(global.fetch).mock.calls[before];
+      expect(String(url)).toBe('http://test/notes/draft-from-reply');
+      expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+        answer: '**理由** はこれです',
+      });
+    });
+
     // Codex review (nav62): the failed send settles with the user line still
     // newest; that alone must not pull a reader who scrolled up meanwhile.
     it('leaves a reader who scrolled up while waiting in place when the send fails', async () => {

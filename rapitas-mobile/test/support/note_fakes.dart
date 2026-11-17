@@ -8,9 +8,13 @@ import 'package:rapitas_mobile/services/note_service.dart';
 class FakeNoteService implements NoteService {
   final List<Note> notes;
 
-  /// 書き込みの記録（`save:id:title:content`、`link:id:taskId:themeName`、`delete:id`）
+  /// 呼び出しの記録（`draft:answer`、`save:id:title:content`、`link:id:taskId:themeName`、`delete:id`）
   final List<String> calls = [];
 
+  /// [draftFromReply] が返す下書き（ダミー）。null なら回答をそのまま本文にした下書き
+  NoteDraft? draft;
+
+  bool failDraft = false;
   bool failSave = false;
   bool failLink = false;
   bool failDelete = false;
@@ -29,6 +33,13 @@ class FakeNoteService implements NoteService {
       if (n.id == id) return n;
     }
     return null;
+  }
+
+  @override
+  Future<NoteDraft> draftFromReply(String answer) async {
+    calls.add('draft:$answer');
+    if (failDraft) throw Exception('下書きエラー');
+    return draft ?? NoteDraft(title: '【ダミー】生成タイトル', content: '$answer\n');
   }
 
   @override

@@ -2,8 +2,9 @@
  * SaveToNoteButton tests
  *
  * The "ノートに保存" action under ラピ's reply in the copilot panel: shown on
- * text replies only, turns into "保存済み" after a save and does not send
- * again, and never reports success when the save failed.
+ * text replies only, drafts the note from the answer alone (POST
+ * /notes/draft-from-reply), turns into "保存済み" after a save and does not
+ * send again, and never reports success when the draft or the save failed.
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MessageBubble } from '../MessageBubble';
@@ -25,18 +26,35 @@ const reply: CopilotMessage = {
 };
 
 function renderReply(msg: CopilotMessage = reply) {
-  return render(
-    <MessageBubble msg={msg} saveNote={{ question: 'どこから調べる？', taskId: 42 }} />,
-  );
+  return render(<MessageBubble msg={msg} saveNote={{ taskId: 42 }} />);
+}
+
+const DRAFT = { success: true, title: 'ログの見方', content: '## 手順\n\n- ログを見る\n' };
+
+/** The draft endpoint answers with DRAFT; every other call with `rest`. */
+function server(rest: (url: string) => { ok: boolean; status?: number } = () => ({ ok: true })) {
+  return vi.fn((url: string) => {
+    if (url.endsWith('/notes/draft-from-reply')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(DRAFT) });
+    }
+    const r = rest(url);
+    return Promise.resolve({ ...r, json: () => Promise.resolve({ success: r.ok }) });
+  }) as unknown as typeof fetch;
+}
+
+function sent() {
+  return vi.mocked(global.fetch).mock.calls.map(([url, init]) => ({
+    url: String(url),
+    method: (init as RequestInit).method,
+    body: JSON.parse(String((init as RequestInit).body)),
+  }));
 }
 
 describe('SaveToNoteButton', () => {
   beforeEach(() => {
     showToast.mockReset();
     push.mockReset();
-    global.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) }),
-    ) as unknown as typeof fetch;
+    global.fetch = server();
   });
 
   it('saves once, shows the saved state and does not send again', async () => {
@@ -44,15 +62,29 @@ describe('SaveToNoteButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'saved' })).toBeDisabled());
-    const methods = vi
-      .mocked(global.fetch)
-      .mock.calls.map(([, init]) => (init as RequestInit).method);
-    expect(methods).toEqual(['PUT', 'POST']);
+    // Draft from the answer alone, save the draft as it came back, then link.
+    expect(sent()).toEqual([
+      {
+        url: 'http://test/notes/draft-from-reply',
+        method: 'POST',
+        body: { answer: 'まず **ログ** を見ます。' },
+      },
+      {
+        url: expect.stringMatching(/^http:\/\/test\/notes\/\d+$/),
+        method: 'PUT',
+        body: { title: DRAFT.title, content: DRAFT.content },
+      },
+      {
+        url: expect.stringMatching(/\/links$/),
+        method: 'POST',
+        body: { taskId: 42 },
+      },
+    ]);
     expect(showToast).toHaveBeenCalledWith('savedToast', 'success', expect.anything());
 
     fireEvent.click(screen.getByRole('button', { name: 'saved' }));
     await new Promise((r) => setTimeout(r, 0));
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
 
     // The toast's "開く" goes to the notes page.
     const action = showToast.mock.calls[0][2].action as { onClick: () => void };
@@ -61,13 +93,7 @@ describe('SaveToNoteButton', () => {
   });
 
   it('says the link failed when only the link failed', async () => {
-    global.fetch = vi.fn((url: string) =>
-      Promise.resolve({
-        ok: !url.endsWith('/links'),
-        status: 500,
-        json: () => Promise.resolve({}),
-      }),
-    ) as unknown as typeof fetch;
+    global.fetch = server((url) => ({ ok: !url.endsWith('/links'), status: 500 }));
     renderReply();
     fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
@@ -88,16 +114,33 @@ describe('SaveToNoteButton', () => {
       expect(showToast).not.toHaveBeenCalledWith('failed', 'error');
       fireEvent.click(screen.getByRole('button', { name: 'saved' }));
       await new Promise((r) => setTimeout(r, 0));
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(global.fetch).toHaveBeenCalledTimes(3);
     } finally {
       setItem.mockRestore();
     }
   });
 
-  it('does not show success when the save failed, and lets the user retry', async () => {
+  it('saves nothing when the draft failed, shows the failure, and lets the user retry', async () => {
     global.fetch = vi.fn(() =>
-      Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }),
+      Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) }),
     ) as unknown as typeof fetch;
+    renderReply();
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith('failed', 'error'));
+    expect(sent().map((c) => c.method)).toEqual(['POST']);
+    expect(showToast).not.toHaveBeenCalledWith('savedToast', expect.anything(), expect.anything());
+    expect(screen.getByRole('button', { name: 'save' })).toBeEnabled();
+
+    // Retry once the draft works: now it saves.
+    global.fetch = server();
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'saved' })).toBeDisabled());
+    expect(sent().map((c) => c.method)).toEqual(['POST', 'PUT', 'POST']);
+  });
+
+  it('does not show success when the save failed, and lets the user retry', async () => {
+    global.fetch = server(() => ({ ok: false, status: 500 }));
     renderReply();
     fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
