@@ -234,6 +234,14 @@
     "linkDismiss": "Close the link panel",
     "linkUrlLabel": "Link URL",
     "linkApply": "Apply",
-    "linkPanelLabel": "Link actions"
+    "linkPanelLabel": "Link actions",
+    "markdownNote": {
+      "view": "View",
+      "edit": "Edit Markdown",
+      "modeLabel": "Switch between view and edit",
+      "sourceLabel": "Note body (Markdown)",
+      "empty": "No content.",
+      "formatHint": "This note is written in Markdown (headings, lists, tables, code, Mermaid diagrams)"
+    }
   }
 }
