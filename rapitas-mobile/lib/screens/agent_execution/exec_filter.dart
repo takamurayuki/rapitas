@@ -19,40 +19,58 @@ class ExecFilter {
   /// タスク名（自動実行カードはテーマ名）の部分一致。空なら絞らない
   final String query;
 
-  /// テーマID。null は「すべて」
-  final String? themeId;
+  /// 選択中のテーマIDの集合。空は「すべて」（nav71 で単一の themeId から複数選択に変えた）
+  final Set<String> themeIds;
   final ExecSort sort;
   final ExecStatusFilter status;
 
   const ExecFilter({
     this.query = '',
-    this.themeId,
+    this.themeIds = const {},
     this.sort = ExecSort.newest,
     this.status = ExecStatusFilter.all,
   });
 
   bool get hasQuery => query.trim().isNotEmpty;
 
+  /// テーマで絞っているか（集合が非空）
+  bool get hasThemes => themeIds.isNotEmpty;
+
+  /// テーマ条件に合うか。集合が空なら常に true、テーマ不明（null）は絞り込み中なら外す
+  ///
+  /// @param themeId - theme of the item, null when unknown / 対象のテーマID（不明なら null）
+  /// @returns true when the item passes the theme condition / テーマ条件を満たすなら true
+  bool matchesTheme(String? themeId) => themeIds.isEmpty || (themeId != null && themeIds.contains(themeId));
+
+  /// テーマの選択を切り替える（含まれていれば外し、無ければ足す）
+  ///
+  /// @param themeId - theme to toggle / 切り替えるテーマID
+  /// @returns the new conditions / 切り替え後の条件
+  ExecFilter toggleTheme(String themeId) {
+    final next = {...themeIds};
+    if (!next.remove(themeId)) next.add(themeId);
+    return copyWith(themeIds: next);
+  }
+
   /// 実行中リストを絞る条件があるか（並び順は件数を変えないので含めない）
-  bool get filtersExecuting => hasQuery || themeId != null || status != ExecStatusFilter.all;
+  bool get filtersExecuting => hasQuery || hasThemes || status != ExecStatusFilter.all;
 
   /// 再開可能・自動実行を絞る条件があるか（状態は対象外）
-  bool get filtersOthers => hasQuery || themeId != null;
+  bool get filtersOthers => hasQuery || hasThemes;
 
   /// 既定から変わっているか（クリア操作を出す目安。並び順の変更も含む）
   bool get isDefault =>
-      !hasQuery && themeId == null && sort == ExecSort.newest && status == ExecStatusFilter.all;
+      !hasQuery && !hasThemes && sort == ExecSort.newest && status == ExecStatusFilter.all;
 
   ExecFilter copyWith({
     String? query,
-    String? themeId,
-    bool clearThemeId = false,
+    Set<String>? themeIds,
     ExecSort? sort,
     ExecStatusFilter? status,
   }) {
     return ExecFilter(
       query: query ?? this.query,
-      themeId: clearThemeId ? null : (themeId ?? this.themeId),
+      themeIds: themeIds ?? this.themeIds,
       sort: sort ?? this.sort,
       status: status ?? this.status,
     );
@@ -62,12 +80,14 @@ class ExecFilter {
   bool operator ==(Object other) =>
       other is ExecFilter &&
       other.query == query &&
-      other.themeId == themeId &&
+      _sameSet(other.themeIds, themeIds) &&
       other.sort == sort &&
       other.status == status;
 
   @override
-  int get hashCode => Object.hash(query, themeId, sort, status);
+  int get hashCode => Object.hash(query, Object.hashAllUnordered(themeIds), sort, status);
+
+  static bool _sameSet(Set<String> a, Set<String> b) => a.length == b.length && a.containsAll(b);
 }
 
 /// taskId → テーマID と taskId → タスク名の突合表
@@ -132,9 +152,7 @@ List<ExecutingTask> applyExecutingFilter(
   final filtered = items.where((t) {
     if (filter.status == ExecStatusFilter.running && t.isWaitingForInput) return false;
     if (filter.status == ExecStatusFilter.waitingForInput && !t.isWaitingForInput) return false;
-    if (filter.themeId != null && _themeOf(lookups, t.taskId, parentId: t.parentId) != filter.themeId) {
-      return false;
-    }
+    if (!filter.matchesTheme(_themeOf(lookups, t.taskId, parentId: t.parentId))) return false;
     return _matchesQuery(taskTitleOrFallback(lookups.titles, t.taskId), filter.query);
   }).toList();
   return _sortByTime(filtered, (t) => t.startedAt ?? t.sessionStartedAt, filter.sort);
@@ -148,7 +166,7 @@ List<ResumableExecution> applyResumableFilter(
 ) {
   final filtered = items.where((e) {
     if (!e.canResume) return false;
-    if (filter.themeId != null && _themeOf(lookups, e.taskId) != filter.themeId) return false;
+    if (!filter.matchesTheme(_themeOf(lookups, e.taskId))) return false;
     final title = e.taskTitle ?? taskTitleOrFallback(lookups.titles, e.taskId);
     return _matchesQuery(title, filter.query);
   }).toList();
@@ -158,7 +176,7 @@ List<ResumableExecution> applyResumableFilter(
 /// 自動実行カードのテーマ（テーマと、テーマ名の検索で絞る。並び順は元のまま）
 List<TaskTheme> applyAutoRunThemeFilter(List<TaskTheme> themes, ExecFilter filter) {
   return themes
-      .where((t) => filter.themeId == null || t.id == filter.themeId)
+      .where((t) => filter.matchesTheme(t.id))
       .where((t) => _matchesQuery(t.name, filter.query))
       .toList();
 }

@@ -19,9 +19,10 @@ void clearExecFilter(WidgetRef ref) {
 /// @param filter - current conditions / 現在の条件
 /// @returns true when the sheet has non-default choices / シートの条件が既定以外なら true
 bool execSheetFilterActive(ExecFilter filter) =>
-    filter.themeId != null || filter.status != ExecStatusFilter.all || filter.sort != ExecSort.newest;
+    filter.hasThemes || filter.status != ExecStatusFilter.all || filter.sort != ExecSort.newest;
 
-/// 本文上部の適用中チップ列。テーマはタップでシートを開き直す（×なし）、状態・並び順は×で個別に解除する
+/// 本文上部の適用中チップ列。テーマは選択中の1件ごとにチップを出し、タップでシートを開き直す・×でそのテーマだけ外す。
+/// 状態・並び順は×で個別に解除する
 class ExecActiveFilterChips extends ConsumerWidget {
   const ExecActiveFilterChips({super.key});
 
@@ -34,7 +35,6 @@ class ExecActiveFilterChips extends ConsumerWidget {
       notifier.state = change(notifier.state);
     }
 
-    final themeId = filter.themeId;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
       child: Align(
@@ -43,12 +43,14 @@ class ExecActiveFilterChips extends ConsumerWidget {
           spacing: 8,
           runSpacing: 4,
           children: [
-            if (themeId != null)
+            for (final themeId in filter.themeIds)
               InputChip(
-                key: const ValueKey('exec-active-theme'),
+                key: ValueKey('exec-active-theme-$themeId'),
                 label: Text('テーマ：${_themeName(ref, themeId)}'),
                 onPressed: () => showExecFilterSheet(context, ref),
                 tooltip: 'テーマを変更',
+                onDeleted: () => update((f) => f.toggleTheme(themeId)),
+                deleteButtonTooltipMessage: 'このテーマの絞り込みを解除',
               ),
             if (filter.status != ExecStatusFilter.all)
               InputChip(

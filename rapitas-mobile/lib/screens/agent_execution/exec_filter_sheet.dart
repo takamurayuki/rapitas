@@ -32,8 +32,10 @@ List<ThemeCategoryGroup> execThemeCandidateGroups(List<TaskTheme> themes) {
 
 /// 実行画面のフィルターシートを開く。
 ///
-/// テーマ・状態・並び順のチップは選ぶと即適用して閉じる。カテゴリはテーマ候補を切り替えるだけで、
-/// 条件には触れない（実行画面には「すべて」があり、タスク画面の「常に1テーマ必須」は持ち込まない）。
+/// テーマは複数選択で、チップのタップで選択/解除を即適用し、シートは開いたまま（下部の「完了」で閉じる）。
+/// 状態・並び順のチップは選ぶと即適用して閉じる（テーマの切り替えは適用済みなので失われない）。
+/// カテゴリはテーマ候補を切り替えるだけで、条件には触れない（実行画面には「すべて」があり、
+/// タスク画面の「常に1テーマ必須」は持ち込まない）。
 ///
 /// @param context - context to show the sheet from / シートを出す元の context
 /// @param ref - ref of the executions screen / 実行画面の ref
@@ -41,9 +43,13 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   // カテゴリの選択はシート内だけの状態。builder が再実行されても消えないようここで持つ
   ({String? id})? selectedCategory;
 
-  void apply(BuildContext sheetContext, ExecFilter Function(ExecFilter) change) {
+  void update(ExecFilter Function(ExecFilter) change) {
     final notifier = ref.read(execFilterProvider.notifier);
     notifier.state = change(notifier.state);
+  }
+
+  void apply(BuildContext sheetContext, ExecFilter Function(ExecFilter) change) {
+    update(change);
     Navigator.pop(sheetContext);
   }
 
@@ -74,17 +80,15 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                 else if (groups.isNotEmpty)
                   StatefulBuilder(
                     builder: (context, setSheetState) {
-                      selectedCategory ??= (id: _categoryIdOfTheme(groups, filter.themeId) ?? groups.first.categoryId);
+                      selectedCategory ??= (id: _categoryIdOfThemes(groups, filter.themeIds) ?? groups.first.categoryId);
                       final current = selectedCategory!.id;
                       return ExecThemeFilterSection(
                         groups: groups,
                         selectedGroup: groups.firstWhere((g) => g.categoryId == current, orElse: () => groups.first),
-                        selectedThemeId: filter.themeId,
+                        selectedThemeIds: filter.themeIds,
                         onCategorySelected: (group) => setSheetState(() => selectedCategory = (id: group.categoryId)),
-                        onThemeSelected: (id) => apply(
-                          context,
-                          (f) => id == null ? f.copyWith(clearThemeId: true) : f.copyWith(themeId: id),
-                        ),
+                        onThemeToggled: (id) =>
+                            update((f) => id == null ? f.copyWith(themeIds: const {}) : f.toggleTheme(id)),
                       );
                     },
                   ),
@@ -125,6 +129,16 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                       ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                // テーマは選んでも閉じないので、閉じる操作をはっきり置く
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('exec-sheet-done'),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('完了'),
+                  ),
+                ),
               ],
             );
           },
@@ -134,19 +148,19 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   );
 }
 
-/// テーマが属するグループのカテゴリID。候補に無い（非開発テーマ・未選択）なら null
-String? _categoryIdOfTheme(List<ThemeCategoryGroup> groups, String? themeId) {
-  if (themeId == null) return null;
+/// 選択中のテーマを含む最初のグループのカテゴリID。どれも候補に無い（非開発テーマ・未選択）なら null
+String? _categoryIdOfThemes(List<ThemeCategoryGroup> groups, Set<String> themeIds) {
+  if (themeIds.isEmpty) return null;
   for (final group in groups) {
-    if (group.themes.any((t) => t.id == themeId)) return group.categoryId;
+    if (group.themes.any((t) => themeIds.contains(t.id))) return group.categoryId;
   }
   return null;
 }
 
 /// シートの「カテゴリ」＋「テーマ」セクション。部品はタスク画面と同じ（ChoiceChip / FilterChip＋FilterDotLabel）。
 ///
-/// タスク画面との違いはテーマの先頭に「すべて」があることだけ。選択中のテーマが候補に無い
-/// （非開発テーマが選ばれている）ときは、どのテーマチップも選択表示にしない。条件は解除しない。
+/// タスク画面との違いは、テーマの先頭に「すべて」があることと、テーマが複数選択であること。
+/// 選択中のテーマが候補に無い（非開発テーマが選ばれている）ときは、そのチップは出ない。条件は解除しない。
 class ExecThemeFilterSection extends StatelessWidget {
   /// 開発テーマだけのグループ（[execThemeCandidateGroups]）
   final List<ThemeCategoryGroup> groups;
@@ -154,21 +168,21 @@ class ExecThemeFilterSection extends StatelessWidget {
   /// テーマ候補を出しているグループ（groups のどれか）
   final ThemeCategoryGroup selectedGroup;
 
-  /// 適用中のテーマID。null は「すべて」
-  final String? selectedThemeId;
+  /// 適用中のテーマIDの集合。空は「すべて」
+  final Set<String> selectedThemeIds;
 
   final ValueChanged<ThemeCategoryGroup> onCategorySelected;
 
-  /// テーマを選んだ（null は「すべて」）
-  final ValueChanged<String?> onThemeSelected;
+  /// テーマチップをタップした（null は「すべて」＝選択を空にする。それ以外は選択/解除の切り替え）
+  final ValueChanged<String?> onThemeToggled;
 
   const ExecThemeFilterSection({
     super.key,
     required this.groups,
     required this.selectedGroup,
-    required this.selectedThemeId,
+    required this.selectedThemeIds,
     required this.onCategorySelected,
-    required this.onThemeSelected,
+    required this.onThemeToggled,
   });
 
   static String _groupLabel(ThemeCategoryGroup group) {
@@ -212,8 +226,8 @@ class ExecThemeFilterSection extends StatelessWidget {
             FilterChip(
               key: const ValueKey('exec-sheet-theme-all'),
               label: const Text('すべて'),
-              selected: selectedThemeId == null,
-              onSelected: (_) => onThemeSelected(null),
+              selected: selectedThemeIds.isEmpty,
+              onSelected: (_) => onThemeToggled(null),
             ),
             for (final theme in selectedGroup.themes)
               FilterChip(
@@ -222,8 +236,8 @@ class ExecThemeFilterSection extends StatelessWidget {
                   color: theme.color,
                   text: theme.taskCount != null ? '${theme.name}（${theme.taskCount}）' : theme.name,
                 ),
-                selected: theme.id == selectedThemeId,
-                onSelected: (_) => onThemeSelected(theme.id),
+                selected: selectedThemeIds.contains(theme.id),
+                onSelected: (_) => onThemeToggled(theme.id),
               ),
           ],
         ),
