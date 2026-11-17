@@ -96,3 +96,18 @@ describe('splitCommandNames — shell syntax that is not a command', () => {
     });
   }
 });
+
+// A `|` or `;` inside quotes is part of an argument (grep -E "tests|fail"),
+// and shell builtins are not commands a plan declares.
+describe('splitCommandNames — quotes and builtins', () => {
+  const cases: Array<[string, string[]]> = [
+    ['grep -E "tests|fail|error" out.log', ['grep']],
+    ["node -e 'a; b | c' && git status", ['node', 'git']],
+    ['"git" status', ['git']],
+  ];
+  for (const [cmd, expected] of cases) {
+    test(JSON.stringify(cmd), () => {
+      expect(splitCommandNames(cmd)).toEqual(expected);
+    });
+  }
+});

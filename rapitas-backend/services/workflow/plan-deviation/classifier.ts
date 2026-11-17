@@ -7,7 +7,7 @@
  * Pure function; no I/O.
  */
 import { matchesAnyPattern, matchesPattern } from './glob-match';
-import { isPlausibleCommandName } from './operation-extractor';
+import { extractUrlHosts, isPlausibleCommandName, splitCommandNames } from './operation-extractor';
 import type {
   DeviationByKind,
   DeviationCounts,
@@ -48,6 +48,17 @@ export const ALWAYS_ALLOWED_COMMANDS: ReadonlySet<string> = new Set([
   'set',
   'export',
   'sleep',
+  // Builtins and read-only text tools seen in real runs (audit 2026-11-17).
+  '[',
+  'break',
+  'continue',
+  'exit',
+  'jq',
+  'cut',
+  'tr',
+  'diff',
+  'basename',
+  'dirname',
 ]);
 
 /**
@@ -72,6 +83,29 @@ export function isWorkflowScratchFile(path: string, workDir?: string | null): bo
 
 /** Hosts the agent always talks to (its own backend). */
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1']);
+
+/** Prefix the store puts before a Bash command line (`${tool}: ${summary}`). */
+const BASH_DISPLAY_PREFIX = 'Bash: ';
+
+/**
+ * The recorded command line of a Bash operation, or null for others. Older
+ * recordings stored names cut from heredoc bodies, so the names are read
+ * again from this line with the current parser (audit 2026-11-17).
+ */
+function recordedCommandLine(op: OperationRecord): string | null {
+  if (op.tool !== 'Bash' || !op.displayMasked.startsWith(BASH_DISPLAY_PREFIX)) return null;
+  return op.displayMasked.slice(BASH_DISPLAY_PREFIX.length).replace(/…$/, '');
+}
+
+/**
+ * Whether a command is the agent talking to its own backend: the workflow
+ * makes every agent save research.md / verify.md with curl to 127.0.0.1.
+ */
+function isLoopbackCurl(name: string, line: string | null): boolean {
+  if (name !== 'curl' || !line) return false;
+  const hosts = extractUrlHosts(line);
+  return hosts.length > 0 && hosts.every((h) => LOOPBACK_HOSTS.has(h));
+}
 
 /** Result of classification (status is 'ok' or 'ambiguous' here). */
 export interface ClassificationResult {
@@ -105,8 +139,11 @@ function categorize(
     const declared = commands.map((c) => c.toLowerCase());
     // NOTE: isPlausibleCommandName drops the shell-syntax pieces older
     // recordings stored as names (`1` from 2>&1, `eof`, heredoc words).
-    const names = (op.features.commandNames ?? []).filter(
-      (n) => isPlausibleCommandName(n) && !ALWAYS_ALLOWED_COMMANDS.has(n),
+    const line = recordedCommandLine(op);
+    const recorded = line !== null ? splitCommandNames(line) : (op.features.commandNames ?? []);
+    const names = recorded.filter(
+      (n) =>
+        isPlausibleCommandName(n) && !ALWAYS_ALLOWED_COMMANDS.has(n) && !isLoopbackCurl(n, line),
     );
     return names.every((n) => declared.includes(n)) ? 'in_plan' : 'out_of_plan';
   }
