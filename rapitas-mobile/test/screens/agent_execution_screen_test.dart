@@ -114,4 +114,30 @@ void main() {
     expect(agent.executed, isEmpty);
     expect(find.text('実行を再開しました'), findsOneWidget);
   });
+
+  testWidgets('(c) 実行中が空のときは見出し「実行中」のすぐ下に枠つきの空状態を出す', (tester) async {
+    await _pump(tester);
+
+    final empty = find.byKey(const ValueKey('executing-empty'));
+    expect(empty, findsOneWidget);
+    expect(find.descendant(of: empty, matching: find.byIcon(Icons.play_circle_outline)), findsOneWidget);
+    expect(find.descendant(of: empty, matching: find.text('実行中のタスクはありません')), findsOneWidget);
+    // 枠のあるブロックとして出す
+    final box = tester.widget<Container>(empty);
+    expect((box.decoration as BoxDecoration).border, isNotNull);
+
+    // 見出し「実行中」の直下（「再開可能」より上）
+    final headingBottom = tester.getBottomLeft(find.text('実行中')).dy;
+    final emptyTop = tester.getTopLeft(empty).dy;
+    expect(emptyTop, greaterThan(headingBottom));
+    expect(emptyTop - headingBottom, lessThan(24));
+    expect(emptyTop, lessThan(tester.getTopLeft(find.text('再開可能')).dy));
+  });
+
+  testWidgets('実行中のタスクがあるときは空状態を出さない', (tester) async {
+    await _pump(tester, executing: const [_running]);
+
+    expect(find.byKey(const ValueKey('executing-empty')), findsNothing);
+    expect(find.text('【ダミー】実行中のタスク'), findsOneWidget);
+  });
 }

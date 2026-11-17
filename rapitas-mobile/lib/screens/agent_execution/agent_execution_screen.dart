@@ -23,18 +23,10 @@ class AgentExecutionScreen extends ConsumerWidget {
     final resumableAsync = ref.watch(resumableExecutionsProvider);
     final titles = ref.watch(taskTitleLookupProvider);
 
-    // 両方とも取得でき、どちらも空のときだけ全体の空状態にする。
-    // 片方が失敗・読み込み中なら、セクションごとに状態を出す。
     final executing = executingAsync.valueOrNull;
     final resumable = resumableAsync.valueOrNull
         ?.where((e) => e.canResume)
         .toList();
-    final allEmpty = !executingAsync.hasError &&
-        !resumableAsync.hasError &&
-        executing != null &&
-        resumable != null &&
-        executing.isEmpty &&
-        resumable.isEmpty;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -54,46 +46,41 @@ class AgentExecutionScreen extends ConsumerWidget {
             _invalidateExecutions(container);
             AutoRunSection.invalidate(container);
           },
-          child: allEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    AutoRunSection(),
-                    SizedBox(height: 64),
-                    Icon(Icons.play_circle_outline, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Center(child: Text('実行中のタスクはありません')),
-                  ],
-                )
-              : ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  // NOTE: FAB を外したので、下端の FAB 逃げ（88）は通常の余白に戻した
-                  padding: const EdgeInsets.all(8),
-                  children: [
-                    const AutoRunSection(),
-                    const SectionTitle('実行中'),
-                    ..._buildSection<ExecutingTask>(
-                      state: executingAsync,
-                      items: executing,
-                      emptyText: '実行中のタスクはありません',
-                      errorText: '実行中のタスクを取得できませんでした',
-                      onRetry: () => ref.invalidate(executingTasksProvider),
-                      itemBuilder: (task) =>
-                          _buildExecutingTile(context, ref, task, titles),
-                    ),
-                    const SizedBox(height: 16),
-                    const SectionTitle('再開可能'),
-                    ..._buildSection<ResumableExecution>(
-                      state: resumableAsync,
-                      items: resumable,
-                      emptyText: '再開できる実行はありません',
-                      errorText: '再開可能な実行を取得できませんでした',
-                      onRetry: () => ref.invalidate(resumableExecutionsProvider),
-                      itemBuilder: (execution) =>
-                          _buildResumableTile(context, ref, execution, titles),
-                    ),
-                  ],
+          // NOTE: 以前は両方空のとき一覧の下に大きなアイコンと文だけを出していたが、自動実行セクションの
+          // 下に埋もれて見えにくかった。常に同じ並びにし、空は各見出しの直下に出す。
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(8),
+            children: [
+              const AutoRunSection(),
+              const SectionTitle('実行中'),
+              ..._buildSection<ExecutingTask>(
+                state: executingAsync,
+                items: executing,
+                empty: const _ExecutingEmptyState(),
+                errorText: '実行中のタスクを取得できませんでした',
+                onRetry: () => ref.invalidate(executingTasksProvider),
+                itemBuilder: (task) =>
+                    _buildExecutingTile(context, ref, task, titles),
+              ),
+              const SizedBox(height: 16),
+              const SectionTitle('再開可能'),
+              ..._buildSection<ResumableExecution>(
+                state: resumableAsync,
+                items: resumable,
+                empty: const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('再開できる実行はありません')),
+                  ),
                 ),
+                errorText: '再開可能な実行を取得できませんでした',
+                onRetry: () => ref.invalidate(resumableExecutionsProvider),
+                itemBuilder: (execution) =>
+                    _buildResumableTile(context, ref, execution, titles),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -102,7 +89,7 @@ class AgentExecutionScreen extends ConsumerWidget {
   List<Widget> _buildSection<T>({
     required AsyncValue<Object?> state,
     required List<T>? items,
-    required String emptyText,
+    required Widget empty,
     required String errorText,
     required VoidCallback onRetry,
     required Widget Function(T item) itemBuilder,
@@ -118,16 +105,7 @@ class AgentExecutionScreen extends ConsumerWidget {
         ),
       ];
     }
-    if (items.isEmpty) {
-      return [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(child: Text(emptyText)),
-          ),
-        ),
-      ];
-    }
+    if (items.isEmpty) return [empty];
     return items.map(itemBuilder).toList();
   }
 
@@ -414,6 +392,38 @@ class _SectionError extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('再試行')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 実行中が空のときの表示。見出し「実行中」の直下に、枠つきのブロックで目立たせる
+class _ExecutingEmptyState extends StatelessWidget {
+  const _ExecutingEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('executing-empty'),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.play_circle_outline, size: 36, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '実行中のタスクはありません',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
