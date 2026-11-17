@@ -13,6 +13,9 @@
  * across the backlog carry `/rapitas-note/{taskId}/{noteId}` chips pointing
  * at it. An id minted here would break all of them.
  *
+ * `POST /notes/draft-from-reply` writes nothing: it turns ラピ's reply into a
+ * titled, tidied draft that the client then saves with `PUT /notes/:id`.
+ *
  * Not responsible for the one-time import's bookkeeping — it is a plain
  * endpoint that skips what exists, and the client decides when to call it.
  */
@@ -30,6 +33,7 @@ import {
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
 } from '../../services/notes/note-service';
+import { draftNoteFromReply } from '../../services/notes/note-draft';
 import { isValidEntityId } from '../../utils/common/id-validation';
 
 /** An id a browser minted, or a cuid. Bounded so it cannot be a document. */
@@ -56,6 +60,9 @@ const noteBody = t.Object({
 });
 
 /** Context captured when a note is linked from a task. */
+/** ラピ's reply to turn into a note draft; the question is not sent. */
+const draftBody = t.Object({ answer: t.String({ maxLength: MAX_NOTE_CONTENT }) });
+
 const linkBody = t.Object({
   taskId: t.Number(),
   meta: t.Optional(
@@ -161,6 +168,26 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
       return { success: true };
     },
     { params: t.Object({ id: noteId, taskId: t.String() }) },
+  )
+
+  .post(
+    '/draft-from-reply',
+    async ({ body, set }) => {
+      if (!body.answer.trim()) {
+        set.status = 400;
+        return { success: false, error: 'empty_answer' };
+      }
+      // NOTE: no unformatted fallback — the feature exists to save a tidied
+      // document, so a failed draft is an error and the client saves nothing.
+      try {
+        const draft = await draftNoteFromReply(body.answer);
+        return { success: true, ...draft };
+      } catch {
+        set.status = 502;
+        return { success: false, error: 'draft_failed' };
+      }
+    },
+    { body: draftBody },
   )
 
   .post(
