@@ -117,7 +117,7 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Themes / categories | `themes/`, `categories/` | CRUD, reorder, set default |
 | Backlog | `backlog/` | Ideas (CRUD, filter), concerns (create, delete), hypotheses (status override, delete) |
 | Notes | `notes/` | List, view, create and edit notes; link a note to a task |
-| Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest, save a text reply (with its question) as a note, linked to the task in a consult |
+| Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest, save a text reply as a note (the answer only, titled and tidied by `POST /notes/draft-from-reply`), linked to the task in a consult |
 | Pairing | `pairing/` | QR scanner that pairs the phone with a desktop |
 | Settings | `settings/` | Connection (pair, manual URL and token, re-discover, connection test, restart desktop backend), AI agent configs, theme mode, voice command mode, voice learning |
 
@@ -171,7 +171,7 @@ This is the full list from `lib/services/` (all relative to the base URL). Do no
 | Theme auto-run | `GET /themes/:id/auto-run`, `POST /themes/:id/auto-run` (`{action: start\|pause\|stop, order?: priority\|created}`) |
 | Categories | `GET/POST /categories`, `PATCH/DELETE /categories/:id`, `GET /categories/default-category`, `PATCH /categories/:id/set-default`, `PATCH /categories/reorder` |
 | Backlog | `GET/POST /idea-box`, `PATCH/DELETE /idea-box/:id`, `GET/POST /concerns`, `DELETE /concerns/:id`, `GET /hypotheses`, `PUT /hypotheses/:id/status`, `DELETE /hypotheses/:id` |
-| Notes | `GET /notes`, `GET/PUT/DELETE /notes/:id`, `POST /notes/:id/links` |
+| Notes | `GET /notes`, `GET/PUT/DELETE /notes/:id`, `POST /notes/:id/links`, `POST /notes/draft-from-reply` |
 | Rapi assistant | `POST /assistant/route`, `/assistant/task-draft`, `/assistant/task-create`, `/assistant/ask`, `GET /assistant/supervision`, `POST /assistant/update-draft`, `/assistant/task-update` (+ `/revert`), `/assistant/criteria-draft`, `/assistant/task-criteria` (+ `/revert`), `/assistant/criteria/review`, `/assistant/companion/draft`, `/assistant/companion/start`, `/assistant/companion/stop`, `/assistant/roadmap/draft`, `/assistant/roadmap/commit`, `/assistant/delete-filter`, `/assistant/delete-draft`, `/assistant/task-delete`, `POST /task-trash/:id/restore` |
 | Companion digest | `GET /assistant/companion/digest`, `POST /assistant/companion/digest/seen` |
 | Copilot chat | `POST /copilot/chat`, `GET /copilot/chat/:id/history` |

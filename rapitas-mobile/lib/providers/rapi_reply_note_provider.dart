@@ -26,22 +26,20 @@ class RapiReplyNoteNotifier extends AutoDisposeNotifier<Map<String, RapiReplyNot
     };
   }
 
-  /// 返答をノートに保存する。保存中・保存済みの返答には何もしない（二重に作らない）。
+  /// 返答をノートに保存する（下書きの生成 → 保存 → 紐付け）。保存中・保存済みの返答には何もしない（二重に作らない）。
   ///
   /// @param key - 返答の鍵（[rapiReplyNoteKey]）
-  /// @param question - 直前のユーザーの発言（無ければ null）
   /// @param answer - ラピの返答
   /// @param taskId - 紐付け先のタスク（相談のときだけ）
   /// @returns 保存の結果。既に保存中・保存済みなら null
-  /// @throws Object ノートを保存できなかった（状態は未保存に戻す）
-  Future<RapiReplyNoteSaved?> save(String key,
-      {String? question, required String answer, String? taskId}) async {
+  /// @throws Object 下書きを作れなかった、またはノートを保存できなかった（状態は未保存に戻すので、もう一度押せる）
+  Future<RapiReplyNoteSaved?> save(String key, {required String answer, String? taskId}) async {
     if (state.containsKey(key)) return null;
     _set(key, RapiReplyNoteStatus.saving);
     try {
       final saved = await saveRapiReplyNote(
         ref.read(noteServiceProvider),
-        buildRapiReplyNote(question, answer),
+        answer,
         taskId: taskId,
       );
       _set(key, RapiReplyNoteStatus.saved);

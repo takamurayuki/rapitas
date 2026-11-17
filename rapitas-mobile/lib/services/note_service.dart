@@ -2,6 +2,16 @@ import 'package:dio/dio.dart';
 import 'api_client.dart';
 import '../models/note.dart';
 
+/// 保存前のノートの中身（POST /notes/draft-from-reply が返すタイトルと Markdown の本文）
+class NoteDraft {
+  final String title;
+
+  /// Markdown の本文
+  final String content;
+
+  const NoteDraft({required this.title, required this.content});
+}
+
 /// ノート（資料）の API（rapitas-backend routes/memory/notes.routes.ts、prefix /notes）。
 ///
 /// - GET /notes（任意で ?taskId=<数値>）→ {success, notes}。並びはサーバー側でピン留め優先・更新の新しい順
@@ -10,6 +20,8 @@ import '../models/note.dart';
 /// - PUT /notes/:id → {success, note}。送ったフィールドだけを書く upsert（作成と更新を兼ねる）
 /// - DELETE /notes/:id → {success}。紐づけもまとめて消える。無ければ 404
 /// - POST /notes/:id/links {taskId(数値), meta?} → {success}。既にあれば meta を上書き
+/// - POST /notes/draft-from-reply {answer} → {success, title, content}。ラピの回答からノートの下書きを作るだけで、保存はしない。
+///   answer が空なら 400、下書きを作れなければ 502
 ///
 /// 一覧も詳細も保存の戻りも同じ形（linkedTaskIds / linkedTaskMeta を含む）なので、どれも [Note.fromJson] で読む。
 class NoteService {
@@ -86,6 +98,32 @@ class NoteService {
     final note = body is Map ? body['note'] : null;
     if (note is! Map) throw StateError('ノートの保存結果を読めませんでした');
     return Note.fromJson(Map<String, dynamic>.from(note));
+  }
+
+  /// 下書きの生成は AI を呼ぶので、チャットと同じだけ待つ（assistant_service.dart と同じ 120 秒）
+  static const Duration draftReceiveTimeout = Duration(seconds: 120);
+
+  /// ラピの回答から、内容に合ったタイトルと文書として整えた本文を作ってもらう。保存はしない。
+  ///
+  /// NOTE: 質問文は送らない。ノートに残すのは回答だけ（ブリーフィング nav70）。
+  ///
+  /// @param answer - ラピの回答（Markdown のまま）
+  /// @returns タイトルと本文
+  /// @throws DioException 通信・サーバーの失敗（下書きを作れなかったときは 502）
+  /// @throws StateError 応答にタイトルか本文が無い
+  Future<NoteDraft> draftFromReply(String answer) async {
+    final response = await _client.post(
+      '/notes/draft-from-reply',
+      data: {'answer': answer},
+      receiveTimeout: draftReceiveTimeout,
+    );
+    final body = response.data;
+    final title = body is Map ? body['title'] : null;
+    final content = body is Map ? body['content'] : null;
+    if (title is! String || content is! String || content.trim().isEmpty) {
+      throw StateError('ノートの下書きを読めませんでした');
+    }
+    return NoteDraft(title: title, content: content);
   }
 
   /// ノートをタスクに紐づける。

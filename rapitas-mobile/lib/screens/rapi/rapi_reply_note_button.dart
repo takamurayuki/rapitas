@@ -5,10 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../config/note_paths.dart';
 import '../../models/rapi_chat/rapi_chat_message.dart';
 import '../../providers/rapi_reply_note_provider.dart';
-import '../../services/rapi_reply_note.dart';
 
 // ラピの文章の返答カードの下部に置く「ノートに保存」。保存後は「保存済み」になり、もう送らない。
-// ノートの組み立てと書き込みは services/rapi_reply_note.dart、状態は providers/rapi_reply_note_provider.dart。
+// 下書きの生成・保存・紐付けは services/rapi_reply_note.dart、状態は providers/rapi_reply_note_provider.dart。
 
 /// 保存できたときの文言
 const String rapiNoteSavedMessage = 'ノートに保存しました';
@@ -32,15 +31,15 @@ void keepRapiReplyNotes(WidgetRef ref) => ref.listen(rapiReplyNoteProvider, (_, 
 
 /// 返答 [m] のカードに付ける「ノートに保存」。挨拶（端末だけの行）と空の返答には付けない。
 ///
-/// @param chat - 会話の状態（直前の質問を探す）
+/// NOTE: 直前の質問は渡さない。ノートに残すのは回答だけ（nav70）。
+///
 /// @param m - ラピの返答
 /// @returns ボタン。付けない返答なら null
-Widget? rapiReplyNoteFooter(RapiChatState chat, RapiMessage m) {
+Widget? rapiReplyNoteFooter(RapiMessage m) {
   if (m.localOnly || m.text.trim().isEmpty) return null;
   return RapiReplyNoteButton(
     key: ValueKey('rapi-save-note-${m.id}'),
     noteKey: rapiReplyNoteKey(m.id, m.text),
-    question: rapiQuestionBefore(chat.messages, m),
     answer: m.text,
     taskId: m.consultTaskId,
   );
@@ -50,7 +49,6 @@ Widget? rapiReplyNoteFooter(RapiChatState chat, RapiMessage m) {
 class RapiReplyNoteButton extends ConsumerWidget {
   /// 返答の鍵（[rapiReplyNoteKey]）
   final String noteKey;
-  final String? question;
   final String answer;
 
   /// 相談中のタスク。あればノートをそのタスクへ紐付ける
@@ -59,7 +57,6 @@ class RapiReplyNoteButton extends ConsumerWidget {
   const RapiReplyNoteButton({
     super.key,
     required this.noteKey,
-    required this.question,
     required this.answer,
     this.taskId,
   });
@@ -71,7 +68,7 @@ class RapiReplyNoteButton extends ConsumerWidget {
     try {
       final saved = await ref
           .read(rapiReplyNoteProvider.notifier)
-          .save(noteKey, question: question, answer: answer, taskId: taskId);
+          .save(noteKey, answer: answer, taskId: taskId);
       if (saved == null) return;
       messenger?.showSnackBar(SnackBar(
         content: Text(saved.linked == false ? rapiNoteLinkFailedMessage : rapiNoteSavedMessage),
