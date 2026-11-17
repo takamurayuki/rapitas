@@ -1762,7 +1762,8 @@
       "consult": "This task",
       "tidy": "Tidy up",
       "roadmap": "Plan it out",
-      "change": "Change"
+      "change": "Change",
+      "ideaTidy": "Tidy ideas"
     },
     "roadmap": {
       "title": "Plan it out",
@@ -1923,6 +1924,25 @@
         "save": "Could not save the conversation. It will be tried again as you keep talking.",
         "limit": "There are too many conversations. Delete an old one to save this."
       }
+    },
+    "ideaTidy": {
+      "title": "Tidy ideas",
+      "looking": "Looking at the ideas…",
+      "nothing": "No ideas to merge or put away.",
+      "duplicates": "Merge similar ideas",
+      "mergeInto": "Merge “{title}”",
+      "unneeded": "Ideas to put away",
+      "reason": {
+        "used": "Already a task",
+        "stale": "Low priority, over 90 days old"
+      },
+      "apply": "Tidy {count}",
+      "working": "Tidying…",
+      "note": "Merged and put-away ideas are archived and leave the list. This can be undone.",
+      "done": "Merged {merged} and archived {archived}.",
+      "undone": "Undone.",
+      "undo": "Undo",
+      "error": "That did not work. Please try again."
     }
   },
   "shortcuts": {

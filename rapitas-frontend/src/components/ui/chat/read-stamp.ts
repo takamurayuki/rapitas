@@ -23,7 +23,8 @@ export const STAMP_OK = '👌';
 /** The intent of a sentence that was not routed anywhere: she talks. */
 export const READ_AS_CHAT = 'chat';
 
-const ON_IT = new Set(['create', 'roadmap', 'change', 'tidy', 'companion']);
+// NOTE: ideaTidy is web-only for now; rapitas-mobile routes it to a plain chat.
+const ON_IT = new Set(['create', 'roadmap', 'change', 'tidy', 'ideaTidy', 'companion']);
 
 /**
  * The glyph for a turn's intent.
@@ -52,6 +53,7 @@ const INTENT_BY_LABEL: Record<string, string> = {
   タスクの片付け: 'tidy',
   伴走の開始: 'companion',
   伴走の終了: 'companion',
+  アイデアを整理: 'ideaTidy',
   対話: READ_AS_CHAT,
   要対応: 'watch',
   タスクを作る: 'create',

@@ -9,6 +9,7 @@
  * is left is the list and the glyphs.
  */
 import {
+  Combine,
   Eraser,
   ListFilter,
   ListPlus,
@@ -38,4 +39,7 @@ export const MODE_ICONS: Record<PanelMode, LucideIcon> = {
   tidy: Eraser,
   roadmap: Signpost,
   change: Pencil,
+  // Tidying the idea box (2026-11-17): merging near-duplicates is its main
+  // act, and each mode keeps a glyph of its own (rapi-modes.test.ts).
+  ideaTidy: Combine,
 };
