@@ -106,7 +106,7 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Screen | Folder under `lib/screens/` | What it does |
 | --- | --- | --- |
 | Home | `home/` | In-progress tasks, running agents, pending approvals, unread count |
-| Task list | `task_list/` | Task list with an inline search field above the list (server search across all themes, results shown in place) and a filter sheet (category, theme, status, priority) |
+| Task list | `task_list/` | Task list with a search mode shaped like the executions screen's (search icon swaps the AppBar for a field; the visible list is narrowed in place by title or description on the phone, no server search) and a filter sheet (category, theme, status, priority) |
 | Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls |
 | Task form | `task_form/` | Create and edit tasks |
 | Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
