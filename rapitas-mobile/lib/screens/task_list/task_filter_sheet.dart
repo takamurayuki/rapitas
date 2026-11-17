@@ -50,85 +50,90 @@ void showTaskFilterSheet(BuildContext context, WidgetRef ref) {
   showModalBottomSheet<void>(
     context: context,
     builder: (context) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            // カテゴリ → テーマ（デスクトップと同じ並び）。この後にステータス・優先度が続く
-            Consumer(
-              builder: (context, ref, _) {
-                final themesAsync = ref.watch(themeListProvider);
-                if (themesAsync.isLoading && !themesAsync.hasValue) {
-                  return const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: LinearProgressIndicator(),
-                  );
-                }
-                final themes = themesAsync.valueOrNull;
-                // NOTE: categoryId が null のテーマは候補に出さない（カテゴリ削除時だけ生じる例外状態。PC で再割り当てする想定）
-                final groups = themesAsync.hasError || themes == null
-                    ? const <ThemeCategoryGroup>[]
-                    : [for (final g in groupThemesByCategory(themes)) if (!g.isUncategorized) g];
-                // 取得失敗・候補0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
-                if (groups.isEmpty) return const SizedBox.shrink();
-                final currentThemeId = ref.watch(taskFilterProvider).themeId;
-                selectedCategoryId ??= _categoryIdOfTheme(groups, currentThemeId) ??
-                    ref.read(taskInitialSelectionProvider).valueOrNull?.categoryId;
-                return StatefulBuilder(
-                  builder: (context, setSheetState) {
-                    // NOTE: カテゴリの選択は builder 内で読む（外で読むと、切替直後の再描画に反映されない）
-                    final categoryId = selectedCategoryId;
-                    return TaskThemeFilterSection(
-                      groups: groups,
-                      selectedCategoryId: groups.any((g) => g.categoryId == categoryId)
-                          ? categoryId!
-                          : groups.first.categoryId!,
-                      selectedThemeId: currentThemeId,
-                      onCategorySelected: (id) async {
-                        final myGeneration = ++generation;
-                        setSheetState(() => selectedCategoryId = id);
-                        // カテゴリを切り替えたら、そのカテゴリの記憶 → ☆ → 先頭のテーマを即適用する
-                        // （「選ばれていないカテゴリ」の状態を作らない）。シートは開いたまま
-                        final memory = await ref.read(taskSelectionMemoryLoaderProvider)();
-                        if (closed || myGeneration != generation) return;
-                        final themeId =
-                            resolveThemeForCategory(categoryId: id, themes: themes!, memory: memory);
-                        if (themeId == null) return;
-                        ref.read(taskFilterProvider.notifier).state =
-                            ref.read(taskFilterProvider).copyWith(themeId: themeId);
-                        await FilterSelectionStore.rememberTaskTheme(categoryId: id, themeId: themeId);
-                      },
-                      onThemeSelected: (theme) {
-                        rememberTaskTheme(theme);
-                        apply(context, (f) => f.copyWith(themeId: theme.id));
-                      },
+      // NOTE: Material 3 のボトムシートは子を Align で包むため、チップが1行に満たないとシート面が中身の幅まで
+      // 縮む（nav71: 実行画面のシートが画面より狭く見えた原因）。タスク画面・実行画面とも幅いっぱいに固定する
+      return SizedBox(
+        width: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              // カテゴリ → テーマ（デスクトップと同じ並び）。この後にステータス・優先度が続く
+              Consumer(
+                builder: (context, ref, _) {
+                  final themesAsync = ref.watch(themeListProvider);
+                  if (themesAsync.isLoading && !themesAsync.hasValue) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
                     );
-                  },
-                );
-              },
-            ),
-            Text('ステータス', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            chips(
-              context,
-              filter.status,
-              const [(null, 'すべて'), ('todo', '未着手'), ('in-progress', '進行中'), ('done', '完了')],
-              (f, v) => v == null ? f.copyWith(clearStatus: true) : f.copyWith(status: v),
-            ),
-            const SizedBox(height: 16),
-            Text('優先度', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            chips(
-              context,
-              filter.priority,
-              const [(null, 'すべて'), ('urgent', '緊急'), ('high', '高'), ('medium', '中'), ('low', '低')],
-              (f, v) => v == null ? f.copyWith(clearPriority: true) : f.copyWith(priority: v),
-            ),
-          ],
+                  }
+                  final themes = themesAsync.valueOrNull;
+                  // NOTE: categoryId が null のテーマは候補に出さない（カテゴリ削除時だけ生じる例外状態。PC で再割り当てする想定）
+                  final groups = themesAsync.hasError || themes == null
+                      ? const <ThemeCategoryGroup>[]
+                      : [for (final g in groupThemesByCategory(themes)) if (!g.isUncategorized) g];
+                  // 取得失敗・候補0件ならセクションごと出さない（フォーム画面のテーマ欄と同じ方針）
+                  if (groups.isEmpty) return const SizedBox.shrink();
+                  final currentThemeId = ref.watch(taskFilterProvider).themeId;
+                  selectedCategoryId ??= _categoryIdOfTheme(groups, currentThemeId) ??
+                      ref.read(taskInitialSelectionProvider).valueOrNull?.categoryId;
+                  return StatefulBuilder(
+                    builder: (context, setSheetState) {
+                      // NOTE: カテゴリの選択は builder 内で読む（外で読むと、切替直後の再描画に反映されない）
+                      final categoryId = selectedCategoryId;
+                      return TaskThemeFilterSection(
+                        groups: groups,
+                        selectedCategoryId: groups.any((g) => g.categoryId == categoryId)
+                            ? categoryId!
+                            : groups.first.categoryId!,
+                        selectedThemeId: currentThemeId,
+                        onCategorySelected: (id) async {
+                          final myGeneration = ++generation;
+                          setSheetState(() => selectedCategoryId = id);
+                          // カテゴリを切り替えたら、そのカテゴリの記憶 → ☆ → 先頭のテーマを即適用する
+                          // （「選ばれていないカテゴリ」の状態を作らない）。シートは開いたまま
+                          final memory = await ref.read(taskSelectionMemoryLoaderProvider)();
+                          if (closed || myGeneration != generation) return;
+                          final themeId =
+                              resolveThemeForCategory(categoryId: id, themes: themes!, memory: memory);
+                          if (themeId == null) return;
+                          ref.read(taskFilterProvider.notifier).state =
+                              ref.read(taskFilterProvider).copyWith(themeId: themeId);
+                          await FilterSelectionStore.rememberTaskTheme(categoryId: id, themeId: themeId);
+                        },
+                        onThemeSelected: (theme) {
+                          rememberTaskTheme(theme);
+                          apply(context, (f) => f.copyWith(themeId: theme.id));
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+              Text('ステータス', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              chips(
+                context,
+                filter.status,
+                const [(null, 'すべて'), ('todo', '未着手'), ('in-progress', '進行中'), ('done', '完了')],
+                (f, v) => v == null ? f.copyWith(clearStatus: true) : f.copyWith(status: v),
+              ),
+              const SizedBox(height: 16),
+              Text('優先度', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              chips(
+                context,
+                filter.priority,
+                const [(null, 'すべて'), ('urgent', '緊急'), ('high', '高'), ('medium', '中'), ('low', '低')],
+                (f, v) => v == null ? f.copyWith(clearPriority: true) : f.copyWith(priority: v),
+              ),
+            ],
+          ),
         ),
       );
     },

@@ -35,7 +35,9 @@ class ExecActiveFilterChips extends ConsumerWidget {
       notifier.state = change(notifier.state);
     }
 
+    // Align は親の幅いっぱいに広がる（中の Wrap だけが中身の幅）。タスク画面のチップ列と同じ形
     return Padding(
+      key: const ValueKey('exec-active-filter-chips'),
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
       child: Align(
         alignment: Alignment.centerLeft,

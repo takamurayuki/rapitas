@@ -56,92 +56,97 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   showModalBottomSheet<void>(
     context: context,
     builder: (context) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Consumer(
-          builder: (context, ref, _) {
-            final filter = ref.watch(execFilterProvider);
-            final titleStyle = Theme.of(context).textTheme.titleSmall;
-            final themesAsync = ref.watch(themeListProvider);
-            final groups = execThemeCandidateGroups(themesAsync.valueOrNull ?? const []);
-            return Column(
-              key: const ValueKey('exec-filter-sheet'),
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 16),
-                if (themesAsync.isLoading && !themesAsync.hasValue)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: LinearProgressIndicator(),
-                  )
-                // 取得失敗・開発テーマ0件ならテーマセクションごと出さない（タスク画面と同じ方針）
-                else if (groups.isNotEmpty)
-                  StatefulBuilder(
-                    builder: (context, setSheetState) {
-                      selectedCategory ??= (id: _categoryIdOfThemes(groups, filter.themeIds) ?? groups.first.categoryId);
-                      final current = selectedCategory!.id;
-                      return ExecThemeFilterSection(
-                        groups: groups,
-                        selectedGroup: groups.firstWhere((g) => g.categoryId == current, orElse: () => groups.first),
-                        selectedThemeIds: filter.themeIds,
-                        onCategorySelected: (group) => setSheetState(() => selectedCategory = (id: group.categoryId)),
-                        onThemeToggled: (id) =>
-                            update((f) => id == null ? f.copyWith(themeIds: const {}) : f.toggleTheme(id)),
-                      );
-                    },
+      // NOTE: Material 3 のボトムシートは子を Align で包むため、チップが1行に満たないとシート面が中身の幅まで
+      // 縮む（nav71: 実行画面のシートが画面より狭く見えた原因）。タスク画面・実行画面とも幅いっぱいに固定する
+      return SizedBox(
+        width: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Consumer(
+            builder: (context, ref, _) {
+              final filter = ref.watch(execFilterProvider);
+              final titleStyle = Theme.of(context).textTheme.titleSmall;
+              final themesAsync = ref.watch(themeListProvider);
+              final groups = execThemeCandidateGroups(themesAsync.valueOrNull ?? const []);
+              return Column(
+                key: const ValueKey('exec-filter-sheet'),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  if (themesAsync.isLoading && !themesAsync.hasValue)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
+                    )
+                  // 取得失敗・開発テーマ0件ならテーマセクションごと出さない（タスク画面と同じ方針）
+                  else if (groups.isNotEmpty)
+                    StatefulBuilder(
+                      builder: (context, setSheetState) {
+                        selectedCategory ??= (id: _categoryIdOfThemes(groups, filter.themeIds) ?? groups.first.categoryId);
+                        final current = selectedCategory!.id;
+                        return ExecThemeFilterSection(
+                          groups: groups,
+                          selectedGroup: groups.firstWhere((g) => g.categoryId == current, orElse: () => groups.first),
+                          selectedThemeIds: filter.themeIds,
+                          onCategorySelected: (group) => setSheetState(() => selectedCategory = (id: group.categoryId)),
+                          onThemeToggled: (id) =>
+                              update((f) => id == null ? f.copyWith(themeIds: const {}) : f.toggleTheme(id)),
+                        );
+                      },
+                    ),
+                  Text('状態', style: titleStyle),
+                  Text(
+                    '実行中のリストだけに効きます',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
-                Text('状態', style: titleStyle),
-                Text(
-                  '実行中のリストだけに効きます',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final e in execStatusLabels.entries)
-                      FilterChip(
-                        key: ValueKey('exec-sheet-status-${e.key.name}'),
-                        label: Text(e.value),
-                        selected: filter.status == e.key,
-                        onSelected: (_) => apply(context, (f) => f.copyWith(status: e.key)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('並び順', style: titleStyle),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final e in execSortLabels.entries)
-                      FilterChip(
-                        key: ValueKey('exec-sheet-sort-${e.key.name}'),
-                        label: Text(e.value),
-                        selected: filter.sort == e.key,
-                        onSelected: (_) => apply(context, (f) => f.copyWith(sort: e.key)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // テーマは選んでも閉じないので、閉じる操作をはっきり置く
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    key: const ValueKey('exec-sheet-done'),
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('完了'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final e in execStatusLabels.entries)
+                        FilterChip(
+                          key: ValueKey('exec-sheet-status-${e.key.name}'),
+                          label: Text(e.value),
+                          selected: filter.status == e.key,
+                          onSelected: (_) => apply(context, (f) => f.copyWith(status: e.key)),
+                        ),
+                    ],
                   ),
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: 16),
+                  Text('並び順', style: titleStyle),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final e in execSortLabels.entries)
+                        FilterChip(
+                          key: ValueKey('exec-sheet-sort-${e.key.name}'),
+                          label: Text(e.value),
+                          selected: filter.sort == e.key,
+                          onSelected: (_) => apply(context, (f) => f.copyWith(sort: e.key)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // テーマは選んでも閉じないので、閉じる操作をはっきり置く
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const ValueKey('exec-sheet-done'),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('完了'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       );
     },
