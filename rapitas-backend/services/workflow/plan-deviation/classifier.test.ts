@@ -162,3 +162,43 @@ describe('classifyOperations — what is never a deviation', () => {
     expect(opCategories(r)).toEqual(['in_plan']);
   });
 });
+
+// Audit 2026-11-17, after the parser fix: older recordings still carried
+// names cut from python heredoc bodies (`tests`, `assert`, `n').write(s`), so
+// command names are read again from the recorded command line.
+describe('classifyOperations — command names read from the recorded command', () => {
+  const bash = (display: string, stored: string[]): OperationRecord => ({
+    ...op('command', { commandNames: stored }),
+    displayMasked: `Bash: ${display}`,
+  });
+
+  test('names stored from a heredoc body are not judged', () => {
+    const r = classifyOperations(
+      decl({ files: ['src/**'], commands: ['python'] }),
+      [
+        bash("python - <<'EOF'\nimport re\nassert tests\nEOF", [
+          'python',
+          'import',
+          'assert',
+          'tests',
+        ]),
+      ],
+      true,
+    );
+    expect(opCategories(r)).toEqual(['in_plan']);
+  });
+
+  // The workflow tells every agent to save its files through curl to the
+  // local API; that is the system's own channel, not the plan's work.
+  test('curl to the local backend is in plan; curl elsewhere is not', () => {
+    const r = classifyOperations(
+      decl({ files: ['src/**'], commands: ['bun'] }),
+      [
+        bash('curl -s -X PUT http://127.0.0.1:3001/workflow/tasks/5/files/verify', ['curl']),
+        bash('curl -s https://example.com/x', ['curl']),
+      ],
+      true,
+    );
+    expect(opCategories(r)).toEqual(['in_plan', 'out_of_plan']);
+  });
+});

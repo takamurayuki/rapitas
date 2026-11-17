@@ -17,7 +17,34 @@ const FILE_TOOLS: Record<string, string> = {
 };
 
 /** Shell separators that start a new command: `&&`, `||`, `;`, `|`, `&`, newline. */
-const SEPARATOR_RE = /&&|\|\||[;|&\n]/;
+const SEPARATOR_CHARS = new Set([';', '|', '&', '\n']);
+
+/**
+ * Split a script on command separators that are outside quotes: the `|` in
+ * `grep -E "tests|fail"` is part of an argument, and splitting there read
+ * `fail` as a command (audit 2026-11-17).
+ */
+function splitOutsideQuotes(script: string): string[] {
+  const parts: string[] = [];
+  let quote: string | null = null;
+  let current = '';
+  for (const ch of script) {
+    if (quote) {
+      if (ch === quote) quote = null;
+      current += ch;
+    } else if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      current += ch;
+    } else if (SEPARATOR_CHARS.has(ch)) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
 
 /** Redirections such as `2>&1`, `>&2`, `&>out`, `>out.log` — not commands. */
 const REDIRECT_RE = /\d*>>?&\d+|&>>?\S*|\d*[<>]>?\s*[^\s;|&]+/g;
@@ -114,7 +141,7 @@ export interface ExtractedOperation {
  */
 export function splitCommandNames(command: string): string[] {
   const names: string[] = [];
-  for (const segment of normalizeScript(command).split(SEPARATOR_RE)) {
+  for (const segment of splitOutsideQuotes(normalizeScript(command))) {
     const tokens = segment
       .trim()
       .replace(/^[({]+\s*/, '')
