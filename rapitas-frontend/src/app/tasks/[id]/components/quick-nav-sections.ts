@@ -51,7 +51,9 @@ export function buildQuickNavSections({
     // Conditional, unlike the chat it replaces: `td-execution` is only
     // rendered when the panel is shown and the theme has a working directory,
     // and a chip that jumps nowhere is worse than no chip.
-    ...(showExecutionSection ? [{ id: 'td-execution', label: labels.execution, icon: Rocket }] : []),
+    ...(showExecutionSection
+      ? [{ id: 'td-execution', label: labels.execution, icon: Rocket }]
+      : []),
 
     ...(isDevelopmentTheme ? [{ id: 'td-workflow', label: labels.workflow, icon: GitBranch }] : []),
 
