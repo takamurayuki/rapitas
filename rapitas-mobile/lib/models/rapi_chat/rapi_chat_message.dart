@@ -142,6 +142,7 @@ class RapiMessage {
   });
 
   RapiMessage _copy({
+    int? id,
     RapiChangeCard? change,
     RapiRoadmapCard? roadmap,
     RapiConsultPicker? consultPicker,
@@ -152,7 +153,7 @@ class RapiMessage {
     Object? readAs = _unset,
   }) =>
       RapiMessage(
-        id: id,
+        id: id ?? this.id,
         role: role,
         text: text,
         answer: answer,
@@ -176,29 +177,8 @@ class RapiMessage {
       );
 
   /// 同じ中身で端末内の id だけを [newId] にした行（読み込んだ記録に新しい id を振るとき）
-  RapiMessage withId(int newId) => RapiMessage(
-        id: newId,
-        role: role,
-        text: text,
-        answer: answer,
-        draftSlot: draftSlot,
-        change: change,
-        roadmap: roadmap,
-        consultPicker: consultPicker,
-        tidy: tidy,
-        companion: companion,
-        criteria: criteria,
-        consultTaskId: consultTaskId,
-        taskId: taskId,
-        inHistory: inHistory,
-        externalDraftId: externalDraftId,
-        clientId: clientId,
-        archived: archived,
-        savedAt: savedAt,
-        unsupported: unsupported,
-        localOnly: localOnly,
-        readAs: readAs,
-      );
+  // NOTE: 項目を並べ直した複製をやめ、_copy に寄せた（項目の足し忘れを防ぐ。中身は同じ）
+  RapiMessage withId(int newId) => _copy(id: newId);
 
   RapiMessage withoutHistory() => _copy(inHistory: false);
 
