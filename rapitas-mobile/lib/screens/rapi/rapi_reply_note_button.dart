@@ -22,6 +22,14 @@ const String rapiNoteFailedMessage = 'ノートに保存できませんでした
 const Color _muted = Color(0xFF6B7280);
 const Color _savedColor = Color(0xFF059669);
 
+/// 返答ごとの保存の状態を、呼んだ画面が開いている間保持する。ラピの画面の build から毎回呼ぶ。
+///
+/// NOTE: ボタンだけが購読元だと、一覧のスクロールで全ボタンが作り直し範囲の外に出たときに
+/// autoDispose で状態が消え、戻ると「保存済み」が消えて再保存できてしまう（nav66 レビュー P2）。
+///
+/// @param ref - ラピの画面の ref
+void keepRapiReplyNotes(WidgetRef ref) => ref.listen(rapiReplyNoteProvider, (_, __) {});
+
 /// 返答 [m] のカードに付ける「ノートに保存」。挨拶（端末だけの行）と空の返答には付けない。
 ///
 /// @param chat - 会話の状態（直前の質問を探す）

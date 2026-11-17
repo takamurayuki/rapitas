@@ -405,6 +405,7 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
     final spaces = ref.watch(rapiChatSpacesProvider);
     ref.listen(rapiChatProvider, _onChatChanged);
     ref.listen(companionDigestProvider, _onDigestChanged);
+    keepRapiReplyNotes(ref); // ノートの保存済みを、スクロールで行が破棄されても画面の間は保つ
     // 上に別の画面が積まれたら聞き取りを止める（build 中は setState できないので次のフレームで）
     if (_voiceActive && !(ModalRoute.of(context)?.isCurrent ?? true)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _cancelVoice());
@@ -434,7 +435,6 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
       if (chat.messages.isEmpty && digestCard != null) digestCard,
       if (chat.sending) const RapiThinkingRow(gap: _messageGap),
     ];
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(

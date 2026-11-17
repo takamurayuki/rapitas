@@ -36,6 +36,10 @@ class _Assistant implements AssistantService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+// 画面より十分高いユーザーの発言（ボタンの無い行）。その中ほどまでスクロールすると、
+// 前後どちらの返答の行も作り直し範囲（cacheExtent）の外に出て、ボタンがすべて破棄される
+final _longQuestion = [for (var i = 1; i <= 200; i++) '長い質問の$i行目'].join('\n');
+
 final _tasks = [
   Task(
     id: '7',
@@ -133,5 +137,31 @@ void main() {
     expect(find.text(rapiNoteSavedMessage), findsNothing);
     expect(find.text('保存済み'), findsNothing);
     expect(find.text('ノートに保存'), findsOneWidget);
+  });
+
+  testWidgets('保存済みはスクロールで全ボタンが画面外に出て戻っても消えず、再送しない', (tester) async {
+    await pumpScreen(tester);
+    await send(tester, 'ログはどこを見ればいい？');
+    await tapSave(tester);
+    expect(notes.calls, hasLength(1));
+    // スナックバーを消してから続ける（表示中の部品が残らないように）
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+
+    await send(tester, _longQuestion);
+    // 長い発言の中ほどまで戻す：最初の返答のボタンも、次の返答のボタンも作られていない状態にする
+    final position = tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    position.jumpTo(position.maxScrollExtent / 2);
+    await tester.pumpAndSettle();
+    expect(find.text('保存済み', skipOffstage: false), findsNothing);
+    expect(find.text('ノートに保存', skipOffstage: false), findsNothing);
+
+    position.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(find.text('ノートに保存'), findsNothing);
+    expect(find.text('保存済み'), findsOneWidget);
+    await tester.tap(find.text('保存済み'));
+    await tester.pumpAndSettle();
+    expect(notes.calls, hasLength(1));
   });
 }
