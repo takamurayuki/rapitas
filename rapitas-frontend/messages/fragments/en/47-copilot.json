@@ -115,6 +115,15 @@
       "jumpToLatest": "Jump to the latest message",
       "received": "Rapi received this",
       "thinking": "Rapi is thinking"
+    },
+    "saveToNote": {
+      "save": "Save to note",
+      "saving": "Saving…",
+      "saved": "Saved to note",
+      "savedToast": "Saved to a note",
+      "savedLinkFailed": "Saved to a note (linking it to the task failed)",
+      "failed": "Could not save to a note",
+      "open": "Open"
     }
   }
 }

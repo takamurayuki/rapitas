@@ -15,16 +15,23 @@ import type { AnalysisData } from './copilot-chat-types';
 import { MarkdownView } from '../markdown/MarkdownView';
 import { ReceivedStamp } from '@/components/ui/chat';
 import { AnalysisResultCard, TierBadge } from './CopilotChatComponents';
+import { SaveToNoteButton } from './SaveToNoteButton';
 
 /**
  * Single chat message bubble with optional action buttons.
+ *
+ * @param msg - the line to show / 表示する発言
+ * @param onAction - runs one of the reply's action buttons / 返答の操作ボタンの実行
+ * @param saveNote - when set, a text reply offers "ノートに保存" with this question and task / 指定時は文章の返答に「ノートに保存」を出す
  */
 export function MessageBubble({
   msg,
   onAction,
+  saveNote,
 }: {
   msg: CopilotMessage;
   onAction?: (action: string, params?: Record<string, unknown>) => void;
+  saveNote?: { question: string | null; taskId?: number };
 }) {
   const tc = useTranslations('copilot.chatFeel');
   const isUser = msg.role === 'user';
@@ -46,6 +53,9 @@ export function MessageBubble({
   }
 
   const isAnalysis = msg.actionData?.type === 'analyze' && msg.actionData.data;
+  // Only ラピ's text replies; structured results (the analysis card) are not notes.
+  // `content` can be missing on an action result, so it is not trusted to be a string.
+  const showSave = !!saveNote && !isUser && !isAnalysis && (msg.content ?? '').trim() !== '';
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -66,9 +76,9 @@ export function MessageBubble({
         {isUser && !msg.failed && <ReceivedStamp label={tc('received')} />}
         {!isUser && !isAnalysis && (
           <div className="mt-2 flex items-center justify-between">
-            {msg.actions && msg.actions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {msg.actions.map((action, i) => (
+            {((msg.actions && msg.actions.length > 0) || showSave) && (
+              <div className="flex flex-wrap items-center gap-1">
+                {msg.actions?.map((action, i) => (
                   <button
                     key={i}
                     onClick={() => onAction?.(action.type, action.params)}
@@ -78,6 +88,13 @@ export function MessageBubble({
                     {action.label}
                   </button>
                 ))}
+                {showSave && (
+                  <SaveToNoteButton
+                    question={saveNote.question}
+                    answer={msg.content}
+                    taskId={saveNote.taskId}
+                  />
+                )}
               </div>
             )}
             <TierBadge tier={msg.tier} cached={msg.cached} model={msg.model} />

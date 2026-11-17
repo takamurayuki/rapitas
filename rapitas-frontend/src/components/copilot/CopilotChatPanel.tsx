@@ -12,6 +12,7 @@ import { Bot, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { ProactiveInsight } from './CopilotChatComponents';
 import { MessageBubble } from './MessageBubble';
+import { questionBefore } from './copilot-note';
 import { type CopilotChatPanelProps } from './copilot-chat-types';
 import { getNextActions, type RecommendedAction } from './next-action-recommender';
 import { NextActionRecommendations } from './NextActionRecommendations';
@@ -201,7 +202,12 @@ export function CopilotChatPanel({
             </div>
           )}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} onAction={handleAction} />
+            <MessageBubble
+              key={msg.id}
+              msg={msg}
+              onAction={handleAction}
+              saveNote={{ question: questionBefore(messages, msg.id), taskId }}
+            />
           ))}
           {awaitingReply && (
             <div className="mb-3">
