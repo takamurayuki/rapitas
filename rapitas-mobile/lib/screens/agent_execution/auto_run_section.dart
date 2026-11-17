@@ -10,12 +10,12 @@ import '../../services/theme_auto_run_service.dart';
 import '../../widgets/color_dot.dart';
 import 'section_title.dart';
 
-/// 実行画面上部の「自動実行」セクション。開発テーマごとに、テーマ自動実行の状態と
+/// 実行画面上部の「自動実行」セクション。開発テーマごとに自動実行の状態と
 /// 開始・一時停止・停止の操作を出す（GET/POST /themes/:id/auto-run）。
 class AutoRunSection extends ConsumerWidget {
   const AutoRunSection({super.key});
 
-  /// 引っ張って更新したときに読み直すもの（テーマ一覧と各テーマの自動実行の状態）
+  /// 引っ張って更新で読み直すもの（テーマ一覧と各テーマの自動実行状態）
   static void invalidate(ProviderContainer container) {
     container.invalidate(themeListProvider);
     container.invalidate(themeAutoRunProvider);
@@ -84,7 +84,7 @@ class _MessageCard extends StatelessWidget {
   }
 }
 
-/// 1テーマ分のカード。操作の失敗理由（400 の error など）はカード内に残して見せる
+/// 1テーマ分のカード。操作の失敗理由（400 の error など）はカード内に残す
 class _AutoRunThemeCard extends ConsumerStatefulWidget {
   final TaskTheme theme;
 
@@ -134,14 +134,11 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
             ),
             const SizedBox(height: 4),
             ...snapshotAsync.when(
-              loading: () => const [LinearProgressIndicator(value: null, minHeight: 2)],
+              loading: () => const [LinearProgressIndicator(minHeight: 2)],
               error: (e, _) => [
                 Row(children: [
                   Expanded(child: Text('自動実行の状態を取得できませんでした: $e', style: textTheme.bodySmall)),
-                  TextButton(
-                    onPressed: () => ref.invalidate(themeAutoRunProvider(_theme.id)),
-                    child: const Text('再試行'),
-                  ),
+                  TextButton(onPressed: () => ref.invalidate(themeAutoRunProvider(_theme.id)), child: const Text('再試行')),
                 ]),
               ],
               data: (s) => _details(context, s),
@@ -247,8 +244,7 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
         label: const Text('自動実行を開始'),
         onPressed: _busy || !_hasFolder ? null : _start,
       ));
-    }
-    if (state.isPaused) {
+    } else if (state.isPaused) {
       buttons.add(FilledButton.tonalIcon(
         key: ValueKey('auto-run-resume-${_theme.id}'),
         icon: const Icon(Icons.play_arrow),
@@ -258,7 +254,7 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
     }
     if (buttons.isEmpty) return const SizedBox(height: 4);
     return Container(
-      width: double.infinity, // NOTE: 開始・再開を常に右端に置く（一時停止・停止はその左）。Wrap は子の幅に縮むので広げないと左に寄る
+      width: double.infinity, // NOTE: 全幅でないと開始系が右に寄らない
       padding: const EdgeInsets.only(top: 4),
       child: Wrap(alignment: WrapAlignment.end, spacing: 8, children: buttons),
     );
@@ -292,7 +288,7 @@ class _AutoRunThemeCardState extends ConsumerState<_AutoRunThemeCard> {
     await _run(() => _service.stop(_theme.id), '「${_theme.name}」の自動実行を停止しました');
   }
 
-  /// 操作して読み直す。await 中に画面が破棄されても読み直せるよう container は先に控える
+  /// 操作して読み直す。await 中に破棄されても読み直せるよう container を先に控える
   Future<void> _run(Future<void> Function() action, String successText) async {
     final container = ProviderScope.containerOf(context, listen: false);
     final messenger = ScaffoldMessenger.maybeOf(context);
