@@ -19,6 +19,7 @@ import '../../widgets/voice_dismissible.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/voice_mode_indicator.dart';
 import 'task_filter_sheet.dart';
+import 'task_inline_search.dart';
 
 class TaskListScreen extends ConsumerStatefulWidget {
   const TaskListScreen({super.key});
@@ -30,13 +31,10 @@ class TaskListScreen extends ConsumerStatefulWidget {
 class _TaskListScreenState extends ConsumerState<TaskListScreen> {
   static const Duration _searchDebounceDuration = Duration(milliseconds: 300);
 
+  // NOTE: nav71 で検索モード（検索アイコン → AppBar の差し替え・PopScope の戻る処理）を廃止し、一覧上部の
+  // 常時表示の検索欄にした。「検索中」は検索語の有無で決まる（_hasQuery）。
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
-  bool _searchMode = false;
-
-  /// 声で検索を開いたか。声で開いたときは検索欄に自動でフォーカスしない
-  /// （フォーカスやキーボードが出ると常時聞き取りが止まり、続けて「2番目を開いて」と言えなくなる）
-  bool _searchByVoice = false;
 
   /// 古い検索の結果で新しい結果を上書きしないための通し番号
   int _searchSeq = 0;
@@ -70,12 +68,16 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     super.dispose();
   }
 
+  /// 検索語があるか。ある間は一覧の場所に検索結果を出す
+  bool get _hasQuery => _searchController.text.trim().isNotEmpty;
+
   List<Task>? _visibleTasks() {
-    if (_searchMode) return _searchResults?.valueOrNull ?? const [];
+    if (_hasQuery) return _searchResults?.valueOrNull ?? const [];
     return ref.read(taskListProvider(ref.read(taskFilterProvider))).valueOrNull;
   }
 
-  /// 音声コマンドの「検索 ◯◯」：検索を開いて語句を入れ、すぐ検索する
+  /// 音声コマンドの「検索 ◯◯」：検索欄に語句を入れ、すぐ検索する。
+  /// フォーカスは当てない（フォーカスやキーボードが出ると常時聞き取りが止まり、続けて「2番目を開いて」と言えなくなる）
   void _takeVoiceSearch() {
     if (!mounted) return;
     final query = ref.read(voiceTaskSearchRequestProvider);
@@ -85,26 +87,15 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       text: query,
       selection: TextSelection.collapsed(offset: query.length),
     );
-    setState(() {
-      _searchMode = true;
-      _searchByVoice = true;
-    });
     _searchNow(query);
   }
 
-  void _openSearch() {
-    setState(() {
-      _searchMode = true;
-      _searchByVoice = false;
-    });
-  }
-
-  void _closeSearch() {
+  /// 検索語を消して通常の絞り込み一覧に戻す（クリアの×、検索中の音声「閉じる」「戻る」）
+  void _clearSearch() {
     _searchDebounce?.cancel();
     _searchController.clear();
     setState(() {
       _searchSeq++;
-      _searchMode = false;
       _searchResults = null;
     });
   }
@@ -123,27 +114,22 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
     _searchDebounce = Timer(_searchDebounceDuration, () => _runSearch(query, seq));
   }
 
-  /// 新しい番号を取って即座に検索する（送信・再試行・詳細から戻ったとき）
-  void _searchNow(String query) {
+  /// 新しい番号を取って即座に検索する（送信・再試行・詳細や作成から戻ったとき）
+  Future<void> _searchNow(String query) {
     _searchDebounce?.cancel();
-    _runSearch(query, ++_searchSeq);
+    return _runSearch(query, ++_searchSeq);
   }
 
-  /// 詳細画面を開き、戻ったら現在のクエリで検索し直す（編集・削除を結果に反映するため）
-  Future<void> _openTaskFromSearch(String taskId) async {
-    await context.push('/tasks/$taskId');
-    if (!mounted || !_searchMode) return;
+  /// 検索語があれば現在の語句で検索し直す（再試行・引っ張って更新・音声の「更新」「再試行」）
+  Future<void> _researchIfQuery() async {
     final query = _searchController.text.trim();
-    if (query.isNotEmpty) _searchNow(query);
+    if (query.isNotEmpty) await _searchNow(query);
   }
 
-  /// 検索中の音声「更新」「再試行」の処理。検索語が空のときは null（この画面では更新できない）
-  Future<void> Function()? _voiceRefreshSearch() {
-    if (_searchController.text.trim().isEmpty) return null;
-    return () async {
-      final query = _searchController.text.trim();
-      if (query.isNotEmpty) _searchNow(query);
-    };
+  /// 画面を開き、戻ったら検索語があれば検索し直す（編集・削除・作成を結果に反映するため）
+  Future<void> _pushThenResearch(String location) async {
+    await context.push(location);
+    if (mounted) await _researchIfQuery();
   }
 
   Future<void> _runSearch(String query, int seq) async {
@@ -179,36 +165,46 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       if (next != null) _takeVoiceSearch();
     });
 
-    return PopScope(
-      canPop: !_searchMode,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _searchMode) _closeSearch();
-      },
-      child: Scaffold(
-        appBar: _searchMode ? _buildSearchAppBar() : _buildAppBar(isFiltered),
-        // 検索モード中は AppBar の「検索を閉じる」ボタンを優先し、ドロワーは出さない
-        // （端スワイプで開いてしまうのも防ぐ）
-        drawer: _searchMode ? null : const AppDrawer(),
-        body: VoiceScrollTarget(
-          path: AppRoutes.tasks,
-          // NOTE: 検索の本文には「引っ張って更新」が無いので、検索中の音声「更新」「再試行」は
-          // ここで現在の検索語の再検索（再試行ボタンと同じ）に向ける。検索語が空なら更新するものは無い。
-          onRefresh: _searchMode ? _voiceRefreshSearch() : null,
-          child: _searchMode
-              // 検索中は音声の「閉じる」「戻る」で検索を閉じる（タブの画面なので「戻る」の pop は効かない）
-              ? VoiceDismissible(onDismiss: _closeSearch, child: _buildSearchBody())
-              : _buildListBody(filter, isFiltered),
+    final hasQuery = _hasQuery;
+    final content = hasQuery
+        ? TaskSearchResults(
+            results: _searchResults,
+            onOpen: (task) => _pushThenResearch('/tasks/${task.id}'),
+            onRefresh: _researchIfQuery,
+          )
+        : _buildListBody(filter, isFiltered);
+    return Scaffold(
+      appBar: _buildAppBar(isFiltered),
+      drawer: const AppDrawer(),
+      body: VoiceScrollTarget(
+        path: AppRoutes.tasks,
+        // 検索語がある間の音声「更新」「再試行」は現在の語句での再検索（再試行ボタンと同じ）。
+        // 無い間は下の「引っ張って更新」（通常の一覧の更新）に任せる
+        onRefresh: hasQuery ? _researchIfQuery : null,
+        child: Column(
+          children: [
+            TaskSearchField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              onSubmitted: (value) {
+                final query = value.trim();
+                if (query.isNotEmpty) _searchNow(query);
+              },
+              onClear: _clearSearch,
+            ),
+            Expanded(
+              // 検索語がある間は音声の「閉じる」「戻る」で検索語を消す（検索モードを閉じていた感覚に合わせる）
+              child: hasQuery ? VoiceDismissible(onDismiss: _clearSearch, child: content) : content,
+            ),
+          ],
         ),
-        // 検索中に作成しても検索結果は再取得されず新規タスクが反映されないため、
-        // 検索モード中は作成用FABを出さない。
-        // NOTE: 音声操作は設定の音声操作モード（常時聞き取り）から。聞き取り表示はタイトルバーのアイコンの左隣
-        floatingActionButton: _searchMode
-            ? null
-            : FloatingActionButton(
-                heroTag: 'add_task',
-                onPressed: () => context.push(AppRoutes.taskNew),
-                child: const Icon(Icons.add),
-              ),
+      ),
+      // NOTE: 作成FABは常に出す（検索モード時代は検索中だけ隠していた）。作成から戻ったら検索語があれば検索し直す。
+      // 音声操作は設定の音声操作モード（常時聞き取り）から。聞き取り表示はタイトルバーのアイコンの左隣
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'add_task',
+        onPressed: () => _pushThenResearch(AppRoutes.taskNew),
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -219,11 +215,6 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
       actions: [
         const VoiceModeIndicator(trailing: false),
         IconButton(
-          icon: const Icon(Icons.search),
-          tooltip: '検索',
-          onPressed: _openSearch,
-        ),
-        IconButton(
           icon: Badge(
             isLabelVisible: isFiltered,
             child: const Icon(Icons.filter_list),
@@ -232,89 +223,6 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
           onPressed: () => showTaskFilterSheet(context, ref),
         ),
       ],
-    );
-  }
-
-  PreferredSizeWidget _buildSearchAppBar() {
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        tooltip: '検索を閉じる',
-        onPressed: _closeSearch,
-      ),
-      title: TextField(
-        controller: _searchController,
-        autofocus: !_searchByVoice,
-        textInputAction: TextInputAction.search,
-        decoration: const InputDecoration(
-          hintText: 'タスクを検索',
-          border: InputBorder.none,
-          filled: false,
-        ),
-        onChanged: _onSearchChanged,
-        onSubmitted: (value) {
-          final query = value.trim();
-          if (query.isEmpty) return;
-          _searchNow(query);
-        },
-      ),
-      actions: [
-        // 右にクリアが無いときは右端になるので、右端用の余白を取る
-        VoiceModeIndicator(trailing: _searchController.text.isEmpty),
-        if (_searchController.text.isNotEmpty)
-          IconButton(
-            icon: const Icon(Icons.clear),
-            tooltip: 'クリア',
-            onPressed: () {
-              _searchController.clear();
-              _onSearchChanged('');
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget _buildSearchBody() {
-    final results = _searchResults;
-    if (results == null) {
-      return const CenteredMessage(
-        icon: Icons.search,
-        message: 'キーワードを入力してください',
-      );
-    }
-    return results.when(
-      data: (tasks) {
-        if (tasks.isEmpty) {
-          return const CenteredMessage(
-            icon: Icons.search_off,
-            message: '見つかりませんでした',
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: tasks.length,
-          itemBuilder: (context, index) {
-            final task = tasks[index];
-            return TaskCard(
-              task: task,
-              onTap: () => _openTaskFromSearch(task.id),
-            );
-          },
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => CenteredMessage(
-        icon: Icons.error_outline,
-        iconColor: Colors.red,
-        message: '検索に失敗しました',
-        action: ElevatedButton(
-          onPressed: () {
-            final query = _searchController.text.trim();
-            if (query.isNotEmpty) _searchNow(query);
-          },
-          child: const Text('再試行'),
-        ),
-      ),
     );
   }
 
