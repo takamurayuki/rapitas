@@ -177,6 +177,39 @@ void main() {
     expect(find.byTooltip('検索を閉じる'), findsOneWidget, reason: 'クリアでは検索モードは閉じない');
   });
 
+  testWidgets('絞り込みで既に0件でも、語句があれば「キーワードに一致しない」を出す。語句が空なら通常の空表示', (tester) async {
+    await _pump(tester);
+    _container(tester).read(taskFilterProvider.notifier).state = const TaskFilter(themeId: '11', status: 'done');
+    await tester.pumpAndSettle();
+    await _openSearch(tester);
+    expect(find.text('条件に合うタスクはありません'), findsOneWidget, reason: '語句が空なら従来どおり');
+    expect(_noMatch, findsNothing);
+
+    await tester.enterText(_field, 'login');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('task-search-no-match')), findsOneWidget);
+    expect(_noMatch, findsOneWidget);
+    expect(find.text('条件に合うタスクはありません'), findsNothing);
+    expect(find.text('フィルターを解除'), findsNothing);
+
+    await tester.enterText(_field, '   ');
+    await tester.pump();
+    expect(find.text('条件に合うタスクはありません'), findsOneWidget, reason: '空白だけは語句なし扱い');
+    expect(_noMatch, findsNothing);
+  });
+
+  testWidgets('テーマだけで0件のときも、語句があれば「タスクはありません」ではなく検索の空表示', (tester) async {
+    await _pump(tester);
+    _container(tester).read(taskFilterProvider.notifier).state = const TaskFilter(themeId: '99');
+    await tester.pumpAndSettle();
+    expect(find.text('タスクはありません'), findsOneWidget);
+    await _openSearch(tester);
+    await tester.enterText(_field, 'login');
+    await tester.pump();
+    expect(_noMatch, findsOneWidget);
+    expect(find.text('タスクはありません'), findsNothing);
+  });
+
   testWidgets('閉じる矢印・システムの戻るで検索モードを閉じ、語句は消える', (tester) async {
     await _pump(tester);
     await _openSearch(tester);

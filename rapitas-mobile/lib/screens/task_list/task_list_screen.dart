@@ -196,7 +196,8 @@ class _TaskListScreenState extends ConsumerState<TaskListScreen> {
             },
             child: tasksAsync.when(
               data: (all) {
-                if (all.isEmpty) {
+                // NOTE: キーワード入力中は絞り込み前から0件でも「キーワードに一致しない」を出す（通常の空表示だと検索が効いていないように見える）
+                if (all.isEmpty && _query.trim().isEmpty) {
                   return isFiltered
                       ? CenteredMessage(
                           icon: Icons.filter_alt_off,
