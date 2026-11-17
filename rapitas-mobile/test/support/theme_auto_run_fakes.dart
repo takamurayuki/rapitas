@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rapitas_mobile/models/task.dart';
 import 'package:rapitas_mobile/models/task_execution.dart';
@@ -11,12 +13,14 @@ import 'package:rapitas_mobile/services/theme_auto_run_service.dart';
 // 実行画面の自動実行セクションのテストと確認画像で共有するダミー。
 
 /// 状態は [snapshots] から返し、操作は [calls] に `start:<id>:<order>` / `pause:<id>` / `stop:<id>` で控える。
-/// [failWith] があれば次の操作をその文面の ThemeAutoRunException で失敗させる（400 の理由の代わり）
+/// [failWith] があれば次の操作をその文面の ThemeAutoRunException で失敗させる（400 の理由の代わり）。
+/// [gate] があれば操作はその完了まで待つ（操作待機中＝カードの busy を作るため）
 class FakeThemeAutoRunService implements ThemeAutoRunService {
   final Map<String, ThemeAutoRunSnapshot> snapshots;
   final List<String> calls = [];
   final List<String> fetched = [];
   String? failWith;
+  Completer<void>? gate;
 
   FakeThemeAutoRunService(Map<String, ThemeAutoRunSnapshot> initial) : snapshots = {...initial};
 
@@ -26,7 +30,9 @@ class FakeThemeAutoRunService implements ThemeAutoRunService {
     return snapshots[themeId] ?? idleSnapshot(themeId);
   }
 
-  void _act(String call) {
+  Future<void> _act(String call) async {
+    final pending = gate;
+    if (pending != null) await pending.future;
     final failure = failWith;
     if (failure != null) {
       failWith = null;
