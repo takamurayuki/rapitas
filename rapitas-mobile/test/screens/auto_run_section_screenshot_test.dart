@@ -15,12 +15,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/config/theme.dart';
 import 'package:rapitas_mobile/models/task.dart';
+import 'package:rapitas_mobile/models/task_execution.dart';
+import 'package:rapitas_mobile/providers/execution_provider.dart';
 import 'package:rapitas_mobile/screens/agent_execution/agent_execution_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/theme_auto_run_fakes.dart';
-
-final _boundaryKey = GlobalKey();
 
 void main() {
   final dir = Platform.environment['AUTO_RUN_SCREENSHOT_DIR'];
@@ -31,6 +31,13 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
+    // 自動実行中のショットは、その現在タスクが実行中一覧にも出ている状態にする
+    final runningOverrides = [
+      executingTasksProvider.overrideWith((ref) async => const [
+            ExecutingTask(executionId: '90', sessionId: '9', taskId: '812', executionStatus: 'running'),
+          ]),
+      taskTitleLookupProvider.overrideWithValue(const {'812': '【ダミー】ログイン画面のエラー表示を直す'}),
+    ];
     final shots = <String, (FakeThemeAutoRunService, List<TaskTheme>)>{
       '1_dev_themes': (
         FakeThemeAutoRunService({
@@ -49,11 +56,16 @@ void main() {
     for (final theme in {'light': AppTheme.lightTheme, 'dark': AppTheme.darkTheme}.entries) {
       for (final shot in shots.entries) {
         SharedPreferences.setMockInitialValues({});
+        // ショットごとに新しいキーにする。共有すると MaterialApp の状態が引き継がれ、ライト→ダークのテーマ遷移の途中が写る
+        final boundaryKey = GlobalKey();
         await tester.pumpWidget(ProviderScope(
           key: UniqueKey(),
-          overrides: autoRunScreenOverrides(shot.value.$1, shot.value.$2),
+          overrides: [
+            ...autoRunScreenOverrides(shot.value.$1, shot.value.$2),
+            if (shot.key == '2_running') ...runningOverrides,
+          ],
           child: RepaintBoundary(
-            key: _boundaryKey,
+            key: boundaryKey,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: theme.value,
@@ -61,8 +73,10 @@ void main() {
             ),
           ),
         ));
-        await tester.pumpAndSettle();
-        final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(_boundaryKey));
+        // 実行中タイルのスピナーは止まらないので、一定時間だけ進めてから撮る
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
         await tester.runAsync(() async {
           final image = await boundary.toImage(pixelRatio: 1);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
