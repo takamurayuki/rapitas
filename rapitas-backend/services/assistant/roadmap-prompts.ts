@@ -18,6 +18,7 @@
  *
  * Not responsible for believing any of the answer — see `roadmap-draft.ts`.
  */
+import { NOTE_FIELD_TEXT_RULE } from '../notes/note-format-rules';
 
 /** Most steps one draft may propose. A roadmap is not a backlog dump. */
 export const MAX_ROADMAP_STEPS = 12;
@@ -79,6 +80,7 @@ const COMMON = `テーマとプロジェクトについて:
 - comparisonAxes: 複数の候補から選ぶ話のとき、何を見て比べるかの軸（例: 条件の優先順位になる項目）。0〜6個。
 - **候補そのものの事実は書かない。** 会社名・年収・評判・価格・スペックなど、調べなければ分からないことを書くと嘘になる。軸だけ出し、中身はユーザーが埋める。
 - 選ぶ話でなければ comparisonAxes は空配列にする。
+${NOTE_FIELD_TEXT_RULE}
 
 守ること:
 1. 出力は JSON オブジェクトのみ。前後に説明文を付けない。`;

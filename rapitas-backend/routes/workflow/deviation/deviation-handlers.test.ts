@@ -211,3 +211,79 @@ describe('recordApprovalDeviationAudit', () => {
     expect(r).toEqual({ saved: false, error: 'EROFS' });
   });
 });
+
+// Audit 2026-11-17: 42 of 42 judged tasks came out deviating. The newest run
+// with operations was the verifier (1349, 1357), and the plan read was the
+// current one even when a later replan had replaced the version the
+// implementer worked to (1410).
+describe('which runs and which plan the timeline judges', () => {
+  const declare = (files: string[]) =>
+    '```json:plan-declaration\n' +
+    JSON.stringify({ version: 1, files, commands: [], externalHosts: [] }) +
+    '\n```';
+  const write = (seq: number, path: string, at: string): OperationRecord => ({
+    seq,
+    occurredAt: at,
+    kind: 'file_change',
+    tool: 'Write',
+    features: { path },
+    displayMasked: path,
+    logSequence: seq,
+  });
+  const exec = (id: number, startedAt: string): ExecutionInfo => ({
+    id,
+    status: 'completed',
+    agentType: null,
+    worktreePath: null,
+    startedAt: new Date(startedAt),
+  });
+
+  test('a verifier run that only wrote scratch files does not hide the implementer (1349)', async () => {
+    const ops: Record<number, OperationRecord[]> = {
+      7: [write(1, '.wf-t1349-verify-r3.md', '2026-11-01T02:00:00.000Z')],
+      6: [
+        write(1, 'src/a.ts', '2026-11-01T01:00:00.000Z'),
+        write(2, 'src/b.ts', '2026-11-01T01:00:01.000Z'),
+      ],
+    };
+    const { deps } = makeDeps({
+      readPlan: async () => declare(['src/**']),
+      findExecutions: async () => [
+        exec(7, '2026-11-01T02:00:00.000Z'),
+        exec(6, '2026-11-01T01:00:00.000Z'),
+      ],
+      readOperations: (id) => ({ operations: ops[id] ?? [], warnings: [] }),
+    });
+    const r = await handleGetDeviationTimeline(
+      { params: { taskId: '5' }, query: {}, set: set() },
+      deps,
+    );
+    if (!('entries' in r)) throw new Error('unexpected');
+    expect(r.counts).toEqual({ inPlan: 3, outOfPlan: 0, plannedNotExecuted: 0 });
+    expect(r.entries.find((e) => e.display === 'src/a.ts')?.executionId).toBe(6);
+  });
+
+  test('runs are judged against the plan version in force when they started (1410)', async () => {
+    const { deps } = makeDeps({
+      readPlan: async () => declare(['docs/**']),
+      readPlanVersions: async () => [
+        {
+          content: declare(['packages/core/src/drill/**']),
+          validUntil: new Date('2026-11-01T09:08:00.000Z'),
+        },
+        { content: declare(['docs/**']), validUntil: null },
+      ],
+      findExecutions: async () => [exec(12, '2026-11-01T08:25:00.000Z')],
+      readOperations: () => ({
+        operations: [write(1, 'packages/core/src/drill/x.ts', '2026-11-01T08:30:00.000Z')],
+        warnings: [],
+      }),
+    });
+    const r = await handleGetDeviationTimeline(
+      { params: { taskId: '5' }, query: {}, set: set() },
+      deps,
+    );
+    if (!('entries' in r)) throw new Error('unexpected');
+    expect(r.counts).toEqual({ inPlan: 1, outOfPlan: 0, plannedNotExecuted: 0 });
+  });
+});

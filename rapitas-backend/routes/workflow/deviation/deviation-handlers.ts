@@ -20,9 +20,10 @@ import {
   type DeviationDeps,
   type ExecutionInfo,
 } from './deviation-deps';
+import { selectRunsForTimeline } from './deviation-run-selection';
 
 export { createDefaultDeviationDeps } from './deviation-deps';
-export type { DeviationDeps, ExecutionInfo } from './deviation-deps';
+export type { DeviationDeps, ExecutionInfo, PlanVersion } from './deviation-deps';
 
 const log = createLogger('routes:workflow:deviation');
 
@@ -53,44 +54,34 @@ function toCount(raw: string | undefined): number | undefined {
 
 /**
  * Load and build the timeline for a task. Without an explicit executionId the
- * newest execution that has recorded operations is used (the implementer run,
- * not a later verifier run that changed nothing), falling back to the newest.
+ * runs that worked to the same plan version are judged together, against that
+ * version (deviation-run-selection.ts). With one, that run is judged against
+ * the plan in force when it started.
  *
  * @param taskId - Task ID / タスクID
  * @param executionId - Specific execution, optional / 対象実行ID（任意）
  * @param deps - Data access / 依存
- * @returns Timeline plus the execution it was built from / タイムラインと対象実行ID
+ * @returns Timeline plus the newest execution it was built from / タイムラインと対象実行ID
  */
 export async function loadTaskDeviationTimeline(
   taskId: number,
   executionId: number | undefined,
   deps: DeviationDeps,
 ): Promise<DeviationTimeline & { executionId: number | null }> {
-  const [planContent, executions] = await Promise.all([
-    deps.readPlan(taskId),
-    deps.findExecutions(taskId, executionId),
-  ]);
-  let chosen: ExecutionInfo | null = executions[0] ?? null;
-  let stored = chosen ? deps.readOperations(chosen.id) : { operations: [], warnings: [] };
-  if (executionId === undefined && stored.operations.length === 0) {
-    for (const e of executions.slice(1)) {
-      const candidate = deps.readOperations(e.id);
-      if (candidate.operations.length > 0) {
-        chosen = e;
-        stored = candidate;
-        break;
-      }
-    }
-  }
+  const executions: ExecutionInfo[] = await deps.findExecutions(taskId, executionId);
+  const selection = await selectRunsForTimeline(taskId, executions, deps);
+  const newest = selection.executions[0] ?? null;
   const timeline = buildDeviationTimeline({
-    planContent,
-    operations: stored.operations,
-    operationWarnings: stored.warnings,
-    executionTerminal: chosen ? TERMINAL_EXECUTION_STATUSES.has(chosen.status) : false,
-    workDir: chosen?.worktreePath ?? null,
-    agentType: chosen?.agentType ?? null,
+    planContent: selection.planContent,
+    operations: selection.operations,
+    operationWarnings: selection.warnings,
+    executionTerminal:
+      selection.executions.length > 0 &&
+      selection.executions.every((e) => TERMINAL_EXECUTION_STATUSES.has(e.status)),
+    workDir: newest?.worktreePath ?? null,
+    agentType: newest?.agentType ?? null,
   });
-  return { ...timeline, executionId: chosen?.id ?? null };
+  return { ...timeline, executionId: newest?.id ?? null };
 }
 
 /**

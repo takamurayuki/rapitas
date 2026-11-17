@@ -16,7 +16,6 @@ import {
   dedupeConsecutiveEntries,
   isNarrativeProse,
   stripMarkdownDecorations,
-  type MarkdownBlockToken,
 } from './log-display-utils';
 
 // Narrative preview cap — roughly three wrapped lines in the viewer; the full
@@ -195,21 +194,6 @@ export function groupAgentText(entries: UserFriendlyLogEntry[]): UserFriendlyLog
   return result;
 }
 
-/** Build the single summary entry for a collapsed markdown dump. */
-function markdownBlockEntry(token: MarkdownBlockToken, t: LogTranslate): UserFriendlyLogEntry {
-  // NOTE: en-US grouping (1,234) is used in both locales for the char count.
-  const chars = token.charCount.toLocaleString('en-US');
-  return {
-    category: 'info',
-    message: token.fileName
-      ? t('mdContentNamed', { name: token.fileName, chars })
-      : t('mdContent', { chars }),
-    detail: token.content,
-    detailFormat: 'markdown',
-    iconName: 'FileText',
-  };
-}
-
 /**
  * Convert an array of raw log strings into deduplicated user-friendly entries.
  *
@@ -228,10 +212,10 @@ export function transformLogsToSimple(
   const tokens = collapseMarkdownBlocks(splitLogsIntoLines(logs));
   const entries: UserFriendlyLogEntry[] = [];
   for (const token of tokens) {
-    if (typeof token !== 'string') {
-      entries.push(markdownBlockEntry(token, t));
-      continue;
-    }
+    // NOTE: A markdown dump (research.md / plan.md / verify.md being written)
+    // is read in the workflow view, so the log leaves it out (2026-11-17). It is
+    // still collapsed above, or its lines would show one by one as raw text.
+    if (typeof token !== 'string') continue;
     const entry = transformLogToUserFriendly(token, t);
     if (entry.category !== 'hidden') entries.push(entry);
   }

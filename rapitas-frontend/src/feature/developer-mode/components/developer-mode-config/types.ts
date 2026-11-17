@@ -16,7 +16,7 @@ import type {
   ApiProvider,
   ApiKeyStatus,
 } from '@/types';
-import { type Bot, Terminal, Zap, Activity, Search, Play, Shield, Scale } from 'lucide-react';
+import { type Bot, Terminal, Zap, Activity, Search, Rocket, Shield, Scale } from 'lucide-react';
 
 export type TabId = 'task-analysis' | 'agent-execution';
 
@@ -51,7 +51,8 @@ export const AGENT_TYPE_INFO: Record<
 // labelKey resolved via devMode.developerModeConfigModal's `t` (e.g. t('tabs.taskAnalysis')).
 export const TABS: { id: TabId; labelKey: string; icon: typeof Search }[] = [
   { id: 'task-analysis', labelKey: 'tabs.taskAnalysis', icon: Search },
-  { id: 'agent-execution', labelKey: 'tabs.agentExecution', icon: Play },
+  // Rocket = エージェント実行 app-wide (task detail chip and execution card).
+  { id: 'agent-execution', labelKey: 'tabs.agentExecution', icon: Rocket },
 ];
 
 // labelKey/descriptionKey resolved via devMode.taskAnalysisTab's `t`.

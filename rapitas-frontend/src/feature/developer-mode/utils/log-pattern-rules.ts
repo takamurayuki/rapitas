@@ -28,11 +28,6 @@ export interface UserFriendlyLogEntry {
    */
   count?: number;
   /**
-   * How `detail` should render when expanded: 'markdown' gets the shared
-   * formatted markdown preview; absent renders as plain preformatted text.
-   */
-  detailFormat?: 'markdown';
-  /**
    * When set, the row shows a copy-to-clipboard button (right edge) that
    * copies this text (e.g. the working-directory path).
    */

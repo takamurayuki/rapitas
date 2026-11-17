@@ -12,7 +12,6 @@
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { MarkdownView } from '@/components/markdown/MarkdownView';
 import type { UserFriendlyLogEntry } from '../../utils/log-pattern-rules';
 import { getLogEntryIcon } from './log-entry-icons';
 import { getLogCategoryStyles } from './log-entry-styles';
@@ -33,21 +32,6 @@ interface SimpleLogEntryProps extends HighlightProps {
   /** Whether this is the last entry in the current log. / 現在ログの最後のエントリか */
   isLastEntry?: boolean;
 }
-
-// Compact scale for the shared MarkdownView inside the terminal-style log:
-// tight heading sizes/margins and dense list/paragraph rhythm so the preview
-// reads like a formatted panel, not a document. `!` wins over the renderer's
-// own important spacing (`.wrapper h2` outranks the element's utility class).
-const COMPACT_MD_CLASS = [
-  '[&_h1]:!text-sm [&_h1]:!mt-0 [&_h1]:!mb-2 [&_h1]:!pb-1',
-  '[&_h2]:!text-sm [&_h2]:!mt-3 [&_h2]:!mb-1.5 [&_h2]:!pb-1 [&_h2]:before:!h-3.5',
-  '[&_h3]:!text-xs [&_h3]:!mt-2.5 [&_h3]:!mb-1',
-  '[&_h4]:!text-xs [&_h4]:!mt-2 [&_h4]:!mb-1',
-  '[&_p]:!my-1.5 [&_p]:!text-xs [&_li]:!text-xs',
-  '[&_ul]:!my-1 [&_ol]:!my-1 [&_li]:!my-0.5',
-  '[&_pre]:!my-2 [&_pre]:!p-2 [&_pre]:!bg-zinc-950 [&_pre]:!text-[11px]',
-  '[&_table]:!my-2 [&_hr]:!my-3 [&_blockquote]:!my-2 [&_blockquote]:!py-1',
-].join(' ');
 
 /**
  * Renders one classified log entry. Narrative (agent-text) entries get the
@@ -116,20 +100,11 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
           <div className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-400" />
         )}
       </div>
-      {hasDetail &&
-        showDetail &&
-        (entry.detailFormat === 'markdown' ? (
-          // Formatted preview via the shared renderer. The scoped `dark` class
-          // forces the renderer's dark palette (the app's dark variant is
-          // class-based) so the preview stays terminal-native in both themes.
-          <div className="dark mx-3 mb-1.5 ml-8 max-h-96 overflow-y-auto rounded border border-zinc-700/60 bg-zinc-900 p-3">
-            <MarkdownView content={entry.detail!} className={COMPACT_MD_CLASS} />
-          </div>
-        ) : (
-          <pre className="mx-3 mb-1.5 ml-8 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded bg-zinc-950/60 p-2 text-xs text-zinc-400">
-            {hl(entry.detail!, hp)}
-          </pre>
-        ))}
+      {hasDetail && showDetail && (
+        <pre className="mx-3 mb-1.5 ml-8 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded bg-zinc-950/60 p-2 text-xs text-zinc-400">
+          {hl(entry.detail!, hp)}
+        </pre>
+      )}
     </div>
   );
 };

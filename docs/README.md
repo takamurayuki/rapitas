@@ -38,6 +38,7 @@ the code is right — fix the document.
 | [design/ui-design-language.md](design/ui-design-language.md) | UI aesthetic rules |
 | [design/dev-schema-sync.md](design/dev-schema-sync.md) | Provider-aware dev schema sync |
 | [design/global-error-reporter-filter.md](design/global-error-reporter-filter.md) | Benign-error filter for the global error reporter |
+| [design/note-markdown-format.md](design/note-markdown-format.md) | Note body Markdown range shared by PC and phone, and the prompts that use it |
 | [research/autonomous-os-improvement-roadmap.md](research/autonomous-os-improvement-roadmap.md) | Research-based improvement proposals (2026-07) |
 
 ## Generated

@@ -5641,8 +5641,6 @@
       "pushCompleted": "リモートにプッシュ完了",
       "waitingForAnswer": "回答を待っています...",
       "timedOut": "タイムアウトしました",
-      "mdContent": "Markdownコンテンツ ({chars}文字)",
-      "mdContentNamed": "{name} の内容 ({chars}文字)",
       "jsonStatus": "状態: {status}",
       "jsonStatusTranslated": "状態: {status} ({translated})",
       "jsonTaskId": "タスク: {taskId}",
@@ -6023,6 +6021,15 @@
       "jumpToLatest": "最新のメッセージへ",
       "received": "ラピが確認しました",
       "thinking": "ラピが考えています"
+    },
+    "saveToNote": {
+      "save": "ノートに保存",
+      "saving": "保存中…",
+      "saved": "ノートに保存済み",
+      "savedToast": "ノートに保存しました",
+      "savedLinkFailed": "ノートに保存しました（タスクへの紐付けは失敗しました）",
+      "failed": "ノートに保存できませんでした",
+      "open": "開く"
     }
   },
   "intelligence": {
@@ -6367,7 +6374,15 @@
     "linkDismiss": "リンクのパネルを閉じる",
     "linkUrlLabel": "リンクのURL",
     "linkApply": "適用",
-    "linkPanelLabel": "リンクの操作"
+    "linkPanelLabel": "リンクの操作",
+    "markdownNote": {
+      "view": "表示",
+      "edit": "Markdown を編集",
+      "modeLabel": "表示と編集の切り替え",
+      "sourceLabel": "ノート本文（Markdown）",
+      "empty": "本文はありません。",
+      "formatHint": "Markdown で書かれたノートです（見出し・箇条書き・表・コード・Mermaid の図）"
+    }
   },
   "logs": {
     "title": "ログ分析",

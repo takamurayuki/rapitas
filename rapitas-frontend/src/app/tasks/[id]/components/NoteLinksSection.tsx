@@ -24,6 +24,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { useNoteStore, type Note } from '@/stores/note-store';
 import { withHeaderVisible } from '@/components/header/task-detail-link';
+import { noteContentToPlainText } from '@/components/note/markdown-note/note-content-format';
 
 interface Props {
   taskId: number;
@@ -37,24 +38,6 @@ interface Props {
 function formatDate(d: Date | string): string {
   const date = new Date(d);
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
-}
-
-/**
- * Plain-text preview of note HTML.
- *
- * Loops because one pass is not a fixed point: `<scr<x>ipt>` becomes
- * `<script>`, which would then show up verbatim in the preview. The result
- * is only ever rendered as a React text child, so this is about the preview
- * reading correctly, not about escaping.
- */
-function stripHtml(html: string): string {
-  let out = html;
-  let previous: string;
-  do {
-    previous = out;
-    out = out.replace(/<[^>]*>/g, '');
-  } while (out !== previous);
-  return out.trim();
 }
 
 /** Relative URL format avoids react-markdown's defaultUrlTransform protocol filter. */
@@ -149,7 +132,10 @@ function NoteRow({
   const t = useTranslations('task');
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
-  const preview = stripHtml(note.content).slice(0, 60) || t('noteLinksSection.noContent');
+  // NOTE: noteContentToPlainText replaced a local HTML-only stripper — a
+  // Markdown note saved from ラピ previewed with its marks ("## 質問 …").
+  const preview =
+    noteContentToPlainText(note.content).slice(0, 60) || t('noteLinksSection.noContent');
 
   return (
     <div
@@ -257,7 +243,10 @@ function NotePicker({
         if (linkedNoteIds.has(n.id)) return false;
         if (!query) return true;
         const q = query.toLowerCase();
-        return n.title.toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q);
+        return (
+          n.title.toLowerCase().includes(q) ||
+          noteContentToPlainText(n.content).toLowerCase().includes(q)
+        );
       }),
     [notes, linkedNoteIds, query],
   );
@@ -338,7 +327,7 @@ function NotePicker({
               {note.title || t('noteChipLink.untitled')}
             </span>
             <span className="ml-5 truncate text-xs text-gray-400 dark:text-zinc-500">
-              {stripHtml(note.content).slice(0, 50) || t('noteLinksSection.noContent')}
+              {noteContentToPlainText(note.content).slice(0, 50) || t('noteLinksSection.noContent')}
             </span>
           </button>
         ))}

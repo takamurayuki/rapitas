@@ -22,6 +22,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Pin` / `PinOff`          | ピン留め＝開いたまま維持（サイドナビの固定、quick-capture のフォーカス喪失時も閉じない — 同一概念の再利用） |
 | `Sunrise`                 | 自律活動デイリーレポート（nav: /agents/daily-report。ページ見出し・バックログ定期ジョブ daily_report — 同一概念の再利用。注: /agents/growth＝成長台帳とはルート・グリフとも別） |
 | `ScanSearch`              | 検出漏れ兆候の学習・レビュー（nav: /agents/miss-signatures、ページ見出し、バックログ定期ジョブ miss_ledger — 同一概念の再利用。注: `Search`＝知識ブラウザとは別概念） |
+| `Rocket`                  | エージェント実行（タスク詳細の実行カード見出し `ExecutionSection`、タスク詳細上部のタブ `td-execution`、開発モード設定の「エージェント実行」タブ、アイデアの出所「エージェント実行」— 同一概念の統一。2026-11-17 に `Bot`/`Play` から移行。注: `Bot`/`BotOff`＝タスクカードの自動実行対象トグル、`PlayCircle`＝実行中エージェント数とは別概念） |
 | `Radar`                   | プリフライトprobeメトリクス（フェーズ遷移前probeのターゲット別成功率・レイテンシ集計。`ProbeMetricsPanel` ヘッダー） |
 | `Stethoscope`              | LLMエラー診断（信頼度スコア付き診断結果パネル、`ErrorDiagnosisPanel` ヘッダー。注: `src/components/category/icons` 等のカテゴリアイコンピッカー登録は中立的な再掲で対象外） |
 | `PowerOff`                | 通知の種別「自動実行: 新規起票がないため停止」（`NotificationBell` の auto_run_idle_stopped — 枯渇アイドルタイマー満了による auto-run 停止。注: `TimerOff`＝時間上限による単一タスク停止、`CheckCircle2`＝全タスク完了とは別概念） |
@@ -31,3 +32,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Signpost`                | ラピの「計画を立てる」ロードマップモード（ラピの会話の振り分け注記のグリフ — 入力欄から到達するモード） |
 | `SquarePen`               | ラピの新しい会話を始める（パネル上部の会話タイトル横のボタンと、会話の切り替え一覧の先頭項目 `RapiSpaceSwitcher` — 同一概念の再利用。注: `MessageSquarePlus`＝エージェントへの追加指示、`Pencil`＝タスクの変更とは別概念） |
 | `OctagonAlert`            | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer）。ラピの「要対応」モード（会話の振り分け注記の watch — 手当てが要るバックログの一覧）も同一概念「対応待ち」の再利用。ICON_POLICY.md §3 のインライン表から本ファイルへ移行済み |
+| `NotebookPen`             | ノート（/notes ページ見出し、タスク詳細の `NoteLinksSection`、およびコパイロットパネルのラピの返答下の「ノートに保存」操作 `SaveToNoteButton` — 同一概念「ノート」の再利用。保存済みも同じグリフで文言のみ切り替える） |

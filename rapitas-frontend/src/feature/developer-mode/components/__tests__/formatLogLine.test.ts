@@ -165,45 +165,24 @@ describe('transformLogsToSimple', () => {
   });
 });
 
-describe('markdown dump collapsing (transformLogsToSimple)', () => {
-  test('raw markdown block collapses into a single expandable summary entry', () => {
+// A markdown dump (research.md / plan.md / verify.md being written) is read in
+// the workflow view, so the execution log no longer shows it (2026-11-17). It is
+// still gathered into one block first, or each of its lines would leak through
+// as a raw log line.
+describe('markdown dumps in the execution log (transformLogsToSimple)', () => {
+  test('a markdown block is left out entirely, not shown line by line', () => {
     const logs = [
       '調査結果がまとまったので research.md を保存します。\n## 概要\n- 依存関係を調査した\n- 重複実装は見つからなかった\n### テスト戦略\nユニットテストを追加する',
     ];
     const result = transformLogsToSimple(logs);
-    const mdEntries = result.filter((e) => e.detail?.includes('## 概要'));
-    expect(mdEntries).toHaveLength(1);
-    // Summary line names the source file and char count; raw md stays in detail.
-    expect(mdEntries[0].message).toContain('research.md');
-    expect(mdEntries[0].message).toContain('文字');
-    expect(mdEntries[0].message).not.toContain('##');
-    expect(mdEntries[0].iconName).toBe('FileText');
-    expect(mdEntries[0].detail).toContain('### テスト戦略');
-    // Expanded detail renders as a formatted markdown preview, not raw text.
-    expect(mdEntries[0].detailFormat).toBe('markdown');
+    const text = result.map((e) => `${e.message}\n${e.detail ?? ''}`).join('\n');
+    expect(text).not.toContain('## 概要');
+    expect(text).not.toContain('テスト戦略');
   });
 
-  test('the same md content emitted twice by different sources collapses with a ×2 count', () => {
-    const md = '## 検証結果\n- テスト成功\n- 懸念なし\n完了';
-    const logs = [`verify.md を保存します\n${md}`, '[Tool: Write] -> verify.md', md];
-    const result = transformLogsToSimple(logs);
-    const mdEntries = result.filter((e) => e.detailFormat === 'markdown');
-    expect(mdEntries).toHaveLength(1);
-    expect(mdEntries[0].count).toBe(2);
-    expect(mdEntries[0].message).toContain('verify.md');
-  });
-
-  test('a markdown dump without a nearby file mention gets the generic summary', () => {
+  test('a markdown dump with no file mention is left out too', () => {
     const logs = ['## Heading\n- bullet one\n- bullet two\nprose line'];
-    const result = transformLogsToSimple(logs);
-    expect(result).toHaveLength(1);
-    expect(result[0].message).toContain('Markdown');
-    expect(result[0].detail).toContain('- bullet one');
-  });
-
-  test('markdown decorations are stripped from single-line narrative messages', () => {
-    const r = transformLogToUserFriendly('**重要**: `config.ts` を確認します');
-    expect(r.message).toBe('重要: config.ts を確認します');
+    expect(transformLogsToSimple(logs)).toEqual([]);
   });
 });
 
