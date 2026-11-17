@@ -9,11 +9,19 @@ import { describe, expect, mock, test } from 'bun:test';
 const proposeIdeaTidy = mock(async (_themeId?: number) => ({ duplicates: [], unneeded: [] }));
 const applyIdeaTidy = mock(async (_req: unknown) => ({ archivedIds: [1], previousContents: [] }));
 const undoIdeaTidy = mock(async (_done: unknown) => {});
+const loadActiveIdeas = mock(async (_themeId?: number) => [{ id: 1 }]);
+let judged: unknown = { duplicates: [], unneeded: [], considered: 1, unclear: [] };
+const judgeIdeaTidy = mock(async (_ideas: unknown) => judged);
+mock.module('../../services/memory/idea-tidy-judgement', () => ({
+  judgeIdeaTidy,
+  JUDGEMENT_WINDOW: 100,
+}));
 mock.module('../../services/memory/idea-tidy', () => ({
   proposeIdeaTidy,
   applyIdeaTidy,
   undoIdeaTidy,
   planIdeaTidy: () => ({ duplicates: [], unneeded: [] }),
+  loadActiveIdeas,
 }));
 
 const { ideaTidyRoutes } = await import('./idea-tidy.routes');
@@ -32,6 +40,25 @@ describe('idea tidy routes', () => {
     const res = await call('GET', '/idea-box/tidy/proposal?themeId=3');
     expect(res.status).toBe(200);
     expect(proposeIdeaTidy).toHaveBeenLastCalledWith(3);
+  });
+
+  // おまかせ (2026-11-17): the model reads the ideas; nothing usable is said so.
+  test('mode=judgement asks the model with the active ideas', async () => {
+    const res = await call('GET', '/idea-box/tidy/proposal?mode=judgement');
+    expect(judgeIdeaTidy).toHaveBeenLastCalledWith([{ id: 1 }]);
+    expect(await res.json()).toMatchObject({ success: true, available: true, considered: 1 });
+  });
+
+  test('mode=judgement says when the model gave nothing usable', async () => {
+    judged = null;
+    const res = await call('GET', '/idea-box/tidy/proposal?mode=judgement');
+    expect(await res.json()).toEqual({
+      success: true,
+      available: false,
+      duplicates: [],
+      unneeded: [],
+    });
+    judged = { duplicates: [], unneeded: [], considered: 1, unclear: [] };
   });
 
   test('POST /idea-box/tidy applies the confirmed merges and archives', async () => {
