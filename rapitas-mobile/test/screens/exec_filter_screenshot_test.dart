@@ -1,5 +1,7 @@
-/// Executions screen filter bar: writes PNG captures with DUMMY data for
-/// visual review (390pt wide, real Noto CJK fonts).
+/// Executions screen filter (task-screen shape): writes PNG captures with
+/// DUMMY data for visual review (390pt wide, real Noto CJK fonts) — the open
+/// filter sheet (development themes only), the screen after applying
+/// conditions, and the search-mode AppBar.
 ///
 /// Set EXEC_FILTER_SCREENSHOT_DIR to write them; CI leaves it unset, so the
 /// test is skipped there.
@@ -64,27 +66,39 @@ final _resumable = [
   ResumableExecution(id: 'r2', taskId: '813', status: 'interrupted', canResume: true, startedAt: _ago(600)),
 ];
 
+/// 撮る前の操作。null は条件を入れただけで撮る
+typedef _Prepare = Future<void> Function(WidgetTester tester);
+
 void main() {
   final dir = Platform.environment['EXEC_FILTER_SCREENSHOT_DIR'];
 
-  testWidgets('writes dummy-data captures of the executions filter bar', (tester) async {
+  testWidgets('writes dummy-data captures of the executions filter', (tester) async {
     await _loadRealFonts();
-    tester.view.physicalSize = const Size(1170, 3300); // iPhone 幅 390pt × 3、全節が入る高さ
+    tester.view.physicalSize = const Size(1170, 2532); // iPhone 幅 390pt × 3
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    const shots = {
-      '1_before_filter': ExecFilter(),
-      '2_theme_filter': ExecFilter(themeId: '2'),
-      '3_search_oldest_waiting':
-          ExecFilter(query: 'ログ', sort: ExecSort.oldest, status: ExecStatusFilter.waitingForInput),
+    final shots = <String, (ExecFilter, _Prepare?)>{
+      '1_sheet_open': (
+        const ExecFilter(),
+        (tester) => tester.tap(find.byKey(const ValueKey('exec-filter-open'))),
+      ),
+      '2_applied': (const ExecFilter(themeId: '2', status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest), null),
+      '3_search_mode': (
+        const ExecFilter(),
+        (tester) async {
+          await tester.tap(find.byKey(const ValueKey('exec-search-open')));
+          await tester.pump();
+          await tester.enterText(find.byKey(const ValueKey('exec-filter-search')), 'ログ');
+        },
+      ),
     };
     for (final shot in shots.entries) {
       SharedPreferences.setMockInitialValues({});
       final container = ProviderContainer(overrides: [
         ...autoRunScreenOverrides(
-          FakeThemeAutoRunService({'1': runningSnapshot('1'), '2': idleSnapshot('2')}),
-          dummyThemes,
+          FakeThemeAutoRunService({'1': runningSnapshot('1'), '2': idleSnapshot('2'), '5': idleSnapshot('5')}),
+          categorizedThemes,
         ),
         executingTasksProvider.overrideWith((ref) async => _executing),
         resumableExecutionsProvider.overrideWith((ref) async => _resumable),
@@ -92,7 +106,7 @@ void main() {
         taskListProvider.overrideWith((ref, filter) async => _tasks),
       ]);
       addTearDown(container.dispose);
-      container.read(execFilterProvider.notifier).state = shot.value;
+      container.read(execFilterProvider.notifier).state = shot.value.$1;
       final boundaryKey = GlobalKey();
       await tester.pumpWidget(UncontrolledProviderScope(
         key: UniqueKey(),
@@ -109,6 +123,12 @@ void main() {
       // 実行中タイルのスピナーは止まらないので、一定時間だけ進めてから撮る
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      final prepare = shot.value.$2;
+      if (prepare != null) {
+        await prepare(tester);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+      }
       final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(boundaryKey));
       await tester.runAsync(() async {
         final image = await boundary.toImage(pixelRatio: 1);

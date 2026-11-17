@@ -60,6 +60,30 @@ final dummyThemes = [
   TaskTheme(id: '3', name: '【ダミー】買い物メモ', color: '#F59E0B'),
 ];
 
+final _devCategory = TaskCategory(id: 'c1', name: '【ダミー】開発', color: '#3B82F6', sortOrder: 1);
+final _studyCategory = TaskCategory(id: 'c2', name: '【ダミー】学習', color: '#F59E0B', sortOrder: 2);
+final _lifeCategory = TaskCategory(id: 'c3', name: '【ダミー】個人', color: '#8B5CF6', sortOrder: 3);
+
+TaskTheme _theme(String id, String name, TaskCategory category, {bool dev = false, int? count}) => TaskTheme(
+      id: id,
+      name: name,
+      color: '#10B981',
+      categoryId: category.id,
+      category: category,
+      taskCount: count,
+      isDevelopment: dev,
+      workingDirectory: dev ? '/work/$id' : null,
+    );
+
+/// 実行画面のフィルターシート用（カテゴリつき）。開発カテゴリに開発テーマ2件、学習カテゴリは非開発だけ、個人カテゴリは開発1件＋非開発1件
+final categorizedThemes = [
+  _theme('1', '【ダミー】rapitas 開発', _devCategory, dev: true, count: 12),
+  _theme('2', '【ダミー】モバイル版', _devCategory, dev: true, count: 7),
+  _theme('3', '【ダミー】英単語', _studyCategory, count: 30),
+  _theme('5', '【ダミー】家計簿ツール', _lifeCategory, dev: true, count: 4),
+  _theme('6', '【ダミー】買い物メモ', _lifeCategory, count: 9),
+];
+
 final noFolderTheme = TaskTheme(id: '4', name: '【ダミー】フォルダ未設定', color: '#8B5CF6', isDevelopment: true);
 
 ThemeAutoRunSnapshot idleSnapshot(String themeId, {String? lastError}) => ThemeAutoRunSnapshot(

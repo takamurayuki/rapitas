@@ -8,20 +8,66 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
-import '../../widgets/voice_mode_indicator.dart';
+import '../../widgets/voice_dismissible.dart';
 import 'auto_run_section.dart';
+import 'exec_app_bars.dart';
 import 'exec_filter.dart';
 import 'exec_filter_bar.dart';
+import 'exec_filter_sheet.dart';
 import 'execution_section_states.dart';
 import 'section_title.dart';
 
 /// 上部に開発テーマの自動実行（AutoRunSection）、続いて実行中のタスクと、中断されて再開できる実行。
 /// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
-class AgentExecutionScreen extends ConsumerWidget {
+///
+/// 絞り込みの形はタスク画面と同じ：AppBar の検索モード、フィルターシート、本文上部の適用中チップ列。
+class AgentExecutionScreen extends ConsumerStatefulWidget {
   const AgentExecutionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AgentExecutionScreen> createState() => _AgentExecutionScreenState();
+}
+
+class _AgentExecutionScreenState extends ConsumerState<AgentExecutionScreen> {
+  // 保持済みの検索語があれば検索モードで開き、入力欄に戻す（検索語が見えないまま効いている状態を作らない）
+  late final TextEditingController _searchController =
+      TextEditingController(text: ref.read(execFilterProvider).query);
+  late bool _searchMode = _searchController.text.isNotEmpty;
+
+  // 検索モードの出入りで VoiceDismissible を挟んでも、一覧（自動実行カードの状態など）を作り直さないため
+  final _listKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _setQuery(String query) {
+    final notifier = ref.read(execFilterProvider.notifier);
+    notifier.state = notifier.state.copyWith(query: query);
+  }
+
+  void _openSearch() => setState(() => _searchMode = true);
+
+  /// 検索モードを閉じる。閉じたら検索語は消す（タスク画面と同じ）
+  void _closeSearch() {
+    _searchController.clear();
+    _setQuery('');
+    setState(() => _searchMode = false);
+  }
+
+  void _onSearchChanged(String text) {
+    _setQuery(text);
+    setState(() {}); // クリアボタンの表示を入力に追従させる
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // クリア操作（空表示のボタンなど）で条件が外から戻されたら入力欄も合わせる
+    ref.listen<ExecFilter>(execFilterProvider, (_, next) {
+      if (_searchController.text != next.query) setState(() => _searchController.text = next.query);
+    });
     final executingAsync = ref.watch(executingTasksProvider);
     final resumableAsync = ref.watch(resumableExecutionsProvider);
     // NOTE: 一覧は絞り込み・並び替え後の表示一覧。音声の「2番目を停止」も同じ関数で数える（exec_filter.dart）
@@ -33,66 +79,82 @@ class AgentExecutionScreen extends ConsumerWidget {
     final executing = allExecuting == null ? null : applyExecutingFilter(allExecuting, filter, lookups);
     final resumable = allResumable == null ? null : applyResumableFilter(allResumable, filter, lookups);
 
-    return Scaffold(
-      drawer: const AppDrawer(),
-      appBar: AppBar(
-        // NOTE: 音声での実行・停止・再開は音声操作モードから（聞き取り表示は右端。「2番目を停止」など）
-        title: const Text('エージェント実行'),
-        actions: const [VoiceModeIndicator()],
-      ),
-      // NOTE: 単一タスク実行の FAB（タスク選択→確認→実行）は削除した。タスクごとの実行は
-      // タスク詳細画面と音声コマンドの別経路で行う。
-      body: VoiceScrollTarget(
-        path: '/executions',
-        child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(taskListProvider);
-            final container = ProviderScope.containerOf(context, listen: false);
-            _invalidateExecutions(container);
-            AutoRunSection.invalidate(container);
-          },
-          // NOTE: 以前は両方空のとき一覧の下に大きなアイコンと文だけを出していたが、自動実行セクションの
-          // 下に埋もれて見えにくかった。常に同じ並びにし、空は各見出しの直下に出す。
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(8),
-            children: [
-              const ExecFilterBar(),
-              const AutoRunSection(),
-              const SectionTitle('実行中'),
-              ..._buildSection<ExecutingTask>(
-                state: executingAsync,
-                items: executing,
-                total: allExecuting?.length ?? 0,
-                filtering: filter.filtersExecuting,
-                noMatchKey: const ValueKey('executing-no-match'),
-                empty: const ExecutingEmptyState(),
-                errorText: '実行中のタスクを取得できませんでした',
-                onRetry: () => ref.invalidate(executingTasksProvider),
-                itemBuilder: (task) =>
-                    _buildExecutingTile(context, ref, task, titles),
-              ),
-              const SizedBox(height: 16),
-              const SectionTitle('再開可能'),
-              ..._buildSection<ResumableExecution>(
-                state: resumableAsync,
-                items: resumable,
-                total: allResumable?.where((e) => e.canResume).length ?? 0,
-                filtering: filter.filtersOthers,
-                noMatchKey: const ValueKey('resumable-no-match'),
-                empty: const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('再開できる実行はありません')),
-                  ),
-                ),
-                errorText: '再開可能な実行を取得できませんでした',
-                onRetry: () => ref.invalidate(resumableExecutionsProvider),
-                itemBuilder: (execution) =>
-                    _buildResumableTile(context, ref, execution, titles),
-              ),
-            ],
+    final list = RefreshIndicator(
+      key: _listKey,
+      onRefresh: () async {
+        ref.invalidate(taskListProvider);
+        final container = ProviderScope.containerOf(context, listen: false);
+        _invalidateExecutions(container);
+        AutoRunSection.invalidate(container);
+      },
+      // NOTE: 以前は両方空のとき一覧の下に大きなアイコンと文だけを出していたが、自動実行セクションの
+      // 下に埋もれて見えにくかった。常に同じ並びにし、空は各見出しの直下に出す。
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(8),
+        children: [
+          // NOTE: 常時表示の絞り込みバー（ExecFilterBar）は廃止。適用中の条件だけをチップで出す
+          const ExecActiveFilterChips(),
+          const AutoRunSection(),
+          const SectionTitle('実行中'),
+          ..._buildSection<ExecutingTask>(
+            state: executingAsync,
+            items: executing,
+            total: allExecuting?.length ?? 0,
+            filtering: filter.filtersExecuting,
+            noMatchKey: const ValueKey('executing-no-match'),
+            empty: const ExecutingEmptyState(),
+            errorText: '実行中のタスクを取得できませんでした',
+            onRetry: () => ref.invalidate(executingTasksProvider),
+            itemBuilder: (task) => _buildExecutingTile(context, ref, task, titles),
           ),
+          const SizedBox(height: 16),
+          const SectionTitle('再開可能'),
+          ..._buildSection<ResumableExecution>(
+            state: resumableAsync,
+            items: resumable,
+            total: allResumable?.where((e) => e.canResume).length ?? 0,
+            filtering: filter.filtersOthers,
+            noMatchKey: const ValueKey('resumable-no-match'),
+            empty: const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('再開できる実行はありません')),
+              ),
+            ),
+            errorText: '再開可能な実行を取得できませんでした',
+            onRetry: () => ref.invalidate(resumableExecutionsProvider),
+            itemBuilder: (execution) => _buildResumableTile(context, ref, execution, titles),
+          ),
+        ],
+      ),
+    );
+
+    return PopScope(
+      canPop: !_searchMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searchMode) _closeSearch();
+      },
+      child: Scaffold(
+        // 検索モード中は「検索を閉じる」矢印を優先し、ドロワーは出さない（タスク画面と同じ）
+        drawer: _searchMode ? null : const AppDrawer(),
+        appBar: _searchMode
+            ? buildExecSearchAppBar(
+                controller: _searchController,
+                onClose: _closeSearch,
+                onChanged: _onSearchChanged,
+              )
+            : buildExecAppBar(
+                filterActive: execSheetFilterActive(filter),
+                onSearch: _openSearch,
+                onFilter: () => showExecFilterSheet(context, ref),
+              ),
+        // NOTE: 単一タスク実行の FAB（タスク選択→確認→実行）は削除した。タスクごとの実行は
+        // タスク詳細画面と音声コマンドの別経路で行う。
+        body: VoiceScrollTarget(
+          path: '/executions',
+          // 検索中は音声の「閉じる」「戻る」で検索を閉じる（タスク画面と同じ）
+          child: _searchMode ? VoiceDismissible(onDismiss: _closeSearch, child: list) : list,
         ),
       ),
     );
