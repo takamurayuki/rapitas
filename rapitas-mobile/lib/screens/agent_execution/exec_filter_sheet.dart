@@ -32,8 +32,10 @@ List<ThemeCategoryGroup> execThemeCandidateGroups(List<TaskTheme> themes) {
 
 /// 実行画面のフィルターシートを開く。
 ///
-/// テーマ・状態・並び順のチップは選ぶと即適用して閉じる。カテゴリはテーマ候補を切り替えるだけで、
-/// 条件には触れない（実行画面には「すべて」があり、タスク画面の「常に1テーマ必須」は持ち込まない）。
+/// テーマは複数選択で、チップのタップで選択/解除を即適用し、シートは開いたまま（下部の「完了」で閉じる）。
+/// 状態・並び順のチップは選ぶと即適用して閉じる（テーマの切り替えは適用済みなので失われない）。
+/// カテゴリはテーマ候補を切り替えるだけで、条件には触れない（実行画面には「すべて」があり、
+/// タスク画面の「常に1テーマ必須」は持ち込まない）。
 ///
 /// @param context - context to show the sheet from / シートを出す元の context
 /// @param ref - ref of the executions screen / 実行画面の ref
@@ -41,112 +43,131 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   // カテゴリの選択はシート内だけの状態。builder が再実行されても消えないようここで持つ
   ({String? id})? selectedCategory;
 
-  void apply(BuildContext sheetContext, ExecFilter Function(ExecFilter) change) {
+  void update(ExecFilter Function(ExecFilter) change) {
     final notifier = ref.read(execFilterProvider.notifier);
     notifier.state = change(notifier.state);
+  }
+
+  void apply(BuildContext sheetContext, ExecFilter Function(ExecFilter) change) {
+    update(change);
     Navigator.pop(sheetContext);
   }
 
   showModalBottomSheet<void>(
     context: context,
     builder: (context) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Consumer(
-          builder: (context, ref, _) {
-            final filter = ref.watch(execFilterProvider);
-            final titleStyle = Theme.of(context).textTheme.titleSmall;
-            final themesAsync = ref.watch(themeListProvider);
-            final groups = execThemeCandidateGroups(themesAsync.valueOrNull ?? const []);
-            return Column(
-              key: const ValueKey('exec-filter-sheet'),
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 16),
-                if (themesAsync.isLoading && !themesAsync.hasValue)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: LinearProgressIndicator(),
-                  )
-                // 取得失敗・開発テーマ0件ならテーマセクションごと出さない（タスク画面と同じ方針）
-                else if (groups.isNotEmpty)
-                  StatefulBuilder(
-                    builder: (context, setSheetState) {
-                      selectedCategory ??= (id: _categoryIdOfTheme(groups, filter.themeId) ?? groups.first.categoryId);
-                      final current = selectedCategory!.id;
-                      return ExecThemeFilterSection(
-                        groups: groups,
-                        selectedGroup: groups.firstWhere((g) => g.categoryId == current, orElse: () => groups.first),
-                        selectedThemeId: filter.themeId,
-                        onCategorySelected: (group) => setSheetState(() => selectedCategory = (id: group.categoryId)),
-                        onThemeSelected: (id) => apply(
-                          context,
-                          (f) => id == null ? f.copyWith(clearThemeId: true) : f.copyWith(themeId: id),
+      // NOTE: Material 3 のボトムシートは子を Align で包むため、チップが1行に満たないとシート面が中身の幅まで
+      // 縮む（nav71: 実行画面のシートが画面より狭く見えた原因）。タスク画面・実行画面とも幅いっぱいに固定する
+      return SizedBox(
+        width: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Consumer(
+            builder: (context, ref, _) {
+              final filter = ref.watch(execFilterProvider);
+              final titleStyle = Theme.of(context).textTheme.titleSmall;
+              final themesAsync = ref.watch(themeListProvider);
+              final groups = execThemeCandidateGroups(themesAsync.valueOrNull ?? const []);
+              return Column(
+                key: const ValueKey('exec-filter-sheet'),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('フィルター', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  if (themesAsync.isLoading && !themesAsync.hasValue)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: LinearProgressIndicator(),
+                    )
+                  // 取得失敗・開発テーマ0件ならテーマセクションごと出さない（タスク画面と同じ方針）
+                  else if (groups.isNotEmpty)
+                    StatefulBuilder(
+                      builder: (context, setSheetState) {
+                        // NOTE: グループで受ける。カテゴリIDの null は「その他」グループの正当な値なので、
+                        // ID の null を「該当なし」と見なして先頭へ置き換えてはいけない
+                        selectedCategory ??= (id: (_groupOfThemes(groups, filter.themeIds) ?? groups.first).categoryId);
+                        final current = selectedCategory!.id;
+                        return ExecThemeFilterSection(
+                          groups: groups,
+                          selectedGroup: groups.firstWhere((g) => g.categoryId == current, orElse: () => groups.first),
+                          selectedThemeIds: filter.themeIds,
+                          onCategorySelected: (group) => setSheetState(() => selectedCategory = (id: group.categoryId)),
+                          onThemeToggled: (id) =>
+                              update((f) => id == null ? f.copyWith(themeIds: const {}) : f.toggleTheme(id)),
+                        );
+                      },
+                    ),
+                  Text('状態', style: titleStyle),
+                  Text(
+                    '実行中のリストだけに効きます',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                      );
-                    },
                   ),
-                Text('状態', style: titleStyle),
-                Text(
-                  '実行中のリストだけに効きます',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final e in execStatusLabels.entries)
-                      FilterChip(
-                        key: ValueKey('exec-sheet-status-${e.key.name}'),
-                        label: Text(e.value),
-                        selected: filter.status == e.key,
-                        onSelected: (_) => apply(context, (f) => f.copyWith(status: e.key)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('並び順', style: titleStyle),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final e in execSortLabels.entries)
-                      FilterChip(
-                        key: ValueKey('exec-sheet-sort-${e.key.name}'),
-                        label: Text(e.value),
-                        selected: filter.sort == e.key,
-                        onSelected: (_) => apply(context, (f) => f.copyWith(sort: e.key)),
-                      ),
-                  ],
-                ),
-              ],
-            );
-          },
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final e in execStatusLabels.entries)
+                        FilterChip(
+                          key: ValueKey('exec-sheet-status-${e.key.name}'),
+                          label: Text(e.value),
+                          selected: filter.status == e.key,
+                          onSelected: (_) => apply(context, (f) => f.copyWith(status: e.key)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text('並び順', style: titleStyle),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final e in execSortLabels.entries)
+                        FilterChip(
+                          key: ValueKey('exec-sheet-sort-${e.key.name}'),
+                          label: Text(e.value),
+                          selected: filter.sort == e.key,
+                          onSelected: (_) => apply(context, (f) => f.copyWith(sort: e.key)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // テーマは選んでも閉じないので、閉じる操作をはっきり置く
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const ValueKey('exec-sheet-done'),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('完了'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       );
     },
   );
 }
 
-/// テーマが属するグループのカテゴリID。候補に無い（非開発テーマ・未選択）なら null
-String? _categoryIdOfTheme(List<ThemeCategoryGroup> groups, String? themeId) {
-  if (themeId == null) return null;
+/// 選択中のテーマを含む最初のグループ。どれも候補に無い（非開発テーマ・未選択）なら null
+ThemeCategoryGroup? _groupOfThemes(List<ThemeCategoryGroup> groups, Set<String> themeIds) {
+  if (themeIds.isEmpty) return null;
   for (final group in groups) {
-    if (group.themes.any((t) => t.id == themeId)) return group.categoryId;
+    if (group.themes.any((t) => themeIds.contains(t.id))) return group;
   }
   return null;
 }
 
 /// シートの「カテゴリ」＋「テーマ」セクション。部品はタスク画面と同じ（ChoiceChip / FilterChip＋FilterDotLabel）。
 ///
-/// タスク画面との違いはテーマの先頭に「すべて」があることだけ。選択中のテーマが候補に無い
-/// （非開発テーマが選ばれている）ときは、どのテーマチップも選択表示にしない。条件は解除しない。
+/// タスク画面との違いは、テーマの先頭に「すべて」があることと、テーマが複数選択であること。
+/// 選択中のテーマが候補に無い（非開発テーマが選ばれている）ときは、そのチップは出ない。条件は解除しない。
 class ExecThemeFilterSection extends StatelessWidget {
   /// 開発テーマだけのグループ（[execThemeCandidateGroups]）
   final List<ThemeCategoryGroup> groups;
@@ -154,21 +175,21 @@ class ExecThemeFilterSection extends StatelessWidget {
   /// テーマ候補を出しているグループ（groups のどれか）
   final ThemeCategoryGroup selectedGroup;
 
-  /// 適用中のテーマID。null は「すべて」
-  final String? selectedThemeId;
+  /// 適用中のテーマIDの集合。空は「すべて」
+  final Set<String> selectedThemeIds;
 
   final ValueChanged<ThemeCategoryGroup> onCategorySelected;
 
-  /// テーマを選んだ（null は「すべて」）
-  final ValueChanged<String?> onThemeSelected;
+  /// テーマチップをタップした（null は「すべて」＝選択を空にする。それ以外は選択/解除の切り替え）
+  final ValueChanged<String?> onThemeToggled;
 
   const ExecThemeFilterSection({
     super.key,
     required this.groups,
     required this.selectedGroup,
-    required this.selectedThemeId,
+    required this.selectedThemeIds,
     required this.onCategorySelected,
-    required this.onThemeSelected,
+    required this.onThemeToggled,
   });
 
   static String _groupLabel(ThemeCategoryGroup group) {
@@ -212,8 +233,8 @@ class ExecThemeFilterSection extends StatelessWidget {
             FilterChip(
               key: const ValueKey('exec-sheet-theme-all'),
               label: const Text('すべて'),
-              selected: selectedThemeId == null,
-              onSelected: (_) => onThemeSelected(null),
+              selected: selectedThemeIds.isEmpty,
+              onSelected: (_) => onThemeToggled(null),
             ),
             for (final theme in selectedGroup.themes)
               FilterChip(
@@ -222,8 +243,8 @@ class ExecThemeFilterSection extends StatelessWidget {
                   color: theme.color,
                   text: theme.taskCount != null ? '${theme.name}（${theme.taskCount}）' : theme.name,
                 ),
-                selected: theme.id == selectedThemeId,
-                onSelected: (_) => onThemeSelected(theme.id),
+                selected: selectedThemeIds.contains(theme.id),
+                onSelected: (_) => onThemeToggled(theme.id),
               ),
           ],
         ),

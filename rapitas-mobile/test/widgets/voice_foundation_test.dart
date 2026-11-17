@@ -176,6 +176,9 @@ void main() {
   late ProviderContainer container;
 
   VoiceModeListener listener() => container.read(voiceModeListenerProvider);
+  // タスク画面のインライン検索欄（nav71 で検索モードから置き換え）の入力
+  final searchField = find.byKey(const ValueKey('task-search-field'));
+  String searchText(WidgetTester tester) => tester.widget<TextField>(searchField).controller!.text;
   String location() => router.state.uri.path;
   final sheet = find.text('認識した文');
 
@@ -332,7 +335,7 @@ void main() {
       });
     }
 
-    testWidgets('検索中の「更新」は、いまの検索語で検索し直す（検索は閉じない）', (tester) async {
+    testWidgets('検索語がある間の「更新」は、いまの検索語で検索し直す（検索語は消さない）', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
       await say(tester, '検索 資料');
       await settle(tester, 5);
@@ -346,7 +349,7 @@ void main() {
       expect(find.text('再読み込みしています'), findsOneWidget);
       expect(tasks.searchCalls, before + 1);
       expect(find.text('資料の確認'), findsOneWidget);
-      expect(find.byTooltip('検索を閉じる'), findsOneWidget, reason: '検索は開いたまま');
+      expect(searchText(tester), '資料', reason: '検索語はそのまま');
       expectBackgroundListening();
     });
 
@@ -367,21 +370,22 @@ void main() {
       expectBackgroundListening();
     });
 
-    testWidgets('検索語が空の検索中は、更新するものが無いと伝える（一覧の更新にすり替えない）', (tester) async {
+    testWidgets('検索語を消した後の「更新」は、通常の一覧の更新になる（検索はしない）', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
       await say(tester, '検索 資料');
       await settle(tester, 5);
       await tester.tap(find.byTooltip('クリア'));
       FocusManager.instance.primaryFocus?.unfocus();
       await settle(tester, 5);
+      expect(searchText(tester), isEmpty);
       final searches = tasks.searchCalls;
       final lists = tasks.listCalls;
       await say(tester, '更新');
-      await settle(tester, 5);
-      expect(find.text('この画面では更新できません'), findsOneWidget);
+      await settle(tester, 10);
+      expect(find.text('この画面では更新できません'), findsNothing);
+      expect(find.text('再読み込みしています'), findsOneWidget);
       expect(tasks.searchCalls, searches);
-      expect(tasks.listCalls, lists);
-      expect(find.byTooltip('検索を閉じる'), findsOneWidget);
+      expect(tasks.listCalls, greaterThan(lists));
     });
 
     testWidgets('入力フォームでは更新しない（入力中の内容を消さない）と伝える', (tester) async {
@@ -442,26 +446,29 @@ void main() {
       });
     }
 
-    testWidgets('声の「検索」では検索欄にフォーカスせず聞き取りを続け、「閉じる」で検索を閉じる', (tester) async {
+    testWidgets('声の「検索」では検索欄に語句を入れるがフォーカスせず聞き取りを続け、「閉じる」で検索語を消す', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('2', '資料の確認')]);
       await say(tester, '検索 資料');
-      expect(find.byTooltip('検索を閉じる'), findsOneWidget);
+      expect(searchText(tester), '資料');
       expect(FocusManager.instance.primaryFocus?.context?.widget, isNot(isA<EditableText>()));
       expectBackgroundListening();
 
       await say(tester, '閉じる');
-      expect(find.byTooltip('検索を閉じる'), findsNothing);
-      expect(find.byTooltip('検索'), findsOneWidget);
+      expect(searchText(tester), isEmpty);
+      expect(searchField, findsOneWidget, reason: '検索欄は常に出ている');
+      expect(find.byTooltip('検索'), findsNothing, reason: '検索アイコンは廃止');
       expectBackgroundListening();
     });
 
-    testWidgets('「戻る」でも検索を閉じる。タップで開いた検索は従来どおり入力欄にフォーカスする', (tester) async {
+    testWidgets('「戻る」でも検索語を消す。検索欄をタップすると従来どおりフォーカスし、聞き取りは止まる', (tester) async {
       await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成')]);
       await say(tester, '資料を探して');
+      expect(searchText(tester), '資料');
       await say(tester, '戻る');
-      expect(find.byTooltip('検索を閉じる'), findsNothing);
+      expect(searchText(tester), isEmpty);
+      expect(location(), '/tasks');
 
-      await tester.tap(find.byTooltip('検索'));
+      await tester.tap(searchField);
       await settle(tester);
       expect(listener().isListening, isFalse, reason: 'タップで開いたら入力欄にフォーカスし、聞き取りは止まる');
       expect(listener().status, VoiceModeStatus.paused);
@@ -477,7 +484,22 @@ void main() {
       await say(tester, '戻る');
       await settle(tester, 5);
       expect(location(), '/tasks');
-      expect(find.byTooltip('検索を閉じる'), findsOneWidget, reason: '検索は開いたまま');
+      expect(searchText(tester), '資料', reason: '検索語は残る');
+    });
+
+    testWidgets('検索結果をタップして開いた詳細から戻ると、現在の語句で検索し直す', (tester) async {
+      await pumpApp(tester, '/tasks', taskItems: [_task('1', '資料作成'), _task('2', '資料の確認')]);
+      await say(tester, '検索 資料');
+      await settle(tester, 5);
+      await tester.tap(find.text('資料の確認'));
+      await settle(tester, 10);
+      expect(location(), '/tasks/2');
+      final searches = tasks.searchCalls;
+      router.pop();
+      await settle(tester, 10);
+      expect(location(), '/tasks');
+      expect(tasks.searchCalls, searches + 1);
+      expect(searchText(tester), '資料');
     });
   });
 

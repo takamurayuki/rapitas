@@ -37,7 +37,7 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 Future<void> _showOnly(WidgetTester tester, String? themeId) async {
-  _container.read(execFilterProvider.notifier).state = ExecFilter(themeId: themeId);
+  _container.read(execFilterProvider.notifier).state = ExecFilter(themeIds: {if (themeId != null) themeId});
   await _settle(tester);
 }
 
