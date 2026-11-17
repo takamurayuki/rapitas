@@ -1,9 +1,10 @@
 /// nav71 captures with DUMMY data for visual review (390pt wide, real Noto
 /// CJK fonts): the executions filter sheet with two themes selected and the
-/// Done button, the executions screen with two theme chips applied, the tasks
-/// screen inline search with results in place, and the tasks / executions
+/// Done button, the executions screen with two theme chips applied, and the
+/// tasks / executions
 /// filter sheets side by side at the same width (few chips, so a sheet that
-/// shrinks to its content would show).
+/// shrinks to its content would show). The nav71 tasks inline-search capture
+/// was dropped in nav72 (see task_search_screenshot_test.dart).
 ///
 /// Set FILTER_SEARCH_SCREENSHOT_DIR to write them; CI leaves it unset, so the
 /// test is skipped there.
@@ -25,7 +26,6 @@ import 'package:rapitas_mobile/providers/filter_selection_provider.dart';
 import 'package:rapitas_mobile/providers/service_providers.dart';
 import 'package:rapitas_mobile/providers/task_provider.dart';
 import 'package:rapitas_mobile/providers/theme_data_provider.dart';
-import 'package:rapitas_mobile/providers/voice_provider.dart';
 import 'package:rapitas_mobile/screens/agent_execution/agent_execution_screen.dart';
 import 'package:rapitas_mobile/screens/agent_execution/exec_filter.dart';
 import 'package:rapitas_mobile/screens/task_list/task_list_screen.dart';
@@ -71,13 +71,6 @@ final _taskTasks = [
   _task('3', '【ダミー】リリース手順の整理', '10'),
   _task('4', '【ダミー】画面一覧のリリースノート', '20', priority: 'low'),
 ];
-
-class _SearchableTasks extends FakeTaskList {
-  _SearchableTasks() : super(_taskTasks);
-
-  @override
-  Future<List<Task>> searchTasks(String query) async => tasks.where((t) => t.title.contains(query)).toList();
-}
 
 /// sampleTaskThemes に付いているカテゴリ（重複なし）
 List<TaskCategory> _categories() {
@@ -148,7 +141,7 @@ void main() {
         ];
 
     final taskOverrides = <Override>[
-      taskServiceProvider.overrideWithValue(_SearchableTasks()),
+      taskServiceProvider.overrideWithValue(FakeTaskList(_taskTasks)),
       themeListProvider.overrideWith((ref) async => sampleTaskThemes),
       categoryListProvider.overrideWith((ref) async => _categories()),
       defaultCategoryIdProvider.overrideWith((ref) async => '1'),
@@ -175,13 +168,7 @@ void main() {
           execFilter: const ExecFilter(themeIds: {'1', '2'})),
       null,
     );
-    // ③ タスク画面のインライン検索（検索欄＋結果がその場に出ている）
-    await shoot('3_task_inline_search', (k) => wrap(k, taskOverrides, const TaskListScreen()), (tester) async {
-      await tester.pump(const Duration(seconds: 1));
-      // 声の「検索 リリース」と同じ経路で入れる（フォーカスを当てない）
-      final container = ProviderScope.containerOf(tester.element(find.byType(TaskListScreen)));
-      container.read(voiceTaskSearchRequestProvider.notifier).state = 'リリース';
-    });
+    // NOTE: ③ タスク画面のインライン検索は nav72 で検索モードに戻したので撮らない（task_search_screenshot_test.dart）
     // ④⑤ 幅の比較：タスク画面のシートと、チップが少ない状態の実行画面のシート（同じ390pt）
     await shoot('4_task_sheet_width', (k) => wrap(k, taskOverrides, const TaskListScreen()), (tester) async {
       await tester.pump(const Duration(seconds: 1));
