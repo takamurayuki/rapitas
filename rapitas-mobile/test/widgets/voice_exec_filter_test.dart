@@ -222,7 +222,7 @@ void main() {
   }
 
   testWidgets('実行画面の「1番目を停止」は、テーマで絞って新しい順に並べた表示の1番目を指す', (tester) async {
-    await pumpApp(tester, '/executions', const ExecFilter(themeId: '10'));
+    await pumpApp(tester, '/executions', const ExecFilter(themeIds: {'10'}));
     expect(shownOrder(tester, [for (final t in _tasks) t.title]), ['【ダミー】ログアウト処理', '【ダミー】ログイン画面の実装']);
 
     await openSheet(tester);
@@ -234,7 +234,7 @@ void main() {
   });
 
   testWidgets('表示に無い3番目は指せない（絞り込みで隠れた実行は止めない）', (tester) async {
-    await pumpApp(tester, '/executions', const ExecFilter(themeId: '10'));
+    await pumpApp(tester, '/executions', const ExecFilter(themeIds: {'10'}));
     await openSheet(tester);
     await say(tester, '3番目を停止');
     expect(find.textContaining('3番目の実行中のタスクはありません（2件）'), findsOneWidget);
@@ -243,7 +243,7 @@ void main() {
   });
 
   testWidgets('実行画面の「1番目を再開」は、絞り込み・古い順の表示の1番目を指す', (tester) async {
-    await pumpApp(tester, '/executions', const ExecFilter(themeId: '10', sort: ExecSort.oldest));
+    await pumpApp(tester, '/executions', const ExecFilter(themeIds: {'10'}, sort: ExecSort.oldest));
     await openSheet(tester);
     await say(tester, '1番目を再開');
     expect(find.text('「【ダミー】ログアウト処理」の実行を再開しますか？'), findsOneWidget);

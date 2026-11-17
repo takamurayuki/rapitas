@@ -65,10 +65,15 @@ void main() {
     });
 
     test('テーマで絞る。テーマが引けないタスクは除く。サブタスクは親のテーマで引く', () {
-      expect(_ids(applyExecutingFilter(_executing, const ExecFilter(themeId: 'A'), _lookups)), ['3', '1']);
+      expect(_ids(applyExecutingFilter(_executing, const ExecFilter(themeIds: {'A'}), _lookups)), ['3', '1']);
       final sub = [_exec('77', parentId: '2', started: _t(8))];
-      expect(_ids(applyExecutingFilter(sub, const ExecFilter(themeId: 'B'), _lookups)), ['77']);
-      expect(_ids(applyExecutingFilter(sub, const ExecFilter(themeId: 'A'), _lookups)), isEmpty);
+      expect(_ids(applyExecutingFilter(sub, const ExecFilter(themeIds: {'B'}), _lookups)), ['77']);
+      expect(_ids(applyExecutingFilter(sub, const ExecFilter(themeIds: {'A'}), _lookups)), isEmpty);
+    });
+
+    test('テーマを複数選ぶと、どれかに含まれるものを残す', () {
+      expect(_ids(applyExecutingFilter(_executing, const ExecFilter(themeIds: {'A', 'B'}), _lookups)), ['2', '3', '1']);
+      expect(_ids(applyExecutingFilter(_executing, const ExecFilter(themeIds: {'B', 'Z'}), _lookups)), ['2']);
     });
 
     test('検索はタスク名の部分一致（大文字小文字を区別しない）。タスク名が無ければ「タスク #id」で照合', () {
@@ -77,9 +82,9 @@ void main() {
     });
 
     test('検索×テーマ×状態×古い順の組合せ', () {
-      const f = ExecFilter(query: 'ログイン', themeId: 'B', status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest);
+      const f = ExecFilter(query: 'ログイン', themeIds: {'B'}, status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest);
       expect(_ids(applyExecutingFilter(_executing, f, _lookups)), ['2']);
-      const g = ExecFilter(query: 'ログイン', themeId: 'A', status: ExecStatusFilter.waitingForInput);
+      const g = ExecFilter(query: 'ログイン', themeIds: {'A'}, status: ExecStatusFilter.waitingForInput);
       expect(applyExecutingFilter(_executing, g, _lookups), isEmpty);
     });
   });
@@ -108,8 +113,12 @@ void main() {
     });
 
     test('テーマで絞ると taskId の無い実行は除く', () {
-      expect(ids(const ExecFilter(themeId: 'A')), ['r2', 'r1']);
-      expect(ids(const ExecFilter(themeId: 'Z')), isEmpty);
+      expect(ids(const ExecFilter(themeIds: {'A'})), ['r2', 'r1']);
+      expect(ids(const ExecFilter(themeIds: {'Z'})), isEmpty);
+    });
+
+    test('テーマを複数選ぶと、どれかのテーマの実行を残す', () {
+      expect(ids(const ExecFilter(themeIds: {'A', 'B'})), ['r2', 'r1']);
     });
   });
 
@@ -123,15 +132,20 @@ void main() {
 
     test('テーマ・テーマ名の検索で絞り、並び順は変えない', () {
       expect(ids(const ExecFilter(sort: ExecSort.oldest, status: ExecStatusFilter.running)), ['A', 'B', 'C']);
-      expect(ids(const ExecFilter(themeId: 'B')), ['B']);
+      expect(ids(const ExecFilter(themeIds: {'B'})), ['B']);
       expect(ids(const ExecFilter(query: 'rapitas')), ['A']);
-      expect(ids(const ExecFilter(themeId: 'B', query: 'rapitas')), isEmpty);
+      expect(ids(const ExecFilter(themeIds: {'B'}, query: 'rapitas')), isEmpty);
+    });
+
+    test('テーマを複数選ぶと選んだテーマのカードだけ、元の並びで残す', () {
+      expect(ids(const ExecFilter(themeIds: {'C', 'A'})), ['A', 'C']);
+      expect(ids(const ExecFilter(themeIds: {'C', 'A'}, query: 'rapitas')), ['A']);
     });
   });
 
   group('条件', () {
     test('クリア（既定値）に戻すと全件・新しい順', () {
-      const busy = ExecFilter(query: 'x', themeId: 'A', sort: ExecSort.oldest, status: ExecStatusFilter.running);
+      const busy = ExecFilter(query: 'x', themeIds: {'A'}, sort: ExecSort.oldest, status: ExecStatusFilter.running);
       expect(busy.isDefault, isFalse);
       expect(busy.filtersExecuting, isTrue);
       const cleared = ExecFilter();
@@ -151,8 +165,19 @@ void main() {
     });
 
     test('copyWith でテーマを「すべて」に戻せる', () {
-      const f = ExecFilter(themeId: 'A', query: 'q');
-      expect(f.copyWith(clearThemeId: true), const ExecFilter(query: 'q'));
+      const f = ExecFilter(themeIds: {'A'}, query: 'q');
+      expect(f.copyWith(themeIds: const {}), const ExecFilter(query: 'q'));
+    });
+
+    test('テーマの切り替えは足す・外すの往復で、集合の順序は等価判定に影響しない', () {
+      const f = ExecFilter(themeIds: {'A'});
+      expect(f.toggleTheme('B'), const ExecFilter(themeIds: {'A', 'B'}));
+      expect(f.toggleTheme('B').toggleTheme('A'), const ExecFilter(themeIds: {'B'}));
+      expect(f.toggleTheme('A'), const ExecFilter());
+      expect(const ExecFilter(themeIds: {'A', 'B'}), const ExecFilter(themeIds: {'B', 'A'}));
+      expect(const ExecFilter(themeIds: {'A', 'B'}).hashCode, const ExecFilter(themeIds: {'B', 'A'}).hashCode);
+      expect(f.toggleTheme('B').isDefault, isFalse);
+      expect(const ExecFilter(themeIds: {'A'}).filtersOthers, isTrue);
     });
   });
 

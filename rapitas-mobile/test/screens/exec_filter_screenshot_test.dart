@@ -83,7 +83,7 @@ void main() {
         const ExecFilter(),
         (tester) => tester.tap(find.byKey(const ValueKey('exec-filter-open'))),
       ),
-      '2_applied': (const ExecFilter(themeId: '2', status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest), null),
+      '2_applied': (const ExecFilter(themeIds: {'2'}, status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest), null),
       '3_search_mode': (
         const ExecFilter(),
         (tester) async {

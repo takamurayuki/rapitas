@@ -141,8 +141,17 @@ void main() {
     expect(find.descendant(of: _sheet, matching: find.text('カテゴリ')), findsNothing);
 
     await _tapKey(tester, 'exec-sheet-theme-1');
-    expect(_sheet, findsNothing, reason: 'テーマを選ぶと即適用して閉じる');
-    expect(_container.read(execFilterProvider), const ExecFilter(themeId: '1'));
+    expect(_sheet, findsOneWidget, reason: 'テーマは複数選択なので選んでもシートは閉じない');
+    expect(_container.read(execFilterProvider), const ExecFilter(themeIds: {'1'}), reason: '即適用する');
+    expect(_chipSelected(tester, 'exec-sheet-theme-1'), isTrue);
+    expect(_chipSelected(tester, 'exec-sheet-theme-all'), isFalse);
+    // もう1件足してから外すと、元の1件だけが残る
+    await _tapKey(tester, 'exec-sheet-theme-2');
+    expect(_container.read(execFilterProvider), const ExecFilter(themeIds: {'1', '2'}));
+    await _tapKey(tester, 'exec-sheet-theme-2');
+    expect(_container.read(execFilterProvider), const ExecFilter(themeIds: {'1'}));
+    await _tapKey(tester, 'exec-sheet-done');
+    expect(_sheet, findsNothing, reason: '「完了」で閉じる');
     // 自動実行中のテーマでも表示だけ絞れる
     expect(find.byKey(const ValueKey('auto-run-theme-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('auto-run-theme-2')), findsNothing);
@@ -154,18 +163,52 @@ void main() {
     expect(find.text('テーマ：【ダミー】rapitas 開発'), findsOneWidget);
     expect(_badgeVisible(tester), isTrue);
     // チップ列は自動実行セクションより上
-    expect(tester.getTopLeft(find.byKey(const ValueKey('exec-active-theme'))).dy,
+    expect(tester.getTopLeft(find.byKey(const ValueKey('exec-active-theme-1'))).dy,
         lessThan(tester.getTopLeft(find.text('自動実行')).dy));
     expect(service.calls, isEmpty, reason: '絞り込みは自動実行の操作をしない');
 
-    // テーマのチップはタップでシートを開き直す（×なし）。「すべて」で解除できる
-    final themeChip = tester.widget<InputChip>(find.byKey(const ValueKey('exec-active-theme')));
-    expect(themeChip.onDeleted, isNull);
-    await _tapKey(tester, 'exec-active-theme');
+    // テーマのチップはタップでシートを開き直す。「すべて」で選択を空にでき、シートは開いたまま
+    await _tapKey(tester, 'exec-active-theme-1');
     expect(_chipSelected(tester, 'exec-sheet-theme-1'), isTrue);
     await _tapKey(tester, 'exec-sheet-theme-all');
     expect(_container.read(execFilterProvider), const ExecFilter());
+    expect(_chipSelected(tester, 'exec-sheet-theme-all'), isTrue);
+    expect(_sheet, findsOneWidget);
+    await _tapKey(tester, 'exec-sheet-done');
     expect(find.byType(InputChip), findsNothing);
+  });
+
+  testWidgets('テーマ2件を選ぶと両方のテーマが残り、チップはテーマごとに出て×でそのテーマだけ外す', (tester) async {
+    await _pump(tester);
+
+    await _openSheet(tester);
+    await _tapKey(tester, 'exec-sheet-theme-1');
+    await _tapKey(tester, 'exec-sheet-theme-2');
+    // 状態のチップは従来どおり適用して閉じる。テーマの選択は失われない
+    await _tapKey(tester, 'exec-sheet-status-running');
+    expect(_sheet, findsNothing);
+    expect(
+      _container.read(execFilterProvider),
+      const ExecFilter(themeIds: {'1', '2'}, status: ExecStatusFilter.running),
+    );
+    expect(find.byKey(const ValueKey('auto-run-theme-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsOneWidget);
+    expect(find.text('【ダミー】ログイン画面の修正'), findsOneWidget);
+    expect(find.text('【ダミー】通知の設定画面'), findsOneWidget);
+    expect(find.text('【ダミー】ログ出力の整理'), findsNothing, reason: '入力待ちは状態で外れる');
+    expect(find.text('テーマ：【ダミー】rapitas 開発'), findsOneWidget);
+    expect(find.text('テーマ：【ダミー】モバイル版'), findsOneWidget);
+    expect(_badgeVisible(tester), isTrue);
+
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('exec-active-theme-1')), matching: find.byTooltip('このテーマの絞り込みを解除')));
+    await _settle(tester);
+    expect(_container.read(execFilterProvider),
+        const ExecFilter(themeIds: {'2'}, status: ExecStatusFilter.running));
+    expect(find.byKey(const ValueKey('exec-active-theme-1')), findsNothing);
+    expect(find.byKey(const ValueKey('exec-active-theme-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-theme-1')), findsNothing);
+    expect(find.text('【ダミー】ログイン画面の修正'), findsNothing);
   });
 
   testWidgets('検索モードの該当なしは本当に空の表示と区別し、クリアで全件に戻す', (tester) async {
@@ -302,15 +345,18 @@ void main() {
 
   testWidgets('選択中のテーマが開発テーマでなくても条件は残し、チップは全テーマから名前を出す', (tester) async {
     await _pump(tester);
-    _container.read(execFilterProvider.notifier).state = const ExecFilter(themeId: '3');
+    _container.read(execFilterProvider.notifier).state = const ExecFilter(themeIds: {'3'});
     await _settle(tester);
 
     expect(find.text('テーマ：【ダミー】買い物メモ'), findsOneWidget);
-    await _tapKey(tester, 'exec-active-theme');
+    await _tapKey(tester, 'exec-active-theme-3');
     expect(find.byKey(const ValueKey('exec-sheet-theme-3')), findsNothing);
     expect(_chipSelected(tester, 'exec-sheet-theme-all'), isFalse);
     expect(_chipSelected(tester, 'exec-sheet-theme-1'), isFalse);
     expect(_chipSelected(tester, 'exec-sheet-theme-2'), isFalse);
-    expect(_container.read(execFilterProvider).themeId, '3', reason: 'シートを開いただけでは解除しない');
+    expect(_container.read(execFilterProvider).themeIds, {'3'}, reason: 'シートを開いただけでは解除しない');
+    // 候補に無いテーマを残したまま候補のテーマを足せる（集合なので両方残る）
+    await _tapKey(tester, 'exec-sheet-theme-1');
+    expect(_container.read(execFilterProvider).themeIds, {'3', '1'});
   });
 }

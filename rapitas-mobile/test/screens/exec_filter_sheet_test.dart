@@ -88,24 +88,33 @@ void main() {
 
     await tester.tap(_key('exec-sheet-theme-5'));
     await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsOneWidget, reason: 'テーマは複数選択なので閉じない');
+    expect(_container.read(execFilterProvider), const ExecFilter(themeIds: {'5'}));
+    // 別カテゴリに切り替えて足しても、前のカテゴリで選んだテーマは残る
+    await tester.tap(_key('exec-sheet-category-c1'));
+    await _settle(tester);
+    await tester.tap(_key('exec-sheet-theme-1'));
+    await _settle(tester);
+    expect(_container.read(execFilterProvider), const ExecFilter(themeIds: {'5', '1'}));
+    await tester.tap(_key('exec-sheet-done'));
+    await _settle(tester);
     expect(_key('exec-filter-sheet'), findsNothing);
-    expect(_container.read(execFilterProvider), const ExecFilter(themeId: '5'));
   });
 
   testWidgets('選択中テーマのカテゴリで開き、非開発テーマが選ばれていてもシートは解除しない', (tester) async {
-    await _pump(tester, filter: const ExecFilter(themeId: '5'));
+    await _pump(tester, filter: const ExecFilter(themeIds: {'5'}));
     expect(_selected(tester, 'exec-sheet-category-c3'), isTrue);
     expect(_selected(tester, 'exec-sheet-theme-5'), isTrue);
     Navigator.of(tester.element(_key('exec-filter-sheet'))).pop();
     await _settle(tester);
 
-    _container.read(execFilterProvider.notifier).state = const ExecFilter(themeId: '6');
+    _container.read(execFilterProvider.notifier).state = const ExecFilter(themeIds: {'6'});
     await _settle(tester);
     expect(find.text('テーマ：【ダミー】買い物メモ'), findsOneWidget);
     await tester.tap(_key('exec-filter-open'));
     await _settle(tester);
     expect(_selected(tester, 'exec-sheet-category-c1'), isTrue, reason: '候補に無いテーマなら先頭のカテゴリで開く');
     expect(_selected(tester, 'exec-sheet-theme-all'), isFalse);
-    expect(_container.read(execFilterProvider).themeId, '6');
+    expect(_container.read(execFilterProvider).themeIds, {'6'});
   });
 }
