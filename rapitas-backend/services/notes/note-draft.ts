@@ -95,7 +95,9 @@ function unfence(text: string): string {
  * @returns title (possibly empty) and body / タイトル（空のこともある）と本文
  */
 export function parseNoteDraftReply(reply: string): { title: string; content: string } {
-  const text = unfence(reply).replace(/\r\n/g, '\n');
+  // NOTE: Newlines are normalised before unfence — its pattern matches LF only,
+  // so a fenced CRLF reply would otherwise keep the fence and the markers.
+  const text = unfence(reply.replace(/\r\n/g, '\n'));
   const match = text.match(/^\s*TITLE:[ \t]*(.*)\n+BODY:[ \t]*\n?([\s\S]*)$/);
   if (!match) return { title: '', content: text.trim() };
   return { title: match[1].trim(), content: match[2].trim() };

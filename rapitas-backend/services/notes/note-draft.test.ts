@@ -98,6 +98,21 @@ describe('parseNoteDraftReply', () => {
       content: '本文',
     });
   });
+
+  test('drops a fence around a CRLF reply', () => {
+    const raw = '```markdown\r\nTITLE: 件名\r\nBODY:\r\n## 見出し\r\n本文\r\n```';
+    expect(parseNoteDraftReply(raw)).toEqual({
+      title: '件名',
+      content: '## 見出し\n本文',
+    });
+  });
+});
+
+describe('draftNoteFromReply with a fenced CRLF reply', () => {
+  test('an empty body inside the fence is still an error', async () => {
+    reply = '```markdown\r\nTITLE: タイトルだけ\r\nBODY:\r\n\r\n```';
+    await expect(draftNoteFromReply('答え')).rejects.toBeInstanceOf(NoteDraftUnavailableError);
+  });
 });
 
 describe('resolveNoteDraftTitle', () => {
