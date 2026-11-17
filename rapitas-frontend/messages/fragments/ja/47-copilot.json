@@ -113,7 +113,7 @@
     },
     "chatFeel": {
       "jumpToLatest": "最新のメッセージへ",
-      "received": "ラピが受け付けました",
+      "received": "ラピが確認しました",
       "thinking": "ラピが考えています"
     }
   }

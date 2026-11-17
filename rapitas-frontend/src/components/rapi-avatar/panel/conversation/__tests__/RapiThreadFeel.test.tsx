@@ -2,8 +2,8 @@
  * RapiThreadFeel.test
  *
  * How ラピ's thread feels while you talk (nav62, same as the mobile app):
- * a sentence she took in carries a 👌 stamp and one she did not (failed or
- * cancelled) does not; while she works, three waving dots stand in for the
+ * a sentence she has read carries a stamp and one she has not (on its way,
+ * failed or cancelled) does not — see RapiReadStamp.test for when and which; while she works, three waving dots stand in for the
  * words; and her Markdown replies are drawn at chat density.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -31,15 +31,17 @@ function line(partial: Partial<RapiMessage> & Pick<RapiMessage, 'id' | 'role' | 
 
 const stamps = () => document.querySelectorAll('[data-chat-received]');
 
-describe('received stamp', () => {
-  it('marks the sentences she took in, not the ones taken back', () => {
+describe('read stamp', () => {
+  it('marks the sentences she has read, not the ones taken back', () => {
     render(
       <RapiThread
         sending={false}
         rethinkAsPlan={() => {}}
         messages={[
-          line({ id: 1, role: 'user', text: '受け付けた', inHistory: true }),
+          line({ id: 1, role: 'user', text: '受け付けた', inHistory: true, readAs: 'chat' }),
           line({ id: 2, role: 'user', text: '失敗した', inHistory: false }),
+          // NOTE: in the history but not read yet (on its way): no stamp since nav63.
+          line({ id: 3, role: 'user', text: '送信中', inHistory: true }),
         ]}
       />,
     );

@@ -17,7 +17,7 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../../intake';
 import { TaskChange } from '../../intake/change';
-import { ReceivedStamp, TypingDots } from '@/components/ui/chat';
+import { ReceivedStamp, TypingDots, stampGlyphFor } from '@/components/ui/chat';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
 
@@ -62,11 +62,13 @@ interface BubbleProps {
   children: ReactNode;
   /** Markdown lays out its own blocks; plain text keeps its line breaks. */
   markdown?: boolean;
-  /** She took this sentence in: pin the 👌 stamp to its corner. / 受け付けた印 */
+  /** She has read this sentence: the stamp's spoken meaning. / 確認済みの印 */
   stamp?: string;
+  /** The stamp's glyph for the turn's intent. / スタンプの字 */
+  glyph?: string;
 }
 
-function Bubble({ from, children, markdown = false, stamp }: BubbleProps) {
+function Bubble({ from, children, markdown = false, stamp, glyph }: BubbleProps) {
   const mine = from === 'user';
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -83,7 +85,7 @@ function Bubble({ from, children, markdown = false, stamp }: BubbleProps) {
         >
           {children}
         </div>
-        {stamp && <ReceivedStamp label={stamp} />}
+        {stamp && <ReceivedStamp label={stamp} glyph={glyph} />}
       </div>
     </div>
   );
@@ -187,10 +189,12 @@ export function RapiThread({ messages, sending, rethinkAsPlan }: Props) {
             key={m.id}
             from={m.role}
             markdown={markdown}
-            // A sentence counts as taken in while it is in the history: a
-            // failed or cancelled send is taken back out (`unsend`), and a
-            // loaded one kept its flag. Mobile uses the same rule.
-            stamp={m.role === 'user' && m.inHistory ? tc('received') : undefined}
+            // NOTE: stamped once she has read it (`readAs`, set when routing
+            // answers), not as soon as it is in the history (nav63). A failed
+            // or cancelled send loses it; a loaded line gets it back from
+            // what follows. Mobile uses the same rule.
+            stamp={m.role === 'user' && m.readAs ? tc('received') : undefined}
+            glyph={m.role === 'user' ? stampGlyphFor(m.readAs) : undefined}
           >
             {markdown ? <MarkdownView content={m.text} density="chat" /> : m.text}
           </Bubble>

@@ -113,7 +113,7 @@
     },
     "chatFeel": {
       "jumpToLatest": "Jump to the latest message",
-      "received": "Rapi received this",
+      "received": "Rapi has read this",
       "thinking": "Rapi is thinking"
     }
   }
