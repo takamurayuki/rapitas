@@ -47,12 +47,13 @@ mixin _RapiSpaceOps on _RapiChatBase {
     // 読み込み中に足された行は、もう保存待ちにも積まれていて、重ね合わせで記録としても戻ってくる。
     // 同じ行を二重に出さないよう、後ろに残すいまの行を正とする
     final live = {for (final m in later) clientIdOf(m)};
-    state = state.copyWith(messages: [
+    // 記録の印は保存していないので、並べ終えてから後ろの応答で戻す（rapi_read_mark.dart）
+    state = state.copyWith(messages: rapiRestoreReadMarks([
       ...greeting,
       for (final m in loaded)
         if (!live.contains(m.clientId)) m.withId(_nextId++),
       ...later,
-    ]);
+    ]));
   }
 
   /// 「前の会話を読み込む」で読んだ [older] を、記録の先頭（挨拶のすぐ後ろ）に足す
@@ -60,11 +61,12 @@ mixin _RapiSpaceOps on _RapiChatBase {
     if (older.isEmpty) return;
     final rest = [for (final m in state.messages) if (m.id != _greetingId) m];
     final greeting = [for (final m in state.messages) if (m.id == _greetingId) m];
-    state = state.copyWith(messages: [
+    // 前のページの末尾の発言は、応答が今のページの先頭にあるので、つないでから戻す
+    state = state.copyWith(messages: rapiRestoreReadMarks([
       ...greeting,
       for (final m in older) m.withId(_nextId++),
       ...rest,
-    ]);
+    ]));
   }
 
   /// 端末だけの案内（保存しない。保存の失敗・前回の会話の削除など）

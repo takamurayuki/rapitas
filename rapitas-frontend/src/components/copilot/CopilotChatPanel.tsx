@@ -6,14 +6,16 @@
  * AI-powered chat panel for task assistance, analysis, and action execution.
  * Supports quick prompts, message history, and contextual insights.
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bot, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
-import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
+import { ProactiveInsight } from './CopilotChatComponents';
+import { MessageBubble } from './MessageBubble';
 import { type CopilotChatPanelProps } from './copilot-chat-types';
 import { getNextActions, type RecommendedAction } from './next-action-recommender';
 import { NextActionRecommendations } from './NextActionRecommendations';
+import { JumpToLatestButton, TypingDots, useChatFollow } from '@/components/ui/chat';
 
 export function CopilotChatPanel({
   taskId,
@@ -29,6 +31,7 @@ export function CopilotChatPanel({
 }: CopilotChatPanelProps) {
   const t = useTranslations('copilot.chatPanel');
   const tCommon = useTranslations('common');
+  const tc = useTranslations('copilot.chatFeel');
   const {
     messages,
     isLoading,
@@ -44,9 +47,26 @@ export function CopilotChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const nextActions = nextActionContext ? getNextActions(nextActionContext) : [];
 
+  // NOTE: no longer pulls to the bottom on every change: only after you send
+  // or while you are at the bottom, with a ▽ to get back otherwise.
+  const last = messages[messages.length - 1];
+  // NOTE: isLoading stays in the key so the dots row coming and going keeps
+  // a bottom reader at the bottom, but only a newly added user line forces
+  // the jump. A failed send settles with the same user line still newest;
+  // that must not pull a reader who scrolled up while waiting.
+  const seenLastId = useRef(last?.id);
+  const follow = useChatFollow({
+    ref: scrollRef,
+    contentKey: `${last?.id}:${messages.length}:${isLoading}`,
+    sentByUser: last?.role === 'user' && last.id !== seenLastId.current,
+  });
+  // Passive effect: runs after useChatFollow's layout effect has read sentByUser.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+    seenLastId.current = last?.id;
+  }, [last?.id]);
+  // A chat send has no pending note of its own (actions do); while its
+  // answer is on the way, she shows the typing dots.
+  const awaitingReply = isLoading && last?.role === 'user' && !last.failed;
 
   const handleAction = useCallback(
     async (actionType: string, params?: Record<string, unknown>) => {
@@ -149,53 +169,64 @@ export function CopilotChatPanel({
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        role="log"
-        aria-live="polite"
-        className={
-          compact ? 'flex-1 overflow-y-auto px-1 py-1' : 'flex-1 overflow-y-auto px-4 py-3'
-        }
-        style={
-          compact
-            ? { maxHeight: 'calc(70vh - 7rem)' }
-            : { minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }
-        }
-      >
-        {/* Show the passive insight only when there are no recommendations to
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={scrollRef}
+          onScroll={follow.onScroll}
+          role="log"
+          aria-live="polite"
+          className={
+            compact ? 'flex-1 overflow-y-auto px-1 py-1' : 'flex-1 overflow-y-auto px-4 py-3'
+          }
+          style={
+            compact
+              ? { maxHeight: 'calc(70vh - 7rem)' }
+              : { minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }
+          }
+        >
+          {/* Show the passive insight only when there are no recommendations to
             avoid a duplicate prompt; hide recommendations while an action runs
             (the pending message is the single loading indicator). */}
-        {messages.length === 0 && !isLoading && nextActions.length === 0 && (
-          <ProactiveInsight taskStatus={taskStatus} taskTitle={taskTitle} />
-        )}
-        {nextActions.length > 0 && !isLoading && (
-          <div className="mb-3">
-            <NextActionRecommendations
-              actions={nextActions}
-              onSelect={handleSelect}
-              compact={compact}
-              isBusy={isLoading}
-            />
-          </div>
-        )}
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} onAction={handleAction} />
-        ))}
-        {isRetrospecting && (
-          <div className="mb-3 flex justify-center">
-            <button
-              type="button"
-              onClick={cancelRetrospective}
-              className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              {tCommon('cancel')}
-            </button>
-          </div>
-        )}
-        {error && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-            {error}
-          </div>
+          {messages.length === 0 && !isLoading && nextActions.length === 0 && (
+            <ProactiveInsight taskStatus={taskStatus} taskTitle={taskTitle} />
+          )}
+          {nextActions.length > 0 && !isLoading && (
+            <div className="mb-3">
+              <NextActionRecommendations
+                actions={nextActions}
+                onSelect={handleSelect}
+                compact={compact}
+                isBusy={isLoading}
+              />
+            </div>
+          )}
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} msg={msg} onAction={handleAction} />
+          ))}
+          {awaitingReply && (
+            <div className="mb-3">
+              <TypingDots label={tc('thinking')} />
+            </div>
+          )}
+          {isRetrospecting && (
+            <div className="mb-3 flex justify-center">
+              <button
+                type="button"
+                onClick={cancelRetrospective}
+                className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                {tCommon('cancel')}
+              </button>
+            </div>
+          )}
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+              {error}
+            </div>
+          )}
+        </div>
+        {follow.showJump && (
+          <JumpToLatestButton onClick={follow.jumpToLatest} label={tc('jumpToLatest')} />
         )}
       </div>
 

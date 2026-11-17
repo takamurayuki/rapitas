@@ -110,6 +110,11 @@
       "actionError": "Failed to execute action",
       "retrospectiveGenerating": "Analyzing artifacts and generating retrospective...",
       "retrospectiveError": "Failed to generate retrospective"
+    },
+    "chatFeel": {
+      "jumpToLatest": "Jump to the latest message",
+      "received": "Rapi has read this",
+      "thinking": "Rapi is thinking"
     }
   }
 }

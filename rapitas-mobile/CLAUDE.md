@@ -48,6 +48,7 @@ rapitas-mobile/
 │   ├── models/                    Plain Dart classes with fromJson
 │   │   ├── task.dart              Task, TaskCategory, TaskTheme, ThemeCategoryGroup
 │   │   ├── task_execution.dart    ExecutingTask, ResumableExecution, TaskExecutionStart
+│   │   ├── theme_auto_run.dart    ThemeAutoRunState, ThemeAutoRunSnapshot
 │   │   ├── agent_config.dart, approval_request.dart, notification_model.dart
 │   │   ├── backlog.dart           Idea, Concern, Hypothesis
 │   │   ├── note.dart, companion_digest.dart, project.dart (unused)
@@ -60,6 +61,7 @@ rapitas-mobile/
 │   │   ├── realtime_refresh_provider.dart  SSE event -> provider invalidation
 │   │   ├── task_provider.dart, agent_provider.dart, execution_provider.dart, approval_provider.dart
 │   │   ├── notification_provider.dart, backlog_provider.dart, note_provider.dart, theme_data_provider.dart
+│   │   ├── theme_auto_run_provider.dart  development themes, per-theme auto-run state
 │   │   ├── companion_provider.dart, home_widget_sync_provider.dart, pending_request_provider.dart
 │   │   ├── rapi_chat_provider.dart, rapi_chat_spaces_provider.dart (+ rapi_chat/*.part.dart)
 │   │   ├── settings_provider.dart theme mode, voice command mode
@@ -68,7 +70,7 @@ rapitas-mobile/
 │   │   ├── api_client.dart        Shared Dio wrapper
 │   │   ├── human_decision_client.dart  Separate Dio for human-only workflow routes
 │   │   ├── task_service.dart, agent_service.dart, approval_service.dart, notification_service.dart
-│   │   ├── theme_service.dart, category_service.dart, backlog_service.dart, note_service.dart
+│   │   ├── theme_service.dart, theme_auto_run_service.dart, category_service.dart, backlog_service.dart, note_service.dart
 │   │   ├── decision_service.dart, deploy_service.dart
 │   │   ├── assistant_service.dart, companion_digest_service.dart, rapi_chat_space_service.dart
 │   │   ├── sse_service.dart, sse_parser.dart
@@ -108,7 +110,7 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls |
 | Task form | `task_form/` | Create and edit tasks |
 | Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
-| Executions | `agent_execution/` | Running and resumable executions, execution logs |
+| Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs |
 | Approvals | `approvals/` | Approve or reject approval requests (with an optional reason) |
 | Notifications | `notifications/` | Notification list, mark as read, delete |
 | Dashboard | `dashboard/` | Task counts by status (未着手 / 進行中 / 完了 / 合計), computed on the phone from the task list |
@@ -166,6 +168,7 @@ This is the full list from `lib/services/` (all relative to the base URL). Do no
 | Workflow decisions | `GET /workflow/tasks/:id/files/:fileType`, `GET /workflow/tasks/:id/review-hold`, `POST /workflow/tasks/:id/approve-plan`, `.../revise-plan`, `.../answer-question`, `.../review-hold/resolve`, `.../release-halt` |
 | Notifications | `GET /notifications`, `PATCH /notifications/:id/read`, `DELETE /notifications/:id` |
 | Themes | `GET/POST /themes`, `PATCH/DELETE /themes/:id`, `PATCH /themes/:id/set-default`, `PATCH /themes/reorder` |
+| Theme auto-run | `GET /themes/:id/auto-run`, `POST /themes/:id/auto-run` (`{action: start\|pause\|stop, order?: priority\|created}`) |
 | Categories | `GET/POST /categories`, `PATCH/DELETE /categories/:id`, `GET /categories/default-category`, `PATCH /categories/:id/set-default`, `PATCH /categories/reorder` |
 | Backlog | `GET/POST /idea-box`, `PATCH/DELETE /idea-box/:id`, `GET/POST /concerns`, `DELETE /concerns/:id`, `GET /hypotheses`, `PUT /hypotheses/:id/status`, `DELETE /hypotheses/:id` |
 | Notes | `GET /notes`, `GET/PUT/DELETE /notes/:id`, `POST /notes/:id/links` |
@@ -194,6 +197,8 @@ Swagger docs for the whole backend are at `http://<host>:3001/api/docs`.
 | `new_notification` | notifications, approvals |
 | `phase_transition` | tasks, approvals |
 | `auto_run_update` | tasks, executions |
+
+The executions target also reloads every theme's auto-run state (`themeAutoRunProvider`), so the auto-run cards on the executions screen refresh with the running list. There is no polling timer.
 
 Events are emitted by `rapitas-backend/services/communication/realtime-service.ts` and its callers. There is no dedicated approval event.
 

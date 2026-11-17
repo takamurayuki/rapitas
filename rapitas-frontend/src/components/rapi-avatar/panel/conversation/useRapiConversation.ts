@@ -15,6 +15,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
+import { READ_AS_CHAT } from '@/components/ui/chat';
 
 const logger = createLogger('rapi-conversation');
 
@@ -125,8 +126,11 @@ export function useRapiConversation({
    */
   const unsend = useCallback((userId: number, said: string) => {
     const line = latest.current.find((m) => m.id === userId);
-    setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, inHistory: false } : m)));
-    if (line) save.current?.([{ ...line, inHistory: false }]);
+    // Not read either: a send that failed after routing loses its stamp.
+    setMessages((prev) =>
+      prev.map((m) => (m.id === userId ? { ...m, inHistory: false, readAs: undefined } : m)),
+    );
+    if (line) save.current?.([{ ...line, inHistory: false, readAs: undefined }]);
     // Only if nothing new was started meanwhile.
     setText((current) => (current.trim() ? current : said));
   }, []);
@@ -154,6 +158,10 @@ export function useRapiConversation({
       });
       if (!routeRes.ok) throw new Error(`HTTP ${routeRes.status}`);
       const routed = (await routeRes.json()) as RouteAnswer;
+      // Her first answer to the sentence: she has read it, as this intent.
+      // The stamp goes on now, not when the sentence was sent (nav63).
+      const readAs = routed.routed && routed.intent ? routed.intent : READ_AS_CHAT;
+      setMessages((prev) => prev.map((m) => (m.id === userId ? { ...m, readAs } : m)));
       if (routed.routed && routed.intent) {
         add({
           role: 'system',
