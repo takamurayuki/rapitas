@@ -80,7 +80,7 @@ describe('saveCopilotNote', () => {
   it('PUTs the title and body, then links the note to the task', async () => {
     const result = await saveCopilotNote(draft, 42, () => 1731800000000);
 
-    expect(result).toEqual({ noteId: '1731800000000', linked: true });
+    expect(result).toEqual({ noteId: '1731800000000', linked: true, mirrored: true });
     expect(calls()).toEqual([
       {
         url: 'http://test/notes/1731800000000',
@@ -108,8 +108,21 @@ describe('saveCopilotNote', () => {
       url.endsWith('/links') ? status(500) : ok(),
     ) as unknown as typeof fetch;
     const result = await saveCopilotNote(draft, 42, () => 7);
-    expect(result).toEqual({ noteId: '7', linked: false });
+    expect(result).toEqual({ noteId: '7', linked: false, mirrored: true });
     expect(useNoteStore.getState().notes[0].linkedTaskIds).toBeUndefined();
+  });
+
+  it('keeps the server save when the local copy fails (e.g. localStorage is full)', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    try {
+      const result = await saveCopilotNote(draft, 42, () => 9);
+      expect(result).toEqual({ noteId: '9', linked: true, mirrored: false });
+      expect(calls().map((c) => c.method)).toEqual(['PUT', 'POST']);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   it('throws when the note itself was not saved, and does not link or keep it', async () => {

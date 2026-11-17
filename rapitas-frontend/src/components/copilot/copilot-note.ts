@@ -21,10 +21,15 @@ export interface CopilotNoteDraft {
   content: string;
 }
 
-/** What the save did. `linked` is null when there was no task to link to. */
+/**
+ * What the save did. `linked` is null when there was no task to link to.
+ * `mirrored` is false when the server has the note but this browser's copy
+ * could not be stored; the save still counts as done.
+ */
 export interface CopilotNoteSaveResult {
   noteId: string;
   linked: boolean | null;
+  mirrored: boolean;
 }
 
 /** First non-empty line, with leading Markdown markers (#, >, -, *) removed. */
@@ -132,6 +137,13 @@ export async function saveCopilotNote(
       linked = false;
     }
   }
-  mirrorLocally(noteId, draft, linked ? taskId : null);
-  return { noteId, linked };
+  // NOTE: the server already has the note. A failed local copy (e.g. localStorage
+  // quota) must not surface as a failed save, or a retry would mint a second note.
+  let mirrored = true;
+  try {
+    mirrorLocally(noteId, draft, linked ? taskId : null);
+  } catch {
+    mirrored = false;
+  }
+  return { noteId, linked, mirrored };
 }

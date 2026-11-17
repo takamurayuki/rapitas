@@ -75,6 +75,25 @@ describe('SaveToNoteButton', () => {
     expect(showToast).toHaveBeenCalledWith('savedLinkFailed', 'warning', expect.anything());
   });
 
+  it('stays saved when only the local copy failed, so a retry cannot make a second note', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    try {
+      renderReply();
+      fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'saved' })).toBeDisabled());
+      expect(showToast).toHaveBeenCalledWith('savedToast', 'success', expect.anything());
+      expect(showToast).not.toHaveBeenCalledWith('failed', 'error');
+      fireEvent.click(screen.getByRole('button', { name: 'saved' }));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it('does not show success when the save failed, and lets the user retry', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }),
