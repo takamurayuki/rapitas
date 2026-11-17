@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/task.dart';
 import '../../models/task_execution.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
@@ -10,8 +9,10 @@ import '../../widgets/voice_scroll_target.dart';
 import '../../widgets/execution_log_viewer.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_mode_indicator.dart';
+import 'auto_run_section.dart';
+import 'section_title.dart';
 
-/// 実行中のタスクと、中断されて再開できる実行の2セクション。
+/// 上部に開発テーマの自動実行（AutoRunSection）、続いて実行中のタスクと、中断されて再開できる実行。
 /// どちらもタスク中心の実在API（/tasks/executing, /agents/resumable-executions）から取る。
 class AgentExecutionScreen extends ConsumerWidget {
   const AgentExecutionScreen({super.key});
@@ -22,18 +23,10 @@ class AgentExecutionScreen extends ConsumerWidget {
     final resumableAsync = ref.watch(resumableExecutionsProvider);
     final titles = ref.watch(taskTitleLookupProvider);
 
-    // 両方とも取得でき、どちらも空のときだけ全体の空状態にする。
-    // 片方が失敗・読み込み中なら、セクションごとに状態を出す。
     final executing = executingAsync.valueOrNull;
     final resumable = resumableAsync.valueOrNull
         ?.where((e) => e.canResume)
         .toList();
-    final allEmpty = !executingAsync.hasError &&
-        !resumableAsync.hasError &&
-        executing != null &&
-        resumable != null &&
-        executing.isEmpty &&
-        resumable.isEmpty;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -42,59 +35,52 @@ class AgentExecutionScreen extends ConsumerWidget {
         title: const Text('エージェント実行'),
         actions: const [VoiceModeIndicator()],
       ),
-      // タップで開ける実行導線。音声の「実行」と同じく todo の実行可能タスク一覧を使う。
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'execute_task',
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('タスクを実行'),
-        onPressed: () => _showTaskSelectionForExecution(context, ref, '実行'),
-      ),
+      // NOTE: 単一タスク実行の FAB（タスク選択→確認→実行）は削除した。タスクごとの実行は
+      // タスク詳細画面と音声コマンドの別経路で行う。
       body: VoiceScrollTarget(
         path: '/executions',
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(taskListProvider);
-            _invalidateExecutions(
-                ProviderScope.containerOf(context, listen: false));
+            final container = ProviderScope.containerOf(context, listen: false);
+            _invalidateExecutions(container);
+            AutoRunSection.invalidate(container);
           },
-          child: allEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 160),
-                    Icon(Icons.play_circle_outline, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Center(child: Text('実行中のタスクはありません')),
-                  ],
-                )
-              : ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  // 下端は FAB が最後のカードの停止・再開ボタンに重ならない分を空ける
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
-                  children: [
-                    const _SectionTitle('実行中'),
-                    ..._buildSection<ExecutingTask>(
-                      state: executingAsync,
-                      items: executing,
-                      emptyText: '実行中のタスクはありません',
-                      errorText: '実行中のタスクを取得できませんでした',
-                      onRetry: () => ref.invalidate(executingTasksProvider),
-                      itemBuilder: (task) =>
-                          _buildExecutingTile(context, ref, task, titles),
-                    ),
-                    const SizedBox(height: 16),
-                    const _SectionTitle('再開可能'),
-                    ..._buildSection<ResumableExecution>(
-                      state: resumableAsync,
-                      items: resumable,
-                      emptyText: '再開できる実行はありません',
-                      errorText: '再開可能な実行を取得できませんでした',
-                      onRetry: () => ref.invalidate(resumableExecutionsProvider),
-                      itemBuilder: (execution) =>
-                          _buildResumableTile(context, ref, execution, titles),
-                    ),
-                  ],
+          // NOTE: 以前は両方空のとき一覧の下に大きなアイコンと文だけを出していたが、自動実行セクションの
+          // 下に埋もれて見えにくかった。常に同じ並びにし、空は各見出しの直下に出す。
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(8),
+            children: [
+              const AutoRunSection(),
+              const SectionTitle('実行中'),
+              ..._buildSection<ExecutingTask>(
+                state: executingAsync,
+                items: executing,
+                empty: const _ExecutingEmptyState(),
+                errorText: '実行中のタスクを取得できませんでした',
+                onRetry: () => ref.invalidate(executingTasksProvider),
+                itemBuilder: (task) =>
+                    _buildExecutingTile(context, ref, task, titles),
+              ),
+              const SizedBox(height: 16),
+              const SectionTitle('再開可能'),
+              ..._buildSection<ResumableExecution>(
+                state: resumableAsync,
+                items: resumable,
+                empty: const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('再開できる実行はありません')),
+                  ),
                 ),
+                errorText: '再開可能な実行を取得できませんでした',
+                onRetry: () => ref.invalidate(resumableExecutionsProvider),
+                itemBuilder: (execution) =>
+                    _buildResumableTile(context, ref, execution, titles),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -103,7 +89,7 @@ class AgentExecutionScreen extends ConsumerWidget {
   List<Widget> _buildSection<T>({
     required AsyncValue<Object?> state,
     required List<T>? items,
-    required String emptyText,
+    required Widget empty,
     required String errorText,
     required VoidCallback onRetry,
     required Widget Function(T item) itemBuilder,
@@ -119,16 +105,7 @@ class AgentExecutionScreen extends ConsumerWidget {
         ),
       ];
     }
-    if (items.isEmpty) {
-      return [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(child: Text(emptyText)),
-          ),
-        ),
-      ];
-    }
+    if (items.isEmpty) return [empty];
     return items.map(itemBuilder).toList();
   }
 
@@ -253,114 +230,6 @@ class AgentExecutionScreen extends ConsumerWidget {
     container.invalidate(executingTasksProvider);
     container.invalidate(resumableExecutionsProvider);
     container.invalidate(taskExecutionLogsProvider);
-  }
-
-  Future<void> _showTaskSelectionForExecution(
-    BuildContext context,
-    WidgetRef ref,
-    String query,
-  ) async {
-    try {
-      final taskService = ref.read(taskServiceProvider);
-      List<Task> tasks;
-
-      // クエリが単純な実行コマンドの場合は実行可能なタスク一覧を取得
-      final isSimpleExecute =
-          RegExp(r'^(?:実行|自動実行|エージェント実行)(?:して|する)?$').hasMatch(query.trim());
-      if (isSimpleExecute) {
-        tasks = await taskService.getTasks(status: 'todo');
-      } else {
-        tasks = await taskService.searchTasks(query);
-        if (tasks.isEmpty) {
-          tasks = await taskService.getTasks(status: 'todo');
-        }
-      }
-
-      final executableTasks =
-          tasks.where((t) => t.canExecuteWithAgent).toList();
-
-      if (!context.mounted) return;
-
-      if (executableTasks.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('実行可能なタスクが見つかりませんでした')),
-        );
-        return;
-      }
-
-      final selected = await showDialog<Task>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('実行するタスクを選択'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: executableTasks.length,
-              itemBuilder: (context, index) {
-                final task = executableTasks[index];
-                return ListTile(
-                  title: Text(task.title,
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(task.status),
-                  leading: const Icon(Icons.play_circle_outline),
-                  onTap: () => Navigator.pop(context, task),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ),
-          ],
-        ),
-      );
-
-      if (selected == null || !context.mounted) return;
-
-      // 確認ダイアログ
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('タスクを実行'),
-          content: Text('「${selected.title}」をAIエージェントで実行しますか？'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('キャンセル')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('実行')),
-          ],
-        ),
-      );
-
-      if (confirmed != true || !context.mounted) return;
-
-      final container = ProviderScope.containerOf(context, listen: false);
-      final result =
-          await container.read(agentServiceProvider).executeTask(selected.id);
-      _invalidateExecutions(container);
-      // 実行開始（または質問作成）でタスクのステータスも変わる
-      container.invalidate(taskListProvider);
-      container.invalidate(taskDetailProvider(selected.id));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.isAwaitingQuestion
-              ? (result.message ?? '「${selected.title}」の仕様確認の質問を作成しました')
-              : '「${selected.title}」の実行を開始しました'),
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('実行に失敗しました: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _stopExecution(
@@ -502,26 +371,6 @@ class AgentExecutionScreen extends ConsumerWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      child: Text(
-        title,
-        style: Theme.of(context)
-            .textTheme
-            .titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
 /// セクション単位の取得失敗表示。もう片方のセクションはそのまま出す。
 class _SectionError extends StatelessWidget {
   final String message;
@@ -543,6 +392,38 @@ class _SectionError extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('再試行')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 実行中が空のときの表示。見出し「実行中」の直下に、枠つきのブロックで目立たせる
+class _ExecutingEmptyState extends StatelessWidget {
+  const _ExecutingEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('executing-empty'),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.play_circle_outline, size: 36, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '実行中のタスクはありません',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

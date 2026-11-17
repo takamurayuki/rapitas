@@ -8,7 +8,7 @@
  * is refused, so the required fields are in view.
  * Not responsible for the fields themselves (`feature/tasks/components/spec`).
  */
-import { Target } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { CompactAccordionGroup } from '@/components/ui/accordion';
 import { TaskSpecFields, type TaskSpecFieldsProps } from '@/feature/tasks/components/spec';
@@ -28,7 +28,7 @@ export function TaskSpecSection(fields: TaskSpecSectionProps) {
       // Remounted when the requirement or a refusal appears, so it opens then.
       key={`spec-${fields.isDevelopment}-${hasIssues}`}
       title={t('specTitle')}
-      icon={<Target className="w-3.5 h-3.5" />}
+      icon={<ClipboardList className="w-3.5 h-3.5" />}
       defaultExpanded={fields.isDevelopment || hasIssues}
     >
       <TaskSpecFields {...fields} />

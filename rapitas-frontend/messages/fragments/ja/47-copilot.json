@@ -110,6 +110,11 @@
       "actionError": "アクション実行に失敗しました",
       "retrospectiveGenerating": "成果物を分析して振り返りを生成中...",
       "retrospectiveError": "振り返りの生成に失敗しました"
+    },
+    "chatFeel": {
+      "jumpToLatest": "最新のメッセージへ",
+      "received": "ラピが確認しました",
+      "thinking": "ラピが考えています"
     }
   }
 }

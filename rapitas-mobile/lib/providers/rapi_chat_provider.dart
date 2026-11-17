@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rapi.dart';
 import '../models/rapi_chat/rapi_chat_cards.dart';
 import '../models/rapi_chat/rapi_chat_message.dart';
+import '../models/rapi_chat/rapi_read_mark.dart';
 import '../models/rapi_chat/rapi_tidy_state.dart';
 import '../models/task.dart';
 import '../services/assistant_service.dart';
@@ -16,6 +17,7 @@ import 'theme_data_provider.dart';
 
 export '../models/rapi_chat/rapi_chat_cards.dart';
 export '../models/rapi_chat/rapi_chat_message.dart';
+export '../models/rapi_chat/rapi_read_mark.dart';
 export '../models/rapi_chat/rapi_tidy_state.dart';
 
 part 'rapi_chat/rapi_chat_external.part.dart';
@@ -47,9 +49,8 @@ part 'rapi_chat/rapi_chat_space.part.dart';
 // 「伴走して」「伴走をやめて」かを聞く。そうなら確認カードを出し、押されたら start/stop を送る
 // （設計 4.3「手動のタスク」）。そうでなければ、いつもどおり相談・振り分けへ送る。
 
-/// assistant 系の要求がタイムアウトしたときの system メッセージ
-const String rapiTimeoutMessage = '応答に時間がかかり、タイムアウトしました。'
-    'デスクトップ側の処理が混んでいるかもしれません。もう一度送ってみてください。';
+// NOTE: rapiTimeoutMessage は rapi_read_mark.dart へ移した（記録の印を戻すときに送信失敗の案内として
+// 見分けるため）。ここから export しているので、これまでの参照はそのまま使える。
 
 /// ショートカットから預かった依頼を入力欄に入れるときの上限
 /// （入力欄と同じ。バックエンドの MAX_TEXT_LENGTH）
@@ -152,6 +153,14 @@ abstract class _RapiChatBase extends Notifier<RapiChatState> {
 
   void _add(RapiMessage Function(int id) build) {
     state = state.copyWith(messages: [...state.messages, build(_nextId++)]);
+  }
+
+  /// 発言 [userId] を、ラピが意図 [intent] として確認した（スタンプが付く。null で外す）
+  void _markRead(int? userId, String? intent) {
+    if (userId == null) return;
+    state = state.copyWith(messages: [
+      for (final m in state.messages) m.id == userId ? m.withReadAs(intent) : m,
+    ]);
   }
 
   void _system(String text, {String? taskId}) =>

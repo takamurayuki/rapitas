@@ -296,6 +296,22 @@ html {
   }
 }
 
+/* Chat typing dots (components/ui/chat/TypingDots): each dot rises a little
+   and falls in the first part of the cycle, then rests, so three dots with
+   staggered delays read as a wave. Mirrors the mobile ラピ screen. */
+@keyframes chat-typing-wave {
+  0%,
+  45%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  20% {
+    transform: translateY(-3.5px);
+    opacity: 1;
+  }
+}
+
 /* Dark mode CSS variables */
 :root {
   --card-bg-light: white;

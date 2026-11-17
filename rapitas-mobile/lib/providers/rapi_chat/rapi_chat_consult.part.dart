@@ -108,6 +108,8 @@ mixin _RapiConsultOps on _RapiChatBase {
             text: picker.text,
             inHistory: true,
             consultTaskId: task.id,
+            // 振り分けで一度読み取った発言を移しただけなので、確認の印は付けたまま移す
+            readAs: 'consult',
           ));
       await _sendConsult(task, picker.text, history);
       sent = true;
@@ -140,13 +142,18 @@ mixin _RapiConsultOps on _RapiChatBase {
     }
     if (session != _consultSession || past.isEmpty) return;
     _system('「${task.title}」のこれまでの相談（${past.length}件）');
-    for (final p in past) {
+    // NOTE: 返答済みの発言には相談の印を付ける。相談の履歴は archived ではないので、
+    // 会話スペース用の復元（rapiRestoreReadMarks）では戻らない（nav63 レビュー指摘 P2）
+    final readAs = rapiConsultHistoryReadAs([for (final p in past) p.fromUser]);
+    for (var i = 0; i < past.length; i++) {
+      final p = past[i];
       _add((id) => RapiMessage(
             id: id,
             role: p.fromUser ? RapiRole.user : RapiRole.assistant,
             text: p.content,
             inHistory: true,
             consultTaskId: task.id,
+            readAs: readAs[i],
           ));
     }
   }

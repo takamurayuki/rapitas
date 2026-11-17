@@ -12,11 +12,12 @@
  * tab or a history row — and a second request of the same kind gets its
  * own card instead of replacing the first.
  */
-import { useEffect, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { TaskAsk, TaskConsult, TaskIntake, TaskRoadmap, TaskTidy, TaskWatch } from '../../intake';
 import { TaskChange } from '../../intake/change';
+import { ReceivedStamp, TypingDots, stampGlyphFor } from '@/components/ui/chat';
 import type { PromptDestination } from '../RapiPrompt';
 import type { RapiMessage } from './conversation-types';
 
@@ -56,19 +57,35 @@ interface Props {
   rethinkAsPlan: (sentence: string) => void;
 }
 
-function Bubble({ from, children }: { from: 'user' | 'assistant'; children: ReactNode }) {
+interface BubbleProps {
+  from: 'user' | 'assistant';
+  children: ReactNode;
+  /** Markdown lays out its own blocks; plain text keeps its line breaks. */
+  markdown?: boolean;
+  /** She has read this sentence: the stamp's spoken meaning. / 確認済みの印 */
+  stamp?: string;
+  /** The stamp's glyph for the turn's intent. / スタンプの字 */
+  glyph?: string;
+}
+
+function Bubble({ from, children, markdown = false, stamp, glyph }: BubbleProps) {
   const mine = from === 'user';
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div
-        data-rapi-line={from}
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-          mine
-            ? 'rounded-br-sm bg-indigo-600 text-white'
-            : 'rounded-bl-sm bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
-        }`}
-      >
-        {children}
+      {/* The stamp is a sibling of the line, not inside it, so the line's
+          text stays exactly what was said. */}
+      <div className="relative max-w-[85%]">
+        <div
+          data-rapi-line={from}
+          className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${markdown ? '' : 'whitespace-pre-wrap'} ${
+            mine
+              ? 'rounded-br-sm bg-indigo-600 text-white'
+              : 'rounded-bl-sm bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100'
+          }`}
+        >
+          {children}
+        </div>
+        {stamp && <ReceivedStamp label={stamp} glyph={glyph} />}
       </div>
     </div>
   );
@@ -144,13 +161,10 @@ function RoutedLine({
  */
 export function RapiThread({ messages, sending, rethinkAsPlan }: Props) {
   const t = useTranslations('rapiAvatar.prompt');
-  const end = useRef<HTMLDivElement>(null);
-
-  // Keeps the newest line in view, as a chat does. Keyed on the count so a
-  // card that grows as its answer arrives does not yank the scroll back.
-  useEffect(() => {
-    end.current?.scrollIntoView?.({ block: 'end' });
-  }, [messages.length, sending]);
+  const tc = useTranslations('copilot.chatFeel');
+  // NOTE: following the newest line moved to RapiAvatarPanel (useChatFollow),
+  // which owns the scrolling box: it now follows only after you send or
+  // while you are at the bottom, instead of on every new line.
 
   return (
     <div className="space-y-3 px-3 py-3" aria-live="polite">
@@ -169,24 +183,28 @@ export function RapiThread({ messages, sending, rethinkAsPlan }: Props) {
             </p>
           );
         }
+        const markdown = m.role === 'assistant' && !m.localOnly;
         return (
-          <Bubble key={m.id} from={m.role}>
-            {m.role === 'assistant' && !m.localOnly ? (
-              <MarkdownView content={m.text} className="prose-p:my-1 prose-headings:my-2" />
-            ) : (
-              m.text
-            )}
+          <Bubble
+            key={m.id}
+            from={m.role}
+            markdown={markdown}
+            // NOTE: stamped once she has read it (`readAs`, set when routing
+            // answers), not as soon as it is in the history (nav63). A failed
+            // or cancelled send loses it; a loaded line gets it back from
+            // what follows. Mobile uses the same rule.
+            stamp={m.role === 'user' && m.readAs ? tc('received') : undefined}
+            glyph={m.role === 'user' ? stampGlyphFor(m.readAs) : undefined}
+          >
+            {markdown ? <MarkdownView content={m.text} density="chat" /> : m.text}
           </Bubble>
         );
       })}
       {sending && (
-        <Bubble from="assistant">
-          <span className="text-zinc-400" data-rapi-typing="true">
-            {t('thinking')}
-          </span>
-        </Bubble>
+        <div data-rapi-typing="true">
+          <TypingDots label={t('thinking')} />
+        </div>
       )}
-      <div ref={end} />
     </div>
   );
 }

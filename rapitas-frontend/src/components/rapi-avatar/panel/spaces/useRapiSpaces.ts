@@ -24,6 +24,7 @@ import {
   putMessages,
   type RapiSpaceSummary,
 } from './rapi-spaces-api';
+import { restoreReadMarks } from './read-marks';
 
 const logger = createLogger('rapi-spaces');
 
@@ -168,7 +169,15 @@ export function useRapiSpaces(): RapiSpaces {
         return [];
       }
       setProblem(null);
-      return rows.filter((row) => !isRoutingNote(row)).map(fromSaved);
+      // The read marks come from the rows before the old routing notes go.
+      const read = restoreReadMarks(rows);
+      return rows
+        .filter((row) => !isRoutingNote(row))
+        .map((row) => {
+          const line = fromSaved(row);
+          const readAs = read.get(row.clientId);
+          return readAs ? { ...line, readAs } : line;
+        });
     } catch (err) {
       logger.warn({ err }, 'could not load the space');
       setProblem('load');

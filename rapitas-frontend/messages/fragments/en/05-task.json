@@ -88,7 +88,7 @@
     "specGoals": "Goals",
     "specConstraints": "Constraints",
     "specAcceptance": "Checked by the agent",
-    "specDerive": "Spec (goals, completion conditions…)",
+    "specDerive": "Spec",
     "specDeriveTooltip": "AI drafts the goals, constraints and the conditions the agent checks from the description. What is already entered is replaced",
     "specDerived": "Drafted the spec from the description",
     "specDeriveFailed": "Could not draft the spec",
@@ -646,7 +646,7 @@
     "specSaveFailed": "Could not save the spec",
     "specCompletion": "Completion conditions",
     "specCompletionNote": "Conditions the agent checks are used to verify the work. Conditions you check are yours to judge from the result.",
-    "aiDraftLead": "Draft with AI from the description:",
+    "aiDraftLead": "AI draft",
     "aiDraftNeedsDescription": "Write a description to use these",
     "specStartConditions": "Start conditions (what must hold before starting)",
     "prerequisites": "Tasks to finish first",
@@ -677,6 +677,8 @@
     "specScopeHelp": "About scope and preconditions",
     "specScopeNote": "Out of scope: what this task does not do, so the agent does not widen the change. Constraints: rules to keep (an API that must not change, and so on). Start conditions: what must hold before work starts.",
     "prerequisitesHelp": "About the tasks to finish first",
-    "prerequisitesNote": "Auto-run does not start this task until every task listed here is done. Starting it by hand is refused, with the unfinished tasks named."
+    "prerequisitesNote": "Auto-run does not start this task until every task listed here is done. Starting it by hand is refused, with the unfinished tasks named.",
+    "aiDraftHelpLabel": "About AI drafts",
+    "aiDraftHelp": "AI drafts from the description. Title: suggests a title. Spec: drafts the goals, constraints and completion conditions. Either replaces what is already entered. Available once a description is written."
   }
 }
