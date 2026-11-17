@@ -24,13 +24,51 @@ class ControlledAssistant implements AssistantService {
   /// いちばん古い応答待ちを、会話として返す
   void succeed() => _pending.removeAt(0).complete(const RoutedIntent());
 
+  /// いちばん古い応答待ちを、振り分け先 [intent] として返す。振り分け先の処理（下書き・問い合わせ・
+  /// 見守りの読み込み）は [holdFollowUps] が true の間は返さない（ラピが処理中のまま）
+  void succeedAs(String intent, {String reason = 'テスト'}) =>
+      _pending.removeAt(0).complete(RoutedIntent(intent: intent, reason: reason));
+
+  /// 会話の返答を、[releaseChat] を呼ぶまで返さない（振り分けの後・返答の前を見るため）
+  bool holdChat = false;
+  final List<Completer<void>> _chatHeld = [];
+
+  /// 止めていた会話の返答を返す
+  void releaseChat() => _chatHeld.removeAt(0).complete();
+
+  /// 振り分け先の処理を止めておくか（false なら失敗として返す）
+  bool holdFollowUps = true;
+  final List<Completer<Never>> _followUps = [];
+
+  Future<T> _followUp<T>() {
+    if (!holdFollowUps) return Future.error(Exception('network'));
+    final c = Completer<Never>();
+    _followUps.add(c);
+    return c.future;
+  }
+
+  @override
+  Future<TaskDraft> createDraft(String text) => _followUp();
+
+  @override
+  Future<AskAnswer> ask(String text) => _followUp();
+
+  @override
+  Future<SupervisionSurvey> getSupervision() => _followUp();
+
   /// いちばん古い応答待ちを、送信失敗にする
   void fail() => _pending.removeAt(0).completeError(Exception('network'));
 
   @override
   Future<CopilotReply> chat(String message,
-          {List<Map<String, String>> history = const []}) async =>
-      CopilotReply(content: reply);
+          {List<Map<String, String>> history = const []}) async {
+    if (holdChat) {
+      final c = Completer<void>();
+      _chatHeld.add(c);
+      await c.future;
+    }
+    return CopilotReply(content: reply);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

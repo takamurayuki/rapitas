@@ -712,8 +712,8 @@ class _RapiScreenState extends ConsumerState<RapiScreen> {
 
     switch (m.role) {
       case RapiRole.user:
-        // 受け付けた発言（履歴に入っている発言）にだけスタンプ。送信に失敗すると履歴から外れて消える
-        return _spaced(RapiUserMessage(text: m.text, accepted: m.inHistory));
+        // ラピが読み取った発言（振り分けの結果が返った発言）にだけスタンプ。送信中・失敗した発言には無い
+        return _spaced(RapiUserMessage(text: m.text, readAs: m.readAs));
       case RapiRole.assistant:
         return _spaced(RapiReplyMessage(text: m.text));
       case RapiRole.system:

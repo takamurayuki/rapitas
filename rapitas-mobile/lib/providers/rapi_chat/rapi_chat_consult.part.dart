@@ -108,6 +108,8 @@ mixin _RapiConsultOps on _RapiChatBase {
             text: picker.text,
             inHistory: true,
             consultTaskId: task.id,
+            // 振り分けで一度読み取った発言を移しただけなので、確認の印は付けたまま移す
+            readAs: 'consult',
           ));
       await _sendConsult(task, picker.text, history);
       sent = true;
