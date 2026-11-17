@@ -12,6 +12,7 @@ import '../../widgets/voice_dismissible.dart';
 import 'auto_run_section.dart';
 import 'exec_app_bars.dart';
 import 'exec_filter.dart';
+import 'exec_filter_bar.dart';
 import 'exec_filter_sheet.dart';
 import 'execution_section_states.dart';
 import 'section_title.dart';
@@ -92,6 +93,8 @@ class _AgentExecutionScreenState extends ConsumerState<AgentExecutionScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(8),
         children: [
+          // NOTE: 常時表示の絞り込みバー（ExecFilterBar）は廃止。適用中の条件だけをチップで出す
+          const ExecActiveFilterChips(),
           const AutoRunSection(),
           const SectionTitle('実行中'),
           ..._buildSection<ExecutingTask>(
@@ -142,7 +145,7 @@ class _AgentExecutionScreenState extends ConsumerState<AgentExecutionScreen> {
                 onChanged: _onSearchChanged,
               )
             : buildExecAppBar(
-                filterActive: filter.themeId != null || filter.status != ExecStatusFilter.all || filter.sort != ExecSort.newest,
+                filterActive: execSheetFilterActive(filter),
                 onSearch: _openSearch,
                 onFilter: () => showExecFilterSheet(context, ref),
               ),
