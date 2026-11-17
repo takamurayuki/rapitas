@@ -44,7 +44,7 @@ class AutoRunSection extends ConsumerWidget {
             ),
           ],
           // NOTE: 絞り込み（実行画面上部のバー）と空の案内は auto_run_theme_list.dart
-          data: (themes) => autoRunThemeList(ref, themes, (t) => _AutoRunThemeCard(theme: t)),
+          data: (themes) => autoRunThemeList(ref, themes, (t) => _AutoRunThemeCard(key: ValueKey(t.id), theme: t)),
         ),
         const SizedBox(height: 16),
       ],
@@ -56,7 +56,7 @@ class AutoRunSection extends ConsumerWidget {
 class _AutoRunThemeCard extends ConsumerStatefulWidget {
   final TaskTheme theme;
 
-  const _AutoRunThemeCard({required this.theme});
+  const _AutoRunThemeCard({super.key, required this.theme});
 
   @override
   ConsumerState<_AutoRunThemeCard> createState() => _AutoRunThemeCardState();
