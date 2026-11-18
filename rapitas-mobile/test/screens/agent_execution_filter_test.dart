@@ -295,7 +295,7 @@ void main() {
     expect(_order(tester, _titles.values), ['【ダミー】ログイン画面の修正', '【ダミー】ログ出力の整理', '【ダミー】通知の設定画面']);
 
     await _openSheet(tester);
-    expect(find.descendant(of: _sheet, matching: find.text('実行中のリストだけに効きます')), findsOneWidget);
+    expect(find.descendant(of: _sheet, matching: find.text('実行中のリストと自動実行に効きます')), findsOneWidget);
     await _tapKey(tester, 'exec-sheet-status-waitingForInput');
     expect(_sheet, findsOneWidget);
     await _tapKey(tester, 'exec-sheet-done');

@@ -98,8 +98,9 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                       },
                     ),
                   Text('状態', style: titleStyle),
+                  // 状態の効き先は exec_filter.dart（実行中リストと自動実行カード。再開可能には効かない）
                   Text(
-                    '実行中のリストだけに効きます',
+                    '実行中のリストと自動実行に効きます',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
