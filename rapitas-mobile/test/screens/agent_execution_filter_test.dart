@@ -194,7 +194,7 @@ void main() {
       const ExecFilter(themeIds: {'1', '2'}, status: ExecStatusFilter.running),
     );
     expect(find.byKey(const ValueKey('auto-run-theme-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsNothing, reason: '状態＝実行中は自動実行中のテーマだけ（2 は停止中）');
     expect(find.text('【ダミー】ログイン画面の修正'), findsOneWidget);
     expect(find.text('【ダミー】通知の設定画面'), findsOneWidget);
     expect(find.text('【ダミー】ログ出力の整理'), findsNothing, reason: '入力待ちは状態で外れる');
@@ -277,9 +277,9 @@ void main() {
     await _settle(tester);
     expect(find.byKey(const ValueKey('executing-empty')), findsNothing);
     expect(find.byKey(const ValueKey('executing-no-match')), findsOneWidget);
-    // 状態は再開可能・自動実行を絞らない
+    // 状態は再開可能を絞らない。自動実行は入力待ちのテーマが無いので該当なし
     expect(find.byKey(const ValueKey('resumable-no-match')), findsNothing);
-    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-no-match')), findsOneWidget);
   });
 
   testWidgets('古い順＋入力待ち＋検索。シートで選び、チップの×で個別に解除する', (tester) async {
