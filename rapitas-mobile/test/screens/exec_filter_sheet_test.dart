@@ -1,7 +1,8 @@
 /// Executions filter sheet: theme candidates are development themes only
 /// (grouped by category; categories without one are hidden), switching the
-/// category only swaps the candidates, and a non-development theme that is
-/// already selected stays selected.
+/// category only swaps the candidates, a non-development theme that is
+/// already selected stays selected, and every chip applies at once while the
+/// sheet stays open until 完了 / a barrier tap.
 library;
 
 import 'package:flutter/material.dart';
@@ -125,5 +126,48 @@ void main() {
     expect(_selected(tester, 'exec-sheet-category-none'), isTrue, reason: '未所属テーマのグループ（カテゴリID null）を先頭へ置き換えない');
     expect(_selected(tester, 'exec-sheet-category-c1'), isFalse);
     expect(_selected(tester, 'exec-sheet-theme-4'), isTrue);
+  });
+
+  testWidgets('テーマ → 状態 → 並び順を1回のシートで続けて選べ、どれを選んでも閉じない', (tester) async {
+    await _pump(tester);
+
+    await tester.tap(_key('exec-sheet-theme-1'));
+    await _settle(tester);
+    await tester.tap(_key('exec-sheet-theme-2'));
+    await _settle(tester);
+    await tester.tap(_key('exec-sheet-status-running'));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsOneWidget, reason: '状態を選んでも閉じない');
+    expect(_selected(tester, 'exec-sheet-status-running'), isTrue);
+    expect(_selected(tester, 'exec-sheet-theme-1'), isTrue, reason: 'テーマの選択はそのまま見えている');
+    await tester.tap(_key('exec-sheet-sort-oldest'));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsOneWidget, reason: '並び順を選んでも閉じない');
+    // 状態は選び直せる（開き直さずに別の状態へ切り替えられる）
+    await tester.tap(_key('exec-sheet-status-waitingForInput'));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsOneWidget);
+    expect(
+      _container.read(execFilterProvider),
+      const ExecFilter(themeIds: {'1', '2'}, status: ExecStatusFilter.waitingForInput, sort: ExecSort.oldest),
+      reason: 'タップの時点で即適用する',
+    );
+
+    await tester.tap(_key('exec-sheet-done'));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsNothing, reason: '「完了」で閉じる');
+    expect(_container.read(execFilterProvider).status, ExecStatusFilter.waitingForInput);
+  });
+
+  testWidgets('バリアのタップでも閉じ、閉じる前に選んだ条件は残る', (tester) async {
+    await _pump(tester);
+
+    await tester.tap(_key('exec-sheet-sort-oldest'));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsOneWidget);
+    await tester.tapAt(const Offset(195, 20));
+    await _settle(tester);
+    expect(_key('exec-filter-sheet'), findsNothing);
+    expect(_container.read(execFilterProvider), const ExecFilter(sort: ExecSort.oldest));
   });
 }

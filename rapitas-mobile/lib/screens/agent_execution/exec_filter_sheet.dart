@@ -5,8 +5,11 @@ import '../../providers/theme_data_provider.dart';
 import '../task_list/task_theme_filter_section.dart' show FilterDotLabel;
 import 'exec_filter.dart';
 
-// 実行画面のフィルターシート（テーマ → 状態 → 並び順）。見た目と操作はタスク画面の
+// 実行画面のフィルターシート（テーマ → 状態 → 並び順）。見た目はタスク画面の
 // task_filter_sheet.dart にそろえる。条件の中身と適用は exec_filter.dart のまま変えない。
+// NOTE: どのチップもタップで即適用するだけで、シートは閉じない（nav73: 状態・並び順を選ぶと閉じて、
+// 条件を組み合わせるのに開き直しが要った）。閉じるのは下部の「完了」とバリアのタップ・下スワイプだけ。
+// タスク画面のシートの閉じ方はこれとは別で、変えていない。
 
 /// 状態チップの表示名
 const execStatusLabels = {
@@ -32,8 +35,9 @@ List<ThemeCategoryGroup> execThemeCandidateGroups(List<TaskTheme> themes) {
 
 /// 実行画面のフィルターシートを開く。
 ///
-/// テーマは複数選択で、チップのタップで選択/解除を即適用し、シートは開いたまま（下部の「完了」で閉じる）。
-/// 状態・並び順のチップは選ぶと即適用して閉じる（テーマの切り替えは適用済みなので失われない）。
+/// テーマ（複数選択）・状態・並び順のどのチップも、タップで即適用してシートは開いたままにする。
+/// テーマ → 状態 → 並び順と1回のシートで続けて選べ、閉じるのは下部の「完了」とバリアのタップ・下スワイプだけ
+/// （条件はタップの時点で適用済みなので、どの閉じ方でも同じ）。
 /// カテゴリはテーマ候補を切り替えるだけで、条件には触れない（実行画面には「すべて」があり、
 /// タスク画面の「常に1テーマ必須」は持ち込まない）。
 ///
@@ -46,11 +50,6 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
   void update(ExecFilter Function(ExecFilter) change) {
     final notifier = ref.read(execFilterProvider.notifier);
     notifier.state = change(notifier.state);
-  }
-
-  void apply(BuildContext sheetContext, ExecFilter Function(ExecFilter) change) {
-    update(change);
-    Navigator.pop(sheetContext);
   }
 
   showModalBottomSheet<void>(
@@ -115,7 +114,7 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                           key: ValueKey('exec-sheet-status-${e.key.name}'),
                           label: Text(e.value),
                           selected: filter.status == e.key,
-                          onSelected: (_) => apply(context, (f) => f.copyWith(status: e.key)),
+                          onSelected: (_) => update((f) => f.copyWith(status: e.key)),
                         ),
                     ],
                   ),
@@ -131,12 +130,12 @@ void showExecFilterSheet(BuildContext context, WidgetRef ref) {
                           key: ValueKey('exec-sheet-sort-${e.key.name}'),
                           label: Text(e.value),
                           selected: filter.sort == e.key,
-                          onSelected: (_) => apply(context, (f) => f.copyWith(sort: e.key)),
+                          onSelected: (_) => update((f) => f.copyWith(sort: e.key)),
                         ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // テーマは選んでも閉じないので、閉じる操作をはっきり置く
+                  // どのチップも選んでも閉じないので、閉じる操作をはっきり置く
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
