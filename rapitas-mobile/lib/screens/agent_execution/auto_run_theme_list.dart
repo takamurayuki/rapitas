@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task.dart';
+import '../../models/theme_auto_run.dart';
+import '../../providers/execution_provider.dart';
+import '../../providers/theme_auto_run_provider.dart';
 import 'exec_filter.dart';
 import 'execution_section_states.dart';
 
@@ -8,15 +11,17 @@ import 'execution_section_states.dart';
 // NOTE: auto_run_section.dart はバイト数のベースライン対象なので、絞り込みと案内文はこちらに置く。
 // 絞り込みは表示だけ。隠したカードもツリーに残し（_kept）、カードが監視する themeAutoRunProvider
 // （autoDispose）の取得とカード内の状態（操作エラー・操作待機中）を保つ。
+// 状態（実行中・入力待ち）の判定は、カードと同じ themeAutoRunProvider と実行中リストの provider を読むだけで、
+// 新しい取得は増やさない（nav73）。
 
-/// 開発テーマのカード列。絞り込み中は件数を出し、0件なら「条件に合うもの無し」を出す。
+/// 開発テーマのカード列。絞り込み中（テーマ・検索・状態）は件数を出し、0件なら「条件に合うもの無し」を出す。
 ///
 /// @param themes - 開発テーマ（GET /themes の並び） / 開発テーマ一覧
 /// @param card - 1テーマ分のカードを作る / カードの生成
 /// @returns セクション見出しの下に並べる行 / 見出し下の行
 List<Widget> autoRunThemeList(WidgetRef ref, List<TaskTheme> themes, Widget Function(TaskTheme) card) {
   final filter = ref.watch(execFilterProvider);
-  if (!filter.filtersOthers) {
+  if (!filter.filtersAutoRun) {
     if (themes.isEmpty) {
       return const [
         AutoRunMessageCard(
@@ -29,7 +34,14 @@ List<Widget> autoRunThemeList(WidgetRef ref, List<TaskTheme> themes, Widget Func
     }
     return [for (final theme in themes) _kept(theme, true, card)];
   }
-  final visible = applyAutoRunThemeFilter(themes, filter);
+  final visible = applyAutoRunThemeFilter(
+    themes,
+    filter,
+    autoRuns: filter.status == ExecStatusFilter.all ? const {} : _autoRunStates(ref, themes),
+    executing: filter.status == ExecStatusFilter.waitingForInput
+        ? ref.watch(executingTasksProvider).valueOrNull ?? const []
+        : const [],
+  );
   final shownIds = {for (final theme in visible) theme.id};
   return [
     FilterCountLine(total: themes.length, shown: visible.length),
@@ -38,6 +50,12 @@ List<Widget> autoRunThemeList(WidgetRef ref, List<TaskTheme> themes, Widget Func
     for (final theme in themes) _kept(theme, shownIds.contains(theme.id), card),
   ];
 }
+
+/// 取得済みの自動実行の状態（themeId → 状態）。取得中・失敗のテーマは入れない（状態で絞ると出ない）
+Map<String, ThemeAutoRunState> _autoRunStates(WidgetRef ref, List<TaskTheme> themes) => {
+      for (final theme in themes)
+        if (ref.watch(themeAutoRunProvider(theme.id)).valueOrNull case final snapshot?) theme.id: snapshot.state,
+    };
 
 // NOTE: テーマIDのキーで包む。キーが無いと絞り込みの切替で別テーマのカードが同じ State を使い回し、
 // 操作エラーや操作待機中が別テーマへ移る。隠すときも maintainState で State と provider の監視を残す

@@ -1,17 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task.dart';
 import '../../models/task_execution.dart';
+import '../../models/theme_auto_run.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/task_provider.dart';
 
 // 実行画面の絞り込み条件と、その適用（表示だけの絞り込み）。
-// 自動実行の動作・状態には触れない。音声操作（voice_command_flow）も同じ関数で
+// 自動実行の動作・状態には触れない（状態の絞り込みは取得済みの自動実行の状態を読むだけ）。音声操作（voice_command_flow）も同じ関数で
 // 表示中の一覧を作り、「2番目を停止」の番号が画面と一致するようにしている。
 
 /// 並び順。実行中は startedAt（無ければ sessionStartedAt）、再開可能は startedAt（無ければ createdAt）
 enum ExecSort { newest, oldest }
 
-/// 実行中リストの状態の絞り込み（再開可能は全て中断済みなので対象外）
+/// 状態の絞り込み。実行中リストと自動実行カードに効く（再開可能は全て中断済みなので対象外）。
+/// 自動実行カードでの意味は [applyAutoRunThemeFilter] を参照
 enum ExecStatusFilter { all, running, waitingForInput }
 
 /// 実行画面の絞り込み条件。既定値は「絞り込みなし・新しい順」
@@ -55,8 +57,11 @@ class ExecFilter {
   /// 実行中リストを絞る条件があるか（並び順は件数を変えないので含めない）
   bool get filtersExecuting => hasQuery || hasThemes || status != ExecStatusFilter.all;
 
-  /// 再開可能・自動実行を絞る条件があるか（状態は対象外）
+  /// 再開可能を絞る条件があるか（状態は対象外）
   bool get filtersOthers => hasQuery || hasThemes;
+
+  /// 自動実行カードを絞る条件があるか（nav73 から状態も含む。並び順は件数を変えないので含めない）
+  bool get filtersAutoRun => hasQuery || hasThemes || status != ExecStatusFilter.all;
 
   /// 既定から変わっているか（クリア操作を出す目安。並び順の変更も含む）
   bool get isDefault =>
@@ -173,12 +178,40 @@ List<ResumableExecution> applyResumableFilter(
   return _sortByTime(filtered, (e) => e.startedAt ?? e.createdAt, filter.sort);
 }
 
-/// 自動実行カードのテーマ（テーマと、テーマ名の検索で絞る。並び順は元のまま）
-List<TaskTheme> applyAutoRunThemeFilter(List<TaskTheme> themes, ExecFilter filter) {
+/// 自動実行カードのテーマ（テーマ・テーマ名の検索・状態で絞る。並び順は元のまま）。
+///
+/// 状態の意味（nav73）：
+/// - すべて：状態では絞らない。
+/// - 実行中：そのテーマの自動実行（ThemeAutoRun）の status が running のものだけ。idle / paused / stopping と、
+///   状態をまだ取得できていない（[autoRuns] に無い）テーマは出さない。
+/// - 入力待ち：自動実行中で、かつ currentTaskId のタスクが [executing] にあり、その実行が waiting_for_input のものだけ。
+///   currentTaskId が [executing] に無ければ入力待ちに数えない。
+///
+/// @param themes - 開発テーマ（GET /themes の並び） / development themes in API order
+/// @param filter - 絞り込み条件 / current conditions
+/// @param autoRuns - themeId → 自動実行の状態（取得済みのものだけ） / fetched auto-run states by theme
+/// @param executing - 実行中リスト（絞り込み前） / unfiltered executing tasks
+/// @returns 表示するテーマ（元の並び） / themes to show, order unchanged
+List<TaskTheme> applyAutoRunThemeFilter(
+  List<TaskTheme> themes,
+  ExecFilter filter, {
+  Map<String, ThemeAutoRunState> autoRuns = const {},
+  List<ExecutingTask> executing = const [],
+}) {
   return themes
       .where((t) => filter.matchesTheme(t.id))
       .where((t) => _matchesQuery(t.name, filter.query))
+      .where((t) => _matchesAutoRunStatus(filter.status, autoRuns[t.id], executing))
       .toList();
+}
+
+bool _matchesAutoRunStatus(ExecStatusFilter status, ThemeAutoRunState? autoRun, List<ExecutingTask> executing) {
+  if (status == ExecStatusFilter.all) return true;
+  if (autoRun == null || !autoRun.isRunning) return false;
+  if (status == ExecStatusFilter.running) return true;
+  final currentTaskId = autoRun.currentTaskId;
+  if (currentTaskId == null) return false;
+  return executing.any((t) => t.taskId == currentTaskId && t.isWaitingForInput);
 }
 
 // NOTE: 絞り込み条件は autoDispose にしない。実行画面を離れて戻っても、アプリの起動中は条件を保つ

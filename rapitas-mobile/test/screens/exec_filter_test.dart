@@ -1,10 +1,12 @@
 /// Executions screen filter logic: search x theme x status x sort, no match,
-/// clear, and theme resolution from the task list (subtasks inherit the parent).
+/// clear, the status filter on auto-run cards (running / waiting for input),
+/// and theme resolution from the task list (subtasks inherit the parent).
 library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/models/task.dart';
 import 'package:rapitas_mobile/models/task_execution.dart';
+import 'package:rapitas_mobile/models/theme_auto_run.dart';
 import 'package:rapitas_mobile/screens/agent_execution/exec_filter.dart';
 
 ExecutingTask _exec(String taskId, {String status = 'running', DateTime? started, DateTime? session, String? parentId}) =>
@@ -131,7 +133,7 @@ void main() {
     List<String> ids(ExecFilter f) => [for (final t in applyAutoRunThemeFilter(themes, f)) t.id];
 
     test('テーマ・テーマ名の検索で絞り、並び順は変えない', () {
-      expect(ids(const ExecFilter(sort: ExecSort.oldest, status: ExecStatusFilter.running)), ['A', 'B', 'C']);
+      expect(ids(const ExecFilter(sort: ExecSort.oldest)), ['A', 'B', 'C']);
       expect(ids(const ExecFilter(themeIds: {'B'})), ['B']);
       expect(ids(const ExecFilter(query: 'rapitas')), ['A']);
       expect(ids(const ExecFilter(themeIds: {'B'}, query: 'rapitas')), isEmpty);
@@ -140,6 +142,44 @@ void main() {
     test('テーマを複数選ぶと選んだテーマのカードだけ、元の並びで残す', () {
       expect(ids(const ExecFilter(themeIds: {'C', 'A'})), ['A', 'C']);
       expect(ids(const ExecFilter(themeIds: {'C', 'A'}, query: 'rapitas')), ['A']);
+    });
+
+    // A: 自動実行中（現在のタスク 1 は入力待ち）、B: 自動実行中（現在のタスク 2 は実行中）、C: 一時停止中（現在のタスク 3 は入力待ち）
+    final autoRuns = {
+      'A': const ThemeAutoRunState(themeId: 'A', status: 'running', currentTaskId: '1'),
+      'B': const ThemeAutoRunState(themeId: 'B', status: 'running', currentTaskId: '2'),
+      'C': const ThemeAutoRunState(themeId: 'C', status: 'paused', currentTaskId: '3'),
+    };
+    final executing = [_exec('1', status: 'waiting_for_input'), _exec('2'), _exec('3', status: 'waiting_for_input')];
+    List<String> byStatus(ExecFilter f, {Map<String, ThemeAutoRunState>? runs, List<ExecutingTask>? exec}) => [
+          for (final t in applyAutoRunThemeFilter(themes, f, autoRuns: runs ?? autoRuns, executing: exec ?? executing))
+            t.id,
+        ];
+
+    test('状態＝すべては状態で絞らない（一時停止中・状態未取得も残す）', () {
+      expect(byStatus(const ExecFilter()), ['A', 'B', 'C']);
+      expect(byStatus(const ExecFilter(), runs: const {}), ['A', 'B', 'C']);
+    });
+
+    test('状態＝実行中は自動実行中（running）のテーマだけ。idle・paused・stopping・未取得は出さない', () {
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.running)), ['A', 'B']);
+      final others = {
+        'A': const ThemeAutoRunState(themeId: 'A'),
+        'B': const ThemeAutoRunState(themeId: 'B', status: 'stopping'),
+      };
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.running), runs: others), isEmpty);
+      // テーマ・検索の条件と重ねられ、並び順は元のまま
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.running, sort: ExecSort.oldest)), ['A', 'B']);
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.running, themeIds: {'B', 'C'})), ['B']);
+    });
+
+    test('状態＝入力待ちは自動実行中で、現在のタスクの実行が入力待ちのテーマだけ', () {
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.waitingForInput)), ['A'],
+          reason: 'C は現在のタスクが入力待ちでも自動実行が一時停止中なので外す');
+      // 現在のタスクが実行中リストに無ければ入力待ちに数えない
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.waitingForInput), exec: const []), isEmpty);
+      final noCurrent = {'A': const ThemeAutoRunState(themeId: 'A', status: 'running')};
+      expect(byStatus(const ExecFilter(status: ExecStatusFilter.waitingForInput), runs: noCurrent), isEmpty);
     });
   });
 
@@ -155,12 +195,14 @@ void main() {
       expect(_ids(applyExecutingFilter(_executing, cleared, _lookups)), ['2', '3', '1', '9']);
     });
 
-    test('状態だけは再開可能・自動実行の絞り込みに数えない。並び順は絞り込みに数えない', () {
+    test('状態は実行中・自動実行の絞り込みに数え、再開可能には数えない。並び順は絞り込みに数えない', () {
       const status = ExecFilter(status: ExecStatusFilter.waitingForInput);
       expect(status.filtersExecuting, isTrue);
+      expect(status.filtersAutoRun, isTrue);
       expect(status.filtersOthers, isFalse);
       const sort = ExecFilter(sort: ExecSort.oldest);
       expect(sort.filtersExecuting, isFalse);
+      expect(sort.filtersAutoRun, isFalse);
       expect(sort.isDefault, isFalse);
     });
 

@@ -184,15 +184,17 @@ void main() {
     await _openSheet(tester);
     await _tapKey(tester, 'exec-sheet-theme-1');
     await _tapKey(tester, 'exec-sheet-theme-2');
-    // 状態のチップは従来どおり適用して閉じる。テーマの選択は失われない
+    // 状態のチップも即適用するだけでシートは閉じない。テーマの選択も残る
     await _tapKey(tester, 'exec-sheet-status-running');
+    expect(_sheet, findsOneWidget, reason: '状態を選んでも閉じない');
+    await _tapKey(tester, 'exec-sheet-done');
     expect(_sheet, findsNothing);
     expect(
       _container.read(execFilterProvider),
       const ExecFilter(themeIds: {'1', '2'}, status: ExecStatusFilter.running),
     );
     expect(find.byKey(const ValueKey('auto-run-theme-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsNothing, reason: '状態＝実行中は自動実行中のテーマだけ（2 は停止中）');
     expect(find.text('【ダミー】ログイン画面の修正'), findsOneWidget);
     expect(find.text('【ダミー】通知の設定画面'), findsOneWidget);
     expect(find.text('【ダミー】ログ出力の整理'), findsNothing, reason: '入力待ちは状態で外れる');
@@ -275,9 +277,9 @@ void main() {
     await _settle(tester);
     expect(find.byKey(const ValueKey('executing-empty')), findsNothing);
     expect(find.byKey(const ValueKey('executing-no-match')), findsOneWidget);
-    // 状態は再開可能・自動実行を絞らない
+    // 状態は再開可能を絞らない。自動実行は入力待ちのテーマが無いので該当なし
     expect(find.byKey(const ValueKey('resumable-no-match')), findsNothing);
-    expect(find.byKey(const ValueKey('auto-run-theme-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-no-match')), findsOneWidget);
   });
 
   testWidgets('古い順＋入力待ち＋検索。シートで選び、チップの×で個別に解除する', (tester) async {
@@ -286,13 +288,17 @@ void main() {
     await _openSheet(tester);
     expect(_chipSelected(tester, 'exec-sheet-sort-newest'), isTrue);
     await _tapKey(tester, 'exec-sheet-sort-oldest');
+    expect(_sheet, findsOneWidget, reason: '並び順を選んでも閉じない');
+    await _tapKey(tester, 'exec-sheet-done');
     expect(_sheet, findsNothing);
     expect(find.text('古い順'), findsOneWidget); // 適用中チップ
     expect(_order(tester, _titles.values), ['【ダミー】ログイン画面の修正', '【ダミー】ログ出力の整理', '【ダミー】通知の設定画面']);
 
     await _openSheet(tester);
-    expect(find.descendant(of: _sheet, matching: find.text('実行中のリストだけに効きます')), findsOneWidget);
+    expect(find.descendant(of: _sheet, matching: find.text('実行中のリストと自動実行に効きます')), findsOneWidget);
     await _tapKey(tester, 'exec-sheet-status-waitingForInput');
+    expect(_sheet, findsOneWidget);
+    await _tapKey(tester, 'exec-sheet-done');
     expect(find.text('状態：入力待ち'), findsOneWidget);
     expect(_badgeVisible(tester), isTrue);
 
@@ -324,6 +330,7 @@ void main() {
     await _pump(tester);
     await _openSheet(tester);
     await _tapKey(tester, 'exec-sheet-sort-oldest');
+    await _tapKey(tester, 'exec-sheet-done');
     await _tapKey(tester, 'exec-search-open');
     await tester.enterText(find.byKey(const ValueKey('exec-filter-search')), '通知');
     await _settle(tester);
