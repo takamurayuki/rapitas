@@ -5,6 +5,7 @@
  * The notes that differ between this PC and the server, each with what
  * differs, both update times, and the three choices of design §5.3 step 3
  * (PC version / server version / keep both). The newer side starts selected.
+ * "Keep both" is not offered when its `{id}-pc` copy id is already taken.
  * Not responsible for sending the choices — the parent's `onApply` does.
  */
 import { useState } from 'react';
@@ -89,28 +90,35 @@ export default function NoteMigrationDiffList({ diffs, onApply }: Props) {
                 aria-label={diff.local.title || diff.id}
                 className="mt-1.5 flex flex-wrap gap-1.5"
               >
-                {CHOICES.map(({ value, key }) => (
-                  <label
-                    key={value}
-                    className={`flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
-                      choice === value
-                        ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-200'
-                        : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`note-migration-${diff.id}`}
-                      value={value}
-                      checked={choice === value}
-                      onChange={() => setChoices((c) => ({ ...c, [diff.id]: value }))}
-                      aria-label={t(key)}
-                      className="sr-only"
-                    />
-                    {t(key)}
-                  </label>
-                ))}
+                {CHOICES.filter(({ value }) => value !== 'both' || !diff.copyUnavailable).map(
+                  ({ value, key }) => (
+                    <label
+                      key={value}
+                      className={`flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                        choice === value
+                          ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-200'
+                          : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`note-migration-${diff.id}`}
+                        value={value}
+                        checked={choice === value}
+                        onChange={() => setChoices((c) => ({ ...c, [diff.id]: value }))}
+                        aria-label={t(key)}
+                        className="sr-only"
+                      />
+                      {t(key)}
+                    </label>
+                  ),
+                )}
               </div>
+              {diff.copyUnavailable && (
+                <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {t('bothUnavailable', { id: `${diff.id}-pc` })}
+                </p>
+              )}
               {choice === 'both' && (
                 <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
                   {t('bothHint', { id: `${diff.id}-pc` })}

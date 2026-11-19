@@ -38,7 +38,7 @@ beforeEach(() => {
 const depsFor = (server: ReturnType<typeof createFakeNoteServer>, localNotes: Note[]): RunDeps => ({
   api: server.api,
   records,
-  localNotes,
+  readLocal: () => localNotes,
   hash: fakeHash,
 });
 

@@ -13,6 +13,7 @@ import { CloudUpload, Download, TriangleAlert, X } from 'lucide-react';
 import { useNoteStore } from '@/stores/note-store';
 import type { NoteMigrationControls } from './useNoteMigration';
 import NoteMigrationDiffList from './NoteMigrationDiffList';
+import NoteMigrationBlockedList from './NoteMigrationBlockedList';
 
 const BAND =
   'mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-zinc-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-zinc-200';
@@ -86,7 +87,14 @@ export default function NoteMigrationBanner({ migration }: { migration: NoteMigr
                 </>
               )}
 
-              {view.kind === 'needsDecision' && (
+              {view.kind === 'needsDecision' && view.blocked.length > 0 && (
+                <NoteMigrationBlockedList
+                  blocked={view.blocked}
+                  onRetry={view.diffs.length === 0 ? migration.retry : undefined}
+                />
+              )}
+
+              {view.kind === 'needsDecision' && view.diffs.length > 0 && (
                 <NoteMigrationDiffList
                   key={view.diffs.map((d) => `${d.id}:${d.server.version}`).join('|')}
                   diffs={view.diffs}

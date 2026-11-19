@@ -6440,7 +6440,11 @@
       "doneBody": "This screen now reads and writes the same notes as the phone. The browser copy is kept as a read-only backup.",
       "rejectedLinks": "{count} links were not moved because their task was not found (including tasks in another workspace).",
       "dismiss": "Close",
-      "untitled": "Untitled note"
+      "untitled": "Untitled note",
+      "bothUnavailable": "{id} is already on the server with other content (or used by another workspace), so \"keep both\" is not available.",
+      "blockedTitle": "{count} notes cannot be moved because another workspace has a note with the same ID",
+      "blockedHint": "They are not on the server, so the migration is not finished. This screen keeps showing this PC's notes.",
+      "blockedRetry": "Check again"
     },
     "sync": {
       "load_failed": "Could not load notes from the server.",

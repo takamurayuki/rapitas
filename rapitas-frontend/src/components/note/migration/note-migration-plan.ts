@@ -8,7 +8,7 @@
  */
 import type { Note, NoteTaskMeta } from '@/stores/note/note-types';
 import { isMeaningfulNote } from '@/stores/note/note-local-backup';
-import type { DiffChoice } from '@/stores/note/note-migration-record';
+import type { DiffChoice, ResolvedDiff } from '@/stores/note/note-migration-record';
 import { isLegacyEditorHtml } from '../markdown-note/note-content-kind';
 
 /** One server note as the manifest lists it. */
@@ -46,6 +46,11 @@ export interface MigrationDiff {
   defaultChoice: Exclude<DiffChoice, 'both'>;
   /** The PC version is the old editor's HTML; it stays read-only once moved. */
   localIsLegacyHtml: boolean;
+  /**
+   * "Keep both" cannot be done: `{id}-pc` already exists with other content,
+   * or another workspace holds that id. Offered only as PC / server then.
+   */
+  copyUnavailable: boolean;
 }
 
 /** One link the browser had. */
@@ -108,6 +113,21 @@ const sameTags = (a: string[], b: string[]) =>
   a.length === b.length && a.every((tag, i) => tag === b[i]);
 
 /**
+ * A fingerprint of a local note's four compared fields, recorded with a
+ * choice so a later edit of the PC note un-settles it.
+ *
+ * @param local - The normalized local note / 正規化したローカルのノート
+ * @param hash - SHA-256 / ハッシュ関数
+ * @returns The fingerprint / 指紋
+ */
+export function localVersionOf(local: NormalizedNote, hash: Hasher): Promise<string> {
+  return hash(JSON.stringify([local.title, local.content, local.tags, local.docType]));
+}
+
+/** The id "keep both" imports the PC version under (design §5.3 step 3). */
+export const copyIdOf = (id: string) => `${id}-pc`;
+
+/**
  * Which compared fields differ between a local note and its manifest entry.
  *
  * @param local - The normalized local note / 正規化したローカルのノート
@@ -136,17 +156,24 @@ function toDate(value: Date | string): number {
 /**
  * Classify every local note, and gather every local link.
  *
+ * A difference counts as settled — and is not listed — when the user chose
+ * for exactly this PC version (`resolved`, matched by fingerprint), or when
+ * the server already has the `{id}-pc` copy with this PC version's content
+ * (a "keep both" whose response was lost).
+ *
  * @param localNotes - The browser's notes / ブラウザのノート
  * @param manifest - The server's manifest / サーバーの版情報
  * @param resolved - Differences the user already settled / 解決済みの差異
  * @param hash - SHA-256 / ハッシュ関数
+ * @param blockedCopies - Ids whose copy another workspace holds / 写しのIDを別区画が持つID
  * @returns What to import, what differs, and the links / 取り込み・差異・紐付け
  */
 export async function planMigration(
   localNotes: Note[],
   manifest: ManifestEntry[],
-  resolved: Record<string, DiffChoice>,
+  resolved: Record<string, ResolvedDiff>,
   hash: Hasher = sha256Hex,
+  blockedCopies: string[] = [],
 ): Promise<MigrationPlan> {
   const byId = new Map(manifest.map((m) => [m.id, m]));
   const plan: MigrationPlan = {
@@ -172,7 +199,12 @@ export async function planMigration(
       continue;
     }
     const fields = await differingFields(local, server, hash);
-    if (fields.length === 0 || resolved[note.id]) {
+    if (fields.length === 0 || (await isSettled(local, resolved[note.id], hash))) {
+      plan.unchanged.push(note.id);
+      continue;
+    }
+    const copy = byId.get(copyIdOf(note.id));
+    if (copy && (await differingFields(local, copy, hash)).length === 0) {
       plan.unchanged.push(note.id);
       continue;
     }
@@ -186,7 +218,19 @@ export async function planMigration(
       // The initial choice is whichever side was updated more recently.
       defaultChoice: toDate(note.updatedAt) > toDate(server.updatedAt) ? 'pc' : 'server',
       localIsLegacyHtml: isLegacyEditorHtml(local.content),
+      copyUnavailable: !!copy || blockedCopies.includes(note.id),
     });
   }
   return plan;
+}
+
+async function isSettled(
+  local: NormalizedNote,
+  settled: ResolvedDiff | undefined,
+  hash: Hasher,
+): Promise<boolean> {
+  // A record from before choices carried a fingerprint is a bare string; it
+  // does not say which PC version it covered, so the difference is asked again.
+  if (!settled || typeof settled !== 'object') return false;
+  return settled.localVersion === (await localVersionOf(local, hash));
 }

@@ -5,12 +5,13 @@
  * in-memory server: the band, the backup before anything is sent, the
  * difference list with the newer side preselected, the end that switches
  * the store to the server (completion condition 1), and a started
- * migration resuming by itself on the next open (condition 3).
+ * migration resuming by itself on the next open (condition 3), and no "done"
+ * while a local edit or a blocked note is not on the server.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useNoteStore } from '@/stores/note-store';
-import { LOCAL_NOTE_STORAGE_KEY } from '@/stores/note/note-local-backup';
+import { LOCAL_NOTE_STORAGE_KEY, readLocalNotes } from '@/stores/note/note-local-backup';
 import {
   INITIAL_RECORD,
   NOTE_MIGRATION_KEY,
@@ -112,6 +113,43 @@ describe('starting', () => {
     expect(useNoteStore.getState().source).toBe('server');
     expect(readMigrationRecord().phase).toBe('done');
     expect(localStorage.getItem(LOCAL_NOTE_STORAGE_KEY)).toBe(backup);
+  });
+});
+
+describe('not finishing while something is not on the server', () => {
+  it('re-lists a note edited in the still-local store after the list was shown', async () => {
+    server.put('chat', { title: 'ノート chat', content: 'サーバーの本文' });
+    seedLocal([localNote('chat')]);
+    render(<Harness />);
+    fireEvent.click(screen.getByText('notes.migration.start'));
+    await screen.findByTestId('note-migration-diffs');
+    // The page still shows the local notes; an edit there goes to the local store.
+    const [chat] = readLocalNotes().notes;
+    useNoteStore.setState({
+      notes: [{ ...chat!, content: '表示の後の編集', updatedAt: new Date('2026-11-19T09:00:00Z') }],
+    });
+    fireEvent.click(screen.getByText('notes.migration.apply'));
+    await screen.findByTestId('note-migration-diffs');
+    expect(screen.queryByText('notes.migration.doneTitle')).toBeNull();
+    expect(useNoteStore.getState().source).toBe('local');
+    fireEvent.click(screen.getByText('notes.migration.apply'));
+    await screen.findByText('notes.migration.doneTitle');
+    expect(server.notes.get('chat')?.content).toBe('表示の後の編集');
+  });
+
+  it('lists the notes another workspace blocks and keeps the local view', async () => {
+    server.foreign.add('held');
+    seedLocal([localNote('held'), localNote('free')]);
+    render(<Harness />);
+    fireEvent.click(screen.getByText('notes.migration.start'));
+    const blocked = await screen.findByTestId('note-migration-blocked');
+    expect(blocked.textContent).toContain('ノート held');
+    expect(screen.queryByText('notes.migration.doneTitle')).toBeNull();
+    expect(useNoteStore.getState().source).toBe('local');
+    expect(readMigrationRecord().phase).not.toBe('done');
+    fireEvent.click(screen.getByText('notes.migration.blockedRetry'));
+    await screen.findByTestId('note-migration-blocked');
+    expect(readMigrationRecord().phase).not.toBe('done');
   });
 });
 

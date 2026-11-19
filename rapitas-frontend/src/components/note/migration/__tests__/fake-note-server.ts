@@ -6,7 +6,8 @@
  * import skips known ids, resolve checks the sent version first and then
  * writes only under `version = ifVersion`, the link import adds missing
  * links and fills only empty meta keys, and a task outside the workspace is
- * a per-link 404. `failNext` makes the next call throw — before or after it
+ * a per-link 404. Ids in `foreign` stand for notes another workspace holds:
+ * invisible to the manifest, and an import of them is a conflict. `failNext` makes the next call throw — before or after it
  * took effect — to stand in for a cut connection or a lost response.
  */
 import type { NoteTaskMeta } from '@/stores/note/note-types';
@@ -32,6 +33,7 @@ type Method = 'fetchManifest' | 'importNotes' | 'resolve' | 'importLinks';
 export function createFakeNoteServer(inScopeTasks: number[] = [7, 8]) {
   const notes = new Map<string, FakeNote>();
   const links = new Map<string, NoteTaskMeta>();
+  const foreign = new Set<string>();
   const calls: Record<Method, number> = {
     fetchManifest: 0,
     importNotes: 0,
@@ -78,7 +80,12 @@ export function createFakeNoteServer(inScopeTasks: number[] = [7, 8]) {
       fail('importNotes', async () => {
         const importedIds: string[] = [];
         const skippedIds: string[] = [];
+        const conflictIds: string[] = [];
         for (const n of batch) {
+          if (foreign.has(n.id)) {
+            conflictIds.push(n.id);
+            continue;
+          }
           if (notes.has(n.id)) {
             skippedIds.push(n.id);
             continue;
@@ -87,7 +94,7 @@ export function createFakeNoteServer(inScopeTasks: number[] = [7, 8]) {
           notes.set(n.id, { ...n, updatedAt: now() });
           importedIds.push(n.id);
         }
-        return { importedIds, skippedIds };
+        return { importedIds, skippedIds, conflictIds };
       }),
 
     resolve: (items) =>
@@ -145,6 +152,7 @@ export function createFakeNoteServer(inScopeTasks: number[] = [7, 8]) {
     api,
     notes,
     links,
+    foreign,
     calls,
     get creates() {
       return creates;

@@ -33,9 +33,20 @@ export type LinkImportResult =
   | { noteId: string; taskId: number; status: 'added' | 'filled' | 'unchanged' }
   | { noteId: string; taskId: number; status: 'rejected'; code: number; error: string };
 
+/**
+ * What `/notes/import` did per id. `skippedIds` are already in this
+ * workspace (idempotent); `conflictIds` are held by another workspace and
+ * were NOT stored — resending will not change that.
+ */
+export interface ImportOutcome {
+  importedIds: string[];
+  skippedIds: string[];
+  conflictIds: string[];
+}
+
 export interface MigrationApi {
   fetchManifest(): Promise<ManifestEntry[]>;
-  importNotes(notes: NormalizedNote[]): Promise<{ importedIds: string[]; skippedIds: string[] }>;
+  importNotes(notes: NormalizedNote[]): Promise<ImportOutcome>;
   resolve(items: ResolveItem[]): Promise<ResolveOutcome[]>;
   importLinks(links: LinkImportItem[]): Promise<LinkImportResult[]>;
 }
@@ -68,12 +79,12 @@ export const httpMigrationApi: MigrationApi = {
     return body.notes;
   },
   async importNotes(notes) {
-    const body = await call<{ importedIds?: string[]; skippedIds?: string[] }>(
-      'import',
-      '/notes/import',
-      { notes },
-    );
-    return { importedIds: body.importedIds ?? [], skippedIds: body.skippedIds ?? [] };
+    const body = await call<Partial<ImportOutcome>>('import', '/notes/import', { notes });
+    return {
+      importedIds: body.importedIds ?? [],
+      skippedIds: body.skippedIds ?? [],
+      conflictIds: body.conflictIds ?? [],
+    };
   },
   async resolve(items) {
     const body = await call<{ results: ResolveOutcome[] }>('resolve', '/notes/migration/resolve', {

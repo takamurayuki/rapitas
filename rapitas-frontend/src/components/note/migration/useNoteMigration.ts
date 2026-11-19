@@ -23,6 +23,7 @@ import { httpMigrationApi, type MigrationApi } from './note-migration-api';
 import {
   applyDecisions,
   runMigration,
+  type BlockedNote,
   type RunDeps,
   type RunResult,
 } from './note-migration-runner';
@@ -33,7 +34,7 @@ export type MigrationView =
   | { kind: 'hidden' }
   | { kind: 'notStarted'; noteCount: number }
   | { kind: 'running'; imported: number; total: number }
-  | { kind: 'needsDecision'; diffs: MigrationDiff[] }
+  | { kind: 'needsDecision'; diffs: MigrationDiff[]; blocked: BlockedNote[] }
   | { kind: 'error'; message: string }
   | { kind: 'done'; rejectedLinks: RejectedLink[] };
 
@@ -69,6 +70,7 @@ export function useNoteMigration(options: NoteMigrationOptions = {}): NoteMigrat
   const source = useNoteStore((s) => s.source);
   const [view, setView] = useState<MigrationView>(() => initialView(source));
   const busy = useRef(false);
+  const switching = useRef<Promise<void> | null>(null);
   const api = options.api ?? httpMigrationApi;
   const download = options.download ?? browserDownload;
   const { hash } = options;
@@ -77,10 +79,15 @@ export function useNoteMigration(options: NoteMigrationOptions = {}): NoteMigrat
     (): RunDeps => ({
       api,
       records: { read: readMigrationRecord, write: writeMigrationRecord },
-      // Read each time: before the switch the local store is still editable.
-      localNotes: readLocalNotes().notes,
+      // Read on every pass: before the switch the local store is still editable.
+      readLocal: () => readLocalNotes().notes,
       ...(hash ? { hash } : {}),
       onProgress: (record, total) => setView({ kind: 'running', imported: record.imported, total }),
+      // Step 7: everything is in. Switched inside the runner's last check, so
+      // no local edit lands between that check and the switch.
+      onComplete: () => {
+        switching.current = useNoteStore.getState().switchToServer();
+      },
     }),
     [api, hash],
   );
@@ -91,11 +98,11 @@ export function useNoteMigration(options: NoteMigrationOptions = {}): NoteMigrat
     try {
       const result = await work();
       if (result.status === 'needsDecision') {
-        setView({ kind: 'needsDecision', diffs: result.diffs });
+        setView({ kind: 'needsDecision', diffs: result.diffs, blocked: result.blocked });
         return;
       }
-      // Step 7: everything is in; from here the store reads the server.
-      await useNoteStore.getState().switchToServer();
+      await (switching.current ?? useNoteStore.getState().switchToServer());
+      switching.current = null;
       setView({ kind: 'done', rejectedLinks: result.record.rejectedLinks });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
