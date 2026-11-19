@@ -28,7 +28,7 @@ class ApprovalsScreen extends ConsumerWidget {
       final rows = next.valueOrNull;
       if (rows == null) return;
       final notifier = ref.read(answeredQuestionsProvider.notifier);
-      notifier.state = pruneAnswered(notifier.state, rows);
+      notifier.state = pruneAnswered(notifier.state, rows, ref.read(answeredClockProvider)());
     });
     final approvalsAsync = ref.watch(approvalListProvider);
     final questionsAsync = ref.watch(pendingQuestionsProvider);

@@ -59,7 +59,7 @@ class _QuestionCardState extends ConsumerState<QuestionCard> {
       return;
     }
     final answered = ref.read(answeredQuestionsProvider.notifier);
-    answered.state = {...answered.state, answeredKeyOf(task)};
+    answered.state = {...answered.state, answeredKeyOf(task): ref.read(answeredClockProvider)()};
     ref.invalidate(executingTasksProvider);
     messenger.showSnackBar(SnackBar(content: Text('「${widget.taskTitle}」に回答を送りました')));
   }
