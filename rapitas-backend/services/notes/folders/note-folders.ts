@@ -5,10 +5,10 @@
  * delete — always inside the request's workspace (NULL partition when none).
  *
  * Same-name folders are refused here rather than by a unique index: rows with
- * a NULL workspaceId never collide in one. Two creates racing past the check
- * are settled after the write — the later row (higher id) is removed and its
- * caller gets the same 409 — and a rename that finds a duplicate after its
- * write puts its old name back with a 409, so the rule holds without a lock.
+ * a NULL workspaceId never collide in one. A create or a rename / reorder is
+ * one Serializable transaction (check, write, re-check), queued per workspace
+ * in this process; a 409 throws inside it, so a refused write leaves nothing
+ * behind — no compensating write ever frees a name for someone else.
  *
  * Deleting a folder moves its notes to 未分類 (never deletes them), in the same
  * transaction as the delete, without relying on the FK (a self-healed desktop
@@ -34,7 +34,11 @@ export interface NoteFolderRecord {
 /** Why a folder write was refused. */
 export class NoteFolderError extends Error {
   constructor(
-    readonly code: 'folder_not_found' | 'folder_name_taken' | 'invalid_folder_name',
+    readonly code:
+      | 'folder_not_found'
+      | 'folder_name_taken'
+      | 'folder_write_conflict'
+      | 'invalid_folder_name',
     readonly status: 400 | 404 | 409,
   ) {
     super(code);
@@ -62,6 +66,43 @@ async function nameTaken(db: PrismaInstance, name: string, exceptId?: number): P
     select: { id: true },
   });
   return !!hit;
+}
+
+/** Tail of the queue of folder writes per workspace, in this process. */
+const nameQueues = new Map<string, Promise<unknown>>();
+
+function isWriteConflict(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'P2034';
+}
+
+/**
+ * Run one folder write — check, write, re-check — as a Serializable
+ * transaction, one at a time per workspace in this process.
+ *
+ * The queue keeps a second writer from reading while the first is between its
+ * write and its commit; Serializable makes the database refuse the same
+ * interleaving between processes (PostgreSQL aborts one side, SQLite has a
+ * single writer). A refusal is a throw, so the transaction leaves nothing.
+ */
+async function nameWrite<T>(
+  db: PrismaInstance,
+  ws: number | null,
+  fn: (tx: PrismaInstance) => Promise<T>,
+): Promise<T> {
+  const key = String(ws);
+  const run = (nameQueues.get(key) ?? Promise.resolve()).then(() =>
+    db.$transaction((tx: PrismaInstance) => fn(tx), { isolationLevel: 'Serializable' }),
+  );
+  const tail = run.catch(() => undefined);
+  nameQueues.set(key, tail);
+  try {
+    return (await run) as T;
+  } catch (error) {
+    if (isWriteConflict(error)) throw new NoteFolderError('folder_write_conflict', 409);
+    throw error;
+  } finally {
+    if (nameQueues.get(key) === tail) nameQueues.delete(key);
+  }
 }
 
 /**
@@ -92,22 +133,15 @@ export async function createNoteFolder(
 ): Promise<NoteFolderRecord> {
   const name = cleanName(input.name);
   const ws = requestWorkspaceId();
-  if (await nameTaken(db, name)) throw new NoteFolderError('folder_name_taken', 409);
-  const created = (await db.noteFolder.create({
-    data: { name, sortOrder: input.sortOrder ?? 0, workspaceId: ws },
-    select: SELECT,
-  })) as NoteFolderRecord;
-  // Settle a race with a concurrent create of the same name: the earliest row stays.
-  const same = (await db.noteFolder.findMany({
-    where: { workspaceId: ws, name },
-    select: { id: true },
-    orderBy: [{ id: 'asc' }],
-  })) as { id: number }[];
-  if (same.length > 1 && same[0]?.id !== created.id) {
-    await db.noteFolder.deleteMany({ where: { id: created.id, workspaceId: ws } });
-    throw new NoteFolderError('folder_name_taken', 409);
-  }
-  return created;
+  return nameWrite(db, ws, async (tx) => {
+    if (await nameTaken(tx, name)) throw new NoteFolderError('folder_name_taken', 409);
+    const created = (await tx.noteFolder.create({
+      data: { name, sortOrder: input.sortOrder ?? 0, workspaceId: ws },
+      select: SELECT,
+    })) as NoteFolderRecord;
+    if (await nameTaken(tx, name, created.id)) throw new NoteFolderError('folder_name_taken', 409);
+    return created;
+  });
 }
 
 /**
@@ -126,40 +160,28 @@ export async function updateNoteFolder(
 ): Promise<NoteFolderRecord> {
   const ws = requestWorkspaceId();
   const data: Record<string, unknown> = {};
-  let oldName: string | undefined;
-  if (input.name !== undefined) {
-    data.name = cleanName(input.name);
-    if (await nameTaken(db, data.name as string, id)) {
+  const name = input.name !== undefined ? cleanName(input.name) : undefined;
+  if (name !== undefined) data.name = name;
+  if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
+  // NOTE: the whole PATCH is one transaction (review G2 fix1 must-fix 1). The
+  // old code wrote the name, re-checked, and wrote the old name back on a
+  // duplicate: between those writes the old name looked free to a create, and
+  // the sortOrder stayed. A refusal now throws inside the transaction, so
+  // nothing of the PATCH — name or sortOrder — survives a 409.
+  return nameWrite(db, ws, async (tx) => {
+    if (name !== undefined && (await nameTaken(tx, name, id))) {
       throw new NoteFolderError('folder_name_taken', 409);
     }
-    const current = (await db.noteFolder.findFirst({
+    const updated = await tx.noteFolder.updateMany({ where: { id, workspaceId: ws }, data });
+    if (updated.count !== 1) throw new NoteFolderError('folder_not_found', 404);
+    if (name !== undefined && (await nameTaken(tx, name, id))) {
+      throw new NoteFolderError('folder_name_taken', 409);
+    }
+    return (await tx.noteFolder.findFirst({
       where: { id, workspaceId: ws },
-      select: { name: true },
-    })) as { name: string } | null;
-    oldName = current?.name;
-  }
-  if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
-  const updated = await db.noteFolder.updateMany({ where: { id, workspaceId: ws }, data });
-  if (updated.count !== 1) throw new NoteFolderError('folder_not_found', 404);
-  // NOTE: a rename racing another write of the same name passed the check above
-  // too (review G2 should-fix). Whichever writer sees the duplicate after its own
-  // write backs out — at least the later one always does — so two folders never
-  // keep one name. Conditional on our name, so a newer rename is not undone.
-  if (
-    oldName !== undefined &&
-    oldName !== data.name &&
-    (await nameTaken(db, data.name as string, id))
-  ) {
-    await db.noteFolder.updateMany({
-      where: { id, workspaceId: ws, name: data.name },
-      data: { name: oldName },
-    });
-    throw new NoteFolderError('folder_name_taken', 409);
-  }
-  return (await db.noteFolder.findFirst({
-    where: { id, workspaceId: ws },
-    select: SELECT,
-  })) as NoteFolderRecord;
+      select: SELECT,
+    })) as NoteFolderRecord;
+  });
 }
 
 /**
