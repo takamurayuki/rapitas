@@ -1233,17 +1233,6 @@ CREATE TABLE "Note" (
 );
 
 -- CreateTable
-CREATE TABLE "NoteTaskLink" (
-    "id" SERIAL NOT NULL,
-    "workspaceId" INTEGER,
-    "noteId" TEXT NOT NULL,
-    "taskId" INTEGER NOT NULL,
-    "meta" TEXT,
-
-    CONSTRAINT "NoteTaskLink_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "NoteFolder" (
     "id" SERIAL NOT NULL,
     "workspaceId" INTEGER,
@@ -1276,6 +1265,17 @@ CREATE TABLE "NoteMigrationMarker" (
     "detail" TEXT,
 
     CONSTRAINT "NoteMigrationMarker_pkey" PRIMARY KEY ("key")
+);
+
+-- CreateTable
+CREATE TABLE "NoteTaskLink" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "noteId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "meta" TEXT,
+
+    CONSTRAINT "NoteTaskLink_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2572,15 +2572,6 @@ CREATE INDEX "Note_folderId_idx" ON "Note"("folderId");
 CREATE INDEX "Note_sourceTaskId_idx" ON "Note"("sourceTaskId");
 
 -- CreateIndex
-CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
-
--- CreateIndex
-CREATE INDEX "NoteTaskLink_workspaceId_idx" ON "NoteTaskLink"("workspaceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
-
--- CreateIndex
 CREATE INDEX "NoteFolder_workspaceId_idx" ON "NoteFolder"("workspaceId");
 
 -- CreateIndex
@@ -2591,6 +2582,15 @@ CREATE INDEX "TaskDeliverableCompletion_state_idx" ON "TaskDeliverableCompletion
 
 -- CreateIndex
 CREATE INDEX "NoteMigrationMarker_workspaceId_idx" ON "NoteMigrationMarker"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
+
+-- CreateIndex
+CREATE INDEX "NoteTaskLink_workspaceId_idx" ON "NoteTaskLink"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
 
 -- CreateIndex
 CREATE INDEX "PrRiskConfig_workspaceId_idx" ON "PrRiskConfig"("workspaceId");
@@ -3079,13 +3079,13 @@ ALTER TABLE "Note" ADD CONSTRAINT "Note_folderId_fkey" FOREIGN KEY ("folderId") 
 ALTER TABLE "Note" ADD CONSTRAINT "Note_sourceTaskId_fkey" FOREIGN KEY ("sourceTaskId") REFERENCES "Task"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TaskDeliverableCompletion" ADD CONSTRAINT "TaskDeliverableCompletion_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "NoteTaskLink" ADD CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "NoteTaskLink" ADD CONSTRAINT "NoteTaskLink_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TaskDeliverableCompletion" ADD CONSTRAINT "TaskDeliverableCompletion_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "RapiChatMessage" ADD CONSTRAINT "RapiChatMessage_spaceId_fkey" FOREIGN KEY ("spaceId") REFERENCES "RapiChatSpace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
