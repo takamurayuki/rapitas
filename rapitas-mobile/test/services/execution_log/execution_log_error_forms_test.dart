@@ -136,4 +136,43 @@ void main() {
       expect(d.events.single.count, 2);
     });
   });
+
+  // 直し回3の指摘：Codex の stderr は複数の診断行を1回で emit し（process-runner.ts）、
+  // filterCliDiagnosticOutput に `[System Error: Request failed]\n[Error] Retry exhausted\n` を通すと
+  // 両行が同じ chunk に残る（important = true）。後続の出来事タグの行はエラー本文に吸わない
+  group('[System Error: …] で始まり、後続に出来事のタグ行がある chunk', () {
+    test('後続の [Error] 行は別のエラーとして出す', () {
+      final d = _digest([
+        logRow(0, '[System Error: Request failed]\n[Error] Retry exhausted\n', type: 'stderr', time: at(5)),
+      ]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error, ExecLogKind.error]);
+      expect(d.events.map((e) => e.body), ['Request failed', 'Retry exhausted']);
+    });
+
+    test('後続の [Question] 行は質問として出し、続くタグなし行は質問の本文に付く', () {
+      final d = _digest([logRow(0, '[System Error: Request failed]\n[Question] 再試行しますか？\n回数は3回まで\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error, ExecLogKind.question]);
+      expect(d.events.first.body, 'Request failed');
+      expect(d.events.last.body, '再試行しますか？\n回数は3回まで');
+    });
+
+    test('後続の [Tool: …] 行は作業として出す', () {
+      final d = _digest([logRow(0, '[System Error: Request failed]\n[Tool: Read] -> lib/main.dart\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error, ExecLogKind.work]);
+      expect(d.events.first.body, 'Request failed');
+      expect(d.events.last.count, 1);
+    });
+
+    test('切り分けるのは出来事のタグ行だけで、本文の途中の `]` やタグなし行は本文に残す', () {
+      final d = _digest([logRow(0, '[System Error: Request failed\n["scope"]\nsee docs]\n[Error] Retry exhausted\n', time: at(5))]);
+      expect(d.events.map((e) => e.body), ['Request failed\n["scope"]\nsee docs', 'Retry exhausted']);
+    });
+
+    // 回帰防止：output-parser-handlers.ts は assistant の displayOutput に `\n[Question] ${questionText}\n` を連結する
+    test('発言に [Question] 行が連結された chunk は発言と質問に分ける', () {
+      final d = _digest([logRow(0, '方針を確認させてください。\n[Question] どちらの案にしますか？\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.speech, ExecLogKind.question]);
+      expect(d.events.last.body, 'どちらの案にしますか？');
+    });
+  });
 }

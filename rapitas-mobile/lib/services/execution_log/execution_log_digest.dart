@@ -69,11 +69,19 @@ class _Builder {
     final time = entry.timestamp;
     // NOTE: processSystemEvent は1件のエラーを `[System Error: ${errorMsg}]\n` の1回の emit で書き、
     // 1 emit が 1 chunk になる（output-parser-handlers.ts、log-chunk-manager.ts）。外側の閉じ括弧は
-    // chunk 末尾の `]` だけなので、行ごとに見ず chunk 全体を1件にする（本文の行末の `]` で切らない）
-    final systemError = _systemErrorBody(entry.chunk);
-    if (systemError != null) {
-      _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: systemError, time: time));
-      return;
+    // chunk 末尾の `]` だけなので、本文の行末の `]` では切らない。
+    // NOTE: Codex の stderr は複数の診断行を1回で emit するので、後続の出来事タグの行（[Error]・[Question]・
+    // [Tool: …] 等）は本文に吸わず、そこから先を通常の分類に回す（直し回3）
+    var lines = entry.chunk.split('\n');
+    final head = _systemErrorHead.firstMatch(entry.chunk);
+    if (head != null) {
+      final rest = entry.chunk.substring(head.end).split('\n');
+      var end = 1;
+      while (end < rest.length && !_startsEvent(_classify(rest[end], entry.isStderr).tag)) {
+        end++;
+      }
+      _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: _stripClosing(rest.sublist(0, end).join('\n')), time: time));
+      lines = rest.sublist(end);
     }
     // 同じ chunk の中で、タグ行の後に続くタグなしの行をどこへ付けるか
     ExecLogEvent? bodyTarget;
@@ -96,7 +104,7 @@ class _Builder {
     // 重複のまとめは本文が確定してから判定する
     List<String>? openError;
 
-    for (final raw in entry.chunk.split('\n')) {
+    for (final raw in lines) {
       if (openError != null) {
         openError.add(raw);
         continue;
@@ -258,11 +266,8 @@ String _workTitle(ExecLogEvent work) {
 
 final _systemErrorHead = RegExp(r'^\s*\[System Error:\s*');
 
-/// chunk が `[System Error:` で始まるなら、その chunk 全体の本文（末尾の `]` と改行を除く）。それ以外は null
-String? _systemErrorBody(String chunk) {
-  final m = _systemErrorHead.firstMatch(chunk);
-  return m == null ? null : _stripClosing(chunk.substring(m.end));
-}
+/// 出来事になるタグか（タグなし・内部・その他の行はシステムエラーの本文に残す）
+bool _startsEvent(LineTag tag) => tag != LineTag.text && tag != LineTag.hidden && tag != LineTag.other;
 
 /// 末尾の空白・改行と、外側の閉じ括弧 `]` 1つだけを外す（本文の途中の `]` は残す）
 String _stripClosing(String text) {
