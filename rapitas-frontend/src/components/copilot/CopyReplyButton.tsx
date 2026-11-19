@@ -27,13 +27,18 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
   const t = useTranslations('copilot.copyReply');
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // NOTE: The clipboard write can settle after unmount; without this the
+  // success path would start a fresh 2s timer the cleanup can no longer stop.
+  const mounted = useRef(false);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
+      timer.current = null;
+    };
+  }, []);
 
   const copy = async () => {
     try {
@@ -41,6 +46,7 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
       // throws here and is reported as a failure, never as success.
       await navigator.clipboard.writeText(text);
     } catch {
+      if (!mounted.current) return;
       // NOTE: A failure inside the 2s check window of an earlier success must
       // not leave the check and "copied" label up. Removed the error toast —
       // feedback is the icon change only, so a failure just stays a copy icon.
@@ -49,6 +55,7 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
       setCopied(false);
       return;
     }
+    if (!mounted.current) return;
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), COPIED_MS);
