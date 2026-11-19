@@ -4,15 +4,24 @@
 
 ## 表示する側
 
-ノートはサーバに Markdown の文章として保存され、両方の画面が同じものを読む。
+ノートはサーバに Markdown の文章として保存され、PC とスマホは同じノートを読み書きする。PC のノート画面・サイドバー・タスク詳細のノート表示は `rapitas-frontend/src/stores/note-store.ts` を通して `/notes` の API を読み書きする（第0段階、nav76）。
 
 | 画面                                              | 描画部品                                              | 図（Mermaid）                                        |
 | ------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- |
 | PC のノート画面（/notes）とタスク詳細のノート表示 | `MarkdownNoteEditor`（`MarkdownView` の `note` 密度） | 図として描く                                         |
 | スマホのノート詳細                                | `NoteContentMarkdown`（flutter_markdown_plus）        | コードのまま見せ、「図は PC で表示されます」と添える |
 
-> [!NOTE]
-> PC のリッチエディタで書いたノートは HTML で保存されており、これまでどおりリッチエディタで開く。Markdown として描画するのは、HTML を含まず Markdown の記号か複数行を持つ本文だけである（`rapitas-frontend/src/components/note/markdown-note/note-content-format.ts`）。
+> [!IMPORTANT]
+> その PC のブラウザにだけあったノート（localStorage の `note-storage`）は、ノート画面の移行の帯からサーバーに移す。移し終えるまで、その PC のノート画面はブラウザのノートを表示する。移した後のブラウザのノートは読み取り専用の控えで、書き換えない。手順と記録（`note-migration`）は `rapitas-frontend/src/components/note/migration/` にある。
+
+## 旧形式（HTML）のノート
+
+以前の PC のリッチエディタで書いたノートは HTML で保存されている。新規作成と編集の保存は Markdown だけで、HTML を新たに保存する経路は無い。
+
+- 判定は `isLegacyEditorHtml` で行う。コードのフェンスとインラインコードを除いた本文に、リッチエディタが書くタグがあるときだけ旧形式とする。空の本文、1行の本文、`&amp;` などの実体参照だけの本文は旧形式ではない。規則はバックエンド（`rapitas-backend/services/notes/note-content-kind.ts`）とフロントエンド（`rapitas-frontend/src/components/note/markdown-note/note-content-kind.ts`）にあり、両方のテストが `note-content-kind.cases.json` の同じ表を読む。
+- PC は旧形式のノートを読み取り専用で表示し（`LegacyHtmlNoteView`）、「Markdown に変換して編集」で変換結果を見せてから保存する。色・文字の大きさ・フォントなど Markdown で表せない書式は失われる。
+- サーバーは `PUT` / `PATCH /notes/:id` で旧形式の本文を 400（`legacy_html_content`）で拒否する。本文を送らない更新（タイトル・タグ・ピン）は旧形式のノートにも効く。HTML を受けるのは移行用の `POST /notes/import` と `POST /notes/migration/resolve` だけである。
+- `note-content-format.ts` の `isMarkdownNoteContent` は一覧の1行表示の振り分けにだけ使い、保存の検証には使わない。
 
 ## 使ってよい書き方
 
@@ -52,6 +61,14 @@
 | ロードマップの締めのノート（前提・比較の軸）                                                                 | `rapitas-backend/services/assistant/roadmap-prompts.ts`                   | `NOTE_FIELD_TEXT_RULE`       |
 
 ノートの本文を書く新しい生成経路を作るときは、プロンプトに `NOTE_MARKDOWN_FORMAT_RULES` を取り込む。調査ジョブやエージェント実行がノートを書く経路は、いまは存在しない。
+
+ロードマップの締めのノートは、作成したタスクの一覧とともにサーバーに保存し、作ったタスクすべてに `POST /notes/:id/links` で紐付ける（`rapitas-frontend/src/components/rapi-avatar/intake/roadmap/roadmap-note.ts` の `saveRoadmapNote`）。各タスクの説明の末尾には、同じ id を指す `/rapitas-note/{taskId}/{noteId}` のチップを書き足す。
+
+## 保存の契約
+
+本文・タイトル・タグ・種類を書く経路は、保存した4項目と `Note.version`（4項目を決まった形にした JSON の SHA-256）が常に一致するように書く（`rapitas-backend/services/notes/note-write.ts`）。行を読み、送られた項目を当てた最終値から `version` を計算し、読んだ版を条件にした更新で書く。ほかの書き込みと重なって3回とも条件に合わなければ 409 を返して書かない。
+
+紐付けの `meta` は `taskTitle`・`categoryName`・`themeName`・`projectName`・`parentTaskTitle` の5項目を受ける。PC は `taskTitle`・`themeName`・`categoryName` を、スマホは `themeName`・`projectName`・`parentTaskTitle` を書く。紐付けのリンク先タスクは要求のワークスペースで確かめ、存在しない・別のワークスペースのタスクは 404 になる。
 
 ## 返答をノートに保存する流れ
 
