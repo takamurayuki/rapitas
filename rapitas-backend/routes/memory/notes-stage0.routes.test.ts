@@ -111,6 +111,29 @@ describe('the migration endpoints', () => {
     const tooMany = await call('/notes/import', json('POST', { notes: all.slice(0, 501) }));
     expect(tooMany.status).toBe(422);
   });
+
+  it('reports an id held by another workspace as a conflict, apart from the skips', async () => {
+    await call('/notes/taken', json('PUT', { title: 'ws2 のノート' }), 2);
+    await call('/notes/mine', json('PUT', { title: 'mine' }));
+    const { status, body } = await call(
+      '/notes/import',
+      json('POST', {
+        notes: [
+          { id: 'taken', title: 'PC' },
+          { id: 'mine', title: 'PC' },
+          { id: 'fresh', title: 'PC' },
+        ],
+      }),
+    );
+    expect(status).toBe(200);
+    expect(body).toMatchObject({
+      importedIds: ['fresh'],
+      skippedIds: ['mine'],
+      conflictIds: ['taken'],
+      conflicted: 1,
+    });
+    expect(db.notes.get('taken')?.workspaceId).toBe(2);
+  });
 });
 
 describe('links stay inside the workspace (completion condition 5)', () => {

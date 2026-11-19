@@ -144,8 +144,10 @@ describe('taking in a browser full of notes', () => {
     expect(result).toEqual({
       imported: 1,
       skipped: 1,
+      conflicted: 0,
       importedIds: ['1760000000002'],
       skippedIds: ['n1'],
+      conflictIds: [],
     });
     expect(db.notes.get('n1')?.title).toBe('server copy');
     expect(consistent(db.notes.get('1760000000002'))).toBe(true);
@@ -161,7 +163,49 @@ describe('taking in a browser full of notes', () => {
     await importNotes(client, chunk);
     const again = await importNotes(client, chunk);
     expect(again.imported).toBe(0);
+    expect(again.skippedIds).toEqual(['a', 'b']);
+    expect(again.conflictIds).toEqual([]);
     expect(db.notes.size).toBe(2);
+  });
+
+  test('an id held only by another workspace is a conflict, not an already-imported skip', async () => {
+    const db = createNoteMemoryDb();
+    const client = asClient(db.prisma);
+    await runInWorkspace(2, () => saveNote(client, 'shared', { title: 'theirs' }));
+    await saveNote(client, 'mine', { title: 'mine' });
+    const result = await importNotes(client, [
+      { id: 'shared', title: 'browser copy' },
+      { id: 'mine', title: 'browser copy' },
+    ]);
+    expect(result.importedIds).toEqual([]);
+    expect(result.skippedIds).toEqual(['mine']);
+    expect(result.conflictIds).toEqual(['shared']);
+    expect(result.conflicted).toBe(1);
+    // Nothing was written into the other workspace's row, and a resend says the same.
+    expect(db.notes.get('shared')?.title).toBe('theirs');
+    expect(db.notes.get('shared')?.workspaceId).toBe(2);
+    const again = await importNotes(client, [{ id: 'shared', title: 'browser copy' }]);
+    expect(again.conflictIds).toEqual(['shared']);
+    expect(again.skippedIds).toEqual([]);
+  });
+
+  test('a create that loses a race is classified by where the winning row lives', async () => {
+    const db = createNoteMemoryDb();
+    const client = asClient(db.prisma);
+    // The pre-check sees nothing; the row appears just before the create.
+    const real = db.prisma.note.findUnique;
+    let first = true;
+    db.prisma.note.findUnique = async (args: Record<string, unknown>) => {
+      if (first) {
+        first = false;
+        await runInWorkspace(3, () => saveNote(client, 'raced', { title: 'other ws' }));
+        return null;
+      }
+      return real(args);
+    };
+    const result = await importNotes(client, [{ id: 'raced', title: 'browser copy' }]);
+    expect(result.conflictIds).toEqual(['raced']);
+    expect(result.skippedIds).toEqual([]);
   });
 });
 

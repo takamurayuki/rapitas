@@ -32,7 +32,7 @@ import {
   type SanitizedNoteInput,
 } from './note-record';
 import { computeNoteVersion, type NoteVersionFields } from './note-version';
-import { requestWorkspaceId, scopeWhere } from './note-scope';
+import { isInScope, requestWorkspaceId, scopeWhere } from './note-scope';
 import { checkNewMarkdownContent, type NewMarkdownRejection } from './note-content-kind';
 
 const logger = createLogger('note-write');
@@ -178,22 +178,51 @@ export async function saveNote(
 export interface ImportResult {
   imported: number;
   skipped: number;
+  /** Ids held by another workspace: not stored here, and a resend will not store them. */
+  conflicted: number;
   importedIds: string[];
+  /** Ids this workspace already has — the idempotent "already taken in". */
   skippedIds: string[];
+  conflictIds: string[];
+}
+
+/**
+ * Which workspace holds an id, if any row does.
+ *
+ * NOTE: `Note.id` is one primary key across every workspace, so an id can be
+ * taken by a row this request cannot see. That is not "already imported":
+ * the note is not in the requested workspace and resending will not put it
+ * there, so the import reports it apart from the skips (design §2.2, §5.3
+ * completion condition 2).
+ *
+ * @param prisma - The client to read through / Prisma クライアント
+ * @param id - The id to look up / 調べるID
+ * @returns The holder's workspace, or null when no row has the id / 持ち主の区画（無ければ null）
+ */
+async function findHolder(
+  prisma: PrismaInstance,
+  id: string,
+): Promise<{ workspaceId: number | null } | null> {
+  return (await prisma.note.findUnique({
+    where: { id },
+    select: { workspaceId: true },
+  })) as { workspaceId: number | null } | null;
 }
 
 /**
  * Take in notes that were living in a browser.
  *
- * Existing ids are left alone rather than overwritten: the import runs from
- * whichever browser still has local notes, possibly more than once and
- * possibly after the server copy has moved on. Skipping is the only choice
- * that cannot destroy the newer version. Bodies are taken as they are —
- * including the old editor's HTML, the one read-only migration exception.
+ * Ids the requested workspace already has are left alone rather than
+ * overwritten: the import runs from whichever browser still has local notes,
+ * possibly more than once and possibly after the server copy has moved on.
+ * Skipping is the only choice that cannot destroy the newer version. Ids
+ * held by another workspace come back as `conflictIds`, never as skips.
+ * Bodies are taken as they are — including the old editor's HTML, the one
+ * read-only migration exception.
  *
  * @param prisma - The client to write through / Prisma クライアント
  * @param notes - What the browser had / ブラウザが持っていたノート
- * @returns Counts and ids taken in and already present / 取り込み件数と既存件数（ID付き）
+ * @returns Counts and ids taken in, already present, and held elsewhere / 取り込み・既存・別区画の衝突の件数とID
  */
 export async function importNotes(
   prisma: PrismaInstance,
@@ -201,10 +230,13 @@ export async function importNotes(
 ): Promise<ImportResult> {
   const importedIds: string[] = [];
   const skippedIds: string[] = [];
+  const conflictIds: string[] = [];
+  const record = (id: string, kind: 'skipped' | 'conflict') =>
+    (kind === 'skipped' ? skippedIds : conflictIds).push(id);
   for (const note of notes) {
-    const existing = await prisma.note.findUnique({ where: { id: note.id } });
+    const existing = await findHolder(prisma, note.id);
     if (existing) {
-      skippedIds.push(note.id);
+      record(note.id, isInScope(existing) ? 'skipped' : 'conflict');
       continue;
     }
     const { id, ...rest } = note;
@@ -216,17 +248,27 @@ export async function importNotes(
       });
       importedIds.push(id);
     } catch (error) {
-      // Same id written since the check (or held by another workspace): the
-      // server's copy wins, exactly as if it had been there first.
+      // Same id written since the check: the server's copy wins if it is in
+      // this workspace, exactly as if it had been there first; elsewhere it
+      // is a conflict like any other.
       if (!isUniqueViolation(error)) throw error;
-      skippedIds.push(id);
+      record(id, isInScope(await findHolder(prisma, id)) ? 'skipped' : 'conflict');
     }
   }
-  logger.info({ imported: importedIds.length, skipped: skippedIds.length }, 'notes imported');
+  logger.info(
+    {
+      imported: importedIds.length,
+      skipped: skippedIds.length,
+      conflicted: conflictIds.length,
+    },
+    'notes imported',
+  );
   return {
     imported: importedIds.length,
     skipped: skippedIds.length,
+    conflicted: conflictIds.length,
     importedIds,
     skippedIds,
+    conflictIds,
   };
 }
