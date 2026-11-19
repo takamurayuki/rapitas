@@ -147,6 +147,30 @@ void main() {
       expect(find.text('承認しました'), findsOneWidget);
     });
 
+    testWidgets('却下：理由ダイアログの確定後にカードが破棄されてから成功しても、承認の一覧を読み直す', (tester) async {
+      final service = FakeApprovals()..gate = Completer<void>();
+      final source = CountingSource<ApprovalRequest>([for (var i = 0; i < 30; i++) pendingApproval('r$i', '却下その$i')]);
+      await pumpApprovals(tester, approvalSource: source, approvalService: service);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '却下').first);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '不要');
+      await tester.tap(find.widgetWithText(FilledButton, '却下'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -6000));
+      await tester.pumpAndSettle();
+      expect(find.text('却下その0', skipOffstage: false), findsNothing, reason: 'カードは破棄されている');
+
+      final fetchesBefore = source.fetches;
+      service.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(service.rejected, ['r0']);
+      expect(source.fetches, greaterThan(fetchesBefore));
+      expect(find.text('却下しました'), findsOneWidget);
+    });
+
     testWidgets('質問：スクロールでカードが破棄された後に成功しても、回答済みにして読み直す', (tester) async {
       final agent = FakeAgent()..gate = Completer<void>();
       final t0 = DateTime(2026, 11, 19, 9);
