@@ -165,3 +165,31 @@ describe('one set of notes for both devices (completion condition 6)', () => {
     expect((body.notes as Body[]).map((n) => n.id)).toEqual(['1795000000000']);
   });
 });
+
+describe('no normal path stores new HTML (completion condition 4)', () => {
+  it('PUT and PATCH refuse a legacy HTML body with 400', async () => {
+    const put = await call('/notes/n1', json('PUT', { content: '<div>本文</div>' }));
+    expect(put.status).toBe(400);
+    expect(put.body.error).toBe('legacy_html_content');
+    await call('/notes/n1', json('PUT', { title: 't', content: 'md' }));
+    const patch = await call('/notes/n1', json('PATCH', { content: '<p>x</p>' }));
+    expect(patch.status).toBe(400);
+    expect(db.notes.get('n1')?.content).toBe('md');
+  });
+
+  it('PUT accepts an empty body and a plain one-line body', async () => {
+    expect((await call('/notes/e', json('PUT', { title: '', content: '' }))).status).toBe(200);
+    expect((await call('/notes/l', json('PUT', { content: '牛乳を買う' }))).status).toBe(200);
+  });
+
+  it('the import still takes HTML, and a later body-less PATCH on that note is fine', async () => {
+    const imported = await call(
+      '/notes/import',
+      json('POST', { notes: [{ id: 'h', title: 'h', content: '<div>原本</div>' }] }),
+    );
+    expect(imported.body).toMatchObject({ imported: 1 });
+    const patch = await call('/notes/h', json('PATCH', { title: '改名', isPinned: true }));
+    expect(patch.status).toBe(200);
+    expect(db.notes.get('h')?.content).toBe('<div>原本</div>');
+  });
+});

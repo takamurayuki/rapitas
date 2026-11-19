@@ -33,6 +33,7 @@ import {
 } from './note-record';
 import { computeNoteVersion, type NoteVersionFields } from './note-version';
 import { requestWorkspaceId, scopeWhere } from './note-scope';
+import { checkNewMarkdownContent, type NewMarkdownRejection } from './note-content-kind';
 
 const logger = createLogger('note-write');
 
@@ -44,6 +45,17 @@ export class NoteWriteConflictError extends Error {
   constructor(readonly noteId: string) {
     super(`note ${noteId} changed during every write attempt`);
     this.name = 'NoteWriteConflictError';
+  }
+}
+
+/**
+ * A normal create or edit sent a body that is not new Markdown — the old
+ * rich editor's HTML. Only `/notes/import` and `migration/resolve` take that.
+ */
+export class NoteContentRejectedError extends Error {
+  constructor(readonly reason: NewMarkdownRejection) {
+    super(`note content rejected: ${reason}`);
+    this.name = 'NoteContentRejectedError';
   }
 }
 
@@ -107,6 +119,7 @@ export function readVersionCondition(row: {
  * @param id - The id to write under / 書き込むID
  * @param input - What to set / 設定する内容
  * @returns The stored note / 保存後のノート
+ * @throws {NoteContentRejectedError} when the body is legacy editor HTML / 本文が旧エディタの HTML のとき
  * @throws {NoteWriteConflictError} when every attempt lost a race / すべての試行で競合したとき
  */
 export async function saveNote(
@@ -114,6 +127,12 @@ export async function saveNote(
   id: string,
   input: NoteInput,
 ): Promise<NoteRecord> {
+  // A write that sends no body (title, tags, pin only) is accepted even on an
+  // HTML note; only a body that is itself legacy HTML is refused (design §5.3).
+  if (input.content !== undefined) {
+    const rejection = checkNewMarkdownContent(input.content);
+    if (rejection) throw new NoteContentRejectedError(rejection);
+  }
   const data = sanitize(input);
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {
     const current = (await prisma.note.findFirst({

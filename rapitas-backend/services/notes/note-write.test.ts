@@ -9,7 +9,13 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { createNoteMemoryDb, type MemoryNote } from '../../tests/helpers/note-memory-db';
-import { saveNote, importNotes, NoteWriteConflictError, MAX_WRITE_ATTEMPTS } from './note-write';
+import {
+  saveNote,
+  importNotes,
+  NoteWriteConflictError,
+  NoteContentRejectedError,
+  MAX_WRITE_ATTEMPTS,
+} from './note-write';
 import { backfillNoteVersions } from './note-version-backfill';
 import { computeNoteVersion } from './note-version';
 import { MAX_NOTE_TAGS } from './note-limits';
@@ -200,6 +206,36 @@ describe('backfilling versions on old rows', () => {
     await backfillNoteVersions(client);
     const stored = db.notes.get('a');
     expect(stored?.content).toBe('edited meanwhile');
+    expect(consistent(stored)).toBe(true);
+  });
+});
+
+describe('normal saves take Markdown only (completion condition 4)', () => {
+  test('refuses a body in the old editor HTML and writes nothing', async () => {
+    const db = createNoteMemoryDb();
+    await expect(
+      saveNote(asClient(db.prisma), 'n1', { content: '<div>本文</div><div><br></div>' }),
+    ).rejects.toBeInstanceOf(NoteContentRejectedError);
+    expect(db.notes.size).toBe(0);
+  });
+
+  test('saves an empty body and a plain one-line body', async () => {
+    const db = createNoteMemoryDb();
+    const client = asClient(db.prisma);
+    await saveNote(client, 'empty', { title: '空の学習ノート', content: '' });
+    await saveNote(client, 'line', { content: '牛乳を買う' });
+    expect(db.notes.get('empty')?.content).toBe('');
+    expect(db.notes.get('line')?.content).toBe('牛乳を買う');
+  });
+
+  test('takes a title, tags or pin change on an imported HTML note', async () => {
+    const db = createNoteMemoryDb();
+    const client = asClient(db.prisma);
+    await importNotes(client, [{ id: 'html', title: 'old', content: '<p>原本</p>' }]);
+    await saveNote(client, 'html', { title: '新しいタイトル', tags: ['移行'], isPinned: true });
+    const stored = db.notes.get('html');
+    expect(stored?.title).toBe('新しいタイトル');
+    expect(stored?.content).toBe('<p>原本</p>');
     expect(consistent(stored)).toBe(true);
   });
 });

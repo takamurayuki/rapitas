@@ -30,7 +30,12 @@ import {
 // are re-exported so existing importers keep one entry point.
 export { MAX_NOTE_TITLE, MAX_NOTE_CONTENT, MAX_NOTE_TAGS } from './note-limits';
 export type { NoteTaskMeta, NoteRecord, NoteInput } from './note-record';
-export { saveNote, importNotes, NoteWriteConflictError } from './note-write';
+export {
+  saveNote,
+  importNotes,
+  NoteWriteConflictError,
+  NoteContentRejectedError,
+} from './note-write';
 
 /**
  * List notes, pinned first and most recently touched next.

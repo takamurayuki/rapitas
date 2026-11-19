@@ -1,0 +1,19 @@
+{
+  "description": "Shared input table for isLegacyEditorHtml / the new-Markdown check. Read by rapitas-backend/services/notes/note-content-kind.test.ts and rapitas-frontend/src/components/note/markdown-note/note-content-kind.test.ts so both sides are held to the same verdicts (design §5.3).",
+  "cases": [
+    { "name": "empty", "content": "", "legacyHtml": false },
+    { "name": "whitespace only", "content": "   \n  ", "legacyHtml": false },
+    { "name": "one plain line", "content": "買い物リスト", "legacyHtml": false },
+    { "name": "one plain line with symbols in prose", "content": "a < b > c, 3 * 5", "legacyHtml": false },
+    { "name": "several plain lines", "content": "一行目\n二行目\n三行目", "legacyHtml": false },
+    { "name": "entity references only", "content": "A &amp; B &lt;tag&gt; &nbsp;", "legacyHtml": false },
+    { "name": "Markdown with marks", "content": "# 見出し\n\n- 項目\n- **太字**", "legacyHtml": false },
+    { "name": "tag inside a fence", "content": "例:\n\n```html\n<div><br></div>\n```", "legacyHtml": false },
+    { "name": "tag inside inline code", "content": "`<br>` で改行する", "legacyHtml": false },
+    { "name": "editor div and br", "content": "<div>本文</div><div><br></div>", "legacyHtml": true },
+    { "name": "one line with a paragraph tag", "content": "<p>hello</p>", "legacyHtml": true },
+    { "name": "editor inline formatting", "content": "前<strong>太字</strong>後", "legacyHtml": true },
+    { "name": "editor tag outside code next to code", "content": "`code`<br>次の行", "legacyHtml": true },
+    { "name": "editor heading with attributes", "content": "<h2 style=\"color:red\">章</h2>", "legacyHtml": true }
+  ]
+}

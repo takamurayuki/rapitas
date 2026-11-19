@@ -23,6 +23,8 @@ let unlinkFound = true;
 let writeConflicts = false;
 
 class NoteWriteConflictError extends Error {}
+class NoteContentRejectedError extends Error {}
+let rejectContent = false;
 
 const NOTE = {
   id: 'n1',
@@ -43,6 +45,9 @@ mock.module('../../services/notes/note-service', () => ({
   },
   getNote: async () => (noteExists ? NOTE : null),
   saveNote: async (_p: unknown, id: string, input: Record<string, unknown>) => {
+    if (rejectContent && typeof input.content === 'string') {
+      throw new NoteContentRejectedError('legacy_html');
+    }
     if (writeConflicts) throw new NoteWriteConflictError(id);
     saved.push({ id, input });
     return { ...NOTE, id, ...input };
@@ -57,6 +62,7 @@ mock.module('../../services/notes/note-service', () => ({
     skipped: 0,
   }),
   NoteWriteConflictError,
+  NoteContentRejectedError,
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
@@ -108,6 +114,7 @@ beforeEach(() => {
   unlinkFound = true;
   writeConflicts = false;
   taskInScope = true;
+  rejectContent = false;
 });
 
 describe('listing', () => {
@@ -148,6 +155,13 @@ describe('writing', () => {
   it('treats PATCH the same way, with only the fields that were sent', async () => {
     await call('/n1', json('PATCH', { isPinned: true }));
     expect(saved[0]?.input).toEqual({ isPinned: true });
+  });
+
+  it('answers 400 when the service refuses the body as legacy HTML', async () => {
+    rejectContent = true;
+    const { status, body } = await call('/n1', json('PUT', { content: '<div>x</div>' }));
+    expect(status).toBe(400);
+    expect(body.error).toBe('legacy_html_content');
   });
 
   it('answers 409, not 500, when the note kept changing under the write', async () => {

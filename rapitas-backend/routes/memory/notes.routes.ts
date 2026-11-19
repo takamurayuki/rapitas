@@ -29,6 +29,7 @@ import {
   unlinkNote,
   importNotes,
   NoteWriteConflictError,
+  NoteContentRejectedError,
   MAX_NOTE_TITLE,
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
@@ -104,6 +105,12 @@ async function writeNote(id: string, body: NoteInput, set: StatusSetter) {
     const note = await saveNote(prisma, id, body);
     return { success: true, note };
   } catch (error) {
+    if (error instanceof NoteContentRejectedError) {
+      // Legacy rich-editor HTML: new bodies are Markdown only. The client
+      // converts an HTML note (and shows the result) before saving it here.
+      set.status = 400;
+      return { success: false, error: 'legacy_html_content' };
+    }
     if (error instanceof NoteWriteConflictError) {
       set.status = 409;
       return { success: false, error: 'note_write_conflict' };

@@ -40,6 +40,7 @@ mock.module('../../services/notes/note-service', () => ({
   unlinkNote: async () => false,
   importNotes: async () => ({ imported: 0, skipped: 0 }),
   NoteWriteConflictError: class NoteWriteConflictError extends Error {},
+  NoteContentRejectedError: class NoteContentRejectedError extends Error {},
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
