@@ -127,6 +127,99 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('成功 → 成功 → 失敗と続けて押しても、失敗の後に「コピーしました」を出さない', (tester) async {
+    await pumpAndAsk(tester);
+
+    await tester.tap(replyCopyButton());
+    await tester.pump();
+    expect(find.text('コピーしました'), findsOneWidget);
+
+    // 1件目が出ている間に2回目の成功。1件目が引っ込む間、2件目はキューで待つ
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(replyCopyButton());
+    await tester.pump();
+    // 1件目が引っ込み終わる前（2件目がまだキューにいる間）に3回目が失敗する
+    await tester.pump(const Duration(milliseconds: 50));
+    failClipboard = true;
+    await tester.tap(replyCopyButton());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('コピーできませんでした'), findsOneWidget);
+    // 以後、通知が尽きるまで「コピーしました」が出てこないこと
+    for (var i = 0; i < 80; i++) {
+      expect(find.text('コピーしました'), findsNothing, reason: '失敗の後 ${i * 100}ms');
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('コピーしました'), findsNothing);
+  });
+
+  testWidgets('ほかの通知（ノートに保存しました）が出ている間に失敗しても、その通知を打ち切らない',
+      (tester) async {
+    mockClipboard(tester);
+    await tester.pumpWidget(const ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(body: RapiReplyMessage(text: _reply)),
+      ),
+    ));
+    final messenger = tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger));
+    messenger.showSnackBar(const SnackBar(content: Text('ノートに保存しました')));
+    await tester.pumpAndSettle();
+    expect(find.text('ノートに保存しました'), findsOneWidget);
+
+    failClipboard = true;
+    await tester.tap(_copyButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // 保存の通知はそのまま出ていて、失敗の通知はその後に順番で出る
+    expect(find.text('ノートに保存しました'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('ノートに保存しました'), findsNothing);
+    expect(find.text('コピーできませんでした'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('通知が出ている・待っている間にボタンが消えても、例外を出さずに通知は出て消える', (tester) async {
+    mockClipboard(tester);
+    final showReply = ValueNotifier<bool>(true);
+    await tester.pumpWidget(ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder<bool>(
+            valueListenable: showReply,
+            builder: (context, show, _) =>
+                show ? const RapiReplyMessage(text: _reply) : const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(_copyButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    failClipboard = true;
+    await tester.tap(_copyButton);
+    await tester.pump();
+
+    // 自分の通知が画面とキューにある状態でボタンを外す
+    showReply.value = false;
+    await tester.pump();
+    expect(_copyButton, findsNothing);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('コピーできませんでした'), findsOneWidget);
+    // 表示時間のタイマーは出終わった後のビルドで始まるので、1フレームで飛ばさず刻んで進める
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('利用者の発言にはコピーを付けない', (tester) async {
     await pumpAndAsk(tester);
 
