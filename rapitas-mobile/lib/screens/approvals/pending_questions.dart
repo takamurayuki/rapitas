@@ -100,7 +100,8 @@ final pendingQuestionsProvider = Provider<AsyncValue<List<ExecutingTask>>>((ref)
       hidden.add(entry.key);
       // 期限前の取得の成功のまま止まっている（期限のタイマーを逃した等）なら読み直す。
       // 再取得中は応答を待ち、失敗時は再試行に任せる（自動で繰り返さない）
-      if (snapshot.value is AsyncData) staleAfterExpiry = true;
+      // NOTE: 再取得中も直前の成功値を持つ AsyncData（isLoading）になるので、isLoading も見る
+      if (snapshot.value is AsyncData && !snapshot.value.isLoading) staleAfterExpiry = true;
     }
   }
   if (nextExpiry != null) {
