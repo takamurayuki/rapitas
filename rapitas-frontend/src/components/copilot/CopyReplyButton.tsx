@@ -42,6 +42,11 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
       // throws here and is reported as a failure, never as success.
       await navigator.clipboard.writeText(text);
     } catch {
+      // NOTE: A failure inside the 2s check window of an earlier success must
+      // not leave the check and "copied" label next to the error toast.
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      setCopied(false);
       showToast(t('failed'), 'error');
       return;
     }

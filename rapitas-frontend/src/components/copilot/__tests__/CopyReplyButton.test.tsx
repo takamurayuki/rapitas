@@ -73,6 +73,32 @@ describe('CopyReplyButton', () => {
     expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
   });
 
+  it('drops the check when a copy right after a success fails', async () => {
+    vi.useFakeTimers();
+    render(<MessageBubble msg={reply} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'copy' }));
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument();
+
+    writeText.mockRejectedValue(new Error('denied'));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'copied' }));
+    await act(async () => {});
+
+    expect(showToast).toHaveBeenCalledWith('failed', 'error');
+    expect(screen.queryByRole('button', { name: 'copied' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
+
+    // The stale reset timer from the first copy must not fire into anything.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
+  });
+
   it('does not show success when the clipboard API is missing', async () => {
     setClipboard(undefined);
     render(<MessageBubble msg={reply} />);
