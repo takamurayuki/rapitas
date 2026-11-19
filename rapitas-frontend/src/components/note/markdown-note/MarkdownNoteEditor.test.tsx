@@ -62,7 +62,8 @@ function makeNote(content: string): Note {
 beforeEach(() => {
   mermaid.render.mockReset();
   mermaid.render.mockResolvedValue({ svg: '<svg data-mermaid-mock="true"></svg>' });
-  useNoteStore.setState({ notes: [makeNote(SAMPLE)], currentNoteId: 'n1' });
+  // The local store: these cases are about the editor, not the requests.
+  useNoteStore.setState({ source: 'local', notes: [makeNote(SAMPLE)], currentNoteId: 'n1' });
 });
 
 describe('MarkdownNoteEditor', () => {
@@ -116,5 +117,31 @@ describe('MarkdownNoteEditor', () => {
   it('says so when the body is empty', () => {
     render(<MarkdownNoteEditor note={makeNote('   ')} />);
     expect(screen.getByText('notes.markdownNote.empty')).toBeTruthy();
+  });
+
+  // Stage 0 (design §5.3): this editor is the only save path, so it is
+  // where a new HTML body would get in — and where a plain line must not
+  // be refused.
+  it('saves a single plain line and an empty body', () => {
+    render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    const source = screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' });
+    fireEvent.change(source, { target: { value: '牛乳を買う' } });
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe('牛乳を買う');
+    fireEvent.change(source, { target: { value: '' } });
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe('');
+  });
+
+  it('refuses to save a body that is the old editor HTML', () => {
+    render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' }), {
+      target: { value: '<div>本文</div><div><br></div>' },
+    });
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe(SAMPLE);
+    expect(screen.getByRole('alert').textContent).toBe('notes.sync.legacy_html');
   });
 });

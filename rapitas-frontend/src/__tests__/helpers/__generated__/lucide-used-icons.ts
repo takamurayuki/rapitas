@@ -193,6 +193,7 @@ export const LUCIDE_USED_ICONS = [
   'File',
   'FileCheck',
   'FileCode',
+  'FileCode2',
   'FileCog',
   'FileEdit',
   'FileInput',
