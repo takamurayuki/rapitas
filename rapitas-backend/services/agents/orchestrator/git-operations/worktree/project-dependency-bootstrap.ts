@@ -239,6 +239,21 @@ export async function bootstrapProjectDependencies(
     };
   }
 
+  // A project whose only manifests are in sub-packages (trendline: a Go root
+  // with web/package.json) has no root manifest but does have installed trees
+  // at its root. Link those; returning "no manifest" left every task worktree
+  // without web/node_modules, so `next build` and ESLint could not run
+  // (2026-11-20).
+  if (root !== worktreePath) {
+    const linked = linkNodeModules(root, worktreePath);
+    if (linked.length > 0) {
+      logger.info(
+        `[projectBootstrap] linked ${linked.length} sub-package node_modules into ${worktreePath}`,
+      );
+      return { action: 'linked', detail: `${linked.length} link(s): ${linked.join(', ')}` };
+    }
+  }
+
   // Legacy path: a project scaffolded as docs-only has no root manifest until
   // its first PR merges, so the skeleton exists only on the task branch. Such a
   // worktree installs for itself once; later worktrees take the normal path.

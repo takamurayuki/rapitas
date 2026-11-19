@@ -31,7 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
   // Clear junctions first: a recursive remove would descend through them.
-  for (const rel of ['', 'apps/web']) {
+  for (const rel of ['', 'apps/web', 'web']) {
     const link = path.join(worktree, rel, 'node_modules');
     try {
       if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
@@ -198,6 +198,22 @@ describe('bootstrapProjectDependencies — the legacy path', () => {
     expect(result.action).toBe('skipped');
     expect(fs.readlinkSync(path.join(worktree, 'node_modules'))).toBe(
       path.join(elsewhere, 'node_modules'),
+    );
+  });
+
+  // trendline (2026-11-20): a Go project whose only manifest is web/package.json.
+  // With no root manifest the bootstrap linked nothing, so every task worktree
+  // ran without web/node_modules and `next build` / ESLint were "未検証".
+  it('links the installed sub-packages of a project with no root manifest', async () => {
+    put(root, 'web/package.json', '{}');
+    installed(path.join(root, 'web'));
+    put(worktree, 'web/package.json', '{}');
+
+    const result = await bootstrapProjectDependencies(worktree);
+
+    expect(result.action).toBe('linked');
+    expect(fs.readlinkSync(path.join(worktree, 'web', 'node_modules'))).toBe(
+      path.join(root, 'web', 'node_modules'),
     );
   });
 
