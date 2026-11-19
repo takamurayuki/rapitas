@@ -5,10 +5,10 @@
  * placement, task and source, search title / content (partial match), page
  * with a keyset cursor, and return a summary (`excerpt`) instead of the body.
  *
- * The placement filters are the column form of describePlacement's rule —
- * theme first, then category, then folder, skipping a column that names a
- * row outside the workspace — so a list filtered by `themeId=N` holds exactly
- * the notes the tree counts under theme N, and `none` exactly 未分類.
+ * The placement filters come from placementWhere, generated from the same
+ * precedence table describePlacement walks, so a list filtered by
+ * `themeId=N` holds exactly the notes the tree counts under theme N, and
+ * `none` exactly 未分類.
  *
  * Reads only; it never moves a note (contract 3). The workspace condition is
  * explicit (`workspaceId` = the request's, NULL partition when none).
@@ -18,7 +18,12 @@
  */
 import { WITH_LINKS, type NoteRow, type PrismaInstance } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
-import { loadPlacementLookup } from '../placement/describe-placement';
+import {
+  isTargetInLookup,
+  loadPlacementLookup,
+  placementWhere,
+  type PlacementTarget,
+} from '../placement/describe-placement';
 import { toPlacedRecord, type PlacedNoteRecord } from '../placement/placed-record';
 import { findTaskInScope } from '../placement/placement-scope';
 
@@ -77,25 +82,12 @@ export interface NotePage {
 
 type Where = Record<string, unknown>;
 
-const nullOrNotIn = (key: string, ids: number[]): Where => ({
-  OR: [{ [key]: null }, { [key]: { notIn: ids } }],
-});
-
-async function allIds(db: PrismaInstance) {
-  const lookup = await loadPlacementLookup(db, {
-    themeIds: 'all',
-    categoryIds: 'all',
-    folderIds: 'all',
-  });
-  return {
-    themes: [...lookup.themes.keys()],
-    categories: [...lookup.categories.keys()],
-    folders: [...lookup.folders.keys()],
-  };
-}
+const FILTER_KIND = { themeId: 'theme', categoryId: 'category', folderId: 'folder' } as const;
 
 /**
- * The `where` fragments for the one placement filter that was sent.
+ * The `where` fragments for the one placement filter that was sent. The rule
+ * itself is placementWhere — generated from the same precedence table as
+ * describePlacement — so this only picks the target and checks it is in scope.
  *
  * @param db - Client / クライアント
  * @param query - The parsed query / 解析済みのクエリ
@@ -110,28 +102,15 @@ export async function placementConditions(db: PrismaInstance, query: NoteQuery):
   if (sent.length > 1) throw new NoteQueryError('conflicting_placement_filters', 400);
   const key = sent[0] as 'themeId' | 'categoryId' | 'folderId';
   const value = query[key] as PlacementFilter;
-  const ids = await allIds(db);
-  if (value === 'none') {
-    return [
-      nullOrNotIn('themeId', ids.themes),
-      nullOrNotIn('categoryId', ids.categories),
-      nullOrNotIn('folderId', ids.folders),
-    ];
-  }
-  if (key === 'themeId') {
-    if (!ids.themes.includes(value)) throw new NoteQueryError('theme_not_found', 404);
-    return [{ themeId: value }];
-  }
-  if (key === 'categoryId') {
-    if (!ids.categories.includes(value)) throw new NoteQueryError('category_not_found', 404);
-    return [{ categoryId: value }, nullOrNotIn('themeId', ids.themes)];
-  }
-  if (!ids.folders.includes(value)) throw new NoteQueryError('folder_not_found', 404);
-  return [
-    { folderId: value },
-    nullOrNotIn('themeId', ids.themes),
-    nullOrNotIn('categoryId', ids.categories),
-  ];
+  const kind = FILTER_KIND[key];
+  const target: PlacementTarget = value === 'none' ? { kind: 'none' } : { kind, id: value };
+  const lookup = await loadPlacementLookup(db, {
+    themeIds: 'all',
+    categoryIds: 'all',
+    folderIds: 'all',
+  });
+  if (!isTargetInLookup(target, lookup)) throw new NoteQueryError(`${kind}_not_found`, 404);
+  return placementWhere(target, lookup);
 }
 
 /**

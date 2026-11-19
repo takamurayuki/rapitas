@@ -9,15 +9,16 @@
  *
  * Precedence when a row somehow carries more than one column (the writes
  * never do): theme, then category, then folder. A column pointing at a row
- * that is not in the request's workspace (or no longer exists) is skipped,
- * and the list filters in note-query mirror exactly that rule.
+ * that is not in the request's workspace (or no longer exists) is skipped.
+ * Both directions — a note's placement and the list filter's `where` — are
+ * generated from the one table PLACEMENT_PRECEDENCE.
  *
  * Not responsible for changing a placement — see the follow, the check job
  * and the write path.
  */
 import type { PrismaInstance } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
-import type { NotePlacement, PlacementColumns } from './placement-types';
+import type { NotePlacement, PlacementColumns, PlacementKind } from './placement-types';
 
 /** The in-scope rows a placement can name. */
 export interface PlacementLookup {
@@ -32,6 +33,40 @@ export function emptyLookup(): PlacementLookup {
 }
 
 /**
+ * The rule source: the placement columns in precedence order, each with the
+ * lookup table that says whether the row it names is in scope. Both
+ * describePlacement (a note → its placement) and placementWhere (a placement
+ * → the `where` of its notes) walk THIS table, so the tree, the list filter
+ * and the detail cannot drift apart (contract 3, review G2 must-fix 6).
+ */
+export const PLACEMENT_PRECEDENCE = [
+  { kind: 'theme', column: 'themeId', table: 'themes' },
+  { kind: 'category', column: 'categoryId', table: 'categories' },
+  { kind: 'folder', column: 'folderId', table: 'folders' },
+] as const satisfies readonly {
+  kind: Exclude<PlacementKind, 'none'>;
+  column: keyof PlacementColumns;
+  table: keyof PlacementLookup;
+}[];
+
+type PrecedenceEntry = (typeof PLACEMENT_PRECEDENCE)[number];
+
+/**
+ * The column that decides a note's placement: the first one, in precedence
+ * order, naming a row in the lookup. Null = 未分類.
+ */
+function decidingEntry(
+  note: Partial<PlacementColumns>,
+  lookup: PlacementLookup,
+): { entry: PrecedenceEntry; id: number } | null {
+  for (const entry of PLACEMENT_PRECEDENCE) {
+    const id = note[entry.column];
+    if (id != null && lookup[entry.table].has(id)) return { entry, id };
+  }
+  return null;
+}
+
+/**
  * Where a note sits, from its columns.
  *
  * @param note - The note's placement columns / ノートの置き場所の列
@@ -42,8 +77,11 @@ export function describePlacement(
   note: Partial<PlacementColumns>,
   lookup: PlacementLookup,
 ): NotePlacement {
-  const theme = note.themeId != null ? lookup.themes.get(note.themeId) : undefined;
-  if (theme) {
+  const decided = decidingEntry(note, lookup);
+  if (!decided) return { kind: 'none' };
+  const { entry, id } = decided;
+  if (entry.kind === 'theme') {
+    const theme = lookup.themes.get(id) as NonNullable<ReturnType<typeof lookup.themes.get>>;
     const category = theme.categoryId != null ? lookup.categories.get(theme.categoryId) : undefined;
     return {
       kind: 'theme',
@@ -53,11 +91,58 @@ export function describePlacement(
       categoryName: category ? category.name : null,
     };
   }
-  const category = note.categoryId != null ? lookup.categories.get(note.categoryId) : undefined;
-  if (category) return { kind: 'category', categoryId: category.id, categoryName: category.name };
-  const folder = note.folderId != null ? lookup.folders.get(note.folderId) : undefined;
-  if (folder) return { kind: 'folder', folderId: folder.id, folderName: folder.name };
-  return { kind: 'none' };
+  if (entry.kind === 'category') {
+    const category = lookup.categories.get(id) as { id: number; name: string };
+    return { kind: 'category', categoryId: category.id, categoryName: category.name };
+  }
+  const folder = lookup.folders.get(id) as { id: number; name: string };
+  return { kind: 'folder', folderId: folder.id, folderName: folder.name };
+}
+
+/** A placement to list the notes of: a kind with its id, or 未分類. */
+export type PlacementTarget =
+  | { kind: Exclude<PlacementKind, 'none'>; id: number }
+  | { kind: 'none' };
+
+/**
+ * Whether a target names a row the lookup holds (`none` always does).
+ *
+ * @param target - The placement / 置き場所
+ * @param lookup - The workspace's rows / 参照表
+ * @returns true when the target exists in scope / 範囲内にあれば true
+ */
+export function isTargetInLookup(target: PlacementTarget, lookup: PlacementLookup): boolean {
+  if (target.kind === 'none') return true;
+  const entry = PLACEMENT_PRECEDENCE.find((e) => e.kind === target.kind) as PrecedenceEntry;
+  return lookup[entry.table].has(target.id);
+}
+
+/**
+ * The `where` fragments (to AND together) selecting exactly the notes that
+ * describePlacement puts at `target`, generated from PLACEMENT_PRECEDENCE:
+ * the target's column names the id, and every column before it does not
+ * decide (empty, or naming no row of the lookup). For 未分類 no column decides.
+ *
+ * @param target - The placement / 置き場所
+ * @param lookup - The workspace's rows, loaded with 'all' / 参照表（全件）
+ * @returns Conditions to AND / AND で結ぶ条件
+ */
+export function placementWhere(
+  target: PlacementTarget,
+  lookup: PlacementLookup,
+): Record<string, unknown>[] {
+  const notDeciding = (entry: PrecedenceEntry) => ({
+    OR: [{ [entry.column]: null }, { [entry.column]: { notIn: [...lookup[entry.table].keys()] } }],
+  });
+  const out: Record<string, unknown>[] = [];
+  for (const entry of PLACEMENT_PRECEDENCE) {
+    if (target.kind === entry.kind) {
+      out.push({ [entry.column]: target.id });
+      return out;
+    }
+    out.push(notDeciding(entry));
+  }
+  return out;
 }
 
 /** Which rows a lookup must hold. `'all'` loads the whole workspace. */
