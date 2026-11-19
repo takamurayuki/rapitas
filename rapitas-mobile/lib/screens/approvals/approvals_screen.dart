@@ -23,12 +23,14 @@ class ApprovalsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 回答済みとして隠した待ちを、バックエンドが入力待ちでなくした時点で外す
-    ref.listen<AsyncValue<List<ExecutingTask>>>(executingTasksProvider, (_, next) {
-      final rows = next.valueOrNull;
+    // 回答済みとして隠した待ちを、バックエンドが入力待ちでなくした時点で外す。
+    // NOTE: 再取得中・失敗時に残る直前の値（valueOrNull）では外さない。古い一覧で記録を消すと、
+    // 期限切れの待ちを新しい待ちと取り違えて出してしまう。新鮮な成功結果のときだけ外す。
+    ref.listen<ExecutingTasksSnapshot>(executingTasksSnapshotProvider, (_, next) {
+      final rows = next.freshRows;
       if (rows == null) return;
       final notifier = ref.read(answeredQuestionsProvider.notifier);
-      notifier.state = pruneAnswered(notifier.state, rows, ref.read(answeredClockProvider)());
+      notifier.state = pruneAnswered(notifier.state, rows, next.fetchStartedAt!);
     });
     final approvalsAsync = ref.watch(approvalListProvider);
     final questionsAsync = ref.watch(pendingQuestionsProvider);

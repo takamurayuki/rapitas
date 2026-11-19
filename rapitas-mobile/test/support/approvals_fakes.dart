@@ -58,16 +58,20 @@ class FakeApprovals implements ApprovalService {
 
 /// 一覧の取得回数を数え、[next] で返す中身を差し替えられる取得元。
 /// [failFrom] 回目以降の取得は失敗させる（1始まり。null なら失敗しない）。
+/// [gate] があれば、その完了まで応答を返さない（応答待ちの途中状態を見るため）。
+/// 返す中身と失敗の判定は応答の時点の [next] / [failFrom] で決める。
 class CountingSource<T> {
   List<T> next;
   int fetches = 0;
   int? failFrom;
+  Completer<void>? gate;
 
   CountingSource(this.next);
 
   Future<List<T>> fetch() async {
-    fetches++;
-    if (failFrom != null && fetches >= failFrom!) throw Exception('network');
+    final n = ++fetches;
+    if (gate != null) await gate!.future;
+    if (failFrom != null && n >= failFrom!) throw Exception('network');
     return next;
   }
 }
