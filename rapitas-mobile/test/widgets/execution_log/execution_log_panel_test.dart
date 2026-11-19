@@ -94,6 +94,13 @@ void main() {
     expect(shown, chunks);
   });
 
+  testWidgets('内部の行だけのログでも、表示していない行数を出す', (tester) async {
+    await pumpPanel(tester, () => snap(claudeHappyPath.sublist(1, 8)));
+
+    final note = tester.widget<Text>(find.byKey(const ValueKey('exec-log-hidden-note')));
+    expect(note.data, contains('内部の記録 7 行は表示していません'));
+  });
+
   testWidgets('入力待ち：質問は全文で必ず出し、状態の1行にも質問を出す', (tester) async {
     await pumpPanel(
         tester,

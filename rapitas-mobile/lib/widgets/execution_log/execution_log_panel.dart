@@ -172,8 +172,17 @@ class _Timeline extends StatelessWidget {
     final events = digest.events;
     final hidden = digest.hiddenLines + digest.otherLines;
     if (events.isEmpty) {
+      if (hidden == 0) return const Center(child: Text('ログはまだありません'));
+      // 起動直後など内部の行しか無いときも、詳細に何行あるかは伝える
       return Center(
-        child: Text(hidden == 0 ? 'ログはまだありません' : 'まだ伝える出来事はありません（「詳細」で生ログを見られます）'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'まだ伝える出来事はありません。内部の記録 $hidden 行は表示していません（「詳細」で全文を見られます）',
+            key: const ValueKey('exec-log-hidden-note'),
+            textAlign: TextAlign.center,
+          ),
+        ),
       );
     }
     return ListView.builder(
