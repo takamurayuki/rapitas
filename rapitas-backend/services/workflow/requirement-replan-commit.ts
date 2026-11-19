@@ -17,6 +17,10 @@ import { THEME_STOP_INTENT } from '../agents/theme-stop-intent';
 import { createLogger } from '../../config/logger';
 import { RequirementReplanHeldError } from '../../middleware/error-handler';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+import {
+  onTaskCompleted,
+  recordTaskCompletionTx,
+} from '../notes/deliverables/deliverable-completion';
 
 const log = createLogger('workflow:requirement-replan-commit');
 
@@ -99,10 +103,15 @@ export async function completeReviewedTask(
 ): Promise<{ committed: boolean; reason: string }> {
   if (receipt.review.verdict.kind !== 'no_mismatch')
     return { committed: false, reason: 'review_not_passing' };
-  return commitReviewedDecision(db, receipt.taskId, receipt.evaluatedUpdatedAt, receipt.review, {
-    ...completion,
-    executionId: receipt.executionId,
-  });
+  const result = await commitReviewedDecision(
+    db,
+    receipt.taskId,
+    receipt.evaluatedUpdatedAt,
+    receipt.review,
+    { ...completion, executionId: receipt.executionId },
+  );
+  if (result.committed) onTaskCompleted(receipt.taskId, 'workflow_verify', { recorded: true, db });
+  return result;
 }
 
 /** Read-only admission immediately before external work; final completion must recheck. */
@@ -331,6 +340,8 @@ async function commitReviewedDecision(
               : { status: 'done', workflowStatus: toStatus, completedAt: updatedAt, updatedAt },
           });
           if (changed.count !== 1) return { committed: false, reason: 'stale_task' };
+          // Notes stage 1: the deliverable record shares this completion's transaction and time.
+          if (!verifyOnly) await recordTaskCompletionTx(tx, taskId, 'workflow_verify', updatedAt);
           await tx.workflowTransition.create({
             data: {
               taskId,

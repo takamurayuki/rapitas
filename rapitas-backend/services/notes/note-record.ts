@@ -7,10 +7,23 @@
  */
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { MAX_NOTE_CONTENT, MAX_NOTE_TAGS, MAX_NOTE_TITLE } from './note-limits';
+import type { PlacementInput } from './placement/placement-write';
 
 // The same alias the task service uses: the two generated clients differ by
 // provider only, and every call here is in their common shape.
 export type PrismaInstance = InstanceType<typeof PrismaClient>;
+
+/**
+ * The client a `$transaction` callback receives: the full client minus the
+ * connection and transaction methods. A helper that runs inside a
+ * transaction must take this, not {@link PrismaInstance} — the full client
+ * is assignable to it, but the transaction client is not assignable to the
+ * full one, which is what broke the type check after notes stage 1.
+ */
+export type PrismaTx = Omit<
+  PrismaInstance,
+  '$extends' | '$transaction' | '$disconnect' | '$connect' | '$on'
+>;
 
 /**
  * Per-task context captured when a note was linked from a task.
@@ -51,8 +64,12 @@ export interface NoteRecord {
   linkedTaskMeta: Record<number, NoteTaskMeta>;
 }
 
-/** What a write may set. Everything optional: a PATCH is a partial note. */
-export interface NoteInput {
+/**
+ * What a write may set. Everything optional: a PATCH is a partial note.
+ * `placement` / `source` (stage 1) are handled by placement-write; the
+ * server-only columns (sourceTaskId, followsTask, sourceRef) are not here.
+ */
+export interface NoteInput extends PlacementInput {
   title?: string;
   content?: string;
   isPinned?: boolean;
@@ -75,6 +92,14 @@ export interface NoteRow {
   createdAt: Date;
   updatedAt: Date;
   taskLinks?: { taskId: number; meta: string | null }[];
+  // Stage-1 columns; optional so pre-stage-1 rows and stand-ins still fit.
+  themeId?: number | null;
+  categoryId?: number | null;
+  folderId?: number | null;
+  sourceTaskId?: number | null;
+  followsTask?: boolean;
+  source?: string;
+  sourceRef?: string | null;
 }
 
 /** The stored form of the writable fields, after trimming and bounding. */
