@@ -99,12 +99,19 @@ const followed: number[] = [];
 const entries: { taskId: number; mode: string; opts: Record<string, unknown> }[] = [];
 const recordOpsFor: { taskId: number; completedAt: Date }[] = [];
 
+const order: string[] = [];
+
 // Mirrors every export of note-follow (Bun replaces the whole module).
 mock.module('../notes/placement/note-follow', () => ({
   followOne: mock(() => Promise.resolve(false)),
   followTaskThemeChange: mock(() => Promise.resolve(0)),
-  followTaskThemeChangeInBackground: (_db: unknown, taskId: number) => {
-    followed.push(taskId);
+  followIfEffectiveThemeChanged: mock(() => Promise.resolve(0)),
+  followTaskThemeChangeInBackground: mock(() => {}),
+  prepareThemeFollow: async (_db: unknown, taskId: number, themeSent: boolean) => {
+    order.push(`prepare:${themeSent}`);
+    return () => {
+      if (themeSent) followed.push(taskId);
+    };
   },
   resetPlacementToTask: mock(() => Promise.resolve({ ok: false, status: 404, error: 'x' })),
 }));
@@ -138,7 +145,10 @@ function createPrisma(current: Record<string, unknown>) {
       findUnique: mock()
         .mockResolvedValueOnce({ updatedAt: new Date(0), workspaceId: null, ...current })
         .mockResolvedValueOnce({ id: 1, title: 't', parentId: 1, themeId: null }),
-      update: mock((args: unknown) => args),
+      update: mock((args: unknown) => {
+        order.push('write');
+        return args;
+      }),
       updateMany: mock(() => Promise.resolve({ count: 1 })),
       findMany: mock(() => Promise.resolve([])),
     },
@@ -154,6 +164,7 @@ function createPrisma(current: Record<string, unknown>) {
 
 beforeEach(() => {
   followed.length = 0;
+  order.length = 0;
   entries.length = 0;
   recordOpsFor.length = 0;
 });
@@ -163,6 +174,8 @@ describe('updateTask — notes stage 1 hooks', () => {
     const { prisma } = createPrisma({ status: 'todo', parentId: 1 });
     await updateTask(prisma as never, 1, { themeId: 4 });
     expect(followed).toEqual([1]);
+    // The effective theme is read before the write, so the follow can compare (must-fix 5).
+    expect(order.indexOf('prepare:true')).toBeLessThan(order.indexOf('write'));
   });
 
   test('an update without a theme change does not', async () => {

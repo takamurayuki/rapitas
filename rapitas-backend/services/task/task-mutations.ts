@@ -18,7 +18,7 @@ import { createSubtask, createParentTask } from './task-create-helpers';
 import { replaceTaskLabels } from './task-label-replace';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
 import { writeTaskStatusUpdate } from './task-status-write';
-import { followTaskThemeChangeInBackground } from '../notes/placement/note-follow';
+import { prepareThemeFollow } from '../notes/placement/note-follow';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import type { CriteriaWriteDb } from './task-criteria-write';
@@ -320,13 +320,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       // writeTaskCriteria — never here, where the jury lock is not checked.
     },
   };
+  // Notes stage 1 (contract 5): deliverables follow only a real change of the effective theme.
+  const followTheme = await prepareThemeFollow(prisma, taskId, fields.themeId !== undefined);
   await writeTaskStatusUpdate(prisma, taskId, updateArgs, fields.status, {
     completing,
     completionAt,
     workspaceId: currentTask.workspaceId ?? null,
   });
-  // Notes stage 1 (contract 5): following deliverables move with the task's theme.
-  if (fields.themeId !== undefined) followTaskThemeChangeInBackground(prisma, taskId);
+  followTheme();
 
   // Update labels.
   // NOTE(#1330 review): Through replaceTaskLabels, not a bare deleteMany +

@@ -3,6 +3,8 @@
  *
  * Following a deliverable's source task (design §2.2 contracts 5 and 7):
  *
+ * - `followIfEffectiveThemeChanged`: after a task update, follow only when the
+ *   task's effective theme changed to a non-NULL value.
  * - `followTaskThemeChange`: after a task's theme or parent changed, move the
  *   following deliverables of that task and of its theme-less descendants to
  *   their new effective theme — only when it is a non-NULL value. A theme
@@ -87,16 +89,72 @@ export async function followTaskThemeChange(db: PrismaInstance, taskId: number):
 }
 
 /**
+ * Contract 5's immediate follow: only when the task's effective theme changed
+ * between `before` and now, and the new one is not NULL. A themeId sent again
+ * unchanged (or an own theme equal to the inherited one) moves nothing, even
+ * if a note sits elsewhere — that gap is the hourly check's (contract 6).
+ *
+ * @param db - Client / クライアント
+ * @param taskId - The task that changed / 変更されたタスク
+ * @param before - Its effective theme before the update / 更新前の有効テーマ
+ * @returns How many notes moved / 移動した件数
+ */
+export async function followIfEffectiveThemeChanged(
+  db: PrismaInstance,
+  taskId: number,
+  before: number | null,
+): Promise<number> {
+  const after = await resolveEffectiveTheme(db, taskId);
+  if (after === null || after === before) return 0;
+  return followTaskThemeChange(db, taskId);
+}
+
+/**
  * Fire-and-forget follow after a task update; a failure is logged and left
  * to the hourly consistency check.
  *
  * @param db - Client / クライアント
  * @param taskId - The task that changed / 変更されたタスク
+ * @param before - Its effective theme read before the update / 更新前の有効テーマ
  */
-export function followTaskThemeChangeInBackground(db: PrismaInstance, taskId: number): void {
-  followTaskThemeChange(db, taskId).catch((err) => {
+export function followTaskThemeChangeInBackground(
+  db: PrismaInstance,
+  taskId: number,
+  before: number | null,
+): void {
+  // NOTE: compares the effective theme before and after (review G2 must-fix 5);
+  // a themeId merely present in the input no longer moves notes.
+  followIfEffectiveThemeChanged(db, taskId, before).catch((err) => {
     logger.warn({ err, taskId }, 'note follow failed; the consistency check will retry');
   });
+}
+
+/**
+ * For a task update: read the task's effective theme BEFORE the write and
+ * return what to call after it — a background follow that moves notes only
+ * when the effective theme changed (followIfEffectiveThemeChanged). When the
+ * update does not touch the theme — or the read fails — the call is a no-op
+ * and the hourly consistency check is left to catch up.
+ *
+ * @param db - Client / クライアント
+ * @param taskId - The task about to be updated / 更新するタスク
+ * @param themeSent - Whether the update carries a themeId / themeId を含む更新か
+ * @returns Call after the write / 書き込みの後に呼ぶ関数
+ */
+export async function prepareThemeFollow(
+  db: PrismaInstance,
+  taskId: number,
+  themeSent: boolean,
+): Promise<() => void> {
+  if (!themeSent) return () => {};
+  try {
+    const before = await resolveEffectiveTheme(db, taskId);
+    return () => followTaskThemeChangeInBackground(db, taskId, before);
+  } catch (err) {
+    // The follow is best effort: a failed read never blocks the task update.
+    logger.warn({ err, taskId }, 'effective theme read failed; the consistency check will follow');
+    return () => {};
+  }
 }
 
 /** Whether any workspace has the task — unscoped on purpose, only existence is asked. */
