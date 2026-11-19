@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/rapi_chat/rapi_read_mark.dart';
 import 'rapi_message_markdown.dart';
+import 'rapi_reply_copy_button.dart';
 import 'rapi_typing_indicator.dart';
 
 // ラピの会話の行：ユーザーの発言（確認済みのスタンプ付き）、ラピの発言の白いカード、考え中の行。
@@ -134,8 +135,15 @@ class RapiCard extends StatelessWidget {
   }
 }
 
+/// コピーのアイコンをカードの上と右の余白へどれだけ食い込ませるか
+const double _copyLift = 12;
+
+/// RapiCard の上と右の余白（RapiCard の padding と同じ値）
+const double _cardPadTop = 14;
+const double _cardPadRight = 16;
+
 /// ラピの発言：全幅の白いカードに本文（返答は Markdown で返るので、体裁を整えて描く）。
-/// [footer] があれば本文の下に置く（「ノートに保存」）
+/// 右上に原文のコピー（空の返答には付けない）、[footer] があれば本文の下に置く（「ノートに保存」）
 class RapiReplyMessage extends StatelessWidget {
   final String text;
   final Widget? footer;
@@ -148,10 +156,29 @@ class RapiReplyMessage extends StatelessWidget {
     // 選択は RapiMessageMarkdown の SelectionArea で続けてできる
     final body = RapiMessageMarkdown(data: text);
     final extra = footer;
-    return RapiCard(
-      child: extra == null
-          ? body
-          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [body, extra]),
+    final content = extra == null
+        ? body
+        : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [body, extra]);
+    if (text.trim().isEmpty) return RapiCard(child: content);
+    // NOTE: アイコンは本文に重ねず、本文を下へずらして上に場所を空ける（nav74）。
+    // 右に空けると本文の幅と折り返しが変わるため、変わるのは高さだけにする
+    // NOTE: Stack はカードの外側に置く。カードの内側だと、余白へはみ出たアイコンの部分に
+    // タップが届かない（hit test は Stack の大きさの内側だけ）
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        RapiCard(
+          child: Padding(
+            padding: const EdgeInsets.only(top: rapiReplyCopyButtonSize - _copyLift),
+            child: content,
+          ),
+        ),
+        Positioned(
+          top: _cardPadTop - _copyLift,
+          right: _cardPadRight - _copyLift,
+          child: RapiReplyCopyButton(text: text),
+        ),
+      ],
     );
   }
 }
