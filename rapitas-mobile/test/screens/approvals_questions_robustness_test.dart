@@ -2,6 +2,8 @@
 /// 送信の入口の二重送信ガード、送信中にカードが破棄されたときの一覧の更新を確かめる。
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rapitas_mobile/models/approval_request.dart';
@@ -106,5 +108,21 @@ void main() {
       expect(find.text('質問の取得に失敗しました'), findsNothing);
       expect(_card('82'), findsOneWidget);
     });
+  });
+
+  testWidgets('再描画の前に送信が続けて呼ばれても、POST は1回だけ', (tester) async {
+    final agent = FakeAgent()..gate = Completer<void>();
+    await pumpApprovals(tester, agent: agent, executing: [waitingRow('83', '803', question: 'Q')]);
+
+    await tester.enterText(find.byKey(const ValueKey('question-input-83')), '回答');
+    await tester.pump();
+    final onPressed = tester.widget<FilledButton>(find.byKey(const ValueKey('question-send-83'))).onPressed!;
+    onPressed();
+    onPressed();
+
+    agent.gate!.complete();
+    await tester.pumpAndSettle();
+    expect(agent.calls, 1);
+    expect(agent.responded, hasLength(1));
   });
 }

@@ -40,6 +40,8 @@ class _QuestionCardState extends ConsumerState<QuestionCard> {
   bool get _canSend => !_sending && _controller.text.trim().isNotEmpty;
 
   Future<void> _send() async {
+    // ボタンが無効になるのは再描画の後なので、それまでに続けて呼ばれても二重に送らない
+    if (!_canSend) return;
     final task = widget.task;
     // 送信成功でこのカードは消えるので、SnackBar の出し先は先に押さえておく
     final messenger = ScaffoldMessenger.of(context);
