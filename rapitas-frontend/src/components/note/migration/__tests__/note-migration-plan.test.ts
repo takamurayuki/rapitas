@@ -42,19 +42,35 @@ const localX = {
 describe('a candidate copy whose response was lost', () => {
   const manifest = [entry('x', 'サーバー'), entry('x-pc', '送った PC')];
 
-  it('is this browser\'s older copy when the server copy has the sent content', async () => {
-    const plan = await planMigration([localX], manifest, {}, fakeHash, [], {}, {
-      x: signature('送った PC'),
-    });
+  it("is this browser's older copy when the server copy has the sent content", async () => {
+    const plan = await planMigration(
+      [localX],
+      manifest,
+      {},
+      fakeHash,
+      [],
+      {},
+      {
+        x: signature('送った PC'),
+      },
+    );
     expect(plan.diffs.map((d) => [d.copyUnavailable, d.staleCopyVersion])).toEqual([
       [false, 'v:x-pc:送った PC'],
     ]);
   });
 
-  it('does not make a copy with other content this browser\'s', async () => {
-    const plan = await planMigration([localX], manifest, {}, fakeHash, [], {}, {
-      x: signature('別の内容'),
-    });
+  it("does not make a copy with other content this browser's", async () => {
+    const plan = await planMigration(
+      [localX],
+      manifest,
+      {},
+      fakeHash,
+      [],
+      {},
+      {
+        x: signature('別の内容'),
+      },
+    );
     expect(plan.diffs.map((d) => [d.copyUnavailable, d.staleCopyVersion])).toEqual([[true, null]]);
   });
 
