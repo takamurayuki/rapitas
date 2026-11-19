@@ -63,6 +63,9 @@ Future<void> _expectHiddenUntilResponse(
   // 応答を待ったまま時間が経っても、古い行は出さない
   await elapse(const Duration(seconds: 5));
   expect(_card('90'), findsNothing);
+  // NOTE: 応答待ちの間も一覧は直前の成功値を持つ（AsyncData で isLoading）。それを期限前の
+  // 古い成功と取り違えると、進行中の取得を捨てて読み直してしまう。ゲートを開く直前に数える
+  expect(source.fetches, fetchesBefore + 1, reason: '応答待ちの間に同じ一覧を読み直さない');
 }
 
 void main() {
