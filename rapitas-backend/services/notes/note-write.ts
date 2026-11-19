@@ -23,7 +23,6 @@
 import { createLogger } from '../../config/logger';
 import {
   sanitize,
-  toRecord,
   WITH_LINKS,
   type NoteInput,
   type NoteRecord,
@@ -34,6 +33,13 @@ import {
 import { computeNoteVersion, type NoteVersionFields } from './note-version';
 import { isInScope, requestWorkspaceId, scopeWhere } from './note-scope';
 import { checkNewMarkdownContent, type NewMarkdownRejection } from './note-content-kind';
+import {
+  guardPlacementWrite,
+  placementWriteData,
+  resolvePlacementTarget,
+} from './placement/placement-write';
+import { isReservedNoteId } from './placement/placement-types';
+import { attachPlacement } from './placement/placed-record';
 
 const logger = createLogger('note-write');
 
@@ -134,10 +140,14 @@ export async function saveNote(
     if (rejection) throw new NoteContentRejectedError(rejection);
   }
   const data = sanitize(input);
+  // Stage 1: the placement target is checked in scope before any write.
+  const columns = input.placement ? await resolvePlacementTarget(prisma, input.placement) : null;
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {
     const current = (await prisma.note.findFirst({
       where: { id, ...scopeWhere() },
     })) as NoteRow | null;
+    guardPlacementWrite(id, current, input);
+    const extra = placementWriteData(current, input, columns);
 
     if (!current) {
       const version = computeNoteVersion(finalVersionFields(null, data));
@@ -145,10 +155,10 @@ export async function saveNote(
         const row = await prisma.note.create({
           // A note has to have a title column even when the caller only sent
           // content, so creation falls back to an empty one rather than refusing.
-          data: { id, title: '', ...data, version, workspaceId: requestWorkspaceId() },
+          data: { id, title: '', ...data, ...extra, version, workspaceId: requestWorkspaceId() },
           include: WITH_LINKS,
         });
-        return toRecord(row as NoteRow);
+        return (await attachPlacement(prisma, [row as NoteRow]))[0] as NoteRecord;
       } catch (error) {
         // Created concurrently (or the id is held outside this workspace):
         // read again and take the update branch, or run out of attempts.
@@ -160,14 +170,14 @@ export async function saveNote(
     const version = computeNoteVersion(finalVersionFields(current, data));
     const updated = await prisma.note.updateMany({
       where: { id, ...scopeWhere(), ...readVersionCondition(current) },
-      data: { ...data, version },
+      data: { ...data, ...extra, version },
     });
     if (updated.count === 1) {
       const row = await prisma.note.findFirst({
         where: { id, ...scopeWhere() },
         include: WITH_LINKS,
       });
-      if (row) return toRecord(row as NoteRow);
+      if (row) return (await attachPlacement(prisma, [row as NoteRow]))[0] as NoteRecord;
     }
   }
   logger.warn({ noteId: id }, 'note write lost every attempt; nothing written');
@@ -235,8 +245,9 @@ export async function importNotes(
     (kind === 'skipped' ? skippedIds : conflictIds).push(id);
   for (const note of notes) {
     const existing = await findHolder(prisma, note.id);
-    if (existing) {
-      record(note.id, isInScope(existing) ? 'skipped' : 'conflict');
+    // A reserved fixed id belongs to the deliverable path (contract 8).
+    if (existing || isReservedNoteId(note.id)) {
+      record(note.id, existing && isInScope(existing) ? 'skipped' : 'conflict');
       continue;
     }
     const { id, ...rest } = note;
