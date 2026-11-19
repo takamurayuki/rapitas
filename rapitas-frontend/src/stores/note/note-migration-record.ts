@@ -49,6 +49,11 @@ export interface MigrationRecord {
   resolved: Record<string, ResolvedDiff>;
   /** Ids whose `{id}-pc` copy another workspace holds, so "keep both" cannot be offered. */
   blockedCopies: string[];
+  /**
+   * Per id, the signature (`copySignatureOf`) of the `{id}-pc` this browser
+   * last wrote, so its own older copy can be told from someone else's.
+   */
+  ownCopies: Record<string, string>;
   rejectedLinks: RejectedLink[];
   /** The last failure, shown with a retry. */
   lastError: string | null;
@@ -61,6 +66,7 @@ export const INITIAL_RECORD: MigrationRecord = {
   imported: 0,
   resolved: {},
   blockedCopies: [],
+  ownCopies: {},
   rejectedLinks: [],
   lastError: null,
   updatedAt: new Date(0).toISOString(),

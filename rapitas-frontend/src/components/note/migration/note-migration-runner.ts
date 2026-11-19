@@ -29,8 +29,8 @@ import type {
   RejectedLink,
 } from '@/stores/note/note-migration-record';
 import type { LinkImportItem, MigrationApi, ResolveItem } from './note-migration-api';
+import { writeCopies } from './note-migration-copy';
 import {
-  copyIdOf,
   localVersionOf,
   planMigration,
   sha256Hex,
@@ -136,6 +136,7 @@ export async function runMigration(deps: RunDeps): Promise<RunResult> {
       record.resolved,
       hash,
       record.blockedCopies,
+      record.ownCopies,
     );
 
     record = deps.records.write({ ...record, phase: 'importing', lastError: null });
@@ -183,12 +184,14 @@ export async function runMigration(deps: RunDeps): Promise<RunResult> {
  *   diff) is not settled, so the check after lists it again against the
  *   server's current version; a note deleted on the server is imported again.
  * - Server: nothing is sent.
- * - Both: the PC version is imported as `{id}-pc`. It is settled only by the
- *   server holding a copy with this content (see planMigration), so a copy id
- *   already taken by other content is listed again with "both" unavailable.
+ * - Both: the PC version is imported as `{id}-pc` (see writeCopies). It is
+ *   settled only by the server holding a copy with this content (see
+ *   planMigration), so a copy id already taken by other content is listed
+ *   again with "both" unavailable.
  *
  * Each choice is recorded for the PC version shown; if the PC note was
- * edited after the list was shown, the check after lists it again.
+ * edited after the list was shown, the check after lists it again — and
+ * "both" writes no copy of the superseded version.
  *
  * @param deps - The API, the record, the local notes / API・記録・ローカルのノート
  * @param diffs - The differences on screen / 画面の差異
@@ -224,18 +227,12 @@ export async function applyDecisions(
     'server',
   );
 
-  const both = diffs.filter((d) => choiceOf(d) === 'both');
-  for (const chunk of chunks(both, IMPORT_CHUNK)) {
-    const result = await deps.api.importNotes(
-      chunk.map((d) => ({ ...d.local, id: copyIdOf(d.id) })),
-    );
-    const held = chunk.filter((d) => result.conflictIds.includes(copyIdOf(d.id)));
-    if (held.length > 0) {
-      const record = deps.records.read();
-      const blockedCopies = [...new Set([...record.blockedCopies, ...held.map((d) => d.id)])];
-      deps.records.write({ ...record, blockedCopies });
-    }
-  }
+  await writeCopies(
+    deps,
+    diffs.filter((d) => choiceOf(d) === 'both'),
+    hash,
+    { importChunk: IMPORT_CHUNK, resolveChunk: RESOLVE_CHUNK },
+  );
 
   const pc = diffs.filter((d) => choiceOf(d) === 'pc');
   for (const chunk of chunks(pc, RESOLVE_CHUNK)) {

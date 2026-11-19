@@ -51,6 +51,11 @@ export interface MigrationDiff {
    * or another workspace holds that id. Offered only as PC / server then.
    */
   copyUnavailable: boolean;
+  /**
+   * The server version of `{id}-pc` when it is this browser's own copy of an
+   * older PC version, untouched since; "keep both" replaces it. Otherwise null.
+   */
+  staleCopyVersion: string | null;
 }
 
 /** One link the browser had. */
@@ -128,6 +133,28 @@ export function localVersionOf(local: NormalizedNote, hash: Hasher): Promise<str
 export const copyIdOf = (id: string) => `${id}-pc`;
 
 /**
+ * The four compared fields of a server note, as the manifest lists them.
+ *
+ * @param entry - The manifest entry / 版情報
+ * @returns A comparable signature / 比較用の署名
+ */
+export function manifestSignatureOf(entry: ManifestEntry): string {
+  return JSON.stringify([entry.title, entry.contentSha256, entry.tags, entry.docType ?? null]);
+}
+
+/**
+ * The signature the server's copy has once `local` is stored as it; equal to
+ * `manifestSignatureOf` of that copy while no one has edited it.
+ *
+ * @param local - The PC version to copy / 写しにする PC 版
+ * @param hash - SHA-256, the same as the server's / ハッシュ関数
+ * @returns A comparable signature / 比較用の署名
+ */
+export async function copySignatureOf(local: NormalizedNote, hash: Hasher): Promise<string> {
+  return JSON.stringify([local.title, await hash(local.content), local.tags, local.docType]);
+}
+
+/**
  * Which compared fields differ between a local note and its manifest entry.
  *
  * @param local - The normalized local note / 正規化したローカルのノート
@@ -166,6 +193,7 @@ function toDate(value: Date | string): number {
  * @param resolved - Differences the user already settled / 解決済みの差異
  * @param hash - SHA-256 / ハッシュ関数
  * @param blockedCopies - Ids whose copy another workspace holds / 写しのIDを別区画が持つID
+ * @param ownCopies - Signatures of the copies this browser wrote / このブラウザが書いた写しの署名
  * @returns What to import, what differs, and the links / 取り込み・差異・紐付け
  */
 export async function planMigration(
@@ -174,6 +202,7 @@ export async function planMigration(
   resolved: Record<string, ResolvedDiff>,
   hash: Hasher = sha256Hex,
   blockedCopies: string[] = [],
+  ownCopies: Record<string, string> = {},
 ): Promise<MigrationPlan> {
   const byId = new Map(manifest.map((m) => [m.id, m]));
   const plan: MigrationPlan = {
@@ -208,6 +237,9 @@ export async function planMigration(
       plan.unchanged.push(note.id);
       continue;
     }
+    // NOTE: an untouched copy this browser wrote for an older PC version is
+    // not "other content" — it would otherwise lock "both" out for the edit.
+    const ownStale = !!copy && ownCopies[note.id] === manifestSignatureOf(copy);
     const localUpdatedAt = new Date(note.updatedAt).toISOString();
     plan.diffs.push({
       id: note.id,
@@ -218,7 +250,8 @@ export async function planMigration(
       // The initial choice is whichever side was updated more recently.
       defaultChoice: toDate(note.updatedAt) > toDate(server.updatedAt) ? 'pc' : 'server',
       localIsLegacyHtml: isLegacyEditorHtml(local.content),
-      copyUnavailable: !!copy || blockedCopies.includes(note.id),
+      copyUnavailable: (!!copy && !ownStale) || blockedCopies.includes(note.id),
+      staleCopyVersion: ownStale && copy ? copy.version : null,
     });
   }
   return plan;
