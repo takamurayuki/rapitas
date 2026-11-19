@@ -22,11 +22,107 @@ import { MAX_NOTE_CONTENT } from './note-limits';
 const EDITOR_HTML_TAG =
   /<\/?(p|div|br|span|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|u|s|strike|a|img|hr|mark)(\s[^<>]*)?\/?>/i;
 
-const FENCE_BLOCK = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(^ {0,3}\1[`~]*[ \t]*$|(?![\s\S]))/gm;
-const INLINE_CODE = /`[^`\n]+`/g;
+// CommonMark fences: an opener of 3+ backticks or tildes (indented up to 3
+// spaces), closed only by a line of the SAME character, at least as long,
+// with nothing but spaces after it. A backtick opener's info string may not
+// contain a backtick — such a line is not a fence at all.
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 
-function withoutCode(content: string): string {
-  return content.replace(FENCE_BLOCK, '').replace(INLINE_CODE, '');
+function backtickRunEnd(text: string, from: number): number {
+  let end = from;
+  while (text[end] === '`') end += 1;
+  return end;
+}
+
+/**
+ * One paragraph with its code spans removed (CommonMark code spans): a run of
+ * N backticks opens a span that only a run of exactly N closes, the span may
+ * cross line breaks inside the paragraph, and a backslash before a backtick
+ * outside a span makes it literal. An unmatched run is literal text.
+ */
+function withoutCodeSpans(paragraph: string): string {
+  let out = '';
+  let i = 0;
+  while (i < paragraph.length) {
+    const ch = paragraph[i];
+    if (ch === '\\') {
+      out += paragraph.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (ch !== '`') {
+      out += ch;
+      i += 1;
+      continue;
+    }
+    const openEnd = backtickRunEnd(paragraph, i);
+    const length = openEnd - i;
+    let closeEnd = -1;
+    for (let k = openEnd; k < paragraph.length; ) {
+      if (paragraph[k] !== '`') {
+        k += 1;
+        continue;
+      }
+      const runEnd = backtickRunEnd(paragraph, k);
+      if (runEnd - k === length) {
+        closeEnd = runEnd;
+        break;
+      }
+      k = runEnd;
+    }
+    if (closeEnd < 0) {
+      out += paragraph.slice(i, openEnd);
+      i = openEnd;
+    } else {
+      out += ' ';
+      i = closeEnd;
+    }
+  }
+  return out;
+}
+
+/**
+ * The body with fenced code blocks and code spans removed, so a tag quoted
+ * as code is not taken for the editor's own. An unclosed fence runs to the
+ * end of the body; a code span does not cross a blank line or a fence.
+ *
+ * NOTE: must match `withoutCode` in the frontend's note-content-format.ts;
+ * the shared table (note-content-kind.cases.json) holds both to it.
+ *
+ * @param content - The note body / ノート本文
+ * @returns The body without code / コードを除いた本文
+ */
+export function withoutCode(content: string): string {
+  const kept: string[] = [];
+  let paragraph: string[] = [];
+  let fence: { char: string; length: number } | null = null;
+  const flush = () => {
+    if (paragraph.length > 0) kept.push(withoutCodeSpans(paragraph.join('\n')));
+    paragraph = [];
+  };
+  for (const line of content.split(/\r?\n/)) {
+    if (fence) {
+      const close = FENCE_CLOSE.exec(line)?.[1];
+      if (close && close[0] === fence.char && close.length >= fence.length) fence = null;
+      continue;
+    }
+    const open = FENCE_OPEN.exec(line);
+    const marker = open?.[1];
+    if (marker && !(marker[0] === '`' && (open[2] ?? '').includes('`'))) {
+      flush();
+      fence = { char: marker[0] ?? '`', length: marker.length };
+      continue;
+    }
+    if (line.trim() === '') {
+      flush();
+      kept.push('');
+      continue;
+    }
+    paragraph.push(line);
+  }
+  flush();
+  return kept.join('\n');
 }
 
 /**
