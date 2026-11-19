@@ -135,3 +135,59 @@ describe('"keep both" after the PC note was edited past the shown version', () =
     expect(server.notes.get('x-pc')?.content).toBe('スマホで直した写し');
   });
 });
+
+// R-B2a-2 (re-review 2): the signature of a copy is recorded only once the
+// server has confirmed this browser wrote it.
+describe('"keep both" records a copy as its own only after the server confirmed the write', () => {
+  it('keeps the old signature when the replacement never reached the server', async () => {
+    const server = shown();
+    const first = await runMigration(depsFor(server));
+    if (first.status !== 'needsDecision') throw new Error('expected a difference');
+    afterFirstImport(server, () => editLocal('x', '書き込み中の編集'));
+    const after = await applyDecisions(depsFor(server), first.diffs, { x: 'both' });
+    if (after.status !== 'needsDecision') throw new Error('expected the edit listed again');
+    expect(after.diffs[0]?.staleCopyVersion).not.toBeNull();
+    const oldSignature = record.ownCopies.x;
+    expect(oldSignature).toBeDefined();
+
+    server.failNext('resolve', 'before');
+    await expect(applyDecisions(depsFor(server), after.diffs, { x: 'both' })).rejects.toThrow(
+      'connection cut',
+    );
+    expect(record.ownCopies.x).toBe(oldSignature);
+    expect(server.notes.get('x-pc')?.content).toBe('表示時点の PC');
+
+    const resumed = await runMigration(depsFor(server));
+    expect(resumed.status).toBe('needsDecision');
+    if (resumed.status !== 'needsDecision') return;
+    expect(resumed.diffs.map((d) => [d.id, d.copyUnavailable])).toEqual([['x', false]]);
+    expect(resumed.diffs[0]?.staleCopyVersion).not.toBeNull();
+
+    const done = await applyDecisions(depsFor(server), resumed.diffs, { x: 'both' });
+    expect(done.status).toBe('done');
+    expect(server.notes.get('x-pc')?.content).toBe('書き込み中の編集');
+    expect(server.notes.get('x')?.content).toBe('サーバー');
+    expect(server.creates).toBe(1);
+  });
+
+  it('does not take a copy another client created first as its own', async () => {
+    const server = shown();
+    const first = await runMigration(depsFor(server));
+    if (first.status !== 'needsDecision') throw new Error('expected a difference');
+    // Another client stores the same PC version as `x-pc` before this one does.
+    server.put('x-pc', { title: 't-x', content: '表示時点の PC', tags: [], docType: null });
+    afterFirstImport(server, () => editLocal('x', '書き込み中の編集'));
+
+    const after = await applyDecisions(depsFor(server), first.diffs, { x: 'both' });
+    expect(server.creates).toBe(0);
+    expect(record.ownCopies.x).toBeUndefined();
+    expect(after.status).toBe('needsDecision');
+    if (after.status !== 'needsDecision') return;
+    expect(after.diffs.map((d) => [d.id, d.copyUnavailable, d.staleCopyVersion])).toEqual([
+      ['x', true, null],
+    ]);
+
+    await applyDecisions(depsFor(server), after.diffs, { x: 'both' });
+    expect(server.notes.get('x-pc')?.content).toBe('表示時点の PC');
+  });
+});

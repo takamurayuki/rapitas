@@ -12,7 +12,8 @@
  * - a choice is applied only while the PC note is still the shown version;
  *   otherwise nothing is written and the next pass lists it again;
  * - a copy this browser wrote (recorded in `ownCopies` by its four compared
- *   fields) that no one has touched since is this run's own older copy, and
+ *   fields, once the server confirmed the write) that no one has touched
+ *   since is this run's own older copy, and
  *   "both" replaces it in place with the newer PC version.
  */
 import type { MigrationRecord } from '@/stores/note/note-migration-record';
@@ -72,17 +73,23 @@ export async function writeCopies(
   const ready = await stillShown(both, deps.readLocal, hash);
   if (ready.length === 0) return;
 
-  // Recorded before sending, so a copy whose response is lost is still known
-  // as this browser's. A copy that ends up with other content (taken first by
-  // someone else) simply does not match the signature.
-  const signatures = await Promise.all(
-    ready.map(async (d) => [d.id, await copySignatureOf(d.local, hash)] as const),
+  // NOTE: a signature is recorded only after the server confirmed this
+  // browser wrote that copy (R-B2a-2). Recorded before sending, a cut
+  // connection overwrote the old copy's signature and locked "both" out, and
+  // a copy another client made first was taken as this browser's. A copy
+  // whose response is lost is settled by its content on the next pass.
+  const signatures = new Map(
+    await Promise.all(
+      ready.map(async (d) => [d.id, await copySignatureOf(d.local, hash)] as const),
+    ),
   );
-  const before = deps.records.read();
-  deps.records.write({
-    ...before,
-    ownCopies: { ...before.ownCopies, ...Object.fromEntries(signatures) },
-  });
+  const ownWritten = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const record = deps.records.read();
+    const ownCopies = { ...record.ownCopies };
+    for (const id of ids) ownCopies[id] = signatures.get(id) ?? '';
+    deps.records.write({ ...record, ownCopies });
+  };
 
   const fresh = ready.filter((d) => d.staleCopyVersion === null);
   for (let i = 0; i < fresh.length; i += limits.importChunk) {
@@ -90,6 +97,8 @@ export async function writeCopies(
     const result = await deps.api.importNotes(
       chunk.map((d) => ({ ...d.local, id: copyIdOf(d.id) })),
     );
+    // Only importedIds are this browser's: a skipped id was there already.
+    ownWritten(chunk.filter((d) => result.importedIds.includes(copyIdOf(d.id))).map((d) => d.id));
     const held = chunk.filter((d) => result.conflictIds.includes(copyIdOf(d.id)));
     if (held.length > 0) {
       const record = deps.records.read();
@@ -113,6 +122,9 @@ export async function writeCopies(
         ],
   );
   for (let i = 0; i < replacing.length; i += limits.resolveChunk) {
-    await deps.api.resolve(replacing.slice(i, i + limits.resolveChunk));
+    const outcomes = await deps.api.resolve(replacing.slice(i, i + limits.resolveChunk));
+    // A conflict keeps the old signature; it no longer matches the edited copy.
+    const written = new Set(outcomes.filter((o) => o.status !== 'conflict').map((o) => o.id));
+    ownWritten(ready.filter((d) => written.has(copyIdOf(d.id))).map((d) => d.id));
   }
 }
