@@ -3,29 +3,15 @@
  *
  * Notes, now that they are rows rather than a browser's localStorage.
  *
- * Two things carry weight here. The write is an upsert under the caller's
- * own id, because that is what lets a browser's existing notes come across
- * keeping the ids that `/rapitas-note/{taskId}/{noteId}` chips in task
- * descriptions already point at. And the import skips ids that are already
- * on the server, because it runs from whichever browser still has local
- * notes — possibly twice, possibly after the server copy moved on — and
- * skipping is the only choice that cannot destroy the newer version.
+ * Reads, deletes and links. The write and the import moved to note-write
+ * with the version contract, and are tested in note-write.test.ts against an
+ * in-memory database.
  *
  * The service takes its client as an argument, so these tests hand it a
  * stand-in rather than replacing a module.
  */
 import { describe, expect, test, beforeEach } from 'bun:test';
-import {
-  listNotes,
-  getNote,
-  saveNote,
-  deleteNote,
-  linkNote,
-  unlinkNote,
-  importNotes,
-  MAX_NOTE_TAGS,
-  type NoteInput,
-} from './note-service';
+import { listNotes, getNote, deleteNote, linkNote, unlinkNote } from './note-service';
 
 /** Every call the stand-in was asked to make. */
 let calls: { op: string; args: Record<string, unknown> }[] = [];
@@ -124,35 +110,7 @@ describe('reading a note', () => {
   });
 });
 
-describe('writing a note', () => {
-  test('writes under the id the caller chose', async () => {
-    // The whole import story rests on this: a browser's note keeps the id
-    // its chips already point at.
-    await saveNote(prisma, 'from-browser-1760000000000', { title: 'x' });
-    expect(of('upsert')[0]?.args.where).toEqual({ id: 'from-browser-1760000000000' });
-  });
-
-  test('stores tags as JSON, trimmed and bounded', async () => {
-    const tags = Array.from({ length: MAX_NOTE_TAGS + 5 }, (_, i) => ` tag${i} `);
-    await saveNote(prisma, 'n1', { tags: [...tags, '   '] });
-    const update = of('upsert')[0]?.args.update as { tags: string };
-    const stored = JSON.parse(update.tags) as string[];
-    expect(stored).toHaveLength(MAX_NOTE_TAGS);
-    expect(stored[0]).toBe('tag0');
-  });
-
-  test('leaves untouched fields out of the update entirely', async () => {
-    // A PATCH of the title must not blank the content.
-    await saveNote(prisma, 'n1', { title: 'new' });
-    expect(of('upsert')[0]?.args.update).toEqual({ title: 'new' });
-  });
-
-  test('gives a created note a title column even when none was sent', async () => {
-    const update: NoteInput = { content: 'body only' };
-    await saveNote(prisma, 'n1', update);
-    expect(of('upsert')[0]?.args.create).toEqual({ id: 'n1', title: '', content: 'body only' });
-  });
-
+describe('deleting a note', () => {
   test('reports whether there was anything to delete', async () => {
     expect(await deleteNote(prisma, 'gone')).toBe(false);
     existing = row();
@@ -177,32 +135,5 @@ describe('attaching a note to a task', () => {
   test('detaches without needing to know the link id', async () => {
     expect(await unlinkNote(prisma, 'n1', 7)).toBe(true);
     expect(of('link.deleteMany')[0]?.args.where).toEqual({ noteId: 'n1', taskId: 7 });
-  });
-});
-
-describe('taking in a browser full of notes', () => {
-  test('creates the ones the server has never seen', async () => {
-    const result = await importNotes(prisma, [
-      { id: '1760000000001', title: 'a' },
-      { id: '1760000000002', title: 'b' },
-    ]);
-    expect(result).toEqual({ imported: 2, skipped: 0 });
-    expect(of('create')).toHaveLength(2);
-  });
-
-  test('leaves an id that already exists alone', async () => {
-    // Running the import twice, or from a second browser, must not overwrite
-    // a note the server has since edited.
-    existing = row();
-    const result = await importNotes(prisma, [{ id: 'n1', title: 'older copy' }]);
-    expect(result).toEqual({ imported: 0, skipped: 1 });
-    expect(of('create')).toHaveLength(0);
-  });
-
-  test('keeps each imported note under its own id', async () => {
-    const result = await importNotes(prisma, [{ id: '1760000000003', title: 'c' }]);
-    expect(result.imported).toBe(1);
-    const args = of('create')[0]?.args as { data: { id: string } };
-    expect(args.data.id).toBe('1760000000003');
   });
 });

@@ -29,9 +29,11 @@ import {
   linkNote,
   unlinkNote,
   importNotes,
+  NoteWriteConflictError,
   MAX_NOTE_TITLE,
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
+  type NoteInput,
 } from '../../services/notes/note-service';
 import { draftNoteFromReply } from '../../services/notes/note-draft';
 import { isValidEntityId } from '../../utils/common/id-validation';
@@ -74,6 +76,30 @@ const linkBody = t.Object({
   ),
 });
 
+/** The status setter Elysia hands a handler. */
+type StatusSetter = { status?: number | string };
+
+/**
+ * Save through the version contract and map its refusal to a status.
+ *
+ * @param id - The note id from the URL / URL のノートID
+ * @param body - The sent fields / 送られた項目
+ * @param set - Elysia's response setter / レスポンス設定
+ * @returns The response body / レスポンス本文
+ */
+async function writeNote(id: string, body: NoteInput, set: StatusSetter) {
+  try {
+    const note = await saveNote(prisma, id, body);
+    return { success: true, note };
+  } catch (error) {
+    if (error instanceof NoteWriteConflictError) {
+      set.status = 409;
+      return { success: false, error: 'note_write_conflict' };
+    }
+    throw error;
+  }
+}
+
 export const notesRoutes = new Elysia({ prefix: '/notes' })
   .get(
     '/',
@@ -101,27 +127,19 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
     { params: t.Object({ id: noteId }) },
   )
 
-  .put(
-    '/:id',
-    async ({ params, body }) => {
-      const note = await saveNote(prisma, params.id, body);
-      return { success: true, note };
-    },
-    { params: t.Object({ id: noteId }), body: noteBody },
-  )
+  .put('/:id', async ({ params, body, set }) => writeNote(params.id, body, set), {
+    params: t.Object({ id: noteId }),
+    body: noteBody,
+  })
 
   // PATCH and PUT do the same thing here on purpose: the write is an upsert
   // of exactly the fields that were sent, so there is no "replace the whole
   // note" variant to distinguish. Both are offered because callers reach for
   // either, and a 405 would be a pointless thing to debug.
-  .patch(
-    '/:id',
-    async ({ params, body }) => {
-      const note = await saveNote(prisma, params.id, body);
-      return { success: true, note };
-    },
-    { params: t.Object({ id: noteId }), body: noteBody },
-  )
+  .patch('/:id', async ({ params, body, set }) => writeNote(params.id, body, set), {
+    params: t.Object({ id: noteId }),
+    body: noteBody,
+  })
 
   .delete(
     '/:id',

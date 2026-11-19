@@ -20,6 +20,9 @@ let linked: { id: string; taskId: number; meta?: unknown }[] = [];
 let listedTaskId: number | undefined;
 let noteExists = true;
 let unlinkFound = true;
+let writeConflicts = false;
+
+class NoteWriteConflictError extends Error {}
 
 const NOTE = {
   id: 'n1',
@@ -40,6 +43,7 @@ mock.module('../../services/notes/note-service', () => ({
   },
   getNote: async () => (noteExists ? NOTE : null),
   saveNote: async (_p: unknown, id: string, input: Record<string, unknown>) => {
+    if (writeConflicts) throw new NoteWriteConflictError(id);
     saved.push({ id, input });
     return { ...NOTE, id, ...input };
   },
@@ -52,6 +56,7 @@ mock.module('../../services/notes/note-service', () => ({
     imported: notes.length,
     skipped: 0,
   }),
+  NoteWriteConflictError,
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
@@ -83,6 +88,7 @@ beforeEach(() => {
   listedTaskId = undefined;
   noteExists = true;
   unlinkFound = true;
+  writeConflicts = false;
 });
 
 describe('listing', () => {
@@ -123,6 +129,13 @@ describe('writing', () => {
   it('treats PATCH the same way, with only the fields that were sent', async () => {
     await call('/n1', json('PATCH', { isPinned: true }));
     expect(saved[0]?.input).toEqual({ isPinned: true });
+  });
+
+  it('answers 409, not 500, when the note kept changing under the write', async () => {
+    writeConflicts = true;
+    const { status, body } = await call('/n1', json('PATCH', { title: 'x' }));
+    expect(status).toBe(409);
+    expect(body.error).toBe('note_write_conflict');
   });
 
   it('refuses a title longer than the column', async () => {

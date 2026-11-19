@@ -26,6 +26,11 @@ model Note {
   tags      String   @default("[]") // JSON array stored as string
   color     String?
   docType   String? // "要件定義" | "設計書" | "議事録" | "手順書" | "仕様書" | "メモ"
+  /// SHA-256 of the normalised {title, content, tags, docType}. Written by the
+  /// server only, in the same conditional update as the four fields, so a
+  /// conditional write (`version = ifVersion`) can tell whether the note moved
+  /// on since it was read. NULL only until the backfill reaches an old row.
+  version   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

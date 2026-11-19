@@ -1140,6 +1140,7 @@ CREATE TABLE "Note" (
     "tags" TEXT NOT NULL DEFAULT '[]',
     "color" TEXT,
     "docType" TEXT,
+    "version" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
