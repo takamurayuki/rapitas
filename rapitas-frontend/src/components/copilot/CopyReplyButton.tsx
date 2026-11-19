@@ -11,21 +11,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, Copy } from 'lucide-react';
-import { useToast } from '@/components/ui/toast/ToastContainer';
 
 /** How long the check stays after a copy, in ms. */
 const COPIED_MS = 2000;
 
 /**
  * Copies ラピ's reply to the clipboard. Shows a check for a moment on
- * success; on failure shows an error toast and stays a copy icon.
+ * success; on failure stays a copy icon. The icon change is the only
+ * feedback: no toast either way, to match the mobile app (nav74 fix 4).
  *
  * @param text - the reply's Markdown source / 返答の Markdown 原文
  * @param className - positioning from the caller / 呼び出し側の配置クラス
  */
 export function CopyReplyButton({ text, className = '' }: { text: string; className?: string }) {
   const t = useTranslations('copilot.copyReply');
-  const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -43,11 +42,11 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
       await navigator.clipboard.writeText(text);
     } catch {
       // NOTE: A failure inside the 2s check window of an earlier success must
-      // not leave the check and "copied" label next to the error toast.
+      // not leave the check and "copied" label up. Removed the error toast —
+      // feedback is the icon change only, so a failure just stays a copy icon.
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       setCopied(false);
-      showToast(t('failed'), 'error');
       return;
     }
     setCopied(true);

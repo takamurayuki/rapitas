@@ -6061,8 +6061,7 @@
     },
     "copyReply": {
       "copy": "返答をコピー",
-      "copied": "コピーしました",
-      "failed": "コピーできませんでした"
+      "copied": "コピーしました"
     }
   },
   "intelligence": {

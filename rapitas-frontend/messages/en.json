@@ -6061,8 +6061,7 @@
     },
     "copyReply": {
       "copy": "Copy reply",
-      "copied": "Copied",
-      "failed": "Could not copy"
+      "copied": "Copied"
     }
   },
   "intelligence": {
