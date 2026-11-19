@@ -5,7 +5,8 @@
  *
  * One line of the task consult chat: the user's words (plain, with the 👌
  * read stamp once her answer came back), her Markdown reply at chat density
- * with its action buttons and tier badge, or the pending note of an action.
+ * with its action buttons, tier badge and top-right copy icon, or the pending
+ * note of an action.
  * Split out of CopilotChatComponents to keep that file under 300 lines.
  */
 import { useTranslations } from 'next-intl';
@@ -16,6 +17,7 @@ import { MarkdownView } from '../markdown/MarkdownView';
 import { ReceivedStamp, stampGlyphFor } from '@/components/ui/chat';
 import { AnalysisResultCard, TierBadge } from './CopilotChatComponents';
 import { SaveToNoteButton } from './SaveToNoteButton';
+import { CopyReplyButton } from './CopyReplyButton';
 
 /**
  * Single chat message bubble with optional action buttons.
@@ -55,7 +57,8 @@ export function MessageBubble({
   const isAnalysis = msg.actionData?.type === 'analyze' && msg.actionData.data;
   // Only ラピ's text replies; structured results (the analysis card) are not notes.
   // `content` can be missing on an action result, so it is not trusted to be a string.
-  const showSave = !!saveNote && !isUser && !isAnalysis && (msg.content ?? '').trim() !== '';
+  const isTextReply = !isUser && !isAnalysis && (msg.content ?? '').trim() !== '';
+  const showSave = !!saveNote && isTextReply;
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -70,8 +73,13 @@ export function MessageBubble({
         ) : (
           // Assistant content (incl. the retrospective) is markdown — set at
           // chat density so headings and margins fit the bubble.
-          <MarkdownView content={msg.content} density="chat" />
+          // NOTE: the copy icon gets room above the text (pt-4), not beside
+          // it, so the text keeps its width and wrapping (nav74).
+          <div className={isTextReply ? 'pt-4' : undefined}>
+            <MarkdownView content={msg.content} density="chat" />
+          </div>
         )}
+        {isTextReply && <CopyReplyButton text={msg.content} className="absolute right-1 top-1" />}
         {/* Read once her answer came back (nav63); never on a failed send. */}
         {isUser && msg.readAs && !msg.failed && (
           <ReceivedStamp label={tc('received')} glyph={stampGlyphFor(msg.readAs)} />

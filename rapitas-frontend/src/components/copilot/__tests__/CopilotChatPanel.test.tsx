@@ -100,6 +100,18 @@ describe('CopilotChatPanel', () => {
     expect(log).toHaveAttribute('aria-live', 'polite');
   });
 
+  // nav74: the copy icon makes ラピ's bubble taller, which can be what first
+  // makes the log overflow. A space-taking scrollbar would then narrow the log
+  // and re-wrap the bubbles, so the gutter is reserved in both layouts.
+  // NOTE: jsdom does no layout, so this checks the reserved gutter is declared.
+  it.each([false, true])('reserves the scrollbar gutter on the log (compact=%s)', (compact) => {
+    const { container } = render(
+      <CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" compact={compact} />,
+    );
+    const log = container.querySelector('[role="log"]');
+    expect(log).toHaveClass('[scrollbar-gutter:stable]');
+  });
+
   // nav62: the consult chat feels like ラピ's thread — the sentence she took
   // in gets a 👌, a failed one does not, and the wait is three dots.
   describe('chat feel', () => {
