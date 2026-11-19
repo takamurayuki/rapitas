@@ -20,6 +20,7 @@ import { WITH_LINKS, type NoteRow, type PrismaInstance } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { loadPlacementLookup } from '../placement/describe-placement';
 import { toPlacedRecord, type PlacedNoteRecord } from '../placement/placed-record';
+import { findTaskInScope } from '../placement/placement-scope';
 
 /** Largest page a caller may ask for. */
 export const MAX_NOTE_PAGE = 200;
@@ -55,6 +56,7 @@ export class NoteQueryError extends Error {
       | 'theme_not_found'
       | 'category_not_found'
       | 'folder_not_found'
+      | 'task_not_found'
       | 'invalid_cursor',
     readonly status: 400 | 404,
   ) {
@@ -132,6 +134,22 @@ export async function placementConditions(db: PrismaInstance, query: NoteQuery):
   ];
 }
 
+/**
+ * The `where` fragment of a task filter, after checking the task is in the
+ * request's workspace (§2.2: a related row is compared for equality; a task
+ * elsewhere is the same 404 as a missing one). Used by this list and by the
+ * stage-0 `GET /notes?taskId=` so neither lists across workspaces.
+ *
+ * @param db - Client / クライアント
+ * @param taskId - The task / タスクID
+ * @returns The condition to AND in / AND で結ぶ条件
+ * @throws {NoteQueryError} task_not_found (404) when the task is not in scope
+ */
+export async function taskFilterCondition(db: PrismaInstance, taskId: number): Promise<Where> {
+  if (!(await findTaskInScope(db, taskId))) throw new NoteQueryError('task_not_found', 404);
+  return { taskLinks: { some: { taskId } } };
+}
+
 interface Cursor {
   p: boolean;
   u: string;
@@ -199,7 +217,7 @@ function excerptOf(content: string): string {
 export async function queryNotes(db: PrismaInstance, query: NoteQuery): Promise<NotePage> {
   const and: Where[] = [{ workspaceId: requestWorkspaceId() }];
   and.push(...(await placementConditions(db, query)));
-  if (query.taskId !== undefined) and.push({ taskLinks: { some: { taskId: query.taskId } } });
+  if (query.taskId !== undefined) and.push(await taskFilterCondition(db, query.taskId));
   const q = query.q?.trim();
   if (q) and.push({ OR: [{ title: { contains: q } }, { content: { contains: q } }] });
   if (query.sources && query.sources.length > 0) and.push(sourceCondition(query.sources));

@@ -217,8 +217,8 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     async (context) => {
       const { params } = context;
       const id = parseId(params.id, 'theme ID');
-      // NOTE: notes stage 1 — the theme's notes are re-placed by
-      // placementAfterThemeDelete in the same transaction as the delete.
+      // NOTE: notes stage 1 — only a theme of the request's workspace (§2.2); its notes are
+      // re-placed by placementAfterThemeDelete in the same transaction as the delete.
       const deleted = await deleteThemeWithNotes(prisma, id);
       if (!deleted) throw new NotFoundError('Theme not found');
       return deleted;

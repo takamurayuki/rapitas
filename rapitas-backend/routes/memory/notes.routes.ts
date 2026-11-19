@@ -150,11 +150,16 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
         }
       }
       const taskId = query.taskId ? Number(query.taskId) : undefined;
-      const notes = await listNotes(
-        prisma,
-        taskId !== undefined && Number.isFinite(taskId) ? taskId : undefined,
-      );
-      return { success: true, notes };
+      try {
+        const notes = await listNotes(
+          prisma,
+          taskId !== undefined && Number.isFinite(taskId) ? taskId : undefined,
+        );
+        return { success: true, notes };
+      } catch (error) {
+        // A task outside the request's workspace is a 404 (§2.2).
+        return stage1Refusal(error, set);
+      }
     },
     { query: listQuery },
   )

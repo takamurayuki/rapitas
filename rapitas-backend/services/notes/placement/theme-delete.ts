@@ -21,7 +21,8 @@
  * Not responsible for the theme route's other concerns.
  */
 import type { PrismaInstance } from '../note-record';
-import { inWorkspaceOf } from './placement-scope';
+import { requestWorkspaceId } from '../note-scope';
+import { belongsTo, inWorkspaceOf } from './placement-scope';
 import { resolveEffectiveTheme } from './effective-theme';
 import { columnsFor, type PlacementColumns } from './placement-types';
 
@@ -87,22 +88,28 @@ async function categoryInWorkspace(
 }
 
 /**
- * Work out every move for deleting a theme, inside the theme's workspace.
+ * Work out every move for deleting a theme of the expected workspace.
  *
  * @param db - Client or transaction / クライアント
  * @param themeId - The theme / テーマID
- * @returns The plan, or null when there is no such theme in scope / 計画（無ければ null）
+ * @param expectedWorkspaceId - The request's workspace (NULL = NULL partition) / 要求のワークスペース
+ * @returns The plan, or null when the theme is not in that workspace / 計画（範囲外・無ければ null）
  */
 export async function planThemeDelete(
   db: PrismaInstance,
   themeId: number,
+  expectedWorkspaceId: number | null = requestWorkspaceId(),
 ): Promise<ThemeDeletePlan | null> {
+  // NOTE: the theme is fetched with, and compared for equality against, the
+  // request's workspace BEFORE anything is planned (§2.2). Taking the theme's
+  // own workspace instead let a NULL-partition request delete another
+  // workspace's theme while the preview said 404 (review G2 must-fix 1).
   const theme = (await db.theme.findFirst({
-    where: { id: themeId },
+    where: { id: themeId, workspaceId: expectedWorkspaceId },
     select: { id: true, categoryId: true, workspaceId: true },
   })) as DeletedTheme | null;
-  if (!theme) return null;
-  const ws = theme.workspaceId ?? null;
+  if (!theme || !belongsTo(theme, expectedWorkspaceId)) return null;
+  const ws = expectedWorkspaceId;
   return inWorkspaceOf(ws, async () => {
     const categoryId = await categoryInWorkspace(db, theme);
     const notes = (await db.note.findMany({
@@ -131,32 +138,34 @@ export async function planThemeDelete(
 }
 
 /**
- * Delete a theme, moving its notes first, in one transaction.
+ * Delete a theme of the expected workspace, moving its notes first, in one
+ * transaction. A theme outside that workspace is the same null as a missing one.
  *
  * @param db - Client / クライアント
  * @param themeId - The theme / テーマID
- * @returns The deleted theme row, or null when there was none / 削除したテーマ（無ければ null）
+ * @param expectedWorkspaceId - The request's workspace (NULL = NULL partition) / 要求のワークスペース
+ * @returns The deleted theme row, or null when there was none in scope / 削除したテーマ（範囲外・無ければ null）
  */
 export async function deleteThemeWithNotes(
   db: PrismaInstance,
   themeId: number,
+  expectedWorkspaceId: number | null = requestWorkspaceId(),
 ): Promise<Record<string, unknown> | null> {
+  const ws = expectedWorkspaceId;
   const run = async (tx: PrismaInstance) => {
-    const before = (await tx.theme.findFirst({ where: { id: themeId } })) as Record<
-      string,
-      unknown
-    > | null;
-    if (!before) return null;
-    const plan = await planThemeDelete(tx, themeId);
+    const before = (await tx.theme.findFirst({
+      where: { id: themeId, workspaceId: ws },
+    })) as (Record<string, unknown> & { workspaceId: number | null }) | null;
+    if (!before || !belongsTo(before, ws)) return null;
+    const plan = await planThemeDelete(tx, themeId, ws);
     if (!plan) return null;
-    const ws = plan.theme.workspaceId ?? null;
     for (const move of plan.moves) {
       await tx.note.updateMany({
         where: { id: move.noteId, themeId, workspaceId: ws },
         data: move.to,
       });
     }
-    await tx.theme.deleteMany({ where: { id: themeId } });
+    await tx.theme.deleteMany({ where: { id: themeId, workspaceId: ws } });
     return before;
   };
   const transaction = (db as { $transaction?: unknown }).$transaction;

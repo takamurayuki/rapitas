@@ -8,8 +8,8 @@
  *   their new effective theme — only when it is a non-NULL value. A theme
  *   removed (effective theme NULL) moves nothing.
  * - `resetPlacementToTask`: 「タスクの分類に戻す」 — back to the effective theme
- *   (or 未分類 when there is none) with following switched back on; 409 when
- *   the source task is gone.
+ *   (or 未分類 when there is none) with following switched back on; 404 when
+ *   the source task is in another workspace, 409 when it is gone.
  *
  * Every write is a conditional `updateMany` in the request's workspace, so a
  * person's move made in between (followsTask → false) is never overwritten.
@@ -17,6 +17,7 @@
  * Not responsible for the hourly safety net — see placement-consistency-job.
  */
 import { createLogger } from '../../../config/logger';
+import { runAcrossAllWorkspaces } from '../../tenancy/workspace-context';
 import type { PrismaInstance } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { resolveEffectiveTheme, tasksInheritingFrom } from './effective-theme';
@@ -98,6 +99,14 @@ export function followTaskThemeChangeInBackground(db: PrismaInstance, taskId: nu
   });
 }
 
+/** Whether any workspace has the task — unscoped on purpose, only existence is asked. */
+async function taskExistsAnywhere(db: PrismaInstance, taskId: number): Promise<boolean> {
+  const n = (await runAcrossAllWorkspaces(() =>
+    db.task.count({ where: { id: taskId } }),
+  )) as number;
+  return n > 0;
+}
+
 /** What a reset did, or why it could not. */
 export type ResetOutcome =
   | { ok: true; placement: PlacementColumns }
@@ -122,10 +131,18 @@ export async function resetPlacementToTask(db: PrismaInstance, id: string): Prom
   if (!isDeliverableSource(note.source)) {
     return { ok: false, status: 400, error: 'not_a_deliverable' };
   }
-  // A deleted source task (or one no longer in this workspace) leaves
-  // nothing to go back to; placement and followsTask stay as they are.
+  // NOTE: two refusals, kept apart (review G2 must-fix 2, design §2.2 contract 7
+  // and「ワークスペース」): a source task in another workspace fails the
+  // related-row check (404); a deleted one leaves nothing to go back to (409).
+  // Either way placement and followsTask stay as they are.
   const task = note.sourceTaskId === null ? null : await findTaskInScope(db, note.sourceTaskId);
-  if (!task) return { ok: false, status: 409, error: 'source_task_deleted' };
+  if (!task) {
+    const elsewhere =
+      note.sourceTaskId !== null && (await taskExistsAnywhere(db, note.sourceTaskId));
+    return elsewhere
+      ? { ok: false, status: 404, error: 'source_task_not_found' }
+      : { ok: false, status: 409, error: 'source_task_deleted' };
+  }
   const theme = await resolveEffectiveTheme(db, task.id);
   const placement = theme === null ? columnsFor('none') : columnsFor('theme', theme);
   const updated = await db.note.updateMany({

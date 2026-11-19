@@ -268,7 +268,9 @@ describe('DELETE /themes/:id', () => {
 
     expect(res.status).toBe(200);
     // NOTE: notes stage 1 deletes through deleteThemeWithNotes (notes re-placed first).
-    expect(mockPrisma.theme.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(mockPrisma.theme.deleteMany).toHaveBeenCalledWith({
+      where: { id: 1, workspaceId: null },
+    });
     expect(await res.json()).toMatchObject({ id: 1, name: '削除対象' });
   });
 

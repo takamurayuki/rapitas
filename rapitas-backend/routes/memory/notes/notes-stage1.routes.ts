@@ -43,9 +43,9 @@ export const notesStage1Routes = new Elysia({ prefix: '/notes' })
         set.status = 400;
         return { success: false, error: 'invalid_theme_id' };
       }
-      const plan = await planThemeDelete(prisma, Number(params.themeId));
-      // A theme of another workspace is the same 404 as a missing one.
-      if (!plan || (plan.theme.workspaceId ?? null) !== requestWorkspaceId()) {
+      // The same workspace check as the delete itself: another workspace's theme is a 404.
+      const plan = await planThemeDelete(prisma, Number(params.themeId), requestWorkspaceId());
+      if (!plan) {
         set.status = 404;
         return { success: false, error: 'theme_not_found' };
       }

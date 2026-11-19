@@ -25,6 +25,7 @@ import {
 } from './note-record';
 import { attachPlacement } from './placement/placed-record';
 import { scopeWhere } from './note-scope';
+import { taskFilterCondition } from './read/note-query';
 
 // NOTE: the shapes, limits and the write moved out (note-record, note-limits,
 // note-write) when the version contract made the write its own module; they
@@ -48,10 +49,19 @@ export { NotePlacementError } from './placement/placement-write';
  * @param prisma - The client to read through / Prisma クライアント
  * @param taskId - Only notes linked to this task, when given / 指定時はこのタスクに紐づくノートのみ
  * @returns The notes / ノート一覧
+ * @throws {NoteQueryError} task_not_found (404) when the task is not in the request's workspace
  */
 export async function listNotes(prisma: PrismaInstance, taskId?: number): Promise<NoteRecord[]> {
+  // NOTE: a task filter follows the §2.2 rule (review G2 must-fix 2): the task
+  // must be in the request's workspace (else 404) and only the request's
+  // workspace — the NULL partition when none — is listed. Without a filter
+  // the stage-0 list is unchanged.
+  const where =
+    taskId !== undefined
+      ? { AND: [scopeWhere(), await taskFilterCondition(prisma, taskId)] }
+      : undefined;
   const rows = await prisma.note.findMany({
-    ...(taskId !== undefined ? { where: { taskLinks: { some: { taskId } } } } : {}),
+    ...(where ? { where } : {}),
     include: WITH_LINKS,
     orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
   });
