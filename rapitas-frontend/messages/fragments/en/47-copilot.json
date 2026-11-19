@@ -124,6 +124,11 @@
       "savedLinkFailed": "Saved to a note (linking it to the task failed)",
       "failed": "Could not save to a note",
       "open": "Open"
+    },
+    "copyReply": {
+      "copy": "Copy reply",
+      "copied": "Copied",
+      "failed": "Could not copy"
     }
   }
 }
