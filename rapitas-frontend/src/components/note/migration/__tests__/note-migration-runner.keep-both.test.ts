@@ -155,6 +155,8 @@ describe('"keep both" records a copy as its own only after the server confirmed 
       'connection cut',
     );
     expect(record.ownCopies.x).toBe(oldSignature);
+    // The request threw, so its outcome is unknown: kept as a candidate only.
+    expect(record.pendingCopies.x).toBeDefined();
     expect(server.notes.get('x-pc')?.content).toBe('表示時点の PC');
 
     const resumed = await runMigration(depsFor(server));
@@ -162,6 +164,8 @@ describe('"keep both" records a copy as its own only after the server confirmed 
     if (resumed.status !== 'needsDecision') return;
     expect(resumed.diffs.map((d) => [d.id, d.copyUnavailable])).toEqual([['x', false]]);
     expect(resumed.diffs[0]?.staleCopyVersion).not.toBeNull();
+    // The unsent replacement's candidate does not match the untouched copy.
+    expect(record.pendingCopies.x).toBeUndefined();
 
     const done = await applyDecisions(depsFor(server), resumed.diffs, { x: 'both' });
     expect(done.status).toBe('done');
@@ -187,7 +191,49 @@ describe('"keep both" records a copy as its own only after the server confirmed 
       ['x', true, null],
     ]);
 
+    expect(record.pendingCopies.x).toBeUndefined();
+
     await applyDecisions(depsFor(server), after.diffs, { x: 'both' });
     expect(server.notes.get('x-pc')?.content).toBe('表示時点の PC');
+    expect(record.pendingCopies.x).toBeUndefined();
+  });
+});
+
+// Re-review 3: a copy whose response was lost is a candidate, matched only by
+// the server's content on the resume of the same migration.
+describe('"keep both" whose response was lost while the PC note was edited', () => {
+  it('offers "both" again on resume, replaces the copy and leaves no candidate', async () => {
+    const server = shown();
+    const first = await runMigration(depsFor(server));
+    if (first.status !== 'needsDecision') throw new Error('expected a difference');
+    const real = server.api.importNotes;
+    server.api.importNotes = async (batch) => {
+      await real(batch);
+      server.api.importNotes = real;
+      editLocal('x', '応答待ちの編集');
+      throw new Error('importNotes: response lost');
+    };
+
+    await expect(applyDecisions(depsFor(server), first.diffs, { x: 'both' })).rejects.toThrow(
+      'response lost',
+    );
+    expect(server.notes.get('x-pc')?.content).toBe('表示時点の PC');
+    expect(record.ownCopies.x).toBeUndefined();
+    expect(record.pendingCopies.x).toBeDefined();
+
+    const resumed = await runMigration(depsFor(server));
+    expect(resumed.status).toBe('needsDecision');
+    if (resumed.status !== 'needsDecision') return;
+    expect(resumed.diffs.map((d) => [d.id, d.local.content, d.copyUnavailable])).toEqual([
+      ['x', '応答待ちの編集', false],
+    ]);
+    expect(resumed.diffs[0]?.staleCopyVersion).not.toBeNull();
+
+    const done = await applyDecisions(depsFor(server), resumed.diffs, { x: 'both' });
+    expect(done.status).toBe('done');
+    expect(server.notes.get('x-pc')?.content).toBe('応答待ちの編集');
+    expect(server.notes.get('x')?.content).toBe('サーバー');
+    expect(server.creates).toBe(1);
+    expect(record.pendingCopies).toEqual({});
   });
 });

@@ -32,6 +32,7 @@ import type { LinkImportItem, MigrationApi, ResolveItem } from './note-migration
 import { writeCopies } from './note-migration-copy';
 import {
   localVersionOf,
+  matchingPendingCopies,
   planMigration,
   sha256Hex,
   type Hasher,
@@ -130,6 +131,9 @@ export async function runMigration(deps: RunDeps): Promise<RunResult> {
     const localNotes = deps.readLocal();
     const startedFrom = JSON.stringify(localNotes);
     const manifest = await deps.api.fetchManifest();
+    // A candidate whose copy is absent or differs is settled as not landed /
+    // not ours, so it can never match a later copy by someone else.
+    const pendingCopies = matchingPendingCopies(record.pendingCopies, manifest);
     const plan = await planMigration(
       localNotes,
       manifest,
@@ -137,9 +141,15 @@ export async function runMigration(deps: RunDeps): Promise<RunResult> {
       hash,
       record.blockedCopies,
       record.ownCopies,
+      pendingCopies,
     );
 
-    record = deps.records.write({ ...record, phase: 'importing', lastError: null });
+    record = deps.records.write({
+      ...record,
+      pendingCopies,
+      phase: 'importing',
+      lastError: null,
+    });
     const total = plan.toImport.length;
     const blockedIds = new Set<string>();
     for (const chunk of chunks(plan.toImport, IMPORT_CHUNK)) {
@@ -169,7 +179,8 @@ export async function runMigration(deps: RunDeps): Promise<RunResult> {
     }
     // Synchronous from this check to onComplete: no local edit can slip in.
     if (JSON.stringify(deps.readLocal()) === startedFrom) {
-      record = deps.records.write({ ...record, phase: 'done' });
+      // Candidates only mean anything while this migration can resume.
+      record = deps.records.write({ ...record, phase: 'done', pendingCopies: {} });
       deps.onComplete?.();
       return { status: 'done', record };
     }

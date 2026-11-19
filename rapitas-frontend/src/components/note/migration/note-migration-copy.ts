@@ -15,6 +15,8 @@
  *   fields, once the server confirmed the write) that no one has touched
  *   since is this run's own older copy, and
  *   "both" replaces it in place with the newer PC version.
+ * A write whose request threw is neither: its signature is kept apart in
+ * `pendingCopies` and counts only while the server's copy matches it.
  */
 import type { MigrationRecord } from '@/stores/note/note-migration-record';
 import type { Note } from '@/stores/note/note-types';
@@ -83,22 +85,42 @@ export async function writeCopies(
       ready.map(async (d) => [d.id, await copySignatureOf(d.local, hash)] as const),
     ),
   );
-  const ownWritten = (ids: string[]) => {
-    if (ids.length === 0) return;
+  // `sent` had an answer; only `own` of them are this browser's copies now.
+  const answered = (sent: string[], own: string[]) => {
     const record = deps.records.read();
     const ownCopies = { ...record.ownCopies };
-    for (const id of ids) ownCopies[id] = signatures.get(id) ?? '';
-    deps.records.write({ ...record, ownCopies });
+    const pendingCopies = { ...record.pendingCopies };
+    for (const id of sent) delete pendingCopies[id];
+    for (const id of own) ownCopies[id] = signatures.get(id) ?? '';
+    deps.records.write({ ...record, ownCopies, pendingCopies });
+  };
+  // NOTE: a request that threw may still have landed (re-review 3). Its
+  // signatures become candidates, matched against the server's copy on the
+  // resume (planMigration) and never promoted to `ownCopies` here.
+  const unanswered = async <T>(ids: string[], send: () => Promise<T>): Promise<T> => {
+    try {
+      return await send();
+    } catch (error) {
+      const record = deps.records.read();
+      const pendingCopies = { ...record.pendingCopies };
+      for (const id of ids) pendingCopies[id] = signatures.get(id) ?? '';
+      deps.records.write({ ...record, pendingCopies });
+      throw error;
+    }
   };
 
   const fresh = ready.filter((d) => d.staleCopyVersion === null);
   for (let i = 0; i < fresh.length; i += limits.importChunk) {
     const chunk = fresh.slice(i, i + limits.importChunk);
-    const result = await deps.api.importNotes(
-      chunk.map((d) => ({ ...d.local, id: copyIdOf(d.id) })),
+    const ids = chunk.map((d) => d.id);
+    const result = await unanswered(ids, () =>
+      deps.api.importNotes(chunk.map((d) => ({ ...d.local, id: copyIdOf(d.id) }))),
     );
     // Only importedIds are this browser's: a skipped id was there already.
-    ownWritten(chunk.filter((d) => result.importedIds.includes(copyIdOf(d.id))).map((d) => d.id));
+    answered(
+      ids,
+      chunk.filter((d) => result.importedIds.includes(copyIdOf(d.id))).map((d) => d.id),
+    );
     const held = chunk.filter((d) => result.conflictIds.includes(copyIdOf(d.id)));
     if (held.length > 0) {
       const record = deps.records.read();
@@ -121,10 +143,16 @@ export async function writeCopies(
           },
         ],
   );
+  const byCopyId = new Map(ready.map((d) => [copyIdOf(d.id), d.id]));
   for (let i = 0; i < replacing.length; i += limits.resolveChunk) {
-    const outcomes = await deps.api.resolve(replacing.slice(i, i + limits.resolveChunk));
+    const chunk = replacing.slice(i, i + limits.resolveChunk);
+    const ids = chunk.map((item) => byCopyId.get(item.id) ?? item.id);
+    const outcomes = await unanswered(ids, () => deps.api.resolve(chunk));
     // A conflict keeps the old signature; it no longer matches the edited copy.
     const written = new Set(outcomes.filter((o) => o.status !== 'conflict').map((o) => o.id));
-    ownWritten(ready.filter((d) => written.has(copyIdOf(d.id))).map((d) => d.id));
+    answered(
+      ids,
+      ready.filter((d) => written.has(copyIdOf(d.id))).map((d) => d.id),
+    );
   }
 }
