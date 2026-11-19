@@ -33,6 +33,14 @@ function setClipboard(value: unknown) {
   Object.defineProperty(navigator, 'clipboard', { value, configurable: true });
 }
 
+/** Which lucide glyph the button draws, so a label-only switch cannot pass. */
+function glyph(name: string) {
+  const svg = screen.getByRole('button', { name }).querySelector('svg');
+  if (svg?.classList.contains('lucide-check')) return 'check';
+  if (svg?.classList.contains('lucide-copy')) return 'copy';
+  return 'none';
+}
+
 describe('CopyReplyButton', () => {
   beforeEach(() => {
     showToast.mockReset();
@@ -48,18 +56,44 @@ describe('CopyReplyButton', () => {
   it('copies the Markdown source, shows a check, then returns to the copy icon', async () => {
     vi.useFakeTimers();
     render(<MessageBubble msg={reply} saveNote={{ taskId: 1 }} />);
+    expect(glyph('copy')).toBe('copy');
 
     fireEvent.click(screen.getByRole('button', { name: 'copy' }));
     await act(async () => {});
 
     expect(writeText).toHaveBeenCalledWith(SOURCE);
-    expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument();
+    expect(glyph('copied')).toBe('check');
     expect(showToast).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(2000);
     });
-    expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
+    expect(glyph('copy')).toBe('copy');
+  });
+
+  it('keeps the check for 2s from the last of two quick successes', async () => {
+    vi.useFakeTimers();
+    render(<MessageBubble msg={reply} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'copy' }));
+    await act(async () => {});
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'copied' }));
+    await act(async () => {});
+
+    // 1.9s after the second copy (3.4s after the first) the check is still up.
+    act(() => {
+      vi.advanceTimersByTime(1900);
+    });
+    expect(glyph('copied')).toBe('check');
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(glyph('copy')).toBe('copy');
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('does not show success when the clipboard write fails', async () => {
@@ -91,7 +125,7 @@ describe('CopyReplyButton', () => {
 
     expect(showToast).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'copied' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
+    expect(glyph('copy')).toBe('copy');
 
     // The stale reset timer from the first copy must not fire into anything.
     act(() => {
