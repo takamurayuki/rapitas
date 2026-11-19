@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task_execution.dart';
-import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/date_formatter.dart';
-import 'pending_questions.dart';
 
 // 入力待ちの実行1件のカード。質問文（無ければ「入力待ちです」）と回答欄。
 // 送信は POST /tasks/:id/agent-respond。成功したら一覧から外し、
@@ -14,7 +12,11 @@ class QuestionCard extends ConsumerStatefulWidget {
   final ExecutingTask task;
   final String taskTitle;
 
-  const QuestionCard({super.key, required this.task, required this.taskTitle});
+  /// 回答の送信に成功したときに呼ぶ。一覧から外す処理は画面側が持つ
+  /// （このカードは成功の時点で破棄されていることがあるため）。
+  final void Function(ExecutingTask task) onAnswered;
+
+  const QuestionCard({super.key, required this.task, required this.taskTitle, required this.onAnswered});
 
   @override
   ConsumerState<QuestionCard> createState() => _QuestionCardState();
@@ -42,15 +44,19 @@ class _QuestionCardState extends ConsumerState<QuestionCard> {
   Future<void> _send() async {
     // ボタンが無効になるのは再描画の後なので、それまでに続けて呼ばれても二重に送らない
     if (!_canSend) return;
+    // 送信の完了前にカードが破棄されうる（スクロール・画面遷移・成功で一覧から外れる）ので、
+    // await の後に使うものはここで押さえ、await の後は ref と widget に触れない
     final task = widget.task;
-    // 送信成功でこのカードは消えるので、SnackBar の出し先は先に押さえておく
+    final title = widget.taskTitle;
+    final onAnswered = widget.onAnswered;
+    final service = ref.read(agentServiceProvider);
     final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      await ref.read(agentServiceProvider).respondToAgent(task.taskId, _controller.text);
+      await service.respondToAgent(task.taskId, _controller.text);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -60,10 +66,8 @@ class _QuestionCardState extends ConsumerState<QuestionCard> {
       }
       return;
     }
-    final answered = ref.read(answeredQuestionsProvider.notifier);
-    answered.state = {...answered.state, answeredKeyOf(task): ref.read(answeredClockProvider)()};
-    ref.invalidate(executingTasksProvider);
-    messenger.showSnackBar(SnackBar(content: Text('「${widget.taskTitle}」に回答を送りました')));
+    onAnswered(task);
+    messenger.showSnackBar(SnackBar(content: Text('「$title」に回答を送りました')));
   }
 
   @override

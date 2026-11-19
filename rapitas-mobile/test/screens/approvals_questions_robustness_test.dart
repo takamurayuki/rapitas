@@ -125,4 +125,60 @@ void main() {
     expect(agent.calls, 1);
     expect(agent.responded, hasLength(1));
   });
+
+  group('送信中にカードが破棄されても一覧は更新する', () {
+    testWidgets('承認：スクロールでカードが破棄された後に成功しても、承認の一覧を読み直す', (tester) async {
+      final service = FakeApprovals()..gate = Completer<void>();
+      final source = CountingSource<ApprovalRequest>([for (var i = 0; i < 30; i++) pendingApproval('a$i', '承認その$i')]);
+      await pumpApprovals(tester, approvalSource: source, approvalService: service);
+
+      await tester.tap(find.widgetWithText(FilledButton, '承認').first);
+      await tester.pump();
+      await tester.drag(find.byType(ListView), const Offset(0, -6000));
+      await tester.pumpAndSettle();
+      expect(find.text('承認その0', skipOffstage: false), findsNothing, reason: 'カードは破棄されている');
+
+      final fetchesBefore = source.fetches;
+      service.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(service.approved, ['a0']);
+      expect(source.fetches, greaterThan(fetchesBefore));
+      expect(find.text('承認しました'), findsOneWidget);
+    });
+
+    testWidgets('質問：スクロールでカードが破棄された後に成功しても、回答済みにして読み直す', (tester) async {
+      final agent = FakeAgent()..gate = Completer<void>();
+      final t0 = DateTime(2026, 11, 19, 9);
+      final source = CountingSource<ExecutingTask>([
+        for (var i = 0; i < 30; i++) waitingRow('${100 + i}', '${900 + i}', question: '質問$i', startedAt: t0.add(Duration(minutes: i))),
+      ]);
+      await pumpApprovals(tester, agent: agent, executingSource: source);
+
+      await _answer(tester, '100', '回答');
+      await tester.pump();
+      // 入力欄にフォーカスがあると keep-alive でカードが残るので外す
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.drag(find.byType(ListView), const Offset(0, -6000));
+      await tester.pumpAndSettle();
+      expect(_card('100').hitTestable(), findsNothing);
+      expect(find.byKey(const ValueKey('question-card-100'), skipOffstage: false), findsNothing,
+          reason: 'カードは破棄されている');
+
+      final fetchesBefore = source.fetches;
+      agent.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(agent.responded.single.taskId, '900');
+      expect(source.fetches, greaterThan(fetchesBefore));
+      expect(find.textContaining('に回答を送りました'), findsOneWidget);
+
+      await tester.drag(find.byType(ListView), const Offset(0, 6000));
+      await tester.pumpAndSettle();
+      expect(find.text('質問0'), findsNothing, reason: '回答済みとして一覧から外れている');
+      expect(find.text('質問1'), findsOneWidget);
+    });
+  });
 }

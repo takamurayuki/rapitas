@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/approval_request.dart';
-import '../../providers/approval_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/date_formatter.dart';
 import '../../widgets/status_badge.dart';
@@ -12,7 +11,11 @@ import '../../widgets/status_badge.dart';
 class ApprovalCard extends ConsumerWidget {
   final ApprovalRequest approval;
 
-  const ApprovalCard({super.key, required this.approval});
+  /// 承認・却下に成功したときに呼ぶ。一覧の読み直しは画面側が持つ
+  /// （このカードは送信の完了前にスクロールで破棄されていることがあり、その ref は使えないため）。
+  final VoidCallback onDecided;
+
+  const ApprovalCard({super.key, required this.approval, required this.onDecided});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -81,24 +84,22 @@ class ApprovalCard extends ConsumerWidget {
   }
 
   Future<void> _approveApproval(BuildContext context, WidgetRef ref, String id) async {
+    // await の後にカードが破棄されていても結果を出せるよう、出し先とサービスは先に押さえる
+    final messenger = ScaffoldMessenger.of(context);
+    final service = ref.read(approvalServiceProvider);
     try {
-      await ref.read(approvalServiceProvider).approve(id);
-      ref.invalidate(approvalListProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('承認しました')),
-        );
-      }
+      await service.approve(id);
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('承認に失敗しました: $e')),
-        );
-      }
+      messenger.showSnackBar(SnackBar(content: Text('承認に失敗しました: $e')));
+      return;
     }
+    onDecided();
+    messenger.showSnackBar(const SnackBar(content: Text('承認しました')));
   }
 
   Future<void> _rejectApproval(BuildContext context, WidgetRef ref, String id) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final service = ref.read(approvalServiceProvider);
     final reasonController = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
@@ -122,22 +123,14 @@ class ApprovalCard extends ConsumerWidget {
       ),
     );
 
-    if (reason != null) {
-      try {
-        await ref.read(approvalServiceProvider).reject(id, reason: reason.isEmpty ? null : reason);
-        ref.invalidate(approvalListProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('却下しました')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('却下に失敗しました: $e')),
-          );
-        }
-      }
+    if (reason == null) return;
+    try {
+      await service.reject(id, reason: reason.isEmpty ? null : reason);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('却下に失敗しました: $e')));
+      return;
     }
+    onDecided();
+    messenger.showSnackBar(const SnackBar(content: Text('却下しました')));
   }
 }

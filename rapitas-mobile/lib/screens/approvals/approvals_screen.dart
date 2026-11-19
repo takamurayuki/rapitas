@@ -39,6 +39,13 @@ class ApprovalsScreen extends ConsumerWidget {
       ref.invalidate(executingTasksProvider);
     }
 
+    // NOTE: カードの承認・却下・回答の後始末は、カードの ref ではなく ProviderContainer で行う。
+    // 送信中にスクロールや画面遷移でカード（や画面）が破棄されると、その WidgetRef は使えなくなり
+    // （"Cannot use ref after the widget was disposed"）、API が成功しても一覧を読み直せなかった。
+    // container はアプリの生存中ずっと有効なので、破棄後に完了しても一覧は更新される。
+    final container = ProviderScope.containerOf(context, listen: false);
+    final actions = _CardActions(container);
+
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
@@ -50,7 +57,7 @@ class ApprovalsScreen extends ConsumerWidget {
         path: '/approvals',
         child: RefreshIndicator(
           onRefresh: reload,
-          child: _body(context, ref, approvalsAsync, questionsAsync, titles),
+          child: _body(context, ref, actions, approvalsAsync, questionsAsync, titles),
         ),
       ),
     );
@@ -59,6 +66,7 @@ class ApprovalsScreen extends ConsumerWidget {
   Widget _body(
     BuildContext context,
     WidgetRef ref,
+    _CardActions actions,
     AsyncValue<List<ApprovalRequest>> approvalsAsync,
     AsyncValue<List<ExecutingTask>> questionsAsync,
     Map<String, String> titles,
@@ -74,7 +82,7 @@ class ApprovalsScreen extends ConsumerWidget {
         _ErrorBlock(message: '承認リクエストの取得に失敗しました', onRetry: () => ref.invalidate(approvalListProvider))
       else if (approvals.isNotEmpty) ...[
         _SectionHeader(icon: Icons.fact_check_outlined, label: '承認リクエスト', count: approvals.length),
-        for (final approval in approvals) ApprovalCard(approval: approval),
+        for (final approval in approvals) ApprovalCard(approval: approval, onDecided: actions.reloadApprovals),
       ],
       if (questionsAsync.hasError)
         _ErrorBlock(message: '質問の取得に失敗しました', onRetry: () => ref.invalidate(executingTasksProvider))
@@ -85,6 +93,7 @@ class ApprovalsScreen extends ConsumerWidget {
             key: ValueKey('question-${answeredKeyOf(task)}'),
             task: task,
             taskTitle: taskTitleOrFallback(titles, task.taskId),
+            onAnswered: actions.markAnswered,
           ),
       ],
     ];
@@ -104,6 +113,21 @@ class ApprovalsScreen extends ConsumerWidget {
       );
     }
     return ListView(padding: const EdgeInsets.all(8), children: children);
+  }
+}
+
+/// カードの処理が終わった後の一覧の更新。カードや画面が破棄された後でも動くよう container を使う。
+class _CardActions {
+  final ProviderContainer container;
+
+  _CardActions(this.container);
+
+  void reloadApprovals() => container.invalidate(approvalListProvider);
+
+  void markAnswered(ExecutingTask task) {
+    final answered = container.read(answeredQuestionsProvider.notifier);
+    answered.state = {...answered.state, answeredKeyOf(task): container.read(answeredClockProvider)()};
+    container.invalidate(executingTasksProvider);
   }
 }
 
