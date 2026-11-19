@@ -75,7 +75,8 @@ class _QuestionCardState extends ConsumerState<QuestionCard> {
 
     return Card(
       key: ValueKey('question-card-$id'),
-      // 承認カードと見分けるため、枠と左上のアイコンで「質問」を示す
+      // 承認カードと見分けるため、地の色・枠・左上のアイコンで「質問」を示す
+      color: scheme.tertiaryContainer.withValues(alpha: 0.35),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: scheme.tertiary.withValues(alpha: 0.6)),
