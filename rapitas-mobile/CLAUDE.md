@@ -111,7 +111,7 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Task form | `task_form/` | Create and edit tasks |
 | Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
 | Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs. Search mode plus a filter sheet (themes, multiple selection; status; sort) |
-| Approvals | `approvals/` | Approve or reject approval requests (with an optional reason) |
+| Approvals | `approvals/` | Two sections: approval requests (approve, or reject with an optional reason) first, then agent questions (executions waiting for input, oldest first, with the question text or 入力待ちです when there is none). A question is answered in place through `POST /tasks/:id/agent-respond`; on success the card leaves the list, on failure the typed answer stays and the error is shown. Voice numbering (「2番目を承認」) counts approval requests only |
 | Notifications | `notifications/` | Notification list, mark as read, delete |
 | Dashboard | `dashboard/` | Task counts by status (未着手 / 進行中 / 完了 / 合計), computed on the phone from the task list |
 | Themes / categories | `themes/`, `categories/` | CRUD, reorder, set default |
@@ -162,7 +162,7 @@ This is the full list from `lib/services/` (all relative to the base URL). Do no
 | Area | Endpoints |
 | --- | --- |
 | Tasks | `GET /tasks`, `GET /tasks/search?q=`, `GET /tasks/:id`, `POST /tasks`, `PATCH /tasks/:id`, `DELETE /tasks/:id` |
-| Execution | `POST /tasks/:id/execute`, `POST /tasks/:id/stop-execution`, `POST /agents/executions/:id/resume`, `GET /tasks/executing`, `GET /agents/resumable-executions`, `GET /tasks/:id/execution-logs` |
+| Execution | `POST /tasks/:id/execute`, `POST /tasks/:id/stop-execution`, `POST /agents/executions/:id/resume`, `POST /tasks/:id/agent-respond`, `GET /tasks/executing` (each row carries `question`, null unless the row is waiting for input), `GET /agents/resumable-executions`, `GET /tasks/:id/execution-logs` |
 | Agent configs | `GET/POST /agents`, `GET/PATCH/DELETE /agents/:id`, `POST/DELETE /agents/:id/api-key`, `POST /agents/:id/test-connection` |
 | Approvals | `GET /approvals`, `GET /approvals/:id`, `POST /approvals/:id/approve`, `POST /approvals/:id/reject` |
 | Workflow decisions | `GET /workflow/tasks/:id/files/:fileType`, `GET /workflow/tasks/:id/review-hold`, `POST /workflow/tasks/:id/approve-plan`, `.../revise-plan`, `.../answer-question`, `.../review-hold/resolve`, `.../release-halt` |
