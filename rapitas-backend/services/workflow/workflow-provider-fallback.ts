@@ -238,6 +238,18 @@ export async function tryProviderFallback(args: {
   const fallbackDbConfig = provider
     ? await findAgentConfigForProvider(provider, { excludeConfigId: args.currentConfig.id })
     : null;
+  // NOTE: With no agent for the new model's provider, the current agent used to
+  // run it anyway — a Codex agent handed a Claude id can only fail or ignore
+  // it. Refuse instead; same-provider re-routes still run on the current agent.
+  const currentProvider = agentTypeToProvider(args.currentConfig.agentType);
+  if (!fallbackDbConfig && provider && currentProvider && provider !== currentProvider) {
+    log.warn(
+      { taskId: args.taskId, model: alternativeModel, provider, currentProvider },
+      'Fallback model needs an agent this host does not have — switch refused',
+    );
+    recordAttempt({ ...base, strategy: 'none', outcome: 'no_candidate' });
+    return null;
+  }
   const fallbackConfig = fallbackDbConfig
     ? {
         id: fallbackDbConfig.id,

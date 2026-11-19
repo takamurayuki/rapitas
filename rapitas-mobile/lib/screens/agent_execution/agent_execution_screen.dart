@@ -6,7 +6,7 @@ import '../../providers/service_providers.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/voice_scroll_target.dart';
-import '../../widgets/execution_log_viewer.dart';
+import '../../widgets/execution_log/execution_log.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/voice_dismissible.dart';
 import 'auto_run_section.dart';
@@ -382,72 +382,13 @@ class _AgentExecutionScreenState extends ConsumerState<AgentExecutionScreen> {
     }
   }
 
+  // NOTE: ログの表示はタスク詳細と同じ部品（widgets/execution_log）に寄せた
   void _showLogs(
     BuildContext context, {
     required String title,
     required String taskId,
     required String executionId,
   }) {
-    final key = (taskId: taskId, executionId: executionId);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.3,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, scrollController) {
-            return Consumer(
-              builder: (context, ref, _) {
-                final logsAsync = ref.watch(taskExecutionLogsProvider(key));
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '実行ログ：$title',
-                              style: Theme.of(context).textTheme.titleMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            tooltip: '再読み込み',
-                            onPressed: () =>
-                                ref.invalidate(taskExecutionLogsProvider(key)),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: logsAsync.when(
-                        data: (logs) => ExecutionLogViewer(
-                          logs: logs,
-                          scrollController: scrollController,
-                        ),
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) =>
-                            Center(child: Text('ログの取得に失敗しました: $e')),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
+    showExecutionLogSheet(context, title: title, taskId: taskId, executionId: executionId);
   }
 }

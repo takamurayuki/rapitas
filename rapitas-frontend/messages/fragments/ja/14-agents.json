@@ -11,7 +11,7 @@
     "metrics": "使用量",
     "metricsSubtitle": "各エージェントの使用量統計",
     "pageTitle": "AIエージェント管理",
-    "pageSubtitle": "ワークフローの各フェーズにAIエージェントを割り当て、協調開発を管理します",
+    "pageSubtitle": "ワークフローの各フェーズは、使えるプロバイダから自動で組まれた構成で実行されます",
     "noActiveAgents": "アクティブなエージェントがありません",
     "custom": "カスタム",
     "confirmDelete": "エージェント「{name}」を削除しますか？",
@@ -25,10 +25,10 @@
     "registeredAgents": "登録済みエージェント",
     "agent": "エージェント",
     "workflowRoles": "ワークフローロール設定",
-    "workflowRolesDescription": "各フェーズを担当するAIエージェントとモデルを設定します。成果物（Markdown）をバトンとして渡し、複数のAIが協調して開発を進めます。",
+    "workflowRolesDescription": "各フェーズのエージェントとモデルは、使えるプロバイダとモデルティア表から自動で決まります。ここではフェーズの有効・無効とシステムプロンプトを設定します。",
     "howToUse": "ワークフローの使い方",
-    "step1Title": "ロールを設定",
-    "step1Description": "各フェーズにAIエージェントとモデルを割り当て",
+    "step1Title": "プロバイダを使える状態にする",
+    "step1Description": "Claude Code や Codex にログインすると、自動で構成に加わります",
     "step2Title": "タスクで開始",
     "step2Description": "タスク詳細でワークフローを開始し、各フェーズを実行",
     "step3Title": "承認して完了",
@@ -223,16 +223,14 @@
       "defaultMessage": "予期しないエラーが発生しました。",
       "retry": "再試行"
     },
-    "globalProviderPreference": {
-      "title": "デフォルトエージェント",
-      "subtitle": "自動選択時の優先プロバイダ。ロール側で個別上書きされない場合に使われます",
-      "recheckTitle": "CLI / API へ再 probe してキャッシュを破棄",
-      "recheckButton": "再チェック",
-      "checking": "確認中…",
-      "available": "✓ 応答あり ({count} モデル検出)",
-      "noResponse": "応答なし",
-      "rechecking": "再チェック中… ({count}/{max})",
-      "footerNote": "CLI が応答するかのみを確認しています（API キーはチェック対象外。5分キャッシュ）"
+    "phaseRouting": {
+      "title": "使えるプロバイダ",
+      "subtitle": "フェーズの実行先は、ここに並ぶプロバイダとモデルティア表から自動で決まります",
+      "usable": "使える",
+      "unavailable": "使えない",
+      "cooled": "一時停止中",
+      "loading": "確認しています",
+      "failed": "確認できませんでした"
     },
     "skipPermissionToggle": {
       "title": "エージェントの許可確認をスキップ",

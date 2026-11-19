@@ -61,12 +61,28 @@ const roleConfigFindUniqueMock = mock(() =>
 
 const mockPrisma = {
   task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+  // Role agent pins are no longer read (2026-11-20): the agent comes from the
+  // recommender. Hand back the role fixture's agent so these tests keep
+  // exercising the same config.
+  aIAgentConfig: {
+    findUnique: async () =>
+      (
+        (await (mockPrisma.workflowRoleConfig.findFirst as (a: unknown) => Promise<unknown>)({
+          where: { role: 'implementer' },
+        })) as {
+          agentConfig?: unknown;
+        } | null
+      )?.agentConfig ?? null,
+  },
   workflowRoleConfig: { findFirst: roleConfigFindUniqueMock },
   systemPrompt: { findFirst: mock(() => Promise.resolve(null)) },
   workflowTransition: { findFirst: async () => null, count: mock(() => Promise.resolve(0)) },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
 };
 
+mock.module('./role-recommender', () => ({
+  recommendAgentForRole: async () => ({ agentConfigId: 1 }),
+}));
 mock.module('../../config/logger', () => ({
   logger: noopLogger,
   createLogger: () => noopLogger,

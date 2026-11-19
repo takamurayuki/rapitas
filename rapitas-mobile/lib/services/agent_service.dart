@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/agent_config.dart';
 import '../models/task_execution.dart';
 import 'api_client.dart';
+import 'execution_log/execution_log_snapshot.dart';
 
 class AgentService {
   final ApiClient _client;
@@ -149,12 +150,13 @@ class AgentService {
         .toList();
   }
 
-  /// GET /tasks/:id/execution-logs（executionId 指定で単一実行モード）
+  /// タスクの実行ログを、実行の状態（status / question / errorMessage）ごと取る。
+  /// 実行ログの表示（出来事のタイムライン＋生ログ）はこちらを使う。
   ///
-  /// バックエンドのログは {id, chunk, type, sequence, timestamp}。ExecutionLogViewer は
-  /// message / level を読むので {message, level, timestamp} に正規化して返す。
-  /// 履歴なしは {logs: [], status: 'none'} なので空リストになる。
-  Future<List<Map<String, dynamic>>> getTaskExecutionLogs(
+  /// @param taskId - タスクID / タスクID
+  /// @param executionId - 実行ID。null ならタスクの最新セッション全体 / 実行ID
+  /// @returns 実行ログと状態 / 実行ログのスナップショット
+  Future<ExecutionLogSnapshot> getExecutionLogSnapshot(
     String taskId, {
     String? executionId,
   }) async {
@@ -162,15 +164,7 @@ class AgentService {
       '/tasks/$taskId/execution-logs',
       queryParameters: {if (executionId != null) 'executionId': executionId},
     );
-    final data = response.data;
-    final List<dynamic> logs = data is Map ? (data['logs'] as List? ?? const []) : const [];
-    return logs.whereType<Map>().map((log) {
-      return <String, dynamic>{
-        'message': log['chunk']?.toString() ?? '',
-        'level': log['type']?.toString() ?? 'info',
-        'timestamp': log['timestamp'],
-      };
-    }).toList();
+    return ExecutionLogSnapshot.fromJson(response.data);
   }
 
   Future<Map<String, dynamic>> _postAction(

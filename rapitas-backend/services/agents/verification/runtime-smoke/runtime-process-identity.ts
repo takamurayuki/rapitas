@@ -115,3 +115,28 @@ export function describeStartOwnershipLoss(inspected: {
   const detail = inspected.safe ? 'all tracked processes exited' : inspected.reason || 'unknown';
   return `Server ownership changed during start: ${detail}`;
 }
+
+/**
+ * Drop recorded processes whose PID now belongs to a different process.
+ *
+ * A PID whose birth or command changed proves the recorded process exited and
+ * Windows handed the number to someone else. During startup that is ordinary:
+ * a dev script (trendline's dev-all.mjs) spawns short-lived helpers, and keeping
+ * them made the tracker report `identity-mismatch` and abort a healthy launch
+ * (task 520, 2026-11-20). The new holder is not added, so it is never signalled.
+ * Stop paths keep using {@link inspectOwnedRuntimeTree} on the full record.
+ *
+ * @param recorded - Identities proven earlier / 以前に確認した所有プロセス
+ * @param snapshot - Current process snapshot / 現在のプロセス一覧
+ * @returns Recorded identities minus those whose PID was reused / PID 再利用分を除いた一覧
+ */
+export function forgetReusedIdentities(
+  recorded: RuntimeProcessIdentity[],
+  snapshot: RuntimeProcessIdentity[],
+): RuntimeProcessIdentity[] {
+  const byPid = new Map(snapshot.map((item) => [item.pid, item]));
+  return recorded.filter((item) => {
+    const current = byPid.get(item.pid);
+    return !current || sameRuntimeProcess(item, current);
+  });
+}

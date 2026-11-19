@@ -9,8 +9,21 @@ mock.module('../../config', () => ({
         agentConfig: { id: 1, agentType: 'claude-code' },
       }),
     },
+    aIAgentConfig: {
+      findUnique: async () => ({
+        id: 5,
+        agentType: 'claude-code',
+        name: 'Claude Code',
+        modelId: null,
+        apiKeyEncrypted: null,
+        endpoint: null,
+      }),
+    },
     task: { update },
   },
+}));
+mock.module('./role-recommender', () => ({
+  recommendAgentForRole: async () => ({ agentConfigId: 5 }),
 }));
 mock.module('../../config/logger', () => ({ createLogger: () => ({ info() {} }) }));
 mock.module('./workflow-file-utils', () => ({
@@ -35,4 +48,16 @@ test('planner selected by preflight still executes when a reusable old plan exis
   );
   expect(result.done).toBe(false);
   expect(update).not.toHaveBeenCalled();
+});
+
+// NOTE: Manual per-role agent pins are no longer read (2026-11-20); the agent
+// comes from the recommender over the auto-synced agent configs.
+test('an agent pinned on the role is ignored in favour of the recommended agent', async () => {
+  const result = await prepareAgentAndPrompt(
+    914,
+    { role: 'implementer', outputFile: 'verify', nextStatus: 'in_progress' } as never,
+    'plan_approved',
+  );
+  if (result.done) throw new Error('unexpected early return');
+  expect(result.agentConfig.id).toBe(5);
 });

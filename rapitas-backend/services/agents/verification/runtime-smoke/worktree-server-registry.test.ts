@@ -525,3 +525,20 @@ test('children born during health polling are recorded before startup finishes',
   finish(true);
   expect((await starting).ok).toBe(true);
 });
+
+// Task 520 (2026-11-20): a short-lived helper of the dev script exited and its
+// PID went to an unrelated process before the app answered; the tracker called
+// that `identity-mismatch` and quarantined a healthy launch.
+test('a helper whose PID is reused during startup does not abort the launch', async () => {
+  extraProcesses = [{ pid: 124, parentPid: 123, birth: '101', command: 'helper' }];
+  ready = async () => {
+    await new Promise((r) => setTimeout(r, 3200)); // first tracker tick adopts the helper
+    extraProcesses = [{ pid: 124, parentPid: 1, birth: '900', command: 'unrelated' }];
+    await new Promise((r) => setTimeout(r, 2800)); // second tick sees the reuse
+    return true;
+  };
+  const result = await acquireRuntimeServer(process.cwd(), cfg);
+  expect(result.ok).toBe(true);
+  const owned = _debugSnapshotForTests()[0];
+  expect(owned.state).not.toBe('quarantined');
+}, 20_000);

@@ -18,6 +18,9 @@ const warnMock = mock((..._args: unknown[]) => {});
 const errorMock = mock((..._args: unknown[]) => {});
 const loggerMock = { info: () => {}, warn: warnMock, error: errorMock, debug: () => {} };
 
+mock.module('./role-recommender', () => ({
+  recommendAgentForRole: async () => ({ agentConfigId: 1 }),
+}));
 mock.module('../../config/logger', () => ({
   createLogger: () => loggerMock,
 }));
@@ -77,6 +80,19 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
     updateMany: mock(() => Promise.resolve({ count: 1 })),
   },
+  // Role agent pins are no longer read (2026-11-20): the agent comes from the
+  // recommender. Hand back the role fixture's agent so these tests keep
+  // exercising the same config.
+  aIAgentConfig: {
+    findUnique: async () =>
+      (
+        (await (mockPrisma.workflowRoleConfig.findFirst as (a: unknown) => Promise<unknown>)({
+          where: { role: 'implementer' },
+        })) as {
+          agentConfig?: unknown;
+        } | null
+      )?.agentConfig ?? null,
+  },
   workflowRoleConfig: {
     findFirst: mock(() =>
       Promise.resolve({
@@ -100,9 +116,6 @@ const mockPrisma = {
     findFirst: mock(() => Promise.resolve(null)),
   },
   workflowTransition: { findFirst: async () => null, count: mock(() => Promise.resolve(0)) },
-  aIAgentConfig: {
-    findUnique: mock(() => Promise.resolve(null)),
-  },
   developerModeConfig: {
     findUnique: mock(() =>
       Promise.resolve({

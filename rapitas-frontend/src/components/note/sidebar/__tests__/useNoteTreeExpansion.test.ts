@@ -32,8 +32,9 @@ const notes = [
 
 function render(currentNoteId: string | null, searchQuery = '') {
   const tree = buildNoteTree(notes);
-  return renderHook((props: { currentNoteId: string | null; searchQuery: string }) =>
-    useNoteTreeExpansion({ tree, notes, ...props }),
+  return renderHook(
+    (props: { currentNoteId: string | null; searchQuery: string }) =>
+      useNoteTreeExpansion({ tree, notes, ...props }),
     { initialProps: { currentNoteId, searchQuery } },
   );
 }

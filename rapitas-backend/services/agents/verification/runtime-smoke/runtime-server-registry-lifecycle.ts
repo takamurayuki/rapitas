@@ -11,8 +11,12 @@ import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
 import { stopRuntimeProcesses } from './runtime-process-stop';
-import { extendOwnedRuntimeTree, inspectOwnedRuntimeTree } from './runtime-process-identity';
-import { describeStartOwnershipLoss } from './runtime-process-identity';
+import {
+  describeStartOwnershipLoss,
+  extendOwnedRuntimeTree,
+  forgetReusedIdentities,
+  inspectOwnedRuntimeTree,
+} from './runtime-process-identity';
 import { readRuntimeProcessSnapshot, ownsRuntimePort } from './runtime-process-snapshot';
 import {
   ListenerOwnershipError,
@@ -217,7 +221,12 @@ export async function spawnNewEntry(
           if (consecutiveSnapshotFailures >= MAX_CONSECUTIVE_SNAPSHOT_FAILURES) throw error;
           return;
         }
-        const identities = extendOwnedRuntimeTree(entry.identities ?? [], current.processes);
+        // A reused PID means that helper already exited; forgetting it keeps a
+        // short-lived child from aborting a healthy launch (task 520).
+        const identities = extendOwnedRuntimeTree(
+          forgetReusedIdentities(entry.identities ?? [], current.processes),
+          current.processes,
+        );
         const inspected = inspectOwnedRuntimeTree(
           identities,
           current.processes,

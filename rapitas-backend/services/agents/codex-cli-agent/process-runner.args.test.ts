@@ -221,6 +221,25 @@ describe('spawnCodexProcess — argument construction', () => {
     spawnedChildren[0].emit('close', 0);
   });
 
+  // The routed model must reach Codex in every phase. Investigation mode used
+  // to drop `-m`, so a researcher/planner routed to a tier-table model ran on
+  // whatever Codex defaults to (2026-11-20, auto phase routing).
+  test('investigation mode still passes the routed model with -m', async () => {
+    spawnCodexProcess(
+      { investigationMode: true, model: 'gpt-6-astra' },
+      'C:/work',
+      'investigate the bug',
+      makeState(),
+      makeCallbacks(),
+      Date.now(),
+      noArtifacts,
+      noCommits,
+    );
+    await flush();
+    expect(spawnCalls[0].command).toContain('^^^"-m^^^" ^^^"gpt-6-astra^^^"');
+    spawnedChildren[0].emit('close', 0);
+  });
+
   test('investigation mode: skips --json, forces read-only sandbox, and uses the research headline', async () => {
     const state = makeState();
     const callbacks = makeCallbacks();

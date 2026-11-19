@@ -16,7 +16,7 @@
  *
  * Not responsible for placing notes into folders — see placement-write.
  */
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 
 /** Longest folder name accepted. */
@@ -56,7 +56,7 @@ function cleanName(name: string): string {
   return trimmed;
 }
 
-async function nameTaken(db: PrismaInstance, name: string, exceptId?: number): Promise<boolean> {
+async function nameTaken(db: PrismaTx, name: string, exceptId?: number): Promise<boolean> {
   const hit = await db.noteFolder.findFirst({
     where: {
       workspaceId: requestWorkspaceId(),
@@ -87,11 +87,11 @@ function isWriteConflict(error: unknown): boolean {
 async function nameWrite<T>(
   db: PrismaInstance,
   ws: number | null,
-  fn: (tx: PrismaInstance) => Promise<T>,
+  fn: (tx: PrismaTx) => Promise<T>,
 ): Promise<T> {
   const key = String(ws);
   const run = (nameQueues.get(key) ?? Promise.resolve()).then(() =>
-    db.$transaction((tx: PrismaInstance) => fn(tx), { isolationLevel: 'Serializable' }),
+    db.$transaction((tx: PrismaTx) => fn(tx), { isolationLevel: 'Serializable' }),
   );
   const tail = run.catch(() => undefined);
   nameQueues.set(key, tail);
@@ -194,7 +194,7 @@ export async function updateNoteFolder(
  */
 export async function deleteNoteFolder(db: PrismaInstance, id: number): Promise<number> {
   const ws = requestWorkspaceId();
-  const run = async (tx: PrismaInstance) => {
+  const run = async (tx: PrismaTx) => {
     const folder = await tx.noteFolder.findFirst({
       where: { id, workspaceId: ws },
       select: { id: true },
@@ -207,5 +207,5 @@ export async function deleteNoteFolder(db: PrismaInstance, id: number): Promise<
     await tx.noteFolder.deleteMany({ where: { id, workspaceId: ws } });
     return moved.count as number;
   };
-  return (await db.$transaction((tx: PrismaInstance) => run(tx))) as number;
+  return (await db.$transaction((tx: PrismaTx) => run(tx))) as number;
 }

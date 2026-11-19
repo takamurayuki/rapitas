@@ -72,11 +72,27 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
     updateMany: mock(() => Promise.resolve({ count: 1 })),
   },
+  // Role agent pins are no longer read (2026-11-20): the agent comes from the
+  // recommender. Hand back the role fixture's agent so these tests keep
+  // exercising the same config.
+  aIAgentConfig: {
+    findUnique: async () =>
+      (
+        (await (mockPrisma.workflowRoleConfig.findFirst as (a: unknown) => Promise<unknown>)({
+          where: { role: 'implementer' },
+        })) as {
+          agentConfig?: unknown;
+        } | null
+      )?.agentConfig ?? null,
+  },
   workflowRoleConfig: { findFirst: roleConfigFindUniqueMock },
   systemPrompt: { findFirst: mock(() => Promise.resolve(null)) },
   workflowTransition: { findFirst: async () => null, count: mock(() => Promise.resolve(0)) },
 };
 
+mock.module('./role-recommender', () => ({
+  recommendAgentForRole: async () => ({ agentConfigId: 1 }),
+}));
 mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
   logger: noopLogger,
@@ -280,12 +296,16 @@ describe('WorkflowOrchestrator — resolveExecutableAgentConfig (cross-provider 
     executeCLIAgentMock.mockClear();
     executeAPIAgentMock.mockClear();
     findAgentConfigForProviderImpl = () => Promise.resolve(null);
+    roleConfigFindUniqueMock.mockImplementation(() => Promise.resolve(makeRoleConfig()));
   });
 
   test('same-provider model just overrides modelId on the existing agent', async () => {
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ modelId: 'claude-opus-4-5-20250101' })),
-    );
+    // The router picks the model now; a role pin is no longer read.
+    getStableSmartRouteImpl = () =>
+      Promise.resolve({
+        recommendedModel: 'claude-opus-4-5-20250101',
+        recommendedTier: 'standard',
+      });
 
     const orchestrator = WorkflowOrchestrator.getInstance();
     await orchestrator.advanceWorkflow(1);
@@ -296,9 +316,9 @@ describe('WorkflowOrchestrator — resolveExecutableAgentConfig (cross-provider 
   });
 
   test('cross-provider model with a compatible agent switches agent config entirely', async () => {
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ modelId: 'gpt-5-turbo' })),
-    );
+    // The router picks the model now; a role pin is no longer read.
+    getStableSmartRouteImpl = () =>
+      Promise.resolve({ recommendedModel: 'gpt-5-turbo', recommendedTier: 'standard' });
     agentTypeToProviderImpl = () => 'claude';
     findAgentConfigForProviderImpl = () =>
       Promise.resolve({
@@ -326,9 +346,9 @@ describe('WorkflowOrchestrator — resolveExecutableAgentConfig (cross-provider 
   });
 
   test('cross-provider model with no compatible agent drops the override entirely', async () => {
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ modelId: 'gpt-5-turbo' })),
-    );
+    // The router picks the model now; a role pin is no longer read.
+    getStableSmartRouteImpl = () =>
+      Promise.resolve({ recommendedModel: 'gpt-5-turbo', recommendedTier: 'standard' });
     agentTypeToProviderImpl = () => 'claude';
     findAgentConfigForProviderImpl = () => Promise.resolve(null);
 
@@ -343,9 +363,9 @@ describe('WorkflowOrchestrator — resolveExecutableAgentConfig (cross-provider 
   });
 
   test('an unrecognised model family that does not match the current agent is also dropped', async () => {
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ modelId: 'mystery-model-42' })),
-    );
+    // The router picks the model now; a role pin is no longer read.
+    getStableSmartRouteImpl = () =>
+      Promise.resolve({ recommendedModel: 'mystery-model-42', recommendedTier: 'standard' });
     // inferProviderImpl's default branch returns null for anything not claude/gpt/openai-prefixed.
 
     const orchestrator = WorkflowOrchestrator.getInstance();
@@ -357,9 +377,9 @@ describe('WorkflowOrchestrator — resolveExecutableAgentConfig (cross-provider 
   });
 
   test('an unrecognised family that DOES match the current agent keeps the override', async () => {
-    roleConfigFindUniqueMock.mockImplementation(() =>
-      Promise.resolve(makeRoleConfig({ modelId: 'claude-3-opus-vNext' })),
-    );
+    // The router picks the model now; a role pin is no longer read.
+    getStableSmartRouteImpl = () =>
+      Promise.resolve({ recommendedModel: 'claude-3-opus-vNext', recommendedTier: 'standard' });
     inferProviderImpl = () => null;
 
     const orchestrator = WorkflowOrchestrator.getInstance();

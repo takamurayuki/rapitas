@@ -137,44 +137,45 @@ describe('resolveAgentForTask — bail-out paths', () => {
   });
 });
 
-describe('resolveAgentForTask — explicit WorkflowRoleConfig assignment', () => {
-  test('enabled config with an agentConfigId is used directly', async () => {
+// NOTE: Manual per-role agent/model pins are no longer read (2026-11-20): the
+// agent and model are built from the providers this host can run. A stale pin
+// ('claude-opus-4-8') had kept phases off the model tier table.
+describe('resolveAgentForTask — manual role pins are ignored', () => {
+  const rec = {
+    agentConfigId: 9,
+    agentType: 'claude-code',
+    agentName: 'Claude',
+    score: 90,
+    reason: 'Strong fit',
+  };
+
+  test('a pinned agent and model are ignored in favour of the recommender and the router', async () => {
     taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
     roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: 'claude-sonnet-4-5' };
+    recommended = rec;
     const r = await resolveAgentForTask(1);
     expect(r).toEqual({
       role: 'researcher',
-      agentConfigId: 7,
-      modelId: 'claude-sonnet-4-5',
-      shouldAutoSelectModel: false,
+      agentConfigId: 9,
+      modelId: null,
+      shouldAutoSelectModel: true,
     });
   });
 
-  test('modelId of null → shouldAutoSelectModel true, modelId null', async () => {
+  test('modelId "auto" or empty behaves the same: the router picks', async () => {
     taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
-    roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: null };
-    const r = await resolveAgentForTask(1);
-    expect(r?.shouldAutoSelectModel).toBe(true);
-    expect(r?.modelId).toBeNull();
-  });
-
-  test('modelId === "auto" → shouldAutoSelectModel true', async () => {
-    taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
-    roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: 'auto' };
-    const r = await resolveAgentForTask(1);
-    expect(r?.shouldAutoSelectModel).toBe(true);
-  });
-
-  test('modelId of only whitespace → shouldAutoSelectModel true', async () => {
-    taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
-    roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId: '   ' };
-    const r = await resolveAgentForTask(1);
-    expect(r?.shouldAutoSelectModel).toBe(true);
+    recommended = rec;
+    for (const modelId of [null, 'auto', '   ']) {
+      roleConfigRow = { agentConfigId: 7, isEnabled: true, modelId };
+      const r = await resolveAgentForTask(1);
+      expect(r?.shouldAutoSelectModel).toBe(true);
+      expect(r?.modelId).toBeNull();
+    }
   });
 });
 
 describe('resolveAgentForTask — capability-recommender fallback', () => {
-  test('a disabled role config falls through to the recommender for the agent, but the pinned modelId is still honored', async () => {
+  test('a disabled role config falls through to the recommender, and its pinned model is ignored too', async () => {
     taskState = { workflowStatus: 'draft', workflowMode: 'standard' };
     roleConfigRow = { agentConfigId: 7, isEnabled: false, modelId: 'claude-sonnet-4-5' };
     recommended = {
@@ -186,11 +187,8 @@ describe('resolveAgentForTask — capability-recommender fallback', () => {
     };
     const r = await resolveAgentForTask(1);
     expect(r?.agentConfigId).toBe(9);
-    // shouldAutoSelectModel is derived from the role's modelId regardless of
-    // isEnabled — an explicit, non-'auto' modelId is still honored even when
-    // the agentConfigId assignment itself was disabled.
-    expect(r?.shouldAutoSelectModel).toBe(false);
-    expect(r?.modelId).toBe('claude-sonnet-4-5');
+    expect(r?.shouldAutoSelectModel).toBe(true);
+    expect(r?.modelId).toBeNull();
   });
 
   test('no role config row at all falls through to the recommender', async () => {

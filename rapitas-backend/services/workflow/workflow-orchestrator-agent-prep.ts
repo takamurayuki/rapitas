@@ -47,12 +47,12 @@ export async function prepareAgentAndPrompt(
     };
     return { done: true as const, result };
   }
-  // Resolve the agent for this role. When WorkflowRoleConfig has no agent
-  // assigned, fall back to the capability-based recommender — the SAME path
-  // execute-route uses. Without this fallback, queue-driven tasks (e.g. split
-  // subtasks) hard-failed at the very first phase whenever the user had not
-  // manually wired every role in the agent-management page, exhausting all
-  // retries in ~30ms with no agent ever spawned.
+  // Resolve the agent for this role from the capability-based recommender —
+  // the SAME path execute-route uses.
+  // NOTE: The agent pinned on WorkflowRoleConfig is no longer read
+  // (2026-11-20). Agent configs are synced to the providers this host can run
+  // (phase-providers.ts) and resolveExecutableAgentConfig switches to the one
+  // matching the routed model; a hand-pinned agent bypassed both.
   let agentConfig: {
     id: number;
     agentType: string;
@@ -60,8 +60,8 @@ export async function prepareAgentAndPrompt(
     modelId: string | null;
     apiKeyEncrypted: string | null;
     endpoint: string | null;
-  } | null = roleConfig?.agentConfig ?? null;
-  if (!agentConfig) {
+  } | null = null;
+  {
     const { recommendAgentForRole } = await import('./role-recommender');
     const recommended = await recommendAgentForRole(transition.role).catch(() => null);
     if (recommended?.agentConfigId) {

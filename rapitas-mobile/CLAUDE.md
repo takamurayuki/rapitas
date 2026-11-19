@@ -83,7 +83,7 @@ rapitas-mobile/
 │   │   ├── themes/  categories/  backlog/  notes/  rapi/
 │   │   ├── pairing/               QR scanner
 │   │   └── settings/              Connection, agent configs, voice settings
-│   ├── widgets/                   Shared widgets (task_card, status_badge, execution_log_viewer,
+│   ├── widgets/                   Shared widgets (task_card, status_badge, execution_log/,
 │   │                              app_drawer, voice_mode_*, markdown/, ...)
 │   └── utils/                     color_utils, constants, date_formatter, plain_reasons
 ├── test/                          config/ models/ providers/ screens/ services/ widgets/ support/
@@ -107,10 +107,10 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | --- | --- | --- |
 | Home | `home/` | In-progress tasks, running agents, pending approvals, unread count |
 | Task list | `task_list/` | Task list with a search mode shaped like the executions screen's (search icon swaps the AppBar for a field; the visible list is narrowed in place by title or description on the phone, no server search) and a filter sheet (category, theme, status, priority) |
-| Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls |
+| Task detail | `task_detail/` | Description (Markdown), subtasks, inline edits, linked notes, execute / stop / resume controls, the execution log sheet (実行ログ on the execution card) |
 | Task form | `task_form/` | Create and edit tasks |
 | Decision | `decision/` | Plan approval, revise-plan request, answer an agent question, resolve a review hold, release a halt (`/tasks/:id/decide`) |
-| Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs. Search mode plus a filter sheet (themes, multiple selection; status; sort) |
+| Executions | `agent_execution/` | Theme auto-run for development themes (state, current task, start / pause / stop), running and resumable executions, execution logs (see Execution log below). Search mode plus a filter sheet (themes, multiple selection; status; sort) |
 | Approvals | `approvals/` | Two sections: approval requests (approve, or reject with an optional reason) first, then agent questions (executions waiting for input, oldest first, with the question text or 入力待ちです when there is none). A question is answered in place through `POST /tasks/:id/agent-respond`; on success the card leaves the list, on failure the typed answer stays and the error is shown. Voice numbering (「2番目を承認」) counts approval requests only |
 | Notifications | `notifications/` | Notification list, mark as read, delete |
 | Dashboard | `dashboard/` | Task counts by status (未着手 / 進行中 / 完了 / 合計), computed on the phone from the task list |
@@ -120,6 +120,16 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest, copy a text reply's Markdown source from the icon at its top right, save a text reply as a note (the answer only, titled and tidied by `POST /notes/draft-from-reply`), linked to the task in a consult |
 | Pairing | `pairing/` | QR scanner that pairs the phone with a desktop |
 | Settings | `settings/` | Connection (pair, manual URL and token, re-discover, connection test, restart desktop backend), AI agent configs, theme mode, voice command mode, voice learning |
+
+### Execution log
+
+The executions screen (tap a running or resumable tile) and the task detail execution card (実行ログ) open the same sheet, `showExecutionLogSheet` in `lib/widgets/execution_log/`. It reads `GET /tasks/:id/execution-logs` into `ExecutionLogSnapshot` and shows:
+
+- a one-line current state from the execution status (実行中 / 入力待ち / エラー / 完了 / 停止 / 中断) with a short description;
+- a timeline of events built by `digestExecutionLog` (`lib/services/execution_log/`): start, agent speech, grouped tool work, question, warning, error, done and milestones. Long text folds to three lines and expands on tap;
+- the raw chunks, unchanged, behind the 詳細 toggle (closed by default).
+
+The rules match the tags the backend writes (`[Tool: X]`, `[Question]` / `[質問]`, `[Result: …]`, `[System Error: …]` and so on); `logType` is only `stdout` or `stderr`. A `stderr` line is always shown as error output, whatever tag it starts with, because the Codex / Gemini filter keeps the CLI's own labels (`[fatal] …`). A chunk that starts with `[System Error:` is one error up to the first later line that starts an event (`[Error]`, `[Question]`, `[Tool: X]` and so on); only the `]` at the end of that part closes it, and untagged lines stay in its body. The rest of the chunk is read like any other chunk, because Codex's stderr can carry several labelled lines in one chunk. Questions and errors are never hidden: the execution's `question` / `errorMessage` are appended when the log has no matching line. Internal lines (start-up settings, `[System: …]`) and unknown tags stay out of the timeline and are counted in a note pointing to 詳細. While the run is active the sheet reloads every 5 s; it follows new entries only after the user's own action or when already near the end, as the Rapi chat does.
 
 On iOS there is also a home screen widget (`ios/RapiWidget/`) that shows a snapshot of approvals, executions and today's tasks, and a Shortcut ("ラピに依頼") that hands a request to the app. Both talk to Dart through `lib/services/home_screen_bridge.dart` (MethodChannel `rapitas/home_screen`); on Android the bridge does nothing.
 
