@@ -52,48 +52,27 @@ class _FakeApiClient implements ApiClient {
 }
 
 void main() {
-  group('AgentService.getTaskExecutionLogs', () {
-    test('バックエンドの {chunk, type} を {message, level} に正規化する', () async {
+  group('AgentService.getExecutionLogSnapshot', () {
+    // NOTE: 旧 getTaskExecutionLogs（{message, level} への正規化）の3件をこの形に移した。
+    // 表示側が chunk・type・実行の状態を直接読むようになり、正規化の層は無くなった。
+    test('バックエンドの {chunk, type, timestamp} をそのまま読む', () async {
       final client = _FakeApiClient({
         '/tasks/658/execution-logs': {
           'logs': [
-            {
-              'id': 1,
-              'chunk': 'ビルドを開始します',
-              'type': 'output',
-              'sequence': 0,
-              'timestamp': '2026-11-08T01:23:45.000Z',
-            },
-            {
-              'id': 2,
-              'chunk': 'コンパイルエラー',
-              'type': 'error',
-              'sequence': 1,
-              'timestamp': '2026-11-08T01:23:46.000Z',
-            },
+            {'id': 1, 'chunk': 'ビルドを開始します', 'type': 'stdout', 'sequence': 0, 'timestamp': '2026-11-08T01:23:45.000Z'},
+            {'id': 2, 'chunk': 'コンパイルエラー', 'type': 'stderr', 'sequence': 1, 'timestamp': '2026-11-08T01:23:46.000Z'},
           ],
         },
       });
 
-      final logs = await AgentService(client)
-          .getTaskExecutionLogs('658', executionId: '2806');
+      final snapshot = await AgentService(client).getExecutionLogSnapshot('658', executionId: '2806');
 
       expect(client.getCalls.single.query, {'executionId': '2806'});
-      expect(logs, [
-        {
-          'message': 'ビルドを開始します',
-          'level': 'output',
-          'timestamp': '2026-11-08T01:23:45.000Z',
-        },
-        {
-          'message': 'コンパイルエラー',
-          'level': 'error',
-          'timestamp': '2026-11-08T01:23:46.000Z',
-        },
-      ]);
+      expect(snapshot.entries.map((e) => (e.chunk, e.type)), [('ビルドを開始します', 'stdout'), ('コンパイルエラー', 'stderr')]);
+      expect(snapshot.entries.first.timestamp, DateTime.parse('2026-11-08T01:23:45.000Z'));
     });
 
-    test('chunk・type が欠けた行は空文字と info で補う', () async {
+    test('chunk・type が欠けた行は空文字と stdout で補う（executionId なしはクエリなし）', () async {
       final client = _FakeApiClient({
         '/tasks/658/execution-logs': {
           'logs': [
@@ -102,20 +81,43 @@ void main() {
         },
       });
 
-      final logs = await AgentService(client).getTaskExecutionLogs('658');
+      final snapshot = await AgentService(client).getExecutionLogSnapshot('658');
 
       expect(client.getCalls.single.query, isEmpty);
-      expect(logs.single, {'message': '', 'level': 'info', 'timestamp': null});
+      expect(snapshot.entries.single.chunk, '');
+      expect(snapshot.entries.single.type, 'stdout');
+      expect(snapshot.entries.single.timestamp, isNull);
     });
 
-    test('履歴なし（{logs: [], status: none}）は空リスト', () async {
+    test('履歴なし（{logs: [], status: none}）は空', () async {
       final client = _FakeApiClient({
         '/tasks/658/execution-logs': {'logs': <dynamic>[], 'status': 'none'},
       });
 
-      final logs = await AgentService(client).getTaskExecutionLogs('658');
+      final snapshot = await AgentService(client).getExecutionLogSnapshot('658');
 
-      expect(logs, isEmpty);
+      expect(snapshot.entries, isEmpty);
+      expect(snapshot.status, 'none');
+    });
+
+    test('chunk・type に加えて実行の状態・質問を読む（executionId を渡す）', () async {
+      final client = _FakeApiClient({
+        '/tasks/658/execution-logs': {
+          'executionId': 2806,
+          'status': 'waiting_for_input',
+          'question': 'どちらにしますか？',
+          'logs': [
+            {'id': 1, 'chunk': '[Question] どちらにしますか？\n', 'type': 'stdout', 'sequence': 0, 'timestamp': null},
+          ],
+        },
+      });
+
+      final snapshot = await AgentService(client).getExecutionLogSnapshot('658', executionId: '2806');
+
+      expect(client.getCalls.single.query, {'executionId': '2806'});
+      expect(snapshot.status, 'waiting_for_input');
+      expect(snapshot.question, 'どちらにしますか？');
+      expect(snapshot.entries.single.chunk, '[Question] どちらにしますか？\n');
     });
   });
 

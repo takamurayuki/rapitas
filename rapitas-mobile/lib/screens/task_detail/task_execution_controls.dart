@@ -6,6 +6,7 @@ import '../../models/task.dart';
 import '../../providers/execution_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/task_provider.dart';
+import '../../widgets/execution_log/execution_log.dart';
 
 /// タスク詳細の実行状態ポーリング間隔。null なら回さない（テストで上書きする）。
 final taskExecutionPollIntervalProvider =
@@ -111,16 +112,23 @@ Widget? taskExecutionHeaderButton(
   );
 }
 
-/// 下部の実行情報カード（実行指示の表示用。操作はヘッダーに集約）。
-class TaskExecutionInfoCard extends StatelessWidget {
+/// 下部の実行情報カード（実行指示の表示と、実行ログを開く入口。実行・停止はヘッダーに集約）。
+class TaskExecutionInfoCard extends ConsumerWidget {
   final Task task;
   final bool executing;
 
   const TaskExecutionInfoCard({super.key, required this.task, required this.executing});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    // 実行中ならその実行のログ、そうでなければタスクの最新セッションのログを開く
+    final executionId = ref
+        .watch(executingTasksProvider)
+        .valueOrNull
+        ?.where((e) => e.taskId == task.id)
+        .firstOrNull
+        ?.executionId;
     return Card(
       key: const ValueKey('task-detail-execution-card'),
       // NOTE: 半透明の色だと Card の影が透けて灰色に見えるため、面の色に重ねた不透明色にする
@@ -134,11 +142,25 @@ class TaskExecutionInfoCard extends StatelessWidget {
               children: [
                 Icon(Icons.play_circle, color: scheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  executing ? 'AI実行中' : 'AI実行可能',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Expanded(
+                  child: Text(
+                    executing ? 'AI実行中' : 'AI実行可能',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+                // NOTE: 実行画面のタイルから開くものと同じシート（widgets/execution_log）
+                TextButton.icon(
+                  key: const ValueKey('task-detail-open-logs'),
+                  icon: const Icon(Icons.receipt_long, size: 18),
+                  label: const Text('実行ログ'),
+                  onPressed: () => showExecutionLogSheet(
+                    context,
+                    title: task.title,
+                    taskId: task.id,
+                    executionId: executionId,
+                  ),
                 ),
               ],
             ),
