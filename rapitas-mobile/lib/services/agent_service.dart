@@ -111,6 +111,20 @@ class AgentService {
     await _postAction('/agents/executions/$executionId/resume', fallbackError: '再開できませんでした');
   }
 
+  /// POST /tasks/:id/agent-respond（入力待ちの実行へ利用者の回答を届ける）
+  ///
+  /// 空白だけの回答はバックエンドが 400 で拒むので、送らずに失敗にする。
+  /// 成功は body の success で判定する（他の実行系と同じ）。
+  Future<void> respondToAgent(String taskId, String response) async {
+    final text = response.trim();
+    if (text.isEmpty) throw const AgentActionException('回答を入力してください');
+    await _postAction(
+      '/tasks/$taskId/agent-respond',
+      data: {'response': text},
+      fallbackError: '回答を送れませんでした',
+    );
+  }
+
   /// GET /tasks/executing
   Future<List<ExecutingTask>> getExecutingTasks() async {
     final response = await _client.get('/tasks/executing');
@@ -155,11 +169,12 @@ class AgentService {
 
   Future<Map<String, dynamic>> _postAction(
     String path, {
+    Map<String, dynamic> data = const <String, dynamic>{},
     required String fallbackError,
   }) async {
     final Map<String, dynamic> body;
     try {
-      final response = await _client.post(path, data: <String, dynamic>{});
+      final response = await _client.post(path, data: data);
       body = response.data is Map
           ? Map<String, dynamic>.from(response.data as Map)
           : <String, dynamic>{};

@@ -17,6 +17,10 @@ class ExecutingTask {
   final DateTime? sessionStartedAt;
   final int activeTimeMs;
 
+  /// 入力待ちの実行が利用者に尋ねている質問文。running の行・質問文の無い待ち
+  /// （タイムアウト由来など）・question を返さない古いバックエンドでは null。
+  final String? question;
+
   const ExecutingTask({
     required this.executionId,
     required this.sessionId,
@@ -26,6 +30,7 @@ class ExecutingTask {
     this.startedAt,
     this.sessionStartedAt,
     this.activeTimeMs = 0,
+    this.question,
   });
 
   factory ExecutingTask.fromJson(Map<String, dynamic> json) {
@@ -38,7 +43,13 @@ class ExecutingTask {
       startedAt: _parseDate(json['startedAt']),
       sessionStartedAt: _parseDate(json['sessionStartedAt']),
       activeTimeMs: (json['activeTimeMs'] as num?)?.toInt() ?? 0,
+      question: _nonBlank(json['question']),
     );
+  }
+
+  static String? _nonBlank(dynamic value) {
+    final text = value?.toString();
+    return text == null || text.trim().isEmpty ? null : text;
   }
 
   bool get isWaitingForInput => executionStatus == 'waiting_for_input';

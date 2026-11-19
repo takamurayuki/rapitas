@@ -42,6 +42,36 @@ void main() {
       expect(task.isWaitingForInput, isTrue);
       expect(task.startedAt, isNull);
       expect(task.activeTimeMs, 0);
+      // question キーが無い古いバックエンドでも読める
+      expect(task.question, isNull);
+    });
+
+    test('入力待ちの質問文 question を読む（nav80 の契約）', () {
+      final task = ExecutingTask.fromJson({
+        'executionId': 3002,
+        'sessionId': 501,
+        'taskId': 702,
+        'parentId': null,
+        'executionStatus': 'waiting_for_input',
+        'startedAt': '2026-11-08T03:00:00.000Z',
+        'sessionStartedAt': '2026-11-08T03:00:00.000Z',
+        'activeTimeMs': 0,
+        'question': 'どちらのブランチに入れますか？',
+      });
+
+      expect(task.question, 'どちらのブランチに入れますか？');
+    });
+
+    test('空白だけの question は質問文なしとして扱う', () {
+      final task = ExecutingTask.fromJson({
+        'executionId': 3003,
+        'sessionId': 502,
+        'taskId': 703,
+        'executionStatus': 'waiting_for_input',
+        'question': '  \n ',
+      });
+
+      expect(task.question, isNull);
     });
   });
 
