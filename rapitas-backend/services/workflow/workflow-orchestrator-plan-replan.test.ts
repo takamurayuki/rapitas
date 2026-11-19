@@ -43,6 +43,19 @@ const mockPrisma = {
     ),
     update: mock(() => Promise.resolve({})),
   },
+  // Role agent pins are no longer read (2026-11-20): the agent comes from the
+  // recommender. Hand back the role fixture's agent so these tests keep
+  // exercising the same config.
+  aIAgentConfig: {
+    findUnique: async () =>
+      (
+        (await (mockPrisma.workflowRoleConfig.findFirst as (a: unknown) => Promise<unknown>)({
+          where: { role: 'implementer' },
+        })) as {
+          agentConfig?: unknown;
+        } | null
+      )?.agentConfig ?? null,
+  },
   workflowRoleConfig: {
     findFirst: mock(() =>
       Promise.resolve({
@@ -73,6 +86,9 @@ const createNotification = mock(() => Promise.resolve({}));
 const recordTransition = mock(() => Promise.resolve());
 const archiveWorkflowFile = mock(() => Promise.resolve(false));
 
+mock.module('./role-recommender', () => ({
+  recommendAgentForRole: async () => ({ agentConfigId: 1 }),
+}));
 mock.module('../../config/logger', () => ({ createLogger: () => noopLogger }));
 mock.module('../../config', () => ({
   prisma: mockPrisma,

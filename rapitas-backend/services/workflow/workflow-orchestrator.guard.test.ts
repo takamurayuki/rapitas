@@ -70,6 +70,19 @@ const workflowFileFindFirstMock = mock(() => Promise.resolve(null as { id: numbe
 
 const mockPrisma = {
   task: { findUnique: taskFindUniqueMock, update: taskUpdateMock },
+  // Role agent pins are no longer read (2026-11-20): the agent comes from the
+  // recommender. Hand back the role fixture's agent so these tests keep
+  // exercising the same config.
+  aIAgentConfig: {
+    findUnique: async () =>
+      (
+        (await (mockPrisma.workflowRoleConfig.findFirst as (a: unknown) => Promise<unknown>)({
+          where: { role: 'implementer' },
+        })) as {
+          agentConfig?: unknown;
+        } | null
+      )?.agentConfig ?? null,
+  },
   workflowRoleConfig: { findFirst: roleConfigFindUniqueMock },
   systemPrompt: { findFirst: systemPromptFindUniqueMock },
   workflowTransition: { findFirst: async () => null, count: workflowTransitionCountMock },
@@ -259,7 +272,8 @@ describe('WorkflowOrchestrator.runAdvanceWorkflow — entry guards', () => {
     roleConfigFindUniqueMock.mockClear();
     roleConfigFindUniqueMock.mockImplementation(() => Promise.resolve(makeRoleConfig()));
     recommendAgentForRoleMock.mockClear();
-    recommendAgentForRoleMock.mockImplementation(() => Promise.resolve(null));
+    // The agent comes from the recommender now (role pins are not read).
+    recommendAgentForRoleMock.mockImplementation(() => Promise.resolve({ agentConfigId: 1 }));
     getDefaultAgentMock.mockClear();
     getDefaultAgentMock.mockImplementation(() => Promise.resolve(null));
   });

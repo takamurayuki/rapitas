@@ -14,12 +14,6 @@ export type SystemPrompt = {
   category: string;
 };
 
-export type ModelOption = {
-  value: string;
-  label: string;
-  description?: string;
-};
-
 export type RoleConfigItem = {
   label: string;
   icon: LucideIcon;
@@ -31,14 +25,6 @@ export type RoleConfigItem = {
   description: string;
   inputLabel: string;
 };
-
-/**
- * Roles where the cross-provider review option is meaningful — i.e. roles
- * that evaluate work produced by an upstream phase. Researcher / planner /
- * implementer have no review semantics so they only see the regular
- * provider preferences.
- */
-export const ROLES_SUPPORTING_CROSS_PROVIDER = new Set<WorkflowRole>(['verifier', 'auto_verifier']);
 
 /**
  * Builds the per-role display config. A function (not a module-level constant)

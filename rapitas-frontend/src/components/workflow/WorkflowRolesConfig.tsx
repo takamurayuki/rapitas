@@ -5,24 +5,20 @@
  *
  * Unified workflow configuration, organised by complexity tier (低/中/高) as
  * tabs. Each tab shows that tier's workflow-mode settings (which phases run +
- * the complexity range) and the agent/model configuration for ONLY the roles
- * that tier actually uses. Replaces the separate roles + modes panels.
+ * the complexity range) and the roles that tier actually uses. The agent and
+ * model of each role are not configured here: they are built automatically
+ * from the providers this host can run (`GET /workflow/phase-routing`).
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
-import type { AIAgentConfig, WorkflowRole } from '@/types';
+import type { WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { WorkflowRoleCard } from './WorkflowRoleCard';
-import {
-  getRoleConfig,
-  type ModelOption,
-  type SystemPrompt,
-  type RoleConfigItem,
-} from './workflow-role-constants';
+import { WorkflowRoleCard, type RoleRoutingRule } from './WorkflowRoleCard';
+import { getRoleConfig, type SystemPrompt, type RoleConfigItem } from './workflow-role-constants';
 
 const logger = createLogger('WorkflowRolesConfig');
 
@@ -114,12 +110,12 @@ function roleConfigForMode(
   return base;
 }
 
-interface WorkflowRolesConfigProps {
-  agents: AIAgentConfig[];
-  availableModels: Record<string, ModelOption[]>;
+/** Role rules from `GET /workflow/phase-routing`. */
+interface PhaseRoutingResponse {
+  roles: Array<{ role: WorkflowRole } & RoleRoutingRule>;
 }
 
-export default function WorkflowRolesConfig({ agents, availableModels }: WorkflowRolesConfigProps) {
+export default function WorkflowRolesConfig() {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
   const ROLE_CONFIG = useMemo(() => getRoleConfig(t), [t]);
@@ -133,6 +129,20 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
   const [modes, setModes] = useState<ModeSettings[]>([]);
   const [activeTab, setActiveTab] = useState<ModeKey>('standard');
   const [savingMode, setSavingMode] = useState<ModeKey | null>(null);
+
+  const [routing, setRouting] = useState<Partial<Record<WorkflowRole, RoleRoutingRule>>>({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow/phase-routing`);
+        if (!res.ok) return;
+        const data = (await res.json()) as PhaseRoutingResponse;
+        setRouting(Object.fromEntries(data.roles.map(({ role, ...rule }) => [role, rule])));
+      } catch (err) {
+        logger.error('Failed to fetch phase routing:', err);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const fetchPrompts = async () => {
@@ -160,7 +170,6 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
     })();
   }, []);
 
-  const activeAgents = useMemo(() => agents.filter((a) => a.isActive), [agents]);
   const activeMode = modes.find((m) => m.mode === activeTab);
 
   const saveMode = useCallback(async (mode: ModeKey, patch: Partial<ModeSettings>) => {
@@ -183,75 +192,20 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
     }
   }, []);
 
-  const handleAgentChange = async (role: WorkflowRole, agentConfigId: number | null) => {
-    setSavingRole(role);
-    const currentRole = roles.find((r) => r.role === role);
-    const wasAutoMode = !currentRole?.modelId || currentRole.modelId === 'auto';
-    let nextModelId: string | null = null;
-    if (!wasAutoMode) {
-      const newAgent = activeAgents.find((a) => a.id === agentConfigId);
-      const newAgentModels = newAgent ? (availableModels[newAgent.agentType] ?? []) : [];
-      nextModelId = newAgent?.modelId || newAgentModels[0]?.value || currentRole?.modelId || null;
-    }
-    const result = await updateRole(role, { agentConfigId, modelId: nextModelId });
-    setSavingRole(null);
-    if (result.success) {
-      setSaveSuccess(role);
-      setTimeout(() => setSaveSuccess(null), 2000);
-    }
-  };
-
-  const handleManualSetup = async (role: WorkflowRole, agentConfigId: number, modelId: string) => {
-    setSavingRole(role);
-    const result = await updateRole(role, { agentConfigId, modelId });
-    setSavingRole(null);
-    if (result.success) {
-      setSaveSuccess(role);
-      setTimeout(() => setSaveSuccess(null), 2000);
-    }
-  };
-
-  const handleModelChange = async (role: WorkflowRole, modelId: string | null) => {
-    setSavingRole(role);
-    const result = await updateRole(role, { modelId });
-    setSavingRole(null);
-    if (result.success) {
-      setSaveSuccess(role);
-      setTimeout(() => setSaveSuccess(null), 2000);
-    }
-  };
-
-  const handlePreferredProviderChange = async (
-    role: WorkflowRole,
-    preferredProviderOverride: string | null,
-  ) => {
-    setSavingRole(role);
-    const result = await updateRole(role, { preferredProviderOverride });
-    setSavingRole(null);
-    if (result.success) {
-      setSaveSuccess(role);
-      setTimeout(() => setSaveSuccess(null), 2000);
-    }
-  };
-
   const handlePromptChange = async (role: WorkflowRole, systemPromptKey: string | null) => {
     setSavingRole(role);
-    await updateRole(role, { systemPromptKey });
+    const result = await updateRole(role, { systemPromptKey });
     setSavingRole(null);
+    if (result.success) {
+      setSaveSuccess(role);
+      setTimeout(() => setSaveSuccess(null), 2000);
+    }
   };
 
   const handleToggleEnabled = async (role: WorkflowRole, isEnabled: boolean) => {
     setSavingRole(role);
     await updateRole(role, { isEnabled });
     setSavingRole(null);
-  };
-
-  const getModelsForRole = (roleKey: WorkflowRole): ModelOption[] => {
-    const roleData = roles.find((r) => r.role === roleKey);
-    // Models are scoped to the role's configured agent. No agent → no models
-    // (the model dropdown stays empty until an agent is selected).
-    if (!roleData?.agentConfig) return [];
-    return availableModels[roleData.agentConfig.agentType] || [];
   };
 
   if (isLoading) {
@@ -399,10 +353,8 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 index={index}
                 config={roleConfigForMode(roleKey, activeMode, ROLE_CONFIG, t)}
                 roleData={roles.find((r) => r.role === roleKey)}
-                models={getModelsForRole(roleKey)}
                 systemPrompts={systemPrompts}
-                activeAgents={activeAgents}
-                availableModels={availableModels}
+                routing={routing[roleKey]}
                 isSaving={savingRole === roleKey}
                 isSaved={saveSuccess === roleKey}
                 isExpanded={expandedRole === roleKey}
@@ -411,12 +363,8 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 // when this tier has a plan.
                 approvalAfter={activeMode.includePlan && tabRoles[index + 1] === 'implementer'}
                 onToggleExpand={() => setExpandedRole(expandedRole === roleKey ? null : roleKey)}
-                onAgentChange={(id) => handleAgentChange(roleKey, id)}
-                onModelChange={(id) => handleModelChange(roleKey, id)}
-                onPreferredProviderChange={(p) => handlePreferredProviderChange(roleKey, p)}
                 onPromptChange={(k) => handlePromptChange(roleKey, k)}
                 onToggleEnabled={(e) => handleToggleEnabled(roleKey, e)}
-                onManualSetup={(aid, mid) => handleManualSetup(roleKey, aid, mid)}
               />
             ))}
           </div>

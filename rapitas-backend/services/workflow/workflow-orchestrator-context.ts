@@ -12,7 +12,7 @@ import { createLogger } from '../../config/logger';
 import { buildRoleContext } from './workflow-context-builder';
 import type { RoleTransition, WorkflowMode, WorkflowStatus } from './workflow-types';
 import type { ResolvedTask } from './workflow-orchestrator-preflight';
-import { routeModelForRole, shouldAutoSelectModel } from './role-route-inputs';
+import { routeModelForRole } from './role-route-inputs';
 
 const log = createLogger('workflow-orchestrator');
 
@@ -112,8 +112,9 @@ export async function resolveEffectiveModel(
   // router for 15% of measured spend (see shouldAutoSelectModel).
   void agentConfig;
 
-  const roleModelId = roleConfig?.modelId ?? null;
-  if (!shouldAutoSelectModel(roleModelId)) return roleModelId;
+  // NOTE: A model pinned on the role is no longer honoured (2026-11-20): the
+  // router always picks from the model tier table within the usable providers.
+  void roleConfig;
 
   const routed = await routeModelForRole({ taskId, role: transition.role, task });
   log.info(routed.details, 'Auto-selected model via Smart Router');

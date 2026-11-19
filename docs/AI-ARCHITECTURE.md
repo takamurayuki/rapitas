@@ -91,8 +91,24 @@ kept in memory and also written to the timeline as a `model_route_pin` event,
 so it survives a backend restart; reading or writing it fails open to a fresh
 routing decision.
 
-Wired in through `services/workflow/role-route-inputs.ts` (`routeModelForRole`):
-when a phase's `modelId === 'auto'`, it computes escalation
+Which providers a phase may use is decided automatically, not configured.
+`services/workflow/phase-providers.ts` probes the CLIs this host can run (the
+Claude Code CLI answers; the Codex CLI answers and is logged in with ChatGPT),
+drops providers in cooldown, and keeps the `AIAgentConfig` rows in step: a
+usable provider gets an active agent with no pinned model, and one that stops
+being usable is deactivated (a cooldown alone keeps the row).
+`services/workflow/role-provider-resolver.ts` then excludes every provider
+without a usable CLI agent. Non-review roles follow the provider the upstream
+phase used, else the first usable one in route order (Claude, then OpenAI).
+`verifier` and `auto_verifier` exclude the upstream provider whenever another
+usable provider exists, so a Claude-built change is verified on Codex when
+both are usable. The per-role agent, model and provider fields of
+`WorkflowRoleConfig`, `UserSettings.defaultAiProvider` and the default agent's
+model are no longer read for phases; the agents page shows the result
+read-only (`GET /workflow/phase-routing`).
+
+Wired in through `services/workflow/role-route-inputs.ts` (`routeModelForRole`)
+for every phase, it computes escalation
 (`queueItem.retryCount` + `outcome-telemetry.ts`'s
 `recentThemeEscalation`) and a risk floor (`services/workflow/routing-policy.ts`
 — schema/auth/payment/security work forces a premium-tier floor via

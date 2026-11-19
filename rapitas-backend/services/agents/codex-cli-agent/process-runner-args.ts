@@ -144,8 +144,9 @@ export function buildCodexArgs(
     args.push('--output-last-message', config.outputLastMessageFile);
   }
 
-  // Model setting (skip in investigation mode)
-  if (config.model && !config.investigationMode) {
+  // NOTE: Passed in investigation mode too (2026-11-20). Skipping it there made
+  // a researcher/planner routed to a tier-table model run on Codex's default.
+  if (config.model) {
     const model = normalizeCodexModel(
       config.model,
       !!config.apiKey || !!process.env.OPENAI_API_KEY,

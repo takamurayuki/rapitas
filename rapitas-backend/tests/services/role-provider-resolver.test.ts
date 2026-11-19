@@ -1,13 +1,15 @@
 /**
  * role-provider-resolver テスト
  *
- * resolveRoleProviderPreferences の解決優先順位（role override > global default >
- * default agent > undefined）、cross-provider センチネル、verifier 系の
- * 自動 upstream 除外、非レビューロールの upstream provider 追従を検証する。
- * inferProviderFromModelId は純粋関数として境界値（codex- プレフィックス修正の
- * 回帰確認を含む）を直接検証する。
+ * resolveRoleProviderPreferences は手動設定（ロールの優先プロバイダ・全体の既定・
+ * 既定エージェント）を読まず、このホストで使えるプロバイダだけから決める。
+ * 非レビューロールは upstream に追従し（無ければ経路順の先頭）、検証系は
+ * 別に使えるプロバイダがあるときだけ upstream を除外する。使えない
+ * プロバイダは常に除外する。inferProviderFromModelId は純粋関数として
+ * 境界値（codex- プレフィックス修正の回帰確認を含む）を直接検証する。
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import type { Provider } from '../../services/ai/model-discovery/types';
 
 let roleConfig: { preferredProviderOverride: string | null } | null = null;
 let userSettings: { defaultAiProvider: string | null } | null = null;
@@ -80,129 +82,77 @@ describe('inferProviderFromModelId — 純粋関数の境界値', () => {
   });
 });
 
-describe('resolveRoleProviderPreferences — 解決優先順位', () => {
-  test('明示的な role override が最優先される（verifier でも exclude は付かない）', async () => {
+const bothUsable = {
+  usable: ['claude', 'openai'] as Provider[],
+  excluded: ['gemini', 'ollama'] as Provider[],
+  cooled: [] as Provider[],
+  reasons: {},
+};
+const claudeOnly = {
+  usable: ['claude'] as Provider[],
+  excluded: ['openai', 'gemini', 'ollama'] as Provider[],
+  cooled: [] as Provider[],
+  reasons: {},
+};
+const resolve = (role: string, phase = bothUsable) =>
+  resolveRoleProviderPreferences(role, 1, { phaseProviders: async () => phase });
+
+describe('resolveRoleProviderPreferences — 手動設定は読まない', () => {
+  test('ロールの優先プロバイダや全体の既定が残っていても無視する', async () => {
     roleConfig = { preferredProviderOverride: 'gemini' };
     userSettings = { defaultAiProvider: 'openai' };
-    const result = await resolveRoleProviderPreferences('verifier', 1);
-    expect(result.preferredProvider).toBe('gemini');
-    expect(result.excludeProviders).toBeUndefined();
-  });
-
-  test('role override が無ければ global default を使う', async () => {
-    roleConfig = { preferredProviderOverride: null };
-    userSettings = { defaultAiProvider: 'openai' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBe('openai');
-  });
-
-  test('role override も global default も無ければ既定 AIAgentConfig の provider を使う', async () => {
-    roleConfig = null;
-    userSettings = null;
     defaultAgent = { agentType: 'codex' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBe('openai'); // codex → openai family
-  });
-
-  test('何も設定が無ければ preferredProvider は undefined（非レビューは upstream にも無ければ undefined のまま）', async () => {
-    roleConfig = null;
-    userSettings = null;
-    defaultAgent = null;
-    recentExecution = null;
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBeUndefined();
-  });
-});
-
-describe('resolveRoleProviderPreferences — cross-provider センチネル', () => {
-  test('override="cross-provider" のとき preferredProvider は付けず upstream を除外する', async () => {
-    roleConfig = { preferredProviderOverride: 'cross-provider' };
-    recentExecution = { modelName: 'claude-sonnet-4-6' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBeUndefined();
-    expect(result.excludeProviders).toEqual(['claude']);
-  });
-
-  test('cross-provider でも upstream 実行が無ければ excludeProviders は付かない', async () => {
-    roleConfig = { preferredProviderOverride: 'cross-provider' };
-    recentExecution = null;
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.excludeProviders).toBeUndefined();
-  });
-});
-
-describe('resolveRoleProviderPreferences — レビュー系ロールの自動 upstream 除外', () => {
-  test('verifier + override無し → upstream provider を自動除外する', async () => {
-    roleConfig = { preferredProviderOverride: null };
-    recentExecution = { modelName: 'gpt-4o' };
-    const result = await resolveRoleProviderPreferences('verifier', 1);
-    expect(result.excludeProviders).toEqual(['openai']);
-  });
-
-  test('auto_verifier も同様に自動除外される', async () => {
-    recentExecution = { modelName: 'gemini-1.5-pro' };
-    const verifier = await resolveRoleProviderPreferences('verifier', 1);
-    expect(verifier.excludeProviders).toEqual(['gemini']);
-    const autoVerifier = await resolveRoleProviderPreferences('auto_verifier', 1);
-    expect(autoVerifier.excludeProviders).toEqual(['gemini']);
-  });
-
-  test('researcher/planner/implementer はレビュー系ではないので自動除外されない', async () => {
-    recentExecution = { modelName: 'gpt-4o' };
-    const researcher = await resolveRoleProviderPreferences('researcher', 1);
-    expect(researcher.excludeProviders).toBeUndefined();
-  });
-});
-
-describe('resolveRoleProviderPreferences — 非レビューロールの upstream 追従', () => {
-  test('明示指定が無い非レビューロールは upstream の provider に追従する（ビルドチェーンの一貫性）', async () => {
-    roleConfig = null;
-    userSettings = null;
-    defaultAgent = null;
-    recentExecution = { modelName: 'claude-sonnet-4-6' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
+    const result = await resolve('implementer');
     expect(result.preferredProvider).toBe('claude');
   });
 
-  test('明示指定があれば upstream 追従より優先される', async () => {
-    userSettings = { defaultAiProvider: 'openai' };
-    recentExecution = { modelName: 'claude-sonnet-4-6' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBe('openai'); // not 'claude' from upstream
-  });
-
-  test('upstream の modelName が未知の命名規則なら provider 推定できず undefined のまま', async () => {
-    roleConfig = null;
-    userSettings = null;
-    defaultAgent = null;
-    recentExecution = { modelName: 'totally-unrecognized-id' };
-    const result = await resolveRoleProviderPreferences('implementer', 1);
-    expect(result.preferredProvider).toBeUndefined();
+  test('使えないプロバイダは常に除外される', async () => {
+    const result = await resolve('implementer', claudeOnly);
+    expect(result.excludeProviders).toEqual(['openai', 'gemini', 'ollama']);
   });
 });
 
-describe('cross-provider 除外は実行可能な別プロバイダがある時だけ', () => {
-  test('別プロバイダのエージェントが有効なら upstream を除外する', async () => {
-    recentExecution = { modelName: 'claude-fable-5' };
-    const prefs = await resolveRoleProviderPreferences('verifier', 1);
-    expect(prefs.excludeProviders).toEqual(['claude']);
+describe('resolveRoleProviderPreferences — 非レビューロール', () => {
+  test('upstream が無ければ経路順の先頭（Claude）を優先する', async () => {
+    const result = await resolve('researcher');
+    expect(result.preferredProvider).toBe('claude');
+    expect(result.excludeProviders).toEqual(['gemini', 'ollama']);
   });
 
-  test('回帰: claude-code しか無い環境では除外しない', async () => {
-    // 除外すると SmartRouter が実行できない OpenAI モデルを返し、
-    // resolveExecutableAgentConfig がオーバーライドを捨ててエージェント既定
-    // モデルで走る。せっかく計算したティア下限と実績キャップが失われるため、
-    // 満たせない除外は「除外しない」より悪い。
-    activeAgents = [{ agentType: 'claude-code' }];
-    recentExecution = { modelName: 'claude-fable-5' };
-    const prefs = await resolveRoleProviderPreferences('verifier', 1);
-    expect(prefs.excludeProviders).toBeUndefined();
+  test('upstream のプロバイダに追従する（ビルドチェーンの一貫性）', async () => {
+    recentExecution = { modelName: 'gpt-6-astra' };
+    const result = await resolve('implementer');
+    expect(result.preferredProvider).toBe('openai');
   });
 
-  test('有効なエージェントが1件も無くても落ちない', async () => {
-    activeAgents = [];
-    recentExecution = { modelName: 'claude-fable-5' };
-    const prefs = await resolveRoleProviderPreferences('verifier', 1);
-    expect(prefs.excludeProviders).toBeUndefined();
+  test('upstream が今は使えないプロバイダなら経路順の先頭に戻る', async () => {
+    recentExecution = { modelName: 'gpt-6-astra' };
+    const result = await resolve('implementer', claudeOnly);
+    expect(result.preferredProvider).toBe('claude');
+  });
+});
+
+describe('resolveRoleProviderPreferences — 検証系ロール', () => {
+  test('別に使えるプロバイダがあれば upstream を除外し、それを優先する', async () => {
+    recentExecution = { modelName: 'claude-opus-5-5' };
+    for (const role of ['verifier', 'auto_verifier']) {
+      const result = await resolve(role);
+      expect(result.preferredProvider).toBe('openai');
+      expect(result.excludeProviders).toEqual(['gemini', 'ollama', 'claude']);
+    }
+  });
+
+  test('Claude しか使えないホストでは upstream を除外しない（満たせない除外はしない）', async () => {
+    recentExecution = { modelName: 'claude-opus-5-5' };
+    const result = await resolve('verifier', claudeOnly);
+    expect(result.preferredProvider).toBe('claude');
+    expect(result.excludeProviders).toEqual(['openai', 'gemini', 'ollama']);
+  });
+
+  test('upstream が分からなければ除外せず経路順の先頭', async () => {
+    recentExecution = { modelName: 'totally-unrecognized-id' };
+    const result = await resolve('verifier');
+    expect(result.preferredProvider).toBe('claude');
+    expect(result.excludeProviders).toEqual(['gemini', 'ollama']);
   });
 });
