@@ -48,6 +48,14 @@ void main() {
       expect(client.posts.single.data, {'response': 'develop に入れてください'});
     });
 
+    test('前後の空白は落として送る', () async {
+      final client = _RecordingClient((_) => {'success': true});
+
+      await AgentService(client).respondToAgent('801', '  はい\n');
+
+      expect(client.posts.single.data, {'response': 'はい'});
+    });
+
     test('409（入力待ちでない）はバックエンドの error 文面の AgentActionException', () async {
       const path = '/tasks/801/agent-respond';
       final client = _RecordingClient(
