@@ -48,6 +48,14 @@ const MARKDOWN_SIGNALS = [
 // contain a backtick — such a line is not a fence at all.
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+// CommonMark line endings are LF, CRLF or a lone CR. A blank line holds only
+// spaces and tabs: NBSP and other Unicode spaces are ordinary characters, so
+// `trim()` (which strips them) must not decide where a paragraph ends.
+const LINE_BREAK = /\r\n|\r|\n/;
+const BLANK_LINE = /^[ \t]*$/;
+// An ATX heading is a block of its own; it interrupts a paragraph, so a code
+// span can neither run into it nor out of it.
+const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
 
 function backtickRunEnd(text: string, from: number): number {
   let end = from;
@@ -105,7 +113,8 @@ function withoutCodeSpans(paragraph: string): string {
 /**
  * The body with fenced code blocks and code spans removed, so a tag quoted
  * as code is not taken for the editor's own. An unclosed fence runs to the
- * end of the body; a code span does not cross a blank line or a fence.
+ * end of the body; a code span does not cross a blank line, a fence or an
+ * ATX heading line.
  *
  * NOTE: must match `withoutCode` in the backend's services/notes/note-content-kind.ts;
  * the shared table (note-content-kind.cases.json) holds both to it.
@@ -121,7 +130,7 @@ export function withoutCode(content: string): string {
     if (paragraph.length > 0) kept.push(withoutCodeSpans(paragraph.join('\n')));
     paragraph = [];
   };
-  for (const line of content.split(/\r?\n/)) {
+  for (const line of content.split(LINE_BREAK)) {
     if (fence) {
       const close = FENCE_CLOSE.exec(line)?.[1];
       if (close && close[0] === fence.char && close.length >= fence.length) fence = null;
@@ -134,9 +143,14 @@ export function withoutCode(content: string): string {
       fence = { char: marker[0] ?? '`', length: marker.length };
       continue;
     }
-    if (line.trim() === '') {
+    if (BLANK_LINE.test(line)) {
       flush();
       kept.push('');
+      continue;
+    }
+    if (ATX_HEADING.test(line)) {
+      flush();
+      kept.push(withoutCodeSpans(line));
       continue;
     }
     paragraph.push(line);

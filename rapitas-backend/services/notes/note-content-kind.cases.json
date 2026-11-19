@@ -33,6 +33,13 @@
     {"name": "tag after a closed fence", "content": "```\ncode\n```\n<div>本文</div>", "legacyHtml": true},
     {"name": "fence indented up to three spaces", "content": "   ```\n<div>\n   ```", "legacyHtml": false},
     {"name": "backtick fence with a backtick in its info string is not a fence", "content": "```js`\n<div>本文</div>", "legacyHtml": true},
-    {"name": "tilde fence may have a backtick in its info string", "content": "~~~ a`b\n<div>\n~~~", "legacyHtml": false}
+    {"name": "tilde fence may have a backtick in its info string", "content": "~~~ a`b\n<div>\n~~~", "legacyHtml": false},
+    {"name": "fence with CR-only line breaks", "content": "~~~\r<div>\r~~~", "legacyHtml": false},
+    {"name": "tag after a CR-only fence", "content": "~~~\rcode\r~~~\r<div>本文</div>", "legacyHtml": true},
+    {"name": "code span crosses a line of only NBSP", "content": "`a\n\u00a0\n<div>b</div>`", "legacyHtml": false},
+    {"name": "code span does not cross a line of spaces and tabs", "content": "`a\n \t\n<div>b</div>`", "legacyHtml": true},
+    {"name": "code span does not cross into a heading", "content": "a `\n# <div>本文</div> `", "legacyHtml": true},
+    {"name": "code span does not cross out of a heading", "content": "# 見出し `\n<div>本文</div> `", "legacyHtml": true},
+    {"name": "code span inside a heading", "content": "# `<div>` の使い方", "legacyHtml": false}
   ]
 }
