@@ -118,12 +118,14 @@ async function runOne(db: PrismaInstance, item: BatchItem): Promise<BatchResult>
     where: { id: item.id, workspaceId: ws },
     select: { id: true },
   });
-  if (existing) {
+  // Contract 3: an existing id keeps its body and placement; only missing links are added.
+  const skipExisting = async (): Promise<BatchResult> => {
     const linksAdded = (await db.$transaction((tx: PrismaInstance) =>
       addMissingLinksTx(tx, item.id, item.taskIds, meta),
     )) as number;
     return { id: item.id, status: 'skipped', linksAdded };
-  }
+  };
+  if (existing) return skipExisting();
 
   const placement = await placementFor(db, item, tasks);
   const roadmap = item.source === 'roadmap';
@@ -155,7 +157,9 @@ async function runOne(db: PrismaInstance, item: BatchItem): Promise<BatchResult>
       where: { id: item.id, workspaceId: ws },
       select: { id: true },
     });
-    if (mine) return { id: item.id, status: 'skipped', linksAdded: 0 };
+    // NOTE: the late request of a concurrent resend takes the same existing-id
+    // path, so the links it carries are not lost (review G2 must-fix 7).
+    if (mine) return skipExisting();
     return reject(item.id, 409, 'id_conflict');
   }
   return { id: item.id, status: 'created', linksAdded: new Set(item.taskIds).size };
