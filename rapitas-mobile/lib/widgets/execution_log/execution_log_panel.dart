@@ -45,7 +45,8 @@ class _ExecutionLogPanelState extends ConsumerState<ExecutionLogPanel> {
   Timer? _poll;
   bool _showRaw = false;
 
-  /// 次にデータが届いたら末尾へ寄せるか（開いた直後・自分で読み直した・表示を切り替えた直後）
+  /// 末尾へ寄せる予約（開いた直後・自分で読み直した・表示を切り替えた直後）。
+  /// 実際に末尾へ移動できた時点で外す。残すと、その後に遡って読んでいても次の新着で末尾へ飛ぶ
   bool _followNext = true;
 
   ScrollController get _scroll => widget.scrollController ?? (_ownScroll ??= ScrollController());
@@ -93,6 +94,8 @@ class _ExecutionLogPanelState extends ConsumerState<ExecutionLogPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
       _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      // NOTE: 予約はここで消化する。まだ一覧が無い（読み込み中）ときは残し、データが届いたときに寄せる
+      _followNext = false;
     });
   }
 
@@ -103,10 +106,7 @@ class _ExecutionLogPanelState extends ConsumerState<ExecutionLogPanel> {
     if (!next.hasValue) return;
     final grew = prev?.valueOrNull?.entries.length != next.value!.entries.length;
     final atEnd = !_scroll.hasClients || rapiFollowsNew(_scroll.position);
-    if (_followNext || (grew && atEnd)) {
-      _followNext = false;
-      _scrollToEndAfterFrame();
-    }
+    if (_followNext || (grew && atEnd)) _scrollToEndAfterFrame();
   }
 
   @override

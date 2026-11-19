@@ -19,13 +19,16 @@ ExecutionLogSnapshot snap(List<Map<String, dynamic>> rows,
       if (errorMessage != null) 'errorMessage': errorMessage,
     });
 
-/// パネルを置く。[data] は読み直しのたびに呼ばれる（中身を差し替えて新着を作れる）
-Future<ProviderContainer> pumpPanel(WidgetTester tester, ExecutionLogSnapshot Function() data) async {
+/// パネルを置く。[data] は読み直しのたびに呼ばれる（中身を差し替えて新着を作れる）。
+/// [cached] なら置く前に取得を済ませ、開き直し（キャッシュからの再表示）の状態にする
+Future<ProviderContainer> pumpPanel(WidgetTester tester, ExecutionLogSnapshot Function() data,
+    {bool cached = false}) async {
   final container = ProviderContainer(overrides: [
     taskExecutionLogsProvider.overrideWith((ref, key) async => data()),
     executionLogPollIntervalProvider.overrideWithValue(null),
   ]);
   addTearDown(container.dispose);
+  if (cached) await container.read(taskExecutionLogsProvider((taskId: '1', executionId: '9')).future);
   await tester.pumpWidget(UncontrolledProviderScope(
     container: container,
     child: const MaterialApp(
@@ -168,6 +171,46 @@ void main() {
       await tester.pump();
       await tester.pump();
       await tester.pump();
+      expect(position(tester).pixels, 0);
+    });
+
+    Future<void> scrollUpThenReceive(WidgetTester tester, ProviderContainer container, void Function() grow) async {
+      expect(position(tester).maxScrollExtent, greaterThan(0));
+      position(tester).jumpTo(0);
+      await tester.pump();
+      grow();
+      container.invalidate(taskExecutionLogsProvider);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('開き直し（キャッシュから表示）の後も、遡って読んでいる間は位置を動かさない', (tester) async {
+      var data = rows(40);
+      final container = await pumpPanel(tester, () => snap(data), cached: true);
+      expect(position(tester).pixels, position(tester).maxScrollExtent);
+
+      await scrollUpThenReceive(tester, container, () => data = rows(50));
+      expect(position(tester).pixels, 0);
+    });
+
+    testWidgets('「詳細」を切り替えた後も、遡って読んでいる間は位置を動かさない', (tester) async {
+      var data = rows(40);
+      final container = await pumpPanel(tester, () => snap(data));
+      await tester.tap(find.byKey(const ValueKey('exec-log-raw-toggle')));
+      await tester.pump();
+      await tester.pump();
+      expect(position(tester).pixels, position(tester).maxScrollExtent);
+
+      await scrollUpThenReceive(tester, container, () => data = rows(50));
+      expect(position(tester).pixels, 0);
+
+      await tester.tap(find.byKey(const ValueKey('exec-log-raw-toggle')));
+      await tester.pump();
+      await tester.pump();
+      expect(position(tester).pixels, position(tester).maxScrollExtent);
+
+      await scrollUpThenReceive(tester, container, () => data = rows(60));
       expect(position(tester).pixels, 0);
     });
   });
