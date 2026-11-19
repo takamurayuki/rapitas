@@ -16,6 +16,7 @@ import { toJsonString } from '../../../utils/database/db-helpers';
 // by the regular workflow advance loop in workflow-orchestrator.
 import { handleResumeCompletion } from '../../../services/agents/orchestrator/resume-completion';
 import { selectExecutingRows } from './executing-tasks-filter';
+import { toExecutingTaskResponse } from './executing-tasks-response';
 import { parseId } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-resume');
@@ -221,6 +222,7 @@ export const agentResumeRouter = new Elysia()
         status: string;
         startedAt: Date | null;
         heartbeatAt: Date | null;
+        question: string | null;
         session: {
           id: number;
           status: string;
@@ -237,6 +239,8 @@ export const agentResumeRouter = new Elysia()
           status: true,
           startedAt: true,
           heartbeatAt: true,
+          // Read so question-waits can be answered from the list (mobile approvals page).
+          question: true,
           session: {
             select: {
               id: true,
@@ -299,22 +303,9 @@ export const agentResumeRouter = new Elysia()
         }
       }
 
-      return executingTasks.map((execution: (typeof executingTasks)[number]) => ({
-        executionId: execution.id,
-        sessionId: execution.session.id,
-        taskId: execution.session.config.taskId,
-        parentId: parentById.get(execution.session.config.taskId) ?? null,
-        executionStatus: execution.status,
-        startedAt: execution.startedAt,
-        // The whole session's start (spans every phase) — see status-route.ts's
-        // identical field for why the elapsed-time display must anchor here,
-        // not on this row's own startedAt (which resets every new phase).
-        sessionStartedAt: execution.session.createdAt,
-        // Sum of (completedAt - startedAt) over the task's FINISHED executions
-        // (phase / re-run / repair loops included; the live row is excluded —
-        // its share is the FE tick from startedAt).
-        activeTimeMs: activeMsByTask.get(execution.session.config.taskId) ?? 0,
-      }));
+      return executingTasks.map((execution: (typeof executingTasks)[number]) =>
+        toExecutingTaskResponse(execution, parentById, activeMsByTask),
+      );
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
       if (errObj?.code === 'P1001') {

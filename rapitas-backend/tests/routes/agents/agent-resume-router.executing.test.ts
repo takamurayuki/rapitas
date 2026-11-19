@@ -124,6 +124,68 @@ describe('GET /tasks/executing', () => {
     expect(byTask.get(2)?.activeTimeMs).toBe(8 * 60_000);
   });
 
+  // 契約（nav80）: 入力待ち行には質問文 question を載せる。モバイルの承認ページが
+  // タスクごとに execution-status を叩かずに質問カードを出すため。
+  test('入力待ちの行は質問文 question を返すこと', async () => {
+    mockExecFindMany
+      .mockResolvedValueOnce([
+        {
+          ...executingRow(20, 801, 9, 0),
+          status: 'waiting_for_input',
+          heartbeatAt: null,
+          question: 'どちらのブランチに入れますか？',
+          session: { id: 9, status: 'running', createdAt: new Date(T0), config: { taskId: 801 } },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    mockTaskFindMany.mockResolvedValue([{ id: 801, parentId: null }]);
+
+    const res = await app.handle(new Request('http://localhost/tasks/executing'));
+    const body = await res.json();
+
+    expect(body[0].executionStatus).toBe('waiting_for_input');
+    expect(body[0].question).toBe('どちらのブランチに入れますか？');
+    // 1段目の select が question を読むこと（読まなければ実 DB では常に null になる）
+    const firstCall = mockExecFindMany.mock.calls[0] as unknown as [
+      { select: Record<string, unknown> },
+    ];
+    expect(firstCall[0].select.question).toBe(true);
+  });
+
+  test('質問文の無い入力待ちは question が null になること（キーは必ずある）', async () => {
+    mockExecFindMany
+      .mockResolvedValueOnce([
+        {
+          ...executingRow(21, 802, 10, 0),
+          status: 'waiting_for_input',
+          heartbeatAt: null,
+          question: null,
+          session: { id: 10, status: 'running', createdAt: new Date(T0), config: { taskId: 802 } },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    mockTaskFindMany.mockResolvedValue([{ id: 802, parentId: null }]);
+
+    const res = await app.handle(new Request('http://localhost/tasks/executing'));
+    const body = await res.json();
+
+    expect(Object.prototype.hasOwnProperty.call(body[0], 'question')).toBe(true);
+    expect(body[0].question).toBeNull();
+  });
+
+  test('running の行は古い質問文が残っていても question を null で返すこと', async () => {
+    mockExecFindMany
+      .mockResolvedValueOnce([{ ...executingRow(22, 803, 11, 0), question: '前の質問' }])
+      .mockResolvedValueOnce([]);
+    mockTaskFindMany.mockResolvedValue([{ id: 803, parentId: null }]);
+
+    const res = await app.handle(new Request('http://localhost/tasks/executing'));
+    const body = await res.json();
+
+    expect(body[0].executionStatus).toBe('running');
+    expect(body[0].question).toBeNull();
+  });
+
   test('実行中タスクが無ければ空配列を返し、追加クエリを発行しないこと', async () => {
     mockExecFindMany.mockResolvedValueOnce([]);
 
