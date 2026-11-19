@@ -175,8 +175,13 @@ export function CopilotChatPanel({
           onScroll={follow.onScroll}
           role="log"
           aria-live="polite"
+          // NOTE: The gutter is reserved so that the scrollbar first appearing
+          // (e.g. a taller ラピ bubble with the copy icon) does not narrow the
+          // log and re-wrap every bubble on space-taking scrollbars.
           className={
-            compact ? 'flex-1 overflow-y-auto px-1 py-1' : 'flex-1 overflow-y-auto px-4 py-3'
+            compact
+              ? 'flex-1 overflow-y-auto px-1 py-1 [scrollbar-gutter:stable]'
+              : 'flex-1 overflow-y-auto px-4 py-3 [scrollbar-gutter:stable]'
           }
           style={
             compact
