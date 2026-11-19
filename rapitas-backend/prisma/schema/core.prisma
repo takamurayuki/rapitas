@@ -19,6 +19,8 @@ model Category {
   updatedAt   DateTime @updatedAt
   themes      Theme[]
   labels      Label[]
+  /// Notes placed directly under this category (notes stage 1).
+  notes       Note[]
   @@index([workspaceId])
 }
 
@@ -52,6 +54,8 @@ model Theme {
   taskPatterns     TaskPattern[]
   behaviorSummaries UserBehaviorSummary[]
   labels           Label[]
+  /// Notes placed in this theme (notes stage 1).
+  notes            Note[]
 
   @@index([workspaceId])
 }
@@ -119,6 +123,10 @@ model Task {
   // Back-relation for notes/NoteTaskLink. Prisma requires both sides, so
   // moving notes onto the server lands this one line in core.
   noteLinks             NoteTaskLink[]
+  // Back-relations for notes stage 1: deliverable notes this task produced
+  // (Note.sourceTask, SetNull on delete) and its completion record.
+  sourcedNotes          Note[]
+  deliverableCompletion TaskDeliverableCompletion?
   themeId               Int?
   theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
   projectId             Int?
