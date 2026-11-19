@@ -3,66 +3,31 @@
 /**
  * WorkflowRoleCard
  *
- * Expandable card for configuring a single workflow role (agent, model, prompt).
+ * Expandable card for one workflow role: whether it runs, its system prompt,
+ * and how its agent and model are chosen. The agent and model are not
+ * configurable — they are built automatically from the providers this host
+ * can run and the model tier table; the card only states the rule.
  */
-import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu, Bot } from 'lucide-react';
+import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Bot } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
+import type { WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';
-import {
-  ROLES_SUPPORTING_CROSS_PROVIDER,
-  type ModelOption,
-  type SystemPrompt,
-  type RoleConfigItem,
-} from './workflow-role-constants';
+import type { SystemPrompt, RoleConfigItem } from './workflow-role-constants';
 
-/** Maps an installed agent's `agentType` to its provider family. */
-const AGENT_TYPE_TO_PROVIDER: Record<string, 'claude' | 'openai' | 'gemini' | 'ollama'> = {
-  'claude-code': 'claude',
-  'anthropic-api': 'claude',
-  claude: 'claude',
-  anthropic: 'claude',
-  codex: 'openai',
-  'codex-cli': 'openai',
-  openai: 'openai',
-  'openai-api': 'openai',
-  gemini: 'gemini',
-  'gemini-cli': 'gemini',
-  google: 'gemini',
-  ollama: 'ollama',
-  local: 'ollama',
-};
-
-/**
- * Human label per provider for the preferred-provider dropdown. Provider
- * names are brand names (not translated); only Ollama's "(ローカル)"
- * qualifier is localized text, supplied via `localSuffix`.
- *
- * @param localSuffix - Localized "(local)" qualifier / ローカル修飾語
- * @returns Provider → display label map / プロバイダごとの表示名
- */
-function getProviderLabel(
-  localSuffix: string,
-): Record<'claude' | 'openai' | 'gemini' | 'ollama', string> {
-  return {
-    claude: 'Claude',
-    openai: 'OpenAI',
-    gemini: 'Gemini',
-    ollama: `Ollama (${localSuffix})`,
-  };
+/** How the role's provider is chosen, from `GET /workflow/phase-routing`. */
+export interface RoleRoutingRule {
+  rule: 'follow_upstream' | 'different_from_upstream';
+  crossProviderActive: boolean;
 }
-
-const ALL_PROVIDERS = ['claude', 'openai', 'gemini', 'ollama'] as const;
 
 interface WorkflowRoleCardProps {
   roleKey: WorkflowRole;
   index: number;
   config: RoleConfigItem;
   roleData: WorkflowRoleConfig | undefined;
-  models: ModelOption[];
   systemPrompts: SystemPrompt[];
-  activeAgents: AIAgentConfig[];
-  availableModels: Record<string, ModelOption[]>;
+  /** The role's routing rule; undefined while it loads. */
+  routing?: RoleRoutingRule;
   isSaving: boolean;
   isSaved: boolean;
   isExpanded: boolean;
@@ -71,12 +36,8 @@ interface WorkflowRoleCardProps {
   /** Show the user-approval gate in the arrow AFTER this card (before 実装). */
   approvalAfter?: boolean;
   onToggleExpand: () => void;
-  onAgentChange: (agentConfigId: number | null) => void;
-  onModelChange: (modelId: string | null) => void;
-  onPreferredProviderChange: (provider: string | null) => void;
   onPromptChange: (key: string | null) => void;
   onToggleEnabled: (enabled: boolean) => void;
-  onManualSetup: (agentConfigId: number, modelId: string) => void;
 }
 
 /**
@@ -87,44 +48,27 @@ export function WorkflowRoleCard({
   index,
   config,
   roleData,
-  models,
   systemPrompts,
-  activeAgents,
-  availableModels,
+  routing,
   isSaving,
   isSaved,
   isExpanded,
   isLast = false,
   approvalAfter = false,
   onToggleExpand,
-  onAgentChange,
-  onModelChange,
-  onPreferredProviderChange,
   onPromptChange,
   onToggleEnabled,
-  onManualSetup,
 }: WorkflowRoleCardProps) {
   const t = useTranslations('workflow');
-  const tc = useTranslations('common');
-  const PROVIDER_LABEL = getProviderLabel(t('rolesConfig.local'));
   const Icon = config.icon;
   const isEnabled = roleData?.isEnabled !== false;
-  const selectedAgent = roleData?.agentConfig;
-  const effectiveModelId = roleData?.modelId || selectedAgent?.modelId || null;
-  const isAutoSelect = !roleData?.modelId || roleData.modelId === 'auto';
-
-  // Only offer providers that actually have an installed/active agent. Keep the
-  // currently-saved provider in the list even if its agent was removed, so the
-  // saved value still displays instead of silently blanking.
-  const installedProviders = new Set(
-    activeAgents
-      .map((a) => AGENT_TYPE_TO_PROVIDER[a.agentType])
-      .filter((p): p is 'claude' | 'openai' | 'gemini' | 'ollama' => !!p),
-  );
-  const savedProvider = roleData?.preferredProviderOverride ?? null;
-  const providerOptions = ALL_PROVIDERS.filter(
-    (p) => installedProviders.has(p) || p === savedProvider,
-  );
+  const ruleText = !routing
+    ? t('rolesConfig.autoRuleLoading')
+    : routing.rule === 'follow_upstream'
+      ? t('rolesConfig.autoRuleFollowUpstream')
+      : routing.crossProviderActive
+        ? t('rolesConfig.autoRuleDifferentProvider')
+        : t('rolesConfig.autoRuleDifferentProviderUnavailable');
 
   return (
     <div key={roleKey}>
@@ -165,20 +109,11 @@ export function WorkflowRoleCard({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Configured agent/mode display */}
               {!isExpanded && (
-                <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
-                  {isAutoSelect ? (
-                    <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
-                      <Bot className="h-3 w-3" /> {t('rolesConfig.autoSelect')}
-                    </span>
-                  ) : (
-                    <>
-                      <Cpu className="h-3 w-3" />
-                      <span>{selectedAgent?.name ?? tc('notConfigured')}</span>
-                      <span className="text-zinc-500 dark:text-zinc-500">/ {effectiveModelId}</span>
-                    </>
-                  )}
+                <div className="hidden sm:flex items-center gap-1.5 text-xs bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
+                  <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                    <Bot className="h-3 w-3" /> {t('rolesConfig.autoSelect')}
+                  </span>
                 </div>
               )}
 
@@ -207,170 +142,37 @@ export function WorkflowRoleCard({
         {/* Settings panel (expanded) */}
         {isExpanded && (
           <div className="bg-white dark:bg-zinc-800 px-4 py-4 border-t border-zinc-100 dark:border-zinc-700/50">
-            {/* Auto-select toggle */}
-            <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+            <div className="mb-4 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
               <div className="flex items-center gap-2">
                 <Bot className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <div>
-                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                    {t('rolesConfig.autoSelectMode')}
-                  </span>
-                  <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">
-                    {t('rolesConfig.autoSelectModeDesc')}
-                  </p>
-                </div>
+                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                  {t('rolesConfig.autoSelectMode')}
+                </span>
               </div>
-              <Toggle
-                checked={isAutoSelect}
-                onChange={(checked) => {
-                  if (checked) {
-                    onModelChange(null);
-                    return;
-                  }
-                  // Toggle OFF → manual: seed a concrete modelId from the
-                  // selected agent (or the first active agent). Models are
-                  // agent-scoped, so a configured agent is required.
-                  const targetAgent = selectedAgent ?? activeAgents[0] ?? null;
-                  const targetAgentModels = targetAgent
-                    ? (availableModels[targetAgent.agentType] ?? [])
-                    : [];
-                  const targetModelId = targetAgent?.modelId || targetAgentModels[0]?.value || null;
-                  if (!targetModelId || !targetAgent) return;
-                  if (!selectedAgent) {
-                    onManualSetup(targetAgent.id, targetModelId);
-                  } else {
-                    onModelChange(targetModelId);
-                  }
-                }}
-                disabled={isSaving}
-                srLabel={t('rolesConfig.autoSelectMode')}
-              />
+              <p className="mt-1 text-xs text-indigo-700/80 dark:text-indigo-300/80">{ruleText}</p>
             </div>
 
-            {/* Auto-select provider preference (visible only when auto is on) */}
-            {isAutoSelect && (
-              <div className="mb-4 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
-                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                  {t('rolesConfig.preferredProviderLabel')}
-                </label>
-                <div className="relative">
-                  <select
-                    value={roleData?.preferredProviderOverride ?? ''}
-                    onChange={(e) => onPreferredProviderChange(e.target.value || null)}
-                    disabled={isSaving}
-                    className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
-                  >
-                    <option value="">{t('rolesConfig.followDefaultSetting')}</option>
-                    {providerOptions.map((p) => (
-                      <option key={p} value={p}>
-                        {PROVIDER_LABEL[p]}
-                      </option>
-                    ))}
-                    {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey) && (
-                      <option value="cross-provider">
-                        🔀 {t('rolesConfig.crossProviderOption')}
-                      </option>
-                    )}
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
-                </div>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1">
-                  {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey)
-                    ? t('rolesConfig.crossProviderHint')
-                    : t('rolesConfig.defaultProviderHint')}
-                </p>
+            <div className="sm:max-w-xs">
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
+                {t('rolesConfig.systemPromptLabel')}
+              </label>
+              <div className="relative">
+                <select
+                  value={roleData?.systemPromptKey ?? ''}
+                  onChange={(e) => onPromptChange(e.target.value || null)}
+                  disabled={isSaving}
+                  className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
+                >
+                  <option value="">{t('rolesConfig.default')}</option>
+                  {systemPrompts.map((sp) => (
+                    <option key={sp.key} value={sp.key}>
+                      {sp.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
               </div>
-            )}
-
-            {/* Manual config (hidden when auto-select is on) */}
-            {!isAutoSelect && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Agent selector */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    {t('rolesConfig.aiAgentLabel')}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={roleData?.agentConfigId ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        onAgentChange(val ? parseInt(val) : null);
-                      }}
-                      disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
-                    >
-                      <option value="">{tc('notConfigured')}</option>
-                      {activeAgents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Model selector */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    {t('rolesConfig.modelLabel')}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={roleData?.modelId ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        onModelChange(val || null);
-                      }}
-                      disabled={isSaving || !selectedAgent || models.length === 0}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
-                    >
-                      <option value="" disabled>
-                        {!selectedAgent
-                          ? t('rolesConfig.noAgentSelected')
-                          : models.length === 0
-                            ? t('rolesConfig.noModelsAvailable')
-                            : t('rolesConfig.selectModel')}
-                      </option>
-                      {models.map((model) => (
-                        <option key={model.value} value={model.value}>
-                          {model.label}
-                          {model.description ? ` - ${model.description}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Prompt selector */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
-                    {t('rolesConfig.systemPromptLabel')}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={roleData?.systemPromptKey ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        onPromptChange(val || null);
-                      }}
-                      disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-indigo-400"
-                    >
-                      <option value="">{t('rolesConfig.default')}</option>
-                      {systemPrompts.map((sp) => (
-                        <option key={sp.key} value={sp.key}>
-                          {sp.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Flow info */}
             <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">

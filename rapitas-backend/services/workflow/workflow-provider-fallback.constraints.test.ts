@@ -26,9 +26,16 @@ const getSmartRoute = mock((_t: number, _o: unknown) =>
   Promise.resolve({ recommendedModel: 'bare-fallback' }),
 );
 mock.module('../ai/smart-model-router', () => ({ getSmartRoute }));
+let providerConfig: Record<string, unknown> | null = {
+  id: 2,
+  agentType: 'claude-code',
+  name: 'Claude Code',
+  apiKeyEncrypted: null,
+  endpoint: null,
+};
 mock.module('../ai/agent-fallback', () => ({
-  findAgentConfigForProvider: mock(() => Promise.resolve(null)),
-  agentTypeToProvider: () => 'openai',
+  findAgentConfigForProvider: mock(() => Promise.resolve(providerConfig)),
+  agentTypeToProvider: (t: string) => (t === 'codex' ? 'openai' : 'claude'),
 }));
 mock.module('./role-provider-resolver', () => ({
   inferProviderFromModelId: () => 'claude',
@@ -89,6 +96,13 @@ beforeEach(() => {
   getSmartRoute.mockClear();
   runAgent.mockClear();
   decisions.length = 0;
+  providerConfig = {
+    id: 2,
+    agentType: 'claude-code',
+    name: 'Claude Code',
+    apiKeyEncrypted: null,
+    endpoint: null,
+  };
   routeResult = {
     modelId: 'claude-opus-5-5',
     details: { minTier: 'premium', minTierReason: '高リスク領域' },
@@ -120,6 +134,15 @@ describe('途中でのベンダー利用不能', () => {
     expect((recorded!.input as Record<string, unknown>).constraintsApplied).toBe(true);
     expect((recorded!.input as Record<string, unknown>).constraintsMet).toBe(true);
     expect((recorded!.input as Record<string, unknown>).minTier).toBe('premium');
+  });
+
+  // The switch used to hand a Claude model to the Codex agent when no Claude
+  // agent config existed — a run that can only fail or silently ignore the id.
+  test('切替先のプロバイダを動かすエージェントが無ければ、今のエージェントに別系統のモデルを渡さず見送る', async () => {
+    providerConfig = null;
+    const result = await fallback();
+    expect(runAgent).not.toHaveBeenCalled();
+    expect(result).toBeNull();
   });
 
   test('ロール経路が失敗したら、制約なしの素の SmartRouter で続行せず、切替を見送る', async () => {

@@ -1,156 +1,74 @@
 /**
  * role-provider-resolver
  *
- * Computes the SmartRouter inputs for a given workflow role:
- *  - `preferredProvider`: per-role override > global UserSettings default
- *    > default AIAgentConfig provider (isDefault=true) > undefined
- *  - `excludeProviders`: cross-provider review exclusions for verifier
- *    roles, derived from previous AgentExecutions on the same task
+ * Computes the SmartRouter provider inputs for a workflow role from the
+ * providers this host can run (phase-providers.ts), never from a manual pick:
+ *  - providers with no usable CLI agent are always excluded
+ *  - non-review roles follow the provider the upstream phase used, else the
+ *    first usable provider in route order
+ *  - verifier roles exclude the upstream provider whenever another usable
+ *    provider exists, and prefer that one
+ *
+ * NOTE: The per-role override, UserSettings.defaultAiProvider and the default
+ * agent's provider are no longer read (2026-11-20). Hand-set values went
+ * stale while the model tier table moved on, and a cross-provider verifier
+ * still ran on Claude because no Codex agent had been registered by hand.
  *
  * The cross-provider rule mitigates LLM self-evaluation bias documented in
  * LLM-as-judge research: a Claude-written implementation gets a stricter
- * critique when reviewed by a Gemini- or GPT-class model than by another
- * Claude session.
+ * critique when reviewed by a GPT-class model than by another Claude session.
  */
 import { prisma } from '../../config/database';
 import type { Provider } from '../ai/model-discovery';
-import { agentTypeToProvider } from '../ai/agent-fallback';
 import { createLogger } from '../../config/logger';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+import type { PhaseProviders } from './phase-providers';
 
 const log = createLogger('role-provider-resolver');
 
-const VALID_PROVIDERS: ReadonlySet<Provider> = new Set(['claude', 'openai', 'gemini', 'ollama']);
-
-/** Roles whose default behaviour is "use a different provider than upstream". */
-// NOTE: 'reviewer' removed 2026-08 (role retired); verifier/auto_verifier keep
-// the cross-provider default.
+/** Roles that judge another phase's work and so prefer a different provider. */
 const REVIEW_ROLES: ReadonlySet<string> = new Set(['verifier', 'auto_verifier']);
+
+/** Injectable pieces of {@link resolveRoleProviderPreferences}. */
+export interface RoleProviderDeps {
+  phaseProviders?: () => Promise<PhaseProviders>;
+}
 
 /**
  * Resolve provider preferences for the given role + task.
  *
  * @param role - Workflow role being executed (researcher / planner / ...). / 実行中のロール
- * @param taskId - Task ID, used to look up upstream phases for exclusion. / タスクID
+ * @param taskId - Task ID, used to look up the upstream phase. / タスクID
+ * @param deps - Injectable provider availability / テスト用の注入
  * @returns SmartRouter-compatible preference object. / SmartRouter 用の入力
  */
 export async function resolveRoleProviderPreferences(
   role: string,
   taskId: number,
+  deps: RoleProviderDeps = {},
 ): Promise<{ preferredProvider?: Provider; excludeProviders?: Provider[] }> {
-  const [roleConfig, settings] = await Promise.all([
-    prisma.workflowRoleConfig.findFirst({
-      where: { role },
-      select: {
-        preferredProviderOverride: true,
-      } as Record<string, true>,
-    }),
-    prisma.userSettings.findFirst({
-      select: { defaultAiProvider: true },
-    }),
-  ]);
+  const phase = await (
+    deps.phaseProviders ?? (async () => (await import('./phase-providers')).resolvePhaseProviders())
+  )();
+  const exclude: Provider[] = [...phase.excluded];
+  const upstream = await getUpstreamProvider(taskId);
 
-  const override = (roleConfig as Record<string, unknown> | null)?.preferredProviderOverride as
-    | string
-    | null
-    | undefined;
-  const globalDefault = settings?.defaultAiProvider as string | null | undefined;
-
-  // `cross-provider` is a sentinel meaning "exclude upstream provider"; it is
-  // not itself a Provider value.
-  const isCrossProvider = override === 'cross-provider';
-  const isExplicitProvider =
-    !!override && override !== 'cross-provider' && VALID_PROVIDERS.has(override as Provider);
-
-  // Resolution order:
-  //   1. explicit role override
-  //   2. global UserSettings.defaultAiProvider
-  //   3. provider of the default AIAgentConfig (isDefault=true), derived
-  //      from its agentType (claude-code → claude, codex → openai, …).
-  //      Keeps the SmartRouter aligned with what the user picked as their
-  //      "default agent" on the AIエージェント管理 page even when they
-  //      never set a global provider preference.
-  //   4. undefined → SmartRouter falls back to cheapest across all providers.
-  // When the user picked `cross-provider`, no specific preferredProvider is
-  // applied (any non-upstream provider is acceptable).
-  let explicitPreference: string | null | undefined = null;
-  if (!isCrossProvider) {
-    if (isExplicitProvider) {
-      explicitPreference = override;
-    } else if (globalDefault && VALID_PROVIDERS.has(globalDefault as Provider)) {
-      explicitPreference = globalDefault;
-    } else {
-      explicitPreference = await getDefaultAgentProvider();
-    }
-  }
-  let preferredProvider =
-    explicitPreference && VALID_PROVIDERS.has(explicitPreference as Provider)
-      ? (explicitPreference as Provider)
-      : undefined;
-
-  // Auto-exclude upstream provider when:
-  //  - User explicitly chose `cross-provider`, OR
-  //  - Role is a review-style phase AND the user did NOT pin a specific
-  //    provider. Pinning Claude to the verifier should honor that choice — the
-  //    user clearly knows what they want.
-  let excludeProviders: Provider[] | undefined;
-  if (isCrossProvider || (!isExplicitProvider && REVIEW_ROLES.has(role))) {
-    const upstream = await getUpstreamProvider(taskId);
-    // Only exclude when a DIFFERENT provider can actually be executed. Model
-    // discovery lists models for any provider whose CLI is installed, but a
-    // model is only runnable if an ACTIVE AIAgentConfig exists for it —
-    // measured 2026-08-23, the verifier routed to `gpt-5.6-sol` on a machine
-    // with a single claude-code agent, and resolveExecutableAgentConfig then
-    // dropped the override and silently ran the agent's default model. That
-    // discards the tier floor and the evidence cap the route just computed, so
-    // an unsatisfiable exclusion is worse than no exclusion at all.
-    if (upstream && (await hasExecutableAlternativeProvider(upstream))) {
-      excludeProviders = [upstream];
+  if (REVIEW_ROLES.has(role)) {
+    if (upstream && phase.usable.some((p) => p !== upstream)) {
+      exclude.push(upstream);
     } else if (upstream) {
-      log.info(
-        { role, upstream },
-        'Cross-provider review skipped — no active agent config for another provider',
-      );
+      log.info({ role, upstream }, 'Cross-provider review skipped — no other usable provider');
     }
+    return {
+      preferredProvider: phase.usable.find((p) => !exclude.includes(p)),
+      excludeProviders: exclude,
+    };
   }
-
-  // Provider consistency for the build chain: research → plan → implement should
-  // run on ONE provider so the implementer interprets a plan written in its own
-  // model family (style, tool/CLI capabilities, output format all align).
-  // When the user pinned nothing, non-review roles FOLLOW whatever provider the
-  // upstream phase actually used. Review/verify intentionally do the opposite
-  // (exclude upstream) above, so the build stays coherent while the gate stays
-  // independent.
-  if (!preferredProvider && !isCrossProvider && !REVIEW_ROLES.has(role)) {
-    const upstream = await getUpstreamProvider(taskId);
-    if (upstream) preferredProvider = upstream;
-  }
-
-  return { preferredProvider, excludeProviders };
-}
-
-/**
- * Whether any ACTIVE agent config can execute a provider other than `upstream`.
- *
- * Fails OPEN (true) on a lookup error so a transient DB problem cannot silently
- * disable cross-provider review.
- *
- * @param upstream - Provider the review wants to avoid. / 除外したいプロバイダ
- * @returns true when a different provider is actually runnable. / 実行可能な別プロバイダがあれば true
- */
-async function hasExecutableAlternativeProvider(upstream: Provider): Promise<boolean> {
-  try {
-    const configs = await prisma.aIAgentConfig.findMany({
-      where: { isActive: true },
-      select: { agentType: true },
-    });
-    return configs.some((c) => {
-      const p = agentTypeToProvider(c.agentType);
-      return p !== null && p !== upstream;
-    });
-  } catch {
-    return true;
-  }
+  // Provider consistency for the build chain: research → plan → implement run
+  // on ONE provider so the implementer reads a plan written by its own family.
+  const preferredProvider =
+    upstream && phase.usable.includes(upstream) ? upstream : phase.usable[0];
+  return { preferredProvider, excludeProviders: exclude };
 }
 
 /**
@@ -174,24 +92,6 @@ async function getUpstreamProvider(taskId: number): Promise<Provider | null> {
   });
   if (!recent?.modelName) return null;
   return inferProviderFromModelId(recent.modelName);
-}
-
-/**
- * Derive a Provider from the user's default `AIAgentConfig` row. Used as a
- * tertiary fallback so the SmartRouter biases toward the same provider that
- * runs the default agent when the user has not configured anything else.
- *
- * @returns Provider mapped from the default agent's `agentType`, or null
- *          when no default is configured. / プロバイダー、未設定時はnull
- */
-async function getDefaultAgentProvider(): Promise<Provider | null> {
-  const defaultAgent = await prisma.aIAgentConfig.findFirst({
-    where: { isDefault: true, isActive: true },
-    select: { agentType: true },
-    orderBy: { updatedAt: 'desc' },
-  });
-  if (!defaultAgent) return null;
-  return agentTypeToProvider(defaultAgent.agentType);
 }
 
 /** Map a model id to its provider family using simple substring rules. */

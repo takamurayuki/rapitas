@@ -22,7 +22,6 @@
  *     name with `agentConfigId: null` so the caller can decide whether
  *     to fail loudly or fall back.
  */
-import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recommendAgentForRole } from './role-recommender';
 import { resolveTaskWorkflowState } from '../task/task-resolver';
@@ -32,7 +31,6 @@ const log = createLogger('role-resolver');
 import { narrowWorkflowStatus, narrowWorkflowMode } from './workflow-types.guards.generated';
 import type { WorkflowRole } from './workflow-types';
 import { reconcileStatusFromExistingArtifacts } from './artifact-reuse-reconciler';
-import { shouldAutoSelectModel as shouldAutoSelect } from './role-route-inputs';
 
 // NOTE: The status→role map is now derived from the DB-backed, UI-editable
 // mode config (workflow-mode-config.ts) — the single source of truth shared
@@ -93,36 +91,12 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
     return null;
   }
 
-  const roleConfig = await prisma.workflowRoleConfig.findFirst({
-    where: { role },
-    select: { agentConfigId: true, isEnabled: true, modelId: true },
-  });
-  // NOTE: We compute `shouldAutoSelectModel` based on the per-role modelId:
-  //   - explicit modelId set ("claude-haiku-4-5-...") → use as-is
-  //   - modelId === 'auto' or null/empty → SmartRouter picks
-  const roleModelId = roleConfig?.modelId ?? null;
-  // Same predicate the orchestrator uses — imported, not restated, so the two
-  // dispatch surfaces cannot drift apart on what an unset model means.
-  const shouldAutoSelectModel = shouldAutoSelect(roleModelId);
-
-  if (roleConfig?.isEnabled && roleConfig.agentConfigId) {
-    return {
-      role,
-      agentConfigId: roleConfig.agentConfigId,
-      modelId: shouldAutoSelectModel ? null : roleModelId,
-      shouldAutoSelectModel,
-    };
-  }
-
-  // NOTE: Fall back to capability-based recommendation when no explicit
-  // assignment exists. This ensures every role gets the BEST-FIT agent
-  // available even when the user hasn't manually configured WorkflowRoleConfig.
+  // NOTE: Manual per-role agent and model pins are no longer read
+  // (2026-11-20). The agent comes from the recommender over the agent configs
+  // synced to the usable providers, and SmartRouter always picks the model
+  // from the tier table. Stale pins had kept phases off the table.
   // codex (which ignores planning instructions) is automatically excluded
   // from researcher/planner roles by the capability registry.
-  log.info(
-    { taskId, role, reason: roleConfig ? 'role disabled' : 'no role config' },
-    'Falling back to capability-based agent recommendation',
-  );
   const recommended = await recommendAgentForRole(role);
   if (!recommended) {
     return { role, agentConfigId: null, modelId: null, shouldAutoSelectModel: true };
@@ -137,12 +111,10 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
     },
     'Auto-recommended agent for role',
   );
-  // When recommender chose the agent, also flag for SmartRouter auto-select
-  // unless the user explicitly pinned a model on the role.
   return {
     role,
     agentConfigId: recommended.agentConfigId,
-    modelId: shouldAutoSelectModel ? null : roleModelId,
-    shouldAutoSelectModel,
+    modelId: null,
+    shouldAutoSelectModel: true,
   };
 }
