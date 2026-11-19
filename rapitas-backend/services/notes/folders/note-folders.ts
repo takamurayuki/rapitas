@@ -7,7 +7,8 @@
  * Same-name folders are refused here rather than by a unique index: rows with
  * a NULL workspaceId never collide in one. Two creates racing past the check
  * are settled after the write — the later row (higher id) is removed and its
- * caller gets the same 409 — so the rule holds without a lock.
+ * caller gets the same 409 — and a rename that finds a duplicate after its
+ * write puts its old name back with a 409, so the rule holds without a lock.
  *
  * Deleting a folder moves its notes to 未分類 (never deletes them), in the same
  * transaction as the delete, without relying on the FK (a self-healed desktop
@@ -125,15 +126,36 @@ export async function updateNoteFolder(
 ): Promise<NoteFolderRecord> {
   const ws = requestWorkspaceId();
   const data: Record<string, unknown> = {};
+  let oldName: string | undefined;
   if (input.name !== undefined) {
     data.name = cleanName(input.name);
     if (await nameTaken(db, data.name as string, id)) {
       throw new NoteFolderError('folder_name_taken', 409);
     }
+    const current = (await db.noteFolder.findFirst({
+      where: { id, workspaceId: ws },
+      select: { name: true },
+    })) as { name: string } | null;
+    oldName = current?.name;
   }
   if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
   const updated = await db.noteFolder.updateMany({ where: { id, workspaceId: ws }, data });
   if (updated.count !== 1) throw new NoteFolderError('folder_not_found', 404);
+  // NOTE: a rename racing another write of the same name passed the check above
+  // too (review G2 should-fix). Whichever writer sees the duplicate after its own
+  // write backs out — at least the later one always does — so two folders never
+  // keep one name. Conditional on our name, so a newer rename is not undone.
+  if (
+    oldName !== undefined &&
+    oldName !== data.name &&
+    (await nameTaken(db, data.name as string, id))
+  ) {
+    await db.noteFolder.updateMany({
+      where: { id, workspaceId: ws, name: data.name },
+      data: { name: oldName },
+    });
+    throw new NoteFolderError('folder_name_taken', 409);
+  }
   return (await db.noteFolder.findFirst({
     where: { id, workspaceId: ws },
     select: SELECT,
