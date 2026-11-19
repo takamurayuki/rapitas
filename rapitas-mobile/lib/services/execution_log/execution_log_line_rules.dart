@@ -21,7 +21,7 @@ enum LineTag {
   /// 続く行を本文として持つエラー（Codex の終了コード）
   errorWithBody,
 
-  /// 本文が次の行へ続く `[System Error: …`（閉じ括弧の行までが本文）
+  /// 本文が次の行へ続く `[System Error: …`（chunk の終わりまでが本文。chunk 先頭の形は digest が chunk 単位で扱う）
   errorOpen,
   warning,
 
@@ -78,7 +78,9 @@ final List<(RegExp, ClassifiedLine Function(RegExpMatch m))> _rules = [
   ),
   (RegExp(r'^\[System Error:\s*(.*)\]\s*$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),
   // NOTE: errorMsg は CLI の JSON の message そのままで改行を含みうる（output-parser-handlers.ts の
-  // `[System Error: ${errorMsg}]\n`）。1行目に閉じ括弧が無ければ、続く行を本文として持つ
+  // `[System Error: ${errorMsg}]\n`）。1行目に閉じ括弧が無ければ、続く行を本文として持つ。
+  // chunk が `[System Error:` で始まる通常の形は、行のこの規則より前に digest が chunk 全体で判定する
+  // （本文の行末の `]` で切らないため）
   (RegExp(r'^\[System Error:\s*(.*)$'), (m) => ClassifiedLine(LineTag.errorOpen, text: m[1]!)),
   (RegExp(r'^\[(?:Error|エラー)\]\s*(.*)$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),
   (RegExp(r'^\[Timeout\]\s*(.*)$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),

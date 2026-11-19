@@ -67,6 +67,14 @@ class _Builder {
 
   void addChunk(ExecutionLogEntry entry) {
     final time = entry.timestamp;
+    // NOTE: processSystemEvent は1件のエラーを `[System Error: ${errorMsg}]\n` の1回の emit で書き、
+    // 1 emit が 1 chunk になる（output-parser-handlers.ts、log-chunk-manager.ts）。外側の閉じ括弧は
+    // chunk 末尾の `]` だけなので、行ごとに見ず chunk 全体を1件にする（本文の行末の `]` で切らない）
+    final systemError = _systemErrorBody(entry.chunk);
+    if (systemError != null) {
+      _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: systemError, time: time));
+      return;
+    }
     // 同じ chunk の中で、タグ行の後に続くタグなしの行をどこへ付けるか
     ExecLogEvent? bodyTarget;
     var bodyToDetail = false;
@@ -84,19 +92,13 @@ class _Builder {
       }
     }
 
-    // 本文が次の行へ続く System Error。閉じ括弧の行まで、タグの形をした行も含めて本文にする
-    ExecLogEvent? openError;
+    // chunk の途中から始まる複数行の System Error（記録側には無い形の備え）。chunk の終わりまでを本文にし、
+    // 重複のまとめは本文が確定してから判定する
+    List<String>? openError;
 
     for (final raw in entry.chunk.split('\n')) {
       if (openError != null) {
-        final error = openError;
-        var rest = raw.trim();
-        if (rest.endsWith(']')) {
-          rest = rest.substring(0, rest.length - 1).trimRight();
-          openError = null;
-          bodyTarget = null;
-        }
-        if (rest.isNotEmpty) error.body = [error.body, rest].whereType<String>().where((s) => s.isNotEmpty).join('\n');
+        openError.add(raw);
         continue;
       }
       final line = _classify(raw, entry.isStderr);
@@ -159,7 +161,7 @@ class _Builder {
         case LineTag.errorWithBody:
           bodyTarget = _push(ExecLogEvent(ExecLogKind.error, 'エラー（${line.text}）', time: time));
         case LineTag.errorOpen:
-          openError = _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: line.text, time: time));
+          openError = [line.text];
         case LineTag.warning:
           _push(ExecLogEvent(ExecLogKind.warning, firstLineOf(line.text), body: line.text, time: time));
         case LineTag.heartbeat:
@@ -175,6 +177,9 @@ class _Builder {
       }
     }
     flushSpeech();
+    if (openError != null) {
+      _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: _stripClosing(openError.join('\n')), time: time));
+    }
   }
 
   void _addWorkItem(ExecLogEvent work, ClassifiedLine line) {
@@ -251,5 +256,18 @@ String _workTitle(ExecLogEvent work) {
   return '作業 ${work.items.length}件（$parts）';
 }
 
+final _systemErrorHead = RegExp(r'^\s*\[System Error:\s*');
+
+/// chunk が `[System Error:` で始まるなら、その chunk 全体の本文（末尾の `]` と改行を除く）。それ以外は null
+String? _systemErrorBody(String chunk) {
+  final m = _systemErrorHead.firstMatch(chunk);
+  return m == null ? null : _stripClosing(chunk.substring(m.end));
+}
+
+/// 末尾の空白・改行と、外側の閉じ括弧 `]` 1つだけを外す（本文の途中の `]` は残す）
+String _stripClosing(String text) {
+  final body = text.trimRight();
+  return body.endsWith(']') ? body.substring(0, body.length - 1).trimRight() : body;
+}
 
 int _lineCount(String text) => text.split('\n').where((l) => l.trim().isNotEmpty).length;

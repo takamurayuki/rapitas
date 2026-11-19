@@ -71,16 +71,69 @@ void main() {
       expect(classifyLogLine('[System Error: API Error: 500 Internal Server Error').tag, isNot(LineTag.text));
     });
 
-    test('閉じた後の行はふつうに分類する（後続の発言を本文に吸わない）', () {
+    // NOTE: 直し回1では「閉じた後の行はふつうに分類する」を確かめていたが、直し回2で chunk 単位の判定に改めた。
+    // システムイベントは単独で emit されるので、同じ chunk の後ろに発言が続く形は記録側に無い。
+    // 来た場合も本文に残して捨てない
+    test('記録側に無い形（閉じた後に文が続く chunk）でも文を捨てず1件のエラーに残す', () {
       final d = _digest([logRow(0, '$chunk続けて別の方法を試します。\n', time: at(5))]);
-      expect(d.events.map((e) => e.kind), [ExecLogKind.error, ExecLogKind.speech]);
-      expect(d.events.last.body, '続けて別の方法を試します。');
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error]);
+      expect(d.events.single.body, endsWith('Please retry later]\n続けて別の方法を試します。'));
+    });
+
+    test('chunk の途中から始まる複数行エラーも、本文の行末の `]` で切らずに chunk の終わりまでを本文にする', () {
+      final d = _digest([logRow(0, '再試行します。\n[System Error: Request failed\n["scope"]\nRetry exhausted]\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.speech, ExecLogKind.error]);
+      expect(d.events.last.body, 'Request failed\n["scope"]\nRetry exhausted');
     });
 
     test('1行の [System Error: …] は従来どおり', () {
       final d = _digest([logRow(0, '[System Error: API rate limit exceeded]\n', time: at(5))]);
       expect(d.events.single.kind, ExecLogKind.error);
       expect(d.events.single.body, 'API rate limit exceeded');
+    });
+  });
+
+  // 直し回2の指摘1：processSystemEvent は1件のエラーを1回の emit で書く（= 1 chunk）。
+  // 外側の閉じ括弧は chunk の末尾の `]` だけで、本文の途中で行末に来た `]` ではない
+  group('本文の行末に `]` がある [System Error: …]', () {
+    test('途中の行が `]` で終わっても本文は chunk の終わりまで続く', () {
+      final d = _digest([logRow(0, '[System Error: Request failed\n["scope"]\nRetry exhausted]\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error]);
+      expect(d.events.single.body, 'Request failed\n["scope"]\nRetry exhausted');
+      expect(_shown(d, ExecLogKind.speech), isEmpty);
+      expect(d.otherLines, 0);
+    });
+
+    test('1行目が `]` で終わっても1行のエラーとして切らない', () {
+      final d = _digest([logRow(0, '[System Error: missing ["scope"]\nRetry exhausted]\n', time: at(5))]);
+      expect(d.events.map((e) => e.kind), [ExecLogKind.error]);
+      expect(d.events.single.body, 'missing ["scope"]\nRetry exhausted');
+    });
+
+    test('1行の本文が `]` で終わる形も末尾の閉じ括弧だけを外す', () {
+      final d = _digest([logRow(0, '[System Error: missing ["scope"]]\n', time: at(5))]);
+      expect(d.events.single.kind, ExecLogKind.error);
+      expect(d.events.single.body, 'missing ["scope"]');
+    });
+  });
+
+  // 直し回2の指摘2：重複のまとめは本文が確定してから判定する
+  group('連続する System Error のまとめ', () {
+    test('1行目が同じでも本文が違う複数行エラーは別の出来事', () {
+      final d = _digest([
+        logRow(0, '[System Error: Request failed]\n', time: at(5)),
+        logRow(1, '[System Error: Request failed\nRetry exhausted]\n', time: at(6)),
+      ]);
+      expect(d.events.map((e) => e.body), ['Request failed', 'Request failed\nRetry exhausted']);
+      expect(d.events.map((e) => e.count), [1, 1]);
+    });
+
+    test('完全に同じ複数行エラーの連続は1件にまとめて件数を出す', () {
+      const chunk = '[System Error: Request failed\nRetry exhausted]\n';
+      final d = _digest([logRow(0, chunk, time: at(5)), logRow(1, chunk, time: at(6))]);
+      expect(d.events, hasLength(1));
+      expect(d.events.single.body, 'Request failed\nRetry exhausted');
+      expect(d.events.single.count, 2);
     });
   });
 }
