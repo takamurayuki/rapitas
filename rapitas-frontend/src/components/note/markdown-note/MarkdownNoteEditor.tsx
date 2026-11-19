@@ -5,8 +5,9 @@
  * Shows a Markdown note rendered with the shared MarkdownView (note density,
  * Mermaid drawn as diagrams) and edits it as its plain Markdown source, so a
  * note ラピ or the phone wrote keeps its form when it is saved again here.
- * Not responsible for notes written in the desktop rich editor (HTML) — those
- * stay in `NoteEditor`'s contentEditable surface.
+ * Since stage 0 every new or edited note is saved from here, so the save
+ * refuses a body that is the old editor's HTML (the server would answer 400).
+ * Not responsible for notes already in that HTML — see LegacyHtmlNoteView.
  */
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -14,6 +15,7 @@ import { type Note, useNoteStore } from '@/stores/note-store';
 import { MarkdownView } from '@/components/markdown/MarkdownView';
 import NoteEditorHeader from '../editor/NoteEditorHeader';
 import NoteEditorFooter from '../editor/NoteEditorFooter';
+import { checkNewMarkdownContent } from './note-content-kind';
 
 type Mode = 'view' | 'edit';
 
@@ -37,9 +39,12 @@ export default function MarkdownNoteEditor({ note }: MarkdownNoteEditorProps) {
   const [draftTitle, setDraftTitle] = useState(note.title);
   const [draftContent, setDraftContent] = useState(note.content);
   const [isDirty, setIsDirty] = useState(false);
+  const ts = useTranslations('notes.sync');
+  // Only HTML is refused; an empty body or a single plain line saves as is.
+  const rejection = checkNewMarkdownContent(draftContent);
 
   const handleSave = () => {
-    if (!isDirty) return;
+    if (!isDirty || rejection) return;
     updateNote(note.id, { title: draftTitle, content: draftContent });
     setIsDirty(false);
   };
@@ -90,6 +95,11 @@ export default function MarkdownNoteEditor({ note }: MarkdownNoteEditorProps) {
         <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
           {t('markdownNote.formatHint')}
         </span>
+        {rejection === 'legacy_html' && (
+          <span role="alert" className="text-[11px] text-red-600 dark:text-red-400">
+            {ts('legacy_html')}
+          </span>
+        )}
       </div>
 
       <div className="relative flex-1 min-h-0 overflow-y-auto custom-scrollbar">

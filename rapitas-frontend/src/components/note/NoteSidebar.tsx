@@ -10,21 +10,14 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  FileText,
-  Trash2,
-  ChevronRight,
-  Plus,
-  Search,
-  Folders,
-  SwatchBook,
-  NotebookPen,
-} from 'lucide-react';
+import { FileText, ChevronRight, Plus, Search, Folders, SwatchBook } from 'lucide-react';
 import { useNoteStore, type Note, DOC_TYPES, type DocType } from '@/stores/note-store';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { getIconComponent } from '@/components/category/icon-data';
 import DeleteNoteModal from './DeleteNoteModal';
-import { buildNoteTree, parseNotePath, parseNotePathThemeOnly } from './note-tree-utils';
+import { buildNoteTree } from './note-tree-utils';
+import NoteSidebarItem from './sidebar/NoteSidebarItem';
+import { useNoteTreeExpansion } from './sidebar/useNoteTreeExpansion';
 
 /** Maps each raw DocType value to its `docTypes.*` i18n message key. */
 const DOC_TYPE_LABEL_KEYS: Record<DocType, string> = {
@@ -35,54 +28,6 @@ const DOC_TYPE_LABEL_KEYS: Record<DocType, string> = {
   仕様書: 'specification',
   メモ: 'memo',
 };
-
-function NoteItem({
-  note,
-  isActive,
-  onSelect,
-  onDelete,
-}: {
-  note: Note;
-  isActive: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-}) {
-  const t = useTranslations('notes');
-  const displayTitle = note.title.includes(' > ')
-    ? (note.title.split(' > ').pop() ?? note.title)
-    : note.title || t('common.untitled');
-
-  return (
-    <div
-      onClick={onSelect}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      className={`group flex items-center gap-2 pl-10 pr-2 py-1.5 rounded-md cursor-pointer transition-colors ${
-        isActive
-          ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50'
-      }`}
-    >
-      <NotebookPen className="w-3.5 h-3.5 shrink-0 text-indigo-400 dark:text-indigo-500" />
-      <span className="flex-1 text-xs truncate">{displayTitle}</span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-400 hover:text-red-500 transition-opacity shrink-0"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-}
 
 export default function NoteSidebar() {
   const t = useTranslations('notes');
@@ -114,9 +59,6 @@ export default function NoteSidebar() {
     return m;
   }, [filterThemes]);
 
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
     noteId: string | null;
@@ -139,84 +81,14 @@ export default function NoteSidebar() {
 
   const tree = useMemo(() => buildNoteTree(filtered), [filtered]);
 
-  // Auto-expand everything when a search is active so results are visible.
-  useEffect(() => {
-    if (searchQuery) {
-      setExpandedCategories(new Set(tree.categories.map((c) => c.category)));
-      setExpandedThemes(
-        new Set([
-          ...tree.categories.flatMap((c) => c.themes.map((t) => `${c.category}|||${t.theme}`)),
-          ...tree.themeGroups.map((tg) => `theme:${tg.theme}`),
-        ]),
-      );
-      setExpandedTasks(
-        new Set([
-          ...tree.categories.flatMap((c) =>
-            c.themes.flatMap((t) =>
-              t.tasks.map((tk) => `${c.category}|||${t.theme}|||${tk.taskId}`),
-            ),
-          ),
-          ...tree.themeGroups.flatMap((tg) =>
-            tg.tasks.map((tk) => `theme:${tg.theme}|||${tk.taskId}`),
-          ),
-        ]),
-      );
-    }
-  }, [searchQuery, tree]);
-
-  // Expand the path of the currently selected note.
-  useEffect(() => {
-    if (!currentNoteId) return;
-    const activeNote = notes.find((n) => n.id === currentNoteId);
-    if (!activeNote) return;
-
-    // Primary: stored metadata
-    if (activeNote.linkedTaskIds?.length && activeNote.linkedTaskMeta) {
-      for (const taskId of activeNote.linkedTaskIds) {
-        const meta = activeNote.linkedTaskMeta[taskId];
-        if (!meta) continue;
-
-        if (meta.categoryName && meta.themeName) {
-          const themeKey = `${meta.categoryName}|||${meta.themeName}`;
-          const taskKey = `${themeKey}|||${taskId}`;
-          setExpandedCategories((s) => new Set([...s, meta.categoryName]));
-          setExpandedThemes((s) => new Set([...s, themeKey]));
-          setExpandedTasks((s) => new Set([...s, taskKey]));
-        } else if (meta.themeName) {
-          const themeKey = `theme:${meta.themeName}`;
-          const taskKey = `${themeKey}|||${taskId}`;
-          setExpandedThemes((s) => new Set([...s, themeKey]));
-          setExpandedTasks((s) => new Set([...s, taskKey]));
-        }
-      }
-      return;
-    }
-
-    // Fallback: title parsing
-    const parsed3 = parseNotePath(activeNote.title);
-    if (parsed3) {
-      const themeKey = `${parsed3.category}|||${parsed3.theme}`;
-      const taskKey = `${themeKey}|||${parsed3.taskId}`;
-      setExpandedCategories((s) => new Set([...s, parsed3.category]));
-      setExpandedThemes((s) => new Set([...s, themeKey]));
-      setExpandedTasks((s) => new Set([...s, taskKey]));
-      return;
-    }
-    const parsed2 = parseNotePathThemeOnly(activeNote.title);
-    if (parsed2) {
-      const themeKey = `theme:${parsed2.theme}`;
-      const taskKey = `${themeKey}|||${parsed2.taskId}`;
-      setExpandedThemes((s) => new Set([...s, themeKey]));
-      setExpandedTasks((s) => new Set([...s, taskKey]));
-    }
-  }, [currentNoteId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggle = (set: Set<string>, setFn: (s: Set<string>) => void, key: string) => {
-    const next = new Set(set);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    setFn(next);
-  };
+  const {
+    expandedCategories,
+    expandedThemes,
+    expandedTasks,
+    toggleCategory,
+    toggleTheme,
+    toggleTask,
+  } = useNoteTreeExpansion({ tree, notes, currentNoteId, searchQuery });
 
   const openDelete = (note: Note) => {
     setDeleteModalState({ isOpen: true, noteId: note.id, noteTitle: note.title });
@@ -306,7 +178,7 @@ export default function NoteSidebar() {
           return (
             <div key={cat.category}>
               <button
-                onClick={() => toggle(expandedCategories, setExpandedCategories, cat.category)}
+                onClick={() => toggleCategory(cat.category)}
                 className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
               >
                 <ChevronRight
@@ -324,7 +196,7 @@ export default function NoteSidebar() {
                   return (
                     <div key={th.theme} className="ml-3">
                       <button
-                        onClick={() => toggle(expandedThemes, setExpandedThemes, themeKey)}
+                        onClick={() => toggleTheme(themeKey)}
                         className="w-full flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
                       >
                         <ChevronRight
@@ -341,7 +213,7 @@ export default function NoteSidebar() {
                           return (
                             <div key={tk.taskId} className="ml-3">
                               <button
-                                onClick={() => toggle(expandedTasks, setExpandedTasks, taskKey)}
+                                onClick={() => toggleTask(taskKey)}
                                 className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
                               >
                                 <ChevronRight
@@ -354,7 +226,7 @@ export default function NoteSidebar() {
 
                               {tkExpanded &&
                                 tk.notes.map((note) => (
-                                  <NoteItem
+                                  <NoteSidebarItem
                                     key={note.id}
                                     note={note}
                                     isActive={note.id === currentNoteId}
@@ -380,7 +252,7 @@ export default function NoteSidebar() {
           return (
             <div key={themeKey}>
               <button
-                onClick={() => toggle(expandedThemes, setExpandedThemes, themeKey)}
+                onClick={() => toggleTheme(themeKey)}
                 className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
               >
                 <ChevronRight
@@ -397,7 +269,7 @@ export default function NoteSidebar() {
                   return (
                     <div key={tk.taskId} className="ml-3">
                       <button
-                        onClick={() => toggle(expandedTasks, setExpandedTasks, taskKey)}
+                        onClick={() => toggleTask(taskKey)}
                         className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700/50 rounded-md transition-colors"
                       >
                         <ChevronRight
@@ -410,7 +282,7 @@ export default function NoteSidebar() {
 
                       {tkExpanded &&
                         tk.notes.map((note) => (
-                          <NoteItem
+                          <NoteSidebarItem
                             key={note.id}
                             note={note}
                             isActive={note.id === currentNoteId}
@@ -438,7 +310,7 @@ export default function NoteSidebar() {
               </div>
             )}
             {tree.standalone.map((note) => (
-              <NoteItem
+              <NoteSidebarItem
                 key={note.id}
                 note={note}
                 isActive={note.id === currentNoteId}

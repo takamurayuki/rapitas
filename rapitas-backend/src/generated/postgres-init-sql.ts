@@ -1218,6 +1218,7 @@ CREATE TABLE "Note" (
     "tags" TEXT NOT NULL DEFAULT '[]',
     "color" TEXT,
     "docType" TEXT,
+    "version" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

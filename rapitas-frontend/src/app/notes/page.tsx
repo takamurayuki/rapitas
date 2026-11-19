@@ -10,13 +10,24 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { NotebookTabs, Sparkles, Columns2, ArrowLeftRight, NotebookPen } from 'lucide-react';
-import { useNoteStore, type ModalTab, type SplitNoteSide } from '@/stores/note-store';
+import {
+  useEnsureNotesLoaded,
+  useNoteStore,
+  type ModalTab,
+  type SplitNoteSide,
+} from '@/stores/note-store';
 import NoteTabContent from '@/components/note/note-tab-content';
 import AITabContent from '@/components/note/ai-tab-content';
+import { NoteMigrationBanner, useNoteMigration } from '@/components/note/migration';
 
 export default function NotesPage() {
   const t = useTranslations('notes');
-  const { notes, currentNoteId, createNote } = useNoteStore();
+  const { notes, currentNoteId, createNote, onOpenEmpty } = useNoteStore();
+  // A fresh list each time the page opens: the phone may have written since.
+  useEnsureNotesLoaded(0);
+  // Until this browser's notes are on the server the page keeps showing them
+  // as before, with the migration band above (design §5.3 step 7).
+  const migration = useNoteMigration();
 
   const TABS: { id: ModalTab; label: string; icon: React.ElementType }[] = [
     { id: 'note', label: t('common.note'), icon: NotebookTabs },
@@ -31,9 +42,9 @@ export default function NotesPage() {
 
   const handleTabChange = (tab: ModalTab) => {
     setActiveTab(tab);
-    if ((tab === 'note' || tab === 'split') && notes.length === 0) {
-      createNote();
-    }
+    // NOTE: onOpenEmpty, not createNote: on the server an empty page shows its
+    // empty state rather than writing a blank note for every tab switch.
+    if ((tab === 'note' || tab === 'split') && notes.length === 0) onOpenEmpty();
   };
 
   return (
@@ -80,6 +91,8 @@ export default function NotesPage() {
           </div>
         </div>
       </div>
+
+      <NoteMigrationBanner migration={migration} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0 overflow-hidden">

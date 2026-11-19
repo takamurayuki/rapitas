@@ -25,7 +25,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, ChevronLeft, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useNoteStore } from '@/stores/note-store';
+import { useEnsureNotesLoaded, useNoteStore } from '@/stores/note-store';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import NoteEditor from '@/components/note/NoteEditor';
 import TaskDetailClient from '../TaskDetailClient';
@@ -62,6 +62,7 @@ export function TaskNoteSplitView({ taskId: _taskId, noteId }: Props) {
       document.body.style.overflow = prev;
     };
   }, []);
+  useEnsureNotesLoaded();
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
 
   const handleClose = () => {

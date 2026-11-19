@@ -4,15 +4,20 @@
  * The note that closes a roadmap: what was decided, where the work went,
  * and links to every task that was created.
  *
- * Pure, and separate from the component, because it is the one part of the
- * flow whose output a person reads weeks later. The questions come from the
- * round that asked them rather than from the plan on screen — the final
- * round deliberately asks nothing, so by the time the tasks exist the
- * questions are only here.
+ * Composing it is pure and separate from the component, because it is the
+ * one part of the flow whose output a person reads weeks later. The
+ * questions come from the round that asked them rather than from the plan on
+ * screen — the final round deliberately asks nothing, so by the time the
+ * tasks exist the questions are only here.
  *
- * Not responsible for storing it — notes live in the browser's own storage
- * and the component owns that.
+ * `saveRoadmapNote` stores it on the server and links it to every task the
+ * roadmap made (design §5.3 step 8) — before stage 0 it lived only in this
+ * browser's store and had no server links, so the phone never saw it.
+ * Not responsible for the task descriptions (use-roadmap's attachNote).
  */
+
+import { useNoteStore, type NoteTaskMeta } from '@/stores/note-store';
+import { linkNoteOnServer, saveNoteOnServer } from '@/stores/note/note-api';
 
 /** A question that was asked, and what the user picked. */
 export interface NoteDecision {
@@ -114,4 +119,76 @@ export function composeRoadmapNote(input: {
   );
 
   return lines.join('\n');
+}
+
+/** One task to hang the note off, with what the desktop tree needs to place it. */
+export interface RoadmapNoteLink {
+  taskId: number;
+  meta: NoteTaskMeta;
+}
+
+/**
+ * One link per created task, with the step title and the theme the desktop
+ * tree places it under.
+ *
+ * @param taskIds - The created tasks, in step order / 作成したタスク（手順順）
+ * @param steps - The plan's steps / 計画の手順
+ * @param themeName - The theme's name, when there is one / テーマ名
+ * @returns The links to make / 作る紐付け
+ */
+export function roadmapNoteLinks(
+  taskIds: number[],
+  steps: { title?: string }[],
+  themeName?: string | null,
+): RoadmapNoteLink[] {
+  return taskIds.map((taskId, i) => {
+    const taskTitle = steps[i]?.title;
+    return {
+      taskId,
+      meta: { ...(taskTitle ? { taskTitle } : {}), ...(themeName ? { themeName } : {}) },
+    };
+  });
+}
+
+/** What was saved. */
+export interface RoadmapNoteSaved {
+  noteId: string;
+  linkedTaskIds: number[];
+}
+
+/**
+ * Save the note, then link it to each task. A failed link is skipped (the
+ * note and the other links stand); a failed note save throws.
+ *
+ * @param title - The note title (the goal) / タイトル（目標）
+ * @param content - The Markdown body / Markdown の本文
+ * @param links - The tasks to link / 紐付けるタスク
+ * @param now - Clock for the id, for tests / ID 用の時刻（テスト用）
+ * @returns The note id and the tasks it is linked to / ノートIDと紐付いたタスク
+ * @throws {Error} when the note itself was not saved / ノート自体を保存できなかったとき
+ */
+export async function saveRoadmapNote(
+  title: string,
+  content: string,
+  links: RoadmapNoteLink[],
+  now: () => number = Date.now,
+): Promise<RoadmapNoteSaved> {
+  // Same id shape the desktop store mints, so it reads like any other note.
+  const noteId = now().toString();
+  const saved = await saveNoteOnServer(noteId, { title, content });
+  const linkedTaskIds: number[] = [];
+  const linkedTaskMeta: Record<number, NoteTaskMeta> = {};
+  for (const link of links) {
+    try {
+      await linkNoteOnServer(noteId, link.taskId, link.meta);
+      linkedTaskIds.push(link.taskId);
+      linkedTaskMeta[link.taskId] = link.meta;
+    } catch {
+      // Best-effort per task: the note exists, and the task still gets its chip.
+    }
+  }
+  const store = useNoteStore.getState();
+  store.upsertNote({ ...saved, linkedTaskIds, linkedTaskMeta });
+  store.setCurrentNote(noteId);
+  return { noteId, linkedTaskIds };
 }

@@ -13,7 +13,12 @@ vi.mock('next-intl', () => ({
   useTranslations: (ns: string) => (key: string, vals?: Record<string, unknown>) =>
     vals ? `${ns}.${key}:${Object.values(vals).join(',')}` : `${ns}.${key}`,
 }));
+/** The closing note's server writes. */
+let noteWrites: { url: string; body: Record<string, unknown> }[] = [];
+let noteLinks: { url: string; body: Record<string, unknown> }[] = [];
 const noteState = {
+  upsertNote: () => {},
+  setCurrentNote: () => {},
   createNote: () => {},
   updateNote: () => {},
   currentNoteId: 'note-1',
@@ -46,8 +51,36 @@ const DRAFT = {
 let requests: { url: string; body: Record<string, unknown> }[] = [];
 
 beforeEach(() => {
+  noteWrites = [];
+  noteLinks = [];
   requests = [];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // The closing note is saved on the server since stage 0: PATCH
+    // /notes/:id, then POST /notes/:id/links per task. Answered here and kept
+    // out of `requests`, which is about the roadmap's own calls.
+    if (/\/notes\//.test(String(url))) {
+      const written = JSON.parse(String(init?.body ?? '{}'));
+      const isNote = init?.method === 'PATCH';
+      if (isNote) noteWrites.push({ url: String(url), body: written });
+      else noteLinks.push({ url: String(url), body: written });
+      const now = new Date().toISOString();
+      const note = {
+        id: 'n',
+        title: written.title ?? '',
+        content: written.content ?? '',
+        isPinned: false,
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+        linkedTaskIds: [],
+        linkedTaskMeta: {},
+      };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ success: true, note }),
+      } as Response);
+    }
     const body = JSON.parse(String(init?.body));
     requests.push({ url, body });
     const answer = String(url).includes('/commit')

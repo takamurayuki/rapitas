@@ -3,236 +3,34 @@
  * NoteEditor
  *
  * The note body surface behind the /notes page and the task detail's note
- * split view. A Markdown body (ラピ, the phone, the roadmap) is shown rendered
- * by MarkdownNoteEditor; a body written here in the rich editor (HTML) opens
- * in the contentEditable editor below.
+ * split view. Every note opens in the Markdown editor (MarkdownNoteEditor),
+ * including an empty or one-line note; a note whose body is the old rich
+ * editor's HTML opens read-only (LegacyHtmlNoteView) with a conversion to
+ * Markdown.
+ *
+ * NOTE: the contentEditable rich editor no longer opens here (stage 0,
+ * design §5.3): it saved HTML, and new and edited bodies are Markdown only.
+ * Its parts under `editor/` stay for the header and footer the Markdown
+ * editor shares.
  */
-import { useState, useCallback, useRef, type ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
-import { type Note, useNoteStore } from '@/stores/note-store';
-import { useNoteEditor } from './editor/useNoteEditor';
-import NoteEditorHeader from './editor/NoteEditorHeader';
-import NoteEditorFooter from './editor/NoteEditorFooter';
-import EditorToolbar from './editor/EditorToolbar';
-import DiagramBlockEdit from './editor/DiagramBlockEdit';
-import { getDiagramSource, setDiagramSource } from './editor/diagram-block';
-import { useTableControls } from './editor/useTableControls';
-import { TableControlsOverlay } from './editor/TableControlsOverlay';
-import { InlineLinkPopup } from './editor/InlineLinkPopup';
-import { useInlineLinks } from './editor/useInlineLinks';
+import { type Note } from '@/stores/note-store';
 import MarkdownNoteEditor from './markdown-note/MarkdownNoteEditor';
-import { isMarkdownNoteContent } from './markdown-note/note-content-format';
-
-interface DiagramEditState {
-  el: HTMLElement;
-  source: string;
-}
+import LegacyHtmlNoteView from './markdown-note/LegacyHtmlNoteView';
+import { isLegacyEditorHtml } from './markdown-note/note-content-kind';
 
 interface NoteEditorProps {
   note: Note;
-  /** Optional extra content rendered below the toolbar (e.g. split-view panels). */
-  children?: ReactNode;
 }
 
 /**
- * Opens a note in the surface that matches its body format.
+ * Opens a note in the surface that matches its body.
  *
  * @param note - The note to open / 開くノート
- * @param children - Optional content in place of the rich editor body / リッチエディタ本文の代わりに出す内容（任意）
  */
-export default function NoteEditor(props: NoteEditorProps) {
-  // Keyed by id so the format is read once per opened note: a draft that
-  // briefly stops looking like Markdown must not flip the surface mid-edit.
-  return <NoteEditorForFormat key={props.note.id} {...props} />;
-}
-
-function NoteEditorForFormat({ note, children }: NoteEditorProps) {
-  const [isMarkdown] = useState(() => isMarkdownNoteContent(note.content));
-  // NOTE: Markdown notes are not loaded into the rich editor: innerHTML would
-  // fold their newlines, show their marks, and save them back as HTML.
-  if (isMarkdown) return <MarkdownNoteEditor note={note} />;
-  return <RichNoteEditor note={note}>{children}</RichNoteEditor>;
-}
-
-function RichNoteEditor({ note, children }: NoteEditorProps) {
-  const t = useTranslations('notes');
-  const editor = useNoteEditor(note);
-  const deleteNote = useNoteStore((s) => s.deleteNote);
-  const updateNote = useNoteStore((s) => s.updateNote);
-  const setCurrentNote = useNoteStore((s) => s.setCurrentNote);
-  const [editingDiagram, setEditingDiagram] = useState<DiagramEditState | null>(null);
-
-  // Confluence-style handles on the table itself. The toolbar's grid still
-  // inserts tables; editing one happens where the table is.
-  // The handles are positioned inside this scrolling box rather than fixed
-  // to the viewport: the note opens in a modal that sets
-  // `will-change: transform` while dragged, which makes it the containing
-  // block for fixed descendants and puts viewport coordinates elsewhere.
-  const editorScrollRef = useRef<HTMLDivElement | null>(null);
-  const tableControls = useTableControls(
-    editor.contentRef,
-    editorScrollRef,
-    (n) => t('editorDom.tableHeading', { n }),
-    editor.markDirty,
-  );
-
-  const handleEditorClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const target = e.target as HTMLElement;
-
-      // Delete button takes priority — use class selector; DOMPurify strips data-* on load
-      if (target.closest('.diagram-delete-btn')) {
-        const block = target.closest('.diagram-block') as HTMLElement | null;
-        if (block) {
-          block.remove();
-          editor.markDirty();
-        }
-        return;
-      }
-
-      // Click anywhere else on the block opens the editor
-      const block = target.closest('.diagram-block') as HTMLElement | null;
-      if (block) {
-        setEditingDiagram({ el: block, source: getDiagramSource(block) });
-      }
-    },
-    [editor],
-  );
-
-  // Plain links inside the text: paste to make one, Ctrl+click to follow,
-  // hover for the panel that opens, re-points or removes it.
-  const inlineLinks = useInlineLinks(editor.contentRef, editor.markDirty);
-
-  const handleDiagramSave = useCallback(
-    async (newSource: string) => {
-      if (!editingDiagram) return;
-      setDiagramSource(editingDiagram.el, newSource);
-      await editor.renderDiagramBlock(editingDiagram.el);
-      editor.markDirty();
-      setEditingDiagram(null);
-    },
-    [editingDiagram, editor],
-  );
-
-  return (
-    <div className="flex flex-col h-full relative">
-      <NoteEditorHeader
-        note={note}
-        draftTitle={editor.draftTitle}
-        isDirty={editor.isDirty}
-        titleRef={editor.titleRef}
-        onTitleChange={editor.handleTitleChange}
-        onTitlePaste={editor.handleTitlePaste}
-        onSave={editor.handleSave}
-        onDelete={() => {
-          deleteNote(note.id);
-          setCurrentNote(null);
-        }}
-        onSetDocType={(docType) => updateNote(note.id, { docType })}
-      />
-
-      <EditorToolbar
-        currentBlockType={editor.currentBlockType}
-        showBlockPicker={editor.showBlockPicker}
-        setShowBlockPicker={editor.setShowBlockPicker}
-        onApplyBlockType={editor.onApplyBlockType}
-        currentFont={editor.currentFont}
-        currentFontSize={editor.currentFontSize}
-        currentTextColor={editor.currentTextColor}
-        highlightStyleIndex={editor.highlightStyleIndex}
-        showFontPicker={editor.showFontPicker}
-        showFontSizePicker={editor.showFontSizePicker}
-        showTextColorPicker={editor.showTextColorPicker}
-        showColorPicker={editor.showColorPicker}
-        showBorderPicker={editor.showBorderPicker}
-        showTablePicker={editor.showTablePicker}
-        showLinkInput={editor.showLinkInput}
-        showCodeInput={editor.showCodeInput}
-        linkUrl={editor.linkUrl}
-        isLinkLoading={editor.isLinkLoading}
-        codeLanguage={editor.codeLanguage}
-        setCurrentFont={editor.setCurrentFont}
-        setCurrentFontSize={editor.setCurrentFontSize}
-        setCurrentTextColor={editor.setCurrentTextColor}
-        setHighlightStyleIndex={editor.setHighlightStyleIndex}
-        setShowFontPicker={editor.setShowFontPicker}
-        setShowFontSizePicker={editor.setShowFontSizePicker}
-        setShowTextColorPicker={editor.setShowTextColorPicker}
-        setShowColorPicker={editor.setShowColorPicker}
-        setShowBorderPicker={editor.setShowBorderPicker}
-        setShowTablePicker={editor.setShowTablePicker}
-        setShowLinkInput={editor.setShowLinkInput}
-        setShowCodeInput={editor.setShowCodeInput}
-        setLinkUrl={editor.setLinkUrl}
-        setCodeLanguage={editor.setCodeLanguage}
-        onApplyFormat={editor.onApplyFormat}
-        onApplyHighlight={editor.onApplyHighlight}
-        onApplyBorderLine={editor.onApplyBorderLine}
-        onApplyFontSize={editor.onApplyFontSize}
-        onApplyFont={editor.onApplyFont}
-        onApplyTextColor={editor.applyTextColor}
-        onInsertTable={editor.insertTable}
-        onInsertLink={editor.insertLink}
-        onInsertCodeBlock={editor.insertCodeBlock}
-        onInsertDiagram={editor.insertDiagramBlock}
-        onOpenLinkInput={editor.openLinkInput}
-        onOpenCodeInput={editor.openCodeInput}
-        onResetTextColor={editor.handleResetTextColor}
-        closeAllPopups={editor.closeAllPopups}
-        onTextColorButtonClick={editor.handleTextColorButtonClick}
-      />
-
-      {children ?? (
-        <div ref={editorScrollRef} className="relative flex-1 overflow-y-auto custom-scrollbar">
-          <div
-            ref={editor.contentRef}
-            contentEditable
-            suppressContentEditableWarning
-            role="textbox"
-            aria-multiline="true"
-            aria-label={t('editorContentLabel')}
-            tabIndex={0}
-            className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
-            onInput={editor.onEditorInput}
-            onKeyDown={editor.onEditorKeyDown}
-            onCompositionStart={editor.onEditorCompositionStart}
-            onCompositionEnd={editor.onEditorCompositionEnd}
-            onClick={(e) => {
-              inlineLinks.onClick(e);
-              handleEditorClick(e);
-            }}
-            onPaste={inlineLinks.onPaste}
-            onMouseOver={inlineLinks.onMouseOver}
-            onMouseLeave={inlineLinks.onMouseLeave}
-            onFocus={inlineLinks.onCaretMoved}
-            onKeyUp={inlineLinks.onCaretMoved}
-            style={{ lineHeight: '1.8', fontSize: '16px' }}
-          />
-          <TableControlsOverlay controls={tableControls} />
-          {inlineLinks.popup && (
-            <InlineLinkPopup
-              state={inlineLinks.popup}
-              onOpen={inlineLinks.openPopupLink}
-              onRemove={inlineLinks.removePopupLink}
-              onRetarget={inlineLinks.retargetPopupLink}
-              onDismiss={inlineLinks.dismissPopup}
-              onHold={inlineLinks.holdPopup}
-              onRelease={inlineLinks.releasePopup}
-            />
-          )}
-        </div>
-      )}
-
-      <NoteEditorFooter createdAt={note.createdAt} updatedAt={note.updatedAt} />
-
-      {/* Diagram edit overlay — covers the entire editor when a block is clicked */}
-      {editingDiagram && (
-        <DiagramBlockEdit
-          source={editingDiagram.source}
-          onSave={handleDiagramSave}
-          onCancel={() => setEditingDiagram(null)}
-        />
-      )}
-    </div>
-  );
+export default function NoteEditor({ note }: NoteEditorProps) {
+  // Keyed by id so switching notes remounts the surface and drops a draft.
+  // The kind is read from the stored body: once a converted note is saved as
+  // Markdown it moves to the Markdown editor.
+  if (isLegacyEditorHtml(note.content)) return <LegacyHtmlNoteView key={note.id} note={note} />;
+  return <MarkdownNoteEditor key={note.id} note={note} />;
 }

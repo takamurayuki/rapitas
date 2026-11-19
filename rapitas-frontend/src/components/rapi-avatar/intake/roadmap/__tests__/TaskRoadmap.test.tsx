@@ -23,7 +23,12 @@ vi.mock('next-intl', () => ({
 /** The note store, stubbed down to what was written into it. */
 let notes: { title?: string; content?: string }[] = [];
 let currentId: string | null = 'note-1';
+/** The closing note's server writes. */
+let noteWrites: { url: string; body: Record<string, unknown> }[] = [];
+let noteLinks: { url: string; body: Record<string, unknown> }[] = [];
 const noteState = {
+  upsertNote: () => {},
+  setCurrentNote: () => {},
   createNote: (title?: string) => {
     notes.push({ title });
     currentId = `note-${notes.length}`;
@@ -66,6 +71,8 @@ const DRAFT = {
 };
 
 beforeEach(() => {
+  noteWrites = [];
+  noteLinks = [];
   requests = [];
   notes = [];
   currentId = 'note-1';
@@ -73,6 +80,34 @@ beforeEach(() => {
   refinedAnswer = { available: true, draft: { ...DRAFT, questions: [] } };
   commitAnswer = { themeId: 100, projectId: 7, taskIds: [201, 202], failedAfter: null };
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // The closing note is saved on the server since stage 0: PATCH
+    // /notes/:id, then POST /notes/:id/links per task. Answered here and kept
+    // out of `requests`, which is about the roadmap's own calls.
+    if (/\/notes\//.test(String(url))) {
+      const written = JSON.parse(String(init?.body ?? '{}'));
+      const isNote = init?.method === 'PATCH';
+      if (isNote) {
+        notes.push({ title: written.title, content: written.content });
+        noteWrites.push({ url: String(url), body: written });
+      } else noteLinks.push({ url: String(url), body: written });
+      const now = new Date().toISOString();
+      const note = {
+        id: 'n',
+        title: written.title ?? '',
+        content: written.content ?? '',
+        isPinned: false,
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+        linkedTaskIds: [],
+        linkedTaskMeta: {},
+      };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ success: true, note }),
+      } as Response);
+    }
     const body = JSON.parse(String(init?.body));
     requests.push({ url, body });
     // The round is told apart the same way the route tells it apart: by
@@ -225,6 +260,26 @@ describe('the note it leaves behind', () => {
     await create();
     expect(notes[0].content).toContain('/tasks/201?showHeader=true');
     expect(notes[0].content).toContain('/tasks/202?showHeader=true');
+  });
+
+  // Stage 0: the note lives on the server and every created task is linked
+  // to it there, under the same id the description chips point at.
+  it('saves it on the server and links every created task to that id', async () => {
+    await create();
+    await waitFor(() => expect(noteLinks).toHaveLength(2));
+    const noteUrl = noteWrites[0]?.url ?? '';
+    expect(noteUrl).toMatch(/\/notes\/\d+$/);
+    expect(noteLinks.map((l) => l.url)).toEqual([`${noteUrl}/links`, `${noteUrl}/links`]);
+    expect(noteLinks.map((l) => l.body.taskId)).toEqual([201, 202]);
+    expect(noteLinks[0]?.body.meta).toEqual({ taskTitle: '教材を選ぶ', themeName: '英語学習' });
+    const noteId = noteUrl.split('/').pop();
+    await waitFor(() =>
+      expect(
+        requests.some((r) =>
+          String(r.body.description ?? '').includes(`/rapitas-note/201/${noteId}`),
+        ),
+      ).toBe(true),
+    );
   });
 
   it('records the answer the user chose, not the recommendation', async () => {

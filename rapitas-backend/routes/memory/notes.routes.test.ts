@@ -20,6 +20,11 @@ let linked: { id: string; taskId: number; meta?: unknown }[] = [];
 let listedTaskId: number | undefined;
 let noteExists = true;
 let unlinkFound = true;
+let writeConflicts = false;
+
+class NoteWriteConflictError extends Error {}
+class NoteContentRejectedError extends Error {}
+let rejectContent = false;
 
 const NOTE = {
   id: 'n1',
@@ -40,6 +45,10 @@ mock.module('../../services/notes/note-service', () => ({
   },
   getNote: async () => (noteExists ? NOTE : null),
   saveNote: async (_p: unknown, id: string, input: Record<string, unknown>) => {
+    if (rejectContent && typeof input.content === 'string') {
+      throw new NoteContentRejectedError('legacy_html');
+    }
+    if (writeConflicts) throw new NoteWriteConflictError(id);
     saved.push({ id, input });
     return { ...NOTE, id, ...input };
   },
@@ -52,9 +61,29 @@ mock.module('../../services/notes/note-service', () => ({
     imported: notes.length,
     skipped: 0,
   }),
+  NoteWriteConflictError,
+  NoteContentRejectedError,
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
+}));
+
+let taskInScope = true;
+
+// Mirrors every export of note-links (Bun replaces the whole module).
+mock.module('../../services/notes/note-links', () => ({
+  linkNoteInScope: async (_p: unknown, id: string, taskId: number, meta?: unknown) => {
+    if (!noteExists) return 'note_not_found';
+    if (!taskInScope) return 'task_not_found';
+    linked.push({ id, taskId, meta });
+    return null;
+  },
+  importNoteLinks: async (_p: unknown, items: { noteId: string; taskId: number }[]) =>
+    items.map((i) => ({ ...i, status: 'added' })),
+  isTaskInScope: async () => taskInScope,
+  isNoteInScope: async () => noteExists,
+  cleanMeta: (m: unknown) => m ?? {},
+  fillEmptyMeta: (e: Record<string, unknown>) => ({ merged: e, changed: false }),
 }));
 
 mock.module('../../config/database', () => ({
@@ -83,6 +112,9 @@ beforeEach(() => {
   listedTaskId = undefined;
   noteExists = true;
   unlinkFound = true;
+  writeConflicts = false;
+  taskInScope = true;
+  rejectContent = false;
 });
 
 describe('listing', () => {
@@ -125,6 +157,20 @@ describe('writing', () => {
     expect(saved[0]?.input).toEqual({ isPinned: true });
   });
 
+  it('answers 400 when the service refuses the body as legacy HTML', async () => {
+    rejectContent = true;
+    const { status, body } = await call('/n1', json('PUT', { content: '<div>x</div>' }));
+    expect(status).toBe(400);
+    expect(body.error).toBe('legacy_html_content');
+  });
+
+  it('answers 409, not 500, when the note kept changing under the write', async () => {
+    writeConflicts = true;
+    const { status, body } = await call('/n1', json('PATCH', { title: 'x' }));
+    expect(status).toBe(409);
+    expect(body.error).toBe('note_write_conflict');
+  });
+
   it('refuses a title longer than the column', async () => {
     const { status } = await call('/n1', json('PUT', { title: 'あ'.repeat(400) }));
     expect(status).toBe(422);
@@ -155,6 +201,21 @@ describe('attaching to a task', () => {
     expect(status).toBe(404);
     expect(body.error).toBe('note_not_found');
     expect(linked).toEqual([]);
+  });
+
+  it('refuses, as 404, a task outside the request workspace', async () => {
+    taskInScope = false;
+    const { status, body } = await call('/n1/links', json('POST', { taskId: 70 }));
+    expect(status).toBe(404);
+    expect(body.error).toBe('task_not_found');
+    expect(linked).toEqual([]);
+  });
+
+  it('takes the stage-0 meta keys the desktop tree needs', async () => {
+    const meta = { taskTitle: '単元1', categoryName: '学習', themeName: '数学' };
+    const { status } = await call('/n1/links', json('POST', { taskId: 7, meta }));
+    expect(status).toBe(200);
+    expect(linked[0]?.meta).toEqual(meta);
   });
 
   it('404s when unlinking something that was not linked', async () => {

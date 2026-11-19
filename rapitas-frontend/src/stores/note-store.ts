@@ -1,421 +1,275 @@
+/**
+ * note-store
+ *
+ * The desktop's notes: the list the /notes page, its sidebar, the note modal
+ * and the task detail read, and the actions that change them.
+ *
+ * Since stage 0 the source is the server (`/notes`): every change is sent to
+ * the API, in order per note, and the list is loaded from it. Until this
+ * browser's own notes have been migrated (`note-migration` says done), the
+ * store keeps the old behaviour on the local copy (localStorage
+ * `note-storage`) so the screen does not change under the migration
+ * (design §5.3 step 7); after that the local copy is a read-only backup that
+ * is never written again.
+ *
+ * Not responsible for the migration itself — see components/note/migration.
+ */
+import { useEffect } from 'react';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import type { Note, NoteSource, NoteTaskMeta, NoteUpdate } from './note/note-types';
+import { createNoteModalSlice, type NoteModalSlice } from './note/note-modal-slice';
+import { createLocalNoteActions } from './note/note-local-actions';
+import {
+  deleteNoteOnServer,
+  fetchNotes,
+  linkNoteOnServer,
+  NoteApiError,
+  saveNoteOnServer,
+  unlinkNoteOnServer,
+} from './note/note-api';
+import { isMeaningfulNote, readLocalNotes, writeLocalNotes } from './note/note-local-backup';
+import { isNoteMigrationDone } from './note/note-migration-record';
 
-export interface NoteTaskMeta {
-  taskTitle: string;
-  themeName: string;
-  categoryName: string;
-}
+export type { Note, NoteTaskMeta, DocType, NoteSource } from './note/note-types';
+export { DOC_TYPES } from './note/note-types';
+export type { ModalTab, SplitNoteSide, NoteModalState } from './note/note-modal-slice';
 
-export const DOC_TYPES = ['要件定義', '設計書', '議事録', '手順書', '仕様書', 'メモ'] as const;
-export type DocType = (typeof DOC_TYPES)[number];
+/** Why the last server write or load did not go through. */
+export type NoteSyncError =
+  | 'load_failed'
+  | 'save_failed'
+  | 'legacy_html'
+  | 'conflict'
+  | 'link_failed';
 
-export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-  isPinned: boolean;
-  tags: string[];
-  color?: string;
-  /** Document type for organizing design/requirements docs / 要件定義・設計書などの種別 */
-  docType?: DocType;
-  /** Task IDs this note is linked to. */
-  linkedTaskIds?: number[];
-  /** Hierarchy metadata keyed by taskId — populated when linking from a task context. */
-  linkedTaskMeta?: Record<number, NoteTaskMeta>;
-}
-
-export type ModalTab = 'note' | 'ai' | 'split';
-
-/** Which side the Note panel sits on in split view. AI takes the opposite side. */
-export type SplitNoteSide = 'left' | 'right';
-
-export interface NoteModalState {
-  isOpen: boolean;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  isMaximized: boolean;
-  zIndex: number;
-  activeTab: ModalTab;
-  /** Side the Note panel occupies in split view (default 'right'). */
-  splitNoteSide: SplitNoteSide;
-}
-
-interface NoteState {
+export interface NoteDataState {
   notes: Note[];
   currentNoteId: string | null;
-  modalState: NoteModalState;
-  searchQuery: string;
-  selectedTags: string[];
-  selectedDocType: DocType | null;
+  source: NoteSource;
+  loadState: 'idle' | 'loading' | 'ready' | 'error';
+  loadedAt: number;
+  syncError: NoteSyncError | null;
 
-  // Note operations
-  createNote: (title?: string) => void;
+  /** Make a note and open it; returns its id. */
+  createNote: (title?: string) => string;
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   setCurrentNote: (id: string | null) => void;
-  linkNoteToTask: (noteId: string, taskId: number, meta?: NoteTaskMeta) => void;
+  /** Resolves false when the server refused (e.g. the task is not in this workspace). */
+  linkNoteToTask: (noteId: string, taskId: number, meta?: NoteTaskMeta) => Promise<boolean>;
   unlinkNoteFromTask: (noteId: string, taskId: number) => void;
   getNotesForTask: (taskId: number) => Note[];
 
-  // Modal operations
-  toggleModal: () => void;
-  openModal: (tab?: ModalTab) => void;
-  closeModal: () => void;
-  setModalPosition: (x: number, y: number) => void;
-  setModalSize: (width: number, height: number) => void;
-  toggleMaximize: () => void;
-  bringToFront: () => void;
-  setModalTab: (tab: ModalTab) => void;
-  setSplitNoteSide: (side: SplitNoteSide) => void;
-  toggleSplitNoteSide: () => void;
-
-  // Search and filter
-  setSearchQuery: (query: string) => void;
-  toggleTag: (tag: string) => void;
-  setSelectedDocType: (docType: DocType | null) => void;
-  clearFilters: () => void;
-
-  // Get filtered notes
-  getFilteredNotes: () => Note[];
-  getAllTags: () => string[];
+  loadNotes: () => Promise<void>;
+  /** Load when nothing was loaded yet or the list is older than `maxAgeMs`. */
+  ensureLoaded: (maxAgeMs?: number) => void;
+  /** Called once the migration is done: drop the local copy, read the server. */
+  switchToServer: () => Promise<void>;
+  /** Put a note another module already saved on the server into the list. */
+  upsertNote: (note: Note) => void;
+  clearSyncError: () => void;
+  onOpenEmpty: () => void;
 }
 
-let nextZIndex = 1000;
+export type NoteState = NoteDataState & NoteModalSlice;
 
-const defaultModalState: NoteModalState = {
-  isOpen: false,
-  position: {
-    x: typeof window !== 'undefined' ? Math.max(100, (window.innerWidth - 600) / 2) : 100,
-    y: typeof window !== 'undefined' ? Math.max(100, (window.innerHeight - 500) / 2) : 100,
-  },
-  size: { width: 600, height: 500 },
-  isMaximized: false,
-  zIndex: 1000,
-  activeTab: 'note',
-  splitNoteSide: 'right',
-};
+const WRITABLE: (keyof NoteUpdate)[] = ['title', 'content', 'isPinned', 'tags', 'color', 'docType'];
 
-export const useNoteStore = create<NoteState>()(
-  persist(
-    (set, get) => ({
-      notes: [],
-      currentNoteId: null,
-      modalState: defaultModalState,
-      searchQuery: '',
-      selectedTags: [],
-      selectedDocType: null,
+function pickWritable(updates: Partial<Note>): NoteUpdate {
+  const out: Record<string, unknown> = {};
+  for (const key of WRITABLE) if (updates[key] !== undefined) out[key] = updates[key];
+  return out as NoteUpdate;
+}
 
-      createNote: (title?: string) => {
-        // NOTE: Guard against onClick events being passed as title when used as a
-        // direct event handler (e.g. onClick={createNote}).  The MouseEvent is truthy
-        // so `title ?? fallback` would store it instead of the fallback string.
-        const safeTitle = typeof title === 'string' ? title : undefined;
-        const newNote: Note = {
-          id: Date.now().toString(),
-          title: safeTitle ?? '',
-          content: '',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isPinned: false,
-          tags: [],
-        };
-        set((state) => ({
-          notes: [newNote, ...state.notes],
-          currentNoteId: newNote.id,
-        }));
-      },
+function syncErrorOf(err: unknown, fallback: NoteSyncError): NoteSyncError {
+  if (err instanceof NoteApiError) {
+    if (err.code === 'legacy_html_content') return 'legacy_html';
+    if (err.status === 409) return 'conflict';
+  }
+  return fallback;
+}
 
-      updateNote: (id, updates) => {
-        set((state) => {
-          const newState = {
-            notes: state.notes.map((note) =>
-              note.id === id ? { ...note, ...updates, updatedAt: new Date() } : note,
-            ),
-          };
+/** Per-note write queues, so two saves of one note reach the server in order. */
+const queues = new Map<string, Promise<unknown>>();
+function enqueue<T>(id: string, task: () => Promise<T>): Promise<T> {
+  const previous = queues.get(id) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(task);
+  queues.set(id, next);
+  // Forget a settled queue, so "still has a write in flight" stays meaningful.
+  const forget = () => {
+    if (queues.get(id) === next) queues.delete(id);
+  };
+  next.then(forget, forget);
+  return next;
+}
 
-          // If note is saved and content is not empty, auto-create new note if no empty one exists
-          const updatedNote = newState.notes.find((n) => n.id === id);
-          if (
-            updatedNote &&
-            (updatedNote.content.trim() !== '' || updatedNote.title.trim() !== '')
-          ) {
-            const hasEmptyNote = newState.notes.some(
-              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
-            );
+function initialData(): Pick<NoteDataState, 'notes' | 'currentNoteId' | 'source'> {
+  if (typeof window === 'undefined') return { notes: [], currentNoteId: null, source: 'server' };
+  const local = readLocalNotes();
+  if (isNoteMigrationDone() || !local.notes.some(isMeaningfulNote)) {
+    return { notes: [], currentNoteId: null, source: 'server' };
+  }
+  return { notes: local.notes, currentNoteId: local.currentNoteId, source: 'local' };
+}
 
-            if (!hasEmptyNote) {
-              const newNote: Note = {
-                id: Date.now().toString(),
-                title: '',
-                content: '',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                isPinned: false,
-                tags: [],
-              };
-              newState.notes = [newNote, ...newState.notes];
-            }
-          }
+export const useNoteStore = create<NoteState>()((set, get) => {
+  const local = createLocalNoteActions(set, get);
+  const isLocal = () => get().source === 'local';
+  const replaceNote = (id: string, fn: (n: Note) => Note) =>
+    set((s) => ({ notes: s.notes.map((n) => (n.id === id ? fn(n) : n)) }));
 
-          return newState;
-        });
-      },
+  /** Send fields for one note and take the server's timestamps back. */
+  const send = (id: string, fields: NoteUpdate) =>
+    enqueue(id, async () => {
+      try {
+        const saved = await saveNoteOnServer(id, fields);
+        replaceNote(id, (n) => ({ ...n, createdAt: saved.createdAt, updatedAt: saved.updatedAt }));
+      } catch (err) {
+        set({ syncError: syncErrorOf(err, 'save_failed') });
+        // The list no longer matches the server; read it again.
+        void get().loadNotes();
+      }
+    });
 
-      deleteNote: (id) => {
-        set((state) => {
-          const newNotes = state.notes.filter((note) => note.id !== id);
-          const currentNote = state.currentNoteId === id ? null : state.currentNoteId;
+  return {
+    ...createNoteModalSlice({ set, get }),
+    ...initialData(),
+    loadState: 'idle',
+    loadedAt: 0,
+    syncError: null,
 
-          // After deletion, create new empty note if none exists
-          const hasEmptyNote = newNotes.some(
-            (n) => n.content.trim() === '' && n.title.trim() === '',
-          );
-
-          if (!hasEmptyNote && newNotes.length > 0) {
-            const newNote: Note = {
-              id: Date.now().toString() + '-delete',
-              title: '',
-              content: '',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              isPinned: false,
-              tags: [],
-            };
-            newNotes.unshift(newNote);
-          }
-
-          return { notes: newNotes, currentNoteId: currentNote };
-        });
-      },
-
-      setCurrentNote: (id) => {
-        set({ currentNoteId: id });
-
-        // When switching to empty note, create new one if no others exist
-        if (id) {
-          const state = get();
-          const currentNote = state.notes.find((n) => n.id === id);
-          if (currentNote && currentNote.content.trim() === '' && currentNote.title.trim() === '') {
-            const otherEmptyNote = state.notes.find(
-              (n) => n.content.trim() === '' && n.title.trim() === '' && n.id !== id,
-            );
-            if (!otherEmptyNote) {
-              const newNote: Note = {
-                id: Date.now().toString() + '-auto',
-                title: '',
-                content: '',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                isPinned: false,
-                tags: [],
-              };
-              set((state) => ({
-                notes: [newNote, ...state.notes],
-              }));
-            }
-          }
-        }
-      },
-
-      linkNoteToTask: (noteId, taskId, meta) => {
-        set((state) => ({
-          notes: state.notes.map((n) =>
-            n.id === noteId
-              ? {
-                  ...n,
-                  linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])],
-                  ...(meta
-                    ? { linkedTaskMeta: { ...(n.linkedTaskMeta ?? {}), [taskId]: meta } }
-                    : {}),
-                }
-              : n,
-          ),
-        }));
-      },
-
-      unlinkNoteFromTask: (noteId, taskId) => {
-        set((state) => ({
-          notes: state.notes.map((n) => {
-            if (n.id !== noteId) return n;
-            const newMeta = { ...(n.linkedTaskMeta ?? {}) };
-            delete newMeta[taskId];
-            return {
-              ...n,
-              linkedTaskIds: (n.linkedTaskIds ?? []).filter((id) => id !== taskId),
-              linkedTaskMeta: newMeta,
-            };
-          }),
-        }));
-      },
-
-      getNotesForTask: (taskId) => {
-        return get().notes.filter((n) => n.linkedTaskIds?.includes(taskId));
-      },
-
-      toggleModal: () => {
-        const state = get();
-        if (state.modalState.isOpen) {
-          set({ modalState: { ...state.modalState, isOpen: false } });
-        } else {
-          set({
-            modalState: {
-              ...state.modalState,
-              isOpen: true,
-              zIndex: ++nextZIndex,
-            },
-          });
-          // Create new note if none exists
-          if (state.notes.length === 0) {
-            get().createNote();
-          }
-        }
-      },
-
-      openModal: (tab) => {
-        set((state) => ({
-          modalState: {
-            ...state.modalState,
-            isOpen: true,
-            zIndex: ++nextZIndex,
-            ...(tab ? { activeTab: tab } : {}),
-          },
-        }));
-        const state = get();
-        // Create new note if none exists
-        if ((!tab || tab === 'note') && state.notes.length === 0) {
-          get().createNote();
-        }
-      },
-
-      closeModal: () => {
-        set((state) => ({
-          modalState: { ...state.modalState, isOpen: false },
-        }));
-      },
-
-      setModalPosition: (x, y) => {
-        set((state) => ({
-          modalState: { ...state.modalState, position: { x, y } },
-        }));
-      },
-
-      setModalSize: (width, height) => {
-        set((state) => ({
-          modalState: { ...state.modalState, size: { width, height } },
-        }));
-      },
-
-      toggleMaximize: () => {
-        set((state) => ({
-          modalState: {
-            ...state.modalState,
-            isMaximized: !state.modalState.isMaximized,
-          },
-        }));
-      },
-
-      bringToFront: () => {
-        set((state) => ({
-          modalState: { ...state.modalState, zIndex: ++nextZIndex },
-        }));
-      },
-
-      setModalTab: (tab) => {
-        set((state) => ({
-          modalState: { ...state.modalState, activeTab: tab },
-        }));
-      },
-
-      setSplitNoteSide: (side) => {
-        set((state) => ({
-          modalState: { ...state.modalState, splitNoteSide: side },
-        }));
-      },
-
-      toggleSplitNoteSide: () => {
-        set((state) => ({
-          modalState: {
-            ...state.modalState,
-            splitNoteSide: state.modalState.splitNoteSide === 'right' ? 'left' : 'right',
-          },
-        }));
-      },
-
-      setSearchQuery: (query) => {
-        set({ searchQuery: query });
-      },
-
-      toggleTag: (tag) => {
-        set((state) => {
-          const tags = state.selectedTags.includes(tag)
-            ? state.selectedTags.filter((t) => t !== tag)
-            : [...state.selectedTags, tag];
-          return { selectedTags: tags };
-        });
-      },
-
-      setSelectedDocType: (docType) => {
-        set({ selectedDocType: docType });
-      },
-
-      clearFilters: () => {
-        set({ searchQuery: '', selectedTags: [], selectedDocType: null });
-      },
-
-      getFilteredNotes: () => {
-        const state = get();
-        let filtered = [...state.notes];
-
-        // Search filter
-        if (state.searchQuery) {
-          const query = state.searchQuery.toLowerCase();
-          filtered = filtered.filter(
-            (note) =>
-              note.title.toLowerCase().includes(query) ||
-              note.content.toLowerCase().includes(query) ||
-              note.tags.some((tag) => tag.toLowerCase().includes(query)),
-          );
-        }
-
-        // Tag filter
-        if (state.selectedTags.length > 0) {
-          filtered = filtered.filter((note) =>
-            state.selectedTags.every((tag) => note.tags.includes(tag)),
-          );
-        }
-
-        // DocType filter
-        if (state.selectedDocType) {
-          filtered = filtered.filter((note) => note.docType === state.selectedDocType);
-        }
-
-        // Sort by pinned first, then by updatedAt
-        return filtered.sort((a, b) => {
-          if (a.isPinned !== b.isPinned) {
-            return a.isPinned ? -1 : 1;
-          }
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-        });
-      },
-
-      getAllTags: () => {
-        const state = get();
-        const tagSet = new Set<string>();
-        state.notes.forEach((note) => {
-          note.tags?.forEach((tag) => tagSet.add(tag));
-        });
-        return Array.from(tagSet).sort();
-      },
-    }),
-    {
-      name: 'note-storage',
-      partialize: (state) => ({
-        notes: state.notes,
-        currentNoteId: state.currentNoteId,
-      }),
+    createNote: (title?: string) => {
+      if (isLocal()) return local.createNote(title);
+      // NOTE: Guard against onClick events being passed as title (onClick={createNote}).
+      const safeTitle = typeof title === 'string' ? title : '';
+      const now = new Date();
+      const note: Note = {
+        id: Date.now().toString(),
+        title: safeTitle,
+        content: '',
+        createdAt: now,
+        updatedAt: now,
+        isPinned: false,
+        tags: [],
+      };
+      set((s) => ({ notes: [note, ...s.notes], currentNoteId: note.id }));
+      // An empty Markdown body is a valid note, so it is created right away
+      // and a link made straight after (NoteLinksSection) finds it.
+      void send(note.id, { title: safeTitle, content: '' });
+      return note.id;
     },
-  ),
-);
+
+    updateNote: (id, updates) => {
+      if (isLocal()) return local.updateNote(id, updates);
+      replaceNote(id, (n) => ({ ...n, ...updates, updatedAt: new Date() }));
+      const fields = pickWritable(updates);
+      if (Object.keys(fields).length > 0) void send(id, fields);
+    },
+
+    deleteNote: (id) => {
+      if (isLocal()) return local.deleteNote(id);
+      set((s) => ({
+        notes: s.notes.filter((n) => n.id !== id),
+        currentNoteId: s.currentNoteId === id ? null : s.currentNoteId,
+      }));
+      void enqueue(id, () => deleteNoteOnServer(id)).catch((err) => {
+        set({ syncError: syncErrorOf(err, 'save_failed') });
+        void get().loadNotes();
+      });
+    },
+
+    setCurrentNote: (id) => {
+      if (isLocal()) return local.setCurrentNote(id);
+      set({ currentNoteId: id });
+    },
+
+    linkNoteToTask: async (noteId, taskId, meta) => {
+      if (isLocal()) {
+        local.linkNoteToTask(noteId, taskId, meta);
+        return true;
+      }
+      const before = get().notes.find((n) => n.id === noteId);
+      replaceNote(noteId, (n) => ({
+        ...n,
+        linkedTaskIds: [...new Set([...(n.linkedTaskIds ?? []), taskId])],
+        ...(meta ? { linkedTaskMeta: { ...(n.linkedTaskMeta ?? {}), [taskId]: meta } } : {}),
+      }));
+      try {
+        await enqueue(noteId, () => linkNoteOnServer(noteId, taskId, meta));
+        return true;
+      } catch {
+        if (before) replaceNote(noteId, () => before);
+        set({ syncError: 'link_failed' });
+        return false;
+      }
+    },
+
+    unlinkNoteFromTask: (noteId, taskId) => {
+      local.unlinkNoteFromTask(noteId, taskId);
+      if (isLocal()) return;
+      void enqueue(noteId, () => unlinkNoteOnServer(noteId, taskId)).catch(() => {
+        set({ syncError: 'link_failed' });
+        void get().loadNotes();
+      });
+    },
+
+    getNotesForTask: (taskId) => get().notes.filter((n) => n.linkedTaskIds?.includes(taskId)),
+
+    loadNotes: async () => {
+      if (isLocal()) return;
+      set({ loadState: 'loading' });
+      try {
+        const notes = await fetchNotes();
+        // A note created here but not yet acknowledged stays in the list.
+        const pending = get().notes.filter(
+          (n) => queues.has(n.id) && !notes.some((s) => s.id === n.id),
+        );
+        set({ notes: [...pending, ...notes], loadState: 'ready', loadedAt: Date.now() });
+      } catch {
+        set({ loadState: 'error', syncError: 'load_failed' });
+      }
+    },
+
+    ensureLoaded: (maxAgeMs = 30_000) => {
+      const s = get();
+      if (s.source !== 'server' || s.loadState === 'loading') return;
+      if (s.loadState === 'ready' && Date.now() - s.loadedAt < maxAgeMs) return;
+      void s.loadNotes();
+    },
+
+    switchToServer: async () => {
+      set({ source: 'server', notes: [], currentNoteId: null, loadState: 'idle', loadedAt: 0 });
+      await get().loadNotes();
+    },
+
+    upsertNote: (note) =>
+      set((s) => ({ notes: [note, ...s.notes.filter((n) => n.id !== note.id)] })),
+
+    clearSyncError: () => set({ syncError: null }),
+
+    onOpenEmpty: () => {
+      // NOTE: the server-backed modal opens on its empty state instead of
+      // creating a blank note on the server for every open.
+      if (isLocal()) local.createNote();
+    },
+  };
+});
+
+// The local copy is the store's persistence only before the migration; once
+// the source is the server it is a backup and is not written again.
+useNoteStore.subscribe((state, prev) => {
+  if (state.source !== 'local') return;
+  if (state.notes === prev.notes && state.currentNoteId === prev.currentNoteId) return;
+  writeLocalNotes({ notes: state.notes, currentNoteId: state.currentNoteId });
+});
+
+/**
+ * Load the server's notes when a screen that shows them mounts.
+ *
+ * @param maxAgeMs - Reuse a list loaded this recently / この時間内の一覧は再取得しない
+ */
+export function useEnsureNotesLoaded(maxAgeMs?: number): void {
+  useEffect(() => {
+    useNoteStore.getState().ensureLoaded(maxAgeMs);
+  }, [maxAgeMs]);
+}

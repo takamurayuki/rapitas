@@ -1,8 +1,12 @@
 import { useNoteStore } from '../note-store';
 
+// NOTE: these cases pin the pre-migration local store (source 'local'), which
+// is kept until a browser's notes are migrated. The server-backed store is
+// covered in note-store.server.test.ts.
 describe('noteStore', () => {
   beforeEach(() => {
     useNoteStore.setState({
+      source: 'local',
       notes: [],
       currentNoteId: null,
       modalState: {

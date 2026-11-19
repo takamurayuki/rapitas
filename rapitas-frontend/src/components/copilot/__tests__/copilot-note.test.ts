@@ -103,16 +103,19 @@ describe('saveCopilotNote', () => {
     expect(useNoteStore.getState().notes[0].linkedTaskIds).toBeUndefined();
   });
 
-  it('keeps the server save when the local copy fails (e.g. localStorage is full)', async () => {
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('quota exceeded', 'QuotaExceededError');
+  // NOTE: the store reads the server since stage 0, so the local copy is the
+  // screen's list rather than localStorage; a failure there is still not a
+  // failed save (a retry would mint a second note).
+  it('keeps the server save when the screen copy cannot be updated', async () => {
+    const upsert = vi.spyOn(useNoteStore.getState(), 'upsertNote').mockImplementation(() => {
+      throw new Error('store unavailable');
     });
     try {
       const result = await saveCopilotNote(draft, 42, () => 9);
       expect(result).toEqual({ noteId: '9', linked: true, mirrored: false });
       expect(calls().map((c) => c.method)).toEqual(['PUT', 'POST']);
     } finally {
-      setItem.mockRestore();
+      upsert.mockRestore();
     }
   });
 

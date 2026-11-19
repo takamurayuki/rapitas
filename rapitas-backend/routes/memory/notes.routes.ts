@@ -26,14 +26,17 @@ import {
   getNote,
   saveNote,
   deleteNote,
-  linkNote,
   unlinkNote,
   importNotes,
+  NoteWriteConflictError,
+  NoteContentRejectedError,
   MAX_NOTE_TITLE,
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
+  type NoteInput,
 } from '../../services/notes/note-service';
 import { draftNoteFromReply } from '../../services/notes/note-draft';
+import { importNoteLinks, linkNoteInScope } from '../../services/notes/note-links';
 import { isValidEntityId } from '../../utils/common/id-validation';
 
 /** An id a browser minted, or a cuid. Bounded so it cannot be a document. */
@@ -63,16 +66,58 @@ const noteBody = t.Object({
 /** ラピ's reply to turn into a note draft; the question is not sent. */
 const draftBody = t.Object({ answer: t.String({ maxLength: MAX_NOTE_CONTENT }) });
 
+// NOTE: taskTitle / categoryName were added in stage 0 — the desktop's tree
+// is built from category > theme > task, the phone shows project / theme /
+// parent task, and both now write and read the one shape.
+const linkMeta = t.Object({
+  taskTitle: t.Optional(t.String({ maxLength: 300 })),
+  categoryName: t.Optional(t.String({ maxLength: 200 })),
+  themeName: t.Optional(t.String({ maxLength: 200 })),
+  projectName: t.Optional(t.String({ maxLength: 200 })),
+  parentTaskTitle: t.Optional(t.String({ maxLength: 300 })),
+});
+
 const linkBody = t.Object({
   taskId: t.Number(),
-  meta: t.Optional(
-    t.Object({
-      themeName: t.Optional(t.String({ maxLength: 200 })),
-      projectName: t.Optional(t.String({ maxLength: 200 })),
-      parentTaskTitle: t.Optional(t.String({ maxLength: 300 })),
-    }),
-  ),
+  meta: t.Optional(linkMeta),
 });
+
+/** The migration's link import: bounded like `/notes/import`. */
+const linkImportBody = t.Object({
+  links: t.Array(t.Object({ noteId, taskId: t.Number(), meta: t.Optional(linkMeta) }), {
+    maxItems: 500,
+  }),
+});
+
+/** The status setter Elysia hands a handler. */
+type StatusSetter = { status?: number | string };
+
+/**
+ * Save through the version contract and map its refusal to a status.
+ *
+ * @param id - The note id from the URL / URL のノートID
+ * @param body - The sent fields / 送られた項目
+ * @param set - Elysia's response setter / レスポンス設定
+ * @returns The response body / レスポンス本文
+ */
+async function writeNote(id: string, body: NoteInput, set: StatusSetter) {
+  try {
+    const note = await saveNote(prisma, id, body);
+    return { success: true, note };
+  } catch (error) {
+    if (error instanceof NoteContentRejectedError) {
+      // Legacy rich-editor HTML: new bodies are Markdown only. The client
+      // converts an HTML note (and shows the result) before saving it here.
+      set.status = 400;
+      return { success: false, error: 'legacy_html_content' };
+    }
+    if (error instanceof NoteWriteConflictError) {
+      set.status = 409;
+      return { success: false, error: 'note_write_conflict' };
+    }
+    throw error;
+  }
+}
 
 export const notesRoutes = new Elysia({ prefix: '/notes' })
   .get(
@@ -101,27 +146,19 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
     { params: t.Object({ id: noteId }) },
   )
 
-  .put(
-    '/:id',
-    async ({ params, body }) => {
-      const note = await saveNote(prisma, params.id, body);
-      return { success: true, note };
-    },
-    { params: t.Object({ id: noteId }), body: noteBody },
-  )
+  .put('/:id', async ({ params, body, set }) => writeNote(params.id, body, set), {
+    params: t.Object({ id: noteId }),
+    body: noteBody,
+  })
 
   // PATCH and PUT do the same thing here on purpose: the write is an upsert
   // of exactly the fields that were sent, so there is no "replace the whole
   // note" variant to distinguish. Both are offered because callers reach for
   // either, and a 405 would be a pointless thing to debug.
-  .patch(
-    '/:id',
-    async ({ params, body }) => {
-      const note = await saveNote(prisma, params.id, body);
-      return { success: true, note };
-    },
-    { params: t.Object({ id: noteId }), body: noteBody },
-  )
+  .patch('/:id', async ({ params, body, set }) => writeNote(params.id, body, set), {
+    params: t.Object({ id: noteId }),
+    body: noteBody,
+  })
 
   .delete(
     '/:id',
@@ -140,13 +177,14 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
     '/:id/links',
     async ({ params, body, set }) => {
       // Checked rather than left to the foreign key: a missing note here is
-      // a caller mistake worth naming, not a 500.
-      const note = await getNote(prisma, params.id);
-      if (!note) {
+      // a caller mistake worth naming, not a 500. The task is looked up in the
+      // request's workspace too (design §2.2) — another workspace's task is
+      // the same 404 as one that does not exist.
+      const refused = await linkNoteInScope(prisma, params.id, body.taskId, body.meta);
+      if (refused) {
         set.status = 404;
-        return { success: false, error: 'note_not_found' };
+        return { success: false, error: refused };
       }
-      await linkNote(prisma, params.id, body.taskId, body.meta);
       return { success: true };
     },
     { params: t.Object({ id: noteId }), body: linkBody },
@@ -188,6 +226,19 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
       }
     },
     { body: draftBody },
+  )
+
+  // The desktop migration's link import: adds links the server lacks and
+  // fills only empty meta keys on the ones it has — the plain link endpoint
+  // replaces meta, which would undo what the phone wrote. Per-link results,
+  // with another workspace's task refused as a 404 for that link.
+  .post(
+    '/links/import',
+    async ({ body }) => {
+      const results = await importNoteLinks(prisma, body.links);
+      return { success: true, results };
+    },
+    { body: linkImportBody },
   )
 
   .post(

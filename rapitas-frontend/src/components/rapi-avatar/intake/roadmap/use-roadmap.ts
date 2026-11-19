@@ -19,8 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useNoteStore } from '@/stores/note-store';
-import { composeRoadmapNote } from './roadmap-note';
+import { composeRoadmapNote, roadmapNoteLinks, saveRoadmapNote } from './roadmap-note';
 import { postRoadmapCommit } from './roadmap-commit-request';
 import type {
   Committed,
@@ -67,11 +66,6 @@ function describe(err: unknown): string {
  * @returns The plan, the answers, and the three things that can be done / 計画・回答・操作
  */
 export function useRoadmap(handedOver?: string) {
-  const createNote = useNoteStore((s) => s.createNote);
-  const updateNote = useNoteStore((s) => s.updateNote);
-  const linkNoteToTask = useNoteStore((s) => s.linkNoteToTask);
-  const currentNoteId = useNoteStore((s) => s.currentNoteId);
-
   const [draft, setDraft] = useState<Draft | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [asked, setAsked] = useState<Question[]>([]);
@@ -181,9 +175,12 @@ export function useRoadmap(handedOver?: string) {
   /**
    * The note: what was decided and why, beside links to what was made.
    *
-   * @returns The note's id, which the tasks are then attached to / ノートのID
+   * NOTE: on the server, linked to every created task, since stage 0.
+   * Best-effort like the chips: the roadmap already exists by now.
+   *
+   * @returns The note's id, which the tasks are then pointed at / ノートのID
    */
-  const writeNote = (plan: Draft, made: Committed): string | null => {
+  const writeNote = async (plan: Draft, made: Committed): Promise<string | null> => {
     const body = composeRoadmapNote({
       goal: plan.goal,
       decisions: decisions(),
@@ -197,11 +194,14 @@ export function useRoadmap(handedOver?: string) {
       candidates: findings?.candidates ?? [],
       unresolvedAxes: findings?.unresolvedAxes ?? [],
     });
-    createNote(plan.goal);
-    // `createNote` makes it current, so the id to fill in is the current one.
-    const id = useNoteStore.getState().currentNoteId ?? currentNoteId;
-    if (id) updateNote(id, { content: body });
-    return id ?? null;
+    const links = roadmapNoteLinks(made.taskIds, plan.steps, plan.themeChoice.name);
+    try {
+      const saved = await saveRoadmapNote(plan.goal, body, links);
+      return saved.noteId;
+    } catch (err) {
+      logger.warn({ err }, 'could not save the roadmap note');
+      return null;
+    }
   };
 
   /**
@@ -223,7 +223,6 @@ export function useRoadmap(handedOver?: string) {
   const attachNote = async (noteId: string, plan: Draft, made: Committed) => {
     for (const [index, taskId] of made.taskIds.entries()) {
       const step = plan.steps[index];
-      linkNoteToTask(noteId, taskId);
       const reference = `参考: [${plan.goal}](/rapitas-note/${taskId}/${noteId})`;
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
@@ -247,7 +246,7 @@ export function useRoadmap(handedOver?: string) {
     try {
       const made = await postRoadmapCommit(draft);
       setCommitted(made);
-      const noteId = writeNote(draft, made);
+      const noteId = await writeNote(draft, made);
       if (noteId) await attachNote(noteId, draft, made);
     } catch (err) {
       logger.warn({ err }, 'could not create the roadmap');

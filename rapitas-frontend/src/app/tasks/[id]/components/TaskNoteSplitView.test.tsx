@@ -34,6 +34,8 @@ vi.mock('@/stores/task-detail-visibility-store', () => ({
     selector({ dockSide, toggleDockSide }),
 }));
 vi.mock('@/stores/note-store', () => ({
+  // Mirrors the export the split view calls since stage 0 (vi.mock replaces the module).
+  useEnsureNotesLoaded: () => {},
   useNoteStore: (selector: (s: unknown) => unknown) =>
     selector({
       notes: [{ id: 'n1', title: 'メモ', content: '<p>x</p>' }],

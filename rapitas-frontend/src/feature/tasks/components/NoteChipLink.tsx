@@ -13,7 +13,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { NotebookPen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useNoteStore } from '@/stores/note-store';
+import { useEnsureNotesLoaded, useNoteStore } from '@/stores/note-store';
 
 interface Props {
   /** String ID from the localStorage note store (Date.now().toString()). */
@@ -31,7 +31,7 @@ interface Props {
 /**
  * Renders a clickable note chip, resolving the live title from the note store.
  *
- * @param props.noteId - ID of the note in the local store.
+ * @param props.noteId - ID of the note in the note store.
  * @param props.taskId - Task ID from the link (preferred over params).
  * @param props.fallbackTitle - Text to show when the note cannot be found.
  */
@@ -39,6 +39,8 @@ export function NoteChipLink({ noteId, taskId: propTaskId, fallbackTitle }: Prop
   const t = useTranslations('task.noteChipLink');
   const router = useRouter();
   const params = useParams();
+  // Chips live in task descriptions; the title comes from the server's list.
+  useEnsureNotesLoaded();
   const note = useNoteStore((s) => s.notes.find((n) => n.id === noteId));
   const title = note?.title || fallbackTitle || t('untitled');
 

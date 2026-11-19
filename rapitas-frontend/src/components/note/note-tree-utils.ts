@@ -147,11 +147,13 @@ export function buildNoteTree(notes: Note[]): NoteTree {
         const meta = note.linkedTaskMeta[taskId];
         if (!meta) continue;
 
+        // NOTE: a link the phone made has no taskTitle; the task number stands in.
+        const taskLabel = meta.taskTitle || `#${taskId}`;
         if (meta.categoryName && meta.themeName) {
-          addToCategories(catMap, meta.categoryName, meta.themeName, taskId, meta.taskTitle, note);
+          addToCategories(catMap, meta.categoryName, meta.themeName, taskId, taskLabel, note);
           addedToTree = true;
         } else if (meta.themeName) {
-          addToThemeGroups(themeMap, meta.themeName, taskId, meta.taskTitle, note);
+          addToThemeGroups(themeMap, meta.themeName, taskId, taskLabel, note);
           addedToTree = true;
         }
       }

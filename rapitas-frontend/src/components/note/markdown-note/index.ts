@@ -7,3 +7,4 @@
  */
 export { default as MarkdownNoteEditor } from './MarkdownNoteEditor';
 export { isMarkdownNoteContent, noteContentToPlainText } from './note-content-format';
+export { isLegacyEditorHtml, checkNewMarkdownContent } from './note-content-kind';

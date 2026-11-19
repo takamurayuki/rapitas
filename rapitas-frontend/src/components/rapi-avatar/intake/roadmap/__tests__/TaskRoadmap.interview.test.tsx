@@ -29,7 +29,12 @@ let currentId: string | null = 'note-1';
 let linked: { noteId: string; taskId: number }[] = [];
 /** Whether the description updates should fail, to test best-effort. */
 let patchFails = false;
+/** The closing note's server writes. */
+let noteWrites: { url: string; body: Record<string, unknown> }[] = [];
+let noteLinks: { url: string; body: Record<string, unknown> }[] = [];
 const noteState = {
+  upsertNote: () => {},
+  setCurrentNote: () => {},
   createNote: (title?: string) => {
     notes.push({ title });
     currentId = `note-${notes.length}`;
@@ -89,6 +94,8 @@ const COMMITTED = { themeId: 100, projectId: null, taskIds: [301, 302], failedAf
 let rounds: Record<string, unknown>[] = [];
 
 beforeEach(() => {
+  noteWrites = [];
+  noteLinks = [];
   requests = [];
   notes = [];
   linked = [];
@@ -96,6 +103,34 @@ beforeEach(() => {
   currentId = 'note-1';
   rounds = [ASKED, PLANNED];
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    // The closing note is saved on the server since stage 0: PATCH
+    // /notes/:id, then POST /notes/:id/links per task. Answered here and kept
+    // out of `requests`, which is about the roadmap's own calls.
+    if (/\/notes\//.test(String(url))) {
+      const written = JSON.parse(String(init?.body ?? '{}'));
+      const isNote = init?.method === 'PATCH';
+      if (isNote) {
+        notes.push({ title: written.title, content: written.content });
+        noteWrites.push({ url: String(url), body: written });
+      } else noteLinks.push({ url: String(url), body: written });
+      const now = new Date().toISOString();
+      const note = {
+        id: 'n',
+        title: written.title ?? '',
+        content: written.content ?? '',
+        isPinned: false,
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+        linkedTaskIds: [],
+        linkedTaskMeta: {},
+      };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ success: true, note }),
+      } as Response);
+    }
     requests.push({ url, body: JSON.parse(String(init?.body)), method: init?.method });
     if (init?.method === 'PATCH') {
       return Promise.resolve({
@@ -225,10 +260,12 @@ describe('the note and the tasks it belongs to', () => {
 
   const patches = () => requests.filter((r) => r.method === 'PATCH');
 
+  // NOTE: the links are server links since stage 0 (POST /notes/:id/links),
+  // no longer the browser store's linkNoteToTask.
   it('attaches the note to every task it created', async () => {
     await create();
-    await waitFor(() => expect(linked).toHaveLength(2));
-    expect(linked.map((l) => l.taskId)).toEqual([301, 302]);
+    await waitFor(() => expect(noteLinks).toHaveLength(2));
+    expect(noteLinks.map((l) => l.body.taskId)).toEqual([301, 302]);
   });
 
   it('puts a chip into each description, so the note is reachable from the task', async () => {
@@ -237,7 +274,8 @@ describe('the note and the tasks it belongs to', () => {
     await create();
     await waitFor(() => expect(patches()).toHaveLength(2));
     expect(patches()[0]?.url).toContain('/tasks/301');
-    expect(String(patches()[0]?.body.description)).toContain('(/rapitas-note/301/note-1)');
+    const noteId = noteWrites[0]?.url.split('/').pop();
+    expect(String(patches()[0]?.body.description)).toContain(`(/rapitas-note/301/${noteId})`);
   });
 
   it('keeps what the task already said, and adds to it', async () => {

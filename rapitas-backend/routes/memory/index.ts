@@ -16,6 +16,7 @@ import { backlogScheduleRoutes } from '../backlog';
 import { backlogThemeOverrideRoutes } from '../backlog';
 import { dailyReportRoutes } from '../daily-report-routes';
 import ideaTidyRoute from './idea-tidy.routes';
+import notesMigrationRoute from './notes-migration.routes';
 import notesRoute from './notes.routes';
 
 export { knowledgeRoutes } from './knowledge';
@@ -39,4 +40,5 @@ export const memoryDomainRoutes = new Elysia()
   .use(backlogThemeOverrideRoutes)
   .use(dailyReportRoutes)
   .use(ideaTidyRoute)
+  .use(notesMigrationRoute)
   .use(notesRoute);
