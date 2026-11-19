@@ -84,8 +84,22 @@ class _Builder {
       }
     }
 
+    // 本文が次の行へ続く System Error。閉じ括弧の行まで、タグの形をした行も含めて本文にする
+    ExecLogEvent? openError;
+
     for (final raw in entry.chunk.split('\n')) {
-      final line = classifyLogLine(raw);
+      if (openError != null) {
+        final error = openError;
+        var rest = raw.trim();
+        if (rest.endsWith(']')) {
+          rest = rest.substring(0, rest.length - 1).trimRight();
+          openError = null;
+          bodyTarget = null;
+        }
+        if (rest.isNotEmpty) error.body = [error.body, rest].whereType<String>().where((s) => s.isNotEmpty).join('\n');
+        continue;
+      }
+      final line = _classify(raw, entry.isStderr);
       if (line.tag == LineTag.text) {
         if (line.text.isEmpty && bodyTarget == null) {
           if (speech.isNotEmpty) speech.add('');
@@ -144,6 +158,8 @@ class _Builder {
           _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: line.text, time: time));
         case LineTag.errorWithBody:
           bodyTarget = _push(ExecLogEvent(ExecLogKind.error, 'エラー（${line.text}）', time: time));
+        case LineTag.errorOpen:
+          openError = _push(ExecLogEvent(ExecLogKind.error, 'エラー', body: line.text, time: time));
         case LineTag.warning:
           _push(ExecLogEvent(ExecLogKind.warning, firstLineOf(line.text), body: line.text, time: time));
         case LineTag.heartbeat:
@@ -210,6 +226,18 @@ class _Builder {
     events.add(event);
     return event;
   }
+}
+
+/// stderr でもタグどおりに扱う種類（それ自体がエラーか、必ず出す質問）
+const _stderrKeepsTag = {LineTag.text, LineTag.error, LineTag.errorWithBody, LineTag.errorOpen, LineTag.question};
+
+/// NOTE: Codex / Gemini の stderr は、重要な行を行頭のラベルごと残して記録される
+/// （cli-output-filter.ts の filterCliDiagnosticOutput。例 `[fatal] permission denied`、`[Command] $ npm test`）。
+/// stderr の行はタグの有無にかかわらず「エラー出力」として表に出す。行の文はタグごと残す
+ClassifiedLine _classify(String raw, bool isStderr) {
+  final line = classifyLogLine(raw);
+  if (!isStderr || _stderrKeepsTag.contains(line.tag)) return line;
+  return ClassifiedLine(LineTag.text, text: raw.trim());
 }
 
 String _workTitle(ExecLogEvent work) {

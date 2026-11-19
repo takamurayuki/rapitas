@@ -20,6 +20,9 @@ enum LineTag {
 
   /// 続く行を本文として持つエラー（Codex の終了コード）
   errorWithBody,
+
+  /// 本文が次の行へ続く `[System Error: …`（閉じ括弧の行までが本文）
+  errorOpen,
   warning,
 
   /// 「N秒経過」の生存表示
@@ -74,6 +77,9 @@ final List<(RegExp, ClassifiedLine Function(RegExpMatch m))> _rules = [
     (m) => ClassifiedLine(LineTag.result, name: m[1], duration: m[2]),
   ),
   (RegExp(r'^\[System Error:\s*(.*)\]\s*$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),
+  // NOTE: errorMsg は CLI の JSON の message そのままで改行を含みうる（output-parser-handlers.ts の
+  // `[System Error: ${errorMsg}]\n`）。1行目に閉じ括弧が無ければ、続く行を本文として持つ
+  (RegExp(r'^\[System Error:\s*(.*)$'), (m) => ClassifiedLine(LineTag.errorOpen, text: m[1]!)),
   (RegExp(r'^\[(?:Error|エラー)\]\s*(.*)$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),
   (RegExp(r'^\[Timeout\]\s*(.*)$'), (m) => ClassifiedLine(LineTag.error, text: m[1]!)),
   (RegExp(r'^\[Codex 終了コード (\d+)\]'), (m) => ClassifiedLine(LineTag.errorWithBody, text: '終了コード ${m[1]}')),
