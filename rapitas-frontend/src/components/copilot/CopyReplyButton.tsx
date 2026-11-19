@@ -8,7 +8,7 @@
  * so pasting it into a note keeps the formatting. Not responsible for where
  * it sits in the bubble — see `MessageBubble`.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, Copy } from 'lucide-react';
 
@@ -31,7 +31,10 @@ export function CopyReplyButton({ text, className = '' }: { text: string; classN
   // success path would start a fresh 2s timer the cleanup can no longer stop.
   const mounted = useRef(false);
 
-  useEffect(() => {
+  // NOTE: A layout effect, not useEffect: its cleanup runs in the unmount
+  // commit itself. A passive cleanup runs later, and a write settling in
+  // between would still see mounted === true (nav74 re-review 5).
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
