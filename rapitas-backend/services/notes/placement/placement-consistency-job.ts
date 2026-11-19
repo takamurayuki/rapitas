@@ -13,7 +13,9 @@
  * `sourceTaskId` NULL (the FK's SetNull) and a sourceTaskId that names no
  * task row at all, which a self-healed desktop database can produce (its new
  * columns are added without the foreign key) — that case also clears the
- * dangling id, as SetNull would have.
+ * dangling id, as SetNull would have. A note that no longer follows but
+ * still names a task no workspace has gets its sourceTaskId cleared too
+ * (placement and followsTask unchanged), for the same database.
  *
  * Background rule: every note is read without scope, its own workspaceId is
  * taken as its membership, and the task / theme lookups and the write happen
@@ -90,6 +92,60 @@ async function checkOne(db: PrismaInstance, row: FollowingRow): Promise<Outcome>
   );
 }
 
+interface StoppedRow {
+  id: string;
+  workspaceId: number | null;
+  sourceTaskId: number;
+}
+
+/**
+ * Clear the sourceTaskId of notes that no longer follow when no task in any
+ * workspace has that id — what the FK's SetNull does, for a self-healed
+ * desktop database whose column has no foreign key. Placement and
+ * followsTask are untouched. A task that exists (here or elsewhere) is left
+ * alone. Each write runs in the note's own workspace, with the "no such task"
+ * check repeated inside its transaction.
+ */
+async function clearDanglingSources(db: PrismaInstance): Promise<number> {
+  const rows = (await db.note.findMany({
+    where: { followsTask: false, sourceTaskId: { not: null } },
+    select: { id: true, workspaceId: true, sourceTaskId: true },
+  })) as StoppedRow[];
+  if (rows.length === 0) return 0;
+  const ids = [...new Set(rows.map((r) => r.sourceTaskId))];
+  const existing = (await runAcrossAllWorkspaces(() =>
+    db.task.findMany({ where: { id: { in: ids } }, select: { id: true } }),
+  )) as { id: number }[];
+  const alive = new Set(existing.map((t) => t.id));
+  let cleared = 0;
+  for (const row of rows.filter((r) => !alive.has(r.sourceTaskId))) {
+    try {
+      const n = await inWorkspaceOf(row.workspaceId ?? null, () =>
+        runInTx(db, async (tx) => {
+          const anywhere = await runAcrossAllWorkspaces(() =>
+            tx.task.count({ where: { id: row.sourceTaskId } }),
+          );
+          if (anywhere > 0) return 0;
+          const updated = await tx.note.updateMany({
+            where: {
+              id: row.id,
+              workspaceId: row.workspaceId ?? null,
+              followsTask: false,
+              sourceTaskId: row.sourceTaskId,
+            },
+            data: { sourceTaskId: null },
+          });
+          return updated.count as number;
+        }),
+      );
+      cleared += n;
+    } catch (err) {
+      logger.warn({ err, noteId: row.id }, 'dangling source clear failed for one note; continuing');
+    }
+  }
+  return cleared;
+}
+
 /**
  * One pass of the consistency check over every workspace.
  *
@@ -119,6 +175,9 @@ export async function runPlacementConsistencyCheck(db: PrismaInstance): Promise<
       logger.warn({ err, noteId: row.id }, 'placement check failed for one note; continuing');
     }
   }
+  // NOTE: notes that stopped following are normalised too (review G2 must-fix 8):
+  // without the FK nothing else clears their sourceTaskId when the task is deleted.
+  result.normalized += await clearDanglingSources(db);
   if (result.moved || result.normalized || result.skippedForeign) {
     logger.info(result, 'note placement consistency check');
   }

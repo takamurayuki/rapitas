@@ -77,6 +77,56 @@ describe('the consistency check (contract 6)', () => {
   });
 });
 
+describe('a dangling sourceTaskId on a note that no longer follows (Must-fix 8)', () => {
+  beforeEach(() => {
+    db = seedStage1();
+  });
+
+  it('is cleared — placement and followsTask unchanged — when no task has the id', async () => {
+    // A person moved the deliverable (follow stopped), then its task was deleted
+    // in a self-healed desktop DB whose sourceTaskId column has no foreign key.
+    Object.assign(note('deliverable-task-101'), {
+      followsTask: false,
+      categoryId: 1,
+      themeId: null,
+      sourceTaskId: 4242,
+    });
+    expect(await runPlacementConsistencyCheck(p())).toMatchObject({ normalized: 1, moved: 0 });
+    expect(note('deliverable-task-101')).toMatchObject({
+      sourceTaskId: null,
+      followsTask: false,
+      categoryId: 1,
+      themeId: null,
+    });
+    // A second run has nothing left to do.
+    expect(await runPlacementConsistencyCheck(p())).toMatchObject({ normalized: 0 });
+  });
+
+  it('is left alone while the task exists, here or in another workspace', async () => {
+    note('deliverable-task-101').followsTask = false;
+    db.rows('note').push({
+      ...note('deliverable-task-101'),
+      id: 'points-at-ws2',
+      sourceTaskId: 200,
+    });
+    expect(await runPlacementConsistencyCheck(p())).toMatchObject({ normalized: 0 });
+    expect(note('deliverable-task-101').sourceTaskId).toBe(101);
+    expect(note('points-at-ws2').sourceTaskId).toBe(200);
+  });
+
+  it('is cleared inside the note’s own workspace', async () => {
+    db.rows('note').push({
+      ...note('other-ws'),
+      id: 'ws2-moved',
+      source: 'deliverable',
+      sourceTaskId: 4243,
+      followsTask: false,
+    });
+    expect(await runPlacementConsistencyCheck(p())).toMatchObject({ normalized: 1 });
+    expect(note('ws2-moved')).toMatchObject({ sourceTaskId: null, workspaceId: 2, themeId: 20 });
+  });
+});
+
 describe('the check after a theme delete', () => {
   beforeEach(() => {
     db = seedStage1();

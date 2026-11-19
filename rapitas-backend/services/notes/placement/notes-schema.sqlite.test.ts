@@ -120,4 +120,24 @@ describe('an existing desktop database (before stage 1)', () => {
     expect(addMissingColumns(db, 'Note', createNote, ':memory:')).toBe(NEW_NOTE_COLUMNS.length);
     expect(note(db, 'old')).toMatchObject({ source: 'manual', followsTask: 0, themeId: null });
   });
+
+  it('has no foreign key on the healed sourceTaskId, so a task delete leaves the id dangling', () => {
+    // Why the consistency check also clears a dangling sourceTaskId on notes
+    // that no longer follow (review G2 must-fix 8; covered in
+    // placement-consistency-job.test.ts).
+    const db = new Database(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    db.exec(`CREATE TABLE "Task" ("id" INTEGER NOT NULL PRIMARY KEY, "title" TEXT NOT NULL)`);
+    db.exec(
+      `CREATE TABLE "Note" ("id" TEXT NOT NULL PRIMARY KEY, "workspaceId" INTEGER, "title" TEXT NOT NULL, "content" TEXT NOT NULL DEFAULT '', "isPinned" BOOLEAN NOT NULL DEFAULT false, "tags" TEXT NOT NULL DEFAULT '[]', "color" TEXT, "docType" TEXT, "version" TEXT, "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" DATETIME NOT NULL)`,
+    );
+    const createNote = (SQLITE_INIT_SQL.match(/CREATE TABLE "Note" \([\s\S]*?\n\);/) ?? [''])[0];
+    addMissingColumns(db, 'Note', createNote, ':memory:');
+    db.exec(`INSERT INTO "Task" ("id","title") VALUES (7,'t')`);
+    db.exec(
+      `INSERT INTO "Note" ("id","title","updatedAt","sourceTaskId","followsTask") VALUES ('d','d','2026-11-19',7,0)`,
+    );
+    db.exec(`DELETE FROM "Task" WHERE "id" = 7`);
+    expect(note(db, 'd')).toMatchObject({ sourceTaskId: 7, followsTask: 0 });
+  });
 });
