@@ -59,8 +59,9 @@
 | ラピのチャット返答（PC のコパイロット、スマホのチャット・相談）。返答はノートに保存できる                    | `rapitas-backend/services/ai/copilot-system-prompts.ts` の2つのプロンプト | `NOTE_REPLY_FORMAT_RULES`    |
 | 返答をノートに保存するときの下書き（`POST /notes/draft-from-reply`）。回答だけからタイトルと整えた本文を作る | `rapitas-backend/services/notes/note-draft.ts`                            | `NOTE_MARKDOWN_FORMAT_RULES` |
 | ロードマップの締めのノート（前提・比較の軸）                                                                 | `rapitas-backend/services/assistant/roadmap-prompts.ts`                   | `NOTE_FIELD_TEXT_RULE`       |
+| 完了したタスクの成果物ノート（`verify.md` / `research.md` から自動で作る）                                   | `rapitas-backend/services/notes/deliverables/deliverable-draft.ts`        | `NOTE_MARKDOWN_FORMAT_RULES` |
 
-ノートの本文を書く新しい生成経路を作るときは、プロンプトに `NOTE_MARKDOWN_FORMAT_RULES` を取り込む。調査ジョブやエージェント実行がノートを書く経路は、いまは存在しない。
+ノートの本文を書く新しい生成経路を作るときは、プロンプトに `NOTE_MARKDOWN_FORMAT_RULES` を取り込む。サーバーが自分でノートを書く経路は、成果物ノートの自動作成だけである（下の「成果物ノート」）。
 
 ロードマップの締めのノートは、作成したタスクの一覧とともにサーバーに保存し、作ったタスクすべてに `POST /notes/:id/links` で紐付ける（`rapitas-frontend/src/components/rapi-avatar/intake/roadmap/roadmap-note.ts` の `saveRoadmapNote`）。各タスクの説明の末尾には、同じ id を指す `/rapitas-note/{taskId}/{noteId}` のチップを書き足す。
 
@@ -69,6 +70,12 @@
 本文・タイトル・タグ・種類を書く経路は、保存した4項目と `Note.version`（4項目を決まった形にした JSON の SHA-256）が常に一致するように書く（`rapitas-backend/services/notes/note-write.ts`）。行を読み、送られた項目を当てた最終値から `version` を計算し、読んだ版を条件にした更新で書く。ほかの書き込みと重なって3回とも条件に合わなければ 409 を返して書かない。
 
 紐付けの `meta` は `taskTitle`・`categoryName`・`themeName`・`projectName`・`parentTaskTitle` の5項目を受ける。PC は `taskTitle`・`themeName`・`categoryName` を、スマホは `themeName`・`projectName`・`parentTaskTitle` を書く。紐付けのリンク先タスクは要求のワークスペースで確かめ、存在しない・別のワークスペースのタスクは 404 になる。
+
+## 置き場所と成果物ノート
+
+ノートの置き場所は `Note.themeId`・`categoryId`・`folderId` の3列だけで決まる（どれか1つ、全部 NULL なら未分類）。木（`GET /notes/tree`）・一覧（`GET /notes`）・詳細（`GET /notes/:id`）の `placement` は、同じ関数 `describePlacement`（`rapitas-backend/services/notes/placement/describe-placement.ts`）で列から導く。読み取りはノートを動かさない。紐付けの `meta` とタイトルは置き場所の判定に使わない。
+
+完了したタスクの `verify.md`（無ければ `research.md`）が、見出しと空行を除いて200字以上あると、成果物ノートを `deliverable-task-{taskId}`（`research-task-{taskId}`）の id で作る（`rapitas-backend/services/notes/deliverables/`）。本文は生成で整え、生成に失敗したら保存しない。同じ id のノートがあれば書き換えない。置き場所は元タスクの有効テーマで、タスクのテーマが変わると追随する（人が動かしたら追随をやめる）。
 
 ## 返答をノートに保存する流れ
 
