@@ -50,7 +50,10 @@ describe('completeTaskRow as a deliverable entry (ci_merge)', () => {
 
   it('then creates the deliverable note in the background', async () => {
     await completeTaskRow(5);
-    await new Promise((r) => setTimeout(r, 20));
+    // Background work: poll rather than sleep a fixed time (a loaded suite is slow).
+    for (let i = 0; i < 200 && !db.find('note', { id: 'deliverable-task-5' }); i += 1) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     expect(db.find('note', { id: 'deliverable-task-5' })).toBeDefined();
   });
 

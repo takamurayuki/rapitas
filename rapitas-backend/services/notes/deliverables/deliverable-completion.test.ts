@@ -39,7 +39,15 @@ const completeTask = (id: number, mode: 'ci_merge' | 'recovery' = 'ci_merge') =>
       data: { status: 'done', completedAt: at, updatedAt: at },
     }),
   );
-const settle = () => new Promise((r) => setTimeout(r, 20));
+// Waits for the background attempt the entry started: until the record leaves
+// `pending` (or 2s), so a loaded suite does not race it.
+const settle = async (taskId = 1) => {
+  for (let i = 0; i < 200; i += 1) {
+    const state = db.find('taskDeliverableCompletion', { taskId })?.state;
+    if (state && state !== 'pending') return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+};
 
 beforeEach(() => {
   reply = 'TITLE: 成果\nBODY:\n本文';
