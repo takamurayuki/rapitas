@@ -34,10 +34,96 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  taskLinks NoteTaskLink[]
+  // ── Placement (notes stage 1, design §2.2) ──────────────────────────────
+  // At most one of themeId / categoryId / folderId holds a value (checked in
+  // the service layer). All three NULL = 未分類. The tree, the list and the
+  // detail all derive placement from these columns only (describePlacement);
+  // NoteTaskLink.meta and the title never decide where a note sits.
+  themeId     Int?
+  /// Only when the note sits directly under a category, outside any theme.
+  categoryId  Int?
+  /// A memo folder (NoteFolder, one level).
+  folderId    Int?
+  /// The task a deliverable note came from. One task, apart from the
+  /// many-to-many NoteTaskLink. SetNull on task delete stops following.
+  sourceTaskId Int?
+  /// While true (and sourceTaskId is set) the placement follows the source
+  /// task's effective theme when it changes to a non-NULL value.
+  followsTask Boolean  @default(false)
+  /// manual | chat | deliverable | research | roadmap | learning | material | knowledge (§3.2)
+  source      String   @default("manual")
+  /// JSON provenance, e.g. {"taskId":1,"fileType":"verify","sha256":"…","generatedAt":"…"}
+  sourceRef   String?
+
+  taskLinks  NoteTaskLink[]
+  theme      Theme?      @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  folder     NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  sourceTask Task?       @relation(fields: [sourceTaskId], references: [id], onDelete: SetNull)
 
   @@index([updatedAt])
   @@index([isPinned])
+  @@index([workspaceId])
+  @@index([themeId])
+  @@index([categoryId])
+  @@index([folderId])
+  @@index([sourceTaskId])
+}
+
+// A memo folder (design §2.3, Q3: one level). Only people create these; no
+// automatic path ever places a note in one. Same-name folders are refused in
+// the service layer, not by a unique index, because rows with a NULL
+// workspaceId never collide in one (the RapiChatSpace.clientKey reasoning).
+model NoteFolder {
+  id          Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  name        String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  notes       Note[]
+
+  @@index([workspaceId])
+}
+
+// The completion record the deliverable-note automation works from (design
+// §3.3). One row per task. Entry points write it in the same transaction as
+// the completion where they can; the hourly check creates `unknown` rows for
+// completions no entry point saw. `completedAt` on Task is not relied on: some
+// completion paths never write it.
+model TaskDeliverableCompletion {
+  taskId        Int       @id
+  /// The task's workspace when the record was written.
+  workspaceId   Int?
+  /// manual | workflow_verify | ci_merge | recovery | reconciler_restore | unknown | baseline
+  mode          String
+  /// Same value as the task's updatedAt for entry-point completions.
+  completedAt   DateTime
+  /// baseline | pending | created | not_eligible | failed
+  state         String
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([state])
+}
+
+// One-time data migrations of the notes domain that must not run twice
+// (placement initial values, deliverable baseline). A run writes its key
+// only after it finished, so a crash mid-run is resumed on the next start.
+// The migrations cover every workspace at once, so a marker is written with
+// workspaceId NULL and read by the unscoped jobs; the column is here because
+// every directly-queried model carries one (tests/schema/workspace-tenancy).
+model NoteMigrationMarker {
+  key         String   @id
+  /// Always NULL: one marker per migration for the whole database.
+  workspaceId Int?
+  appliedAt   DateTime @default(now())
+  /// JSON summary of what the run did, for the operator.
+  detail      String?
+
   @@index([workspaceId])
 }
 

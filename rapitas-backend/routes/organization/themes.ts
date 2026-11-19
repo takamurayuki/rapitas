@@ -14,6 +14,7 @@ import { resolveThemeCategory } from './theme-category-resolver';
 import { writeScaffoldDocs } from './scaffold-docs-writer';
 import type { ScaffoldFile } from './scaffold-project-writer';
 import { isValidEntityId } from '../../utils/common/id-validation';
+import { deleteThemeWithNotes } from '../../services/notes/placement/theme-delete';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -216,10 +217,11 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     async (context) => {
       const { params } = context;
       const id = parseId(params.id, 'theme ID');
-
-      return await prisma.theme.delete({
-        where: { id },
-      });
+      // NOTE: notes stage 1 — the theme's notes are re-placed by
+      // placementAfterThemeDelete in the same transaction as the delete.
+      const deleted = await deleteThemeWithNotes(prisma, id);
+      if (!deleted) throw new NotFoundError('Theme not found');
+      return deleted;
     },
     {
       params: t.Object({ id: t.String() }),
