@@ -169,6 +169,18 @@ void main() {
     expect(d.events.single.lastTime, DateTime.parse(at(5)));
   });
 
+  test('発言をはさんで届いた [Tool Done] だけでは空の「作業」を作らない（失敗は残す）', () {
+    final d = digestExecutionLog(_snap([
+      logRow(0, '\n[Tool: Bash] \$ flutter test\n'),
+      logRow(1, '途中経過を説明します\n'),
+      logRow(2, '[Tool Done: Bash] (1.2s)\n'),
+      logRow(3, '[Tool Error: Edit] (0.1s)\n'),
+    ]));
+    expect(_kinds(d), [ExecLogKind.work, ExecLogKind.speech, ExecLogKind.work]);
+    expect(d.events.last.failures, 1);
+    expect(d.events.last.title, contains('失敗'));
+  });
+
   test('実行中の状態は最後の作業を説明にする', () {
     final d = digestExecutionLog(_snap(claudeHappyPath.sublist(0, 17)));
     expect(d.state.phase, ExecLogPhase.running);

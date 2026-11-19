@@ -151,13 +151,22 @@ class _Builder {
         case LineTag.workCall:
           _addWorkItem(_work(time), line);
         case LineTag.workDone:
-          // 呼び出しの行が無い完了（Codex の Command Done だけ等）は、完了の行を項目として数える
-          final work = _work(time);
-          if (work.items.isEmpty && line.text.isNotEmpty) _addWorkItem(work, line);
+          if (_last?.kind == ExecLogKind.work) {
+            final work = _work(time);
+            // 呼び出しの行が無い完了（Codex の Command Done だけ等）は、完了の行を項目として数える
+            if (work.items.isEmpty && line.text.isNotEmpty) _addWorkItem(work, line);
+          } else if (line.text.isNotEmpty) {
+            _addWorkItem(_work(time), line);
+          } else {
+            // NOTE: 発言をはさんで届いた成功の完了だけでは、伝える中身の無い「作業」になる。
+            // 呼び出しは前の作業で数え済みなので、内部の記録として詳細に回す
+            hiddenLines++;
+          }
         case LineTag.workFailed:
           final work = _work(time);
           if (work.items.isEmpty && line.text.isNotEmpty) _addWorkItem(work, line);
           work.failures++;
+          work.title = _workTitle(work);
           bodyTarget = work;
           bodyToDetail = true;
         case LineTag.question:
@@ -247,7 +256,8 @@ String _workTitle(ExecLogEvent work) {
     counts[label] = (counts[label] ?? 0) + 1;
   }
   final parts = counts.entries.map((e) => '${e.key} ${e.value}').join('・');
-  return parts.isEmpty ? '作業' : '作業 ${work.items.length}件（$parts）';
+  if (parts.isEmpty) return work.failures > 0 ? '作業の失敗' : '作業';
+  return '作業 ${work.items.length}件（$parts）';
 }
 
 String _firstLine(String text) => text.trim().split('\n').first.trim();
