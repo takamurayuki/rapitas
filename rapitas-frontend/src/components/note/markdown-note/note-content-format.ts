@@ -9,7 +9,8 @@
 
 // Tags the rich editor (contentEditable + execCommand) writes. Checked after
 // code is removed, so a fence or `inline code` that mentions a tag stays Markdown.
-const EDITOR_HTML_TAG =
+// NOTE: the backend's note-content-kind.ts holds the same list; keep them equal.
+export const EDITOR_HTML_TAG =
   /<\/?(p|div|br|span|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|u|s|strike|a|img|hr|mark)(\s[^<>]*)?\/?>/i;
 const HTML_ENTITY = /&(nbsp|amp|lt|gt|quot|#\d+|#x[0-9a-f]+);/i;
 
@@ -44,7 +45,14 @@ const MARKDOWN_SIGNALS = [
   /`[^`\n]+`/,
 ];
 
-function withoutCode(content: string): string {
+/**
+ * The body with fenced and inline code removed, so tags quoted as code are
+ * not mistaken for the editor's own.
+ *
+ * @param content - The note body / ノート本文
+ * @returns The body without code / コードを除いた本文
+ */
+export function withoutCode(content: string): string {
   return content.replace(FENCE_BLOCK, '').replace(INLINE_CODE, '');
 }
 
