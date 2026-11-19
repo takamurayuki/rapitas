@@ -112,3 +112,56 @@ describe('the migration endpoints', () => {
     expect(tooMany.status).toBe(422);
   });
 });
+
+describe('links stay inside the workspace (completion condition 5)', () => {
+  it('POST /notes/:id/links answers 404 for another workspace task and links nothing', async () => {
+    await call('/notes/n1', json('PUT', { title: 'n1' }));
+    const refused = await call('/notes/n1/links', json('POST', { taskId: 70 }));
+    expect(refused.status).toBe(404);
+    expect(refused.body.error).toBe('task_not_found');
+    expect(db.links).toHaveLength(0);
+  });
+
+  it('POST /notes/links/import refuses that task per link, as 404, and adds the rest', async () => {
+    await call('/notes/n1', json('PUT', { title: 'n1' }));
+    const { status, body } = await call(
+      '/notes/links/import',
+      json('POST', {
+        links: [
+          { noteId: 'n1', taskId: 70 },
+          { noteId: 'n1', taskId: 7, meta: { taskTitle: 'T', categoryName: 'C' } },
+        ],
+      }),
+    );
+    expect(status).toBe(200);
+    expect(body.results).toEqual([
+      { noteId: 'n1', taskId: 70, status: 'rejected', code: 404, error: 'task_not_found' },
+      { noteId: 'n1', taskId: 7, status: 'added' },
+    ]);
+  });
+});
+
+describe('one set of notes for both devices (completion condition 6)', () => {
+  it('a note and link the phone made are what the desktop list reads', async () => {
+    // The phone's calls: PUT the note, then link it from a task.
+    await call('/notes/phone-1', json('PUT', { title: 'スマホのメモ', content: '本文' }));
+    await call('/notes/phone-1/links', json('POST', { taskId: 7, meta: { themeName: 'T' } }));
+    // The desktop store's load: GET /notes.
+    const { body } = await call('/notes');
+    const note = (body.notes as Body[]).find((n) => n.id === 'phone-1');
+    expect(note?.linkedTaskIds).toEqual([7]);
+    expect((note?.linkedTaskMeta as Record<string, Body>)['7']).toEqual({ themeName: 'T' });
+  });
+
+  it('a note and link the desktop made are what the phone task section reads', async () => {
+    // The desktop store's calls: PUT, then link with the shared meta shape.
+    await call('/notes/1795000000000', json('PUT', { title: 'PC のメモ', content: '' }));
+    await call(
+      '/notes/1795000000000/links',
+      json('POST', { taskId: 8, meta: { taskTitle: '単元', categoryName: '学習' } }),
+    );
+    // The phone's task "資料" section: GET /notes?taskId=8.
+    const { body } = await call('/notes?taskId=8');
+    expect((body.notes as Body[]).map((n) => n.id)).toEqual(['1795000000000']);
+  });
+});

@@ -62,6 +62,24 @@ mock.module('../../services/notes/note-service', () => ({
   MAX_NOTE_TAGS: 30,
 }));
 
+let taskInScope = true;
+
+// Mirrors every export of note-links (Bun replaces the whole module).
+mock.module('../../services/notes/note-links', () => ({
+  linkNoteInScope: async (_p: unknown, id: string, taskId: number, meta?: unknown) => {
+    if (!noteExists) return 'note_not_found';
+    if (!taskInScope) return 'task_not_found';
+    linked.push({ id, taskId, meta });
+    return null;
+  },
+  importNoteLinks: async (_p: unknown, items: { noteId: string; taskId: number }[]) =>
+    items.map((i) => ({ ...i, status: 'added' })),
+  isTaskInScope: async () => taskInScope,
+  isNoteInScope: async () => noteExists,
+  cleanMeta: (m: unknown) => m ?? {},
+  fillEmptyMeta: (e: Record<string, unknown>) => ({ merged: e, changed: false }),
+}));
+
 mock.module('../../config/database', () => ({
   prisma: {},
   ensureDatabaseConnection: async () => {},
@@ -89,6 +107,7 @@ beforeEach(() => {
   noteExists = true;
   unlinkFound = true;
   writeConflicts = false;
+  taskInScope = true;
 });
 
 describe('listing', () => {
@@ -168,6 +187,21 @@ describe('attaching to a task', () => {
     expect(status).toBe(404);
     expect(body.error).toBe('note_not_found');
     expect(linked).toEqual([]);
+  });
+
+  it('refuses, as 404, a task outside the request workspace', async () => {
+    taskInScope = false;
+    const { status, body } = await call('/n1/links', json('POST', { taskId: 70 }));
+    expect(status).toBe(404);
+    expect(body.error).toBe('task_not_found');
+    expect(linked).toEqual([]);
+  });
+
+  it('takes the stage-0 meta keys the desktop tree needs', async () => {
+    const meta = { taskTitle: '単元1', categoryName: '学習', themeName: '数学' };
+    const { status } = await call('/n1/links', json('POST', { taskId: 7, meta }));
+    expect(status).toBe(200);
+    expect(linked[0]?.meta).toEqual(meta);
   });
 
   it('404s when unlinking something that was not linked', async () => {
