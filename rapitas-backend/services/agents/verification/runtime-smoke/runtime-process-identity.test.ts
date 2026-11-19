@@ -75,3 +75,16 @@ test('start ownership loss message names the branch that fired', () => {
     `${prefix}: all tracked processes exited`,
   );
 });
+
+test('a reused PID is forgotten for tracking without adopting the new holder', async () => {
+  const { forgetReusedIdentities } = await import('./runtime-process-identity');
+  const stranger = { ...child, birth: '2001', command: 'someone else' };
+  const kept = forgetReusedIdentities([root, child], [root, stranger]);
+  expect(kept).toEqual([root]);
+  expect(inspectOwnedRuntimeTree(kept, [root, stranger], new Set())).toEqual({
+    safe: true,
+    alive: [root],
+  });
+  // An exited process (absent, not reused) stays recorded.
+  expect(forgetReusedIdentities([root, child], [root])).toEqual([root, child]);
+});
