@@ -10,6 +10,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { recordTransition } from './transition-recorder';
 import { restoreBlockedUnstartedTask } from './blocked-unstarted-restore';
+import { completeWithRecord } from '../notes/deliverables/deliverable-completion';
 import { resetBlockedTaskForRetry } from './blocked-retry-dispatch';
 import { settleStrandedRetryDrafts } from './blocked-retry-handoff';
 // NOTE: Thresholds live in blocked-task-policy (task 615) so the evidence /
@@ -396,9 +397,11 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
     // a failed run. A draft reset would re-run merged work and strand the task as an
     // un-queued non-terminal row. Restore the settled status; workflowStatus and history stay.
     if (t.workflowStatus === 'completed') {
-      await prisma.task
-        .update({ where: { id: t.id }, data: { status: 'done', updatedAt: new Date() } })
-        .catch(() => {});
+      // Notes stage 1: restored with its deliverable record (mode reconciler_restore).
+      await completeWithRecord(prisma as never, t.id, 'reconciler_restore', async (db, at) => {
+        await db.task.update({ where: { id: t.id }, data: { status: 'done', updatedAt: at } });
+        return { count: 1 };
+      }).catch(() => false);
       await recordTransition({
         taskId: t.id,
         fromStatus: 'completed',

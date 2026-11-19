@@ -17,7 +17,7 @@ import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { replaceTaskLabels } from './task-label-replace';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
-import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
+import { writeTaskStatusUpdate } from './task-status-write';
 import { followTaskThemeChangeInBackground } from '../notes/placement/note-follow';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
@@ -235,7 +235,13 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   const currentTask = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { status: true, parentId: true, workflowStatus: true, updatedAt: true },
+    select: {
+      status: true,
+      parentId: true,
+      workflowStatus: true,
+      updatedAt: true,
+      workspaceId: true,
+    },
   });
 
   if (!currentTask) {
@@ -253,6 +259,9 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   const reopening = currentTask.status === 'done' && fields.status === 'todo';
   const resumingFromDone = currentTask.status === 'done' && fields.status === 'in-progress';
   const leavingDone = reopening || resumingFromDone;
+  // NOTE: notes stage 1 — one time for completedAt, updatedAt and the deliverable record.
+  const completing = fields.status === 'done' && currentTask.status !== 'done';
+  const completionAt = new Date();
 
   // NOTE: completing a task used to bump the daily StudyStreak row here. The
   // learning features were removed, and the dashboard counts completions
@@ -271,7 +280,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.description !== undefined && { description: fields.description }),
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
-      ...(fields.status === 'done' && { completedAt: new Date() }),
+      ...(fields.status === 'done' && { completedAt: completionAt }),
+      ...(completing && { updatedAt: completionAt }),
       // Reopening must not leave a terminal workflow badge/state behind.
       // Retain artifacts; normal file-save guards validate their reuse.
       ...(leavingDone && { completedAt: null }),
@@ -310,21 +320,11 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       // writeTaskCriteria — never here, where the jury lock is not checked.
     },
   };
-  // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
-  // Terminal status: release the theme's currentTaskId in the SAME transaction (task 1009).
-  if (
-    (fields.status === 'done' || fields.status === 'cancelled') &&
-    typeof prisma.$transaction === 'function'
-  ) {
-    // Batch form: PrismaPromises are lazy, so nothing runs until $transaction executes them.
-    await prisma.$transaction([
-      prisma.task.update(updateArgs),
-      prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId)),
-    ]);
-  } else {
-    await prisma.task.update(updateArgs);
-    await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
-  }
+  await writeTaskStatusUpdate(prisma, taskId, updateArgs, fields.status, {
+    completing,
+    completionAt,
+    workspaceId: currentTask.workspaceId ?? null,
+  });
   // Notes stage 1 (contract 5): following deliverables move with the task's theme.
   if (fields.themeId !== undefined) followTaskThemeChangeInBackground(prisma, taskId);
 

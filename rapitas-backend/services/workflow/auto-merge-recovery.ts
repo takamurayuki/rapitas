@@ -17,6 +17,7 @@ import { resolveAutomationPolicy } from './automation-policy';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { notify } from './auto-merge-notify';
 import { verifierConfirmedForCompletion } from './verifier-completion-check';
+import { completeWithRecord } from '../notes/deliverables/deliverable-completion';
 import { resolveIntegrationId } from '../github/pr-link';
 import { readAuthoritativeMergeState } from '../agents/orchestrator/git-operations/pr/pr-merge-ops';
 
@@ -154,21 +155,22 @@ async function recoverOne(t: HeldTask): Promise<boolean> {
   // Conditional write. Losing this race (a concurrent path completed it, a new
   // run moved the task on, the PR pointer changed) is a no-op, never an
   // overwrite of the newer state.
-  const completed = await prisma.task
-    .updateMany({
+  // Notes stage 1: written with its deliverable record (mode recovery) in one transaction.
+  const completed = await completeWithRecord(prisma as never, t.id, 'recovery', (db, at) =>
+    db.task.updateMany({
       where: {
         id: t.id,
         githubPrId: prNumber,
         workflowStatus: 'verify_done',
         status: { in: ['in-progress', 'in_progress'] },
       },
-      data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-    })
-    .catch((err) => {
-      log.warn({ err, taskId: t.id }, '[auto-merge-recovery] Completion write failed');
-      return { count: 0 };
-    });
-  if (completed.count === 0) return false;
+      data: { status: 'done', workflowStatus: 'completed', completedAt: at, updatedAt: at },
+    }),
+  ).catch((err) => {
+    log.warn({ err, taskId: t.id }, '[auto-merge-recovery] Completion write failed');
+    return false;
+  });
+  if (!completed) return false;
 
   await prisma.gitHubPullRequest
     .updateMany({
