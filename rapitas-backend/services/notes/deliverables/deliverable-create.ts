@@ -26,7 +26,7 @@
  */
 import { createLogger } from '../../../config/logger';
 import { runAcrossAllWorkspaces } from '../../tenancy/workspace-context';
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { checkNewMarkdownContent } from '../note-content-kind';
 import { computeContentSha256 } from '../note-version';
@@ -168,7 +168,7 @@ async function attempt(db: PrismaInstance, taskId: number): Promise<DeliverableO
       generatedAt: new Date().toISOString(),
     });
     try {
-      await db.$transaction(async (tx: PrismaInstance) => {
+      await db.$transaction(async (tx: PrismaTx) => {
         // Membership re-checked inside the transaction that writes.
         if (!(await findTaskInScope(tx, taskId))) throw new Error('task left the workspace');
         // Reopened during the generation: this completion's note is not made.

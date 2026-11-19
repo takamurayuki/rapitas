@@ -1157,17 +1157,6 @@ CREATE TABLE "Note" (
 );
 
 -- CreateTable
-CREATE TABLE "NoteTaskLink" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "workspaceId" INTEGER,
-    "noteId" TEXT NOT NULL,
-    "taskId" INTEGER NOT NULL,
-    "meta" TEXT,
-    CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "NoteTaskLink_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
 CREATE TABLE "NoteFolder" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
@@ -1179,7 +1168,7 @@ CREATE TABLE "NoteFolder" (
 
 -- CreateTable
 CREATE TABLE "TaskDeliverableCompletion" (
-    "taskId" INTEGER NOT NULL PRIMARY KEY,
+    "taskId" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
     "mode" TEXT NOT NULL,
     "completedAt" DATETIME NOT NULL,
@@ -1195,6 +1184,17 @@ CREATE TABLE "NoteMigrationMarker" (
     "workspaceId" INTEGER,
     "appliedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "detail" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "NoteTaskLink" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "noteId" TEXT NOT NULL,
+    "taskId" INTEGER NOT NULL,
+    "meta" TEXT,
+    CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "NoteTaskLink_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -2424,15 +2424,6 @@ CREATE INDEX "Note_folderId_idx" ON "Note"("folderId");
 CREATE INDEX "Note_sourceTaskId_idx" ON "Note"("sourceTaskId");
 
 -- CreateIndex
-CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
-
--- CreateIndex
-CREATE INDEX "NoteTaskLink_workspaceId_idx" ON "NoteTaskLink"("workspaceId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
-
--- CreateIndex
 CREATE INDEX "NoteFolder_workspaceId_idx" ON "NoteFolder"("workspaceId");
 
 -- CreateIndex
@@ -2443,6 +2434,15 @@ CREATE INDEX "TaskDeliverableCompletion_state_idx" ON "TaskDeliverableCompletion
 
 -- CreateIndex
 CREATE INDEX "NoteMigrationMarker_workspaceId_idx" ON "NoteMigrationMarker"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
+
+-- CreateIndex
+CREATE INDEX "NoteTaskLink_workspaceId_idx" ON "NoteTaskLink"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NoteTaskLink_noteId_taskId_key" ON "NoteTaskLink"("noteId", "taskId");
 
 -- CreateIndex
 CREATE INDEX "PrRiskConfig_workspaceId_idx" ON "PrRiskConfig"("workspaceId");

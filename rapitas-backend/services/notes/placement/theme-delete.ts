@@ -20,7 +20,7 @@
  *
  * Not responsible for the theme route's other concerns.
  */
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { belongsTo, inWorkspaceOf } from './placement-scope';
 import { resolveEffectiveTheme } from './effective-theme';
@@ -75,10 +75,7 @@ export interface ThemeDeletePlan {
   toThemes: { themeId: number; count: number }[];
 }
 
-async function categoryInWorkspace(
-  db: PrismaInstance,
-  theme: DeletedTheme,
-): Promise<number | null> {
+async function categoryInWorkspace(db: PrismaTx, theme: DeletedTheme): Promise<number | null> {
   if (theme.categoryId === null) return null;
   const row = (await db.category.findFirst({
     where: { id: theme.categoryId, workspaceId: theme.workspaceId },
@@ -96,7 +93,7 @@ async function categoryInWorkspace(
  * @returns The plan, or null when the theme is not in that workspace / 計画（範囲外・無ければ null）
  */
 export async function planThemeDelete(
-  db: PrismaInstance,
+  db: PrismaTx,
   themeId: number,
   expectedWorkspaceId: number | null = requestWorkspaceId(),
 ): Promise<ThemeDeletePlan | null> {
@@ -152,7 +149,7 @@ export async function deleteThemeWithNotes(
   expectedWorkspaceId: number | null = requestWorkspaceId(),
 ): Promise<Record<string, unknown> | null> {
   const ws = expectedWorkspaceId;
-  const run = async (tx: PrismaInstance) => {
+  const run = async (tx: PrismaTx) => {
     const before = (await tx.theme.findFirst({
       where: { id: themeId, workspaceId: ws },
     })) as (Record<string, unknown> & { workspaceId: number | null }) | null;
@@ -170,9 +167,9 @@ export async function deleteThemeWithNotes(
   };
   const transaction = (db as { $transaction?: unknown }).$transaction;
   if (typeof transaction === 'function') {
-    return (await (
-      db.$transaction as (fn: (tx: PrismaInstance) => Promise<unknown>) => Promise<unknown>
-    )((tx) => run(tx))) as Record<string, unknown> | null;
+    return (await (db.$transaction as (fn: (tx: PrismaTx) => Promise<unknown>) => Promise<unknown>)(
+      (tx) => run(tx),
+    )) as Record<string, unknown> | null;
   }
   return run(db);
 }

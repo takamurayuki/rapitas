@@ -23,7 +23,7 @@
  * only in another workspace is logged and skipped, never followed.
  */
 import { createLogger } from '../../../config/logger';
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 import { followOne } from './note-follow';
 import { inWorkspaceOf } from './placement-scope';
 import { runAcrossAllWorkspaces } from '../../tenancy/workspace-context';
@@ -46,9 +46,9 @@ export interface ConsistencyResult {
   skippedForeign: number;
 }
 
-async function runInTx<T>(db: PrismaInstance, fn: (tx: PrismaInstance) => Promise<T>): Promise<T> {
+async function runInTx<T>(db: PrismaInstance, fn: (tx: PrismaTx) => Promise<T>): Promise<T> {
   return typeof (db as { $transaction?: unknown }).$transaction === 'function'
-    ? ((await db.$transaction((tx: PrismaInstance) => fn(tx))) as T)
+    ? ((await db.$transaction((tx: PrismaTx) => fn(tx))) as T)
     : fn(db);
 }
 
