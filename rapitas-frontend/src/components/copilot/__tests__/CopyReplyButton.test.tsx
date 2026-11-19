@@ -4,7 +4,8 @@
  * The copy icon at the top right of ラピ's text reply in the copilot panel:
  * copies the Markdown source (not the rendered text), turns into a check for
  * a moment, never shows success when the clipboard write failed, and is not
- * offered on the user's words or on the structured analysis card.
+ * offered on the user's words or on the structured analysis card. Feedback is
+ * the icon change only: no toast on success or on failure.
  */
 import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import { MessageBubble } from '../MessageBubble';
@@ -68,7 +69,7 @@ describe('CopyReplyButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'copy' }));
     await act(async () => {});
 
-    expect(showToast).toHaveBeenCalledWith('failed', 'error');
+    expect(showToast).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'copied' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
   });
@@ -88,7 +89,7 @@ describe('CopyReplyButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'copied' }));
     await act(async () => {});
 
-    expect(showToast).toHaveBeenCalledWith('failed', 'error');
+    expect(showToast).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'copied' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'copy' })).toBeInTheDocument();
 
@@ -106,8 +107,20 @@ describe('CopyReplyButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'copy' }));
     await act(async () => {});
 
-    expect(showToast).toHaveBeenCalledWith('failed', 'error');
+    expect(showToast).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'copied' })).not.toBeInTheDocument();
+  });
+
+  it('stops the check timer when it unmounts during the check', async () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<MessageBubble msg={reply} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'copy' }));
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument();
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('is not offered on the user words, the analysis card or an empty reply', () => {
