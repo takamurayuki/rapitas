@@ -77,6 +77,20 @@ void main() {
     expect(find.byKey(const ValueKey('exec-log-timeline')), findsOneWidget);
   });
 
+  testWidgets('「詳細」は chunk を末尾の改行・空行・空白まで含めてそのまま出す', (tester) async {
+    final chunks = ['[Tool: Read] -> a.dart\n', '【ダミー】発言  \n\n', '   ', 'tail\r\n\n\n', '\n[System: init]\n'];
+    await pumpPanel(tester, () => snap([for (var i = 0; i < chunks.length; i++) logRow(i, chunks[i], time: at(i))]));
+    await tester.tap(find.byKey(const ValueKey('exec-log-raw-toggle')));
+    await tester.pump();
+
+    final shown = tester
+        .widgetList<SelectableText>(
+            find.descendant(of: find.byKey(const ValueKey('exec-log-raw')), matching: find.byType(SelectableText)))
+        .map((t) => t.data)
+        .toList();
+    expect(shown, chunks);
+  });
+
   testWidgets('入力待ち：質問は全文で必ず出し、状態の1行にも質問を出す', (tester) async {
     await pumpPanel(
         tester,

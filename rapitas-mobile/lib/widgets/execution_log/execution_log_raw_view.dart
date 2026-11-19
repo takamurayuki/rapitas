@@ -41,7 +41,8 @@ class ExecutionLogRawView extends StatelessWidget {
                   child: Text('stderr', style: mono?.copyWith(color: color, fontWeight: FontWeight.bold)),
                 ),
               Expanded(
-                child: SelectableText(entry.chunk.trimRight(), style: mono?.copyWith(color: color)),
+                // NOTE: 末尾の改行・空白も記録の一部。削るとコピーした内容が元の chunk と一致しなくなる
+                child: SelectableText(entry.chunk, style: mono?.copyWith(color: color)),
               ),
             ],
           ),
