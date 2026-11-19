@@ -54,6 +54,13 @@ export interface MigrationRecord {
    * last wrote, so its own older copy can be told from someone else's.
    */
   ownCopies: Record<string, string>;
+  /**
+   * Per id, the signature of a `{id}-pc` write whose request threw, so it is
+   * unknown whether it landed. Kept apart from `ownCopies`: it counts as this
+   * browser's copy only while the server's copy has exactly this signature,
+   * and is dropped once the outcome is known or the migration is done.
+   */
+  pendingCopies: Record<string, string>;
   rejectedLinks: RejectedLink[];
   /** The last failure, shown with a retry. */
   lastError: string | null;
@@ -67,6 +74,7 @@ export const INITIAL_RECORD: MigrationRecord = {
   resolved: {},
   blockedCopies: [],
   ownCopies: {},
+  pendingCopies: {},
   rejectedLinks: [],
   lastError: null,
   updatedAt: new Date(0).toISOString(),

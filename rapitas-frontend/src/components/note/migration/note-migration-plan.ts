@@ -194,6 +194,7 @@ function toDate(value: Date | string): number {
  * @param hash - SHA-256 / ハッシュ関数
  * @param blockedCopies - Ids whose copy another workspace holds / 写しのIDを別区画が持つID
  * @param ownCopies - Signatures of the copies this browser wrote / このブラウザが書いた写しの署名
+ * @param pendingCopies - Signatures of copy writes whose outcome was lost / 応答が失われた写しの署名（候補）
  * @returns What to import, what differs, and the links / 取り込み・差異・紐付け
  */
 export async function planMigration(
@@ -203,6 +204,7 @@ export async function planMigration(
   hash: Hasher = sha256Hex,
   blockedCopies: string[] = [],
   ownCopies: Record<string, string> = {},
+  pendingCopies: Record<string, string> = {},
 ): Promise<MigrationPlan> {
   const byId = new Map(manifest.map((m) => [m.id, m]));
   const plan: MigrationPlan = {
@@ -239,7 +241,12 @@ export async function planMigration(
     }
     // NOTE: an untouched copy this browser wrote for an older PC version is
     // not "other content" — it would otherwise lock "both" out for the edit.
-    const ownStale = !!copy && ownCopies[note.id] === manifestSignatureOf(copy);
+    // NOTE: a candidate (a write whose response was lost) counts only when the
+    // copy has exactly the content this browser sent (re-review 3).
+    const ownStale =
+      !!copy &&
+      (ownCopies[note.id] === manifestSignatureOf(copy) ||
+        pendingCopies[note.id] === manifestSignatureOf(copy));
     const localUpdatedAt = new Date(note.updatedAt).toISOString();
     plan.diffs.push({
       id: note.id,
@@ -255,6 +262,28 @@ export async function planMigration(
     });
   }
   return plan;
+}
+
+/**
+ * The candidates still worth keeping: those whose `{id}-pc` on the server has
+ * exactly the signature that was sent. A missing or different copy means the
+ * lost write never landed or was changed since, so the candidate is dropped.
+ *
+ * @param pendingCopies - Signatures of copy writes whose outcome was lost / 応答が失われた写しの署名
+ * @param manifest - The server's manifest / サーバーの版情報
+ * @returns The candidates that match / 一致する候補
+ */
+export function matchingPendingCopies(
+  pendingCopies: Record<string, string>,
+  manifest: ManifestEntry[],
+): Record<string, string> {
+  const byId = new Map(manifest.map((m) => [m.id, m]));
+  return Object.fromEntries(
+    Object.entries(pendingCopies).filter(([id, signature]) => {
+      const copy = byId.get(copyIdOf(id));
+      return !!copy && manifestSignatureOf(copy) === signature;
+    }),
+  );
 }
 
 async function isSettled(
