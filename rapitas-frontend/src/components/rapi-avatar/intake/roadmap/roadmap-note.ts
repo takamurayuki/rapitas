@@ -127,6 +127,29 @@ export interface RoadmapNoteLink {
   meta: NoteTaskMeta;
 }
 
+/**
+ * One link per created task, with the step title and the theme the desktop
+ * tree places it under.
+ *
+ * @param taskIds - The created tasks, in step order / 作成したタスク（手順順）
+ * @param steps - The plan's steps / 計画の手順
+ * @param themeName - The theme's name, when there is one / テーマ名
+ * @returns The links to make / 作る紐付け
+ */
+export function roadmapNoteLinks(
+  taskIds: number[],
+  steps: { title?: string }[],
+  themeName?: string | null,
+): RoadmapNoteLink[] {
+  return taskIds.map((taskId, i) => {
+    const taskTitle = steps[i]?.title;
+    return {
+      taskId,
+      meta: { ...(taskTitle ? { taskTitle } : {}), ...(themeName ? { themeName } : {}) },
+    };
+  });
+}
+
 /** What was saved. */
 export interface RoadmapNoteSaved {
   noteId: string;

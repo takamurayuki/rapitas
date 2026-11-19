@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { composeRoadmapNote, saveRoadmapNote } from './roadmap-note';
+import { composeRoadmapNote, roadmapNoteLinks, saveRoadmapNote } from './roadmap-note';
 import { postRoadmapCommit } from './roadmap-commit-request';
 import type {
   Committed,
@@ -175,9 +175,8 @@ export function useRoadmap(handedOver?: string) {
   /**
    * The note: what was decided and why, beside links to what was made.
    *
-   * NOTE: saved on the server and linked to every created task since stage 0
-   * (it used to live only in this browser's store, so the phone never saw
-   * it). Best-effort like the chips: the roadmap already exists by now.
+   * NOTE: on the server, linked to every created task, since stage 0.
+   * Best-effort like the chips: the roadmap already exists by now.
    *
    * @returns The note's id, which the tasks are then pointed at / ノートのID
    */
@@ -195,13 +194,7 @@ export function useRoadmap(handedOver?: string) {
       candidates: findings?.candidates ?? [],
       unresolvedAxes: findings?.unresolvedAxes ?? [],
     });
-    const links = made.taskIds.map((taskId, index) => ({
-      taskId,
-      meta: {
-        ...(plan.steps[index]?.title ? { taskTitle: plan.steps[index].title } : {}),
-        ...(plan.themeChoice.name ? { themeName: plan.themeChoice.name } : {}),
-      },
-    }));
+    const links = roadmapNoteLinks(made.taskIds, plan.steps, plan.themeChoice.name);
     try {
       const saved = await saveRoadmapNote(plan.goal, body, links);
       return saved.noteId;

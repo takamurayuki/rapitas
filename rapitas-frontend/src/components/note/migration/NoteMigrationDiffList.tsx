@@ -79,9 +79,9 @@ export default function NoteMigrationDiffList({ diffs, onApply }: Props) {
                     </span>
                   ))}
                 </span>
-                <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                  {t('pcUpdated', { date: formatDate(diff.localUpdatedAt) })}
-                  {t('serverUpdated', { date: formatDate(diff.server.updatedAt) })}
+                <span className="flex gap-3 text-[11px] text-zinc-400 dark:text-zinc-500">
+                  <span>{t('pcUpdated', { date: formatDate(diff.localUpdatedAt) })}</span>
+                  <span>{t('serverUpdated', { date: formatDate(diff.server.updatedAt) })}</span>
                 </span>
               </div>
               <div
@@ -104,6 +104,7 @@ export default function NoteMigrationDiffList({ diffs, onApply }: Props) {
                       value={value}
                       checked={choice === value}
                       onChange={() => setChoices((c) => ({ ...c, [diff.id]: value }))}
+                      aria-label={t(key)}
                       className="sr-only"
                     />
                     {t(key)}
