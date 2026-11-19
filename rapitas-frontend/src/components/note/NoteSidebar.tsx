@@ -176,10 +176,11 @@ export default function NoteSidebar() {
         const meta = activeNote.linkedTaskMeta[taskId];
         if (!meta) continue;
 
-        if (meta.categoryName && meta.themeName) {
-          const themeKey = `${meta.categoryName}|||${meta.themeName}`;
+        const { categoryName } = meta;
+        if (categoryName && meta.themeName) {
+          const themeKey = `${categoryName}|||${meta.themeName}`;
           const taskKey = `${themeKey}|||${taskId}`;
-          setExpandedCategories((s) => new Set([...s, meta.categoryName]));
+          setExpandedCategories((s) => new Set([...s, categoryName]));
           setExpandedThemes((s) => new Set([...s, themeKey]));
           setExpandedTasks((s) => new Set([...s, taskKey]));
         } else if (meta.themeName) {

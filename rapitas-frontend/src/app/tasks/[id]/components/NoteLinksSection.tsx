@@ -22,7 +22,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useNoteStore, type Note } from '@/stores/note-store';
+import { useEnsureNotesLoaded, useNoteStore, type Note } from '@/stores/note-store';
 import { withHeaderVisible } from '@/components/header/task-detail-link';
 import { noteContentToPlainText } from '@/components/note/markdown-note/note-content-format';
 
@@ -257,12 +257,10 @@ function NotePicker({
   };
 
   const handleCreateAndLink = () => {
-    const beforeIds = new Set(notes.map((n) => n.id));
-    createNote();
-    setTimeout(() => {
-      const newNote = useNoteStore.getState().notes.find((n) => !beforeIds.has(n.id));
-      if (newNote) linkNoteToTask(newNote.id, taskId, taskMeta);
-    }, 0);
+    // NOTE: createNote returns the id since stage 0; on the server the link
+    // is queued behind the note's own create, so it never races it.
+    const id = createNote();
+    void linkNoteToTask(id, taskId, taskMeta);
     onClose();
   };
 
@@ -359,6 +357,8 @@ export default function NoteLinksSection({
   const notes = useNoteStore((s) => s.notes);
   const linkNoteToTask = useNoteStore((s) => s.linkNoteToTask);
   const unlinkNoteFromTask = useNoteStore((s) => s.unlinkNoteFromTask);
+  // The task's "資料" come from the server's links (design §5.1, stage 0).
+  useEnsureNotesLoaded();
 
   const linkedNotes = useMemo(
     () => notes.filter((n) => n.linkedTaskIds?.includes(taskId)),
@@ -370,12 +370,15 @@ export default function NoteLinksSection({
   // notes without a category appear under a 2-level theme > task group).
   useEffect(() => {
     if (!themeName) return;
+    // NOTE: local (pre-migration) store only. On the server POST /links
+    // replaces meta, and the server's meta is not to be overwritten.
+    if (useNoteStore.getState().source !== 'local') return;
     const storeNotes = useNoteStore.getState().notes;
     storeNotes
       .filter((n) => n.linkedTaskIds?.includes(taskId))
       .forEach((note) => {
         if (!note.linkedTaskMeta?.[taskId]) {
-          linkNoteToTask(note.id, taskId, {
+          void linkNoteToTask(note.id, taskId, {
             taskTitle: taskTitle ?? '',
             themeName,
             categoryName: categoryName ?? '',

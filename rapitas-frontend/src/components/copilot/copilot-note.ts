@@ -54,12 +54,12 @@ export async function draftCopilotNote(answer: string): Promise<CopilotNoteDraft
 }
 
 /**
- * Puts the saved note into this browser's note store too.
+ * Puts the saved note into the desktop note list.
  *
- * NOTE: the desktop notes page and modal still read only the local store
- * (`note-store.ts` persists to localStorage), so without this the note would
- * exist on the server — and on the phone — but not on the screen it was
- * saved from. Same id, so a later `/notes/import` skips it.
+ * NOTE: since stage 0 the store reads the server, so this only spares the
+ * screen a reload. Before this browser's notes are migrated the store is
+ * still the local copy, and this is what puts the note on the screen it was
+ * saved from; it has the server's id, so the migration finds it unchanged.
  */
 function mirrorLocally(id: string, draft: CopilotNoteDraft, taskId: number | null): void {
   const now = new Date();
@@ -73,9 +73,7 @@ function mirrorLocally(id: string, draft: CopilotNoteDraft, taskId: number | nul
     tags: [],
     ...(taskId !== null ? { linkedTaskIds: [taskId] } : {}),
   };
-  useNoteStore.setState((state) => ({
-    notes: [note, ...state.notes.filter((n) => n.id !== id)],
-  }));
+  useNoteStore.getState().upsertNote(note);
 }
 
 /**
