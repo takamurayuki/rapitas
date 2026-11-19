@@ -1,6 +1,6 @@
 /// Rapi reply copy button: writes PNG captures with DUMMY data for visual
-/// review — the copy icon at the top right of a reply card, and the snackbar
-/// plus check icon right after a copy, at 390pt wide.
+/// review — the copy icon at the top right of a reply card, and the check icon
+/// it turns into right after a copy (no snackbar), at 390pt wide.
 ///
 /// Set RAPI_SCREENSHOT_DIR to write them (real Noto CJK fonts);
 /// CI leaves it unset, so the test is skipped there.
@@ -88,11 +88,18 @@ void main() {
     await shot('copy_1_icon');
 
     await tester.tap(find.byTooltip('返答をコピー').last);
-    // スナックバーが出きってチェックがまだ残っている時点を撮る
+    // チェックがまだ残っている時点を撮る（通知は出ない）
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(copied, _reply);
+    expect(find.byType(SnackBar), findsNothing);
     await shot('copy_2_copied');
+
+    // 2秒たってコピーのアイコンへ戻った時点を撮る
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.check), findsNothing);
+    await shot('copy_3_restored');
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
