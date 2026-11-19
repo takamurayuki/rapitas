@@ -61,6 +61,14 @@ const runStartupWarmup = async (): Promise<void> => {
       await yieldToLoop();
     }
   };
+  // Notes stage 1: initial placement, placement check, deliverable check.
+  const startNotesJobsTask = async () => {
+    const [{ startNotesJobs }, { prisma }] = await Promise.all([
+      import('../notes/jobs/notes-jobs'),
+      import('../../config/database'),
+    ]);
+    startNotesJobs(prisma as never);
+  };
   const recoverRuntimeServerRegistryTask = async () => {
     const { recoverRuntimeServerRegistry } =
       await import('../agents/verification/runtime-smoke/worktree-server-registry');
@@ -90,6 +98,7 @@ const runStartupWarmup = async (): Promise<void> => {
     ['cpu-usage-monitor', () => startCpuUsageMonitorIfEnabled()],
     ['supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler()],
     ['i18n-integrity-scheduler', () => startI18nIntegrityScheduler()],
+    ['notes-jobs', () => startNotesJobsTask()],
   ]);
   markWarmupComplete();
   log.info('Startup warm-up complete');
