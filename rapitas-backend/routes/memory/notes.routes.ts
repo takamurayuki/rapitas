@@ -30,6 +30,7 @@ import {
   importNotes,
   NoteWriteConflictError,
   NoteContentRejectedError,
+  queryNotes,
   MAX_NOTE_TITLE,
   MAX_NOTE_CONTENT,
   MAX_NOTE_TAGS,
@@ -38,6 +39,14 @@ import {
 import { draftNoteFromReply } from '../../services/notes/note-draft';
 import { importNoteLinks, linkNoteInScope } from '../../services/notes/note-links';
 import { isValidEntityId } from '../../utils/common/id-validation';
+import {
+  clientSourceBody,
+  listQuery,
+  parseListQuery,
+  placementBody,
+  stage1Refusal,
+  usesStage1Query,
+} from './notes/notes-route-helpers';
 
 /** An id a browser minted, or a cuid. Bounded so it cannot be a document. */
 const noteId = t.String({ minLength: 1, maxLength: 64 });
@@ -60,9 +69,12 @@ const noteBody = t.Object({
   tags: t.Optional(t.Array(t.String({ maxLength: 60 }), { maxItems: MAX_NOTE_TAGS })),
   color: t.Optional(t.Union([t.String({ maxLength: 40 }), t.Null()])),
   docType: t.Optional(t.Union([t.String({ maxLength: 40 }), t.Null()])),
+  // Stage 1: a move, and manual / chat only. sourceTaskId / followsTask /
+  // sourceRef are server-only and not accepted (contract 8).
+  placement: t.Optional(placementBody),
+  source: t.Optional(clientSourceBody),
 });
 
-/** Context captured when a note is linked from a task. */
 /** ラピ's reply to turn into a note draft; the question is not sent. */
 const draftBody = t.Object({ answer: t.String({ maxLength: MAX_NOTE_CONTENT }) });
 
@@ -115,14 +127,28 @@ async function writeNote(id: string, body: NoteInput, set: StatusSetter) {
       set.status = 409;
       return { success: false, error: 'note_write_conflict' };
     }
-    throw error;
+    return stage1Refusal(error, set);
   }
 }
 
 export const notesRoutes = new Elysia({ prefix: '/notes' })
   .get(
     '/',
-    async ({ query }) => {
+    async ({ query, set }) => {
+      // Stage 1: filters, search, paging and summaries. Without any of them
+      // the list is the stage-0 one (all notes, bodies included).
+      if (usesStage1Query(query)) {
+        const parsed = parseListQuery(query);
+        if ('error' in parsed) {
+          set.status = 400;
+          return { success: false, error: parsed.error };
+        }
+        try {
+          return { success: true, ...(await queryNotes(prisma, parsed)) };
+        } catch (error) {
+          return stage1Refusal(error, set);
+        }
+      }
       const taskId = query.taskId ? Number(query.taskId) : undefined;
       const notes = await listNotes(
         prisma,
@@ -130,7 +156,7 @@ export const notesRoutes = new Elysia({ prefix: '/notes' })
       );
       return { success: true, notes };
     },
-    { query: t.Object({ taskId: t.Optional(t.String()) }) },
+    { query: listQuery },
   )
 
   .get(

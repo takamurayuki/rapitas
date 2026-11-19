@@ -18,6 +18,7 @@ import { createSubtask, createParentTask } from './task-create-helpers';
 import { replaceTaskLabels } from './task-label-replace';
 import { syncParentStatusFromSubtasks } from './task-parent-status-sync';
 import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
+import { followTaskThemeChangeInBackground } from '../notes/placement/note-follow';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 import type { CriteriaWriteDb } from './task-criteria-write';
@@ -324,6 +325,8 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     await prisma.task.update(updateArgs);
     await releaseThemeCurrentOnTerminal(prisma, taskId, fields.status);
   }
+  // Notes stage 1 (contract 5): following deliverables move with the task's theme.
+  if (fields.themeId !== undefined) followTaskThemeChangeInBackground(prisma, taskId);
 
   // Update labels.
   // NOTE(#1330 review): Through replaceTaskLabels, not a bare deleteMany +

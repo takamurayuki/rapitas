@@ -14,9 +14,15 @@ const mockPrisma = {
     update: mock(() => Promise.resolve({})),
     updateMany: mock(() => Promise.resolve({ count: 0 })),
     delete: mock(() => Promise.resolve({})),
+    deleteMany: mock(() => Promise.resolve({ count: 1 })),
   },
   category: {
     findFirst: mock(() => Promise.resolve(null)),
+  },
+  // Notes stage 1: the delete re-places the theme's notes first.
+  note: {
+    findMany: mock(() => Promise.resolve([])),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
 };
 
@@ -253,15 +259,24 @@ describe('DELETE /themes/:id', () => {
   });
 
   test('テーマを削除すること', async () => {
-    const theme = { id: 1, name: '削除対象' };
-    mockPrisma.theme.delete.mockResolvedValue(theme);
+    const theme = { id: 1, name: '削除対象', categoryId: null, workspaceId: null };
+    mockPrisma.theme.findFirst.mockResolvedValue(theme as never);
+    mockPrisma.theme.deleteMany.mockResolvedValue({ count: 1 });
+    mockPrisma.note.findMany.mockResolvedValue([]);
 
     const res = await app.handle(new Request('http://localhost/themes/1', { method: 'DELETE' }));
 
     expect(res.status).toBe(200);
-    expect(mockPrisma.theme.delete).toHaveBeenCalledWith({
-      where: { id: 1 },
-    });
+    // NOTE: notes stage 1 deletes through deleteThemeWithNotes (notes re-placed first).
+    expect(mockPrisma.theme.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(await res.json()).toMatchObject({ id: 1, name: '削除対象' });
+  });
+
+  test('存在しないテーマの削除は404を返すこと', async () => {
+    mockPrisma.theme.findFirst.mockResolvedValue(null);
+    const res = await app.handle(new Request('http://localhost/themes/9', { method: 'DELETE' }));
+    expect(res.status).toBe(404);
+    expect(mockPrisma.theme.deleteMany).not.toHaveBeenCalled();
   });
 
   test('無効なIDで400を返すこと', async () => {

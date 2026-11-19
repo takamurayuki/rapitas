@@ -42,6 +42,11 @@ const prisma = {
       calls.push({ op: 'findUnique', args });
       return existing;
     },
+    // Stage 1: getNote reads with findFirst and an explicit workspace condition.
+    findFirst: async (args: Record<string, unknown>) => {
+      calls.push({ op: 'findFirst', args });
+      return existing;
+    },
     upsert: async (args: Record<string, unknown>) => {
       calls.push({ op: 'upsert', args });
       return row();
@@ -107,6 +112,7 @@ describe('reading a note', () => {
   test('says null rather than inventing a note that is not there', async () => {
     existing = null;
     expect(await getNote(prisma, 'missing')).toBeNull();
+    expect(of('findFirst')[0]?.args.where).toEqual({ id: 'missing', workspaceId: null });
   });
 });
 

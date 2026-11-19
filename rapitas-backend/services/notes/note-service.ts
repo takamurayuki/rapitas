@@ -17,13 +17,14 @@
  * Not responsible for deciding what a note says — see the callers.
  */
 import {
-  toRecord,
   WITH_LINKS,
   type NoteRecord,
   type NoteRow,
   type NoteTaskMeta,
   type PrismaInstance,
 } from './note-record';
+import { attachPlacement } from './placement/placed-record';
+import { scopeWhere } from './note-scope';
 
 // NOTE: the shapes, limits and the write moved out (note-record, note-limits,
 // note-write) when the version contract made the write its own module; they
@@ -36,6 +37,10 @@ export {
   NoteWriteConflictError,
   NoteContentRejectedError,
 } from './note-write';
+// Stage 1: the filtered / searched / paged list, and the placement refusals
+// the write path can raise — re-exported so the routes keep one entry point.
+export { queryNotes, NoteQueryError, type NoteQuery } from './read/note-query';
+export { NotePlacementError } from './placement/placement-write';
 
 /**
  * List notes, pinned first and most recently touched next.
@@ -50,7 +55,9 @@ export async function listNotes(prisma: PrismaInstance, taskId?: number): Promis
     include: WITH_LINKS,
     orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
   });
-  return rows.map((row: NoteRow) => toRecord(row));
+  // NOTE: stage 1 adds `placement` / `source` / `sourceTaskId` to each
+  // element (design §2.2); the selection and order are unchanged.
+  return attachPlacement(prisma, rows as NoteRow[]);
 }
 
 /**
@@ -61,8 +68,10 @@ export async function listNotes(prisma: PrismaInstance, taskId?: number): Promis
  * @returns The note, or null / ノート（無ければ null）
  */
 export async function getNote(prisma: PrismaInstance, id: string): Promise<NoteRecord | null> {
-  const row = await prisma.note.findUnique({ where: { id }, include: WITH_LINKS });
-  return row ? toRecord(row as NoteRow) : null;
+  // NOTE: stage 1 changed this read (placement), so it follows the §2.2 rule:
+  // the request's workspace, or the NULL partition — another workspace's note is a 404.
+  const row = await prisma.note.findFirst({ where: { id, ...scopeWhere() }, include: WITH_LINKS });
+  return row ? ((await attachPlacement(prisma, [row as NoteRow]))[0] as NoteRecord) : null;
 }
 
 /**

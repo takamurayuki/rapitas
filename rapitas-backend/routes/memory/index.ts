@@ -18,6 +18,7 @@ import { dailyReportRoutes } from '../daily-report-routes';
 import ideaTidyRoute from './idea-tidy.routes';
 import notesMigrationRoute from './notes-migration.routes';
 import notesRoute from './notes.routes';
+import notesNotesStage1Route from './notes/notes-stage1.routes';
 
 export { knowledgeRoutes } from './knowledge';
 export { memorySystemRoutes } from './memory-system';
@@ -41,4 +42,5 @@ export const memoryDomainRoutes = new Elysia()
   .use(dailyReportRoutes)
   .use(ideaTidyRoute)
   .use(notesMigrationRoute)
-  .use(notesRoute);
+  .use(notesRoute)
+  .use(notesNotesStage1Route);
