@@ -105,7 +105,6 @@ final List<(RegExp, ClassifiedLine Function(RegExpMatch m))> _rules = [
   ),
   (RegExp(r'^\[System:\s*[^\]]*\]'), (m) => const ClassifiedLine(LineTag.hidden)),
   (RegExp(r'^\[エージェント\]'), (m) => const ClassifiedLine(LineTag.hidden)),
-  (RegExp('${_agent}hidden \\d+ noisy line'), (m) => const ClassifiedLine(LineTag.hidden)),
   (RegExp(r'^\[[^\]\n]+\]'), (m) => const ClassifiedLine(LineTag.other)),
 ];
 

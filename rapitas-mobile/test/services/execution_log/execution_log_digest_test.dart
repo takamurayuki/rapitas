@@ -157,6 +157,15 @@ void main() {
       expect(d.events.map((e) => '${e.title}${e.body}').join(), isNot(contains('Mystery')));
       expect(d.otherLines, 1);
     });
+
+    // 現行の記録側は書かない形（旧 cli-output-filter が 36185353 まで書いていた）。内部の記録として
+    // 特別扱いせず「その他」に回す。表に出さず、注記の件数に入り、詳細では見える点は内部の行と同じ
+    test('記録側に根拠の無い `[codex] hidden N noisy line(s)` は内部扱いせず「その他」', () {
+      final old = digestExecutionLog(_snap([logRow(0, '[codex] hidden 406 noisy line(s)\n')]));
+      expect(old.events, isEmpty);
+      expect(old.hiddenLines, 0);
+      expect(old.otherLines, 1);
+    });
   });
 
   test('同じ内容の発言が続いたら1件にまとめて件数を出す', () {
