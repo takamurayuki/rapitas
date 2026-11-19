@@ -81,6 +81,29 @@ describe('the hourly check', () => {
     expect(calls).toBe(0);
   });
 
+  it('leaves the baseline unmarked and the run failed when one baseline write fails (Must-fix 4)', async () => {
+    db.rows('task').push(
+      { ...task(2), id: 4, title: 'old done 2' },
+      { ...task(2), id: 5, title: 'old done 3' },
+    );
+    db.hooks.beforeCreate = (table, data) => {
+      if (table === 'taskDeliverableCompletion' && data.taskId === 4) throw new Error('disk I/O');
+    };
+    await expect(runDeliverableCheck(p())).rejects.toThrow();
+    expect(db.rows('noteMigrationMarker')).toHaveLength(0);
+    // The task whose baseline failed is NOT picked up as an unknown completion.
+    expect(record(4)).toBeUndefined();
+    expect(calls).toBe(0);
+
+    db.hooks.beforeCreate = undefined;
+    const retry = await runDeliverableCheck(p());
+    expect(retry.baselined).toBe(1);
+    expect(record(4)).toMatchObject({ mode: 'baseline', state: 'baseline' });
+    expect(record(5)).toMatchObject({ mode: 'baseline', state: 'baseline' });
+    expect(db.rows('noteMigrationMarker')).toHaveLength(1);
+    expect(db.find('note', { id: 'deliverable-task-4' })).toBeUndefined();
+  });
+
   it('records a completion no entry saw as unknown and creates from it', async () => {
     await runDeliverableCheck(p()); // baseline first
     task(1).status = 'done'; // completed by a path without an entry

@@ -7,6 +7,8 @@
  * 0. Once, when the feature is first enabled: every task already `done`
  *    without a record gets a `baseline` record, which is never created from —
  *    so turning the feature on does not produce a note for every old task.
+ *    Only a complete baseline is marked; if any record fails, the run stops
+ *    before step 1 and the next run tries the baseline again.
  * 1. A `done` task without a record gets `mode = unknown`, `state = pending`
  *    (a completion by a path with no entry, or whose after-the-fact record
  *    write failed). `completedAt` is the time the check found it.
@@ -54,8 +56,9 @@ async function createRecords(
   db: PrismaInstance,
   tasks: DoneTask[],
   make: (t: DoneTask) => Record<string, unknown>,
-): Promise<number> {
+): Promise<{ made: number; failed: number }> {
   let made = 0;
+  let failed = 0;
   for (const task of tasks) {
     try {
       await inWorkspaceOf(task.workspaceId ?? null, () =>
@@ -66,11 +69,21 @@ async function createRecords(
       made += 1;
     } catch (error) {
       // An entry wrote the record in between: that one is the truth.
-      if (!isUniqueViolation(error))
+      if (!isUniqueViolation(error)) {
+        failed += 1;
         logger.warn({ err: error, taskId: task.id }, 'record create failed');
+      }
     }
   }
-  return made;
+  return { made, failed };
+}
+
+/** The one-time baseline could not write every record; the run stops here. */
+export class DeliverableBaselineIncompleteError extends Error {
+  constructor(readonly failed: number) {
+    super(`deliverable baseline incomplete: ${failed} record(s) not written`);
+    this.name = 'DeliverableBaselineIncompleteError';
+  }
 }
 
 const doneWithoutRecord = async (db: PrismaInstance) =>
@@ -84,14 +97,20 @@ const doneWithoutRecord = async (db: PrismaInstance) =>
  *
  * @param db - The client, without scope / スコープなしのクライアント
  * @returns Records written / 作成した記録数
+ * @throws {DeliverableBaselineIncompleteError} when a record could not be written (no marker) / 記録を書けなかった場合（印を書かない）
  */
 export async function ensureDeliverableBaseline(db: PrismaInstance): Promise<number> {
   if (await hasMarker(db, DELIVERABLE_BASELINE_KEY)) return 0;
-  const made = await createRecords(db, await doneWithoutRecord(db), (t) => ({
+  const { made, failed } = await createRecords(db, await doneWithoutRecord(db), (t) => ({
     mode: 'baseline',
     state: 'baseline',
     completedAt: t.completedAt ?? t.updatedAt,
   }));
+  // NOTE: a write that failed for any reason but "already recorded" leaves the
+  // marker unwritten and fails the run (review G2 must-fix 4). Otherwise the
+  // same run's step 1 would record that pre-feature task as unknown/pending and
+  // create a note from it. The next run retries the baseline from scratch.
+  if (failed > 0) throw new DeliverableBaselineIncompleteError(failed);
   await writeMarker(db, DELIVERABLE_BASELINE_KEY, { baselined: made });
   logger.info({ baselined: made }, 'deliverable baseline written');
   return made;
@@ -149,13 +168,14 @@ export async function reevaluateCandidates(db: PrismaInstance, now: Date): Promi
  * @param db - The client, without scope / スコープなしのクライアント
  * @param now - The check's time (injectable for tests) / 点検の時刻
  * @returns Counts / 件数
+ * @throws {DeliverableBaselineIncompleteError} when the one-time baseline is incomplete; nothing after it runs / 初回の baseline が不完全な場合
  */
 export async function runDeliverableCheck(
   db: PrismaInstance,
   now: Date = new Date(),
 ): Promise<DeliverableCheckResult> {
   const baselined = await ensureDeliverableBaseline(db);
-  const found = await createRecords(db, await doneWithoutRecord(db), () => ({
+  const { made: found } = await createRecords(db, await doneWithoutRecord(db), () => ({
     mode: 'unknown',
     state: 'pending',
     completedAt: now,
