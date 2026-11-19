@@ -103,6 +103,30 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('成功の直後に失敗したら、成功の表示（チェックと「コピーしました」）を残さない', (tester) async {
+    await pumpAndAsk(tester);
+
+    await tester.tap(replyCopyButton());
+    await tester.pump();
+    expect(find.text('コピーしました'), findsOneWidget);
+    expect(find.descendant(of: replyCopyButton(), matching: find.byIcon(Icons.check)), findsOneWidget);
+
+    // チェックが出ている2秒の間にもう一度押し、今度は書けない
+    failClipboard = true;
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(replyCopyButton());
+    await tester.pump();
+    // SnackBar の入れ替わり（出ていく側の動き）を終わらせる
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('コピーしました'), findsNothing);
+    expect(find.text('コピーできませんでした'), findsOneWidget);
+    expect(find.descendant(of: replyCopyButton(), matching: find.byIcon(Icons.check)), findsNothing);
+    expect(find.descendant(of: replyCopyButton(), matching: find.byIcon(Icons.copy_rounded)),
+        findsOneWidget);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('利用者の発言にはコピーを付けない', (tester) async {
     await pumpAndAsk(tester);
 

@@ -49,7 +49,13 @@ class _RapiReplyCopyButtonState extends State<RapiReplyCopyButton> {
     try {
       await Clipboard.setData(ClipboardData(text: widget.text));
     } catch (_) {
-      messenger?.showSnackBar(const SnackBar(content: Text(rapiReplyCopyFailedMessage)));
+      // 直前の成功から2秒以内の失敗でも、チェックと「コピーしました」を残さない
+      _reset?.cancel();
+      _reset = null;
+      if (mounted && _copied) setState(() => _copied = false);
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text(rapiReplyCopyFailedMessage)));
       return;
     }
     if (!mounted) return;
