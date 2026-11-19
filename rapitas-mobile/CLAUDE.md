@@ -117,7 +117,7 @@ Deep links use `rapitas://app/<path>`; for example `rapitas://app/rapi?compose=1
 | Themes / categories | `themes/`, `categories/` | CRUD, reorder, set default |
 | Backlog | `backlog/` | Ideas (CRUD, filter), concerns (create, delete), hypotheses (status override, delete) |
 | Notes | `notes/` | List, view, create and edit notes; link a note to a task |
-| Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest, save a text reply as a note (the answer only, titled and tidied by `POST /notes/draft-from-reply`), linked to the task in a consult |
+| Rapi chat | `rapi/` | Assistant chat with multiple conversation spaces, task drafts, criteria and roadmap cards, tidy/delete proposals, companion digest, copy a text reply's Markdown source from the icon at its top right, save a text reply as a note (the answer only, titled and tidied by `POST /notes/draft-from-reply`), linked to the task in a consult |
 | Pairing | `pairing/` | QR scanner that pairs the phone with a desktop |
 | Settings | `settings/` | Connection (pair, manual URL and token, re-discover, connection test, restart desktop backend), AI agent configs, theme mode, voice command mode, voice learning |
 
