@@ -42,6 +42,11 @@ const prisma = {
       calls.push({ op: 'findUnique', args });
       return existing;
     },
+    // Stage 1: getNote reads with findFirst and an explicit workspace condition.
+    findFirst: async (args: Record<string, unknown>) => {
+      calls.push({ op: 'findFirst', args });
+      return existing;
+    },
     upsert: async (args: Record<string, unknown>) => {
       calls.push({ op: 'upsert', args });
       return row();
@@ -54,6 +59,11 @@ const prisma = {
       calls.push({ op: 'deleteMany', args });
       return { count: existing ? 1 : 0 };
     },
+  },
+  // The task filter checks the task's workspace first (§2.2).
+  task: {
+    findFirst: async (args: { where: { id: number } }) =>
+      args.where.id === 42 ? { id: 42, workspaceId: null, themeId: null, parentId: null } : null,
   },
   noteTaskLink: {
     upsert: async (args: Record<string, unknown>) => {
@@ -101,12 +111,20 @@ describe('reading a note', () => {
 
   test('narrows to one task when asked', async () => {
     await listNotes(prisma, 42);
-    expect(of('findMany')[0]?.args.where).toEqual({ taskLinks: { some: { taskId: 42 } } });
+    // NOTE: the request's workspace (NULL partition here) is ANDed in (review G2 must-fix 2).
+    expect(of('findMany')[0]?.args.where).toEqual({
+      AND: [{ workspaceId: null }, { taskLinks: { some: { taskId: 42 } } }],
+    });
+  });
+
+  test('refuses a task outside the request’s workspace instead of listing across', async () => {
+    await expect(listNotes(prisma, 43)).rejects.toMatchObject({ code: 'task_not_found' });
   });
 
   test('says null rather than inventing a note that is not there', async () => {
     existing = null;
     expect(await getNote(prisma, 'missing')).toBeNull();
+    expect(of('findFirst')[0]?.args.where).toEqual({ id: 'missing', workspaceId: null });
   });
 });
 

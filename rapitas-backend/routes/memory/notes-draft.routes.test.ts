@@ -44,6 +44,9 @@ mock.module('../../services/notes/note-service', () => ({
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
+  queryNotes: async () => ({ notes: [], nextCursor: null }),
+  NoteQueryError: class NoteQueryError extends Error {},
+  NotePlacementError: class NotePlacementError extends Error {},
 }));
 
 mock.module('../../config/database', () => ({

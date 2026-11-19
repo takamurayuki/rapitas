@@ -66,6 +66,9 @@ beforeEach(async () => {
     'CREATE TABLE WorkflowTransition (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, fromStatus TEXT, toStatus TEXT, actor TEXT, cause TEXT, phase TEXT, executionId INTEGER, sessionId INTEGER, metadata TEXT DEFAULT "{}", invariantViolation BOOLEAN DEFAULT 0, invariantMessage TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE RequirementReviewClaim (id INTEGER PRIMARY KEY AUTOINCREMENT, taskId INTEGER, snapshotDigest TEXT, requestKey TEXT, status TEXT, claimToken TEXT, ownerInstanceId TEXT, heartbeatAt DATETIME, resultJson TEXT, reason TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP, updatedAt DATETIME, UNIQUE(taskId,snapshotDigest))',
     'CREATE TABLE RequirementReviewRetryRequest (workspaceId INTEGER, id INTEGER PRIMARY KEY AUTOINCREMENT, requestId TEXT UNIQUE, taskId INTEGER, consumedAt DATETIME, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP)',
+    // Notes stage 1: a verify completion writes its deliverable record in the
+    // same transaction (recordTaskCompletionTx), so the commit needs the table.
+    'CREATE TABLE TaskDeliverableCompletion (taskId INTEGER PRIMARY KEY, workspaceId INTEGER, mode TEXT NOT NULL, completedAt DATETIME NOT NULL, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, lastAttemptAt DATETIME)',
   ])
     await db.$executeRawUnsafe(sql);
   await db.$executeRawUnsafe(

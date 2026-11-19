@@ -1221,8 +1221,50 @@ CREATE TABLE "Note" (
     "version" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "themeId" INTEGER,
+    "categoryId" INTEGER,
+    "folderId" INTEGER,
+    "sourceTaskId" INTEGER,
+    "followsTask" BOOLEAN NOT NULL DEFAULT false,
+    "source" TEXT NOT NULL DEFAULT 'manual',
+    "sourceRef" TEXT,
 
     CONSTRAINT "Note_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "NoteFolder" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "name" TEXT NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "NoteFolder_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TaskDeliverableCompletion" (
+    "taskId" INTEGER NOT NULL,
+    "workspaceId" INTEGER,
+    "mode" TEXT NOT NULL,
+    "completedAt" TIMESTAMP(3) NOT NULL,
+    "state" TEXT NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "lastAttemptAt" TIMESTAMP(3),
+
+    CONSTRAINT "TaskDeliverableCompletion_pkey" PRIMARY KEY ("taskId")
+);
+
+-- CreateTable
+CREATE TABLE "NoteMigrationMarker" (
+    "key" TEXT NOT NULL,
+    "workspaceId" INTEGER,
+    "appliedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "detail" TEXT,
+
+    CONSTRAINT "NoteMigrationMarker_pkey" PRIMARY KEY ("key")
 );
 
 -- CreateTable
@@ -2518,6 +2560,30 @@ CREATE INDEX "Note_isPinned_idx" ON "Note"("isPinned");
 CREATE INDEX "Note_workspaceId_idx" ON "Note"("workspaceId");
 
 -- CreateIndex
+CREATE INDEX "Note_themeId_idx" ON "Note"("themeId");
+
+-- CreateIndex
+CREATE INDEX "Note_categoryId_idx" ON "Note"("categoryId");
+
+-- CreateIndex
+CREATE INDEX "Note_folderId_idx" ON "Note"("folderId");
+
+-- CreateIndex
+CREATE INDEX "Note_sourceTaskId_idx" ON "Note"("sourceTaskId");
+
+-- CreateIndex
+CREATE INDEX "NoteFolder_workspaceId_idx" ON "NoteFolder"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "TaskDeliverableCompletion_workspaceId_idx" ON "TaskDeliverableCompletion"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "TaskDeliverableCompletion_state_idx" ON "TaskDeliverableCompletion"("state");
+
+-- CreateIndex
+CREATE INDEX "NoteMigrationMarker_workspaceId_idx" ON "NoteMigrationMarker"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "NoteTaskLink_taskId_idx" ON "NoteTaskLink"("taskId");
 
 -- CreateIndex
@@ -2999,6 +3065,21 @@ ALTER TABLE "KnowledgeGraphEdge" ADD CONSTRAINT "KnowledgeGraphEdge_toNodeId_fke
 
 -- AddForeignKey
 ALTER TABLE "EpisodeMemory" ADD CONSTRAINT "EpisodeMemory_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Note" ADD CONSTRAINT "Note_themeId_fkey" FOREIGN KEY ("themeId") REFERENCES "Theme"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Note" ADD CONSTRAINT "Note_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Note" ADD CONSTRAINT "Note_folderId_fkey" FOREIGN KEY ("folderId") REFERENCES "NoteFolder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Note" ADD CONSTRAINT "Note_sourceTaskId_fkey" FOREIGN KEY ("sourceTaskId") REFERENCES "Task"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskDeliverableCompletion" ADD CONSTRAINT "TaskDeliverableCompletion_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "NoteTaskLink" ADD CONSTRAINT "NoteTaskLink_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note"("id") ON DELETE CASCADE ON UPDATE CASCADE;
