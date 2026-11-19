@@ -4,7 +4,9 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rapitas_mobile/models/approval_request.dart';
 import 'package:rapitas_mobile/models/task_execution.dart';
+import 'package:rapitas_mobile/providers/approval_provider.dart';
 import 'package:rapitas_mobile/providers/execution_provider.dart';
 import 'package:rapitas_mobile/screens/approvals/pending_questions.dart';
 
@@ -58,6 +60,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(approvalsContainer(tester).read(answeredQuestionsProvider), isEmpty);
       expect(_card('81'), findsOneWidget);
+    });
+  });
+
+  group('再取得の失敗は空状態に見せない', () {
+    testWidgets('質問の再取得に失敗したらエラーを出す（直前が空でも）', (tester) async {
+      final source = CountingSource<ExecutingTask>([]);
+      await pumpApprovals(tester, executingSource: source);
+      expect(find.text('承認リクエストも質問もありません'), findsOneWidget);
+
+      source.failFrom = 2;
+      approvalsContainer(tester).invalidate(executingTasksProvider);
+      await tester.pumpAndSettle();
+
+      expect(find.text('質問の取得に失敗しました'), findsOneWidget);
+      expect(find.textContaining('ありません'), findsNothing);
+    });
+
+    testWidgets('承認の再取得に失敗したらエラーを出す（直前が空でも）', (tester) async {
+      final source = CountingSource<ApprovalRequest>([]);
+      await pumpApprovals(tester, approvalSource: source);
+
+      source.failFrom = 2;
+      approvalsContainer(tester).invalidate(approvalListProvider);
+      await tester.pumpAndSettle();
+
+      expect(find.text('承認リクエストの取得に失敗しました'), findsOneWidget);
+      expect(find.textContaining('ありません'), findsNothing);
+    });
+
+    testWidgets('直前に質問があっても、再取得の失敗はエラーとして出す', (tester) async {
+      final source = CountingSource<ExecutingTask>([waitingRow('82', '802', question: '古い質問')]);
+      await pumpApprovals(tester, executingSource: source);
+
+      source.failFrom = 2;
+      approvalsContainer(tester).invalidate(executingTasksProvider);
+      await tester.pumpAndSettle();
+
+      expect(find.text('質問の取得に失敗しました'), findsOneWidget);
+
+      // 再試行で戻る
+      source.failFrom = null;
+      await tester.tap(find.text('再試行'));
+      await tester.pumpAndSettle();
+      expect(find.text('質問の取得に失敗しました'), findsNothing);
+      expect(_card('82'), findsOneWidget);
     });
   });
 }

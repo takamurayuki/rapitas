@@ -67,14 +67,16 @@ class ApprovalsScreen extends ConsumerWidget {
     final questions = questionsAsync.valueOrNull ?? const <ExecutingTask>[];
     final loading = approvalsAsync.isLoading && !approvalsAsync.hasValue ||
         questionsAsync.isLoading && !questionsAsync.hasValue;
+    // NOTE: hasValue を条件に入れない。再取得の失敗は直前の値を保持した AsyncError になり、
+    // hasValue が真のままになる。それを値として扱うと、直前が空なら「ありません」と見せてしまう。
     final children = <Widget>[
-      if (approvalsAsync.hasError && !approvalsAsync.hasValue)
+      if (approvalsAsync.hasError)
         _ErrorBlock(message: '承認リクエストの取得に失敗しました', onRetry: () => ref.invalidate(approvalListProvider))
       else if (approvals.isNotEmpty) ...[
         _SectionHeader(icon: Icons.fact_check_outlined, label: '承認リクエスト', count: approvals.length),
         for (final approval in approvals) ApprovalCard(approval: approval),
       ],
-      if (questionsAsync.hasError && !questionsAsync.hasValue)
+      if (questionsAsync.hasError)
         _ErrorBlock(message: '質問の取得に失敗しました', onRetry: () => ref.invalidate(executingTasksProvider))
       else if (questions.isNotEmpty) ...[
         _SectionHeader(icon: Icons.question_answer_outlined, label: 'エージェントの質問', count: questions.length),
