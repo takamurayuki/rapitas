@@ -9,6 +9,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { canContinueAutoMerge } from './auto-merge-task-guard';
 import { verifierConfirmedForCompletion } from './verifier-completion-check';
+import { completeWithRecord } from '../notes/deliverables/deliverable-completion';
 
 const log = createLogger('workflow:auto-merge-completion');
 
@@ -24,14 +25,15 @@ export async function completeTaskRow(taskId: number): Promise<boolean> {
   // NOTE: Both callers (merge success, pr-mode CI green) land here; the stop
   // guard alone let an unconfirmed verifier complete (G2 routing1 re-review 3).
   if (!(await verifierConfirmedForCompletion(taskId, 'merge_watcher'))) return false;
-  const result = await prisma.task
-    .updateMany({
+  // Notes stage 1: the completion and its deliverable record (mode ci_merge)
+  // are one transaction with one time (completedAt = updatedAt = the record's).
+  return completeWithRecord(prisma as never, taskId, 'ci_merge', (db, at) =>
+    db.task.updateMany({
       where: { id: taskId, status: { in: ['in-progress', 'in_progress', 'done', 'completed'] } },
-      data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-    })
-    .catch((err) => {
-      log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed');
-      return { count: 0 };
-    });
-  return result.count > 0;
+      data: { status: 'done', workflowStatus: 'completed', completedAt: at, updatedAt: at },
+    }),
+  ).catch((err) => {
+    log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed');
+    return false;
+  });
 }

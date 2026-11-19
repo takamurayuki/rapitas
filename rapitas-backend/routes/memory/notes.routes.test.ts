@@ -18,6 +18,7 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 let saved: { id: string; input: Record<string, unknown> }[] = [];
 let linked: { id: string; taskId: number; meta?: unknown }[] = [];
 let listedTaskId: number | undefined;
+let queried: Record<string, unknown>[] = [];
 let noteExists = true;
 let unlinkFound = true;
 let writeConflicts = false;
@@ -66,6 +67,13 @@ mock.module('../../services/notes/note-service', () => ({
   MAX_NOTE_TITLE: 300,
   MAX_NOTE_CONTENT: 200000,
   MAX_NOTE_TAGS: 30,
+  // Stage-1 exports (mirrored: Bun replaces the whole module).
+  queryNotes: async (_p: unknown, query: Record<string, unknown>) => {
+    queried.push(query);
+    return { notes: [NOTE], nextCursor: null };
+  },
+  NoteQueryError: class NoteQueryError extends Error {},
+  NotePlacementError: class NotePlacementError extends Error {},
 }));
 
 let taskInScope = true;
@@ -110,6 +118,7 @@ beforeEach(() => {
   saved = [];
   linked = [];
   listedTaskId = undefined;
+  queried = [];
   noteExists = true;
   unlinkFound = true;
   writeConflicts = false;
@@ -132,6 +141,46 @@ describe('listing', () => {
   it('ignores a task filter that is not a number, rather than filtering by NaN', async () => {
     await call('/?taskId=abc');
     expect(listedTaskId).toBeUndefined();
+  });
+
+  it('keeps the stage-0 list when no stage-1 parameter is sent', async () => {
+    await call('/?taskId=42');
+    expect(queried).toEqual([]);
+  });
+
+  it('parses the stage-1 parameters into one query', async () => {
+    const { status, body } = await call(
+      '/?themeId=3&q=%E8%AA%BF%E6%9F%BB&source=learning,artifacts&limit=20&fields=summary&taskId=9',
+    );
+    expect(status).toBe(200);
+    expect(body).toHaveProperty('nextCursor', null);
+    expect(queried).toEqual([
+      {
+        themeId: 3,
+        taskId: 9,
+        q: '調査',
+        sources: ['learning', 'artifacts'],
+        limit: 20,
+        summary: true,
+      },
+    ]);
+  });
+
+  it('takes none as a placement filter', async () => {
+    await call('/?folderId=none');
+    expect(queried[0]).toEqual({ folderId: 'none' });
+  });
+
+  it.each([
+    ['/?themeId=abc', 'invalid_themeId'],
+    ['/?categoryId=-1', 'invalid_categoryId'],
+    ['/?limit=0', 'invalid_limit'],
+    ['/?fields=everything', 'invalid_fields'],
+  ])('answers 400 for %s', async (path, error) => {
+    const { status, body } = await call(path);
+    expect(status).toBe(400);
+    expect(body.error).toBe(error);
+    expect(queried).toEqual([]);
   });
 });
 
@@ -169,6 +218,35 @@ describe('writing', () => {
     const { status, body } = await call('/n1', json('PATCH', { title: 'x' }));
     expect(status).toBe(409);
     expect(body.error).toBe('note_write_conflict');
+  });
+
+  it('passes placement and a client source to the write', async () => {
+    const { status } = await call(
+      '/n1',
+      json('PUT', { content: 'x', placement: { kind: 'folder', id: 4 }, source: 'chat' }),
+    );
+    expect(status).toBe(200);
+    expect(saved[0]?.input).toEqual({
+      content: 'x',
+      placement: { kind: 'folder', id: 4 },
+      source: 'chat',
+    });
+  });
+
+  it('refuses a source only the server writes (contract 8)', async () => {
+    const { status } = await call('/n1', json('PUT', { source: 'deliverable' }));
+    expect(status).toBe(422);
+    expect(saved).toEqual([]);
+  });
+
+  it('never hands server-only columns to the write', async () => {
+    await call(
+      '/n1',
+      json('PATCH', { title: 't', sourceTaskId: 5, followsTask: true, sourceRef: '{}' }),
+    );
+    for (const key of ['sourceTaskId', 'followsTask', 'sourceRef']) {
+      expect(saved[0]?.input ?? {}).not.toHaveProperty(key);
+    }
   });
 
   it('refuses a title longer than the column', async () => {
