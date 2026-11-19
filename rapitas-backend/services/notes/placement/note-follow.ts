@@ -20,7 +20,7 @@
  */
 import { createLogger } from '../../../config/logger';
 import { runAcrossAllWorkspaces } from '../../tenancy/workspace-context';
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { resolveEffectiveTheme, tasksInheritingFrom } from './effective-theme';
 import { findTaskInScope } from './placement-scope';
@@ -47,7 +47,7 @@ interface FollowingNote extends PlacementColumns {
  * @param note - The note's columns / ノートの列
  * @returns true when it moved / 移動したら true
  */
-export async function followOne(db: PrismaInstance, note: FollowingNote): Promise<boolean> {
+export async function followOne(db: PrismaTx, note: FollowingNote): Promise<boolean> {
   if (note.sourceTaskId === null) return false;
   const theme = await resolveEffectiveTheme(db, note.sourceTaskId);
   if (theme === null) return false; // contract 5: a NULL effective theme moves nothing

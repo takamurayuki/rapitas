@@ -11,7 +11,7 @@
  *
  * Not responsible for moving notes — see note-follow and the jobs.
  */
-import type { PrismaInstance } from '../note-record';
+import type { PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { belongsTo, type ScopedTask } from './placement-scope';
 
@@ -39,7 +39,7 @@ export interface EffectiveThemeOptions {
 }
 
 async function readTask(
-  db: PrismaInstance,
+  db: PrismaTx,
   id: number,
   ws: number | null,
   cache?: Map<number, ScopedTask | null>,
@@ -59,7 +59,7 @@ async function readTask(
  * elsewhere is not used as a placement.
  */
 async function themeInWorkspace(
-  db: PrismaInstance,
+  db: PrismaTx,
   themeId: number,
   ws: number | null,
 ): Promise<boolean> {
@@ -79,7 +79,7 @@ async function themeInWorkspace(
  * @returns The theme id, or null when the task (or every ancestor) has none / 有効テーマ（無ければ null）
  */
 export async function resolveEffectiveTheme(
-  db: PrismaInstance,
+  db: PrismaTx,
   taskId: number,
   options: EffectiveThemeOptions = {},
 ): Promise<number | null> {
@@ -108,7 +108,7 @@ export async function resolveEffectiveTheme(
  * @param taskId - The changed task / 変更されたタスク
  * @returns The task id and the inheriting descendants' ids / 対象タスクIDの一覧
  */
-export async function tasksInheritingFrom(db: PrismaInstance, taskId: number): Promise<number[]> {
+export async function tasksInheritingFrom(db: PrismaTx, taskId: number): Promise<number[]> {
   const ws = requestWorkspaceId();
   const out = [taskId];
   let frontier = [taskId];

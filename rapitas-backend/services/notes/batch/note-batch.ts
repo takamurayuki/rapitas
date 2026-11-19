@@ -24,7 +24,7 @@
  * and per nav70 sends nothing for an element whose generation failed.
  */
 import { createLogger } from '../../../config/logger';
-import type { NoteTaskMeta, PrismaInstance } from '../note-record';
+import type { NoteTaskMeta, PrismaInstance, PrismaTx } from '../note-record';
 import { MAX_NOTE_CONTENT, MAX_NOTE_TAGS, MAX_NOTE_TITLE } from '../note-limits';
 import { requestWorkspaceId } from '../note-scope';
 import { checkNewMarkdownContent } from '../note-content-kind';
@@ -131,7 +131,7 @@ async function runOne(db: PrismaInstance, item: BatchItem): Promise<BatchResult>
   });
   // Contract 3: an existing id keeps its body and placement; only missing links are added.
   const skipExisting = async (): Promise<BatchResult> => {
-    const linksAdded = (await db.$transaction((tx: PrismaInstance) =>
+    const linksAdded = (await db.$transaction((tx: PrismaTx) =>
       addMissingLinksTx(tx, item.id, item.taskIds, meta),
     )) as number;
     return { id: item.id, status: 'skipped', linksAdded };
@@ -141,7 +141,7 @@ async function runOne(db: PrismaInstance, item: BatchItem): Promise<BatchResult>
   const placement = await placementFor(db, item, tasks);
   const roadmap = item.source === 'roadmap';
   try {
-    await db.$transaction((tx: PrismaInstance) =>
+    await db.$transaction((tx: PrismaTx) =>
       createLinkedNoteTx(tx, {
         id: item.id,
         title: (item.title ?? '').slice(0, MAX_NOTE_TITLE),

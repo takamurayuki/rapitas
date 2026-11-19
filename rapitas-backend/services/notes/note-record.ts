@@ -14,6 +14,18 @@ import type { PlacementInput } from './placement/placement-write';
 export type PrismaInstance = InstanceType<typeof PrismaClient>;
 
 /**
+ * The client a `$transaction` callback receives: the full client minus the
+ * connection and transaction methods. A helper that runs inside a
+ * transaction must take this, not {@link PrismaInstance} — the full client
+ * is assignable to it, but the transaction client is not assignable to the
+ * full one, which is what broke the type check after notes stage 1.
+ */
+export type PrismaTx = Omit<
+  PrismaInstance,
+  '$extends' | '$transaction' | '$disconnect' | '$connect' | '$on'
+>;
+
+/**
  * Per-task context captured when a note was linked from a task.
  *
  * NOTE: `taskTitle` / `categoryName` were added in stage 0 so the desktop

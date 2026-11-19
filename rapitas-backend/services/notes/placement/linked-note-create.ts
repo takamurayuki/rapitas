@@ -15,7 +15,7 @@
  *
  * Not responsible for deciding the placement or the body — the callers do.
  */
-import type { NoteTaskMeta, PrismaInstance } from '../note-record';
+import type { NoteTaskMeta, PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
 import { computeNoteVersion } from '../note-version';
 import { resolveEffectiveTheme } from './effective-theme';
@@ -47,7 +47,7 @@ export interface LinkedNoteSpec {
  * @param tx - The transaction client / トランザクションのクライアント
  * @param spec - What to create / 作成内容
  */
-export async function createLinkedNoteTx(tx: PrismaInstance, spec: LinkedNoteSpec): Promise<void> {
+export async function createLinkedNoteTx(tx: PrismaTx, spec: LinkedNoteSpec): Promise<void> {
   const ws = requestWorkspaceId();
   const tags = JSON.stringify(spec.tags ?? []);
   const docType = spec.docType ?? null;
@@ -81,7 +81,7 @@ export async function createLinkedNoteTx(tx: PrismaInstance, spec: LinkedNoteSpe
  * @returns How many links were added / 追加したリンク数
  */
 export async function addMissingLinksTx(
-  tx: PrismaInstance,
+  tx: PrismaTx,
   noteId: string,
   taskIds: number[],
   meta: Map<number, NoteTaskMeta>,

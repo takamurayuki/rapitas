@@ -14,7 +14,7 @@
  */
 import { runInWorkspace } from '../../tenancy/workspace-context';
 import { requestWorkspaceId } from '../note-scope';
-import type { PrismaInstance } from '../note-record';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 
 /** A row that carries its workspace. */
 export interface Owned {
@@ -71,10 +71,7 @@ const TASK_SELECT = {
  * @param taskId - The task / タスクID
  * @returns The task when it is in scope / 範囲内のタスク
  */
-export async function findTaskInScope(
-  db: PrismaInstance,
-  taskId: number,
-): Promise<ScopedTask | null> {
+export async function findTaskInScope(db: PrismaTx, taskId: number): Promise<ScopedTask | null> {
   const ws = requestWorkspaceId();
   const row = (await db.task.findFirst({
     where: { id: taskId, workspaceId: ws },

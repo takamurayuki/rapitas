@@ -55,7 +55,8 @@ interface DoneTask {
 async function createRecords(
   db: PrismaInstance,
   tasks: DoneTask[],
-  make: (t: DoneTask) => Record<string, unknown>,
+  // The record's required columns, so a missing one fails the type check.
+  make: (t: DoneTask) => { mode: string; state: string; completedAt: Date },
 ): Promise<{ made: number; failed: number }> {
   let made = 0;
   let failed = 0;

@@ -22,7 +22,8 @@
  * used — the workspace extension runs upsert and unique reads outside it.
  */
 import { createLogger } from '../../../config/logger';
-import type { PrismaInstance } from '../note-record';
+import type { Prisma } from '../../../generated/prisma-postgres';
+import type { PrismaInstance, PrismaTx } from '../note-record';
 
 const logger = createLogger('deliverable-completion');
 
@@ -50,7 +51,7 @@ export type CompletionState = 'baseline' | 'pending' | 'created' | 'not_eligible
  * @param completedAt - The completion time, also the task's updatedAt / 完了時刻
  */
 export async function recordTaskCompletionTx(
-  tx: PrismaInstance,
+  tx: PrismaTx,
   taskId: number,
   mode: CompletionMode,
   completedAt: Date,
@@ -97,7 +98,7 @@ export function completionRecordBatchOps(
   workspaceId: number | null,
   mode: CompletionMode,
   completedAt: Date,
-): unknown[] {
+): Prisma.PrismaPromise<unknown>[] {
   return [
     db.taskDeliverableCompletion.deleteMany({ where: { taskId } }),
     db.taskDeliverableCompletion.create({
@@ -121,11 +122,11 @@ export async function completeWithRecord(
   db: PrismaInstance,
   taskId: number,
   mode: CompletionMode,
-  write: (client: PrismaInstance, completedAt: Date) => Promise<{ count: number }>,
+  write: (client: PrismaTx, completedAt: Date) => Promise<{ count: number }>,
 ): Promise<boolean> {
   const completedAt = new Date();
   if (typeof (db as { $transaction?: unknown }).$transaction === 'function') {
-    const written = (await db.$transaction(async (tx: PrismaInstance) => {
+    const written = (await db.$transaction(async (tx: PrismaTx) => {
       const result = await write(tx, completedAt);
       if (result.count > 0) await recordTaskCompletionTx(tx, taskId, mode, completedAt);
       return result.count > 0;
