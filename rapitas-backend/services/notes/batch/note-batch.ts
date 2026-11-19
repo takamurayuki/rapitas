@@ -15,8 +15,10 @@
  * 4. The response says created / skipped / rejected (with a reason).
  * 5. Empty bodies are fine; legacy editor HTML is refused.
  * 6. The client never chooses the placement: it is the effective theme of the
- *    source task (learning / material), or for the roadmap note the theme all
- *    its tasks share (none → 未分類), with no source task and no following.
+ *    source task (learning / material). The roadmap note goes to the theme
+ *    the commit returned, read from the commit's record on the server (none →
+ *    未分類); tasks no commit record accounts for fall back to the theme they
+ *    all share (else 未分類). It has no source task and does not follow.
  *
  * Not responsible for generating bodies — the flow sends what it generated,
  * and per nav70 sends nothing for an element whose generation failed.
@@ -35,6 +37,7 @@ import {
   createLinkedNoteTx,
   taskLinkMeta,
 } from '../placement/linked-note-create';
+import { roadmapCommitTheme } from './roadmap-commit-theme';
 
 const logger = createLogger('note-batch');
 
@@ -91,6 +94,14 @@ async function placementFor(
   if (item.source !== 'roadmap') {
     const theme = await resolveEffectiveTheme(db, item.taskIds[0] as number);
     return theme === null ? columnsFor('none') : columnsFor('theme', theme);
+  }
+  // NOTE: §3.3 / §8.3 contract 6 place the closing note on the theme commit
+  // returned, read from the commit's own record (review G2 fix1 must-fix 2) so
+  // a task moved since then does not decide it. The shared-theme rule below is
+  // only for tasks no single roadmap commit record accounts for.
+  const committed = await roadmapCommitTheme(db, item.taskIds);
+  if (committed.found) {
+    return committed.themeId === null ? columnsFor('none') : columnsFor('theme', committed.themeId);
   }
   const themes = new Set<number | null>();
   for (const t of tasks) themes.add(await resolveEffectiveTheme(db, t.id));

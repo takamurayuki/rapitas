@@ -157,6 +157,36 @@ describe('POST /notes/batch (§8.3)', () => {
     expect(note('roadmap-x-2')).toMatchObject({ themeId: null, categoryId: null, folderId: null });
   });
 
+  it('places the roadmap note on the theme commit returned, even after a task moved', async () => {
+    // Review G2 fix1 must-fix 2: commit put 102 and 100 in theme 11 and said
+    // so; 100 has since moved to theme 10. The commit's record decides.
+    db.rows('assistantAction').push({
+      id: 50,
+      workspaceId: null,
+      capabilityId: 'roadmap.commit',
+      status: 'executed',
+      resultJson: JSON.stringify({ themeId: 11, taskIds: [102, 100], failedAfter: null }),
+    });
+    for (const taskId of [102, 100]) {
+      db.rows('taskCompanion').push({
+        id: taskId,
+        workspaceId: null,
+        taskId,
+        origin: 'roadmap_commit',
+        sourceActionId: 50,
+      });
+    }
+    const { body } = await batch([
+      { id: 'roadmap-11-9', title: '締め', content: '', source: 'roadmap', taskIds: [102, 100] },
+    ]);
+    expect(body.results).toEqual([{ id: 'roadmap-11-9', status: 'created', linksAdded: 2 }]);
+    expect(note('roadmap-11-9')).toMatchObject({
+      themeId: 11,
+      sourceTaskId: null,
+      followsTask: false,
+    });
+  });
+
   it.each([
     [{ ...learning, id: 'deliverable-task-101' }, 'reserved_note_id'],
     [{ ...learning, id: 'learning-task-999' }, 'invalid_fixed_id'],

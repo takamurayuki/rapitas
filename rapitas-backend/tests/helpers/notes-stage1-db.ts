@@ -3,7 +3,8 @@
  *
  * An in-memory stand-in for the Prisma delegates the notes stage-1 services
  * use (Note, NoteTaskLink, NoteFolder, Task, Theme, Category,
- * TaskDeliverableCompletion, WorkflowFile, NoteMigrationMarker), with the
+ * TaskDeliverableCompletion, WorkflowFile, NoteMigrationMarker, and the
+ * TaskCompanion / AssistantAction rows a roadmap commit leaves), with the
  * semantics those services rely on:
  *
  * - `where` matches on equality (NULL only matches NULL), plus the operators
@@ -36,6 +37,8 @@ const TABLES = [
   'taskDeliverableCompletion',
   'workflowFile',
   'noteMigrationMarker',
+  'taskCompanion',
+  'assistantAction',
 ] as const;
 export type TableName = (typeof TABLES)[number];
 
@@ -50,6 +53,8 @@ const UNIQUE: Record<TableName, string[][]> = {
   taskDeliverableCompletion: [['taskId']],
   workflowFile: [['id'], ['taskId', 'fileType']],
   noteMigrationMarker: [['key']],
+  taskCompanion: [['id'], ['taskId']],
+  assistantAction: [['id']],
 };
 
 /** Defaults applied on create, mirroring the schema. */
@@ -87,6 +92,8 @@ const DEFAULTS: Partial<Record<TableName, Row>> = {
   taskDeliverableCompletion: { workspaceId: null, attempts: 0, lastAttemptAt: null },
   workflowFile: { workspaceId: null, content: '' },
   noteMigrationMarker: { detail: null },
+  taskCompanion: { workspaceId: null, origin: 'roadmap_commit', sourceActionId: null },
+  assistantAction: { workspaceId: null, status: 'executed', resultJson: null },
 };
 
 const STAMPS_UPDATED_AT = new Set<TableName>(['note', 'task', 'noteFolder', 'theme', 'category']);
@@ -97,6 +104,8 @@ const AUTO_ID = new Set<TableName>([
   'theme',
   'category',
   'workflowFile',
+  'taskCompanion',
+  'assistantAction',
 ]);
 
 function same(a: unknown, b: unknown): boolean {
