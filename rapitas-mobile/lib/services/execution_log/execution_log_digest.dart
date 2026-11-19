@@ -7,48 +7,11 @@ library;
 
 import 'execution_log_line_rules.dart';
 import 'execution_log_snapshot.dart';
+import 'execution_log_state.dart';
+import 'execution_log_types.dart';
 
 export 'execution_log_line_rules.dart' show toolLabel;
-
-/// 出来事の種類
-enum ExecLogKind { start, speech, work, question, warning, error, done, milestone }
-
-/// タイムラインの1件
-class ExecLogEvent {
-  final ExecLogKind kind;
-  String title;
-
-  /// 全文（長ければ表示側で先頭だけ出し、タップで広げる）
-  String? body;
-  final DateTime? time;
-  DateTime? lastTime;
-
-  /// 同じ内容の連続の件数。作業なら操作の件数、stderr ならまとめた行数
-  int count;
-
-  /// 作業の項目（ツール呼び出し1件 = 1項目）
-  final List<String> items = [];
-
-  /// 作業のうち失敗した件数
-  int failures = 0;
-
-  /// 作業の失敗時に記録された出力（Codex の Command Failed の末尾）
-  String? detail;
-
-  ExecLogEvent(this.kind, this.title, {this.body, this.time, this.count = 1}) : lastTime = time;
-}
-
-/// 「いまの状態」の区分
-enum ExecLogPhase { running, waiting, error, done, stopped, interrupted, idle }
-
-/// 画面上部の1行
-class ExecLogState {
-  final ExecLogPhase phase;
-  final String label;
-  final String? description;
-
-  const ExecLogState(this.phase, this.label, [this.description]);
-}
+export 'execution_log_types.dart';
 
 /// 絞り込みの結果
 class ExecLogDigest {
@@ -91,7 +54,7 @@ ExecLogDigest digestExecutionLog(ExecutionLogSnapshot snapshot) {
     events: events,
     hiddenLines: b.hiddenLines,
     otherLines: b.otherLines,
-    state: _stateOf(snapshot, events),
+    state: execLogStateOf(snapshot, events),
   );
 }
 
@@ -117,7 +80,7 @@ class _Builder {
         _push(ExecLogEvent(ExecLogKind.error, 'エラー出力', body: text, time: time, count: _lineCount(text)),
             mergeStderr: true);
       } else {
-        _push(ExecLogEvent(ExecLogKind.speech, _firstLine(text), body: text, time: time));
+        _push(ExecLogEvent(ExecLogKind.speech, firstLineOf(text), body: text, time: time));
       }
     }
 
@@ -182,7 +145,7 @@ class _Builder {
         case LineTag.errorWithBody:
           bodyTarget = _push(ExecLogEvent(ExecLogKind.error, 'エラー（${line.text}）', time: time));
         case LineTag.warning:
-          _push(ExecLogEvent(ExecLogKind.warning, _firstLine(line.text), body: line.text, time: time));
+          _push(ExecLogEvent(ExecLogKind.warning, firstLineOf(line.text), body: line.text, time: time));
         case LineTag.heartbeat:
           _push(ExecLogEvent(ExecLogKind.milestone, '応答が無いまま処理を続けています', body: line.text, time: time),
               mergeByTitle: true);
@@ -260,46 +223,5 @@ String _workTitle(ExecLogEvent work) {
   return '作業 ${work.items.length}件（$parts）';
 }
 
-String _firstLine(String text) => text.trim().split('\n').first.trim();
 
 int _lineCount(String text) => text.split('\n').where((l) => l.trim().isNotEmpty).length;
-
-ExecLogState _stateOf(ExecutionLogSnapshot s, List<ExecLogEvent> events) {
-  String? lastOf(ExecLogKind kind) {
-    final e = events.lastWhere((e) => e.kind == kind, orElse: () => ExecLogEvent(kind, ''));
-    final text = e.body ?? (e.title.isEmpty ? null : e.title);
-    return text == null || text.isEmpty ? null : _firstLine(text);
-  }
-
-  switch (s.status) {
-    case 'waiting_for_input':
-      return ExecLogState(ExecLogPhase.waiting, '入力待ち', s.question ?? lastOf(ExecLogKind.question) ?? '回答を待っています');
-    case 'failed':
-      return ExecLogState(ExecLogPhase.error, 'エラー', s.errorMessage ?? lastOf(ExecLogKind.error));
-    case 'completed':
-      return ExecLogState(ExecLogPhase.done, '完了', lastOf(ExecLogKind.done) ?? '実行が完了しました');
-    case 'cancelled':
-      return const ExecLogState(ExecLogPhase.stopped, '停止', '実行を停止しました');
-    case 'interrupted':
-      return ExecLogState(ExecLogPhase.interrupted, '中断', s.errorMessage ?? '中断されています（再開できます）');
-    case 'running':
-    case 'pending':
-      return ExecLogState(ExecLogPhase.running, '実行中', _nowDoing(events));
-    default:
-      return events.isEmpty
-          ? const ExecLogState(ExecLogPhase.idle, '記録なし', 'ログはまだありません')
-          : ExecLogState(ExecLogPhase.idle, '状態不明', _nowDoing(events));
-  }
-}
-
-/// 実行中の「いま何をしているか」：最後の出来事から短く作る
-String _nowDoing(List<ExecLogEvent> events) {
-  final last = events.lastOrNull;
-  if (last == null) return '準備しています';
-  return switch (last.kind) {
-    ExecLogKind.work => last.items.isEmpty ? '作業しています' : last.items.last,
-    ExecLogKind.speech => _firstLine(last.body ?? last.title),
-    ExecLogKind.start => '開始しました',
-    _ => _firstLine(last.body ?? last.title),
-  };
-}
