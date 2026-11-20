@@ -24,6 +24,7 @@ const releaseTaskHalt = mock(
 );
 mock.module('../../services/workflow/halt-release', () => ({
   releaseTaskHalt,
+  releaseHaltOnHumanAnswer: async () => false,
   MIN_HYPOTHESIS_CHARS: 10,
   HALT_RELEASED_CAUSE: 'halt_released',
 }));

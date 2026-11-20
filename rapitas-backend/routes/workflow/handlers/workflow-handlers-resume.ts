@@ -30,6 +30,8 @@ import {
 } from '../../../services/task/task-criteria-write';
 import { computeCriteriaRevision } from '../../../services/task/task-criteria-revision';
 import { humanSourceLabel } from '../../../utils/common/human-source';
+import { parseSelections, type AnswerSelection } from './answer-selections';
+import { releaseHaltOnHumanAnswer } from '../../../services/workflow/halt-release';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -46,35 +48,9 @@ const ANSWER_SOURCE_LABELS: Record<string, string> = {
   operator: 'オペレーター代理回答',
 };
 
-/** One question's audit record: which option (if any) the user picked. */
-export interface AnswerSelection {
-  questionId: string;
-  selectedKey: string | null;
-}
-
-/**
- * Defensively parse the optional `selections` audit payload from a
- * structured (`json:options`) answer. Malformed/absent input yields
- * `undefined` rather than throwing — `selections` is an audit nicety, never
- * required to apply the answer itself (the `answer` string is authoritative).
- *
- * @param raw - The `selections` field from the request body, unvalidated. / 未検証の selections
- * @returns Parsed selections, or undefined when absent/empty/invalid. / パース結果
- */
-function parseSelections(raw: unknown): AnswerSelection[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const out: AnswerSelection[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const o = item as Record<string, unknown>;
-    if (typeof o.questionId !== 'string' || !o.questionId.trim()) continue;
-    out.push({
-      questionId: o.questionId,
-      selectedKey: typeof o.selectedKey === 'string' ? o.selectedKey : null,
-    });
-  }
-  return out.length > 0 ? out : undefined;
-}
+// Moved to answer-selections.ts to keep this file under the size limit; the
+// type is re-exported so existing imports keep working.
+export type { AnswerSelection } from './answer-selections';
 
 /** Input to {@link applyIntakeQuestionAnswer}. */
 export interface ApplyIntakeAnswerParams {
@@ -327,6 +303,8 @@ export async function handleAnswerWorkflowQuestion({
     });
     // NOTE: plan revision only persists research_done; nothing else starts the planner, so the
     // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.
+    // A person's answer is the new hypothesis a no-progress halt waits for (task 520).
+    await releaseHaltOnHumanAnswer(result.taskId, answer, sourceLabel).catch(() => false);
     if (result.kind === 'plan_revision') await triggerReExecutionAfterAnswer(result.taskId);
     return {
       taskId: result.taskId,
