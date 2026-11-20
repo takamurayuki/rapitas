@@ -35,3 +35,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Mountain`                | ゴール（nav: /goals、ゴール一覧の見出し・空状態 — 同一概念の再利用。ゴール＝利用者側から見たプロジェクト。注: `Goal`グリフは pareto の最適化目標・CLAUDE.md 生成ウィザードで既に使われているため流用しない） |
 | `Milestone`               | 節目（ゴールの段階。ゴール詳細の「節目」見出し・未達成の節目カード、ゴール一覧カードの「次の節目」、ラピのロードマップ下書きで節目ごとにステップをまとめる見出し `RoadmapPlanList` — 同一概念の再利用） |
 | `Medal`                   | 節目の達成（ゴール詳細の「達成を確認」ボタン・確認ダイアログ・達成済みの節目カード — 本人が根拠を書いて確かめた達成。注: `Trophy`/`Award`＝今日のタスク進捗ウィジェットの達成演出とは別概念） |
+| `Megaphone` | 通知の種別「システム通知」（system。`NotificationBell`、#1510。`Bell`＝未知タイプのフォールバックと区別するため） |
+| `MessageSquareWarning` | 通知の種別「PRの変更依頼」（pr_changes_requested。`NotificationBell`、#1510。`MessageSquarePlus`＝エージェントへの追加指示とは別概念） |

@@ -35,3 +35,6 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ClipboardList`           | タスクの仕様（タスク詳細の「タスクの仕様」セクション `TaskSpecEditSection` — ゴール・範囲外・制約・成果物、#1555。注: `ListChecks`＝提案タスクの完了条件バレット、`ListTodo`＝サブタスクとは別概念。`claude-md-generator` の `wizard-icons` の登録は中立的な再掲で対象外） |
 | `ChevronDown`             | 下に続きがある・下へ（ドロップダウンを開く汎用の慣用に加え、チャットの末尾ジャンプ `JumpToLatestButton` — ラピの会話と相談チャットで最下部から離れたときに右下へ浮かぶ半透明の丸ボタン。モバイルは `Icons.keyboard_arrow_down`。「下にあるものへ」という同じ慣用の再利用として登録） |
 | `Copy` / `Check`          | ラピの文章の返答をクリップボードへコピー（相談チャット `CopyReplyButton` — 返答の右上の小さなアイコン。コピー直後だけ `Check` に変わる。モバイルは `Icons.copy_rounded` / `Icons.check`。ノートのチャット `chat-message` のコードブロックの「Copy」→「Copied!」と同じ「コピーする／した」慣用の再利用として登録。注: `CopyCheck`＝一括選択モードとは別概念） |
+| `Combine` | 通知の種別「記憶の統合完了」（consolidation_completed。`NotificationBell`、#1510） |
+| `CalendarClock` | 通知の種別「予定のリマインダー」（schedule_reminder。`NotificationBell`、#1510。ヘッダ nav の予定導線と同じ「予定・時刻」概念の再利用） |
+| `FileWarning` | 通知の種別「矛盾の検出」（contradiction_detected。`NotificationBell`、#1510） |
