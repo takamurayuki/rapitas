@@ -38,7 +38,9 @@ mock.module('./role-provider-resolver', () => ({
   resolveRoleProviderPreferences: () => Promise.resolve({}),
   inferProviderFromModelId: mock(() => null),
 }));
-mock.module('./task-budget', () => ({ resolveTaskBudgetCap: () => Promise.resolve(null) }));
+/** Budget state the next resolveTaskBudgetCap returns (null = under budget). */
+let budgetState: Record<string, unknown> | null = null;
+mock.module('./task-budget', () => ({ resolveTaskBudgetCap: () => Promise.resolve(budgetState) }));
 mock.module('./workflow-file-utils', () => ({ readWorkflowFile: () => Promise.resolve(null) }));
 
 let routeReturn: Record<string, unknown> = {};
@@ -59,6 +61,7 @@ const optionsOfLastCall = () => getStableSmartRoute.mock.calls.at(-1)![2];
 beforeEach(() => {
   implementerRuns = [];
   routeReturn = {};
+  budgetState = null;
   getStableSmartRoute.mockClear();
 });
 
@@ -115,5 +118,34 @@ describe('要件未達はロール解決の戻り値に残る', () => {
     expect(r.modelId).toBe('haiku');
     expect(r.constraintShortfall).toEqual(shortfall);
     expect(r.details.constraintShortfall).toEqual(shortfall);
+  });
+});
+
+// Tasks 520 and 514 (2026-11-20/21): the over-budget cap put the verifier on a
+// standard model while the implementer ran premium, so the verify was always
+// ruled ineligible and the task held, after paying for the verify run.
+describe('予算超過の上限はレビュー役を実行役より下げない', () => {
+  const OVER = { spentUsd: 41, budgetUsd: 40, capTier: 'standard', reason: 'タスク予算超過' };
+
+  test('予算超過でも premium の実装を判定する verifier は standard に抑えない', async () => {
+    implementerRuns = ['claude-opus-5-5'];
+    budgetState = OVER;
+    await routeModelForRole({ taskId: 5, role: 'verifier', task: TASK });
+    expect(optionsOfLastCall().minTier).toBe('premium');
+    expect(optionsOfLastCall().hardCapTier).toBeUndefined();
+  });
+
+  test('予算超過の上限は implementer にはそのまま効く', async () => {
+    implementerRuns = ['claude-opus-5-5'];
+    budgetState = OVER;
+    await routeModelForRole({ taskId: 5, role: 'implementer', task: TASK });
+    expect(optionsOfLastCall().hardCapTier).toBe('standard');
+  });
+
+  test('暴走（economy 上限）はレビュー役にも効く', async () => {
+    implementerRuns = ['claude-opus-5-5'];
+    budgetState = { ...OVER, spentUsd: 130, capTier: 'economy' };
+    await routeModelForRole({ taskId: 5, role: 'verifier', task: TASK });
+    expect(optionsOfLastCall().hardCapTier).toBe('economy');
   });
 });
