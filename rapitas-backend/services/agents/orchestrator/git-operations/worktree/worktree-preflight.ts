@@ -55,6 +55,17 @@ export interface PreflightOpts {
  * @param opts - Injectable dependency preparation / テスト用の注入
  * @throws {Error} When the managed setup fails or leaves dependencies missing. / 管理済み環境が壊れている場合
  */
+/**
+ * Whether any directory below the root holds a package.json.
+ *
+ * Imported on demand like the bootstrap below: the scan reads directories,
+ * and the rapitas path that returns earlier never needs it.
+ */
+async function hasSubPackageManifest(worktreePath: string): Promise<boolean> {
+  const { collectManifests } = await import('./project-manifests');
+  return collectManifests(worktreePath).some((m) => m.includes('/'));
+}
+
 export async function preflightWorktree(
   worktreePath: string,
   opts: PreflightOpts = {},
@@ -87,7 +98,11 @@ export async function preflightWorktree(
     return;
   }
 
-  if (!hasPackageJson) return;
+  // NOTE: Sub-package manifests count too. trendline is a Go root with only
+  // web/package.json; returning on "no root package.json" skipped the
+  // bootstrap whose sub-package link (#1623) exists for exactly that layout,
+  // so every task worktree started without web/node_modules (2026-11-20).
+  if (!hasPackageJson && !(await hasSubPackageManifest(worktreePath))) return;
 
   try {
     // Imported on demand, not at module scope: this chain reaches a package
@@ -96,7 +111,9 @@ export async function preflightWorktree(
     const { worktreeHasUsableModules } = await import('./node-modules-link');
     // Not existsSync: #1215's worktree HAD a node_modules, holding only pnpm's
     // store, which resolves nothing.
-    if (worktreeHasUsableModules(worktreePath)) return;
+    // Root modules say nothing about web/node_modules, so only a root package
+    // may stop here; linking an already-linked sub-package is a no-op.
+    if (hasPackageJson && worktreeHasUsableModules(worktreePath)) return;
 
     const bootstrap =
       opts.bootstrap ??
@@ -110,4 +127,28 @@ export async function preflightWorktree(
         'install for itself, and verification may report unverifiable until it does',
     );
   }
+}
+
+/**
+ * Prepare a worktree that is being reused, then hand its path back.
+ *
+ * NOTE: Reuse used to return before any preflight, so a worktree created
+ * before a fix stayed broken for every later phase (trendline 1511/1512 had
+ * no web/node_modules, 2026-11-20). Unlike creation, a failure here only
+ * warns: the worktree already exists and the agent can still work in it.
+ *
+ * @param worktreePath - The reused worktree / 再利用する worktree
+ * @param opts - Injectable dependency preparation / テスト用の注入
+ * @returns The same path / 同じパス
+ */
+export async function preflightReusedWorktree(
+  worktreePath: string,
+  opts: PreflightOpts = {},
+): Promise<string> {
+  try {
+    await preflightWorktree(worktreePath, opts);
+  } catch (err) {
+    logger.warn({ err, worktreePath }, '[preflight] reused worktree could not be prepared');
+  }
+  return worktreePath;
 }

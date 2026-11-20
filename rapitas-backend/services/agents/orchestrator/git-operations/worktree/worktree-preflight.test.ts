@@ -42,7 +42,7 @@ mock.module('../../../../../config/logger', () => ({
   }),
 }));
 
-const { preflightWorktree } = await import('./worktree-preflight');
+const { preflightWorktree, preflightReusedWorktree } = await import('./worktree-preflight');
 
 const TMP_ROOT = resolve('.tmp-tests/worktree-preflight');
 
@@ -219,6 +219,24 @@ describe('preflightWorktree — no setup script', () => {
     expect(warnCalls.length).toBe(0);
   });
 
+  // trendline (2026-11-20): a Go root with web/package.json. The root check
+  // returned before the bootstrap, so the sub-package link #1623 added never
+  // ran and every task worktree started without web/node_modules — `next
+  // build` and ESLint unverifiable, verify bouncing.
+  test('prepares the dependencies when only a sub-package has a manifest', async () => {
+    const dir = await makeWorktree('unmanaged-subpackage', {
+      withScript: false,
+      withPackageJson: false,
+    });
+    await mkdir(join(dir, 'web'), { recursive: true });
+    await writeFile(join(dir, 'web', 'package.json'), '{}');
+    const bootstrap = mock(() => Promise.resolve({ action: 'linked', detail: '1 link(s): web' }));
+
+    await expect(preflightWorktree(dir, { bootstrap })).resolves.toBeUndefined();
+
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+
   test('does nothing when there is no package.json (nothing to prepare)', async () => {
     const dir = await makeWorktree('unmanaged-no-package-json', {
       withScript: false,
@@ -231,5 +249,29 @@ describe('preflightWorktree — no setup script', () => {
 
     expect(bootstrap).not.toHaveBeenCalled();
     expect(warnCalls.length).toBe(0);
+  });
+});
+
+// A reused worktree skipped the preflight entirely, so one created before a
+// fix (trendline 1511/1512, created without web/node_modules) stayed broken
+// for every later phase. Reuse now prepares it too — but never fails the
+// reuse: the worktree already exists and the agent can still work in it.
+describe('preflightReusedWorktree', () => {
+  test('prepares a reused worktree and hands its path back', async () => {
+    const dir = await makeWorktree('reused-missing', { withPackageJson: true });
+    const bootstrap = mock(() => Promise.resolve({ action: 'linked', detail: '1 link(s): .' }));
+
+    await expect(preflightReusedWorktree(dir, { bootstrap })).resolves.toBe(dir);
+
+    expect(bootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  test('still hands the path back when the managed setup fails', async () => {
+    const dir = await makeWorktree('reused-broken', { withScript: true, withPackageJson: true });
+    execShouldFail = new Error('setup exploded');
+
+    await expect(preflightReusedWorktree(dir)).resolves.toBe(dir);
+
+    expect(warnCalls.length).toBe(1);
   });
 });
