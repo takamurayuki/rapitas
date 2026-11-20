@@ -71,6 +71,7 @@ export async function resolveConfiguredVendors(auxMode: AuxAiMode): Promise<Conf
 const CODEX_UNCONFIGURED_REASON: Record<string, string> = {
   missing: 'Codex CLI が見つからない・起動しない',
   not_logged_in: 'Codex CLI に ChatGPT でログインしていない',
+  probe_failed: 'Codex CLI のログイン確認が応答しなかった（30 秒後に確認し直す）',
   not_chatgpt_login:
     'Codex CLI が API キーでログインしている（補助には ChatGPT ログインだけを使う）',
 };
