@@ -11,6 +11,7 @@
 import { exec } from 'child_process';
 import { readFileSync } from 'fs';
 import { createLogger } from '../../config/logger';
+import { startTrackingDescendants, stopTrackingDescendants } from './descendant-tracker';
 
 const logger = createLogger('process-resource-sampler');
 
@@ -213,6 +214,8 @@ async function sampleOnce(pid: number): Promise<void> {
  */
 export function startResourceSampling(pid: number): void {
   if (registry.has(pid)) return;
+  // Every agent run comes through here, so its descendants are recorded too.
+  startTrackingDescendants(pid);
 
   // Chained rather than setInterval: the gap changes between samples, and a
   // one-shot chain also guarantees two samples never overlap — a Windows
@@ -255,6 +258,7 @@ export function stopResourceSampling(pid: number): {
   cpuTimeMs: number | null;
   peakRssKb: number | null;
 } {
+  stopTrackingDescendants(pid);
   const entry = registry.get(pid);
   if (!entry) return { cpuTimeMs: null, peakRssKb: null };
   clearTimeout(entry.timer);

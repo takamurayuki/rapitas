@@ -17,8 +17,9 @@ import {
 } from './process-tree-kill';
 import { ancestorPids, parseListenerPids } from './backend-process-identity';
 
-// Re-exported so agent runners get the capture + kill pair from one module.
-export { captureDescendants } from './process-tree-kill';
+// Re-exported so agent runners get the capture + kill pair from one module. The
+// capture includes descendants recorded during the run (descendant-tracker.ts).
+export { captureTrackedDescendants as captureDescendants } from './descendant-tracker';
 
 const logger = createLogger('agent-process-tracker');
 
