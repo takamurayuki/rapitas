@@ -307,6 +307,7 @@ export async function resolveIterationBudgetForTask(
           invariantViolation: true,
           toStatus: true,
           fromStatus: true,
+          metadata: true, // the bounce reason, so a new finding is not read as no progress
         },
         orderBy: { createdAt: 'asc' },
       }),
