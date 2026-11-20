@@ -14,6 +14,13 @@
       "package": "deepmerge-ts 7.1.5 via prisma > @prisma/config",
       "reason": "@prisma/config 6.19.3 pins deepmerge-ts 7.1.5 exactly; the fix is the 8.x major. It merges Prisma's own config objects when the CLI/client loads, so there is no recursive object graph from outside. Clears with the Prisma upgrade.",
       "expires": "2027-02-03"
+    },
+    {
+      "scope": "backend",
+      "ghsa": "GHSA-7589-6fvf-x4pw",
+      "package": "effect 3.21.0 via prisma > @prisma/config",
+      "reason": "@prisma/config 6.19.3 pins effect 3.21.0 exactly; the fix is 3.22.1, published 2026-11-19. The advisory is a ReDoS in Schema.TemplateLiteral, which @prisma/config does not use (its dist has no TemplateLiteral); it parses Prisma's own config at CLI/client load, not request input. Clears with the Prisma upgrade.",
+      "expires": "2027-02-19"
     }
   ]
 }
