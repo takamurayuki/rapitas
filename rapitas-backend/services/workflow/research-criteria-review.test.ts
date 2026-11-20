@@ -172,3 +172,37 @@ describe('when no criterion survives the review', () => {
     expect(written[0].body).toContain('いまの条件のままでよければ');
   });
 });
+
+// Task 1510 (2026-11-20): 未確定事項 holds the researcher's own to-dos as
+// well as questions for the requester. Listed under 教えてほしいこと, the
+// person was asked to 「全数確認する」 and 「詳細に確認する」 — work, not a question.
+describe('what it asks the person', () => {
+  const MIXED = {
+    verdict: 'revise',
+    findings: [{ index: 0, kind: 'ambiguous', problem: '分かりやすさの基準が無い' }],
+    proposed: ['全通知タイプがフォールバックに落ちない'],
+  };
+  const mixedResearch = () =>
+    research(MIXED).replace(
+      '## 完了条件の点検',
+      [
+        '## 未確定事項（プランナーが解決すべき項目）',
+        '- 「分かりにくい」の中身はどれか。アイコン、文言、一覧のどれを指すか。',
+        '- バックエンドの全 `createNotification` 呼び出しを全数確認する。',
+        '- `useNotifications.ts` の挙動を詳細に確認する。今回は未読。',
+        '- 重要通知をトースト化するか？',
+        '',
+        '## 完了条件の点検',
+      ].join('\n'),
+    );
+
+  it('lists only the items that ask something, not the researcher’s to-dos', async () => {
+    row = task({ acceptanceCriteria: '["通知が分かりやすくなっていること"]' });
+    await settleCriteriaFromResearch(7, mixedResearch());
+    const body = written[0].body;
+    expect(body).toContain('「分かりにくい」の中身はどれか');
+    expect(body).toContain('重要通知をトースト化するか？');
+    expect(body).not.toContain('全数確認する');
+    expect(body).not.toContain('詳細に確認する');
+  });
+});

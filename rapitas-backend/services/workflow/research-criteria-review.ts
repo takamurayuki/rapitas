@@ -130,6 +130,18 @@ async function ask(row: Row, criteria: string[], review: CriteriaReview, openIte
   await notifyIntakeQuestionPending({ taskId: row.id, taskTitle: row.title }).catch(() => {});
 }
 
+/**
+ * The open items that ask the person something.
+ *
+ * NOTE: 未確定事項 also holds the researcher's own to-dos (「全数確認する」,
+ * 「詳細に確認する」). Listed as questions they asked the person to do the
+ * research (task 1510), so only items phrased as a question are kept: one
+ * with 「か」 closing a clause, or a question mark.
+ */
+function asks(items: string[]): string[] {
+  return items.filter((item) => /か[。、？?]|か$|[？?]/.test(item.trim()));
+}
+
 /** Finding kinds that mean the criterion does not say what the person wants. */
 const PURPOSE_KINDS = new Set(['insufficient', 'ambiguous']);
 
@@ -184,8 +196,8 @@ export function reviewQuestion(
       `タスク「${title}」の完了条件からは、何を変えれば完了なのかが読み取れません。エージェントが目的を推測して作ると、頼んでいない変更になりかねないため、計画の前で止めています。`,
       '',
       '## 教えてほしいこと',
-      ...(openItems.length > 0
-        ? openItems.map((q) => `- ${q}`)
+      ...(asks(openItems).length > 0
+        ? asks(openItems).map((q) => `- ${q}`)
         : ['- 何に困っていて、どうなれば良いのか']),
       '',
       '## 指摘',
