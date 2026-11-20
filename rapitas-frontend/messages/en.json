@@ -1700,6 +1700,7 @@
     "message": {
       "thinking": "Working out what to do.",
       "running": "{count, plural, =1 {An agent is running.} other {# agents are running in parallel.}}",
+      "runningMore": "+{count} more",
       "waiting": "A task is waiting for your approval.",
       "done": "A task just finished.",
       "error": "A task was blocked."

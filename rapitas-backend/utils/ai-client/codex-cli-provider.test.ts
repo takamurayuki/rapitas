@@ -10,6 +10,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { existsSync, readdirSync } from 'node:fs';
 import type { ChildProcess } from 'child_process';
+import { recoverCodexArgv } from './codex-cli-spawn-argv';
 
 process.env.RAPITAS_AUX_AI_CODEX_TIMEOUT_MS = '150';
 
@@ -51,7 +52,9 @@ let scripts: Script[] = [];
 const spawned: Array<{ args: string[]; options: Record<string, unknown>; child: MockChild }> = [];
 const cwdSeenAtSpawn: Array<{ exists: boolean; entries: number }> = [];
 
-const mockSpawn = mock((_cmd: string, args: string[], options: Record<string, unknown>) => {
+const mockSpawn = mock((cmd: string, spawnArgs: string[], options: Record<string, unknown>) => {
+  // NOTE: On Windows the argv is folded into `cmd`; recover it so calls are judged the same on every OS.
+  const args = recoverCodexArgv(cmd, spawnArgs);
   const child = new MockChild(scripts.shift() ?? {});
   const cwd = String(options.cwd);
   cwdSeenAtSpawn.push({
