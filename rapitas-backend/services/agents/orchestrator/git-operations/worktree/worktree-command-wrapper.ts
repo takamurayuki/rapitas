@@ -17,6 +17,13 @@ import { appendExcludeBlock, resolveExcludeFile } from '../core/git-exclude';
 export const WRAPPER_RELATIVE_PATH = 'scripts/run-checked.cjs';
 
 /**
+ * Where the wrapper writes each command's full log. Local evidence for one
+ * run, never part of the project: task 1511 (2026-11-21) merged a trendline
+ * PR whose only file was one of these logs.
+ */
+export const VERIFICATION_LOGS_PATTERN = '.verification-logs/';
+
+/**
  * rapitas's own copy of the wrapper. Derived from this module's location so it
  * follows the checkout rather than an absolute path baked into a config.
  *
@@ -57,25 +64,31 @@ export async function ensureRunCheckedWrapper(
   source: string,
 ): Promise<WrapperAction> {
   const destination = join(worktreePath, WRAPPER_RELATIVE_PATH);
-  if (existsSync(destination)) return 'present';
+  if (existsSync(destination)) {
+    // A wrapper already in place still writes logs, so they are excluded too.
+    await excludeQuietly(worktreePath, [VERIFICATION_LOGS_PATTERN]);
+    return 'present';
+  }
   if (!existsSync(source)) return 'source-missing';
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
   await fsPromises.copyFile(source, destination);
-
-  const excludeFile = resolveExcludeFile(worktreePath);
-  if (excludeFile) {
-    try {
-      await appendExcludeBlock(
-        excludeFile,
-        'Provisioned by rapitas so agents can run verification with a heartbeat.',
-        [WRAPPER_RELATIVE_PATH],
-      );
-    } catch {
-      // An unwritable exclude file is not worth failing the bootstrap over: the
-      // wrapper still works, it is merely visible to `git status`.
-    }
-  }
-
+  await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, VERIFICATION_LOGS_PATTERN]);
   return 'copied';
+}
+
+/** Add patterns to the repository's local exclude list, ignoring failures. */
+async function excludeQuietly(worktreePath: string, patterns: readonly string[]): Promise<void> {
+  const excludeFile = resolveExcludeFile(worktreePath);
+  if (!excludeFile) return;
+  try {
+    await appendExcludeBlock(
+      excludeFile,
+      'Provisioned by rapitas so agents can run verification with a heartbeat.',
+      patterns,
+    );
+  } catch {
+    // An unwritable exclude file is not worth failing the bootstrap over: the
+    // wrapper still works, it is merely visible to `git status`.
+  }
 }
