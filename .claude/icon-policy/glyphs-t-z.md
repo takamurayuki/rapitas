@@ -14,3 +14,6 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `UserPlus`                | 新規アカウント作成（`/auth/register` ページ見出し・送信ボタン、およびヘッダのユーザーメニューからの導線 `header-toolbar` — 同一概念の再利用。注: `UserPen`＝ラピに渡す自己紹介の編集、`UserCog`＝エージェント管理とは別概念。カテゴリアイコンピッカー(`navigation-people.ts`)の登録は中立的な再掲で対象外） |
 | `UserRound`               | カレンダー共有の相手（相手選択 `CalendarPersonPicker`、個人設定の共有カード `CalendarShareCard` 見出し — どちらも「カレンダーを見せる/見せてもらう相手」という同一概念。注: `Users`＝稼働エージェント数(`MetricsOverviewCards`)、`User`＝自分のアカウントメニュー(`header-toolbar`)、`UserPen`＝自己紹介とは別概念） |
 | `UserPen`                 | 個人設定＝ラピに渡す自己紹介（`/settings/personal` ページ見出し、設定カード `RapiProfileCard` 見出し、ヘッダのユーザーメニューからの導線 `header-toolbar` — いずれも「あなた自身についての情報」という同一概念の再利用。既存実装で未登録だったグリフを #1275 で正式登録。注: `UserPlus`＝新規アカウント作成、`UserCog`＝エージェント管理とは別概念） |
+| `ThumbsUp` | 通知の種別「PR承認」（pr_approved。`NotificationBell`、#1510） |
+| `Timer` | 通知の種別「ポモドーロ完了」（pomodoro_completed。`NotificationBell`、#1510。ポモドーロ全般の既存意味の再利用） |
+| `UserCheck` | 通知の種別「タスクの担当割り当て」（task_assigned。`NotificationBell`、#1510） |

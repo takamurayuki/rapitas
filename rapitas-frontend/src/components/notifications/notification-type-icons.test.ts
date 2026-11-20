@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Bell } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 import {
   extractNotificationI18n,
@@ -106,4 +109,38 @@ describe('resolveNotificationText', () => {
       message: 'legacy message',
     });
   });
+});
+
+/** Extract the NotificationType union members from the backend source of truth. */
+function readBackendNotificationTypes(): string[] {
+  const src = readFileSync(
+    resolve(process.cwd(), '../rapitas-backend/services/communication/notification-service.ts'),
+    'utf-8',
+  );
+  const union = src.match(/export type NotificationType =([^;]+);/)?.[1] ?? '';
+  return [...union.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+}
+
+// Types sent via direct prisma.notification.create (not in the NotificationType union).
+const DIRECT_TYPES = ['pr_approved', 'pr_changes_requested', 'github_sync_complete'];
+const LEGACY_TYPES = ['approval_request', 'agent_execution_complete'];
+
+describe('resolveNotificationIcon coverage of backend types', () => {
+  const backendTypes = readBackendNotificationTypes();
+  const fallback = resolveNotificationIcon('some_future_type');
+
+  it('extracts the backend union (guards against an empty, vacuous check)', () => {
+    expect(backendTypes.length).toBeGreaterThanOrEqual(17);
+    expect(backendTypes).toContain('approval_requested');
+  });
+
+  it.each([...new Set([...backendTypes, ...DIRECT_TYPES, ...LEGACY_TYPES])])(
+    'gives %s a dedicated icon and color',
+    (type) => {
+      const { Icon, colorClass } = resolveNotificationIcon(type);
+      expect(Icon).not.toBe(Bell);
+      expect(colorClass).not.toBe(fallback.colorClass);
+      expect(colorClass).toContain('dark:');
+    },
+  );
 });
