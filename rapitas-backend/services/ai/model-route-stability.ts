@@ -38,7 +38,13 @@
 import { createLogger } from '../../config/logger';
 import { appendEvent, queryEvents, deleteEvents } from '../memory/timeline';
 import { getSmartRoute, type SmartRouteOptions, type RoutingDecision } from './smart-model-router';
-import { TIER_ORDER, tierAtLeast, type AnyTier } from './model-tier-table/tier-table';
+import {
+  TIER_ORDER,
+  findModelEntry,
+  tierAtLeast,
+  vendorOfProvider,
+  type AnyTier,
+} from './model-tier-table/tier-table';
 
 const log = createLogger('ai:model-route-stability');
 
@@ -147,6 +153,7 @@ const isKnownTier = (tier: unknown): tier is AnyTier =>
  * trace, which this fail-open cache must not depend on).
  */
 function satisfiesConstraints(decision: RoutingDecision, options: SmartRouteOptions): boolean {
+  if (fromExcludedProvider(decision, options)) return false;
   const { minTier, hardCapTier } = options;
   if (!minTier && !hardCapTier) return true;
   if (decision.constraintShortfall) return false;
@@ -159,6 +166,23 @@ function satisfiesConstraints(decision: RoutingDecision, options: SmartRouteOpti
     if (!tierAtLeast(tier, floor)) return false;
   }
   return true;
+}
+
+/**
+ * Whether the pinned model belongs to a provider this route now excludes.
+ *
+ * NOTE: Task 520 (2026-11-20) kept a claude-opus-5-5 verifier pin written
+ * before cross-provider review (#1629), so its check ran on Claude although
+ * Claude had implemented it. The exclusion is not part of the key — it
+ * follows the upstream phase and the providers usable right now — so it is
+ * checked against the pin instead. An unregistered model cannot be placed
+ * and is left to the tier checks.
+ */
+function fromExcludedProvider(decision: RoutingDecision, options: SmartRouteOptions): boolean {
+  if (!options.excludeProviders?.length) return false;
+  const vendor = findModelEntry(decision.recommendedModel)?.vendor;
+  if (!vendor) return false;
+  return options.excludeProviders.some((p) => vendorOfProvider(p) === vendor);
 }
 
 // NOTE: capTier joins minTier in the key so an evidence change (a role newly

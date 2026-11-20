@@ -235,3 +235,53 @@ describe('the in-memory pin honours the TTL', () => {
     }
   });
 });
+
+// Task 520 (2026-11-20): the verifier kept a claude-opus-5-5 pin written
+// before cross-provider review (#1629), so it ran on Claude although Claude
+// had implemented and was excluded. A pin must not hand back a provider the
+// route now excludes.
+describe('a pin never serves an excluded provider', () => {
+  it('re-routes in memory when the pinned model is from an excluded provider', async () => {
+    mockGetSmartRoute.mockImplementationOnce(() =>
+      Promise.resolve({ recommendedModel: 'claude-opus-5-5', recommendedTier: 'premium' }),
+    );
+    mockGetSmartRoute.mockImplementationOnce(() =>
+      Promise.resolve({ recommendedModel: 'gpt-6-astra', recommendedTier: 'premium' }),
+    );
+    await getStableSmartRoute(1, 'verifier', { minTier: 'premium' });
+    const r = await getStableSmartRoute(1, 'verifier', {
+      minTier: 'premium',
+      excludeProviders: ['claude'],
+    });
+    expect(r.recommendedModel).toBe('gpt-6-astra');
+  });
+
+  it('re-routes after a restart when the stored pin is from an excluded provider', async () => {
+    persisted.push({
+      ...storedPin({
+        role: 'verifier',
+        minTier: 'premium',
+        decision: { recommendedModel: 'claude-opus-5-5', recommendedTier: 'premium' },
+      }),
+      correlationId: 'route_1_verifier',
+    });
+    mockGetSmartRoute.mockImplementationOnce(() =>
+      Promise.resolve({ recommendedModel: 'gpt-6-astra', recommendedTier: 'premium' }),
+    );
+    const r = await getStableSmartRoute(1, 'verifier', {
+      minTier: 'premium',
+      excludeProviders: ['claude'],
+    });
+    expect(r.recommendedModel).toBe('gpt-6-astra');
+    expect(mockGetSmartRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a pin whose provider is still allowed', async () => {
+    mockGetSmartRoute.mockImplementationOnce(() =>
+      Promise.resolve({ recommendedModel: 'gpt-6-astra', recommendedTier: 'premium' }),
+    );
+    await getStableSmartRoute(1, 'verifier', { minTier: 'premium' });
+    await getStableSmartRoute(1, 'verifier', { minTier: 'premium', excludeProviders: ['claude'] });
+    expect(mockGetSmartRoute).toHaveBeenCalledTimes(1);
+  });
+});
