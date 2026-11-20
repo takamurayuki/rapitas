@@ -378,6 +378,15 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   stopOverridden = (await assertTaskNotStopping(taskId, params)) || stopOverridden;
   await claimQuestionAnswerSlot(taskId);
 
+  // NOTE: The criteria question's 「推奨の完了条件に書き換える」 writes the
+  // rewrite here, before the resume: the planner that runs next must read the
+  // new criteria, not the ones the review flagged (asked 2026-11-20).
+  if (target.cause === 'criteria_review_question') {
+    const { applyCriteriaReviewSelection } =
+      await import('../../../services/workflow/research-criteria-review');
+    await applyCriteriaReviewSelection(taskId, meta, selections);
+  }
+
   const planRevisionResult = await tryRoutePlanRevision(taskId, selections, answer, sourceLabel);
   if (planRevisionResult) return planRevisionResult;
 

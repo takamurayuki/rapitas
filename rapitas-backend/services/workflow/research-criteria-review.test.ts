@@ -34,8 +34,12 @@ const writeTaskCriteria = mock(async (_db: unknown, _input: Record<string, unkno
 }));
 mock.module('../task/task-criteria-write', () => ({ writeTaskCriteria }));
 
-const { settleCriteriaFromResearch, RESEARCH_CRITERIA_CAUSES } =
-  await import('./research-criteria-review');
+const {
+  settleCriteriaFromResearch,
+  applyCriteriaReviewSelection,
+  CRITERIA_QUESTION_ID,
+  RESEARCH_CRITERIA_CAUSES,
+} = await import('./research-criteria-review');
 
 const task = (over: Row = {}): Row => ({
   id: 7,
@@ -204,5 +208,114 @@ describe('what it asks the person', () => {
     expect(body).toContain('重要通知をトースト化するか？');
     expect(body).not.toContain('全数確認する');
     expect(body).not.toContain('詳細に確認する');
+  });
+});
+
+// Asked 2026-11-20: the criteria question showed only a free-text box. When
+// the researcher has a rewrite, the person should be able to adopt it with
+// one button; the box is for when only they can answer.
+describe('the choices it offers', () => {
+  const block = (body: string) => {
+    const m = body.match(/```json:options\s*\n([\s\S]*?)```/);
+    if (!m) throw new Error('no json:options block');
+    return JSON.parse(m[1]) as {
+      questions: {
+        id: string;
+        options: { key: string; label: string }[];
+        recommended: string;
+        recommendedReason: string;
+        freeTextRequired: boolean;
+        freeTextReason: string | null;
+      }[];
+    };
+  };
+
+  it('recommends adopting the rewrite, without a free-text box', async () => {
+    await settleCriteriaFromResearch(7, research(REVISE));
+    const q = block(written[0].body).questions[0];
+    expect(q.options.map((o) => o.key)).toEqual(['adopt', 'keep']);
+    expect(q.recommended).toBe('adopt');
+    expect(q.recommendedReason).not.toBe('');
+    expect(q.freeTextRequired).toBe(false);
+  });
+
+  it('asks for the purpose in the box when no criterion says what is wanted', async () => {
+    row = task({ acceptanceCriteria: '["使いやすくなっていること"]' });
+    await settleCriteriaFromResearch(
+      7,
+      research({
+        verdict: 'revise',
+        findings: [{ index: 0, kind: 'ambiguous', problem: '基準が無い' }],
+        proposed: ['期限順で並ぶ'],
+      }),
+    );
+    const q = block(written[0].body).questions[0];
+    expect(q.freeTextRequired).toBe(true);
+    expect(q.freeTextReason).not.toBe('');
+    // Only the form: a guess at the goal is not a one-click answer.
+    expect(q.options).toEqual([]);
+    expect(q.recommended).toBe('');
+  });
+
+  it('keeps the rewrite on the question so the answer can apply it', async () => {
+    await settleCriteriaFromResearch(7, research(REVISE));
+    const q = recordTransition.mock.calls.find(
+      (c) => c[0].cause === RESEARCH_CRITERIA_CAUSES.question,
+    )?.[0];
+    expect(q?.metadata).toMatchObject({ proposedCriteria: REVISE.proposed });
+  });
+});
+
+describe('applying the answer', () => {
+  const meta = { proposedCriteria: ['変更前に通っていたテストが変更後も通る'] };
+
+  it('writes the rewrite when the person picked it', async () => {
+    const applied = await applyCriteriaReviewSelection(7, meta, [
+      { questionId: CRITERIA_QUESTION_ID, selectedKey: 'adopt' },
+    ]);
+    expect(applied).toBe(true);
+    expect(writeTaskCriteria.mock.calls[0][1]).toMatchObject({
+      taskId: 7,
+      next: { acceptanceCriteria: meta.proposedCriteria },
+    });
+  });
+
+  it('leaves the criteria alone for any other answer', async () => {
+    expect(
+      await applyCriteriaReviewSelection(7, meta, [
+        { questionId: CRITERIA_QUESTION_ID, selectedKey: 'keep' },
+      ]),
+    ).toBe(false);
+    expect(await applyCriteriaReviewSelection(7, meta, undefined)).toBe(false);
+    expect(
+      await applyCriteriaReviewSelection(7, {}, [
+        { questionId: CRITERIA_QUESTION_ID, selectedKey: 'adopt' },
+      ]),
+    ).toBe(false);
+    expect(writeTaskCriteria).not.toHaveBeenCalled();
+  });
+});
+
+// The screen reads the block through the shared parser; a block it rejects
+// would quietly fall back to the bare free-text box this change removes.
+describe('the block the screen reads', () => {
+  it('parses as choices for a fixable review and as a form for a missing purpose', async () => {
+    const { parseQuestionOptionsBlock } = await import('./question-options-parser');
+    await settleCriteriaFromResearch(7, research(REVISE));
+    const fixable = parseQuestionOptionsBlock(written[0].body);
+    expect(fixable?.questions[0]).toMatchObject({ recommended: 'adopt', freeTextRequired: false });
+
+    written.length = 0;
+    row = task({ acceptanceCriteria: '["使いやすくなっていること"]' });
+    await settleCriteriaFromResearch(
+      7,
+      research({
+        verdict: 'revise',
+        findings: [{ index: 0, kind: 'ambiguous', problem: '基準が無い' }],
+        proposed: ['期限順で並ぶ'],
+      }),
+    );
+    const purpose = parseQuestionOptionsBlock(written[0].body);
+    expect(purpose?.questions[0]).toMatchObject({ freeTextRequired: true, options: [] });
   });
 });
