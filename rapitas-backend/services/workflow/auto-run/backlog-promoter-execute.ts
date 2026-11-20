@@ -19,6 +19,7 @@ import {
 } from '../../memory/concern-backlog-service';
 import { isLogConcernStillRecurring, fragmentFromLogConcernTitle } from './log-concern-recurrence';
 import { isSelfDetectConcernStillRelevant } from './self-detect-relevance';
+import { retireIfRejected } from './concern-promotion-guard';
 import { listIdeas, markIdeaAsUsed } from '../../memory/idea-box-service';
 import { concernNeedsPlanForProtectedPath } from '../../memory/concern-task-spec';
 import { createTask } from '../../task/task-mutations';
@@ -101,6 +102,7 @@ export async function promoteConcern(
   concern: { id: number; severity: string; title?: string },
 ): Promise<boolean> {
   try {
+    if (await retireIfRejected(concern.id)) return false;
     // A log-derived concern whose signature has gone quiet is an outage that
     // already ended: promoting it buys three agent phases to conclude 修正不要
     // (five such tasks on 2026-08-30 for one resolved Prisma mismatch).

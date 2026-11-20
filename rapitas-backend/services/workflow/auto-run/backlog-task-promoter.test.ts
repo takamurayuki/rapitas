@@ -11,11 +11,21 @@ const mockUserSettingsFindFirst = mock(() =>
 );
 const mockTaskCount = mock(() => Promise.resolve(0));
 const mockTaskUpdate = mock(() => Promise.resolve({}));
+// Concern ids the validator rejected; every other id reads as validated.
+const rejectedConcernIds = new Set<number>();
+const mockKnowledgeEntryUpdate = mock(() => Promise.resolve({}));
 
 mock.module('../../../config/database', () => ({
   prisma: {
     userSettings: { findFirst: mockUserSettingsFindFirst },
     task: { count: mockTaskCount, update: mockTaskUpdate },
+    knowledgeEntry: {
+      findUnique: ({ where }: { where: { id: number } }) =>
+        Promise.resolve({
+          validationStatus: rejectedConcernIds.has(where.id) ? 'rejected' : 'validated',
+        }),
+      update: mockKnowledgeEntryUpdate,
+    },
   },
 }));
 
@@ -123,6 +133,8 @@ function resetMocks() {
   noopLog.warn.mockClear();
   mockShouldRefillBacklogNow.mockReset();
   mockShouldRefillBacklogNow.mockResolvedValue(true);
+  rejectedConcernIds.clear();
+  mockKnowledgeEntryUpdate.mockClear();
 }
 
 describe('hasPromotableBacklog', () => {
@@ -314,6 +326,30 @@ describe('promoteBacklogForTheme — concern promotion', () => {
     // No realized-reward stats yet → the bandit's tie breaks to 'concern' for
     // every pick, so no idea task is created while concerns remain.
     expect(mockCreateTask).not.toHaveBeenCalled();
+  });
+
+  // Tasks 1513-1517 (2026-11-20) were five rejected restatements of one finding.
+  test('a concern the validator rejected is retired, not turned into a task', async () => {
+    mockUserSettingsFindFirst.mockResolvedValue({ autoCreateFromBacklogLimit: 5 });
+    rejectedConcernIds.add(10);
+    mockListConcerns.mockResolvedValue({
+      concerns: [
+        { id: 10, severity: 'urgent' },
+        { id: 11, severity: 'high' },
+      ],
+      total: 2,
+    });
+    mockConvertConcernToTask.mockResolvedValue(502);
+
+    const created = await promoteBacklogForTheme(3);
+
+    expect(created).toBe(1);
+    expect(mockConvertConcernToTask).toHaveBeenCalledTimes(1);
+    expect(mockConvertConcernToTask).toHaveBeenCalledWith(11);
+    expect(mockKnowledgeEntryUpdate).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { sourceId: 'dismissed' },
+    });
   });
 
   test('stops promoting once the remaining cap hits zero mid-loop', async () => {
