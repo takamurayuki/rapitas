@@ -201,3 +201,21 @@ describe('pickModeForScore — 有効帯を超えるスコアのクランプ', (
     expect(pickModeForScore(50, bands(true) as never)).toBe('standard');
   });
 });
+
+// 2026-11-20: hand-set ranges drifted — workspace 1 had 0-36/37-74, and
+// workspace 2's standard band was 4-7, leaving 8-70 matched by no mode. The
+// ranges are fixed in code; a stored range is ignored.
+describe('parseModeRow — complexity ranges are fixed', () => {
+  it('a stored range never overrides the built-in band', async () => {
+    const { parseModeRow, DEFAULT_MODE_SETTINGS: D } = await import('./workflow-mode-config');
+    const s = parseModeRow({
+      mode: 'standard',
+      stepDefinitions: '{"phases":{"includePlan":true}}',
+      complexityMin: 4,
+      complexityMax: 7,
+      isEnabled: true,
+    });
+    expect(s.complexityMin).toBe(D.standard.complexityMin);
+    expect(s.complexityMax).toBe(D.standard.complexityMax);
+  });
+});

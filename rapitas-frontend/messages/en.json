@@ -3001,9 +3001,6 @@
       "tierComprehensiveDesc": "Large features, architecture changes",
       "loading": "Loading role settings...",
       "complexityRangeLabel": "Complexity range this workflow applies to",
-      "lightweightMaxLabel": "Lightweight complexity max",
-      "standardRangeAutoComputed": "(auto-computed from the lightweight/comprehensive settings)",
-      "comprehensiveMinLabel": "Comprehensive complexity min",
       "tierRolesCount": "Roles run in this tier ({count} phases)",
       "autoSelect": "Automatic",
       "enableRoleLabel": "Enable {role}",
@@ -3016,7 +3013,8 @@
       "autoRuleLoading": "Checking which providers this host can run",
       "autoRuleFollowUpstream": "Chosen from the usable providers by the model tier table, preferring the provider of the previous phase",
       "autoRuleDifferentProvider": "Runs on a different provider from the implementation, at the implementer’s tier or above",
-      "autoRuleDifferentProviderUnavailable": "No other provider is usable, so verification runs on the implementation’s provider. It switches automatically once one such as Codex is usable"
+      "autoRuleDifferentProviderUnavailable": "No other provider is usable, so verification runs on the implementation’s provider. It switches automatically once one such as Codex is usable",
+      "complexityRangeFixed": "(fixed. A lightweight task with open items after research is promoted to standard)"
     },
     "statusIndicator": {
       "researching": "Researching",

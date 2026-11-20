@@ -126,3 +126,49 @@ describe('going on', () => {
     expect(written).toEqual([]);
   });
 });
+
+// Task 1509 (2026-11-20): the only criterion was 「使いやすくなっていること」.
+// The question offered the researcher's own guesses (sort by due date, keep
+// the sort across reloads) as "the rewrite — answer if fine", and never asked
+// what the person found hard to use. Accepting it would build features nobody
+// asked for.
+describe('when no criterion survives the review', () => {
+  const VAGUE = {
+    verdict: 'revise',
+    findings: [
+      { index: 0, kind: 'unverifiable', problem: '主観的で判定できない' },
+      { index: 0, kind: 'insufficient', problem: '対象画面と改善の方向が書かれていない' },
+    ],
+    proposed: ['並べ替えに期限順が加わる'],
+  };
+  const vagueResearch = () =>
+    research(VAGUE).replace(
+      '## 完了条件の点検',
+      '## 未確定事項（プランナーが解決すべき項目）\n- [ ] 何が使いにくいのか\n- [ ] 対象画面はどこか\n\n## 完了条件の点検',
+    );
+
+  it('asks what the person wants first, from the open items research left', async () => {
+    row = task({ acceptanceCriteria: '["使いやすくなっていること"]' });
+    await settleCriteriaFromResearch(7, vagueResearch());
+    const body = written[0].body;
+    expect(body).toContain('何が使いにくいのか');
+    expect(body).toContain('対象画面はどこか');
+    expect(body.indexOf('何が使いにくいのか')).toBeLessThan(
+      body.indexOf('並べ替えに期限順が加わる'),
+    );
+  });
+
+  it('labels the rewrite as the researcher’s guess, not a default to accept', async () => {
+    row = task({ acceptanceCriteria: '["使いやすくなっていること"]' });
+    await settleCriteriaFromResearch(7, vagueResearch());
+    const body = written[0].body;
+    expect(body).toContain('推測');
+    // Keeping the current criteria cannot work: none of them can be checked.
+    expect(body).not.toContain('いまの条件のままでよければ');
+  });
+
+  it('a partly fixable review keeps the plain rewrite question', async () => {
+    await settleCriteriaFromResearch(7, research(REVISE));
+    expect(written[0].body).toContain('いまの条件のままでよければ');
+  });
+});

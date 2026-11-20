@@ -285,9 +285,9 @@ export const workflowRolesRoutes = new Elysia()
   })
 
   /**
-   * PUT /workflow-modes/:mode — update one tier's phase toggles and complexity
-   * range. Body: { includePlan?, autoVerify?, complexityMin?,
-   * complexityMax?, isEnabled? }.
+   * PUT /workflow-modes/:mode — update one tier's phase toggles.
+   * Body: { includePlan?, autoVerify?, isEnabled? }. Complexity ranges are
+   * fixed in code (workflow-mode-config.ts) and are not accepted here.
    */
   .put(
     '/workflow-modes/:mode',
@@ -302,9 +302,6 @@ export const workflowRolesRoutes = new Elysia()
       for (const k of ['includePlan', 'autoVerify', 'isEnabled'] as const) {
         if (typeof b[k] === 'boolean') patch[k] = b[k];
       }
-      for (const k of ['complexityMin', 'complexityMax'] as const) {
-        if (typeof b[k] === 'number') patch[k] = b[k];
-      }
       const { updateModeSettings } =
         await import('../../../services/workflow/workflow-mode-config');
       const updated = await updateModeSettings(mode, patch);
@@ -317,8 +314,6 @@ export const workflowRolesRoutes = new Elysia()
           {
             includePlan: t.Optional(t.Boolean()),
             autoVerify: t.Optional(t.Boolean()),
-            complexityMin: t.Optional(t.Number()),
-            complexityMax: t.Optional(t.Number()),
             isEnabled: t.Optional(t.Boolean()),
           },
           { additionalProperties: false },

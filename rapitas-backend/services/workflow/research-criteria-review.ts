@@ -23,6 +23,7 @@ import { notifyIntakeQuestionPending } from '../communication/notification-servi
 import { writeTaskCriteria, type CriteriaWriteDb } from '../task/task-criteria-write';
 import { parseSpecArray } from '../intake/spec-quality-checker';
 import { extractResearchCriteriaReview, type CriteriaReview } from './criteria-review';
+import { listOpenItems } from './mode-escalation';
 
 const log = createLogger('research-criteria-review');
 
@@ -78,7 +79,7 @@ export async function settleCriteriaFromResearch(
       await adopt(row, criteria, review);
       return false;
     }
-    await ask(row, criteria, review);
+    await ask(row, criteria, review, listOpenItems(researchMd));
     return true;
   } catch (err) {
     log.warn({ err, taskId }, '[research-criteria] could not settle the criteria — going on');
@@ -103,8 +104,12 @@ async function adopt(row: Row, before: string[], review: CriteriaReview) {
   });
 }
 
-async function ask(row: Row, criteria: string[], review: CriteriaReview) {
-  await writeWorkflowFile(row.id, 'question', reviewQuestion(row.title, criteria, review));
+async function ask(row: Row, criteria: string[], review: CriteriaReview, openItems: string[]) {
+  await writeWorkflowFile(
+    row.id,
+    'question',
+    reviewQuestion(row.title, criteria, review, openItems),
+  );
   await prisma.task.update({
     where: { id: row.id },
     data: { workflowStatus: 'awaiting_question', updatedAt: new Date() },
@@ -125,15 +130,42 @@ async function ask(row: Row, criteria: string[], review: CriteriaReview) {
   await notifyIntakeQuestionPending({ taskId: row.id, taskTitle: row.title }).catch(() => {});
 }
 
+/** Finding kinds that mean the criterion does not say what the person wants. */
+const PURPOSE_KINDS = new Set(['insufficient', 'ambiguous']);
+
+/**
+ * Whether no criterion says what the person wants: every one carries an
+ * insufficient or ambiguous finding. Then the rewrite is the researcher's
+ * guess at the goal, not a sharper way to check a known one.
+ */
+function purposeUnclear(criteria: string[], review: CriteriaReview): boolean {
+  if (criteria.length === 0) return false;
+  return criteria.every((_, i) =>
+    review.findings.some((f) => (f.index === i || f.index === null) && PURPOSE_KINDS.has(f.kind)),
+  );
+}
+
 /**
  * The question a person answers when the researcher proposes a rewrite.
+ *
+ * NOTE: When no criterion says what the person wants (task 1509,
+ * 「使いやすくなっていること」), it asks for the purpose first, from the items
+ * research could not settle, and shows the rewrite as the researcher's guess.
+ * It used to present that guess as the answer to accept, which would build
+ * features nobody asked for.
  *
  * @param title - Task title / タスク名
  * @param criteria - The criteria as they stand / 現在の受入条件
  * @param review - The researcher's review / 点検結果
+ * @param openItems - Items under research.md's 未確定事項 / 調査で残った未確定事項
  * @returns question.md body / 質問の本文
  */
-export function reviewQuestion(title: string, criteria: string[], review: CriteriaReview): string {
+export function reviewQuestion(
+  title: string,
+  criteria: string[],
+  review: CriteriaReview,
+  openItems: string[] = [],
+): string {
   const KIND_JA: Record<string, string> = {
     unverifiable: '作業中に確かめられない',
     contradiction: '制約・範囲外と矛盾する',
@@ -141,16 +173,38 @@ export function reviewQuestion(title: string, criteria: string[], review: Criter
     ambiguous: '読み方が割れる',
     unrelated: 'このタスクと関係がない',
   };
+  const findings = review.findings.map((f) => {
+    const which = f.index !== null && criteria[f.index] ? `「${criteria[f.index]}」` : '条件全体';
+    return `- ${which}: ${KIND_JA[f.kind] ?? f.kind} — ${f.problem}`;
+  });
+  if (purposeUnclear(criteria, review)) {
+    return [
+      '# 仕様確認: 何を良くしたいかの確認',
+      '',
+      `タスク「${title}」の完了条件からは、何を変えれば完了なのかが読み取れません。エージェントが目的を推測して作ると、頼んでいない変更になりかねないため、計画の前で止めています。`,
+      '',
+      '## 教えてほしいこと',
+      ...(openItems.length > 0
+        ? openItems.map((q) => `- ${q}`)
+        : ['- 何に困っていて、どうなれば良いのか']),
+      '',
+      '## 指摘',
+      ...findings,
+      '',
+      '## 書き直しの例（エージェントの推測）',
+      '依頼にない内容を含むかもしれません。目的に合うものだけを使ってください。',
+      ...review.proposed.map((p) => `- ${p}`),
+      '',
+      'タスクの詳細で目的（ゴール）と完了条件を書き換えてから回答してください。回答すると、調査はやり直さずに計画から進みます。',
+    ].join('\n');
+  }
   return [
     '# 仕様確認: 完了条件の見直しの提案',
     '',
     `タスク「${title}」を調査したところ、完了条件（エージェントが確かめる）に、差し戻しの原因になりそうな点がありました。計画は完了条件が決まってから作るため、ここで止めています。`,
     '',
     '## 指摘',
-    ...review.findings.map((f) => {
-      const which = f.index !== null && criteria[f.index] ? `「${criteria[f.index]}」` : '条件全体';
-      return `- ${which}: ${KIND_JA[f.kind] ?? f.kind} — ${f.problem}`;
-    }),
+    ...findings,
     '',
     '## 書き直しの案',
     ...review.proposed.map((p) => `- ${p}`),

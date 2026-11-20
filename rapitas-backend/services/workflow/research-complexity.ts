@@ -109,7 +109,11 @@ export async function applyResearchAssessedComplexity(
     // NOTE: A stale stored score would make SmartRouter route on a value the
     // mode was not chosen for; null resolves to the same default (G2 abc #4).
     if (!resolved.assessed) data.complexityScore = null;
-    const assessedMode = await selectModeByComplexity(resolved.score);
+    const assessedMode = await escalateForUncertainty(
+      taskId,
+      researchContent,
+      await selectModeByComplexity(resolved.score),
+    );
     const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
     if (assessedMode !== currentMode) data.workflowMode = assessedMode;
     resultingMode = assessedMode;
@@ -145,6 +149,37 @@ export async function applyResearchAssessedComplexity(
   }
 
   return { assessed, appliedScore: resolved.score, workflowMode: resultingMode };
+}
+
+/**
+ * Promote a lightweight mode to standard when research left things unsettled
+ * (mode-escalation.ts). Complexity measures size; the plan phase is for
+ * uncertainty. Fails toward the complexity-based mode.
+ */
+async function escalateForUncertainty(
+  taskId: number,
+  researchContent: string,
+  mode: WorkflowMode,
+): Promise<WorkflowMode> {
+  if (mode !== 'lightweight') return mode;
+  try {
+    const [{ decideEscalation, readEscalationSignals }, standard] = await Promise.all([
+      import('./mode-escalation'),
+      getModeSettings('standard'),
+    ]);
+    const signals = await readEscalationSignals(taskId, researchContent);
+    const decision = decideEscalation(mode, signals, standard.isEnabled);
+    if (decision.mode !== mode) {
+      log.info(
+        { taskId, reasons: decision.reasons },
+        '[research-complexity] lightweight promoted to standard — research left items unsettled',
+      );
+    }
+    return decision.mode;
+  } catch (err) {
+    log.warn({ err, taskId }, '[research-complexity] escalation check failed — keeping mode');
+    return mode;
+  }
 }
 
 /**
