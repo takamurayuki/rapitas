@@ -28,16 +28,17 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('@/components/resumable-executions/ExecutionItem', () => ({
-  ExecutionItem: () => null,
+  ExecutionItem: ({ exec }: { exec: { id: number } }) => <div data-exec-card={exec.id} />,
 }));
 
 import { RapiAvatarPanel } from '../RapiAvatarPanel';
+import type { ResumableExecution } from '@/components/resumable-executions/types';
 
-const show = (open: boolean, onClose: () => void) =>
+const show = (open: boolean, onClose: () => void, executions: ResumableExecution[] = []) =>
   render(
     <RapiAvatarPanel
       open={open}
-      executions={[]}
+      executions={executions}
       resumingIds={new Set()}
       dismissingIds={new Set()}
       runningCount={0}
@@ -90,5 +91,24 @@ describe('while it is showing', () => {
     show(true, onClose);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Reported 2026-11-20: what was running sat as cards in her chat. Her status
+// bubble names those now; the panel keeps only what needs a hand.
+describe('the executions it lists', () => {
+  const exec = (id: number, status: string) =>
+    ({ id, taskId: id, taskTitle: `t${id}`, status }) as unknown as ResumableExecution;
+
+  it('leaves running ones to the status bubble and keeps interrupted ones', () => {
+    const { container } = show(true, () => {}, [
+      exec(1, 'running'),
+      exec(2, 'waiting_for_input'),
+      exec(3, 'interrupted'),
+    ]);
+    const ids = [...container.querySelectorAll('[data-exec-card]')].map((e) =>
+      e.getAttribute('data-exec-card'),
+    );
+    expect(ids).toEqual(['3']);
   });
 });

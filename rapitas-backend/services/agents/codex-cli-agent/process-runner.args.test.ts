@@ -163,7 +163,29 @@ describe('spawnCodexProcess — argument construction', () => {
     expect(command).toContain('--json');
     expect(command).toContain('^^^"--cd^^^" ^^^"C:/work^^^"');
     expect(command).toContain('--full-auto');
-    expect(command).toContain('implement the feature');
+    // NOTE: The prompt goes through stdin in every mode (2026-11-20). A
+    // positional prompt hit the Windows command-line limit (ENAMETOOLONG)
+    // the first time a verifier ran on Codex.
+    expect(command).not.toContain('implement the feature');
+    expect(spawnedChildren[0].stdin.write).toHaveBeenCalledWith('implement the feature');
+    spawnedChildren[0].emit('close', 0);
+  });
+
+  test('a prompt longer than the Windows command-line limit never reaches argv', async () => {
+    const longPrompt = 'x'.repeat(40_000);
+    spawnCodexProcess(
+      {},
+      'C:/work',
+      longPrompt,
+      makeState(),
+      makeCallbacks(),
+      Date.now(),
+      noArtifacts,
+      noCommits,
+    );
+    await flush();
+    expect(spawnCalls[0].command.length).toBeLessThan(8_000);
+    expect(spawnedChildren[0].stdin.write).toHaveBeenCalledWith(longPrompt);
     spawnedChildren[0].emit('close', 0);
   });
 
@@ -371,10 +393,12 @@ describe('spawnCodexProcess — process wiring', () => {
 
   test('always ends stdin, even when there is nothing to write to it', async () => {
     const state = makeState();
+    // An empty prompt is the only case left with nothing to write: every mode
+    // now sends the prompt through stdin.
     spawnCodexProcess(
       {},
       'C:/work',
-      'prompt',
+      '',
       state,
       makeCallbacks(),
       Date.now(),

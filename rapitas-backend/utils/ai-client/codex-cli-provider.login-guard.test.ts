@@ -14,6 +14,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
+import { recoverCodexArgv } from './codex-cli-spawn-argv';
 
 process.env.RAPITAS_AUX_AI_CODEX_TIMEOUT_MS = '500';
 
@@ -61,8 +62,9 @@ mock.module('./aux-cli-launch', () => ({
   LAUNCHER_TIMEOUT_ENV: 'RAPITAS_AUX_AI_CLI_TIMEOUT_MS',
 }));
 mock.module('child_process', () => ({
-  spawn: mock((_cmd: string, args: string[]) => {
-    spawnedArgs.push(args);
+  spawn: mock((cmd: string, args: string[]) => {
+    // NOTE: On Windows the argv is folded into `cmd`; recover it so calls are judged the same on every OS.
+    spawnedArgs.push(recoverCodexArgv(cmd, args));
     return new MockChild(scripts.shift() ?? {}) as unknown as ChildProcess;
   }),
   execFileSync: mock(() => Buffer.from('')),

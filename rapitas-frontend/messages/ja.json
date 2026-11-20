@@ -337,6 +337,7 @@
     "sortOldest": "古い順",
     "sortPriority": "優先度順",
     "sortDeadline": "期限順",
+    "sortDueDate": "期限",
     "viewList": "リスト表示",
     "viewKanban": "カンバン表示",
     "statusTodo": "未着手",
@@ -1699,6 +1700,7 @@
     "message": {
       "thinking": "進め方を検討しています。",
       "running": "{count, plural, =1 {エージェントが実行中です。} other {#件のエージェントが並列で実行中です。}}",
+      "runningMore": "ほか{count}件",
       "waiting": "承認待ちのタスクがあります。",
       "done": "タスクが完了しました。",
       "error": "タスクがブロックされました。"

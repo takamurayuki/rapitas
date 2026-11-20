@@ -14,6 +14,7 @@
     "sortOldest": "古い順",
     "sortPriority": "優先度順",
     "sortDeadline": "期限順",
+    "sortDueDate": "期限",
     "viewList": "リスト表示",
     "viewKanban": "カンバン表示",
     "statusTodo": "未着手",

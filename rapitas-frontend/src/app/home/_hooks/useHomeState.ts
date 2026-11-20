@@ -28,7 +28,7 @@ export function useHomeState() {
   );
 
   // --- Sort state ---
-  const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>('createdAt');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title' | 'dueDate'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // --- Pagination state ---

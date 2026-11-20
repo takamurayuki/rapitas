@@ -22,7 +22,7 @@ interface HomeThemeFilterProps {
   priorityFilter: Priority | null;
   labels: Label[];
   labelFilter: number | null;
-  sortBy: 'createdAt' | 'priority' | 'title';
+  sortBy: 'createdAt' | 'priority' | 'title' | 'dueDate';
   sortOrder: 'asc' | 'desc';
   isFilterExpanded: boolean;
   isScrollNeeded: boolean;
@@ -34,7 +34,7 @@ interface HomeThemeFilterProps {
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
   onLabelChange: (labelId: number | null) => void;
-  onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
+  onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title' | 'dueDate') => void;
   onSortOrderToggle: () => void;
   onFilterExpandedToggle: () => void;
   onScrollLeft: () => void;
