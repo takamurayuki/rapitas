@@ -337,6 +337,7 @@
     "sortOldest": "Oldest",
     "sortPriority": "Priority",
     "sortDeadline": "Deadline",
+    "sortDueDate": "Due date",
     "viewList": "List view",
     "viewKanban": "Kanban view",
     "statusTodo": "To Do",
