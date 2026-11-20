@@ -15,7 +15,7 @@ import { createLogger } from '../../../../../config/logger';
 import { WORKTREE_DIR } from '../core/safety';
 import { appendExcludeBlock } from '../core/git-exclude';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
-import { preflightWorktree } from './worktree-preflight';
+import { preflightReusedWorktree, preflightWorktree } from './worktree-preflight';
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, paths, and other caller-controlled values are passed as literal argv
@@ -128,7 +128,7 @@ export async function createWorktree(
             logger.info(
               `[createWorktree] Found existing live worktree for task ${taskId} at ${existingPath} — reusing instead of creating a new one`,
             );
-            return existingPath;
+            return preflightReusedWorktree(existingPath);
           }
         }
       } catch (probeError) {

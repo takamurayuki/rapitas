@@ -30,7 +30,10 @@ mock.module('./repository-setup', () => ({
   ensureGitRepository: mock(() => Promise.resolve(true)),
   validateAndSetupRemote: mock(() => Promise.resolve(true)),
 }));
-mock.module('./worktree-preflight', () => ({ preflightWorktree: mock(() => Promise.resolve()) }));
+mock.module('./worktree-preflight', () => ({
+  preflightWorktree: mock(() => Promise.resolve()),
+  preflightReusedWorktree: mock((p: string) => Promise.resolve(p)),
+}));
 mock.module('../core/git-exec', () => ({ clearGitCache: mock(() => {}) }));
 mock.module('../../../../github/git-exec', () => ({ clearGitRemoteCache: mock(() => {}) }));
 mock.module('./dependency-installer', () => ({

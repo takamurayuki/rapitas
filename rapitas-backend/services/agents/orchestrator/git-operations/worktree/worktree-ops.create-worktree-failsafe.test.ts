@@ -35,6 +35,7 @@ mock.module('./repository-setup', () => ({
 }));
 mock.module('./worktree-preflight', () => ({
   preflightWorktree: mock(() => Promise.resolve()),
+  preflightReusedWorktree: mock((p: string) => Promise.resolve(p)),
 }));
 mock.module('../core/git-exec', () => ({
   clearGitCache: mock(() => {}),
