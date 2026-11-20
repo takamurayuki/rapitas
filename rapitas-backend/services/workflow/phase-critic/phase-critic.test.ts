@@ -345,6 +345,19 @@ describe('critiquePhase — sendAIMessage integration (task 911)', () => {
     expect(result.verdict).toBe('unknown');
   });
 
+  // Task 1510 (2026-11-20): research.md was 8,277 chars, over the 8,000 kept
+  // as background, while the plan under review (8,466) was shown whole. The
+  // pass became unknown, and over 30 days the plan critic recorded no pass
+  // at all — 6 of 6 were this. Cut background is noted, not a reason to doubt
+  // a verdict on a document the critic read in full.
+  it('keeps a pass when only the background was cut, not the artifact', async () => {
+    const result = await critiquePhase('plan', 'plan body', {
+      referenceArtifact: 'r'.repeat(9000),
+    });
+    expect(result.inputTruncated).toBe(true);
+    expect(result.verdict).toBe('pass');
+  });
+
   it('reports inputTruncated:false when nothing needed truncating', async () => {
     const result = await critiquePhase('research', 'short body');
     expect(result.inputTruncated).toBe(false);
