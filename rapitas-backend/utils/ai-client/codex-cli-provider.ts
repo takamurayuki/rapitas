@@ -150,10 +150,26 @@ export async function callCodexCli(
 }
 
 /** Why the Codex CLI cannot sit, or 'ready'. */
-export type CodexCliStatus = 'ready' | 'missing' | 'not_logged_in' | 'not_chatgpt_login';
+export type CodexCliStatus =
+  | 'ready'
+  | 'missing'
+  | 'not_logged_in'
+  | 'not_chatgpt_login'
+  /** The login check did not answer (busy host, timeout): unknown, not absent. */
+  | 'probe_failed';
 
 /** Re-check a missing login after this long (matches the auth cooldown). */
 const LOGIN_RECHECK_MS = 5 * 60_000;
+/**
+ * Re-check a login probe that never answered much sooner: right after a
+ * deploy the host is busy, and treating that as a missing login kept every
+ * phase off Codex for five minutes (2026-11-20).
+ */
+const PROBE_FAILED_RECHECK_MS = 30_000;
+
+/** How long a non-ready login status stays memoised. */
+const recheckMsFor = (status: CodexCliStatus): number =>
+  status === 'probe_failed' ? PROBE_FAILED_RECHECK_MS : LOGIN_RECHECK_MS;
 let statusCache: { status: CodexCliStatus; until: number } | null = null;
 let statusPending: Promise<CodexCliStatus> | null = null;
 
@@ -177,8 +193,9 @@ async function probe(args: string[]) {
 /** `codex login status` read fresh; never 'missing' (the binary ran or not). */
 async function readLoginStatus(): Promise<Exclude<CodexCliStatus, 'missing'>> {
   const login = await probe(['login', 'status']).catch(() => null);
-  const text = login ? `${login.stdout}\n${login.stderr}` : '';
-  if (!login || login.code !== 0 || /not logged in/i.test(text)) return 'not_logged_in';
+  if (!login) return 'probe_failed';
+  const text = `${login.stdout}\n${login.stderr}`;
+  if (login.code !== 0 || /not logged in/i.test(text)) return 'not_logged_in';
   // An API-key login would bill the paid API, which the owner ruled out.
   return /chatgpt/i.test(text) ? 'ready' : 'not_chatgpt_login';
 }
@@ -193,11 +210,13 @@ async function readLoginStatus(): Promise<Exclude<CodexCliStatus, 'missing'>> {
 async function assertChatgptLogin(): Promise<void> {
   const status = await readLoginStatus();
   if (status === 'ready') return;
-  statusCache = { status, until: Date.now() + LOGIN_RECHECK_MS };
+  statusCache = { status, until: Date.now() + recheckMsFor(status) };
   throw new CodexCliUnavailableError(
     status === 'not_chatgpt_login'
       ? 'Codex CLI not logged in with ChatGPT (an API-key login is configured); refused'
-      : 'Codex CLI not logged in with ChatGPT (no login); refused',
+      : status === 'probe_failed'
+        ? 'Codex CLI login check did not answer; refused for now'
+        : 'Codex CLI not logged in with ChatGPT (no login); refused',
   );
 }
 
@@ -227,7 +246,7 @@ export async function getCodexCliStatus(): Promise<CodexCliStatus> {
       const keep = status === 'ready' || status === 'missing';
       statusCache = {
         status,
-        until: keep ? Number.POSITIVE_INFINITY : Date.now() + LOGIN_RECHECK_MS,
+        until: keep ? Number.POSITIVE_INFINITY : Date.now() + recheckMsFor(status),
       };
       return status;
     })
