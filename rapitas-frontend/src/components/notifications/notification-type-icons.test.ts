@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Bell } from 'lucide-react';
+import { Bell, Play, RotateCw } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 import {
   extractNotificationI18n,
@@ -31,6 +31,15 @@ describe('resolveNotificationIcon', () => {
     const canary = resolveNotificationIcon('canary_triggered');
     expect(canary.Icon).not.toBe(resolveNotificationIcon('some_future_type').Icon);
     expect(canary.colorClass).toContain('red');
+  });
+
+  // RotateCw already means 「サーバー再起動」 and 「画像の回転」. Resuming an
+  // execution is drawn with Play everywhere else (ExecutionItem's resume
+  // button, MilestoneCard), so the notification reuses that.
+  it('draws a resumed execution as resume (Play), not as restart', () => {
+    const { Icon } = resolveNotificationIcon('agent_execution_resumed');
+    expect(Icon).toBe(Play);
+    expect(Icon).not.toBe(RotateCw);
   });
 
   it('falls back for null/undefined type', () => {

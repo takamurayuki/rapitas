@@ -34,5 +34,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `OctagonAlert`            | 通知の種別「ブロックされたタスク／テーマの対応待ち」（auto_run_all_blocked, blocked_escalation, blocked_escalation_needs_answer）。ラピの「要対応」モード（会話の振り分け注記の watch — 手当てが要るバックログの一覧）も同一概念「対応待ち」の再利用。ICON_POLICY.md §3 のインライン表から本ファイルへ移行済み |
 | `NotebookPen`             | ノート（/notes ページ見出し、タスク詳細の `NoteLinksSection`、およびコパイロットパネルのラピの返答下の「ノートに保存」操作 `SaveToNoteButton` — 同一概念「ノート」の再利用。保存済みも同じグリフで文言のみ切り替える） |
 | `RefreshCw` | 通知の種別「GitHub同期完了」（github_sync_complete。`NotificationBell`、#1510。同期・再読み込みの慣用の再利用） |
-| `RotateCw` | 通知の種別「エージェント実行の再開」（agent_execution_resumed。`NotificationBell`、#1510。`PlayCircle`＝実行中とは別概念） |
+| `Play` | 中断・一時停止したものの再開（`ExecutionItem` の中断した実行の再開ボタン、`MilestoneCard` の再開、通知の種別「エージェント実行の再開」agent_execution_resumed — 同一概念「再開」の再利用。`PlayCircle`＝実行中とは別概念。旧・通知での `RotateCw` は「サーバー再起動」「画像の回転」と重なるため移行） |
 | `ShieldCheck` | 通知の種別「承認完了」（approval_completed。`NotificationBell`、#1510。`BadgeCheck`＝承認リクエストとは別概念） |
