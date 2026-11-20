@@ -68,6 +68,10 @@ mock.module('../../../services/workflow/publication-cancellation-guard', () => (
 const mockApplyIntakeQuestionAnswerLocked = mock(() =>
   Promise.resolve({ taskId: 1, ok: true as const, toStatus: 'draft' as const }),
 );
+const mockApplyCriteriaReviewSelection = mock(() => Promise.resolve(true));
+mock.module('../../../services/workflow/research-criteria-review', () => ({
+  applyCriteriaReviewSelection: mockApplyCriteriaReviewSelection,
+}));
 mock.module('./workflow-handlers-resume', () => ({
   applyIntakeQuestionAnswerLocked: mockApplyIntakeQuestionAnswerLocked,
 }));
@@ -544,5 +548,48 @@ describe('applyQuestionAnswerByKind — planRevision routing (task 933)', () => 
 
     expect(result.kind).toBe('execution_continuation');
     expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Asked 2026-11-20: the criteria question now offers 「推奨の完了条件に書き換える」.
+// The choice must reach the criteria before the task resumes at research_done
+// — answered after the resume, the planner would read the old criteria.
+describe('applyQuestionAnswerByKind — criteria review question', () => {
+  test('hands the choice to the criteria review before resuming', async () => {
+    mockApplyCriteriaReviewSelection.mockClear();
+    const meta = {
+      previousStatus: 'research_done',
+      kind: 'execution_continuation',
+      proposedCriteria: ['変更前に通っていたテストが変更後も通る'],
+    };
+    mockFindFirstTransition.mockResolvedValue({
+      id: 11,
+      cause: 'criteria_review_question',
+      fromStatus: 'research_done',
+      metadata: meta,
+    });
+    mockReadWorkflowFile.mockResolvedValue('# 仕様確認');
+    const selections = [{ questionId: 'criteria', selectedKey: 'adopt' }];
+    await applyQuestionAnswerByKind({ taskId: 1, actor: 'user', selections });
+    expect(mockApplyCriteriaReviewSelection).toHaveBeenCalledTimes(1);
+    expect(mockApplyCriteriaReviewSelection.mock.calls[0]).toEqual([1, meta, selections]);
+    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalled();
+  });
+
+  test('leaves other questions alone', async () => {
+    mockApplyCriteriaReviewSelection.mockClear();
+    mockFindFirstTransition.mockResolvedValue({
+      id: 12,
+      cause: 'file_saved:question',
+      fromStatus: 'in_progress',
+      metadata: { previousStatus: 'in_progress' },
+    });
+    mockReadWorkflowFile.mockResolvedValue('# 質問');
+    await applyQuestionAnswerByKind({
+      taskId: 1,
+      actor: 'user',
+      selections: [{ questionId: 'criteria', selectedKey: 'adopt' }],
+    });
+    expect(mockApplyCriteriaReviewSelection).not.toHaveBeenCalled();
   });
 });
