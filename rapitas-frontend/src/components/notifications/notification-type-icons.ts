@@ -35,7 +35,7 @@ import {
   PlayCircle,
   PowerOff,
   RefreshCw,
-  RotateCw,
+  Play,
   ShieldCheck,
   Siren,
   SkipForward,
@@ -181,7 +181,9 @@ const typeIconComponents: Record<string, LucideIcon> = {
   agent_execution_completed: CheckCircle2,
   agent_execution_complete: CheckCircle2,
   agent_execution_failed: TriangleAlert,
-  agent_execution_resumed: RotateCw,
+  // NOTE: Play, not RotateCw — RotateCw already means server restart and image
+  // rotation; resuming an execution is Play everywhere else (ExecutionItem).
+  agent_execution_resumed: Play,
   pr_approved: ThumbsUp,
   pr_changes_requested: MessageSquareWarning,
   github_sync_complete: RefreshCw,

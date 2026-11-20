@@ -169,24 +169,29 @@ export function lensSystemPrompt(phase: CriticPhase, lens: Lens): string {
  *
  * @param content - Artifact body. / アーティファクト本文
  * @param context - Optional grounding context. / 参考資料
- * @returns The composed user message and whether any section was truncated. / レンズに渡す本文と切断有無
+ * @returns The composed message, whether any section was cut, and whether the
+ *   artifact or the requirements (brief, criteria) were. / レンズに渡す本文、
+ *   いずれかの切断有無、対象または要求（タスク要求・受入基準）の切断有無
  */
 export function buildCriticUserMessage(
   content: string,
   context?: CriticContext,
-): { message: string; truncated: boolean } {
+): { message: string; truncated: boolean; requirementsOrArtifactTruncated: boolean } {
   const parts: string[] = [];
   let truncated = false;
+  let requirementsOrArtifactTruncated = false;
 
   if (context?.taskBrief?.trim()) {
     const t = truncateWithNotice(context.taskBrief, TASK_BRIEF_MAX_CHARS);
     truncated = truncated || t.truncated;
+    requirementsOrArtifactTruncated = requirementsOrArtifactTruncated || t.truncated;
     parts.push(`# タスク要求（参考資料 — 批評対象ではない）\n${t.text}`);
   }
   if (context?.acceptanceCriteria?.length) {
     const list = context.acceptanceCriteria.map((c) => `- ${c}`).join('\n');
     const t = truncateWithNotice(list, ACCEPTANCE_CRITERIA_MAX_CHARS);
     truncated = truncated || t.truncated;
+    requirementsOrArtifactTruncated = requirementsOrArtifactTruncated || t.truncated;
     parts.push(
       `# 受入基準（参考資料 — 批評対象ではない。満たせているか判断材料にすること）\n${t.text}`,
     );
@@ -208,11 +213,12 @@ export function buildCriticUserMessage(
   {
     const t = truncateWithNotice(content, ARTIFACT_MAX_CHARS);
     truncated = truncated || t.truncated;
+    requirementsOrArtifactTruncated = requirementsOrArtifactTruncated || t.truncated;
     parts.push(`# 批評対象アーティファクト\n${t.text}`);
   }
 
   const message = truncated ? `${TRUNCATION_BANNER}\n\n${parts.join('\n\n')}` : parts.join('\n\n');
-  return { message, truncated };
+  return { message, truncated, requirementsOrArtifactTruncated };
 }
 
 /** Tolerantly parse a lens response. On parse failure, default to pass (no false block). */
@@ -282,10 +288,11 @@ export async function critiquePhase(
   }
 
   const lenses = LENSES[phase];
-  const { message: userMessage, truncated: inputTruncated } = buildCriticUserMessage(
-    content,
-    context,
-  );
+  const {
+    message: userMessage,
+    truncated: inputTruncated,
+    requirementsOrArtifactTruncated,
+  } = buildCriticUserMessage(content, context);
   const verdicts = await Promise.all(
     lenses.map(async (lens): Promise<CriticVerdict | null> => {
       try {
@@ -310,7 +317,16 @@ export async function critiquePhase(
   const result: PhaseCritiqueResult = {
     ...aggregated,
     // A partial document cannot establish that the whole artifact passed.
-    verdict: inputTruncated && aggregated.verdict === 'pass' ? 'unknown' : aggregated.verdict,
+    // NOTE: Only a cut in what is judged or what it is judged against (the
+    // artifact, the task brief, the acceptance criteria) counts — a hidden
+    // correction there could flip the verdict. A cut earlier-phase document
+    // is background: counting it turned every pass on a long research.md into
+    // unknown, 6 of 6 plan critiques in 30 days (task 1510). inputTruncated
+    // still reports any cut.
+    verdict:
+      requirementsOrArtifactTruncated && aggregated.verdict === 'pass'
+        ? 'unknown'
+        : aggregated.verdict,
     inputTruncated,
     evaluationComplete,
   };
