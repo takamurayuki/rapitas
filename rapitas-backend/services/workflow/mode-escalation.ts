@@ -43,25 +43,42 @@ const NOTHING_OPEN = /^(?:[-*]\s*)?(?:なし|特になし|無し|none|n\/a)\s*[�
  * @returns Number of open items / 未確定事項の件数
  */
 export function countOpenItems(markdown: string | null | undefined): number {
-  if (!markdown) return 0;
+  return listOpenItems(markdown).length;
+}
+
+/**
+ * The items listed under research.md's 未確定事項 heading, as plain text.
+ *
+ * @param markdown - research.md body / 調査レポート本文
+ * @returns Item texts, checkbox and bullet markers removed / 未確定事項の本文
+ */
+export function listOpenItems(markdown: string | null | undefined): string[] {
+  if (!markdown) return [];
   const lines = markdown.split(/\r?\n/);
   const start = lines.findIndex((l) => OPEN_ITEMS_HEADING.test(l.trim()));
-  if (start < 0) return 0;
-  let count = 0;
+  if (start < 0) return [];
+  const items: string[] = [];
   let tableRow = 0;
   for (const raw of lines.slice(start + 1)) {
     const line = raw.trim();
     if (/^#{1,2}\s/.test(line)) break;
     if (!line || NOTHING_OPEN.test(line)) continue;
     if (/^[-*]\s+\S/.test(line) || /^\d+\.\s+\S/.test(line)) {
-      count += 1;
+      items.push(line.replace(/^(?:[-*]|\d+\.)\s+(?:\[[ xX]\]\s*)?/, ''));
     } else if (line.startsWith('|')) {
       tableRow += 1;
       // Row 1 is the header and row 2 the separator.
-      if (tableRow > 2 && !/^\|[\s:|-]+\|$/.test(line)) count += 1;
+      if (tableRow > 2 && !/^\|[\s:|-]+\|$/.test(line)) {
+        items.push(
+          line
+            .replace(/^\||\|$/g, '')
+            .split('|')[0]
+            .trim(),
+        );
+      }
     }
   }
-  return count;
+  return items;
 }
 
 /**
