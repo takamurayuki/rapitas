@@ -19,14 +19,14 @@ interface HomeExpandedFiltersProps {
   /** Theme-scoped labels — the LABEL row is hidden when this is empty. */
   labels: Label[];
   labelFilter: number | null;
-  sortBy: 'createdAt' | 'priority' | 'title';
+  sortBy: 'createdAt' | 'priority' | 'title' | 'dueDate';
   sortOrder: 'asc' | 'desc';
   isFilterExpanded: boolean;
   statusCounts: StatusCounts;
   onFilterChange: (status: string) => void;
   onPriorityChange: (priority: Priority | null) => void;
   onLabelChange: (labelId: number | null) => void;
-  onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title') => void;
+  onSortByChange: (sortBy: 'createdAt' | 'priority' | 'title' | 'dueDate') => void;
   onSortOrderToggle: () => void;
 }
 
@@ -202,6 +202,7 @@ export function HomeExpandedFilters({
               <option value="createdAt">CREATED</option>
               <option value="title">TITLE</option>
               <option value="priority">PRIORITY</option>
+              <option value="dueDate">{t('sortDueDate')}</option>
             </select>
             <button
               onClick={onSortOrderToggle}
