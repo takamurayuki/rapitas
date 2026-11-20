@@ -26,6 +26,31 @@ const SETUP_TIMEOUT_MS = 120_000;
 export interface PreflightOpts {
   /** Prepares a non-rapitas project's dependencies. / 非 rapitas プロジェクトの依存を準備 */
   bootstrap?: (worktreePath: string) => Promise<unknown>;
+  /** Copies scripts/run-checked.cjs into the worktree. / 検査ラッパーを配置 */
+  wrapper?: (worktreePath: string) => Promise<unknown>;
+}
+
+/**
+ * Put rapitas's `scripts/run-checked.cjs` into a worktree that lacks it.
+ *
+ * NOTE: Every implementer and verifier prompt says to verify through that
+ * wrapper, and only the manual execute route copied it in, so an auto-run
+ * worktree of a generated project never had it — task 1512 stopped to ask
+ * for a check environment (2026-11-20). Warns instead of throwing, like the
+ * dependency preparation.
+ */
+async function ensureWrapper(worktreePath: string, opts: PreflightOpts): Promise<void> {
+  try {
+    if (opts.wrapper) {
+      await opts.wrapper(worktreePath);
+      return;
+    }
+    const { ensureRunCheckedWrapper, defaultWrapperSource } =
+      await import('./worktree-command-wrapper');
+    await ensureRunCheckedWrapper(worktreePath, defaultWrapperSource(import.meta.dir));
+  } catch (err) {
+    logger.warn({ err, worktreePath }, '[preflight] could not place scripts/run-checked.cjs');
+  }
 }
 
 /**
@@ -97,6 +122,9 @@ export async function preflightWorktree(
     }
     return;
   }
+
+  // Before the manifest checks: a Go-only project still verifies through it.
+  await ensureWrapper(worktreePath, opts);
 
   // NOTE: Sub-package manifests count too. trendline is a Go root with only
   // web/package.json; returning on "no root package.json" skipped the

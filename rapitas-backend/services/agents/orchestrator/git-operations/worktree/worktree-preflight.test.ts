@@ -275,3 +275,35 @@ describe('preflightReusedWorktree', () => {
     expect(warnCalls.length).toBe(1);
   });
 });
+
+// Task 1512 (2026-11-20) stopped to ask for a check environment: the prompts
+// tell every agent to verify through `node scripts/run-checked.cjs`, and only
+// the manual execute route copied it in. An auto-run worktree never had it.
+describe('preflightWorktree — the run-checked wrapper', () => {
+  test('copies the wrapper into a project with no setup script', async () => {
+    const dir = await makeWorktree('wrapper-unmanaged', { withPackageJson: false });
+    const wrapper = mock(() => Promise.resolve('copied'));
+
+    await preflightWorktree(dir, { wrapper });
+
+    expect(wrapper).toHaveBeenCalledTimes(1);
+    expect(wrapper.mock.calls[0]).toEqual([dir]);
+  });
+
+  test('leaves rapitas worktrees alone — they ship the script', async () => {
+    const dir = await makeWorktree('wrapper-managed', { withScript: true });
+    const wrapper = mock(() => Promise.resolve('copied'));
+
+    await preflightWorktree(dir, { wrapper });
+
+    expect(wrapper).not.toHaveBeenCalled();
+  });
+
+  test('only warns when the wrapper cannot be copied', async () => {
+    const dir = await makeWorktree('wrapper-broken', { withPackageJson: false });
+    const wrapper = mock(() => Promise.reject(new Error('EACCES')));
+
+    await expect(preflightWorktree(dir, { wrapper })).resolves.toBeUndefined();
+    expect(warnCalls.length).toBe(1);
+  });
+});
