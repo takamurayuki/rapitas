@@ -22,6 +22,8 @@ import { RapiAvatarDock } from './avatar/RapiAvatarDock';
 import { RapiAvatarPanel } from './panel/RapiAvatarPanel';
 import { placePanel, useRapiDrag } from './avatar/drag';
 import { useRapiAvatarState } from './state/useRapiAvatarState';
+import { runningLines } from './state/running-lines';
+import type { DockLine } from './avatar';
 import { isAppShellHidden } from '@/utils/app-shell';
 import { RapiFloatBridge } from './float/RapiFloatBridge';
 import { useRapiEnvironment } from './float/rapi-environment';
@@ -45,6 +47,7 @@ const PANEL_WIDTH_PX = 448;
  */
 export function RapiAvatarResident() {
   const t = useTranslations('rapiAvatar');
+  const tw = useTranslations('workflow.statusIndicator');
   const { isDarkMode: ownDark } = useDarkMode();
   // In her own window the theme is the main window's, handed in (#1535).
   const env = useRapiEnvironment();
@@ -94,6 +97,20 @@ export function RapiAvatarResident() {
   // keeps movement and speech for when something is actually happening.
   const message = state === 'idle' ? undefined : t(`message.${state}`, { count: agents });
 
+  // While running she names the tasks and their phases, not just a count
+  // (reported 2026-11-20: 「エージェントが実行中です」 said nothing more).
+  const running = useMemo(() => runningLines(executions), [executions]);
+  const lines: DockLine[] | undefined =
+    state === 'running' && running.lines.length > 0
+      ? running.lines.map((l) => ({
+          key: String(l.id),
+          taskId: l.taskId,
+          title: l.title,
+          phase: l.phase ? tw(l.phase) : undefined,
+        }))
+      : undefined;
+  const more = running.more > 0 ? t('message.runningMore', { count: running.more }) : undefined;
+
   return (
     <>
       {everOpened && (
@@ -120,6 +137,8 @@ export function RapiAvatarResident() {
         // The bubble steps aside while the panel is up; two things
         // speaking at once in one corner is what this change removed.
         message={open ? undefined : message}
+        lines={open ? undefined : lines}
+        more={lines ? more : undefined}
         onClick={toggle}
         drag={drag}
       />

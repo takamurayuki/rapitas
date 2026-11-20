@@ -19,7 +19,14 @@ const handleDismiss = vi.fn();
 
 /** What `useResumableExecutions` reports; replaced per test. */
 let executionState: {
-  executions: { id: number; taskId: number; taskTitle: string; status: string }[];
+  executions: {
+    id: number;
+    taskId: number;
+    taskTitle: string;
+    status: string;
+    workflowStatus?: string;
+    workflowMode?: string;
+  }[];
   runningCount: number;
   interruptedCount: number;
 };
@@ -103,6 +110,21 @@ const say = (what: string) => {
 };
 
 describe('the corner', () => {
+  // Reported 2026-11-20: she said only 「エージェントが実行中です」.
+  it('names the running task and its phase in the bubble', () => {
+    executionState = {
+      executions: [
+        { ...exec(1, 'running'), workflowStatus: 'in_progress', workflowMode: 'standard' },
+      ],
+      runningCount: 1,
+      interruptedCount: 0,
+    };
+    render(<RapiAvatarHost />);
+    expect(screen.getByText('task 1')).toBeTruthy();
+    expect(screen.getByText('workflow.statusIndicator.verifying')).toBeTruthy();
+    expect(screen.queryByText('rapiAvatar.message.running:1')).toBeNull();
+  });
+
   // The whole point of the change: nothing is parked there any more.
   it('holds only the avatar until it is asked', () => {
     render(<RapiAvatarHost />);
@@ -114,7 +136,9 @@ describe('the corner', () => {
     render(<RapiAvatarHost />);
     fireEvent.click(avatarButton());
     expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(screen.getByTestId('exec-1')).toBeTruthy();
+    // A running execution is named in her bubble, not carded in the chat
+    // (reported 2026-11-20).
+    expect(screen.queryByTestId('exec-1')).toBeNull();
   });
 
   it('closes again on a second click', () => {
@@ -197,9 +221,9 @@ describe('the corner', () => {
   // Two things talking at once in one corner is what this removed.
   it('hushes the bubble while the panel is up', () => {
     render(<RapiAvatarHost />);
-    expect(screen.getByText('rapiAvatar.message.running:1')).toBeTruthy();
+    expect(screen.getByText('task 1')).toBeTruthy();
     fireEvent.click(avatarButton());
-    expect(screen.queryByText('rapiAvatar.message.running:1')).toBeNull();
+    expect(screen.queryByText('task 1')).toBeNull();
   });
 });
 
