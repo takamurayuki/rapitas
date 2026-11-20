@@ -26,6 +26,8 @@ interface Script {
   stdout?: string;
   stderr?: string;
   code?: number;
+  /** Fail to spawn, as a busy host does (the probe never gets an answer). */
+  spawnError?: boolean;
 }
 
 class MockChild extends EventEmitter {
@@ -39,6 +41,10 @@ class MockChild extends EventEmitter {
     this.stdin = Object.assign(new EventEmitter(), {
       end: () => {
         setImmediate(() => {
+          if (script.spawnError) {
+            this.emit('error', new Error('spawn EBUSY'));
+            return;
+          }
           if (script.stdout) this.stdout.emit('data', script.stdout);
           if (script.stderr) this.stderr.emit('data', script.stderr);
           this.emit('close', script.code ?? 0);
@@ -265,5 +271,39 @@ describe('stderr-only failure reasons survive (G2 finding 2)', () => {
     expect(((await ask().catch((e: unknown) => e)) as Error).message).toContain(
       'did not complete a turn',
     );
+  });
+});
+
+// 2026-11-20: right after a deploy the host was busy, `codex login status`
+// did not answer in time, and the probe reported "not logged in" for five
+// minutes — so every phase routed away from Codex although it was logged in.
+describe('a login probe that cannot run is not a missing login', () => {
+  test('reports probe_failed and re-checks within a minute, not five', async () => {
+    scripts = [{ stdout: 'codex-cli 0.164.0' }, { spawnError: true }];
+    expect(await getCodexCliStatus()).toBe('probe_failed');
+
+    const realNow = Date.now;
+    try {
+      const t0 = realNow();
+      Date.now = () => t0 + 45_000;
+      scripts = [{ stdout: 'codex-cli 0.164.0' }, CHATGPT];
+      expect(await getCodexCliStatus()).toBe('ready');
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  test('a real "not logged in" answer still waits the full recheck', async () => {
+    scripts = [{ stdout: 'codex-cli 0.164.0' }, { stdout: 'Not logged in', code: 1 }];
+    expect(await getCodexCliStatus()).toBe('not_logged_in');
+    const realNow = Date.now;
+    try {
+      const t0 = realNow();
+      Date.now = () => t0 + 45_000;
+      scripts = [{ stdout: 'codex-cli 0.164.0' }, CHATGPT];
+      expect(await getCodexCliStatus()).toBe('not_logged_in');
+    } finally {
+      Date.now = realNow;
+    }
   });
 });

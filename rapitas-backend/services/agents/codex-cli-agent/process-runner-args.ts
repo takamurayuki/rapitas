@@ -168,7 +168,12 @@ export function buildCodexArgs(
     args.push(headline);
     promptForStdin = prompt;
   } else {
-    args.push(prompt);
+    // NOTE: `-` makes `codex exec` read the prompt from stdin, the same as the
+    // resume path above. A positional prompt hit the Windows command-line
+    // limit (ENAMETOOLONG, ~32k chars) the first time a verifier ran on Codex
+    // (task 1508, 2026-11-20).
+    args.push('-');
+    promptForStdin = prompt;
   }
 
   return { args, promptForStdin };
