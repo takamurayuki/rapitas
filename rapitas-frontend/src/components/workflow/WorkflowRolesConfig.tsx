@@ -9,7 +9,7 @@
  * model of each role are not configured here: they are built automatically
  * from the providers this host can run (`GET /workflow/phase-routing`).
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { useTranslations } from 'next-intl';
@@ -117,7 +117,6 @@ interface PhaseRoutingResponse {
 
 export default function WorkflowRolesConfig() {
   const t = useTranslations('workflow');
-  const tc = useTranslations('common');
   const ROLE_CONFIG = useMemo(() => getRoleConfig(t), [t]);
   const MODE_META = useMemo(() => getModeMeta(t), [t]);
   const { roles, isLoading, error, updateRole } = useWorkflowRoles();
@@ -128,7 +127,6 @@ export default function WorkflowRolesConfig() {
 
   const [modes, setModes] = useState<ModeSettings[]>([]);
   const [activeTab, setActiveTab] = useState<ModeKey>('standard');
-  const [savingMode, setSavingMode] = useState<ModeKey | null>(null);
 
   const [routing, setRouting] = useState<Partial<Record<WorkflowRole, RoleRoutingRule>>>({});
   useEffect(() => {
@@ -172,26 +170,6 @@ export default function WorkflowRolesConfig() {
 
   const activeMode = modes.find((m) => m.mode === activeTab);
 
-  const saveMode = useCallback(async (mode: ModeKey, patch: Partial<ModeSettings>) => {
-    setSavingMode(mode);
-    setModes((prev) => prev.map((m) => (m.mode === mode ? { ...m, ...patch } : m)));
-    try {
-      const res = await fetch(`${API_BASE_URL}/workflow-modes/${mode}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.mode) setModes((prev) => prev.map((m) => (m.mode === mode ? data.mode : m)));
-      }
-    } catch (err) {
-      logger.error('Failed to save workflow mode:', err);
-    } finally {
-      setSavingMode(null);
-    }
-  }, []);
-
   const handlePromptChange = async (role: WorkflowRole, systemPromptKey: string | null) => {
     setSavingRole(role);
     const result = await updateRole(role, { systemPromptKey });
@@ -232,27 +210,9 @@ export default function WorkflowRolesConfig() {
 
   const tabRoles = activeMode ? rolesForMode(activeMode) : [];
 
-  // Complexity partition is contiguous and derived from two editable
-  // boundaries: lightweight's END and comprehensive's START. Lightweight always
-  // starts at 0; comprehensive always ends at 100; standard fills the middle and
-  // is computed (display-only).
-  const lightMax = modes.find((m) => m.mode === 'lightweight')?.complexityMax ?? 35;
-  const compMin = modes.find((m) => m.mode === 'comprehensive')?.complexityMin ?? 71;
-  const stdMin = lightMax + 1;
-  const stdMax = compMin - 1;
-
-  /** Set lightweight's end (and standard's derived start). */
-  const setLightMax = (v: number) => {
-    const max = Math.max(0, Math.min(98, v));
-    saveMode('lightweight', { complexityMin: 0, complexityMax: max });
-    saveMode('standard', { complexityMin: max + 1 });
-  };
-  /** Set comprehensive's start (and standard's derived end). */
-  const setCompMin = (v: number) => {
-    const min = Math.max(1, Math.min(100, v));
-    saveMode('comprehensive', { complexityMin: min, complexityMax: 100 });
-    saveMode('standard', { complexityMax: min - 1 });
-  };
+  // NOTE: The complexity bands are fixed in the backend (workflow-mode-config.ts)
+  // and are shown, not edited: hand-set ranges drifted until a band matched
+  // no score (2026-11-20).
 
   const readonlyBox = (val: number | string) => (
     <span className="w-16 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center text-zinc-500 dark:text-zinc-400">
@@ -292,52 +252,15 @@ export default function WorkflowRolesConfig() {
             <div className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
               <span className="font-semibold">{MODE_META[activeTab].label}</span>
               <span className="ml-2 text-[11px] text-zinc-500">{MODE_META[activeTab].desc}</span>
-              {savingMode === activeTab && (
-                <span className="ml-2 text-[10px] text-zinc-500">{tc('saving')}</span>
-              )}
             </div>
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
               <span>{t('rolesConfig.complexityRangeLabel')}</span>
-              {activeTab === 'lightweight' && (
-                <>
-                  {readonlyBox(0)}
-                  <span>〜</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={98}
-                    value={activeMode.complexityMax}
-                    onChange={(e) => setLightMax(Number(e.target.value))}
-                    className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                    aria-label={t('rolesConfig.lightweightMaxLabel')}
-                  />
-                </>
-              )}
-              {activeTab === 'standard' && (
-                <>
-                  {readonlyBox(stdMin)}
-                  <span>〜</span>
-                  {readonlyBox(stdMax)}
-                  <span className="text-zinc-500 dark:text-zinc-500">
-                    {t('rolesConfig.standardRangeAutoComputed')}
-                  </span>
-                </>
-              )}
-              {activeTab === 'comprehensive' && (
-                <>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={activeMode.complexityMin}
-                    onChange={(e) => setCompMin(Number(e.target.value))}
-                    className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                    aria-label={t('rolesConfig.comprehensiveMinLabel')}
-                  />
-                  <span>〜</span>
-                  {readonlyBox(100)}
-                </>
-              )}
+              {readonlyBox(activeMode.complexityMin)}
+              <span>〜</span>
+              {readonlyBox(activeMode.complexityMax)}
+              <span className="text-zinc-500 dark:text-zinc-500">
+                {t('rolesConfig.complexityRangeFixed')}
+              </span>
             </div>
           </div>
 

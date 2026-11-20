@@ -107,6 +107,15 @@ both are usable. The per-role agent, model and provider fields of
 model are no longer read for phases; the agents page shows the result
 read-only (`GET /workflow/phase-routing`).
 
+Which phases run is decided the same way. The research agent's complexity
+score picks the mode from fixed bands in `services/workflow/workflow-mode-config.ts`
+(lightweight 0–35 with no plan phase, standard 36–70, comprehensive 71–100);
+ranges stored in `WorkflowModeConfig` are ignored. A lightweight score is then
+promoted to standard by `services/workflow/mode-escalation.ts` when research
+left the task unsettled: items under `## 未確定事項` in research.md, a failed
+research critic, or acceptance criteria that intake had to rewrite. Size picks
+the band; uncertainty decides whether a planner runs.
+
 Wired in through `services/workflow/role-route-inputs.ts` (`routeModelForRole`)
 for every phase, it computes escalation
 (`queueItem.retryCount` + `outcome-telemetry.ts`'s

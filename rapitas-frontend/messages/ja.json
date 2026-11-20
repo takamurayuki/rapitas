@@ -2999,9 +2999,6 @@
       "tierComprehensiveDesc": "大規模機能・アーキテクチャ変更",
       "loading": "ロール設定を読み込み中...",
       "complexityRangeLabel": "このワークフローを適用する複雑度範囲",
-      "lightweightMaxLabel": "簡単の複雑度上限",
-      "standardRangeAutoComputed": "（簡単・高度の設定から自動算出）",
-      "comprehensiveMinLabel": "詳細の複雑度下限",
       "tierRolesCount": "このティアで実行するロール（{count}フェーズ）",
       "autoSelect": "自動",
       "enableRoleLabel": "{role}を有効化",
@@ -3014,7 +3011,8 @@
       "autoRuleLoading": "このホストで使えるプロバイダを確認しています",
       "autoRuleFollowUpstream": "使えるプロバイダの中から、モデルティア表に沿って選びます。前のフェーズと同じプロバイダを優先します",
       "autoRuleDifferentProvider": "実装と別のプロバイダで、実装役と同じティア以上のモデルを選びます",
-      "autoRuleDifferentProviderUnavailable": "別のプロバイダが使えないため、実装と同じプロバイダで検証します。Codex などを使える状態にすると自動で切り替わります"
+      "autoRuleDifferentProviderUnavailable": "別のプロバイダが使えないため、実装と同じプロバイダで検証します。Codex などを使える状態にすると自動で切り替わります",
+      "complexityRangeFixed": "（固定。調査で未確定事項が残ると、軽量は標準に引き上げられます）"
     },
     "statusIndicator": {
       "researching": "調査中",

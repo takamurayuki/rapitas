@@ -75,10 +75,16 @@ export function invalidateModeConfigCache(): void {
 }
 
 /**
- * Parse a persisted row's `stepDefinitions` JSON into the toggle settings.
- * Falls back to the mode's built-in defaults for any missing field.
+ * Parse a persisted row into settings. Phase toggles and isEnabled come from
+ * the row; the complexity range is always the built-in band.
+ *
+ * NOTE: Stored ranges are ignored (2026-11-20). Hand-set ranges drifted —
+ * workspace 2's standard band was 4-7, so scores 8-70 matched no mode.
+ *
+ * @param row - Persisted WorkflowModeConfig row / 保存済みの行
+ * @returns Settings for the mode / モード設定
  */
-function parseRow(row: {
+export function parseModeRow(row: {
   mode: string;
   stepDefinitions: string;
   complexityMin: number;
@@ -101,8 +107,8 @@ function parseRow(row: {
     mode,
     includePlan: toggles.includePlan ?? fallback.includePlan,
     autoVerify: toggles.autoVerify ?? fallback.autoVerify,
-    complexityMin: row.complexityMin ?? fallback.complexityMin,
-    complexityMax: row.complexityMax ?? fallback.complexityMax,
+    complexityMin: fallback.complexityMin,
+    complexityMax: fallback.complexityMax,
     isEnabled: row.isEnabled ?? fallback.isEnabled,
   };
 }
@@ -266,7 +272,7 @@ export async function getAllModeSettings(): Promise<Record<WorkflowMode, Workflo
     const result = {} as Record<WorkflowMode, WorkflowModeSettings>;
     for (const m of Object.keys(DEFAULT_MODE_SETTINGS) as WorkflowMode[]) {
       const row = byMode.get(m);
-      result[m] = row ? parseRow(row) : DEFAULT_MODE_SETTINGS[m];
+      result[m] = row ? parseModeRow(row) : DEFAULT_MODE_SETTINGS[m];
     }
     cache = result;
     return result;
