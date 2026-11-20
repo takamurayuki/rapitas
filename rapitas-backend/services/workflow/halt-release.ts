@@ -202,3 +202,38 @@ async function queueReverify(taskId: number, themeId: number | null): Promise<vo
     );
   }
 }
+
+/**
+ * Halt reasons a person's answer to the task's question lifts: the ones whose
+ * resumeCondition asks for a new hypothesis. Spending ceilings (time, cost,
+ * attempts) stay — answering a question is not a decision to spend more.
+ */
+const ANSWER_RELEASABLE_HALTS = new Set(['no_progress', 'repeat_cause_detected']);
+
+/**
+ * Release a no-progress or repeat-cause halt because a person answered the
+ * task's question.
+ *
+ * NOTE: Task 520 (2026-11-20) was halted for no progress, asked two questions,
+ * and stayed halted after a person answered both: auto-run never selected it
+ * again until an operator released it by hand. The answer IS the new
+ * hypothesis the halt asks for, so it is recorded as one.
+ *
+ * @param taskId - Task that was answered / 回答されたタスク
+ * @param answer - The person's answer / 回答本文
+ * @param actorLabel - Who answered, for the audit record / 回答者ラベル
+ * @returns True when a halt was released / 解除した場合 true
+ */
+export async function releaseHaltOnHumanAnswer(
+  taskId: number,
+  answer: string,
+  actorLabel: string,
+): Promise<boolean> {
+  const task = (await prisma.task
+    .findUnique({ where: { id: taskId }, select: { haltReason: true } })
+    .catch(() => null)) as { haltReason: string | null } | null;
+  if (!task?.haltReason || !ANSWER_RELEASABLE_HALTS.has(task.haltReason)) return false;
+  const hypothesis = `質問への回答: ${answer.trim()}`.slice(0, 2000);
+  const result = await releaseTaskHalt(taskId, hypothesis, actorLabel);
+  return result.ok;
+}

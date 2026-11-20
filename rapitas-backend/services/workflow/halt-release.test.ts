@@ -49,7 +49,7 @@ mock.module('./transition-recorder', () => ({
   },
 }));
 
-const { releaseTaskHalt, HALT_RELEASED_CAUSE, MIN_HYPOTHESIS_CHARS } =
+const { releaseTaskHalt, releaseHaltOnHumanAnswer, HALT_RELEASED_CAUSE, MIN_HYPOTHESIS_CHARS } =
   await import('./halt-release');
 
 const HYPOTHESIS =
@@ -146,5 +146,42 @@ describe('releaseTaskHalt', () => {
 
   test('仮説の最小長は呼び出し側が検証できるよう公開されている', () => {
     expect(MIN_HYPOTHESIS_CHARS).toBeGreaterThan(0);
+  });
+});
+
+// Task 520 (2026-11-20): halted for no progress, it asked two questions and a
+// person answered both, yet it stayed halted — auto-run skipped it until an
+// operator released it by hand. A person's answer is the new hypothesis a
+// no-progress halt asks for; it does not lift a spending ceiling.
+describe('releaseHaltOnHumanAnswer', () => {
+  test('releases a no-progress halt, recording the answer as the hypothesis', async () => {
+    taskRow = { haltReason: 'no_progress', workflowStatus: 'research_done' };
+    const released = await releaseHaltOnHumanAnswer(520, '方針Aで計画を改訂する', 'ユーザー選択');
+    expect(released).toBe(true);
+    expect(updates[0]).toMatchObject({ haltReason: null });
+    expect(transitions[0]).toMatchObject({ cause: HALT_RELEASED_CAUSE });
+    expect(JSON.stringify(transitions[0])).toContain('方針Aで計画を改訂する');
+  });
+
+  test('releases a repeat-cause halt too', async () => {
+    taskRow = { haltReason: 'repeat_cause_detected', workflowStatus: 'plan_approved' };
+    expect(await releaseHaltOnHumanAnswer(1, '別の原因を調べる方針にした', 'ユーザー選択')).toBe(
+      true,
+    );
+  });
+
+  test.each(['budget_cost_exceeded', 'budget_time_exceeded', 'budget_attempts_exceeded'])(
+    'leaves %s in place — an answer is not a spending decision',
+    async (haltReason) => {
+      taskRow = { haltReason, workflowStatus: 'plan_approved' };
+      expect(await releaseHaltOnHumanAnswer(1, '方針を変えて再開する', 'ユーザー選択')).toBe(false);
+      expect(updates).toEqual([]);
+    },
+  );
+
+  test('does nothing for a task that is not halted', async () => {
+    taskRow = { haltReason: null, workflowStatus: 'plan_approved' };
+    expect(await releaseHaltOnHumanAnswer(1, '回答', 'ユーザー選択')).toBe(false);
+    expect(transitions).toEqual([]);
   });
 });

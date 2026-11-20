@@ -48,6 +48,11 @@ mock.module('./workflow-handlers-resume-continuation', () => ({
   handleResumeFromQuestion: mock(() => Promise.resolve()),
 }));
 
+const releaseHaltMock = mock(() => Promise.resolve(true));
+mock.module('../../../services/workflow/halt-release', () => ({
+  releaseHaltOnHumanAnswer: releaseHaltMock,
+}));
+
 const { handleAnswerWorkflowQuestion } = await import('./workflow-handlers-resume');
 
 function call() {
@@ -108,5 +113,22 @@ describe('handleAnswerWorkflowQuestion plan revision re-dispatch', () => {
     } as never);
     await call();
     expect(redispatchMock).not.toHaveBeenCalled();
+  });
+});
+
+// Task 520 (2026-11-20): answered while halted for no progress, it stayed
+// halted and auto-run never picked it again. The answer must reach the halt.
+describe('handleAnswerWorkflowQuestion — a halted task', () => {
+  test('hands the answer to the halt release, with who answered', async () => {
+    releaseHaltMock.mockClear();
+    await call();
+    expect(releaseHaltMock).toHaveBeenCalledWith(7, '計画を改訂する', 'ユーザー選択');
+  });
+
+  test('a failed release does not fail the answer', async () => {
+    releaseHaltMock.mockClear();
+    releaseHaltMock.mockRejectedValueOnce(new Error('db down'));
+    const res = await call();
+    expect(res.ok).toBe(true);
   });
 });
