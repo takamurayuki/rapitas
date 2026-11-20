@@ -41,6 +41,14 @@ const t = (
   cause: string | null = 'phase_completed',
 ): StatusTransitionSample => ({ fromStatus, toStatus, cause });
 
+/** A verify_repair bounce carrying the reason the system recorded. */
+const r = (fromStatus: string, toStatus: string, reason: string): StatusTransitionSample => ({
+  fromStatus,
+  toStatus,
+  cause: 'verify_repair',
+  reason,
+});
+
 describe('isResetTransitionCause', () => {
   test('reset 系 cause を判定する', () => {
     for (const c of [
@@ -85,12 +93,47 @@ describe('countNonAdvancingTransitions', () => {
     expect(countNonAdvancingTransitions(seq)).toBe(2);
   });
 
-  test('同一 status の再記録は数え、halt 側 cause は除外される', () => {
+  // task 514 (2026-11-20): 9 件のうち 4 件は plan_critic_incomplete・
+  // task_spend_notice・verifier_eligibility_deferred のような同じ status の
+  // 記録で、状態を動かさない帳簿付けだった。足踏みの証拠にはならない。
+  test('同じ原因の同一 status 記録が繰り返されたら 2 回目から数える', () => {
     const seq = [
-      t('in_progress', 'in_progress'),
+      t('verify_done', 'verify_done', 'verify_pr_not_created'),
+      t('verify_done', 'verify_done', 'verify_pr_not_created'),
+      t('verify_done', 'verify_done', 'verify_pr_not_created'),
+    ];
+    expect(countNonAdvancingTransitions(seq)).toBe(2);
+  });
+
+  test('同一 status の記録は、原因ごとに初回は数えない（帳簿付けの記録であり後退ではない）', () => {
+    const seq = [
+      t('plan_created', 'plan_created', 'plan_critic_incomplete'),
+      t('in_progress', 'in_progress', 'task_spend_notice'),
+      t('verify_done', 'verify_done', 'verifier_eligibility_deferred'),
       t('in_progress', 'in_progress', 'iteration_budget_halted'),
     ];
-    expect(countNonAdvancingTransitions(seq, isHaltSideTransitionCause)).toBe(1);
+    expect(countNonAdvancingTransitions(seq, isHaltSideTransitionCause)).toBe(0);
+  });
+
+  // task 514: 差分レビューが毎回別の不備（実行権限、ポート重複…）を指摘し、
+  // それを直していた。新しい理由の差し戻しは進展であり、止めるべきは同じ
+  // 理由で戻され続けるときだけ。
+  test('理由が毎回違う差し戻しは数えない', () => {
+    const seq = [
+      r('verify_done', 'plan_approved', 'start.sh に実行権限がない'),
+      r('verify_done', 'plan_approved', 'Web ポートに API と同じ 8090 を指定できる'),
+      r('verify_done', 'plan_approved', 'bind 失敗の扱いが無い'),
+    ];
+    expect(countNonAdvancingTransitions(seq)).toBe(0);
+  });
+
+  test('同じ理由で戻されたら 2 回目から数える（数字の違いは同じ理由とみなす）', () => {
+    const seq = [
+      r('verify_done', 'plan_approved', 'テスト 12 件が失敗'),
+      r('verify_done', 'plan_approved', 'テスト 13 件が失敗'),
+      r('verify_done', 'plan_approved', 'テスト 12 件が失敗'),
+    ];
+    expect(countNonAdvancingTransitions(seq)).toBe(2);
   });
 
   test('fromStatus が null / 未知 status は数えない', () => {
@@ -123,4 +166,52 @@ describe('既定閾値での no_progress 判定', () => {
     expect(s.haltReason).toBe('no_progress');
     expect(s.diagnostics).toEqual({ statusRepeatCount: 2, attempts: 3, repeatLoop: null });
   });
+});
+
+// The DB row carries the reason inside metadata (a JSON string), not a field.
+describe('countNonAdvancingTransitions — reason from metadata', () => {
+  test('reads verify_repair reason out of the metadata JSON', () => {
+    const m = (reason: string): StatusTransitionSample => ({
+      fromStatus: 'verify_done',
+      toStatus: 'plan_approved',
+      cause: 'verify_repair',
+      metadata: JSON.stringify({ attempt: 1, reason }),
+    });
+    expect(countNonAdvancingTransitions([m('権限がない'), m('ポートが重複する')])).toBe(0);
+    expect(countNonAdvancingTransitions([m('権限がない'), m('権限がない')])).toBe(1);
+  });
+});
+
+describe('countNonAdvancingTransitions — questions and critic reasons', () => {
+  // task 514: five of its counted transitions were questions waiting for a person.
+  test('a question pausing for a person is not a step back', () => {
+    expect(
+      countNonAdvancingTransitions([
+        t('plan_approved', 'awaiting_question', 'file_saved:question'),
+        t('plan_approved', 'awaiting_question', 'file_saved:question'),
+      ]),
+    ).toBe(0);
+  });
+
+  test("reads a critic's reasons array, so a new critique is not a repeat", () => {
+    const c = (reasons: string[]): StatusTransitionSample => ({
+      fromStatus: 'research_done',
+      toStatus: 'draft',
+      cause: 'research_critic_failed',
+      metadata: JSON.stringify({ severity: 55, reasons }),
+    });
+    expect(countNonAdvancingTransitions([c(['根拠が無い']), c(['範囲が広すぎる'])])).toBe(0);
+  });
+});
+
+test('bookkeeping records never count, however often they repeat', () => {
+  const seq = [
+    t('plan_created', 'plan_created', 'plan_critic_incomplete'),
+    t('plan_created', 'plan_created', 'plan_critic_incomplete'),
+    t('in_progress', 'in_progress', 'task_spend_notice'),
+    t('in_progress', 'in_progress', 'task_spend_notice'),
+    t('verify_done', 'verify_done', 'verifier_eligibility_deferred'),
+    t('verify_done', 'verify_done', 'verifier_eligibility_deferred'),
+  ];
+  expect(countNonAdvancingTransitions(seq)).toBe(0);
 });
