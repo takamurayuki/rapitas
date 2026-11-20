@@ -60,6 +60,7 @@ const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
 const { GHOST_HOLDER_NAMES, recoverGhostSocket } = require('./ghost-socket-recovery.cjs');
+const { findOrphanWorktreeTrees } = require('./orphan-worktree-trees.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 const { syncForLaunch } = require('./dep-sync.cjs');
 const { pullOnLaunch, describePull, isPullEnabled, recordPullOnLaunch } = require('./dev-pull.cjs');
@@ -696,6 +697,10 @@ const ghostSocketCapturedPorts = new Set();
  * @param {number} port - The port whose ghost LISTEN triggered this sweep.
  */
 function killGhostHandleHolders(port) {
+  // A worktree dev stack can hold the handle with a live parent of its own,
+  // which the name-and-orphan rule below never matches (task 514, 2026-11-20).
+  const trees = killOrphanWorktreeTrees();
+  if (trees > 0) console.log(`  🧹 Killed ${trees} orphaned worktree tree(s) for port ${port}`);
   const script = `
 $live = @{}
 Get-CimInstance Win32_Process | ForEach-Object { $live[$_.ProcessId] = $_ }
@@ -1320,11 +1325,42 @@ function killStrayBackendHelpers() {
   return killed;
 }
 
+/**
+ * Kill orphaned process trees that run a task-worktree program
+ * (orphan-worktree-trees.cjs). The per-process rule in
+ * killStrayBackendHelpersWindows missed trendline task 514's dev stack: its
+ * orphaned root had no .worktrees in its command line, and its worktree
+ * programs had a live parent. It held :3001 as a ghost socket until it was
+ * killed by hand (2026-11-20).
+ *
+ * @param {Array<object>} [snapshot] - Win32_Process rows, when the caller has them / 取得済みのプロセス一覧
+ * @returns {number} Trees killed / 止めた木の数
+ */
+function killOrphanWorktreeTrees(snapshot) {
+  if (process.platform !== 'win32') return 0;
+  const all = snapshot || queryWin32Processes('ProcessId > 4');
+  const keep = new Set([process.pid]);
+  if (backend && backend.pid) keep.add(backend.pid);
+  let killed = 0;
+  for (const root of findOrphanWorktreeTrees(all, keep)) {
+    try {
+      execSync(`taskkill /F /T /PID ${root}`, { stdio: 'pipe' });
+      console.log(`  Killed orphaned worktree process tree PID ${root}`);
+      killed++;
+    } catch {
+      // Already gone, or exited between the snapshot and the kill.
+    }
+  }
+  return killed;
+}
+
 function killStrayBackendHelpersWindows() {
   // 1回のスナップショットを対象抽出と親生死判定の両方に使う。
   const all = queryWin32Processes('ProcessId > 4');
   const alivePids = new Set(all.map((p) => Number(p.ProcessId)));
-  let killed = 0;
+  // NOTE: Whole trees first — the per-process rule below misses them (see
+  // killOrphanWorktreeTrees).
+  let killed = killOrphanWorktreeTrees(all);
   for (const proc of all) {
     const pid = Number(proc.ProcessId);
     if (!Number.isInteger(pid) || pid === process.pid) continue;
