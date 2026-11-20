@@ -1699,6 +1699,7 @@
     "message": {
       "thinking": "進め方を検討しています。",
       "running": "{count, plural, =1 {エージェントが実行中です。} other {#件のエージェントが並列で実行中です。}}",
+      "runningMore": "ほか{count}件",
       "waiting": "承認待ちのタスクがあります。",
       "done": "タスクが完了しました。",
       "error": "タスクがブロックされました。"

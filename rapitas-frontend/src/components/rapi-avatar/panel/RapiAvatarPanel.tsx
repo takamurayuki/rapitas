@@ -145,6 +145,13 @@ export function RapiAvatarPanel({
         ? t('interruptedWork')
         : ta('name');
 
+  // NOTE: Running executions are no longer cards in the chat: ラピ's status
+  // bubble names them and their phase (reported 2026-11-20). Only the ones
+  // that need a hand — interrupted, to resume or dismiss — stay here.
+  const actionable = executions.filter(
+    (e) => e.status !== 'running' && e.status !== 'waiting_for_input',
+  );
+
   const bubble = useRef<HTMLDivElement>(null);
   usePanelPresence(bubble, open, onClose, !!useRapiEnvironment()?.floating);
 
@@ -231,9 +238,9 @@ export function RapiAvatarPanel({
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={log} onScroll={follow.onScroll} className="min-h-0 flex-1 overflow-y-auto">
-          {executions.length > 0 && (
+          {actionable.length > 0 && (
             <div className="space-y-2 border-b border-zinc-200 p-2 dark:border-zinc-700">
-              {executions.map((exec) => (
+              {actionable.map((exec) => (
                 <ExecutionItem
                   key={exec.id}
                   exec={exec}
