@@ -59,6 +59,7 @@ const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-fronten
 const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
+const { GHOST_HOLDER_NAMES, recoverGhostSocket } = require('./ghost-socket-recovery.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 const { syncForLaunch } = require('./dep-sync.cjs');
 const { pullOnLaunch, describePull, isPullEnabled, recordPullOnLaunch } = require('./dev-pull.cjs');
@@ -702,7 +703,7 @@ $killed = @()
 foreach ($p in $live.Values) {
   if ($p.SessionId -eq 0) { continue }
   if ($live.ContainsKey($p.ParentProcessId)) { continue }
-  if ($p.Name -notmatch '^(find|tail|node|esbuild|vitest|msedge|msedgewebview2|curl|tsc|git|claude|bun)\.exe$') { continue }
+  if ($p.Name -notmatch '${GHOST_HOLDER_NAMES.source}') { continue }
   $cl = "$($p.CommandLine)"
   if ($p.Name -eq 'claude.exe' -and $cl -notmatch '--print') { continue }
   if ($p.Name -eq 'bun.exe' -and ($cl -match 'dev:stable|index\.ts|agent-worker')) { continue }
@@ -975,11 +976,18 @@ function forceKillAllOnPort(port, maxRetries = 5) {
       // netstatでは見えるがプロセスは存在しない = ゾンビソケット
       console.log(`  Port ${port} shows in netstat but no active process (zombie socket).`);
       const reportedPid = [...getProcessesOnPort(port)][0] ?? null;
-      if (reportedPid !== null) {
-        killGhostHandleHolders(port);
-        captureGhostSocketDiagnostics(port, reportedPid);
-      }
-      return true;
+      if (reportedPid === null) return true;
+      // NOTE: Sweep until it is really gone (ghost-socket-recovery.cjs). This
+      // used to sweep once and report success, and the new backend then bound
+      // beside the ghost (2026-11-20, three outages).
+      const recovery = recoverGhostSocket(port, {
+        isPortListening,
+        liveListeningPids: getListeningPids,
+        sweep: killGhostHandleHolders,
+        sleep: sleepSync,
+      });
+      if (!recovery.cleared) captureGhostSocketDiagnostics(port, reportedPid);
+      return recovery.cleared;
     }
 
     let killedAny = false;
@@ -1956,6 +1964,34 @@ function showBalloon(title, body) {
   }
 }
 
+const BACKEND_START_RETRY_MS = 15000;
+const BACKEND_START_MAX_RETRIES = 20;
+let backendStartRetries = 0;
+let backendStartRetryTimer = null;
+
+/**
+ * Try the backend start again later. A refused start used to be final: on
+ * 2026-11-20 another project's dev server held :3001 for half an hour after it
+ * left, and nothing retried once it was gone.
+ */
+function scheduleBackendStartRetry() {
+  if (backendStartRetryTimer) return;
+  if (backendStartRetries >= BACKEND_START_MAX_RETRIES) {
+    console.error(
+      `❌ Gave up starting the backend after ${backendStartRetries} retries — free port ${actualBackendPort} and restart.`,
+    );
+    return;
+  }
+  backendStartRetries += 1;
+  console.log(
+    `  Retrying the backend start in ${BACKEND_START_RETRY_MS / 1000}s (${backendStartRetries}/${BACKEND_START_MAX_RETRIES})...`,
+  );
+  backendStartRetryTimer = setTimeout(() => {
+    backendStartRetryTimer = null;
+    startBackend();
+  }, BACKEND_START_RETRY_MS);
+}
+
 function startBackend(retryCount = 0) {
   // 二重 spawn の最後の歯止め。`backend` は単一変数なので、生きているプロセスを
   // 上書きすると前のプロセスが追跡不能のまま :3001 を LISTEN し続ける
@@ -1975,6 +2011,17 @@ function startBackend(retryCount = 0) {
   // ソケットに分散する(2026-10-10 実測: 生存3つ + 死んだPIDのゴースト1つが
   // 同時 LISTEN し、接続はゴーストに吸われて全滅した)。起動を止めて理由を
   // 出すほうが、黙って4つ目を作るより回復が早い。
+  // A ghost (listening, owner dead) is not in getListeningPids, so the check
+  // below used to pass and the new backend bound beside it (2026-11-20).
+  if (isPortListening(actualBackendPort) && getListeningPids(actualBackendPort).size === 0) {
+    if (!forceKillAllOnPort(actualBackendPort)) {
+      console.error(
+        `❌ Refusing to start the backend: a ghost socket still holds port ${actualBackendPort}.`,
+      );
+      scheduleBackendStartRetry();
+      return;
+    }
+  }
   const holders = [...getListeningPids(actualBackendPort)].filter((p) => p !== process.pid);
   if (holders.length > 0) {
     console.error(
@@ -1983,8 +2030,10 @@ function startBackend(retryCount = 0) {
         'connections between them. Reclaim the port first (forceKillAllOnPort / ' +
         'killGhostHandleHolders) — a held port is recoverable, a duplicate backend is not.',
     );
+    scheduleBackendStartRetry();
     return;
   }
+  backendStartRetries = 0;
 
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
   const backendScript = 'dev:stable';

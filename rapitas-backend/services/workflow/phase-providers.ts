@@ -106,7 +106,15 @@ export function planPhaseAgentSync(
 ): PhaseAgentSyncPlan {
   const plan: PhaseAgentSyncPlan = { create: [], update: [] };
   for (const route of PHASE_ROUTES) {
-    const row = rows.find((r) => r.agentType === route.agentType);
+    // The oldest row is the one kept; copies left by an earlier race (three
+    // Codex rows on 2026-11-20) are deactivated, not deleted — executions
+    // still reference them.
+    const [row, ...copies] = rows
+      .filter((r) => r.agentType === route.agentType)
+      .sort((a, b) => a.id - b.id);
+    for (const copy of copies) {
+      if (copy.isActive) plan.update.push({ id: copy.id, data: { isActive: false } });
+    }
     const data: PhaseAgentSyncPlan['update'][number]['data'] = {};
     if (usable.includes(route.provider)) {
       if (!row) {
@@ -124,17 +132,25 @@ export function planPhaseAgentSync(
     }
     if (row && Object.keys(data).length > 0) plan.update.push({ id: row.id, data });
   }
+  plan.update.sort((a, b) => a.id - b.id);
   return plan;
 }
 
 /** Injectable pieces of {@link resolvePhaseProviders}. */
 export interface ResolvePhaseProvidersDeps {
   availability?: () => Promise<VendorAvailability>;
+  sync?: (providers: PhaseProviders) => Promise<void>;
   now?: () => number;
 }
 
 const CACHE_MS = 60_000;
 let cached: { at: number; value: PhaseProviders } | null = null;
+/**
+ * The resolve in progress. Concurrent callers share it: on a cold cache every
+ * phase routed at once used to probe and sync on its own, and each sync saw
+ * no Codex row yet and created one.
+ */
+let inflight: Promise<PhaseProviders> | null = null;
 
 /** Probe the CLIs and cooldowns. Same sources the review jury uses. */
 async function probeAvailability(): Promise<VendorAvailability> {
@@ -161,19 +177,27 @@ export async function resolvePhaseProviders(
   deps: ResolvePhaseProvidersDeps = {},
 ): Promise<PhaseProviders> {
   const now = (deps.now ?? Date.now)();
-  if (cached && now - cached.at < CACHE_MS && !deps.availability) return cached.value;
-  let value: PhaseProviders;
+  if (cached && now - cached.at < CACHE_MS) return cached.value;
+  if (inflight) return inflight;
+  inflight = (async () => {
+    let value: PhaseProviders;
+    try {
+      value = phaseProvidersFrom(await (deps.availability ?? probeAvailability)());
+    } catch (err) {
+      log.warn({ err }, '[phase-providers] availability probe failed — keeping Claude only');
+      value = phaseProvidersFrom({ usable: ['anthropic'], unavailable: [] });
+    }
+    await (deps.sync ?? syncPhaseAgentConfigs)(value).catch((err) =>
+      log.warn({ err }, '[phase-providers] agent config sync failed'),
+    );
+    cached = { at: now, value };
+    return value;
+  })();
   try {
-    value = phaseProvidersFrom(await (deps.availability ?? probeAvailability)());
-  } catch (err) {
-    log.warn({ err }, '[phase-providers] availability probe failed — keeping Claude only');
-    value = phaseProvidersFrom({ usable: ['anthropic'], unavailable: [] });
+    return await inflight;
+  } finally {
+    inflight = null;
   }
-  await syncPhaseAgentConfigs(value).catch((err) =>
-    log.warn({ err }, '[phase-providers] agent config sync failed'),
-  );
-  cached = { at: now, value };
-  return value;
 }
 
 /**
@@ -216,4 +240,5 @@ export async function syncPhaseAgentConfigs(providers: PhaseProviders): Promise<
 /** Drop the cached result (tests, and after a cooldown changes). */
 export function resetPhaseProvidersCache(): void {
   cached = null;
+  inflight = null;
 }

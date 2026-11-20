@@ -103,3 +103,62 @@ describe('planPhaseAgentSync', () => {
     expect(plan).toEqual({ create: [], update: [] });
   });
 });
+
+// 2026-11-20: the first deploy created three Codex agents — concurrent routing
+// calls each missed the cache, each saw no Codex row, each created one.
+describe('duplicate agent rows', () => {
+  const codexRow = (id: number): PhaseAgentRow => ({
+    id,
+    agentType: 'codex',
+    isActive: true,
+    isInstalled: true,
+    isDefault: false,
+    modelId: null,
+  });
+  const claudeRow: PhaseAgentRow = {
+    id: 1,
+    agentType: 'claude-code',
+    isActive: true,
+    isInstalled: true,
+    isDefault: true,
+    modelId: null,
+  };
+
+  test('keeps the oldest row per agent type and deactivates the copies', () => {
+    const plan = planPhaseAgentSync(
+      [claudeRow, codexRow(4), codexRow(2), codexRow(3)],
+      ['claude', 'openai'],
+    );
+    expect(plan.create).toEqual([]);
+    expect(plan.update).toEqual([
+      { id: 3, data: { isActive: false } },
+      { id: 4, data: { isActive: false } },
+    ]);
+  });
+
+  test('concurrent resolves run one probe and one sync', async () => {
+    const { resolvePhaseProviders, resetPhaseProvidersCache } = await import('./phase-providers');
+    resetPhaseProvidersCache();
+    let probes = 0;
+    let syncs = 0;
+    const deps = {
+      availability: async () => {
+        probes += 1;
+        await new Promise((r) => setTimeout(r, 20));
+        return { usable: ['anthropic', 'openai'] as const, unavailable: [] } as never;
+      },
+      sync: async () => {
+        syncs += 1;
+      },
+    };
+    const results = await Promise.all([
+      resolvePhaseProviders(deps),
+      resolvePhaseProviders(deps),
+      resolvePhaseProviders(deps),
+    ]);
+    expect(results.every((r) => r.usable.join() === 'claude,openai')).toBe(true);
+    expect(probes).toBe(1);
+    expect(syncs).toBe(1);
+    resetPhaseProvidersCache();
+  });
+});
