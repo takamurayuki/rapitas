@@ -13,6 +13,7 @@ import {
   tolegacyQuestionType,
 } from '../question-detection';
 import { formatToolInfo } from './output-parser';
+import { displayCommand } from './command-display';
 import { canonicalToolName } from '../common/tool-name-canonicalizer';
 import { createLogger } from '../../../config/logger';
 import type { ProcessRunnerState, ProcessRunnerCallbacks } from './process-runner';
@@ -107,7 +108,9 @@ export function processJsonEvent(
       if (item?.type === 'command_execution' && typeof item.id === 'string') {
         const command = typeof item.command === 'string' ? item.command : '(unknown command)';
         state.activeCodexCommands.set(item.id, { command, startedAt: Date.now() });
-        displayOutput += `[Command] ${command} を開始しました\n`;
+        // NOTE: Shown short and without a trailing phrase, like Claude Code's
+        // `[Tool: Bash] $ <cmd>`; the raw wrapper made task 1519's log 55k chars.
+        displayOutput += `[Command] ${displayCommand(command)}\n`;
       } else {
         // NOTE: item.type shapes beyond command_execution are unconfirmed
         // against primary source — record the type only, no display/throw.
@@ -155,11 +158,16 @@ export function processJsonEvent(
         // from a single command must not, by itself, decide the overall
         // AgentExecutionResult.success. That is governed solely by
         // state.turnFailed (see process-runner-close-result.ts).
-        displayOutput += `[${label}] ${command} (${durationLabel}${exitLabel})\n`;
+        displayOutput += `[${label}] ${displayCommand(command)} (${durationLabel}${exitLabel})\n`;
         if (failed) {
           logger.warn(
-            { command, exitCode, aggregatedOutputLength: aggregatedOutput?.length ?? 0 },
-            `${logPrefix} ${label}: ${command} (${exitLabel})`,
+            {
+              command: displayCommand(command),
+              commandLength: command.length,
+              exitCode,
+              aggregatedOutputLength: aggregatedOutput?.length ?? 0,
+            },
+            `${logPrefix} ${label}: ${displayCommand(command)} (${exitLabel})`,
           );
           // NOTE: surfaced inline (tail only) so a failing command's output is
           // visible in the live log at the point of failure, not only on the
@@ -173,8 +181,13 @@ export function processJsonEvent(
           }
         } else {
           logger.info(
-            { command, exitCode, aggregatedOutputLength: aggregatedOutput?.length ?? 0 },
-            `${logPrefix} ${label}: ${command} (${exitLabel})`,
+            {
+              command: displayCommand(command),
+              commandLength: command.length,
+              exitCode,
+              aggregatedOutputLength: aggregatedOutput?.length ?? 0,
+            },
+            `${logPrefix} ${label}: ${displayCommand(command)} (${exitLabel})`,
           );
         }
         if (typeof item.id === 'string') state.activeCodexCommands.delete(item.id);

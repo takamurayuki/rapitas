@@ -200,7 +200,7 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command] ls -la を開始しました');
+    expect(h.state.outputBuffer).toContain('[Command] ls -la\n');
     expect(h.state.activeCodexCommands.get('cmd-1')).toMatchObject({ command: 'ls -la' });
   });
 
