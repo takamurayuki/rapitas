@@ -4597,12 +4597,14 @@
     "statusRunning": "Running",
     "statusPaused": "Paused",
     "statusStopping": "Stopping",
+    "pillRunning": "Auto-running",
     "progress": {
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "awaitingAnswer": "Awaiting answer",
       "remaining": "{count} left",
-      "elapsed": "{time} since start",
+      "elapsedMinutes": "{minutes}m",
+      "elapsedHours": "{hours}h {minutes}m",
       "steps": {
         "research": "Research",
         "plan": "Plan",

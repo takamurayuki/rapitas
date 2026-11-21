@@ -136,7 +136,8 @@ export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
   return (
     <AutoRunPanel
       state={paused ? 'paused' : 'running'}
-      caption={t('toolbarGroup.autoRun')}
+      // Running reads as one word (自動実行中), as in design C's mock.
+      caption={paused ? t('toolbarGroup.autoRun') : undefined}
       status={
         paused ? (
           <>
@@ -145,8 +146,8 @@ export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
           </>
         ) : (
           <>
-            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500 dark:bg-emerald-400" />
-            {tAutoRun('statusRunning')}
+            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+            {tAutoRun('pillRunning')}
           </>
         )
       }

@@ -92,7 +92,7 @@ describe('while auto-run is going', () => {
   // status — an element reading "実行中" — silently ended the run instead.
   it('does not make the status itself a way to stop', () => {
     renderControl();
-    const status = screen.getByText('autoRun.statusRunning');
+    const status = screen.getByText('autoRun.pillRunning');
     expect(status.closest('button')).toBeNull();
 
     fireEvent.click(status);
@@ -114,7 +114,7 @@ describe('while auto-run is going', () => {
 describe('status reads as text, actions read as buttons', () => {
   it('draws the status without a button frame or ridge', () => {
     renderControl();
-    const status = screen.getByText('autoRun.statusRunning');
+    const status = screen.getByText('autoRun.pillRunning');
     const frame = status.closest('[data-auto-run-status]') as HTMLElement;
     expect(frame).toBeTruthy();
     expect(frame.className.split(/\s+/)).not.toContain('border');
@@ -172,7 +172,7 @@ const panel = () => document.querySelector('[data-toolbar-group="auto-run"]') as
 
 describe('the auto-run status panel', () => {
   it.each([
-    ['running', 'border-emerald-400', 'autoRun.statusRunning'],
+    ['running', 'border-emerald-400', 'autoRun.pillRunning'],
     ['paused', 'border-amber-300', 'autoRun.statusPaused'],
     ['idle', 'border-zinc-300', 'autoRun.statusIdle'],
   ] as const)('frames the %s state in its own colour', (state, border, text) => {
@@ -180,13 +180,27 @@ describe('the auto-run status panel', () => {
     renderControl();
     const p = panel();
     expect(p.getAttribute('data-auto-run-state')).toBe(state);
-    expect(p.className.split(/\s+/)).toContain(border);
-    expect(p.contains(screen.getByText('home.toolbarGroup.autoRun'))).toBe(true);
-    expect(p.contains(screen.getByText(text))).toBe(true);
+    const pill = p.querySelector('[data-auto-run-pill]') as HTMLElement;
+    expect(pill.className.split(/\s+/)).toContain(border);
+    // Running is one word (自動実行中) in design C; the others keep the label.
+    if (state === 'running') {
+      expect(screen.queryByText('home.toolbarGroup.autoRun')).toBeNull();
+    } else {
+      expect(pill.contains(screen.getByText('home.toolbarGroup.autoRun'))).toBe(true);
+    }
+    expect(pill.contains(screen.getByText(text))).toBe(true);
   });
 
-  it('keeps its actions inside the panel', () => {
+  // Design C (2026-11-21): the task and its phase moved to the strip under the
+  // toolbar, so the toolbar keeps only a one-line pill and the actions beside
+  // it — not a two-line framed panel holding the buttons.
+  it('draws the state as a one-line pill with the actions beside it', () => {
     renderControl();
+    const pill = panel().querySelector('[data-auto-run-pill]') as HTMLElement;
+    expect(pill.className).toContain('rounded-full');
+    expect(pill.className).not.toContain('flex-col');
+    expect(pill.querySelector('.flex-col')).toBeNull();
+    expect(pill.contains(stopButton())).toBe(false);
     expect(panel().contains(stopButton())).toBe(true);
   });
 

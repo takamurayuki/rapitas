@@ -88,6 +88,15 @@ describe('AutoRunProgressStrip', () => {
   it('shows the remaining count and the time since the run started', () => {
     renderStrip('running', 'in_progress');
     expect(screen.getByText(/autoRun\.progress\.remaining\{"count":5\}/)).toBeTruthy();
-    expect(screen.getByText(/autoRun\.progress\.elapsed\{"time":"42:0\d"\}/)).toBeTruthy();
+    expect(screen.getByText(/autoRun\.progress\.elapsedMinutes\{"minutes":42\}/)).toBeTruthy();
+  });
+
+  // Design C's mock: a white band with a hairline on top, no outline.
+  it('has no outline, only a top hairline', () => {
+    renderStrip('running', 'in_progress');
+    const cls = screen.getByTestId('auto-run-progress-strip').className.split(/\s+/);
+    expect(cls).toContain('border-t');
+    expect(cls).not.toContain('border');
+    expect(cls.some((c) => c.startsWith('rounded'))).toBe(false);
   });
 });

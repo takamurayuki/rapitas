@@ -13,12 +13,14 @@
     "statusRunning": "実行中",
     "statusPaused": "一時停止",
     "statusStopping": "停止中",
+    "pillRunning": "自動実行中",
     "progress": {
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",
       "awaitingAnswer": "回答待ち",
       "remaining": "残り {count}件",
-      "elapsed": "開始から {time}",
+      "elapsedMinutes": "{minutes}分",
+      "elapsedHours": "{hours}時間{minutes}分",
       "steps": {
         "research": "調査",
         "plan": "計画",

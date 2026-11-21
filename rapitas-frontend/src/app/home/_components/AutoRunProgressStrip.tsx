@@ -32,8 +32,8 @@ interface AutoRunProgressStripProps {
 
 const STEP_TEXT: Record<ProgressStepState, string> = {
   done: 'text-emerald-600 dark:text-emerald-400',
-  current: 'font-semibold text-zinc-900 dark:text-zinc-50',
-  waiting: 'font-semibold text-amber-600 dark:text-amber-400',
+  current: 'font-medium text-zinc-900 dark:text-zinc-50',
+  waiting: 'font-medium text-amber-600 dark:text-amber-400',
   pending: 'text-zinc-400 dark:text-zinc-500',
 };
 
@@ -64,32 +64,39 @@ export function AutoRunProgressStrip({
 }: AutoRunProgressStripProps) {
   const t = useTranslations('autoRun');
   const visible = status === 'running' || status === 'paused';
-  // Ticks only while running: a paused run is not using the time.
-  const elapsed = useElapsedTime(startedAt, visible && status === 'running');
+  // Only re-renders the strip while running; the text below is minute-grained.
+  useElapsedTime(startedAt, visible && status === 'running');
 
   if (!visible) return null;
 
   const view = currentTask ? progressFromWorkflowStatus(currentTask.workflowStatus) : null;
-  const borderTone =
-    status === 'paused' || view?.waitingFor
-      ? 'border-amber-300 dark:border-amber-800'
-      : 'border-emerald-300 dark:border-emerald-800';
+  const startMs = startedAt ? new Date(startedAt).getTime() : NaN;
+  const minutes = Number.isNaN(startMs)
+    ? null
+    : Math.max(0, Math.floor((Date.now() - startMs) / 60_000));
+  const elapsed =
+    minutes === null
+      ? null
+      : minutes >= 60
+        ? t('progress.elapsedHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
+        : t('progress.elapsedMinutes', { minutes });
 
+  // NOTE: design C draws the strip as a white band with only a hairline on
+  // top — no outline — so it reads as part of the toolbar, not a card.
   return (
     <div
       data-testid="auto-run-progress-strip"
       aria-label={t('progress.label')}
-      className={`mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border bg-white px-4 py-2.5 text-sm dark:bg-zinc-900 ${borderTone}`}
+      className="mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-zinc-200 bg-white px-3.5 py-2 text-[13px] dark:border-zinc-800 dark:bg-zinc-900"
     >
       {currentTask && view ? (
         <>
           <Link
             href={`/tasks/${currentTask.id}?showHeader=true`}
             title={currentTask.title}
-            className="min-w-0 max-w-md truncate font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+            className="max-w-sm min-w-0 truncate text-indigo-600 hover:underline dark:text-indigo-400"
           >
-            <span className="mr-1.5 text-zinc-400 dark:text-zinc-500">#{currentTask.id}</span>
-            {currentTask.title}
+            #{currentTask.id} {currentTask.title}
           </Link>
 
           <ol className="flex items-center gap-1.5">
@@ -98,7 +105,10 @@ export function AutoRunProgressStrip({
               return (
                 <li key={step} className="flex items-center gap-1.5">
                   {i > 0 && (
-                    <span aria-hidden="true" className="h-px w-4 bg-zinc-300 dark:bg-zinc-700" />
+                    <span
+                      aria-hidden="true"
+                      className="h-px w-[18px] bg-zinc-300 dark:bg-zinc-700"
+                    />
                   )}
                   <span
                     data-step={step}
@@ -133,7 +143,7 @@ export function AutoRunProgressStrip({
         {elapsed && (
           <>
             <span aria-hidden="true"> · </span>
-            {t('progress.elapsed', { time: elapsed })}
+            {elapsed}
           </>
         )}
       </span>
