@@ -140,6 +140,14 @@ describe('status reads as text, actions read as buttons', () => {
     expect(autoRun.start).toHaveBeenCalledWith('priority');
   });
 
+  it('separates itself from the task actions with a divider', () => {
+    renderControl();
+    expect(screen.getByTestId('auto-run-divider')).toBeTruthy();
+    autoRun.status = 'idle';
+    renderControl();
+    expect(screen.getAllByTestId('auto-run-divider').length).toBe(2);
+  });
+
   it('offers no pause while running (a pause holds the only run slot)', () => {
     renderControl();
     expect(screen.queryByRole('button', { name: /autoRun\.pause/ })).toBeNull();

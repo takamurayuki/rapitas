@@ -73,13 +73,10 @@ export function HomeToolbar({
         <TodayTaskProgressBar compact={true} className="w-60" />
       </div>
 
-      {/* Right-side action group (auto-exec / create / bulk). Hidden when the
+      {/* Right-side action group (create / bulk, then auto-run). Hidden when the
           visible task list is empty so it doesn't sit beside an empty list. */}
       {hasVisibleTasks && (
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
-          {/* Auto-execution toggle — hidden during bulk selection */}
-          {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
-
           {/* Bulk status segmented control — always visible in selection mode.
             Segments are coloured and clickable once ≥1 task is selected. */}
           {isSelectionMode && (
@@ -235,6 +232,10 @@ export function HomeToolbar({
               {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
             </button>
           </div>
+
+          {/* Auto-run actions last, after the task actions, behind a divider the
+              control draws itself (2026-11-21). Hidden during bulk selection. */}
+          {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
         </div>
       )}
     </div>

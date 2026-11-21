@@ -46,10 +46,22 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     </span>
   ) : null;
 
+  // Sits after the task actions (作成 / 一括) in the toolbar, and draws the
+  // divider itself: the control renders nothing for non-development themes,
+  // and a divider owned by the toolbar would be left hanging there.
+  const divider = (
+    <span
+      data-testid="auto-run-divider"
+      aria-hidden="true"
+      className="mx-1 h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700"
+    />
+  );
+
   // ── Idle ─────────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
       <div className="flex items-center gap-2">
+        {divider}
         <button
           onClick={() => start('priority')}
           disabled={actionLoading}
@@ -77,6 +89,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   if (status === 'stopping') {
     return (
       <div className="flex items-center gap-2">
+        {divider}
         <button
           disabled
           className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
@@ -125,6 +138,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
 
   return (
     <div className="flex items-center gap-2">
+      {divider}
       {/* STATUS — says what is happening; plain text, never a button shape. */}
       <span
         data-auto-run-status=""
