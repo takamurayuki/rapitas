@@ -397,7 +397,7 @@
       "startTitle": "Automatically run this theme's To Do tasks in order",
       "stopTitle": "Stop auto-run",
       "paused": "Paused",
-      "runningLabel": "Auto-run active"
+      "runningLabel": "Running"
     },
     "todayTaskProgress": {
       "remainingCount": "{count} remaining",
