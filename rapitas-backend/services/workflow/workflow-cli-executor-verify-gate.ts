@@ -161,7 +161,9 @@ export async function resolveVerifyPhaseStatus(params: {
       // the task done WITHOUT creating or confirming a PR, so auto-run tasks
       // that completed here produced no PR at all (the HTTP path made PRs; this
       // one silently did not).
-      let prSatisfied = await taskHasLinkedPr(taskId);
+      // NOTE: A PR linked in an earlier round is not proof this round reached it:
+      // task 514's repair commit was never pushed, so commit/PR always runs here.
+      let prSatisfied = false;
       let prRequested = true;
       let prError: string | undefined;
       // No-diff / already-implemented classification: PR creation failed
@@ -187,9 +189,8 @@ export async function resolveVerifyPhaseStatus(params: {
         });
         if (jury.stop)
           return jury.phaseStatus ?? (currentWfStatus as WorkflowAdvanceResult['status']);
-        // No PR yet (e.g. the HTTP save bounced before PR creation). Run the
-        // shared commit/PR flow; a pre-existing PR is re-confirmed via
-        // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.
+        // Shared commit/PR flow (pushes to an existing PR); a pre-existing PR is
+        // re-confirmed via taskHasLinkedPr. Dynamic import avoids an import cycle.
         const { performAutoCommitAndPR, isNoChangeCompletion } =
           await import('../../routes/workflow/workflow-auto-commit');
         if (!replan.completionReceipt) throw new Error('Missing server completion review receipt');
