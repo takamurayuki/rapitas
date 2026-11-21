@@ -19,7 +19,7 @@ import { buildFileCommands } from './command-batches';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
-import { isCoverageExempt, isCoverageTestFile } from './coverage-test-files';
+import { coverageCandidates, isCoverageExempt, isCoverageTestFile } from './coverage-test-files';
 import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
@@ -968,7 +968,7 @@ export async function runAutomatedVerification(
     if (format) formatParts.push(format);
   }
 
-  const coverage = coverageCheck(changedFiles, options.requireTests === true);
+  const coverage = coverageCheck(coverageCandidates(workdir, allChanged), options.requireTests);
   const { maybeRunRedStateCheck } = await import('./red-state-check');
   const redState = await maybeRunRedStateCheck(
     workdir,
