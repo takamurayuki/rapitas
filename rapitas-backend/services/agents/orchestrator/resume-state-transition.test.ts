@@ -20,10 +20,10 @@ beforeEach(() => {
   // and actual database rollback rather than simulating transaction behavior.
   observer.exec(`
     CREATE TABLE AgentExecution (workspaceId INTEGER, id INTEGER PRIMARY KEY, command TEXT NOT NULL DEFAULT 'execute', status TEXT, output TEXT,
-      errorMessage TEXT, updatedAt DATETIME);
+      errorMessage TEXT, completedAt DATETIME, updatedAt DATETIME);
     CREATE TABLE Task (workspaceId INTEGER, id INTEGER PRIMARY KEY, status TEXT, workflowStatus TEXT,
       updatedAt DATETIME);
-    INSERT INTO AgentExecution (id, status, output, errorMessage, updatedAt) VALUES (10, 'interrupted', 'previous', 'interruption', CURRENT_TIMESTAMP);
+    INSERT INTO AgentExecution (id, status, output, errorMessage, completedAt, updatedAt) VALUES (10, 'interrupted', 'previous', 'interruption', 1795239124000, CURRENT_TIMESTAMP);
     INSERT INTO Task (id, status, workflowStatus, updatedAt) VALUES (5, 'todo', 'plan_approved', CURRENT_TIMESTAMP);
   `);
   client = new PrismaClient({ datasources: { db: { url: `file:${path.replaceAll('\\', '/')}` } } });
@@ -45,6 +45,15 @@ const transition = (check = () => {}) =>
     'resumed',
     check,
   );
+
+// Execution 6969 was resumed with the completedAt its interruption wrote, so it
+// read as finished and running at once (task 1519, 2026-11-21).
+test('a resumed execution is no longer marked finished', async () => {
+  await transition();
+  expect(observer.query('SELECT completedAt FROM AgentExecution WHERE id=10').get()).toEqual({
+    completedAt: null,
+  });
+});
 
 test('commits task and execution together', async () => {
   await transition();

@@ -15,7 +15,9 @@ export async function transitionResumedExecution(
     // so a stale initial read cannot resurrect a cancelled execution.
     const claimed = await tx.agentExecution.updateMany({
       where: { id: executionId, status: 'interrupted' },
-      data: { status: 'running', errorMessage: null, output },
+      // completedAt was written by the interruption; a running row must not keep
+      // it (execution 6969 read as finished and running at once, 2026-11-21).
+      data: { status: 'running', errorMessage: null, output, completedAt: null },
     });
     if (claimed.count !== 1)
       throw new ExecutionCancelledError(`Resume execution ${executionId} is no longer interrupted`);

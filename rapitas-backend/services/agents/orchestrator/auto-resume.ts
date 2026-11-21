@@ -57,6 +57,51 @@ export function countResumeAttempts(output: string | null | undefined): number {
   return output.split(RESUME_MARKER).length - 1;
 }
 
+/**
+ * Transitions that only record the interruption itself or bookkeeping, not
+ * the workflow taking a new step.
+ */
+const NON_PROGRESS_CAUSES = new Set([
+  'agent_lifecycle_shutdown_revert',
+  'auto_run_stop_revert',
+  'manual_execution_stop_revert',
+  'theme_stop_execution_requested',
+  'task_spend_notice',
+]);
+
+/**
+ * Whether a transition means the workflow moved on (exported for tests).
+ *
+ * @param cause - WorkflowTransition.cause / 遷移の原因
+ * @returns True unless the cause only records the interruption / 中断の記録以外なら true
+ */
+export function isWorkflowProgressCause(cause: string): boolean {
+  return !NON_PROGRESS_CAUSES.has(cause);
+}
+
+/**
+ * Whether the task's workflow took a step after the execution was interrupted.
+ *
+ * NOTE: Execution 6969 (task 1519's implementer) was interrupted by a deploy
+ * restart at 14:32; a plan revision moved the workflow on at 14:33, and the
+ * worker auto-resumed 6969 at 14:36. The new planner had not created its
+ * execution yet, so the newer-execution check passed, and the old implementer
+ * ran beside the new planner in the same worktree (2026-11-21).
+ */
+async function workflowMovedOnSince(taskId: number, since: Date | null): Promise<boolean> {
+  if (!since) return false;
+  const rows = await prisma.workflowTransition
+    .findMany({
+      where: { taskId, createdAt: { gt: since } },
+      select: { cause: true },
+      take: 50,
+    })
+    .catch(() => null);
+  // Unreadable history: do not resume — the workflow can always re-dispatch.
+  if (rows === null) return true;
+  return rows.some((r) => isWorkflowProgressCause(String(r.cause ?? '')));
+}
+
 /** Decision for one candidate (exported for tests). */
 export interface AutoResumeDecision {
   resume: boolean;
@@ -73,6 +118,7 @@ export interface AutoResumeDecision {
  * @param opts.taskStatus - The owning task's status. `blocked`/`failed` are excluded — those states can only be exited by an explicit retry. / タスク状態(`blocked`/`failed`は自動再開の対象外)
  * @param opts.hasWorkingDirectory - Theme working directory configured. / 作業Dir設定有無
  * @param opts.hasActiveLock - The shared task-execution lock is already held for this task (another run is in flight). / 排他ロック保持中か
+ * @param opts.workflowMovedOn - The task's workflow took a step after the interruption. / 中断後にワークフローが進んだか
  * @returns Whether to resume, with the reason. / 判定と理由
  */
 export function decideAutoResume(
@@ -84,6 +130,7 @@ export function decideAutoResume(
     hasWorkingDirectory: boolean;
     hasActiveLock: boolean;
     themeRunAllowed?: boolean;
+    workflowMovedOn?: boolean;
   },
 ): AutoResumeDecision {
   if (exec.status !== 'interrupted') return { resume: false, reason: `status=${exec.status}` };
@@ -108,6 +155,9 @@ export function decideAutoResume(
   }
   if (opts.hasNewerExecution) {
     return { resume: false, reason: 'a newer execution already took over the task' };
+  }
+  if (opts.workflowMovedOn) {
+    return { resume: false, reason: 'the workflow moved on after the interruption' };
   }
   const age = opts.now.getTime() - exec.createdAt.getTime();
   if (age > MAX_AGE_MS) return { resume: false, reason: `too old (${Math.round(age / 3600000)}h)` };
@@ -188,6 +238,7 @@ export async function autoResumeInterruptedExecutions(executionIds: number[]): P
       const decision = decideAutoResume(execution, {
         now: new Date(),
         hasNewerExecution: !!newer,
+        workflowMovedOn: await workflowMovedOnSince(task.id, execution.completedAt),
         taskStatus: task.status,
         hasWorkingDirectory: !!task.theme?.workingDirectory,
         hasActiveLock: isTaskExecutionLocked(task.id),
