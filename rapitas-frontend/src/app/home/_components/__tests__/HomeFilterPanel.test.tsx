@@ -95,6 +95,19 @@ describe('hiding the filter', () => {
     expect(screen.queryByTestId('filter-summary')).toBeNull();
   });
 
+  // Asked 2026-11-21: next to the auto-run strip the outlined summary stood
+  // out, so hidden it takes the strip's look — a white band, top hairline.
+  it('draws the summary like the auto-run strip, with no outline', () => {
+    render(<HomeFilterPanel {...props()} />);
+    fireEvent.click(hideButton());
+    const cls = screen.getByTestId('filter-summary').className.split(/\s+/);
+    expect(cls).toContain('border-t');
+    expect(cls).not.toContain('border');
+    expect(cls).not.toContain('shadow-sm');
+    expect(cls).toContain('text-[13px]');
+    expect(cls).not.toContain('uppercase');
+  });
+
   it('stays hidden the next time the page opens', () => {
     const first = render(<HomeFilterPanel {...props()} />);
     fireEvent.click(hideButton());

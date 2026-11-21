@@ -23,6 +23,11 @@ interface HomeFilterSummaryProps {
 /**
  * One-line stand-in for the hidden filter.
  *
+ * NOTE: Drawn like AutoRunProgressStrip — a white band with only a top
+ * hairline, 13px text — because the outlined, mono-caps version stood out
+ * when the two sat one above the other (2026-11-21). The shown filter keeps
+ * its own look.
+ *
  * @param props.category - Selected category / 選択中のカテゴリ
  * @param props.theme - Selected theme / 選択中のテーマ
  * @param props.onShow - Show the filter / フィルターを再表示
@@ -35,32 +40,25 @@ export function HomeFilterSummary({ category, theme, onShow }: HomeFilterSummary
   return (
     <div
       data-testid="filter-summary"
-      className="mb-3 flex items-center gap-2 border border-slate-300 bg-white px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      className="mb-3 flex items-center gap-2 border-t border-zinc-200 bg-white px-3.5 py-2 text-[13px] dark:border-zinc-800 dark:bg-zinc-900"
     >
       {category && (
-        <span className="flex items-center gap-1.5 font-bold" style={{ color: category.color }}>
-          <CatIcon className="h-3.5 w-3.5" />
+        <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+          <CatIcon className="h-3.5 w-3.5" style={{ color: category.color }} />
           {category.name}
         </span>
       )}
       {category && theme && (
-        <span aria-hidden="true" className="text-slate-400 dark:text-slate-500">
+        <span aria-hidden="true" className="text-zinc-400 dark:text-zinc-500">
           ›
         </span>
       )}
-      {theme && (
-        <span
-          className="rounded-md px-2 py-0.5 font-medium normal-case text-white"
-          style={{ backgroundColor: theme.color || '#64748b' }}
-        >
-          {theme.name}
-        </span>
-      )}
+      {theme && <span className="font-medium text-zinc-900 dark:text-zinc-50">{theme.name}</span>}
       <button
         type="button"
         onClick={onShow}
         aria-label={t('filterPanel.show')}
-        className="ml-auto flex items-center gap-1.5 rounded px-2 py-1 text-slate-500 normal-case transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        className="ml-auto inline-flex items-center gap-1 text-xs whitespace-nowrap text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
       >
         <PanelTopOpen className="h-3.5 w-3.5" aria-hidden="true" />
         {t('filterPanel.show')}
