@@ -12,7 +12,8 @@ mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}) }),
 }));
 
-const { countResumeAttempts, decideAutoResume } = await import('./auto-resume');
+const { countResumeAttempts, decideAutoResume, isWorkflowProgressCause } =
+  await import('./auto-resume');
 
 const NOW = new Date('2026-08-07T12:00:00Z');
 
@@ -110,4 +111,37 @@ describe('decideAutoResume', () => {
     const once = exec({ output: '[再開] 中断された作業を再開します...\n…' });
     expect(decideAutoResume(once, OK_OPTS).resume).toBe(true);
   });
+});
+
+// 2026-11-21: execution 6969 (task 1519's implementer) was interrupted by a
+// deploy restart at 14:32. A plan revision moved the workflow on at 14:33, and
+// the worker auto-resumed 6969 at 14:36, so the old implementer ran beside the
+// new planner in the same worktree and its completion skipped the revision.
+describe('auto-resume after the workflow moved on', () => {
+  it('does not resume when the workflow advanced after the interruption', () => {
+    const d = decideAutoResume(exec(), { ...OK_OPTS, workflowMovedOn: true });
+    expect(d.resume).toBe(false);
+    expect(d.reason).toContain('workflow');
+  });
+
+  it('still resumes when nothing happened since the interruption', () => {
+    expect(decideAutoResume(exec(), { ...OK_OPTS, workflowMovedOn: false }).resume).toBe(true);
+  });
+
+  it.each([
+    'plan_revision_requested',
+    'verify_repair',
+    'phase_completed:planner',
+    'question_resolved',
+    'task_retried',
+  ])('counts %s as the workflow moving on', (cause) => {
+    expect(isWorkflowProgressCause(cause)).toBe(true);
+  });
+
+  it.each(['agent_lifecycle_shutdown_revert', 'auto_run_stop_revert', 'task_spend_notice'])(
+    'does not count %s, which only records the interruption',
+    (cause) => {
+      expect(isWorkflowProgressCause(cause)).toBe(false);
+    },
+  );
 });
