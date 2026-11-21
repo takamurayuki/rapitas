@@ -467,7 +467,7 @@ export class AutoMergeWatcher {
     }
 
     // pending / unknown — wait, unless we have waited too long.
-    const since = c.completedAt?.getTime() ?? Date.now();
+    const since = (c.waitSince ?? c.completedAt)?.getTime() ?? Date.now();
     if (Date.now() - since > PENDING_TIMEOUT_MS) {
       await mark(c.taskId, 'auto_merge_blocked', 'ci timeout');
       await notify({

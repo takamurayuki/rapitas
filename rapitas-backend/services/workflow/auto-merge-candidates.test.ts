@@ -59,6 +59,8 @@ let notificationRows = new Map<string, { id: number }>();
 let tasksById = new Map<number, TaskFixture>();
 let userSettingsRow: Record<string, boolean | null> | null = null;
 let blockedCountByTask = new Map<number, number>();
+/** Latest `verify_awaiting_required_merge` transition per task. */
+let heldAtByTask = new Map<number, Date>();
 let agentConfigByTask = new Map<number, { mergeCommitThreshold: number } | null>();
 
 const notificationCreate = mock(() => Promise.resolve({}));
@@ -94,6 +96,10 @@ const mockPrisma = {
   workflowTransition: {
     count: (args: { where: { taskId: number } }) =>
       Promise.resolve(blockedCountByTask.get(args.where.taskId) ?? 0),
+    findFirst: (args: { where: { taskId: number } }) => {
+      const at = heldAtByTask.get(args.where.taskId);
+      return Promise.resolve(at ? { createdAt: at } : null);
+    },
   },
   agentExecutionConfig: {
     findUnique: (args: { where: { taskId: number } }) =>
@@ -195,6 +201,7 @@ beforeEach(() => {
   tasksById = new Map();
   userSettingsRow = null;
   blockedCountByTask = new Map();
+  heldAtByTask = new Map();
   agentConfigByTask = new Map();
   notificationCreate.mockClear();
   notificationCreate.mockImplementation(() => Promise.resolve({}));
@@ -608,5 +615,32 @@ describe('findCandidates — cross-repository prNumber collision', () => {
 
     expect(result).toHaveLength(2);
     expect(resolveIntegrationIdMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// trendline task 521 (2026-11-21) had been completed once in an earlier round.
+// The watcher measured its 90-minute CI wait from that old completedAt, so the
+// CI that had just started was declared a timeout on the first tick.
+describe('findCandidates — when the CI wait started', () => {
+  it('measures the wait from the latest merge hold, not an older completedAt', async () => {
+    const heldAt = new Date(Date.now() - 60_000);
+    addTask({
+      id: 521,
+      status: 'in-progress',
+      workflowStatus: 'verify_done',
+      completedAt: new Date(Date.now() - 2 * 86_400_000),
+    });
+    heldAtByTask.set(521, heldAt);
+    addOpenPr({ prNumber: 18, baseBranch: 'develop', linkedTaskId: 521 });
+    const [c] = await findCandidates();
+    expect(c?.waitSince?.getTime()).toBe(heldAt.getTime());
+  });
+
+  it('falls back to completedAt when no hold was recorded', async () => {
+    const completedAt = new Date(Date.now() - 5 * 60_000);
+    addTask({ id: 7, completedAt });
+    addOpenPr({ prNumber: 70, baseBranch: 'develop', linkedTaskId: 7 });
+    const [c] = await findCandidates();
+    expect(c?.waitSince?.getTime()).toBe(completedAt.getTime());
   });
 });

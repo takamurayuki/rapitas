@@ -14,6 +14,14 @@ import { decideTerminalState } from './auto-merge-exhaustion';
 import { notify } from './auto-merge-notify';
 import { resolveIntegrationId } from '../github/pr-link';
 import { findScopedOpenPr } from '../github/pr-lookup';
+import { AWAITING_REQUIRED_MERGE_CAUSE } from './required-merge-hold';
+
+/** The later of two optional dates. */
+function latestDate(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a.getTime() >= b.getTime() ? a : b;
+}
 
 const log = createLogger('workflow:auto-merge-candidates');
 
@@ -41,6 +49,12 @@ export interface Candidate {
   cwd: string;
   threshold: number;
   completedAt: Date | null;
+  /**
+   * When this wait for CI began: the latest merge hold, else completedAt.
+   * NOTE: completedAt alone can be from an earlier round — task 521's CI was
+   * declared a timeout on the first tick (2026-11-21).
+   */
+  waitSince?: Date | null;
   /** `merge`: merge on CI green, then complete. `pr`: complete on CI green (no merge). */
   mode: 'merge' | 'pr';
 }
@@ -227,6 +241,15 @@ export async function findCandidates(): Promise<Candidate[]> {
       .catch(() => 0);
     if (blocked >= MAX_BLOCK_RETRIES) continue;
 
+    const held = await prisma.workflowTransition
+      .findFirst({
+        where: { taskId, cause: AWAITING_REQUIRED_MERGE_CAUSE },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null);
+    const waitSince = latestDate(task.completedAt, held?.createdAt ?? null);
+
     const cfg = await prisma.agentExecutionConfig
       .findUnique({ where: { taskId }, select: { mergeCommitThreshold: true } })
       .catch(() => null);
@@ -245,6 +268,7 @@ export async function findCandidates(): Promise<Candidate[]> {
       cwd,
       threshold: cfg?.mergeCommitThreshold ?? 5,
       completedAt: task.completedAt,
+      waitSince,
       mode,
     });
   }
