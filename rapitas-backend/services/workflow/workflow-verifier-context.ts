@@ -19,6 +19,7 @@ import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-sect
 import type { VerifierTexts } from './workflow-role-prompts';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 import { buildPreviousRoundSection } from './verify-previous-round';
+import { withInterleavingCheck } from './planner-interleaving-guidance';
 
 /** Newest real run of the task (the one whose output is being measured), for audit. */
 async function latestRunExecutionId(taskId: number): Promise<number | null> {
@@ -259,6 +260,7 @@ Preserve command exit codes before formatting output: piping a command into tail
         '## Checklist status (no plan: cover each task requirement with ✅/❌)',
       );
   }
+  verifierInstruction = withInterleavingCheck(verifierInstruction, plan, language);
   ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
   // prettier-ignore
   void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, repairRisk: verifyRepairRisk, hypothesis, gatePrecision, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });

@@ -58,4 +58,29 @@ describe('buildPlannerContext', () => {
     );
     expect(ctx).toContain('REVIEW_REPLAN(7,ja)');
   });
+
+  // 2026-11-21: tasks 1519/1521 kept bouncing on lock-file interleavings the
+  // plan never listed; the planner must be asked for all of them.
+  test('asks the planner to list every check-then-act step on shared state', async () => {
+    const ctx = await buildPlannerContext(
+      7,
+      { title: 't', description: null },
+      'ja',
+      'standard',
+      'TASK_INFO',
+      {
+        researchHeader: 'R',
+        instruction: 'I',
+        premortem: 'P',
+        selfContainment: 'S',
+      } as Parameters<typeof buildPlannerContext>[5],
+      'Q',
+      'STYLE',
+    );
+    expect(ctx).toContain('## 状態と割り込み');
+    // After the premortem, which it complements.
+    expect(ctx.indexOf('## 状態と割り込み')).toBeGreaterThan(
+      ctx.indexOf(String.raw`P`, ctx.indexOf('I')),
+    );
+  });
 });
