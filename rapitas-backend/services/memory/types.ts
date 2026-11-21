@@ -69,6 +69,8 @@ export type TimelineEventType =
   | 'context_snapshot'
   // One task+role's pinned model choice — see ai/model-route-stability.ts.
   | 'model_route_pin'
+  // One theme's last vulnerability-scanned HEAD — see memory/vulnerability-scan-deps.ts.
+  | 'vuln_scan_head'
   | 'memory_recall_attempt'
   | 'embedding_reindex'
   // NOTE: task 660 — post-verify automation lifecycle (gate → jury → commit/PR),
