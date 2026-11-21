@@ -107,6 +107,8 @@ export function installWorkflowCliExecutorMocks(): void {
     resolveTaskForPlanApproval: mock(() => Promise.resolve(null)),
     resolveTaskForAutoMerge: mock(() => Promise.resolve(null)),
     resolveTaskForLearning: mock(() => Promise.resolve(null)),
+    // null base: investigation keeps the theme directory, no git runs in tests.
+    resolvePreferredBaseBranch: mock(() => Promise.resolve(null)),
   }));
 
   mock.module(p('services/agents/agent-session-resolver'), () => ({
