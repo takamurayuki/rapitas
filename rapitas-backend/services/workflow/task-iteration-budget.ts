@@ -53,6 +53,12 @@ const WINDOW_RESET_CAUSES = [
   'question_resolved',
   'plan_invalid_replan',
   'halt_released',
+  // NOTE: A changed plan or criteria is new work: trendline task 1519 was
+  // narrowed by plan revisions and a criteria change and still halted at 20
+  // attempts counted from an earlier retry (2026-11-21).
+  'plan_revision_requested',
+  'requirement_evidence_replan',
+  'criteria_review_adopted',
 ];
 
 /**
@@ -116,14 +122,30 @@ export function noProgressAttemptsMin(): number {
  * @returns Window start, or null when never reset. / 窓の起点、無ければ null
  */
 export async function resolveIterationWindowStart(taskId: number): Promise<Date | null> {
-  const row = await prisma.workflowTransition
-    .findFirst({
-      where: { taskId, cause: { in: WINDOW_RESET_CAUSES } },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    })
-    .catch(() => null);
-  return row?.createdAt ?? null;
+  const [row, criteria] = await Promise.all([
+    prisma.workflowTransition
+      .findFirst({
+        where: { taskId, cause: { in: WINDOW_RESET_CAUSES } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null),
+    // Replaced acceptance criteria are logged as activity, not as a transition.
+    (async () => {
+      try {
+        return await prisma.activityLog.findFirst({
+          where: { taskId, action: 'acceptance_criteria_changed' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
+  const dates = [row?.createdAt, criteria?.createdAt].filter((d): d is Date => d instanceof Date);
+  if (dates.length === 0) return null;
+  return dates.reduce((a, d) => (d > a ? d : a));
 }
 
 /** Pure snapshot input for {@link resolveIterationBudgetState}. */

@@ -14,14 +14,19 @@ import { describe, test, expect, mock } from 'bun:test';
 
 /** Captures the `where` passed to workflowTransition.findFirst. */
 const findFirstCalls: Array<{ where?: { cause?: { in?: string[] } } }> = [];
+let transitionAt: Date | null = null;
+let criteriaChangedAt: Date | null = null;
 
 mock.module('../../config/database', () => ({
   prisma: {
     workflowTransition: {
       findFirst: async (args: { where?: { cause?: { in?: string[] } } }) => {
         findFirstCalls.push(args);
-        return null;
+        return transitionAt ? { createdAt: transitionAt } : null;
       },
+    },
+    activityLog: {
+      findFirst: async () => (criteriaChangedAt ? { createdAt: criteriaChangedAt } : null),
     },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -57,5 +62,39 @@ describe('resolveIterationWindowStart — 窓をリセットする原因', () =>
     expect(causes).toContain('task_retried');
     expect(causes).toContain('question_resolved');
     expect(causes).toContain('plan_invalid_replan');
+  });
+});
+
+// trendline task 1519 (2026-11-21): its scope was narrowed by plan revisions
+// and a criteria change, yet the attempts counted since an earlier retry kept
+// growing and it halted at 20 attempts on the narrowed plan.
+describe('resolveIterationWindowStart — a changed plan or criteria starts a fresh window', () => {
+  test.each(['plan_revision_requested', 'requirement_evidence_replan', 'criteria_review_adopted'])(
+    '%s resets the window',
+    async (cause) => {
+      findFirstCalls.length = 0;
+      await resolveIterationWindowStart(1519);
+      expect(findFirstCalls[0]?.where?.cause?.in ?? []).toContain(cause);
+    },
+  );
+
+  test('a criteria change resets the window when it is the latest event', async () => {
+    transitionAt = new Date('2026-11-21T05:00:00Z');
+    criteriaChangedAt = new Date('2026-11-21T05:48:00Z');
+    expect((await resolveIterationWindowStart(1519))?.toISOString()).toBe(
+      criteriaChangedAt.toISOString(),
+    );
+    transitionAt = null;
+    criteriaChangedAt = null;
+  });
+
+  test('the latest transition wins over an older criteria change', async () => {
+    transitionAt = new Date('2026-11-21T06:00:00Z');
+    criteriaChangedAt = new Date('2026-11-21T05:48:00Z');
+    expect((await resolveIterationWindowStart(1519))?.toISOString()).toBe(
+      transitionAt.toISOString(),
+    );
+    transitionAt = null;
+    criteriaChangedAt = null;
   });
 });
