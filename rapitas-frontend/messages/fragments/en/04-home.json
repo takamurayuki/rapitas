@@ -70,6 +70,10 @@
     "categoryFilter": {
       "addCategory": "Add category"
     },
+    "filterPanel": {
+      "hide": "Hide",
+      "show": "Show filters"
+    },
     "autoExecutionMode": {
       "startTitle": "Automatically run this theme's To Do tasks in order",
       "stopTitle": "Stop auto-run",

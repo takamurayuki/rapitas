@@ -70,6 +70,10 @@
     "categoryFilter": {
       "addCategory": "カテゴリを追加"
     },
+    "filterPanel": {
+      "hide": "隠す",
+      "show": "フィルターを表示"
+    },
     "autoExecutionMode": {
       "startTitle": "このテーマのToDoタスクを上から順に自動実行します",
       "stopTitle": "自動実行を停止します",

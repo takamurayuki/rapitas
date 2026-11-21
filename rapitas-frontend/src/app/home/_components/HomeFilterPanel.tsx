@@ -5,6 +5,8 @@ import { EnhancedSkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { useTranslations } from 'next-intl';
 import { HomeCategoryFilter } from './HomeCategoryFilter';
 import { HomeThemeFilter } from './HomeThemeFilter';
+import { HomeFilterSummary } from './HomeFilterSummary';
+import { useHomeFilterHidden } from './useHomeFilterHidden';
 import React from 'react';
 
 interface HomeFilterPanelProps {
@@ -82,6 +84,7 @@ export function HomeFilterPanel({
   onRetry,
 }: HomeFilterPanelProps) {
   const t = useTranslations('home');
+  const [filterHidden, setFilterHidden] = useHomeFilterHidden();
 
   if (filtersError) {
     return (
@@ -158,6 +161,16 @@ export function HomeFilterPanel({
 
   if (categories.length === 0) return null;
 
+  if (filterHidden) {
+    return (
+      <HomeFilterSummary
+        category={categories.find((c) => c.id === categoryFilter)}
+        theme={themes.find((th) => th.id === themeFilter)}
+        onShow={() => setFilterHidden(false)}
+      />
+    );
+  }
+
   return (
     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-3">
       <HomeCategoryFilter
@@ -168,6 +181,7 @@ export function HomeFilterPanel({
         appMode={appMode}
         globalSettings={globalSettings}
         onCategoryChange={onCategoryChange}
+        onHide={() => setFilterHidden(true)}
       />
       <HomeThemeFilter
         themes={themes}

@@ -36,3 +36,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `RefreshCw` | 通知の種別「GitHub同期完了」（github_sync_complete。`NotificationBell`、#1510。同期・再読み込みの慣用の再利用） |
 | `Play` | 中断・一時停止したものの再開（`ExecutionItem` の中断した実行の再開ボタン、`MilestoneCard` の再開、通知の種別「エージェント実行の再開」agent_execution_resumed — 同一概念「再開」の再利用。`PlayCircle`＝実行中とは別概念。旧・通知での `RotateCw` は「サーバー再起動」「画像の回転」と重なるため移行） |
 | `ShieldCheck` | 通知の種別「承認完了」（approval_completed。`NotificationBell`、#1510。`BadgeCheck`＝承認リクエストとは別概念） |
+| `PanelTopClose` / `PanelTopOpen` | ホームのフィルター全体を隠す／表示する（`HomeCategoryFilter` の「隠す」、`HomeFilterSummary` の「フィルターを表示」。注: `PanelBottom`＝ターミナルの下部パネル表示、`ChevronsUp`＝優先度とは別概念） |

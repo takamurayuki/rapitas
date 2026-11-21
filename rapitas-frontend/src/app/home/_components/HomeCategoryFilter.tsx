@@ -2,7 +2,7 @@
 // HomeCategoryFilter
 import Link from 'next/link';
 import type { Category, Theme, UserSettings } from '@/types';
-import { Star, FolderKanban, FolderPlus } from 'lucide-react';
+import { Star, FolderKanban, FolderPlus, PanelTopClose } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
 
@@ -14,6 +14,8 @@ interface HomeCategoryFilterProps {
   appMode: string;
   globalSettings: UserSettings | null;
   onCategoryChange: (categoryId: number, newThemeId: number | null) => void;
+  /** Fold the whole filter to its one-line summary; no control when omitted. / フィルターを隠す */
+  onHide?: () => void;
 }
 
 /**
@@ -30,6 +32,7 @@ export function HomeCategoryFilter({
   appMode,
   globalSettings,
   onCategoryChange,
+  onHide,
 }: HomeCategoryFilterProps) {
   const t = useTranslations('home');
 
@@ -58,41 +61,57 @@ export function HomeCategoryFilter({
   });
 
   return (
-    <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
-      {visibleCategories.map((cat) => {
-        const CatIcon = getIconComponent(cat.icon || '') || FolderKanban;
-        const isActive = categoryFilter === cat.id;
-        return (
-          <button
-            key={cat.id}
-            onClick={() => handleCategoryClick(cat.id)}
-            className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
-              isActive
-                ? 'bg-slate-200 dark:bg-slate-600/70 font-bold border-b-2'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
-            } border-slate-200 dark:border-slate-700`}
-            style={{
-              color: isActive ? cat.color : undefined,
-              borderBottomColor: isActive ? cat.color : undefined,
-            }}
-          >
-            <CatIcon className="w-3.5 h-3.5" />
-            {cat.name}
-            {globalSettings?.defaultCategoryId === cat.id && (
-              <Star className="w-2.5 h-2.5 fill-current" />
-            )}
-          </button>
-        );
-      })}
-      {/* Category add — sits immediately right of the tabs (not pinned to the far edge). */}
-      <Link
-        href="/categories"
-        title={t('categoryFilter.addCategory')}
-        aria-label={t('categoryFilter.addCategory')}
-        className="shrink-0 flex items-center justify-center px-3 py-2 border-r border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
-      >
-        <FolderPlus className="w-4 h-4" />
-      </Link>
+    // The hide control sits outside the scrolling tabs so it stays at the
+    // right edge however many categories there are (2026-11-21).
+    <div className="flex items-center bg-slate-50 dark:bg-slate-800/50">
+      <div className="flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+        {visibleCategories.map((cat) => {
+          const CatIcon = getIconComponent(cat.icon || '') || FolderKanban;
+          const isActive = categoryFilter === cat.id;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => handleCategoryClick(cat.id)}
+              className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
+                isActive
+                  ? 'bg-slate-200 dark:bg-slate-600/70 font-bold border-b-2'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
+              } border-slate-200 dark:border-slate-700`}
+              style={{
+                color: isActive ? cat.color : undefined,
+                borderBottomColor: isActive ? cat.color : undefined,
+              }}
+            >
+              <CatIcon className="w-3.5 h-3.5" />
+              {cat.name}
+              {globalSettings?.defaultCategoryId === cat.id && (
+                <Star className="w-2.5 h-2.5 fill-current" />
+              )}
+            </button>
+          );
+        })}
+        {/* Category add — sits immediately right of the tabs (not pinned to the far edge). */}
+        <Link
+          href="/categories"
+          title={t('categoryFilter.addCategory')}
+          aria-label={t('categoryFilter.addCategory')}
+          className="shrink-0 flex items-center justify-center px-3 py-2 border-r border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
+        >
+          <FolderPlus className="w-4 h-4" />
+        </Link>
+      </div>
+      {onHide && (
+        // PanelTopClose / PanelTopOpen = hide / show the home filter (ICON_POLICY).
+        <button
+          type="button"
+          onClick={onHide}
+          aria-label={t('filterPanel.hide')}
+          className="flex shrink-0 items-center gap-1.5 px-3 py-2 font-mono text-[11px] tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700/30 dark:hover:text-slate-200"
+        >
+          <PanelTopClose className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('filterPanel.hide')}
+        </button>
+      )}
     </div>
   );
 }
