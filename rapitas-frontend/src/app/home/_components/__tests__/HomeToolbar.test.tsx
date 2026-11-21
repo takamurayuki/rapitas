@@ -102,3 +102,60 @@ describe('the action groups', () => {
     expect(inside).not.toContain('auto');
   });
 });
+
+// 2026-11-21 colour pass (docs/design/ui-design-language.md): indigo is the one
+// accent for the primary action and the active state; blue is reserved for the
+// running state and purple is not in the palette at all.
+const toolbar = (isSelectionMode: boolean, selectedTasksSize = 0) =>
+  render(
+    <HomeToolbar
+      completedTasksCount={0}
+      totalTasksCount={1}
+      hasVisibleTasks
+      isSelectionMode={isSelectionMode}
+      selectedTasksSize={selectedTasksSize}
+      paginatedTasks={[]}
+      themeFilter={null}
+      defaultThemeId={undefined}
+      autoRunTheme={null}
+      onBulkUpdateStatus={vi.fn()}
+      onBulkDelete={vi.fn()}
+      onSelectAll={vi.fn()}
+      onToggleSelectionMode={vi.fn()}
+    />,
+  );
+const buttonWith = (text: string) =>
+  screen.getAllByRole('button').find((b) => (b.textContent ?? '').includes(text))!;
+
+describe('toolbar colours', () => {
+  it('draws タスクを作成 as the indigo primary action, not blue', () => {
+    toolbar(false);
+    const cls = buttonWith('createTask').className;
+    expect(cls).toContain('shadow-[0_2px_0_0_#a5b4fc]');
+    expect(cls).not.toMatch(/blue-/);
+  });
+
+  it('draws 一括 as a neutral raised button, never purple', () => {
+    toolbar(false);
+    const cls = buttonWith('bulk').className;
+    expect(cls).toContain('shadow-[0_2px_0_0_#d4d4d8]');
+    expect(cls).not.toMatch(/purple-/);
+  });
+
+  it('turns 一括 indigo and pressed while selection mode is on', () => {
+    toolbar(true, 2);
+    const cls = buttonWith('selecting').className;
+    expect(cls).toContain('bg-indigo-50');
+    expect(cls).toContain('translate-y-[2px]');
+    expect(cls).not.toMatch(/purple-/);
+  });
+});
+
+describe('bulk selection keeps every task action in the task group', () => {
+  it('puts the status segments inside the タスク管理 frame', () => {
+    toolbar(true, 2);
+    const group = screen.getByText('toolbarGroup.tasks').closest('[data-toolbar-group]');
+    const segments = screen.getByTestId('bulk-status-control');
+    expect(group?.contains(segments)).toBe(true);
+  });
+});

@@ -78,65 +78,67 @@ export function HomeToolbar({
           visible task list is empty so it doesn't sit beside an empty list. */}
       {hasVisibleTasks && (
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
-          {/* Bulk status segmented control — always visible in selection mode.
-            Segments are coloured and clickable once ≥1 task is selected. */}
-          {isSelectionMode && (
-            <div
-              className={`flex h-[38px] items-stretch overflow-hidden rounded-lg border transition-colors ${
-                selectedTasksSize > 0
-                  ? 'border-slate-300 dark:border-slate-600 shadow-sm'
-                  : 'border-slate-200 dark:border-slate-700'
-              } bg-white dark:bg-slate-900/50`}
-            >
-              {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
-                const config = getStatusDisplay(tt, status);
-                const enabled = selectedTasksSize > 0;
-
-                // When enabled: each segment shows its status tint immediately so
-                // the user can see "these are clickable buttons" at a glance.
-                // Hover deepens the tint; active shifts down slightly.
-                const enabledClasses =
-                  status === 'todo'
-                    ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
-                    : status === 'in-progress'
-                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
-                      : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
-
-                return (
-                  <React.Fragment key={status}>
-                    {idx > 0 && (
-                      <div
-                        className={`w-px shrink-0 ${
-                          enabled
-                            ? 'bg-slate-300 dark:bg-slate-600'
-                            : 'bg-slate-200 dark:bg-slate-700'
-                        }`}
-                      />
-                    )}
-                    <button
-                      onClick={() => enabled && onBulkUpdateStatus(status)}
-                      disabled={!enabled}
-                      title={enabled ? t('changeToStatus', { status: config.label }) : undefined}
-                      className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-100 ${
-                        enabled
-                          ? `cursor-pointer ${enabledClasses}`
-                          : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
-                      }`}
-                    >
-                      <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
-                      <span>{config.label}</span>
-                    </button>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
-
           <ToolbarGroup id="tasks" label={t('toolbarGroup.tasks')}>
+            {/* NOTE: Inside the タスク管理 group with the other bulk actions; it
+              used to sit outside the frame (2026-11-21). */}
+            {/* Bulk status segmented control — always visible in selection mode.
+              Segments are coloured and clickable once ≥1 task is selected. */}
+            {isSelectionMode && (
+              <div
+                data-testid="bulk-status-control"
+                className={`flex h-[38px] items-stretch overflow-hidden rounded-lg border transition-colors ${
+                  selectedTasksSize > 0
+                    ? 'border-slate-300 dark:border-slate-600 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-700'
+                } bg-white dark:bg-slate-900/50`}
+              >
+                {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
+                  const config = getStatusDisplay(tt, status);
+                  const enabled = selectedTasksSize > 0;
+
+                  // When enabled: each segment shows its status tint immediately so
+                  // the user can see "these are clickable buttons" at a glance.
+                  // Hover deepens the tint; active shifts down slightly.
+                  const enabledClasses =
+                    status === 'todo'
+                      ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
+                      : status === 'in-progress'
+                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
+                        : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
+
+                  return (
+                    <React.Fragment key={status}>
+                      {idx > 0 && (
+                        <div
+                          className={`w-px shrink-0 ${
+                            enabled
+                              ? 'bg-slate-300 dark:bg-slate-600'
+                              : 'bg-slate-200 dark:bg-slate-700'
+                          }`}
+                        />
+                      )}
+                      <button
+                        onClick={() => enabled && onBulkUpdateStatus(status)}
+                        disabled={!enabled}
+                        title={enabled ? t('changeToStatus', { status: config.label }) : undefined}
+                        className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-100 ${
+                          enabled
+                            ? `cursor-pointer ${enabledClasses}`
+                            : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
+                        }`}
+                      >
+                        <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
+                        <span>{config.label}</span>
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
             {/* Normal mode buttons */}
             {!isSelectionMode && (
               <>
-                {/* タスクを作成 — ボトムリッジ (青) */}
+                {/* タスクを作成 — ボトムリッジ (藍)。タスク管理の主な操作。青は「実行中」の状態色なので使わない (2026-11-21)。 */}
                 <button
                   onClick={() => {
                     const themeParam = themeFilter || defaultThemeId;
@@ -145,13 +147,13 @@ export function HomeToolbar({
                   title={`${t('createTask')} (Ctrl+N)`}
                   className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-                  text-sm font-medium text-blue-700 dark:text-blue-300
+                  text-sm font-medium text-indigo-600 dark:text-indigo-400
                   bg-white dark:bg-zinc-900
-                  border border-blue-200 dark:border-blue-800
-                  shadow-[0_2px_0_0_#93c5fd] dark:shadow-[0_2px_0_0_#1e3a8a]
+                  border border-indigo-300 dark:border-indigo-700
+                  shadow-[0_2px_0_0_#a5b4fc] dark:shadow-[0_2px_0_0_#312e81]
                   transition-all duration-75
-                  hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700
-                  active:translate-y-[2px] active:shadow-none active:bg-blue-50 dark:active:bg-blue-900/20
+                  hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400 dark:hover:border-indigo-600
+                  active:translate-y-[2px] active:shadow-none active:bg-indigo-50 dark:active:bg-indigo-950/40
                 "
                 >
                   <ListPlus className="w-4 h-4" />
@@ -212,7 +214,7 @@ export function HomeToolbar({
               </>
             )}
 
-            {/* 一括選択 — ボトムリッジ (紫)。選択モード中は押し込んだまま。
+            {/* 一括選択 — ボトムリッジ (灰)。選択モード中は藍で押し込んだまま (2026-11-21: 紫は配色にない)。
               CopyCheck = 複数項目の選択を直感的に表す (旧 ListChecks は ListTodo=
               サブタスクと似ていて紛らわしかったため全アプリで移行)。 */}
             <button
@@ -220,12 +222,11 @@ export function HomeToolbar({
               title={t('bulkSelectionMode')}
               className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
-              text-sm font-medium text-purple-700 dark:text-purple-300
-              border transition-all duration-75
+              text-sm font-medium border transition-all duration-75
               ${
                 isSelectionMode
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 translate-y-[2px] shadow-none'
-                  : 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-800 shadow-[0_2px_0_0_#d8b4fe] dark:shadow-[0_2px_0_0_#4c1d95] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 active:translate-y-[2px] active:shadow-none active:bg-purple-50 dark:active:bg-purple-900/20'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 translate-y-[2px] shadow-none'
+                  : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#3f3f46] hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 active:translate-y-[2px] active:shadow-none active:bg-zinc-50 dark:active:bg-zinc-800'
               }
             `}
             >
