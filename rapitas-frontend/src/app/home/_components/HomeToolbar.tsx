@@ -9,7 +9,6 @@ import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/Statu
 import { useTranslations } from 'next-intl';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { AutoExecutionMode } from './AutoExecutionMode';
-import { ToolbarGroup } from './ToolbarGroup';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -78,7 +77,7 @@ export function HomeToolbar({
           visible task list is empty so it doesn't sit beside an empty list. */}
       {hasVisibleTasks && (
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
-          <ToolbarGroup id="tasks" label={t('toolbarGroup.tasks')}>
+          <div data-toolbar-group="tasks" className="flex items-center gap-2">
             {/* NOTE: Inside the タスク管理 group with the other bulk actions; it
               used to sit outside the frame (2026-11-21). */}
             {/* Bulk status segmented control — always visible in selection mode.
@@ -233,10 +232,10 @@ export function HomeToolbar({
               <CopyCheck className="w-4 h-4" />
               {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
             </button>
-          </ToolbarGroup>
+          </div>
 
-          {/* タスク実行 last, after タスク管理; the control draws its own labelled
-              group (2026-11-21). Hidden during bulk selection. */}
+          {/* Auto-run last, after the task actions; the control draws its own
+              divider and status panel (2026-11-21). Hidden during bulk selection. */}
           {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
         </div>
       )}

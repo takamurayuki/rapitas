@@ -74,7 +74,8 @@
       "startTitle": "このテーマのToDoタスクを上から順に自動実行します",
       "stopTitle": "自動実行を停止します",
       "paused": "一時停止中",
-      "runningLabel": "タスク自動実行中"
+      "runningLabel": "タスク自動実行中",
+      "start": "開始"
     },
     "todayTaskProgress": {
       "remainingCount": "残り {count} 件",
@@ -153,7 +154,6 @@
       }
     },
     "toolbarGroup": {
-      "tasks": "タスク管理",
       "autoRun": "自動実行"
     }
   }
