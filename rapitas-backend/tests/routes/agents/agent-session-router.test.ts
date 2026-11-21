@@ -302,6 +302,45 @@ describe('Agent Session Router', () => {
       expect(data[0].status).toBe('running');
     });
 
+    // 2026-11-21: task 1519 showed twice in ラピ's running list. Execution 6969
+    // had been reverted at a backend restart (completedAt written) but kept
+    // status 'running' and stayed in the in-memory active list.
+    it('never lists a finished execution as running', async () => {
+      mockMainActiveExecutionIds = [6969, 6971];
+      const row = (id: number, completedAt: Date | null) => ({
+        id,
+        sessionId: 1,
+        status: 'running',
+        errorMessage: null,
+        output: null,
+        startedAt: new Date(),
+        completedAt,
+        createdAt: new Date(),
+        session: {
+          config: {
+            task: {
+              id: 1519,
+              title: 'stop-all',
+              status: 'in-progress',
+              workflowStatus: 'research_done',
+              workflowMode: null,
+              theme: null,
+            },
+          },
+        },
+      });
+      mockPrisma.agentExecution.findMany = mock((args: { where?: { OR?: unknown } }) => {
+        if (!args?.where?.OR) return Promise.resolve([]);
+        return Promise.resolve([row(6971, null), row(6969, new Date())]);
+      });
+
+      const response = await app.handle(
+        new Request('http://localhost/agents/resumable-executions'),
+      );
+      const data = await response.json();
+      expect(data.map((e: { id: number }) => e.id)).toEqual([6971]);
+    });
+
     it('returns 503 when the database query fails', async () => {
       mockPrisma.agentExecution.findMany = mock(() => Promise.reject(new Error('DB unreachable')));
 
