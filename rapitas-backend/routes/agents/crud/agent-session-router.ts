@@ -115,6 +115,8 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
             {
               status: { in: ['running', 'waiting_for_input'] },
               id: { in: currentActiveIds.length > 0 ? currentActiveIds : [-1] },
+              // A finished run is never running, whatever its status says (task 1519).
+              completedAt: null,
             },
           ],
         },
@@ -165,7 +167,10 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
       // completed via a fresh execution but its earlier interrupted row
       // stayed; task 658/execution 2806 is the same pattern via `status=done`).
       const dedupedExecutions = resumableExecutions.filter((e) => {
-        if (e.status !== 'interrupted') return true;
+        // NOTE: Also checked here, not only in the query: a restart revert wrote
+        // completedAt on execution 6969 but left status 'running' and its id in
+        // the in-memory active list, so task 1519 showed twice (2026-11-21).
+        if (e.status !== 'interrupted') return e.completedAt == null;
         return isResumableInterrupted({ status: e.status }, e.session.config?.task, liveTaskIds);
       });
 
