@@ -10,7 +10,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { REPAIR_CAUSE, resolveRepairWindowStart } from './verify-self-repair-budget';
+import { REPAIR_CAUSE } from './verify-self-repair-budget';
 import { classifyRepairCause, type RepairCauseKind, type RepairFindingLike } from './repair-cause';
 
 const log = createLogger('workflow:repair-escalation');
@@ -24,6 +24,45 @@ const JURY_FAILED_CAUSE = 'adversarial_review_failed';
  * minute leaves room for a slow DB without reaching the next repair round.
  */
 const JURY_ROW_PAIRING_MS = 60_000;
+
+/** Transitions that mean the work itself changed: a new or revised plan. */
+const PLAN_CHANGE_CAUSES = [
+  'plan_invalid_replan',
+  'plan_revision_requested',
+  'requirement_evidence_replan',
+];
+
+/**
+ * Start of the escalation window: the latest change to the work itself
+ * (acceptance criteria replaced, or the plan regenerated / revised).
+ *
+ * NOTE: Deliberately narrower than resolveRepairWindowStart, which also
+ * resets on a retry or an answered question so the repair BUDGET starts
+ * again. Those do not make a weaker model capable: trendline task 521 ran
+ * Sonnet, was rejected for a capability gap, ran premium, then had a question
+ * answered and an auto-retry, and ran Sonnet again (2026-11-21).
+ */
+async function resolveEscalationWindowStart(taskId: number): Promise<Date | null> {
+  const [criteria, plan] = await Promise.all([
+    prisma.activityLog
+      .findFirst({
+        where: { taskId, action: { in: ['acceptance_criteria_changed'] } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null),
+    prisma.workflowTransition
+      .findFirst({
+        where: { taskId, cause: { in: PLAN_CHANGE_CAUSES } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      })
+      .catch(() => null),
+  ]);
+  const dates = [criteria?.createdAt, plan?.createdAt].filter((d): d is Date => d instanceof Date);
+  if (dates.length === 0) return null;
+  return dates.reduce((a, d) => (d > a ? d : a));
+}
 
 /** Bounce counts per cause in the current repair window. */
 export type RepairCauseSummary = Record<RepairCauseKind, number>;
@@ -47,9 +86,9 @@ function parseMetadata(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * Count this task's repair bounces by cause, since the latest repair-window
- * reset (manual retry, criteria change, answered question, replan) — the same
- * window the repair budget uses, so a replanned task starts clean.
+ * Count this task's repair bounces by cause, since the latest change to the
+ * work itself (criteria replaced or plan regenerated), so a replanned task
+ * starts clean while a retry or an answered question keeps the escalation.
  *
  * Fails open to all-zero: an unreadable history must never block routing, and
  * zero is the pre-existing behaviour (no escalation from bounces).
@@ -60,7 +99,7 @@ function parseMetadata(raw: unknown): Record<string, unknown> {
 export async function summarizeRepairCauses(taskId: number): Promise<RepairCauseSummary> {
   const summary = emptySummary();
   try {
-    const windowStart = await resolveRepairWindowStart(taskId);
+    const windowStart = await resolveEscalationWindowStart(taskId);
     const rows = await prisma.workflowTransition.findMany({
       where: {
         taskId,
