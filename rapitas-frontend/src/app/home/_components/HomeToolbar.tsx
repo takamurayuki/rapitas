@@ -8,7 +8,9 @@ import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { AutoExecutionMode } from './AutoExecutionMode';
+import { AutoRunProgressStrip } from './AutoRunProgressStrip';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -62,89 +64,96 @@ export function HomeToolbar({
   const selectableTaskCount = paginatedTasks.filter((task) => !isTaskExecuting(task.id)).length;
   const allSelected = selectedTasksSize === selectableTaskCount && selectableTaskCount > 0;
 
+  // One poll for both the toolbar control and the progress strip under it.
+  const autoRun = useThemeAutoRun(autoRunTheme?.id ?? null, autoRunTheme?.isDevelopment);
+  const autoRunData = autoRunTheme?.isDevelopment ? autoRun.data : null;
+
+  // NOTE: the row wraps instead of squeezing — at 390px the actions were
+  // crushed into one-character-wide columns of vertical text. min-h-[62px] is
+  // the due-today card's height: on a day with nothing due the card shrinks to
+  // one line, and the row fell to the buttons' 38px, leaving them less room
+  // above and below than on a day with the card (2026-11-16).
   return (
-    // NOTE: wraps instead of squeezing — at 390px the actions were crushed into
-    // one-character-wide columns of vertical text. min-h-[62px] is the
-    // due-today card's height: on a day with nothing due the card shrinks to
-    // one line, and the row fell to the buttons' 38px, leaving them less room
-    // above and below than on a day with the card (2026-11-16).
-    <div className="mb-3 flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div className="flex items-center gap-4">
-        <TodayTaskProgressBar compact={true} className="w-60" />
-      </div>
+    <>
+      <div className="mb-3 flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-4">
+          <TodayTaskProgressBar compact={true} className="w-60" />
+        </div>
 
-      {/* Right-side action group (create / bulk, then auto-run). Hidden when the
+        {/* Right-side action group (create / bulk, then auto-run). Hidden when the
           visible task list is empty so it doesn't sit beside an empty list. */}
-      {hasVisibleTasks && (
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
-          <div data-toolbar-group="tasks" className="flex items-center gap-2">
-            {/* NOTE: Inside the タスク管理 group with the other bulk actions; it
+        {hasVisibleTasks && (
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
+            <div data-toolbar-group="tasks" className="flex items-center gap-2">
+              {/* NOTE: Inside the タスク管理 group with the other bulk actions; it
               used to sit outside the frame (2026-11-21). */}
-            {/* Bulk status segmented control — always visible in selection mode.
+              {/* Bulk status segmented control — always visible in selection mode.
               Segments are coloured and clickable once ≥1 task is selected. */}
-            {isSelectionMode && (
-              <div
-                data-testid="bulk-status-control"
-                className={`flex h-[38px] items-stretch overflow-hidden rounded-lg border transition-colors ${
-                  selectedTasksSize > 0
-                    ? 'border-slate-300 dark:border-slate-600 shadow-sm'
-                    : 'border-slate-200 dark:border-slate-700'
-                } bg-white dark:bg-slate-900/50`}
-              >
-                {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
-                  const config = getStatusDisplay(tt, status);
-                  const enabled = selectedTasksSize > 0;
+              {isSelectionMode && (
+                <div
+                  data-testid="bulk-status-control"
+                  className={`flex h-[38px] items-stretch overflow-hidden rounded-lg border transition-colors ${
+                    selectedTasksSize > 0
+                      ? 'border-slate-300 dark:border-slate-600 shadow-sm'
+                      : 'border-slate-200 dark:border-slate-700'
+                  } bg-white dark:bg-slate-900/50`}
+                >
+                  {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
+                    const config = getStatusDisplay(tt, status);
+                    const enabled = selectedTasksSize > 0;
 
-                  // When enabled: each segment shows its status tint immediately so
-                  // the user can see "these are clickable buttons" at a glance.
-                  // Hover deepens the tint; active shifts down slightly.
-                  const enabledClasses =
-                    status === 'todo'
-                      ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
-                      : status === 'in-progress'
-                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
-                        : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
+                    // When enabled: each segment shows its status tint immediately so
+                    // the user can see "these are clickable buttons" at a glance.
+                    // Hover deepens the tint; active shifts down slightly.
+                    const enabledClasses =
+                      status === 'todo'
+                        ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300 hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 active:bg-zinc-300 dark:active:bg-zinc-600'
+                        : status === 'in-progress'
+                          ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 hover:text-blue-800 dark:hover:bg-blue-900/40 dark:hover:text-blue-200 active:bg-blue-200 dark:active:bg-blue-900/60'
+                          : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300 hover:bg-green-100 hover:text-green-800 dark:hover:bg-green-900/40 dark:hover:text-green-200 active:bg-green-200 dark:active:bg-green-900/60';
 
-                  return (
-                    <React.Fragment key={status}>
-                      {idx > 0 && (
-                        <div
-                          className={`w-px shrink-0 ${
+                    return (
+                      <React.Fragment key={status}>
+                        {idx > 0 && (
+                          <div
+                            className={`w-px shrink-0 ${
+                              enabled
+                                ? 'bg-slate-300 dark:bg-slate-600'
+                                : 'bg-slate-200 dark:bg-slate-700'
+                            }`}
+                          />
+                        )}
+                        <button
+                          onClick={() => enabled && onBulkUpdateStatus(status)}
+                          disabled={!enabled}
+                          title={
+                            enabled ? t('changeToStatus', { status: config.label }) : undefined
+                          }
+                          className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-100 ${
                             enabled
-                              ? 'bg-slate-300 dark:bg-slate-600'
-                              : 'bg-slate-200 dark:bg-slate-700'
+                              ? `cursor-pointer ${enabledClasses}`
+                              : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
                           }`}
-                        />
-                      )}
-                      <button
-                        onClick={() => enabled && onBulkUpdateStatus(status)}
-                        disabled={!enabled}
-                        title={enabled ? t('changeToStatus', { status: config.label }) : undefined}
-                        className={`flex items-center gap-1.5 px-3 text-sm font-medium transition-colors duration-100 ${
-                          enabled
-                            ? `cursor-pointer ${enabledClasses}`
-                            : 'cursor-not-allowed text-slate-300 dark:text-slate-600'
-                        }`}
-                      >
-                        <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
-                        <span>{config.label}</span>
-                      </button>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            )}
-            {/* Normal mode buttons */}
-            {!isSelectionMode && (
-              <>
-                {/* タスクを作成 — ボトムリッジ (藍)。タスク管理の主な操作。青は「実行中」の状態色なので使わない (2026-11-21)。 */}
-                <button
-                  onClick={() => {
-                    const themeParam = themeFilter || defaultThemeId;
-                    router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
-                  }}
-                  title={`${t('createTask')} (Ctrl+N)`}
-                  className="
+                        >
+                          <span className="h-3.5 w-3.5">{renderStatusIcon(status)}</span>
+                          <span>{config.label}</span>
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Normal mode buttons */}
+              {!isSelectionMode && (
+                <>
+                  {/* タスクを作成 — ボトムリッジ (藍)。タスク管理の主な操作。青は「実行中」の状態色なので使わない (2026-11-21)。 */}
+                  <button
+                    onClick={() => {
+                      const themeParam = themeFilter || defaultThemeId;
+                      router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
+                    }}
+                    title={`${t('createTask')} (Ctrl+N)`}
+                    className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
                   text-sm font-medium text-indigo-600 dark:text-indigo-400
                   bg-white dark:bg-zinc-900
@@ -154,41 +163,45 @@ export function HomeToolbar({
                   hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-400 dark:hover:border-indigo-600
                   active:translate-y-[2px] active:shadow-none active:bg-indigo-50 dark:active:bg-indigo-950/40
                 "
-                >
-                  <ListPlus className="w-4 h-4" />
-                  {t('createTask')}
-                </button>
-              </>
-            )}
+                  >
+                    <ListPlus className="w-4 h-4" />
+                    {t('createTask')}
+                  </button>
+                </>
+              )}
 
-            {/* Selection mode buttons */}
-            {isSelectionMode && (
-              <>
-                {/* 全選択 — フラット (表示補助操作のため) */}
-                <button
-                  onClick={onSelectAll}
-                  title={allSelected ? t('deselectAndExit') : t('selectAll')}
-                  className="
+              {/* Selection mode buttons */}
+              {isSelectionMode && (
+                <>
+                  {/* 全選択 — フラット (表示補助操作のため) */}
+                  <button
+                    onClick={onSelectAll}
+                    title={allSelected ? t('deselectAndExit') : t('selectAll')}
+                    className="
                   flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
                   text-sm font-medium text-zinc-600 dark:text-zinc-400
                   bg-zinc-100 dark:bg-zinc-800
                   transition-colors duration-150
                   hover:bg-zinc-200 dark:hover:bg-zinc-700
                 "
-                >
-                  {/* CircleCheckBig — properly centred check; the hand-rolled
+                  >
+                    {/* CircleCheckBig — properly centred check; the hand-rolled
                       check-circle path drifted at small sizes. Same glyph as the
                       subtask header's select-all. */}
-                  {allSelected ? <X className="w-4 h-4" /> : <CircleCheckBig className="w-4 h-4" />}
-                  {allSelected ? t('deselectAll') : t('selectAll')}
-                </button>
+                    {allSelected ? (
+                      <X className="w-4 h-4" />
+                    ) : (
+                      <CircleCheckBig className="w-4 h-4" />
+                    )}
+                    {allSelected ? t('deselectAll') : t('selectAll')}
+                  </button>
 
-                {/* 削除 — ボトムリッジ (赤) */}
-                {selectedTasksSize > 0 && (
-                  <button
-                    onClick={onBulkDelete}
-                    title={t('deleteSelected')}
-                    className="
+                  {/* 削除 — ボトムリッジ (赤) */}
+                  {selectedTasksSize > 0 && (
+                    <button
+                      onClick={onBulkDelete}
+                      title={t('deleteSelected')}
+                      className="
                     flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
                     text-sm font-medium text-red-600 dark:text-red-400
                     bg-white dark:bg-zinc-900
@@ -198,28 +211,33 @@ export function HomeToolbar({
                     hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700
                     active:translate-y-[2px] active:shadow-none active:bg-red-50 dark:active:bg-red-900/20
                   "
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                    {tc('delete')}
-                  </button>
-                )}
-              </>
-            )}
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                      {tc('delete')}
+                    </button>
+                  )}
+                </>
+              )}
 
-            {/* 一括選択 — ボトムリッジ (灰)。選択モード中は藍で押し込んだまま (2026-11-21: 紫は配色にない)。
+              {/* 一括選択 — ボトムリッジ (灰)。選択モード中は藍で押し込んだまま (2026-11-21: 紫は配色にない)。
               CopyCheck = 複数項目の選択を直感的に表す (旧 ListChecks は ListTodo=
               サブタスクと似ていて紛らわしかったため全アプリで移行)。 */}
-            <button
-              onClick={onToggleSelectionMode}
-              title={t('bulkSelectionMode')}
-              className={`
+              <button
+                onClick={onToggleSelectionMode}
+                title={t('bulkSelectionMode')}
+                className={`
               flex items-center gap-2 px-3.5 py-2 rounded-lg select-none
               text-sm font-medium border transition-all duration-75
               ${
@@ -228,17 +246,28 @@ export function HomeToolbar({
                   : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 shadow-[0_2px_0_0_#d4d4d8] dark:shadow-[0_2px_0_0_#3f3f46] hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 active:translate-y-[2px] active:shadow-none active:bg-zinc-50 dark:active:bg-zinc-800'
               }
             `}
-            >
-              <CopyCheck className="w-4 h-4" />
-              {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
-            </button>
-          </div>
+              >
+                <CopyCheck className="w-4 h-4" />
+                {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
+              </button>
+            </div>
 
-          {/* Auto-run last, after the task actions; the control draws its own
+            {/* Auto-run last, after the task actions; the control draws its own
               divider and status panel (2026-11-21). Hidden during bulk selection. */}
-          {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
-        </div>
+            {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} control={autoRun} />}
+          </div>
+        )}
+      </div>
+      {/* Under the row, full width: the panel above only has room for the
+        state, so the task, its phase and the backlog go here (2026-11-21). */}
+      {autoRunData && (
+        <AutoRunProgressStrip
+          status={autoRunData.autoRun.status}
+          currentTask={autoRunData.currentTask}
+          remainingCount={autoRunData.remainingCount}
+          startedAt={autoRunData.autoRun.startedAt}
+        />
       )}
-    </div>
+    </>
   );
 }

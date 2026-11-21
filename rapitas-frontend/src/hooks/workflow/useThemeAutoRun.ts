@@ -27,18 +27,23 @@ export interface ThemeAutoRunState {
   updatedAt: string;
 }
 
-interface CurrentTask {
+/** The task auto-run is working on, as the state endpoint returns it. */
+export interface CurrentTask {
   id: number;
   title: string;
   status: string;
   workflowStatus: string | null;
 }
 
-interface AutoRunData {
+/** Auto-run state plus the current task and the remaining backlog count. */
+export interface AutoRunData {
   autoRun: ThemeAutoRunState;
   currentTask: CurrentTask | null;
   remainingCount: number;
 }
+
+/** What the hook returns, so one call can feed several components. */
+export type ThemeAutoRunControl = ReturnType<typeof useThemeAutoRun>;
 
 /** Minimum polling interval when auto-run is active (ms). */
 const ACTIVE_POLL_MS = 8_000;

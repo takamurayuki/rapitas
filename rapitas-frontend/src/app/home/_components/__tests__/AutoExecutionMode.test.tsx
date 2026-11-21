@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import type { AutoRunStatus } from '@/hooks/workflow/useThemeAutoRun';
 
 const autoRun = {
@@ -21,16 +22,6 @@ const autoRun = {
   actionLoading: false,
   error: null as string | null,
 };
-
-vi.mock('@/hooks/workflow/useThemeAutoRun', () => ({
-  useThemeAutoRun: () => ({
-    data: { autoRun: { status: autoRun.status } },
-    actionLoading: autoRun.actionLoading,
-    error: autoRun.error,
-    start: autoRun.start,
-    stop: autoRun.stop,
-  }),
-}));
 
 // Namespace-aware: the component reads three namespaces, and a mock that
 // dropped the namespace would make two different keys collide.
@@ -51,7 +42,17 @@ vi.mock('lucide-react', async (importOriginal) => {
 const { AutoExecutionMode } = await import('../AutoExecutionMode');
 
 const theme = { id: 1, isDevelopment: true };
-const renderControl = () => render(<AutoExecutionMode theme={theme} />);
+// The state is passed in by HomeToolbar, which shares one poll with the
+// progress strip; only the fields the control reads are filled in.
+const control = () =>
+  ({
+    data: { autoRun: { status: autoRun.status } },
+    actionLoading: autoRun.actionLoading,
+    error: autoRun.error,
+    start: autoRun.start,
+    stop: autoRun.stop,
+  }) as unknown as ComponentProps<typeof AutoExecutionMode>['control'];
+const renderControl = () => render(<AutoExecutionMode theme={theme} control={control()} />);
 
 /** The stop control, by the label it carries in both namespaces' wording. */
 const stopButton = () => screen.getByRole('button', { name: /autoRun\.stop/ });

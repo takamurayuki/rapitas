@@ -13,28 +13,31 @@
  */
 import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
+import type { ThemeAutoRunControl } from '@/hooks/workflow/useThemeAutoRun';
 import { Spinner } from '@/components/ui/spinner';
 import { AutoRunPanel } from './AutoRunPanel';
 
 interface AutoExecutionModeProps {
   /** Selected development theme to control, or null when none is active. */
   theme?: { id: number; isDevelopment?: boolean } | null;
+  /** The theme's auto-run state and actions (useThemeAutoRun). / 自動実行の状態と操作 */
+  control: Pick<ThemeAutoRunControl, 'data' | 'actionLoading' | 'error' | 'start' | 'stop'>;
 }
 
 /**
  * Start/stop control for a theme's task auto-execution.
  *
+ * NOTE: The state comes from the caller, not from its own useThemeAutoRun
+ * call, so the toolbar and the progress strip under it share one poll.
+ *
  * @param props.theme - The active development theme (id + isDevelopment). / 対象の開発テーマ
+ * @param props.control - Auto-run state and actions / 自動実行の状態と操作
  * @returns The control, or null for non-development themes. / コントロール（非開発テーマはnull）
  */
-export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
+export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
   const t = useTranslations('home');
   const tAutoRun = useTranslations('autoRun');
-  const { data, actionLoading, error, start, stop } = useThemeAutoRun(
-    theme?.id ?? null,
-    theme?.isDevelopment,
-  );
+  const { data, actionLoading, error, start, stop } = control;
 
   if (!theme?.isDevelopment) return null;
 

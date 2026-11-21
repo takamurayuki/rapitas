@@ -14,6 +14,15 @@ vi.mock('@/components/widgets/TodayTaskProgressBar', () => ({
   default: () => <p data-testid="due-today">本日期限のタスクはありません</p>,
 }));
 vi.mock('../AutoExecutionMode', () => ({ AutoExecutionMode: () => <button>auto</button> }));
+const autoRunState = vi.hoisted(() => ({ data: null as unknown }));
+vi.mock('@/hooks/workflow/useThemeAutoRun', () => ({
+  useThemeAutoRun: () => ({ data: autoRunState.data }),
+}));
+vi.mock('../AutoRunProgressStrip', () => ({
+  AutoRunProgressStrip: (p: { currentTask: { title: string } | null }) => (
+    <div data-testid="strip">{p.currentTask?.title}</div>
+  ),
+}));
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (sel: (s: { isTaskExecuting: () => boolean }) => unknown) =>
     sel({ isTaskExecuting: () => false }),
@@ -152,6 +161,47 @@ describe('toolbar colours', () => {
     expect(cls).toContain('bg-indigo-50');
     expect(cls).toContain('translate-y-[2px]');
     expect(cls).not.toMatch(/purple-/);
+  });
+});
+
+// 2026-11-21: the panel only said 実行中; the strip under the row shows the
+// current task from the same poll that drives the panel.
+describe('the auto-run progress strip', () => {
+  const withTheme = (isDevelopment: boolean) =>
+    render(
+      <HomeToolbar
+        completedTasksCount={0}
+        totalTasksCount={1}
+        hasVisibleTasks
+        isSelectionMode={false}
+        selectedTasksSize={0}
+        paginatedTasks={[]}
+        themeFilter={null}
+        defaultThemeId={undefined}
+        autoRunTheme={{ id: 1, isDevelopment }}
+        onBulkUpdateStatus={vi.fn()}
+        onBulkDelete={vi.fn()}
+        onSelectAll={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+      />,
+    );
+
+  it('shows the current task under the toolbar row for a development theme', () => {
+    autoRunState.data = {
+      autoRun: { status: 'running', startedAt: null },
+      currentTask: { id: 9, title: 'いまのタスク', status: 'in-progress', workflowStatus: null },
+      remainingCount: 3,
+    };
+    const { container } = withTheme(true);
+    const strip = screen.getByTestId('strip');
+    expect(strip.textContent).toBe('いまのタスク');
+    expect(container.firstElementChild?.contains(strip)).toBe(false);
+    autoRunState.data = null;
+  });
+
+  it('draws no strip without auto-run data', () => {
+    withTheme(true);
+    expect(screen.queryByTestId('strip')).toBeNull();
   });
 });
 

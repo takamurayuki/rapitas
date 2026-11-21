@@ -12,6 +12,19 @@
     "statusIdle": "Idle",
     "statusRunning": "Running",
     "statusPaused": "Paused",
-    "statusStopping": "Stopping"
+    "statusStopping": "Stopping",
+    "progress": {
+      "label": "Auto-run progress",
+      "choosingNext": "Choosing the next task",
+      "awaitingAnswer": "Awaiting answer",
+      "remaining": "{count} left",
+      "elapsed": "{time} since start",
+      "steps": {
+        "research": "Research",
+        "plan": "Plan",
+        "implement": "Implement",
+        "verify": "Verify"
+      }
+    }
   }
 }
