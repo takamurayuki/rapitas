@@ -43,6 +43,14 @@ type CodexItemPayload = {
  * (process-runner.ts's `state.errorBuffer.slice(-4096)`).
  */
 const FAILED_COMMAND_OUTPUT_TAIL_LIMIT = 4096;
+/**
+ * Lines of a failed command's output shown in the execution log. The full
+ * tail still goes to the backend log.
+ *
+ * NOTE: Was the last 4096 chars, so one failed `node --test` put a whole
+ * stack trace in the log that Claude Code runs never show (2026-11-21).
+ */
+const FAILED_COMMAND_DISPLAY_LINES = 5;
 
 /**
  * Process a single parsed JSON event object from Codex CLI stdout.
@@ -144,13 +152,19 @@ export function processJsonEvent(
         const command = typeof item.command === 'string' ? item.command : '(unknown command)';
         const started =
           typeof item.id === 'string' ? state.activeCodexCommands.get(item.id) : undefined;
-        const durationLabel = started
-          ? `${((Date.now() - started.startedAt) / 1000).toFixed(1)}s, `
-          : '';
+        const duration = started
+          ? `${((Date.now() - started.startedAt) / 1000).toFixed(1)}s`
+          : undefined;
         const exitCode = typeof item.exit_code === 'number' ? item.exit_code : undefined;
         const failed = exitCode !== undefined ? exitCode !== 0 : item.status === 'failed';
         const exitLabel = exitCode !== undefined ? `exit ${exitCode}` : (item.status ?? 'unknown');
         const label = failed ? 'Command Failed' : 'Command Done';
+        // NOTE: Claude Code's shape (`[Tool Done: Bash] (3.8s)`), which the log
+        // viewer already shortens to "Bash (3.8s)". The command is on the start
+        // line; repeating it here doubled every entry (2026-11-21).
+        const detail = failed
+          ? [duration, exitLabel].filter(Boolean).join(', ')
+          : (duration ?? exitLabel);
         const aggregatedOutput =
           typeof item.aggregated_output === 'string' ? item.aggregated_output : undefined;
 
@@ -158,7 +172,7 @@ export function processJsonEvent(
         // from a single command must not, by itself, decide the overall
         // AgentExecutionResult.success. That is governed solely by
         // state.turnFailed (see process-runner-close-result.ts).
-        displayOutput += `[${label}] ${displayCommand(command)} (${durationLabel}${exitLabel})\n`;
+        displayOutput += `[${failed ? 'Tool Error' : 'Tool Done'}: Bash] (${detail})\n`;
         if (failed) {
           logger.warn(
             {
@@ -177,7 +191,11 @@ export function processJsonEvent(
               aggregatedOutput.length > FAILED_COMMAND_OUTPUT_TAIL_LIMIT
                 ? aggregatedOutput.slice(-FAILED_COMMAND_OUTPUT_TAIL_LIMIT)
                 : aggregatedOutput;
-            displayOutput += `${tail}\n`;
+            const shown = tail
+              .split(/\r?\n/)
+              .filter((l) => l.trim().length > 0)
+              .slice(-FAILED_COMMAND_DISPLAY_LINES);
+            if (shown.length > 0) displayOutput += `${shown.join('\n')}\n`;
           }
         } else {
           logger.info(

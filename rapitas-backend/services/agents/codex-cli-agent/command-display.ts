@@ -22,6 +22,30 @@ const WRAPPERS: readonly RegExp[] = [
   /^(?:"[^"]*?cmd(?:\.exe)?"|\S*?cmd(?:\.exe)?)\s+(?:\/\w\s+)*?\/c\s+/i,
 ];
 
+/**
+ * Setup statements Codex puts in front of the real command (output encoding,
+ * error preference). Only dropped when a command follows them.
+ *
+ * NOTE: Most Codex PowerShell commands on Windows start with
+ * `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false);`,
+ * which used up the 160-char line before the command itself (2026-11-21).
+ */
+const SETUP_STATEMENT =
+  /^(?:(?:\$OutputEncoding\s*=\s*)?\[Console\]::(?:Output|Input)Encoding\s*=\s*[^;]+|\$OutputEncoding\s*=\s*[^;]+|\$ErrorActionPreference\s*=\s*[^;]+|\$ProgressPreference\s*=\s*[^;]+)\s*;\s*/i;
+
+/** Drop leading setup statements, keeping at least the last statement. */
+function dropSetup(cmd: string): string {
+  let out = cmd;
+  for (
+    let m = out.match(SETUP_STATEMENT);
+    m && out.length > m[0].length;
+    m = out.match(SETUP_STATEMENT)
+  ) {
+    out = out.slice(m[0].length);
+  }
+  return out;
+}
+
 /** Remove one pair of surrounding quotes and undo POSIX `'"'"'` splicing. */
 function unquote(arg: string): string {
   const s = arg.trim();
@@ -49,7 +73,7 @@ export function displayCommand(raw: string): string {
     }
   }
   const lines = cmd.split(/\r?\n/).map((l) => l.trim());
-  const first = lines.find((l) => l.length > 0) ?? '';
+  const first = dropSetup(lines.find((l) => l.length > 0) ?? '');
   const cut = lines.filter((l) => l.length > 0).length > 1;
   if (first.length > MAX_COMMAND_DISPLAY_CHARS) {
     return `${first.slice(0, MAX_COMMAND_DISPLAY_CHARS)} …`;

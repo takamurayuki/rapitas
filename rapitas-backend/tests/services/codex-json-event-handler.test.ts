@@ -219,8 +219,11 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Done] ls -la');
-    expect(h.state.outputBuffer).toContain('exit 0');
+    // 2026-11-21: same shape as Claude Code's `[Tool Done: Bash] (3.8s)`; the
+    // command was already shown on the start line.
+    expect(h.state.outputBuffer).toMatch(/\[Tool Done: Bash\] \(\d+\.\ds\)\n/);
+    expect(h.state.outputBuffer).not.toContain('Command Done');
+    expect(h.state.outputBuffer.split('ls -la').length - 1).toBe(0);
     expect(h.state.activeCodexCommands.has('cmd-1')).toBe(false);
   });
 
@@ -239,8 +242,7 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Failed] npm test');
-    expect(h.state.outputBuffer).toContain('exit 1');
+    expect(h.state.outputBuffer).toMatch(/\[Tool Error: Bash\] \(\d+\.\ds, exit 1\)\n/);
     expect(h.state.turnFailed).toBe(false);
   });
 
@@ -258,7 +260,7 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Failed] git status');
+    expect(h.state.outputBuffer).toContain('[Tool Error: Bash] (failed)');
   });
 
   test('a second item.completed(agent_message) with the same id is skipped, not appended again', () => {
@@ -325,7 +327,7 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Failed] npm test');
+    expect(h.state.outputBuffer).toContain('[Tool Error: Bash]');
     expect(h.state.outputBuffer).toContain('FAIL src/foo.test.ts');
     expect(h.state.outputBuffer).toContain('1 failing');
   });
@@ -350,7 +352,7 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Done] echo ok');
+    expect(h.state.outputBuffer).toContain('[Tool Done: Bash]');
     expect(h.state.outputBuffer).not.toContain('ok\nok\n');
     expect(h.state.outputBuffer.endsWith('ok\n')).toBe(false);
   });
@@ -380,7 +382,7 @@ describe('codex json-event-handler', () => {
     expect(h.state.outputBuffer.length).toBeLessThan(longOutput.length);
   });
 
-  test('item.completed with command_execution and no matching item.started omits the duration but still shows the command', () => {
+  test('item.completed with command_execution and no matching item.started shows the exit code instead of a duration', () => {
     const h = createHarness();
 
     processJsonEvent(
@@ -394,6 +396,32 @@ describe('codex json-event-handler', () => {
       '[Codex]',
     );
 
-    expect(h.state.outputBuffer).toContain('[Command Done] echo hi (exit 0)');
+    expect(h.state.outputBuffer).toContain('[Tool Done: Bash] (exit 0)');
+  });
+});
+
+describe('a failed command shows only the end of its output', () => {
+  test('keeps the last lines, not a whole stack trace', () => {
+    const h = createHarness();
+    const lines = Array.from({ length: 40 }, (_, i) => `    at frame ${i}`);
+    processJsonEvent(
+      {
+        type: 'item.completed',
+        item: {
+          type: 'command_execution',
+          id: 'cmd-9',
+          command: 'node --test scripts/',
+          exit_code: 1,
+          aggregated_output: ['Error: Cannot find module', ...lines].join('\n'),
+        },
+      },
+      h.state,
+      h.callbacks,
+      {},
+      '[Codex]',
+    );
+    expect(h.state.outputBuffer).toContain('at frame 39');
+    expect(h.state.outputBuffer).not.toContain('at frame 30\n');
+    expect(h.state.outputBuffer.split('\n').filter((l) => l.includes('at frame')).length).toBe(5);
   });
 });
