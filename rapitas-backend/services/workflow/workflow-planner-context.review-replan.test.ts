@@ -78,6 +78,8 @@ describe('buildPlannerContext', () => {
       'STYLE',
     );
     expect(ctx).toContain('## 状態と割り込み');
+    // 2026-11-21 (task 1521): RED must be re-runnable, never a past run.
+    expect(ctx).toContain('## RED の示し方');
     // After the premortem, which it complements.
     expect(ctx.indexOf('## 状態と割り込み')).toBeGreaterThan(
       ctx.indexOf(String.raw`P`, ctx.indexOf('I')),
