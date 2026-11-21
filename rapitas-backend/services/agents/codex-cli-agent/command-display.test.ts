@@ -34,6 +34,24 @@ describe('displayCommand', () => {
     expect(displayCommand(script)).toBe(`$ErrorActionPreference = 'Stop' …`);
   });
 
+  // 2026-11-21: Codex prefixes most PowerShell commands with an encoding
+  // statement, so the 160-char cut hid the command the agent actually ran.
+  test('drops a leading output-encoding statement', () => {
+    const raw = `${PS} -Command '$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Get-Content -Encoding UTF8 scripts/dev-all.mjs'`;
+    expect(displayCommand(raw)).toBe('Get-Content -Encoding UTF8 scripts/dev-all.mjs');
+  });
+
+  test('drops several leading setup statements', () => {
+    const raw = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ErrorActionPreference = 'Stop'; git status`;
+    expect(displayCommand(raw)).toBe('git status');
+  });
+
+  test('keeps a setup statement that is the whole command', () => {
+    expect(displayCommand(`$ErrorActionPreference = 'Stop'`)).toBe(
+      `$ErrorActionPreference = 'Stop'`,
+    );
+  });
+
   test('caps a long single line', () => {
     const out = displayCommand(`npm run lint -- ${'x'.repeat(400)}`);
     expect(out.length).toBeLessThanOrEqual(MAX_COMMAND_DISPLAY_CHARS + 2);

@@ -247,12 +247,12 @@ describe('spawnCodexProcess — stdout line buffering', () => {
     });
     const mid = Math.floor(full.length / 2);
     child.stdout.emit('data', full.slice(0, mid));
-    expect(state.outputBuffer).not.toContain('[Command Done] echo chunked');
+    expect(state.outputBuffer).not.toContain('[Tool Done: Bash]');
     child.stdout.emit('data', `${full.slice(mid)}\n`);
-    expect(state.outputBuffer).toContain('[Command Done] echo chunked');
+    expect(state.outputBuffer).toContain('[Tool Done: Bash]');
     child.emit('close', 0);
     const result = await resultPromise;
-    expect(result.output).toContain('[Command Done] echo chunked');
+    expect(result.output).toContain('[Tool Done: Bash]');
   });
 
   test('item.completed(command_execution) with no trailing newline is flushed on close', async () => {
@@ -284,10 +284,10 @@ describe('spawnCodexProcess — stdout line buffering', () => {
         },
       }),
     );
-    expect(state.outputBuffer).not.toContain('[Command Failed] echo no-newline');
+    expect(state.outputBuffer).not.toContain('[Tool Error: Bash]');
     child.emit('close', 0);
     const result = await resultPromise;
-    expect(result.output).toContain('[Command Failed] echo no-newline');
+    expect(result.output).toContain('[Tool Error: Bash]');
     expect(result.output).toContain('partial output before crash');
   });
 });
