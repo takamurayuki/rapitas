@@ -22,17 +22,19 @@ const child: RuntimeProcessIdentity = {
 test('a reused root cannot authorize its new children', () => {
   const reused = { ...root, birth: '2000' };
   expect(extendOwnedRuntimeTree([root], [reused, child])).toEqual([root]);
-  expect(inspectOwnedRuntimeTree([root], [reused], new Set()).safe).toBe(false);
+  // The reused number proves the recorded root exited; its new holder is
+  // never a target.
+  expect(inspectOwnedRuntimeTree([root], [reused], new Set())).toEqual({ safe: true, alive: [] });
 });
 
-test('a reused child blocks a stop even when the original root still exists', () => {
+// 2026-11-21 (task 1521): dev-all started short-lived helpers whose PIDs
+// Windows handed to other processes. A reused helper PID made the stop give up
+// on the whole tree, so the real dev-all kept running and holding its lock,
+// and the worktree stayed quarantined.
+test('a reused child counts as exited and does not block stopping the rest', () => {
   expect(
     inspectOwnedRuntimeTree([root, child], [root, { ...child, birth: '2001' }], new Set()),
-  ).toEqual({
-    safe: false,
-    alive: [],
-    reason: 'identity-mismatch',
-  });
+  ).toEqual({ safe: true, alive: [root] });
 });
 
 test('captured orphans can extend their own live lineage after root exit', () => {
