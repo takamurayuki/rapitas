@@ -184,6 +184,16 @@ describe('AutoRunProgressStrip', () => {
     expect(screen.queryByRole('button', { name: 'home.filterPanel.show' })).toBeNull();
   });
 
+  // Asked 2026-11-21: several spinners at once tired the eyes. The task card's
+  // spinning border already says the task is running, so the strip is still.
+  it('draws nothing that spins or pulses', () => {
+    renderStrip('running', 'in_progress');
+    const strip = screen.getByTestId('auto-run-progress-strip');
+    expect(strip.querySelector('[class*="animate-"]')).toBeNull();
+    const current = strip.querySelector('[data-step-state="current"]');
+    expect(current?.querySelector('[data-current-dot]')).toBeTruthy();
+  });
+
   // Asked 2026-11-21: the same card as the filter below it, for one look.
   it('is drawn in the filter card frame', () => {
     renderStrip('running', 'in_progress');
