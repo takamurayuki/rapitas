@@ -222,6 +222,19 @@ export async function routeModelForRole(opts: {
       : null;
     const minTier = reviewFloor?.tier ?? policyFloor.tier;
     const minTierReason = reviewFloor?.reason ?? policyFloor.reason;
+    // NOTE: The over-budget cap (standard) must not push a review role below
+    // the executor's tier. A verify on a lower tier is always ruled
+    // ineligible, so the task held after paying for the run anyway (tasks 520
+    // and 514, 2026-11-20/21). The runaway cap (economy) still applies — the
+    // resulting hold is then the intended stop.
+    const lifted = reviewFloor != null && budget?.capTier === 'standard' && minTier === 'premium';
+    const hardCapTier = lifted ? undefined : budget?.capTier;
+    if (lifted) {
+      log.info(
+        { taskId, role, spentUsd: budget?.spentUsd },
+        '[role-route-inputs] over budget, but the review keeps the executor tier',
+      );
+    }
 
     // NOTE (determinism): pinned per taskId+role+minTier+capTier+hardCapTier so a same-phase
     // retry reuses the SAME model instead of silently re-routing. A genuine
@@ -231,8 +244,8 @@ export async function routeModelForRole(opts: {
       minTier,
       minTierReason,
       riskSource: evidence?.source ?? 'task_text_keywords',
-      hardCapTier: budget?.capTier,
-      hardCapReason: budget?.reason,
+      hardCapTier,
+      hardCapReason: hardCapTier ? budget?.reason : undefined,
       capTier: provenTier,
       includeAlternatives: false,
     });
