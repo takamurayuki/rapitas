@@ -3,11 +3,16 @@
  *
  * Resolves the working directory for a CLI phase run: reuses or creates the
  * per-task git worktree for mutating roles (implementer / verifier), refuses
- * to run them in a primary checkout, and falls back to the theme directory
- * for investigation roles. Not responsible for prompt building or execution.
+ * to run them in a primary checkout, and points investigation roles at the
+ * theme directory or, when it is off the base tip, a base-branch snapshot. Not responsible for prompt building or execution.
  */
 import { execSync } from 'child_process';
-import { resolveTaskTitle, resolveTaskWithTheme } from '../task/task-resolver';
+import {
+  resolvePreferredBaseBranch,
+  resolveTaskTitle,
+  resolveTaskWithTheme,
+} from '../task/task-resolver';
+import { resolveInvestigationWorkDir } from './investigation-base-snapshot';
 import { resolveLatestSessionWorktree } from '../agents/agent-session-resolver';
 import { createLogger } from '../../config/logger';
 import type { AgentOrchestrator } from '../agents/agent-orchestrator';
@@ -218,8 +223,16 @@ export async function resolveExecutionWorkdir(params: {
   // denylist removes Bash/PowerShell/Edit/Write/NotebookEdit, so they can only
   // read the checkout.
   const isInvestigationRole = transition.role === 'researcher' || transition.role === 'planner';
+  // NOTE: Without a task worktree, investigation reads the base branch's tip,
+  // not whatever the primary checkout happens to be on (trendline's sat on a
+  // July master, 43 commits behind develop — 2026-11-21).
+  const investigationDir =
+    isInvestigationRole && !resolvedWorktreePath && themeWorkDir
+      ? await resolveInvestigationWorkDir(themeWorkDir, await resolvePreferredBaseBranch(taskId))
+      : null;
   const effectiveWorkDir: string =
     resolvedWorktreePath ??
+    investigationDir ??
     (isImplementationRole || isVerifierRole || isInvestigationRole
       ? (themeWorkDir ?? process.cwd())
       : process.cwd());
