@@ -6,6 +6,7 @@
  * split directive). Does not build contexts for other roles.
  */
 import { plannerInterleavingGuidance } from './planner-interleaving-guidance';
+import { plannerRedEvidenceGuidance } from './red-evidence-guidance';
 import { observeWorkflowStage } from './workflow-stage-timing';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
@@ -135,7 +136,7 @@ ${planRevision}`;
   // NOTE: The interleaving table follows the premortem it complements: the
   // premortem names the 3 likeliest failures, the table every check-then-act
   // step on shared state (tasks 1519/1521 bounced one interleaving per round).
-  ctx += `\n\n${texts.instruction}\n\n${texts.premortem}\n\n${plannerInterleavingGuidance(language)}\n\n${texts.selfContainment}\n\n${questionFormat}`;
+  ctx += `\n\n${texts.instruction}\n\n${texts.premortem}\n\n${plannerInterleavingGuidance(language)}\n\n${plannerRedEvidenceGuidance(language)}\n\n${texts.selfContainment}\n\n${questionFormat}`;
   // Align the planner with the subtask-split flag: '' when splitting is
   // enabled (CLAUDE.md Step 2.5 applies as-is), an explicit prohibition
   // when disabled (task 545 incident) — never concatenate the empty string.
