@@ -107,6 +107,60 @@ describe('while auto-run is going', () => {
   });
 });
 
+// 2026-11-21: the status looked like a button (same border and bottom ridge as
+// the toolbar buttons) while the stop beside it looked flat, and a paused run
+// offered only 停止, so a pause could not be undone from the UI.
+describe('status reads as text, actions read as buttons', () => {
+  it('draws the status without a button frame or ridge', () => {
+    renderControl();
+    const status = screen.getByText('home.autoExecutionMode.runningLabel');
+    const frame = status.closest('[data-auto-run-status]') as HTMLElement;
+    expect(frame).toBeTruthy();
+    expect(frame.className.split(/\s+/)).not.toContain('border');
+    expect(frame.className).not.toContain('shadow-[');
+  });
+
+  // One accent for the whole control (asked 2026-11-21: five button colours on
+  // one toolbar made the important action unclear). The stop is a neutral
+  // ridge that only turns red under the pointer.
+  it('gives the stop a neutral bottom ridge that turns red only on hover', () => {
+    renderControl();
+    const cls = stopButton().className;
+    expect(cls).toContain('shadow-[0_2px_0_0_#d4d4d8]');
+    expect(cls).toContain('hover:text-red-600');
+    expect(cls.split(/\s+/).some((c) => c.startsWith('text-red-'))).toBe(false);
+  });
+
+  it('offers resuming a paused run in the start colour, which starts it again', () => {
+    autoRun.status = 'paused';
+    renderControl();
+    const resume = screen.getByRole('button', { name: /autoRun\.resume/ });
+    expect(resume.className).toContain('shadow-[0_2px_0_0_#a5b4fc]');
+    fireEvent.click(resume);
+    expect(autoRun.start).toHaveBeenCalledWith('priority');
+  });
+
+  // 2026-11-21: task actions and run actions should read as two groups at a
+  // glance, without making the toolbar taller.
+  it('sits in its own labelled group, also when idle', () => {
+    renderControl();
+    let group = screen.getByText('home.toolbarGroup.autoRun').closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
+    expect(group?.contains(stopButton())).toBe(true);
+
+    autoRun.status = 'idle';
+    renderControl();
+    group = screen.getAllByText('home.toolbarGroup.autoRun')[1].closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
+  });
+
+  it('offers no pause while running (a pause holds the only run slot)', () => {
+    renderControl();
+    expect(screen.queryByRole('button', { name: /autoRun\.pause/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /autoRun\.resume/ })).toBeNull();
+  });
+});
+
 describe('while auto-run is off', () => {
   it('offers starting it, and no stop', () => {
     autoRun.status = 'idle';

@@ -2,11 +2,11 @@
  * HomeToolbar.test
  *
  * The toolbar row keeps the due-today card's height on a day with nothing
- * due, when the card shrinks to one line of text, so the auto-run / create /
+ * due, when the card shrinks to one line of text, so the create / bulk / auto-run
  * bulk buttons keep the same space around them either way (2026-11-16).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -41,5 +41,64 @@ describe('the toolbar row', () => {
       />,
     );
     expect((container.firstElementChild as HTMLElement).className).toContain('min-h-[62px]');
+  });
+});
+
+// 2026-11-21: task actions and auto-run actions sat in one row in no order, so
+// it was unclear which group a button belonged to. Task actions come first,
+// then the auto-run control (which draws its own divider).
+describe('the action groups', () => {
+  it('puts the auto-run control after the task actions', () => {
+    render(
+      <HomeToolbar
+        completedTasksCount={0}
+        totalTasksCount={1}
+        hasVisibleTasks
+        isSelectionMode={false}
+        selectedTasksSize={0}
+        paginatedTasks={[]}
+        themeFilter={null}
+        defaultThemeId={undefined}
+        autoRunTheme={null}
+        onBulkUpdateStatus={vi.fn()}
+        onBulkDelete={vi.fn()}
+        onSelectAll={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+      />,
+    );
+    const names = screen.getAllByRole('button').map((b) => b.textContent ?? '');
+    const auto = names.indexOf('auto');
+    const create = names.findIndex((n) => n.includes('createTask'));
+    const bulk = names.findIndex((n) => n.includes('bulk'));
+    expect(create).toBeGreaterThanOrEqual(0);
+    expect(bulk).toBeGreaterThanOrEqual(0);
+    expect(auto).toBeGreaterThan(create);
+    expect(auto).toBeGreaterThan(bulk);
+  });
+
+  it('wraps the task actions in their own labelled group', () => {
+    render(
+      <HomeToolbar
+        completedTasksCount={0}
+        totalTasksCount={1}
+        hasVisibleTasks
+        isSelectionMode={false}
+        selectedTasksSize={0}
+        paginatedTasks={[]}
+        themeFilter={null}
+        defaultThemeId={undefined}
+        autoRunTheme={null}
+        onBulkUpdateStatus={vi.fn()}
+        onBulkDelete={vi.fn()}
+        onSelectAll={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+      />,
+    );
+    const group = screen.getByText('toolbarGroup.tasks').closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('tasks');
+    const inside = Array.from(group?.querySelectorAll('button') ?? []).map((b) => b.textContent);
+    expect(inside.some((t) => t?.includes('createTask'))).toBe(true);
+    expect(inside.some((t) => t?.includes('bulk'))).toBe(true);
+    expect(inside).not.toContain('auto');
   });
 });

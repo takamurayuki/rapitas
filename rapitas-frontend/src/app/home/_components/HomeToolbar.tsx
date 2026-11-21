@@ -9,6 +9,7 @@ import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/Statu
 import { useTranslations } from 'next-intl';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { AutoExecutionMode } from './AutoExecutionMode';
+import { ToolbarGroup } from './ToolbarGroup';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -73,13 +74,10 @@ export function HomeToolbar({
         <TodayTaskProgressBar compact={true} className="w-60" />
       </div>
 
-      {/* Right-side action group (auto-exec / create / bulk). Hidden when the
+      {/* Right-side action group (create / bulk, then auto-run). Hidden when the
           visible task list is empty so it doesn't sit beside an empty list. */}
       {hasVisibleTasks && (
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 [&_button]:whitespace-nowrap">
-          {/* Auto-execution toggle — hidden during bulk selection */}
-          {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
-
           {/* Bulk status segmented control — always visible in selection mode.
             Segments are coloured and clickable once ≥1 task is selected. */}
           {isSelectionMode && (
@@ -134,7 +132,7 @@ export function HomeToolbar({
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <ToolbarGroup id="tasks" label={t('toolbarGroup.tasks')}>
             {/* Normal mode buttons */}
             {!isSelectionMode && (
               <>
@@ -234,7 +232,11 @@ export function HomeToolbar({
               <CopyCheck className="w-4 h-4" />
               {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
             </button>
-          </div>
+          </ToolbarGroup>
+
+          {/* タスク実行 last, after タスク管理; the control draws its own labelled
+              group (2026-11-21). Hidden during bulk selection. */}
+          {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
         </div>
       )}
     </div>

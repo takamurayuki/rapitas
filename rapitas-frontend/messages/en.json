@@ -474,6 +474,10 @@
         "auto_verifier": "Auto verifier",
         "other": "Other"
       }
+    },
+    "toolbarGroup": {
+      "tasks": "Tasks",
+      "autoRun": "Auto-run"
     }
   },
   "task": {
