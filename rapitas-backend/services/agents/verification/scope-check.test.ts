@@ -175,6 +175,15 @@ describe('evaluateScopeCheck', () => {
     expect(result!.offendingFiles).toHaveLength(40);
   });
 
+  // Task 514 (2026-11-21) stopped three times to ask whether to add a file to
+  // the plan, because this advisory message told it to revert or edit plan.md.
+  it('tells the agent to keep going and record the file, not to revert', () => {
+    const result = evaluateScopeCheck(['.gitattributes'], ['start.sh']);
+    expect(result!.details).toContain('verify.md');
+    expect(result!.details).not.toContain('revert');
+    expect(result!.details).toContain('.gitattributes');
+  });
+
   it('normalizes backslashes on the changed-file side too', () => {
     const result = evaluateScopeCheck(['services\\foo.ts'], ['services/foo.ts']);
     expect(result!.ok).toBe(true);

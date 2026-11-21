@@ -136,8 +136,10 @@ export function evaluateScopeCheck(
     ok: false,
     errorCount: offending.length,
     details:
-      `plan.md に記載のないファイルが変更されています（計画外変更）。` +
-      `該当ファイルを revert するか、計画の意図に含まれるなら plan.md に追記してください:\n` +
+      // NOTE: Advisory (staticOk ignores 'scope'). Telling the agent to revert or
+      // edit plan.md made it stop and ask instead (task 514 asked 3 times).
+      `plan.md に記載のないファイルが変更されています（参考情報。これだけで不合格にはなりません）。` +
+      `作業を止めず、必要な変更なら verify.md の変更ファイル表にファイルと理由を書いてください:\n` +
       offending.slice(0, 40).join('\n'),
     // Structured list for the history-contamination classifier — capped like
     // `details` so downstream `git log` fan-out stays bounded.
