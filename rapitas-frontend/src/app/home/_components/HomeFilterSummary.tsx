@@ -8,7 +8,7 @@
  * inside AutoRunProgressStrip, which merges them in while auto-run is on.
  * Not responsible for changing the category or theme.
  */
-import { FolderKanban, PanelTopOpen } from 'lucide-react';
+import { ChevronRight, FolderKanban, PanelTopOpen, Star, SwatchBook } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Category, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -25,7 +25,7 @@ export interface FilterScope {
 }
 
 /**
- * "開発 › rapitas": the selected category and theme.
+ * The selected category and theme ("開発 > rapitas").
  *
  * @param props.category - Selected category / 選択中のカテゴリ
  * @param props.theme - Selected theme / 選択中のテーマ
@@ -33,20 +33,38 @@ export interface FilterScope {
  */
 export function FilterScopeLabel({ category, theme }: Omit<FilterScope, 'onShow'>) {
   const CatIcon = (category && getIconComponent(category.icon || '')) || FolderKanban;
+  const ThemeIcon = (theme && getIconComponent(theme.icon || '')) || SwatchBook;
   return (
-    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+    <span className="flex shrink-0 items-center gap-2 whitespace-nowrap">
       {category && (
         <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
           <CatIcon className="h-3.5 w-3.5" style={{ color: category.color }} />
           {category.name}
         </span>
       )}
+      {/* NOTE: An icon, not the "›" character, which was too faint to see
+          (2026-11-21). */}
       {category && theme && (
-        <span aria-hidden="true" className="text-zinc-400 dark:text-zinc-500">
-          ›
+        <ChevronRight
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"
+        />
+      )}
+      {/* The theme is drawn as the selected chip in HomeThemeFilter draws it
+          (theme colour, white bold text, its icon, a star when default), so
+          hiding the filter does not change how the theme looks (2026-11-21).
+          Keep the two in step. */}
+      {theme && (
+        <span
+          data-testid="scope-theme-chip"
+          className="flex items-center gap-1.5 rounded-sm px-3 py-1 text-xs font-bold text-white shadow-lg"
+          style={{ backgroundColor: theme.color, color: '#ffffff' }}
+        >
+          <ThemeIcon className="h-3.5 w-3.5" />
+          {theme.name}
+          {theme.isDefault && <Star className="h-2.5 w-2.5 fill-current" />}
         </span>
       )}
-      {theme && <span className="font-medium text-zinc-900 dark:text-zinc-50">{theme.name}</span>}
     </span>
   );
 }
@@ -90,7 +108,9 @@ export function HomeFilterSummary({ category, theme, onShow }: FilterScope) {
       className={`${HOME_CARD_FRAME} mb-3 flex items-center gap-2 px-3.5 py-2 text-[13px]`}
     >
       <FilterScopeLabel category={category} theme={theme} />
-      <span className="ml-auto">
+      {/* flex, not an inline span: an inline wrapper sat the button on the
+          text baseline, a little below the middle (2026-11-21). */}
+      <span data-testid="show-filter-slot" className="ml-auto flex items-center self-stretch">
         <ShowFilterButton onShow={onShow} />
       </span>
     </div>

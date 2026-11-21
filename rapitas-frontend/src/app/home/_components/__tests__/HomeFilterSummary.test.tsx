@@ -34,6 +34,29 @@ describe('HomeFilterSummary', () => {
     expect(onShow).toHaveBeenCalledTimes(1);
   });
 
+  // Asked 2026-11-21: the theme looks as it does selected in the filter, and
+  // the separator is an icon, not a faint "›" character.
+  it('draws the theme like the selected chip in the filter', () => {
+    render(<HomeFilterSummary category={category} theme={theme} onShow={vi.fn()} />);
+    const chip = screen.getByTestId('scope-theme-chip');
+    expect(chip.textContent).toContain('rapitas');
+    expect(chip.style.backgroundColor).toBe('rgb(249, 115, 22)');
+    expect(chip.className).toContain('text-white');
+    expect(chip.className).toContain('font-bold');
+    const summary = screen.getByTestId('filter-summary');
+    expect(summary.querySelector('[data-testid="ChevronRight-icon"]')).toBeTruthy();
+    expect(summary.textContent).not.toContain('›');
+  });
+
+  // Asked 2026-11-21: "フィルターを表示" sat below the middle — its inline
+  // wrapper aligned it to the text baseline.
+  it('centres the show control vertically', () => {
+    render(<HomeFilterSummary category={category} theme={theme} onShow={vi.fn()} />);
+    const cls = screen.getByTestId('show-filter-slot').className.split(/\s+/);
+    expect(cls).toContain('flex');
+    expect(cls).toContain('items-center');
+  });
+
   // Asked 2026-11-21: hidden, the filter keeps the filter card's look.
   it('is drawn in the filter card frame', () => {
     render(<HomeFilterSummary category={category} theme={theme} onShow={vi.fn()} />);
