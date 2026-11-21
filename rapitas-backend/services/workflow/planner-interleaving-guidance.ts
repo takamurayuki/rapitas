@@ -13,6 +13,12 @@
  * final check and the delete). The premortem asks for the 3 most likely
  * failures, which does not make anyone walk every check-then-act pair, so the
  * plan never saw the next one until a reviewer did.
+ *
+ * NOTE: The planner then accepted (「許容」) 1521's concurrent-takeover window,
+ * the one window in which two starts both run — what the task exists to
+ * prevent. The verifier honoured the acceptance and the diff review blocked it
+ * (2026-11-21), so acceptance is now barred for any window that breaks what an
+ * acceptance criterion promises.
  */
 
 /** Heading the planner writes and the verifier looks for. */
@@ -27,6 +33,7 @@ const PLANNER_JA = `${INTERLEAVING_HEADING}（共有状態を扱う場合は必�
 - 「割り込める者」は、同じ処理のもう1つの実行（二重起動）、逆の処理（起動と停止）、自分自身の再起動を必ず検討する。
 - 守り方は、既存の排他手段（排他作成・内容の再確認つき削除など）の再利用を優先し、新しい機構は既存手段で守れない行にだけ使う。
 - 許容する窓は「許容」と書き、理由を1行添える。許容と書いた行は承認済みの設計判断として扱われる。
+- ただし、**受入条件が防ぐと約束していることを破る窓は許容しない**（例: 二重起動を防ぐタスクで、同時に2つ起動できてしまう窓）。その窓には守り方を設計する。守れない場合は、計画で受入条件の見直しを質問する。
 - 再現テストは、ファイル操作や生存確認を注入して割り込みの順序を決め打ちで再現するものにする（タイミング任せの並行実行にしない）。
 - 共有状態を扱わない変更なら、このセクションは \`${INTERLEAVING_HEADING}\`: 対象なし（理由1行）とだけ書く。`;
 
@@ -39,19 +46,20 @@ If the change reads or writes state that several processes, requests, threads or
 - Always consider a second run of the same operation (double start), the opposite operation (start vs stop), and a restart of the process itself.
 - Prefer reusing an existing exclusion (exclusive create, delete only after re-checking the content) and add a new mechanism only for rows those cannot guard.
 - Mark an accepted window as 「許容」 with a one-line reason; an accepted row is an approved design decision.
+- But **never accept a window that breaks what an acceptance criterion promises to prevent** (e.g. a window that lets two starts both run, in a task that prevents double starts). Design a guard for it, or ask in the plan to revisit the criterion.
 - Reproduce each interleaving deterministically by injecting the file operations or liveness probe — never by racing real processes.
 - If the change touches no shared state, write only \`${INTERLEAVING_HEADING}\`: 対象なし with a one-line reason.`;
 
 const VERIFIER_JA = `
 ### 状態と割り込みの照合（plan.md に \`${INTERLEAVING_HEADING}\` の表がある場合のみ）
 - 表の各行について、再現テストが存在して通るかを確認し、verify.md の \`## 状態と割り込みの照合\` に1行ずつ \`- <確認→操作>: 再現テストあり・通過|なし|失敗（根拠）\` で記載する。
-- 「許容」と書かれた窓は承認済みの設計判断。その窓だけを理由に ❌ にしない。
+- 「許容」と書かれた窓は承認済みの設計判断。その窓だけを理由に ❌ にしない。ただし、その窓で受入条件の目的が破れる（例: 二重起動防止なのに2つ起動できる）なら、許容自体を誤りとして ❌ にし、根拠の順序を書く。
 - 表に無い割り込みを見つけた場合は、その順序（誰が・どの行の間に）を具体的に書いて残課題にする。表の不足として扱い、次の計画で行を足せるようにする。`;
 
 const VERIFIER_EN = `
 ### Interleaving cross-check (only when plan.md has a \`${INTERLEAVING_HEADING}\` table)
 - For each row, check that its reproducing test exists and passes, and record it in verify.md under \`## 状態と割り込みの照合\` as \`- <check → act>: test present and passing | missing | failing (evidence)\`.
-- A window marked 「許容」 is an approved design decision; do not mark ❌ for that window alone.
+- A window marked 「許容」 is an approved design decision; do not mark ❌ for that window alone — unless that window breaks what an acceptance criterion promises (e.g. two starts both run in a double-start guard); then the acceptance itself is wrong: mark ❌ and give the order of events.
 - If you find an interleaving the table lacks, state the exact order (who, between which steps) as outstanding work, as a gap in the table the next plan can add a row for.`;
 
 /**
