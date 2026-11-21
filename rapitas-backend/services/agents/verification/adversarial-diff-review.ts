@@ -170,6 +170,7 @@ export async function reviewDiffAdversarially(params: {
           title: true,
           description: true,
           acceptanceCriteria: true,
+          themeId: true,
           goals: true,
           constraints: true,
         },
@@ -212,6 +213,15 @@ export async function reviewDiffAdversarially(params: {
       planContent,
       changedFiles: seen.changedFiles,
     });
+    // Findings no criterion covers become their own tasks instead of bouncing this one.
+    const ooc = await import('./out-of-criteria-findings');
+    const split = ooc.splitOutOfCriteria(result, acceptanceCriteria.length);
+    result = split.result;
+    if (!suppressEventLog)
+      void ooc.fileOutOfCriteriaFindings(split.outOfCriteria, {
+        taskId,
+        themeId: task?.themeId ?? null,
+      });
     if (result.verdict === 'unknown') result = await decideUnavailableJury(seen, result);
 
     // Durable per-seat record for judge-reliability calibration; skipped for

@@ -62,6 +62,15 @@ replaced a three-seat majority vote (owner decision 2026-11-10; background in
 order (`JUDGE_PROVIDERS`, used when more than one vendor is reachable) are in
 `jury-panel.ts`. Per-juror verdicts are written to the timeline.
 
+A FAIL only counts findings inside the task's acceptance criteria
+(`out-of-criteria-findings.ts`). When the task has criteria, an evidenced
+`major` finding that names none of them (no `受入基準N` in `criterion` or as
+a summary prefix) is taken out of the verdict and filed as a concern on the
+task's theme. The backlog promoter turns it into its own task. A `blocker`
+fails the review wherever it lies. Tasks without criteria keep the old
+behaviour. Background: trendline task 1519 was bounced three times by real
+but out-of-scope races between concurrent launcher instances.
+
 On FAIL the workflow goes back to the implementer. When no reviewer produced a
 verdict, or the review errored, the outcome depends on risk
 (`jury-unavailable-outcome.ts`): low-risk work proceeds as `'unknown'`, and
