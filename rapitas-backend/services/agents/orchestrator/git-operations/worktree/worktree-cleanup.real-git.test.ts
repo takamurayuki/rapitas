@@ -24,6 +24,8 @@ mock.module('../../../../../config/logger', () => ({
 
 /** Rows that exist: id → status. */
 let taskRows = new Map<number, string>();
+/** Finished sessions that recorded a worktree path. */
+let sessions: Array<{ id: number; worktreePath: string; status: string }> = [];
 mock.module('../../../../../config/database', () => ({
   prisma: {
     task: {
@@ -38,7 +40,7 @@ mock.module('../../../../../config/database', () => ({
       }),
     },
     agentSession: {
-      findMany: mock(() => Promise.resolve([])),
+      findMany: mock(() => Promise.resolve(sessions)),
       updateMany: mock(() => Promise.resolve({ count: 0 })),
     },
   },
@@ -96,6 +98,7 @@ beforeEach(() => {
   git(repo, 'commit', '-q', '-m', 'base');
   prStates = new Map();
   taskRows = new Map();
+  sessions = [];
 });
 
 afterEach(() => {
@@ -135,5 +138,56 @@ describe('cleanupOrphanedWorktrees on the #1403 leftovers (real git)', () => {
     const listed = git(repo, 'worktree', 'list');
     expect(listed).not.toContain('task-1291-cadd90a4');
     expect(listed).toContain('task-1305-0522dfb6');
+  });
+});
+
+// 2026-11-21: the scheduler runs with rapitas as `baseDir`, so the keep list
+// covered only rapitas's own .worktrees. A finished verifier session of
+// trendline task 1520 then got its worktree removed on the next cycle while
+// the task was live and an implementer was working in it — three times in a
+// row (task-1520-44b88654 → a11ed9e9 → 1b5598e6).
+describe('a live task in another repository', () => {
+  test('keeps its worktree although a finished session points at it', async () => {
+    const other = join(root, 'other-project');
+    mkdirSync(other);
+    git(other, 'init', '-q', '-b', 'develop');
+    git(other, 'config', 'user.email', 't@example.com');
+    git(other, 'config', 'user.name', 't');
+    writeFileSync(join(other, '.gitignore'), '.worktrees/\n');
+    writeFileSync(join(other, 'tracked.ts'), 'export const y = 1;\n');
+    git(other, 'add', '-A');
+    git(other, 'commit', '-q', '-m', 'base');
+    const wt = join(other, '.worktrees', 'task-1520-1b5598e6');
+    git(other, 'worktree', 'add', '-q', '-b', 'feature/t1520-verify-database', wt);
+
+    taskRows = new Map([[1520, 'in-progress']]);
+    sessions = [{ id: 1, worktreePath: wt, status: 'completed' }];
+
+    // `repo` plays rapitas: the cleanup's baseDir is not the worktree's repo.
+    await cleanupOrphanedWorktrees(repo);
+
+    expect(existsSync(join(wt, 'tracked.ts'))).toBe(true);
+    expect(git(other, 'worktree', 'list')).toContain('task-1520-1b5598e6');
+  });
+
+  test('still reclaims it once that task is done', async () => {
+    const other = join(root, 'other-project');
+    mkdirSync(other);
+    git(other, 'init', '-q', '-b', 'develop');
+    git(other, 'config', 'user.email', 't@example.com');
+    git(other, 'config', 'user.name', 't');
+    writeFileSync(join(other, '.gitignore'), '.worktrees/\n');
+    writeFileSync(join(other, 'tracked.ts'), 'export const y = 1;\n');
+    git(other, 'add', '-A');
+    git(other, 'commit', '-q', '-m', 'base');
+    const wt = join(other, '.worktrees', 'task-1521-aaaaaaaa');
+    git(other, 'worktree', 'add', '-q', '-b', 'feature/t1521-done', wt);
+
+    taskRows = new Map([[1521, 'done']]);
+    sessions = [{ id: 2, worktreePath: wt, status: 'completed' }];
+
+    await cleanupOrphanedWorktrees(repo);
+
+    expect(existsSync(wt)).toBe(false);
   });
 });

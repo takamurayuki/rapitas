@@ -126,6 +126,7 @@ mock.module('./dir-remove-retry', () => ({ rmDirWithRetry: mockRmDirWithRetry })
 // TERMINAL_STATUSES and parseTaskIdFromWorktreeName from here.
 mock.module('../../../worktree-keep-list', () => ({
   computeWorktreeKeepPaths: mock(() => Promise.resolve([])),
+  liveTaskWorktreePaths: mock(() => Promise.resolve(new Set<string>())),
   TERMINAL_STATUSES: ['done', 'completed', 'cancelled'],
   parseTaskIdFromWorktreeName: (dirName: string) => {
     const m = /^task-(\d+)-/.exec(dirName);
