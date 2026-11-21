@@ -21,6 +21,7 @@ vi.mock('lucide-react', async (importOriginal) => {
 });
 
 const { AutoRunProgressStrip } = await import('../AutoRunProgressStrip');
+const { HOME_CARD_FRAME } = await import('../home-card-frame');
 
 const task = { id: 1682, title: '自動実行パネルに今のタスクを出す', status: 'in-progress' };
 
@@ -174,12 +175,11 @@ describe('AutoRunProgressStrip', () => {
     expect(screen.queryByRole('button', { name: 'home.filterPanel.show' })).toBeNull();
   });
 
-  // Design C's mock: a white band with a hairline on top, no outline.
-  it('has no outline, only a top hairline', () => {
+  // Asked 2026-11-21: the same card as the filter below it, for one look.
+  it('is drawn in the filter card frame', () => {
     renderStrip('running', 'in_progress');
     const cls = screen.getByTestId('auto-run-progress-strip').className.split(/\s+/);
-    expect(cls).toContain('border-t');
-    expect(cls).not.toContain('border');
-    expect(cls.some((c) => c.startsWith('rounded'))).toBe(false);
+    for (const c of HOME_CARD_FRAME.split(/\s+/)) expect(cls).toContain(c);
+    expect(cls).not.toContain('border-t');
   });
 });

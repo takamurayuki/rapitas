@@ -12,6 +12,7 @@ import { FolderKanban, PanelTopOpen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Category, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';
+import { HOME_CARD_FRAME } from './home-card-frame';
 
 /** The hidden filter's selection and the way back to it. */
 export interface FilterScope {
@@ -76,8 +77,8 @@ export function ShowFilterButton({ onShow, short }: { onShow: () => void; short?
 /**
  * One-line stand-in for the hidden filter while auto-run is not on.
  *
- * NOTE: Drawn like AutoRunProgressStrip — a white band with only a top
- * hairline, 13px text — so it reads as the same band (2026-11-21).
+ * NOTE: Drawn in the filter's own card frame (HOME_CARD_FRAME), like
+ * AutoRunProgressStrip, so hiding the filter keeps its look (2026-11-21).
  *
  * @param props - Selected category and theme, and the show handler / 選択中のカテゴリ・テーマと再表示
  * @returns The summary bar / 1行の要約
@@ -86,7 +87,7 @@ export function HomeFilterSummary({ category, theme, onShow }: FilterScope) {
   return (
     <div
       data-testid="filter-summary"
-      className="mb-3 flex items-center gap-2 border-t border-zinc-200 bg-white px-3.5 py-2 text-[13px] dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${HOME_CARD_FRAME} mb-3 flex items-center gap-2 px-3.5 py-2 text-[13px]`}
     >
       <FilterScopeLabel category={category} theme={theme} />
       <span className="ml-auto">

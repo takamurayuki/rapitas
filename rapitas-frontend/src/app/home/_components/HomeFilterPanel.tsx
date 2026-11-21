@@ -5,6 +5,7 @@ import { EnhancedSkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { useTranslations } from 'next-intl';
 import { HomeCategoryFilter } from './HomeCategoryFilter';
 import { HomeThemeFilter } from './HomeThemeFilter';
+import { HOME_CARD_FRAME } from './home-card-frame';
 import React from 'react';
 
 interface HomeFilterPanelProps {
@@ -169,7 +170,7 @@ export function HomeFilterPanel({
   if (categories.length === 0) return null;
 
   return (
-    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-blue-500/50 mb-3">
+    <div className={`${HOME_CARD_FRAME} mb-3`}>
       <HomeCategoryFilter
         categories={categories}
         themes={themes}

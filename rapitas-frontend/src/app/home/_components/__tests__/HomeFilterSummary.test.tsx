@@ -18,6 +18,7 @@ vi.mock('lucide-react', async (importOriginal) => {
 });
 
 const { HomeFilterSummary } = await import('../HomeFilterSummary');
+const { HOME_CARD_FRAME } = await import('../home-card-frame');
 
 const category = { id: 1, name: '開発', color: '#2563eb', icon: '' } as unknown as Category;
 const theme = { id: 7, name: 'rapitas', color: '#f97316' } as unknown as Theme;
@@ -33,12 +34,11 @@ describe('HomeFilterSummary', () => {
     expect(onShow).toHaveBeenCalledTimes(1);
   });
 
-  it('is drawn like the auto-run strip, with no outline', () => {
+  // Asked 2026-11-21: hidden, the filter keeps the filter card's look.
+  it('is drawn in the filter card frame', () => {
     render(<HomeFilterSummary category={category} theme={theme} onShow={vi.fn()} />);
     const cls = screen.getByTestId('filter-summary').className.split(/\s+/);
-    expect(cls).toContain('border-t');
-    expect(cls).not.toContain('border');
-    expect(cls).not.toContain('shadow-sm');
-    expect(cls).toContain('text-[13px]');
+    for (const c of HOME_CARD_FRAME.split(/\s+/)) expect(cls).toContain(c);
+    expect(cls).not.toContain('border-t');
   });
 });

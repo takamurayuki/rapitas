@@ -19,6 +19,7 @@ import {
   type ProgressStepState,
 } from './auto-run-progress.utils';
 import { FilterScopeLabel, ShowFilterButton, type FilterScope } from './HomeFilterSummary';
+import { HOME_CARD_FRAME } from './home-card-frame';
 
 interface AutoRunProgressStripProps {
   /** Auto-run status; the strip renders only while running or paused. / 自動実行の状態 */
@@ -112,13 +113,14 @@ export function AutoRunProgressStrip({
         ? t('progress.elapsedHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
         : t('progress.elapsedMinutes', { minutes });
 
-  // NOTE: design C draws the strip as a white band with only a hairline on
-  // top — no outline — so it reads as part of the toolbar, not a card.
+  // NOTE: Drawn in the filter's card frame (HOME_CARD_FRAME) so the strip and
+  // the filter below it read as one set (asked 2026-11-21). It replaced design
+  // C's outline-less band with a top hairline.
   return (
     <div
       data-testid="auto-run-progress-strip"
       aria-label={t('progress.label')}
-      className="mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-zinc-200 bg-white px-3.5 py-2 text-[13px] dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${HOME_CARD_FRAME} mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 px-3.5 py-2 text-[13px]`}
     >
       {scope && (
         <>

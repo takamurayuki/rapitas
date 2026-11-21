@@ -76,6 +76,14 @@ describe('hiding the filter', () => {
     expect(screen.getByRole('button', { name: 'home.filterPanel.hide' })).toBeTruthy();
   });
 
+  // The frame the auto-run strip and the hidden summary share (2026-11-21).
+  it('is drawn in the shared card frame', async () => {
+    const { HOME_CARD_FRAME } = await import('../home-card-frame');
+    const { container } = render(<HomeFilterPanel {...props()} />);
+    const cls = (container.firstElementChild as HTMLElement).className.split(/\s+/);
+    for (const c of HOME_CARD_FRAME.split(/\s+/)) expect(cls).toContain(c);
+  });
+
   it('asks to be hidden when the control is pressed', () => {
     const onFilterHiddenChange = vi.fn();
     render(<HomeFilterPanel {...props({ onFilterHiddenChange })} />);
