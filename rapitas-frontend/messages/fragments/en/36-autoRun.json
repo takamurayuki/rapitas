@@ -18,6 +18,8 @@
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "awaitingAnswer": "Awaiting answer",
+      "rework": "Sent back {count}×",
+      "reworkRoute": "({from} → {to})",
       "remaining": "{count} left",
       "elapsedMinutes": "{minutes}m",
       "elapsedHours": "{hours}h {minutes}m",

@@ -20,6 +20,7 @@ import {
 } from '../../services/workflow/auto-run/theme-auto-run-service';
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
 import { describePauseScope } from '../../services/workflow/auto-run/theme-pause-inflight';
+import { loadReworkSummary } from '../../services/workflow/auto-run/auto-run-rework-summary';
 import { logCycleEvent } from '../../services/observability';
 import { HTTP_STATUS } from '../../utils/common/http-status';
 import { isValidEntityId } from '../../utils/common/id-validation';
@@ -42,12 +43,24 @@ export const themeAutoRunRoutes = new Elysia()
       const state = await getOrCreateAutoRun(themeId);
 
       // Enrich with current task info if one is active
+      // NOTE: workflowMode and rework are read-only additions for the home
+      // progress strip — it draws the task's own phases (lightweight has no
+      // plan) and shows send-backs (2026-11-21).
       let currentTask = null;
       if (state.currentTaskId) {
-        currentTask = await prisma.task.findUnique({
+        const task = await prisma.task.findUnique({
           where: { id: state.currentTaskId },
-          select: { id: true, title: true, status: true, workflowStatus: true },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            workflowStatus: true,
+            workflowMode: true,
+          },
         });
+        currentTask = task
+          ? { ...task, rework: await loadReworkSummary(state.currentTaskId) }
+          : null;
       }
 
       // Count remaining eligible tasks for this theme. NOTE: this where clause

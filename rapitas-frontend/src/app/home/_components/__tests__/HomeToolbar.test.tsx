@@ -199,6 +199,32 @@ describe('the auto-run progress strip', () => {
     autoRunState.data = null;
   });
 
+  // The row's 62px floor already leaves 12px under the buttons; keeping its
+  // mb-3 too put 24px above the strip against 12px below it (2026-11-21).
+  it('drops the row margin while the strip shows, keeps it otherwise', () => {
+    autoRunState.data = {
+      autoRun: { status: 'running', startedAt: null },
+      currentTask: null,
+      remainingCount: 3,
+    };
+    withTheme(true);
+    const cls = screen.getByTestId('home-toolbar-row').className.split(/\s+/);
+    expect(cls).toContain('mb-0');
+    expect(cls).not.toContain('mb-3');
+    autoRunState.data = null;
+  });
+
+  it('keeps the row margin when auto-run is idle', () => {
+    autoRunState.data = {
+      autoRun: { status: 'idle', startedAt: null },
+      currentTask: null,
+      remainingCount: 3,
+    };
+    withTheme(true);
+    expect(screen.getByTestId('home-toolbar-row').className.split(/\s+/)).toContain('mb-3');
+    autoRunState.data = null;
+  });
+
   it('draws no strip without auto-run data', () => {
     withTheme(true);
     expect(screen.queryByTestId('strip')).toBeNull();

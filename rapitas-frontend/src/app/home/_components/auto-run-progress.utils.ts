@@ -1,62 +1,110 @@
 /**
  * auto-run-progress.utils
  *
- * Maps a task's workflowStatus to the four phases the auto-run progress strip
- * draws. Display only: it reads the status the backend already reports and
+ * Maps a task's workflowStatus and workflowMode to the phases the auto-run
+ * progress strip draws. Display only: it reads what the backend reports and
  * never decides what the run does next.
  */
 
-/** The phases the strip draws, in order. */
-export const PROGRESS_STEPS = ['research', 'plan', 'implement', 'verify'] as const;
-
-export type ProgressStep = (typeof PROGRESS_STEPS)[number];
+export type ProgressStep = 'research' | 'plan' | 'implement' | 'verify';
 export type ProgressStepState = 'done' | 'current' | 'waiting' | 'pending';
 
 /** How far the task is, as the strip draws it. */
 export interface ProgressView {
-  /** State of each phase, keyed by phase. / 各工程の状態 */
-  steps: Record<ProgressStep, ProgressStepState>;
+  /** The task's own phases in order, with their state. / タスク自身の工程と状態 */
+  steps: { key: ProgressStep; state: ProgressStepState }[];
   /** Set when the task waits on the user. / ユーザー待ちの種類 */
   waitingFor: 'approval' | 'answer' | null;
 }
 
-/**
- * Build the strip's view from a task's workflowStatus.
- *
- * NOTE: `research_done` marks only research as done. A lightweight task goes
- * straight to implement and a standard one to plan, and the state endpoint
- * does not say which mode the task is in, so the next phase is not guessed.
- *
- * @param workflowStatus - The task's workflowStatus, or null before research / タスクのワークフロー状態
- * @returns Phase states and what the task waits on / 各工程の状態と待ちの種類
- */
-export function progressFromWorkflowStatus(workflowStatus: string | null): ProgressView {
-  const upTo = (doneCount: number, next: ProgressStepState | null): ProgressView['steps'] => {
-    const steps = {} as ProgressView['steps'];
-    PROGRESS_STEPS.forEach((step, i) => {
-      steps[step] = i < doneCount ? 'done' : i === doneCount && next ? next : 'pending';
-    });
-    return steps;
-  };
+const FULL: ProgressStep[] = ['research', 'plan', 'implement', 'verify'];
+// Lightweight tasks go research → implement → verify (CLAUDE.md §4).
+const LIGHTWEIGHT: ProgressStep[] = ['research', 'implement', 'verify'];
 
+/**
+ * The phases a task in the given mode goes through.
+ *
+ * @param workflowMode - lightweight / standard / comprehensive, or null / ワークフローのモード
+ * @returns Phases in order / 工程の並び
+ */
+export function stepsForMode(workflowMode: string | null | undefined): ProgressStep[] {
+  return workflowMode === 'lightweight' ? LIGHTWEIGHT : FULL;
+}
+
+/**
+ * The phase a workflow status is working on (or redoing after a send-back).
+ *
+ * @param workflowStatus - Workflow status / ワークフロー状態
+ * @param workflowMode - Workflow mode / ワークフローのモード
+ * @returns The phase, or null for statuses outside the phases / 対応する工程
+ */
+export function phaseOfStatus(
+  workflowStatus: string | null,
+  workflowMode: string | null | undefined,
+): ProgressStep | null {
   switch (workflowStatus) {
     case null:
     case 'draft':
-      return { steps: upTo(0, 'current'), waitingFor: null };
+      return 'research';
     case 'research_done':
-      return { steps: upTo(1, null), waitingFor: null };
+      // The mode decides what follows research. Unknown (older backend): no guess.
+      if (workflowMode === 'lightweight') return 'implement';
+      return workflowMode ? 'plan' : null;
     case 'plan_created':
-      return { steps: upTo(1, 'waiting'), waitingFor: 'approval' };
+      return 'plan';
     case 'plan_approved':
     case 'in_progress':
-      return { steps: upTo(2, 'current'), waitingFor: null };
+      return 'implement';
     case 'verify_done':
     case 'completed':
-      return { steps: upTo(4, null), waitingFor: null };
-    case 'awaiting_question':
-      // The status before the question is not reported, so no phase is lit.
-      return { steps: upTo(0, null), waitingFor: 'answer' };
+      return 'verify';
     default:
-      return { steps: upTo(0, null), waitingFor: null };
+      return null;
   }
+}
+
+/**
+ * Build the strip's view of a task.
+ *
+ * NOTE: Built from the CURRENT status every time, so a send-back (e.g.
+ * verify → implement) puts the phases after it back to pending — the run
+ * redoes them from there, even if they had been finished.
+ *
+ * @param workflowStatus - The task's workflowStatus, or null before research / ワークフロー状態
+ * @param workflowMode - The task's workflowMode / ワークフローのモード
+ * @returns Phase states and what the task waits on / 各工程の状態と待ちの種類
+ */
+export function progressFromWorkflowStatus(
+  workflowStatus: string | null,
+  workflowMode?: string | null,
+): ProgressView {
+  const order = stepsForMode(workflowMode);
+  const build = (doneCount: number, next: ProgressStepState | null) =>
+    order.map((key, i) => ({
+      key,
+      state: (i < doneCount
+        ? 'done'
+        : i === doneCount && next
+          ? next
+          : 'pending') as ProgressStepState,
+    }));
+  const indexOf = (step: ProgressStep) => order.indexOf(step);
+
+  if (workflowStatus === 'awaiting_question') {
+    // The status before the question is not reported, so no phase is lit.
+    return { steps: build(0, null), waitingFor: 'answer' };
+  }
+  if (workflowStatus === 'verify_done' || workflowStatus === 'completed') {
+    return { steps: build(order.length, null), waitingFor: null };
+  }
+  if (workflowStatus === 'plan_created') {
+    return { steps: build(indexOf('plan'), 'waiting'), waitingFor: 'approval' };
+  }
+  const phase = phaseOfStatus(workflowStatus, workflowMode);
+  if (phase === null) {
+    // research_done with an unknown mode: research is done, the next is not guessed.
+    const done = workflowStatus === 'research_done' ? 1 : 0;
+    return { steps: build(done, null), waitingFor: null };
+  }
+  return { steps: build(indexOf(phase), 'current'), waitingFor: null };
 }

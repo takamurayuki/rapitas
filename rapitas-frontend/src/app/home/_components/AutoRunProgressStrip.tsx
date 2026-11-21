@@ -9,12 +9,12 @@
  * Not responsible for controlling the run or for fetching its state.
  */
 import Link from 'next/link';
-import { CheckCircle2, Circle, Hourglass, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, Hourglass, Loader2, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
 import type { AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
 import {
-  PROGRESS_STEPS,
+  phaseOfStatus,
   progressFromWorkflowStatus,
   type ProgressStepState,
 } from './auto-run-progress.utils';
@@ -69,7 +69,26 @@ export function AutoRunProgressStrip({
 
   if (!visible) return null;
 
-  const view = currentTask ? progressFromWorkflowStatus(currentTask.workflowStatus) : null;
+  const view = currentTask
+    ? progressFromWorkflowStatus(currentTask.workflowStatus, currentTask.workflowMode)
+    : null;
+
+  // "検証 → 実装": the phase the latest send-back left and the one it redoes.
+  // research_done left means research had been reached, not the next phase.
+  const rework = currentTask?.rework;
+  const fromPhase = rework
+    ? rework.lastFromStatus === 'research_done'
+      ? 'research'
+      : phaseOfStatus(rework.lastFromStatus, currentTask?.workflowMode)
+    : null;
+  const toPhase = rework ? phaseOfStatus(rework.lastToStatus, currentTask?.workflowMode) : null;
+  const reworkRoute =
+    rework && fromPhase && toPhase
+      ? t('progress.reworkRoute', {
+          from: t(`progress.steps.${fromPhase}`),
+          to: t(`progress.steps.${toPhase}`),
+        })
+      : null;
   const startMs = startedAt ? new Date(startedAt).getTime() : NaN;
   const minutes = Number.isNaN(startMs)
     ? null
@@ -100,8 +119,7 @@ export function AutoRunProgressStrip({
           </Link>
 
           <ol className="flex items-center gap-1.5">
-            {PROGRESS_STEPS.map((step, i) => {
-              const state = view.steps[step];
+            {view.steps.map(({ key: step, state }, i) => {
               return (
                 <li key={step} className="flex items-center gap-1.5">
                   {i > 0 && (
@@ -129,6 +147,20 @@ export function AutoRunProgressStrip({
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
               <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
               {t('progress.awaitingAnswer')}
+            </span>
+          )}
+
+          {currentTask.rework && (
+            // Repeat = 修復反復 (ICON_POLICY): the same concept, counted per task.
+            <span
+              data-testid="auto-run-rework"
+              className="inline-flex items-center gap-1 text-xs whitespace-nowrap text-amber-600 dark:text-amber-400"
+            >
+              <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="font-medium">
+                {t('progress.rework', { count: currentTask.rework.count })}
+              </span>
+              {reworkRoute && <span>{reworkRoute}</span>}
             </span>
           )}
         </>

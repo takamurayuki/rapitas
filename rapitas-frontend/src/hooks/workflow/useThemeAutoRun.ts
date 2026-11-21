@@ -33,6 +33,19 @@ export interface CurrentTask {
   title: string;
   status: string;
   workflowStatus: string | null;
+  /** lightweight / standard / comprehensive; absent from older backends. */
+  workflowMode?: string | null;
+  /** Send-backs to an earlier phase, or null when none. */
+  rework?: ReworkSummary | null;
+}
+
+/** How often the task was sent back, and the most recent send-back. */
+export interface ReworkSummary {
+  count: number;
+  lastFromStatus: string;
+  lastToStatus: string;
+  lastCause: string;
+  lastAt: string;
 }
 
 /** Auto-run state plus the current task and the remaining backlog count. */

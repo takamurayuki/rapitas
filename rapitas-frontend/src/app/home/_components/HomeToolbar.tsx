@@ -67,15 +67,23 @@ export function HomeToolbar({
   // One poll for both the toolbar control and the progress strip under it.
   const autoRun = useThemeAutoRun(autoRunTheme?.id ?? null, autoRunTheme?.isDevelopment);
   const autoRunData = autoRunTheme?.isDevelopment ? autoRun.data : null;
+  const autoRunStatus = autoRunData?.autoRun.status;
+  const stripVisible = autoRunStatus === 'running' || autoRunStatus === 'paused';
 
   // NOTE: the row wraps instead of squeezing — at 390px the actions were
   // crushed into one-character-wide columns of vertical text. min-h-[62px] is
   // the due-today card's height: on a day with nothing due the card shrinks to
   // one line, and the row fell to the buttons' 38px, leaving them less room
   // above and below than on a day with the card (2026-11-16).
+  // With the progress strip under it, the row drops its bottom margin: the
+  // 62px floor already leaves 12px under the buttons, the same gap the strip
+  // keeps above the filters (2026-11-21).
   return (
     <>
-      <div className="mb-3 flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div
+        data-testid="home-toolbar-row"
+        className={`${stripVisible ? 'mb-0' : 'mb-3'} flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2`}
+      >
         <div className="flex items-center gap-4">
           <TodayTaskProgressBar compact={true} className="w-60" />
         </div>

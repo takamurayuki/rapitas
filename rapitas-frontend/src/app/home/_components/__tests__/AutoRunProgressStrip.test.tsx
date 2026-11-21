@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { AutoRunStatus } from '@/hooks/workflow/useThemeAutoRun';
+import type { AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
 
 vi.mock('next-intl', () => ({
   useTranslations: (namespace?: string) => (key: string, params?: Record<string, unknown>) =>
@@ -35,6 +35,17 @@ function renderStrip(
       currentTask={withTask ? { ...task, workflowStatus } : null}
       remainingCount={remainingCount}
       startedAt={new Date(Date.now() - 42 * 60_000).toISOString()}
+    />,
+  );
+}
+
+function renderTask(extra: Partial<CurrentTask>) {
+  return render(
+    <AutoRunProgressStrip
+      status="running"
+      currentTask={{ ...task, workflowStatus: null, ...extra }}
+      remainingCount={5}
+      startedAt={null}
     />,
   );
 }
@@ -89,6 +100,47 @@ describe('AutoRunProgressStrip', () => {
     renderStrip('running', 'in_progress');
     expect(screen.getByText(/autoRun\.progress\.remaining\{"count":5\}/)).toBeTruthy();
     expect(screen.getByText(/autoRun\.progress\.elapsedMinutes\{"minutes":42\}/)).toBeTruthy();
+  });
+
+  // Each task runs its own workflow: lightweight has no plan phase.
+  it('draws only research, implement and verify for a lightweight task', () => {
+    renderTask({ workflowStatus: 'research_done', workflowMode: 'lightweight' });
+    expect(document.querySelector('[data-step="plan"]')).toBeNull();
+    expect(stepState('research')).toBe('done');
+    expect(stepState('implement')).toBe('current');
+  });
+
+  it('moves to the plan after research for a standard task', () => {
+    renderTask({ workflowStatus: 'research_done', workflowMode: 'standard' });
+    expect(stepState('plan')).toBe('current');
+  });
+
+  // A send-back restarts from where it was sent, even past a finished phase.
+  it('shows a send-back and redoes the phases after it', () => {
+    renderTask({
+      workflowStatus: 'in_progress',
+      workflowMode: 'comprehensive',
+      rework: {
+        count: 2,
+        lastFromStatus: 'verify_done',
+        lastToStatus: 'in_progress',
+        lastCause: 'ci_repair',
+        lastAt: '2026-11-21T00:00:00.000Z',
+      },
+    });
+    expect(stepState('implement')).toBe('current');
+    expect(stepState('verify')).toBe('pending');
+    expect(screen.getByText(/autoRun\.progress\.rework\{"count":2\}/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /autoRun\.progress\.reworkRoute\{"from":"autoRun\.progress\.steps\.verify","to":"autoRun\.progress\.steps\.implement"\}/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows no send-back for a task that only moved forward', () => {
+    renderTask({ workflowStatus: 'in_progress', workflowMode: 'standard', rework: null });
+    expect(screen.queryByText(/autoRun\.progress\.rework/)).toBeNull();
   });
 
   // Design C's mock: a white band with a hairline on top, no outline.

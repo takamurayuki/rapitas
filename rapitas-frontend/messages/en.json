@@ -1704,7 +1704,6 @@
     "message": {
       "thinking": "Working out what to do.",
       "running": "{count, plural, =1 {An agent is running.} other {# agents are running in parallel.}}",
-      "runningMore": "+{count} more",
       "waiting": "A task is waiting for your approval.",
       "done": "A task just finished.",
       "error": "A task was blocked."
@@ -4602,6 +4601,8 @@
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "awaitingAnswer": "Awaiting answer",
+      "rework": "Sent back {count}×",
+      "reworkRoute": "({from} → {to})",
       "remaining": "{count} left",
       "elapsedMinutes": "{minutes}m",
       "elapsedHours": "{hours}h {minutes}m",

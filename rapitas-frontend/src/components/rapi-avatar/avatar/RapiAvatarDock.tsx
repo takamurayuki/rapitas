@@ -26,7 +26,6 @@ import {
 } from './RapiAvatar';
 import { RAPI_AVATAR_Z } from '@/lib/pane-layering';
 import { BUBBLE_COLORS, SpeechBubble } from './SpeechBubble';
-import { RunningList } from './RunningList';
 import {
   AVATAR_BOX_PX,
   DEFAULT_POSITION,
@@ -68,15 +67,9 @@ const TAG_COLOR: Record<Exclude<RapiAvatarState, 'idle'>, string> = {
 
 export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' | 'style'> {
   /** 吹き出しの本文。idle のときは表示しない */
+  // NOTE: The per-task `lines` list (2026-11-20) was removed 2026-11-21: the
+  // home page's auto-run strip shows the running task and its phase now.
   message?: string;
-  /**
-   * The running tasks, one line each, shown in place of `message`. The bubble
-   * used to say only 「エージェントが実行中です。」 (reported 2026-11-20).
-   * / 実行中のタスクとフェーズ（指定時は本文の代わりに表示）
-   */
-  lines?: DockLine[];
-  /** 「ほか N 件」, when some lines were left out. / 省略した件数の表示 */
-  more?: string;
   /** アバタークリック時（詳細パネルを開く等） */
   onClick?: () => void;
   /**
@@ -89,29 +82,10 @@ export interface RapiAvatarDockProps extends Omit<RapiAvatarProps, 'className' |
   >;
 }
 
-/** One running task in the bubble. */
-export interface DockLine {
-  /** React key. / キー */
-  key: string;
-  /** Task id, shown as #N. / タスクID */
-  taskId: number;
-  /** Task title. / タスク名 */
-  title: string;
-  /** Phase label, already translated. / フェーズ名（翻訳済み） */
-  phase?: string;
-}
-
 /** The fallback viewport only decides which side the bubble is on. */
 const WIDE: Viewport = { width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY };
 
-export function RapiAvatarDock({
-  message,
-  lines,
-  more,
-  onClick,
-  drag,
-  ...avatar
-}: RapiAvatarDockProps) {
+export function RapiAvatarDock({ message, onClick, drag, ...avatar }: RapiAvatarDockProps) {
   const label = useStateLabel();
   const name = useAvatarName();
 
@@ -154,12 +128,8 @@ export function RapiAvatarDock({
     onClick?.();
   }, [onClick, consumeClick]);
   const dark = avatar.theme === 'dark';
-  const showBubble = avatar.state !== 'idle' && (!!message || !!lines?.length);
-  const spoken = lines?.length
-    ? [...lines.map((l) => `${l.title}${l.phase ? ` ${l.phase}` : ''}`), more]
-        .filter(Boolean)
-        .join('、')
-    : message;
+  const showBubble = avatar.state !== 'idle' && !!message;
+  const spoken = message;
 
   const position: AvatarPosition = drag?.position ?? DEFAULT_POSITION;
   const viewport = drag?.viewport ?? WIDE;
@@ -214,13 +184,9 @@ export function RapiAvatarDock({
             >
               {label(avatar.state)}
             </span>
-            {lines && lines.length > 0 ? (
-              <RunningList lines={lines} more={more} dark={dark} />
-            ) : (
-              <span style={{ fontSize: 13, lineHeight: 1.6, color: dark ? '#F3F4F6' : '#1F2937' }}>
-                {message}
-              </span>
-            )}
+            <span style={{ fontSize: 13, lineHeight: 1.6, color: dark ? '#F3F4F6' : '#1F2937' }}>
+              {message}
+            </span>
           </SpeechBubble>
         )}
       </div>

@@ -77,35 +77,3 @@ describe('what the dock still does', () => {
     expect(screen.queryByText('なにか')).toBeNull();
   });
 });
-
-describe('what the bubble says while agents run', () => {
-  const lines = [
-    { key: '1', taskId: 1509, title: '期限順で並べ替える', phase: '検証中' },
-    { key: '2', taskId: 1510, title: '通知の文言を直す', phase: '実装中' },
-  ];
-
-  it('names each task and the phase it is in', () => {
-    render(<RapiAvatarDock state="running" message="2件実行中" lines={lines} />);
-    expect(screen.getByText('期限順で並べ替える')).toBeTruthy();
-    expect(screen.getByText('検証中')).toBeTruthy();
-    expect(screen.getByText('通知の文言を直す')).toBeTruthy();
-    expect(screen.getByText('実装中')).toBeTruthy();
-  });
-
-  it('opens the task from its line, with the header kept', () => {
-    render(<RapiAvatarDock state="running" message="2件" lines={lines} />);
-    const link = screen.getByText('期限順で並べ替える').closest('a');
-    expect(link?.getAttribute('href')).toBe('/tasks/1509?showHeader=true');
-  });
-
-  it('says how many more there are past the shown ones', () => {
-    render(<RapiAvatarDock state="running" message="5件" lines={lines} more="ほか3件" />);
-    expect(screen.getByText('ほか3件')).toBeTruthy();
-  });
-
-  it('reads the lines out to a screen reader too', () => {
-    render(<RapiAvatarDock state="running" message="2件" lines={lines} />);
-    const button = screen.getByRole('button');
-    expect(button.getAttribute('aria-label')).toContain('期限順で並べ替える');
-  });
-});

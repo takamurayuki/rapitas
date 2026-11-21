@@ -110,8 +110,9 @@ const say = (what: string) => {
 };
 
 describe('the corner', () => {
-  // Reported 2026-11-20: she said only 「エージェントが実行中です」.
-  it('names the running task and its phase in the bubble', () => {
+  // 2026-11-21: the home page's auto-run strip names the running task and its
+  // phase, so her bubble no longer repeats it.
+  it('does not speak about running agents', () => {
     executionState = {
       executions: [
         { ...exec(1, 'running'), workflowStatus: 'in_progress', workflowMode: 'standard' },
@@ -120,9 +121,9 @@ describe('the corner', () => {
       interruptedCount: 0,
     };
     render(<RapiAvatarHost />);
-    expect(screen.getByText('task 1')).toBeTruthy();
-    expect(screen.getByText('workflow.statusIndicator.verifying')).toBeTruthy();
+    expect(screen.queryByText('task 1')).toBeNull();
     expect(screen.queryByText('rapiAvatar.message.running:1')).toBeNull();
+    expect(document.querySelector('[data-speech-bubble]')).toBeNull();
   });
 
   // The whole point of the change: nothing is parked there any more.
@@ -219,11 +220,13 @@ describe('the corner', () => {
   });
 
   // Two things talking at once in one corner is what this removed.
+  // Uses interrupted work: running agents no longer speak (2026-11-21).
   it('hushes the bubble while the panel is up', () => {
+    executionState = { executions: [exec(1, 'interrupted')], runningCount: 0, interruptedCount: 1 };
     render(<RapiAvatarHost />);
-    expect(screen.getByText('task 1')).toBeTruthy();
+    expect(screen.getByText('rapiAvatar.message.waiting:1')).toBeTruthy();
     fireEvent.click(avatarButton());
-    expect(screen.queryByText('task 1')).toBeNull();
+    expect(screen.queryByText('rapiAvatar.message.waiting:1')).toBeNull();
   });
 });
 

@@ -1704,7 +1704,6 @@
     "message": {
       "thinking": "進め方を検討しています。",
       "running": "{count, plural, =1 {エージェントが実行中です。} other {#件のエージェントが並列で実行中です。}}",
-      "runningMore": "ほか{count}件",
       "waiting": "承認待ちのタスクがあります。",
       "done": "タスクが完了しました。",
       "error": "タスクがブロックされました。"
@@ -4602,6 +4601,8 @@
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",
       "awaitingAnswer": "回答待ち",
+      "rework": "差し戻し {count}回",
+      "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",
       "elapsedMinutes": "{minutes}分",
       "elapsedHours": "{hours}時間{minutes}分",

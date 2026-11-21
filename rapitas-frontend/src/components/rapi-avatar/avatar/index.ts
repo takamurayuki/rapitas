@@ -12,7 +12,7 @@ export {
   type RapiAvatarState,
   type RapiAvatarProps,
 } from './RapiAvatar';
-export { RapiAvatarDock, type RapiAvatarDockProps, type DockLine } from './RapiAvatarDock';
+export { RapiAvatarDock, type RapiAvatarDockProps } from './RapiAvatarDock';
 export {
   SpeechBubble,
   SPEAK_DURATION_MS,
