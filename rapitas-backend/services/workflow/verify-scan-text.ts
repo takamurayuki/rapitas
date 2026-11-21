@@ -6,6 +6,7 @@
  * evidence, and which rows are its non-passing checklist findings. No
  * verdict logic lives here.
  */
+import { isResolvedFailureLine } from './verify-resolved-failure';
 
 /**
  * Remove regions that must NOT feed the self-contradiction scan:
@@ -57,6 +58,8 @@ export function collectNonpassingRows(content: string): string[] {
     if (!/⚠️?|❌/.test(line)) continue;
     // The verdict itself (summary line or 全体判定 cell) is not a finding.
     if (/全体判定|overall|検証結果サマリ/i.test(line)) continue;
+    // A failure the report records as resolved is history, not an open finding.
+    if (isResolvedFailureLine(line)) continue;
     if (/^[|*\s-]*(?:⚠️?\s*(?:一部失敗|Partial\b)|❌\s*(?:検証失敗|Fail(?:ed)?\b))/i.test(line)) {
       continue;
     }

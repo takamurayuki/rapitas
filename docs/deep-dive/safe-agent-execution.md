@@ -149,7 +149,7 @@ const ALLOWED_FILE_TYPES_BY_STATUS = {
 };
 ```
 
-This makes "save research.md *after* verify.md" impossible — the agent can't quietly regress the workflow. Transitions are recorded append-only (audit trail), and `awaiting_question` lets a run pause for a human answer and resume to its prior state. The plan stage is an explicit **approval gate** (large plans auto-split into dependency-ordered subtasks). The verify stage also rejects **self-contradictory** reports (e.g., "all tests pass" alongside failures) so a hallucinated success can't trigger a PR.
+This makes "save research.md *after* verify.md" impossible — the agent can't quietly regress the workflow. Transitions are recorded append-only (audit trail), and `awaiting_question` lets a run pause for a human answer and resume to its prior state. The plan stage is an explicit **approval gate** (large plans auto-split into dependency-ordered subtasks). The verify stage also rejects **self-contradictory** reports (e.g., "all tests pass" alongside failures) so a hallucinated success can't trigger a PR. A failure the same report records as resolved (for example "初回失敗・解消済み", "2 failed → 修正済み", "再実行で成功") is history, not a contradiction: `services/workflow/verify-resolved-failure.ts` holds that one rule and every failure detector (the cross mark, the `N failed` count, the runner's `exit 1`, and the open-finding rows) applies it. A line that also says the failure persists ("未解消", "再実行でも失敗", "still failing") is still caught.
 
 ---
 
