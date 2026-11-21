@@ -76,7 +76,9 @@ describe('the action groups', () => {
     expect(auto).toBeGreaterThan(bulk);
   });
 
-  it('wraps the task actions in their own labelled group', () => {
+  // 2026-11-21: plain buttons, no frame or label — the auto-run status panel
+  // is what sets the other group apart.
+  it('keeps the task actions together as plain buttons', () => {
     render(
       <HomeToolbar
         completedTasksCount={0}
@@ -94,8 +96,10 @@ describe('the action groups', () => {
         onToggleSelectionMode={vi.fn()}
       />,
     );
-    const group = screen.getByText('toolbarGroup.tasks').closest('[data-toolbar-group]');
-    expect(group?.getAttribute('data-toolbar-group')).toBe('tasks');
+    const group = document.querySelector('[data-toolbar-group="tasks"]');
+    expect(group).toBeTruthy();
+    expect(screen.queryByText('toolbarGroup.tasks')).toBeNull();
+    expect(group?.className).not.toMatch(/\bbg-/);
     const inside = Array.from(group?.querySelectorAll('button') ?? []).map((b) => b.textContent);
     expect(inside.some((t) => t?.includes('createTask'))).toBe(true);
     expect(inside.some((t) => t?.includes('bulk'))).toBe(true);
@@ -154,7 +158,7 @@ describe('toolbar colours', () => {
 describe('bulk selection keeps every task action in the task group', () => {
   it('puts the status segments inside the タスク管理 frame', () => {
     toolbar(true, 2);
-    const group = screen.getByText('toolbarGroup.tasks').closest('[data-toolbar-group]');
+    const group = document.querySelector('[data-toolbar-group="tasks"]');
     const segments = screen.getByTestId('bulk-status-control');
     expect(group?.contains(segments)).toBe(true);
   });

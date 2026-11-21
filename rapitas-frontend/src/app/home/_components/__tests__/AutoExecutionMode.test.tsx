@@ -91,7 +91,7 @@ describe('while auto-run is going', () => {
   // status — an element reading "実行中" — silently ended the run instead.
   it('does not make the status itself a way to stop', () => {
     renderControl();
-    const status = screen.getByText('home.autoExecutionMode.runningLabel');
+    const status = screen.getByText('autoRun.statusRunning');
     expect(status.closest('button')).toBeNull();
 
     fireEvent.click(status);
@@ -101,7 +101,7 @@ describe('while auto-run is going', () => {
   it('still tells running apart from paused', () => {
     autoRun.status = 'paused';
     renderControl();
-    expect(screen.getByText('home.autoExecutionMode.paused')).toBeTruthy();
+    expect(screen.getByText('autoRun.statusPaused')).toBeTruthy();
     // And the stop is still reachable while paused.
     expect(stopButton()).toBeTruthy();
   });
@@ -113,7 +113,7 @@ describe('while auto-run is going', () => {
 describe('status reads as text, actions read as buttons', () => {
   it('draws the status without a button frame or ridge', () => {
     renderControl();
-    const status = screen.getByText('home.autoExecutionMode.runningLabel');
+    const status = screen.getByText('autoRun.statusRunning');
     const frame = status.closest('[data-auto-run-status]') as HTMLElement;
     expect(frame).toBeTruthy();
     expect(frame.className.split(/\s+/)).not.toContain('border');
@@ -140,20 +140,6 @@ describe('status reads as text, actions read as buttons', () => {
     expect(autoRun.start).toHaveBeenCalledWith('priority');
   });
 
-  // 2026-11-21: task actions and run actions should read as two groups at a
-  // glance, without making the toolbar taller.
-  it('sits in its own labelled group, also when idle', () => {
-    renderControl();
-    let group = screen.getByText('home.toolbarGroup.autoRun').closest('[data-toolbar-group]');
-    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
-    expect(group?.contains(stopButton())).toBe(true);
-
-    autoRun.status = 'idle';
-    renderControl();
-    group = screen.getAllByText('home.toolbarGroup.autoRun')[1].closest('[data-toolbar-group]');
-    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
-  });
-
   it('offers no pause while running (a pause holds the only run slot)', () => {
     renderControl();
     expect(screen.queryByRole('button', { name: /autoRun\.pause/ })).toBeNull();
@@ -165,14 +151,47 @@ describe('while auto-run is off', () => {
   it('offers starting it, and no stop', () => {
     autoRun.status = 'idle';
     renderControl();
-    expect(screen.getByRole('button', { name: /settings\.devModeTitle/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /home\.autoExecutionMode\.start/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /autoRun\.stop/ })).toBeNull();
   });
 
   it('starts in priority order when pressed', () => {
     autoRun.status = 'idle';
     renderControl();
-    fireEvent.click(screen.getByRole('button', { name: /settings\.devModeTitle/ }));
+    fireEvent.click(screen.getByRole('button', { name: /home\.autoExecutionMode\.start/ }));
     expect(autoRun.start).toHaveBeenCalledWith('priority');
+  });
+});
+
+// 2026-11-21: a small inline label beside the buttons did not tell the two
+// toolbar groups apart (its frame matched the page background). The auto-run
+// control is now a status panel — caption, state, actions, a border in the
+// state's colour — so it reads as a machine with a state, not as more buttons.
+const panel = () => document.querySelector('[data-toolbar-group="auto-run"]') as HTMLElement;
+
+describe('the auto-run status panel', () => {
+  it.each([
+    ['running', 'border-emerald-400', 'autoRun.statusRunning'],
+    ['paused', 'border-amber-300', 'autoRun.statusPaused'],
+    ['idle', 'border-zinc-300', 'autoRun.statusIdle'],
+  ] as const)('frames the %s state in its own colour', (state, border, text) => {
+    autoRun.status = state;
+    renderControl();
+    const p = panel();
+    expect(p.getAttribute('data-auto-run-state')).toBe(state);
+    expect(p.className.split(/\s+/)).toContain(border);
+    expect(p.contains(screen.getByText('home.toolbarGroup.autoRun'))).toBe(true);
+    expect(p.contains(screen.getByText(text))).toBe(true);
+  });
+
+  it('keeps its actions inside the panel', () => {
+    renderControl();
+    expect(panel().contains(stopButton())).toBe(true);
+  });
+
+  it('is set apart from the task actions by a divider before it', () => {
+    renderControl();
+    const divider = screen.getByTestId('auto-run-divider');
+    expect(divider.nextElementSibling).toBe(panel());
   });
 });

@@ -6,16 +6,16 @@
  * development theme's auto-run. Not AI task generation — runs existing todo
  * tasks in priority order. Rendered only when a development theme is active.
  *
- * Buttons (開始 / 再開 / 停止) match the toolbar's "タスクを作成"/"一括" buttons
- * (HomeToolbar.tsx): rounded-lg, px-3.5 py-2, gap-2 and the 2px bottom ridge.
- * The running / paused status beside them is plain text, never a button shape.
- * One accent (indigo) for the whole control; 停止 is neutral until hovered.
+ * Drawn as a status panel (AutoRunPanel.tsx): a caption, the state and the
+ * actions, framed in the state's colour, so it reads apart from the plain task
+ * buttons beside it. Buttons (開始 / 再開 / 停止) keep the toolbar's 2px bottom
+ * ridge; one accent (indigo) for the control; 停止 is neutral until hovered.
  */
 import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { Spinner } from '@/components/ui/spinner';
-import { ToolbarGroup } from './ToolbarGroup';
+import { AutoRunPanel } from './AutoRunPanel';
 
 interface AutoExecutionModeProps {
   /** Selected development theme to control, or null when none is active. */
@@ -30,7 +30,6 @@ interface AutoExecutionModeProps {
  */
 export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   const t = useTranslations('home');
-  const tSettings = useTranslations('settings');
   const tAutoRun = useTranslations('autoRun');
   const { data, actionLoading, error, start, stop } = useThemeAutoRun(
     theme?.id ?? null,
@@ -47,15 +46,19 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     </span>
   ) : null;
 
-  // Sits after the task actions in the toolbar, in its own labelled group
-  // (タスク実行). The group is drawn here, not by the toolbar, because the
-  // control renders nothing for non-development themes.
-  const groupLabel = t('toolbarGroup.autoRun');
-
   // ── Idle ─────────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
-      <ToolbarGroup id="auto-run" label={groupLabel}>
+      <AutoRunPanel
+        state="idle"
+        caption={t('toolbarGroup.autoRun')}
+        status={
+          <>
+            <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+            {tAutoRun('statusIdle')}
+          </>
+        }
+      >
         <button
           onClick={() => start('priority')}
           disabled={actionLoading}
@@ -72,28 +75,28 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
               <Play className="h-2.5 w-2.5 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
             </span>
           )}
-          {tSettings('devModeTitle')}
+          {t('autoExecutionMode.start')}
         </button>
         {errorBadge}
-      </ToolbarGroup>
+      </AutoRunPanel>
     );
   }
 
   // ── Stopping ──────────────────────────────────────────────────────────────
   if (status === 'stopping') {
     return (
-      <ToolbarGroup id="auto-run" label={groupLabel}>
-        <button
-          disabled
-          className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
-        >
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-500">
-            <Loader2 className="h-3 w-3 animate-spin text-zinc-500 dark:text-zinc-900" />
-          </span>
-          {tAutoRun('statusStopping')}
-        </button>
+      <AutoRunPanel
+        state="stopping"
+        caption={t('toolbarGroup.autoRun')}
+        status={
+          <>
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+            {tAutoRun('statusStopping')}
+          </>
+        }
+      >
         {errorBadge}
-      </ToolbarGroup>
+      </AutoRunPanel>
     );
   }
 
@@ -127,23 +130,24 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   // (indigo, the 開始 colour): resuming is the same act as starting, and the
   // stop is a neutral ridge that turns red only under the pointer — five
   // differently coloured buttons on one toolbar hid which one mattered.
-  const dot = paused ? 'bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400';
-
   return (
-    <ToolbarGroup id="auto-run" label={groupLabel}>
-      {/* STATUS — says what is happening; plain text, never a button shape. */}
-      <span
-        data-auto-run-status=""
-        className="inline-flex items-center gap-1.5 px-1 text-sm font-medium text-zinc-600 select-none dark:text-zinc-300"
-      >
-        {paused ? (
-          <Pause className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+    <AutoRunPanel
+      state={paused ? 'paused' : 'running'}
+      caption={t('toolbarGroup.autoRun')}
+      status={
+        paused ? (
+          <>
+            <Pause className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            {tAutoRun('statusPaused')}
+          </>
         ) : (
-          <span className={`h-2 w-2 shrink-0 animate-pulse rounded-full ${dot}`} />
-        )}
-        <span>{paused ? t('autoExecutionMode.paused') : t('autoExecutionMode.runningLabel')}</span>
-      </span>
-
+          <>
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500 dark:bg-emerald-400" />
+            {tAutoRun('statusRunning')}
+          </>
+        )
+      }
+    >
       {/* RESUME — only while paused; the same act and colour as 開始. */}
       {paused && (
         <button
@@ -173,6 +177,6 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         {tAutoRun('stop')}
       </button>
       {errorBadge}
-    </ToolbarGroup>
+    </AutoRunPanel>
   );
 }
