@@ -17,6 +17,7 @@ import {
   ensureRunCheckedWrapper,
   defaultWrapperSource,
   WRAPPER_RELATIVE_PATH,
+  VERIFICATION_LOGS_PATTERN,
 } from './worktree-command-wrapper';
 
 let root: string;
@@ -81,6 +82,27 @@ describe('ensureRunCheckedWrapper', () => {
     // `git add .` must not be able to carry rapitas's tooling into the app repo.
     const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
     expect(exclude.split(/\r?\n/)).toContain(WRAPPER_RELATIVE_PATH);
+  });
+
+  // Task 1511 (2026-11-21) merged a trendline PR whose only file was a
+  // `.verification-logs/*.log` the wrapper had written.
+  test('excludes the logs the wrapper writes', async () => {
+    const repo = makeRepo('logs');
+    await ensureRunCheckedWrapper(makeWorktree(repo, 'task-1'), source);
+
+    const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
+    expect(exclude.split(/\r?\n/)).toContain(VERIFICATION_LOGS_PATTERN);
+  });
+
+  test('excludes the logs even when the worktree already has a wrapper', async () => {
+    const repo = makeRepo('logs-present');
+    const wt = makeWorktree(repo, 'task-1');
+    mkdirSync(join(wt, 'scripts'), { recursive: true });
+    writeFileSync(join(wt, WRAPPER_RELATIVE_PATH), '// copied earlier\n', 'utf8');
+
+    expect(await ensureRunCheckedWrapper(wt, source)).toBe('present');
+    const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
+    expect(exclude.split(/\r?\n/)).toContain(VERIFICATION_LOGS_PATTERN);
   });
 
   test('still provisions the wrapper when the exclude file cannot be resolved', async () => {
