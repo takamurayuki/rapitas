@@ -18,6 +18,7 @@ import { recordContextMetrics } from './workflow-context-metrics';
 import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-section';
 import type { VerifierTexts } from './workflow-role-prompts';
 import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
+import { buildPreviousRoundSection } from './verify-previous-round';
 
 /** Newest real run of the task (the one whose output is being measured), for audit. */
 async function latestRunExecutionId(taskId: number): Promise<number | null> {
@@ -113,6 +114,9 @@ Preserve command exit codes before formatting output: piping a command into tail
   if (gatePrecision) {
     ctx += `\n\n${gatePrecision}`;
   }
+  // The model can change between rounds; hand over what the last one decided.
+  const previousRound = await buildPreviousRoundSection(taskId, language).catch(() => '');
+  if (previousRound) ctx += `\n\n${previousRound}`;
   if (plan) {
     ctx += `\n\n${texts.planHeader}\n\n${plan}`;
   }

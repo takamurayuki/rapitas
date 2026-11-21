@@ -14,6 +14,8 @@ import path from 'node:path';
 // with-plan implementer path (file-size awareness injection, task 600) be
 // exercised end-to-end without seeding the shared DB with fixture rows.
 const PLAN_TASK_ID = 600600;
+/** A task with a previous verify.md (task 521: the verifier judged each round from scratch). */
+const REVERIFY_TASK_ID = 521521;
 let planForSentinel: string | null = null;
 let researchForSentinel: string | null = null;
 
@@ -26,6 +28,9 @@ class OpenSubtasksError extends Error {}
 // mock would break any transitive importer with an export-not-found error.
 mock.module('./workflow-file-utils', () => ({
   readWorkflowFile: mock((taskId: number, fileType: string) => {
+    if (taskId === REVERIFY_TASK_ID && fileType === 'verify') {
+      return Promise.resolve('| 2 共有リンク | ❌ 未達 | 失効リンクが 200 を返す |');
+    }
     if (taskId !== PLAN_TASK_ID) return Promise.resolve(null);
     if (fileType === 'plan') return Promise.resolve(planForSentinel);
     if (fileType === 'research') return Promise.resolve(researchForSentinel);
@@ -485,5 +490,18 @@ describe('context metrics + budget wiring (task 632)', () => {
     const ctx = await buildRoleContext(PLAN_TASK_ID, 'implementer', TASK);
     expect(ctx).toContain(LONG_RESEARCH);
     expect(ctx).not.toContain('…[truncated:');
+  });
+});
+
+describe('verifier context — previous round', () => {
+  test('hands the previous verify.md open items to the next verifier', async () => {
+    const ctx = await buildRoleContext(REVERIFY_TASK_ID, 'verifier', TASK);
+    expect(ctx).toContain('前回の検証結果（引き継ぎ）');
+    expect(ctx).toContain('失効リンクが 200 を返す');
+  });
+
+  test('says nothing about a previous round on the first verify', async () => {
+    const ctx = await buildRoleContext(1, 'verifier', TASK);
+    expect(ctx).not.toContain('前回の検証結果（引き継ぎ）');
   });
 });
