@@ -395,7 +395,8 @@
     },
     "filterPanel": {
       "hide": "Hide",
-      "show": "Show filters"
+      "show": "Show filters",
+      "showShort": "Show"
     },
     "autoExecutionMode": {
       "startTitle": "Automatically run this theme's To Do tasks in order",

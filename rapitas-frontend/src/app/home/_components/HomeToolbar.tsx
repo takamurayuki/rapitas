@@ -11,6 +11,7 @@ import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { AutoExecutionMode } from './AutoExecutionMode';
 import { AutoRunProgressStrip } from './AutoRunProgressStrip';
+import { HomeFilterSummary, type FilterScope } from './HomeFilterSummary';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -29,6 +30,8 @@ interface HomeToolbarProps {
   onBulkDelete: () => void;
   onSelectAll: () => void;
   onToggleSelectionMode: () => void;
+  /** The hidden filter's category and theme; null while the filter is shown. / 隠したフィルターの範囲 */
+  filterScope?: FilterScope | null;
 }
 
 /**
@@ -51,6 +54,7 @@ export function HomeToolbar({
   onBulkDelete,
   onSelectAll,
   onToggleSelectionMode,
+  filterScope,
 }: HomeToolbarProps) {
   const router = useRouter();
   const t = useTranslations('home');
@@ -69,6 +73,9 @@ export function HomeToolbar({
   const autoRunData = autoRunTheme?.isDevelopment ? autoRun.data : null;
   const autoRunStatus = autoRunData?.autoRun.status;
   const stripVisible = autoRunStatus === 'running' || autoRunStatus === 'paused';
+  // The band under the row: the strip (with the hidden filter merged in) or,
+  // with auto-run off, the hidden filter's line alone.
+  const bandVisible = stripVisible || !!filterScope;
 
   // NOTE: the row wraps instead of squeezing — at 390px the actions were
   // crushed into one-character-wide columns of vertical text. min-h-[62px] is
@@ -82,7 +89,7 @@ export function HomeToolbar({
     <>
       <div
         data-testid="home-toolbar-row"
-        className={`${stripVisible ? 'mb-0' : 'mb-3'} flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2`}
+        className={`${bandVisible ? 'mb-0' : 'mb-3'} flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2`}
       >
         <div className="flex items-center gap-4">
           <TodayTaskProgressBar compact={true} className="w-60" />
@@ -268,13 +275,18 @@ export function HomeToolbar({
       </div>
       {/* Under the row, full width: the panel above only has room for the
         state, so the task, its phase and the backlog go here (2026-11-21). */}
-      {autoRunData && (
+      {/* With the filter hidden, its category and theme join this band
+        instead of drawing a second one (2026-11-21). */}
+      {autoRunData && stripVisible ? (
         <AutoRunProgressStrip
           status={autoRunData.autoRun.status}
           currentTask={autoRunData.currentTask}
           remainingCount={autoRunData.remainingCount}
           startedAt={autoRunData.autoRun.startedAt}
+          scope={filterScope}
         />
+      ) : (
+        filterScope && <HomeFilterSummary {...filterScope} />
       )}
     </>
   );

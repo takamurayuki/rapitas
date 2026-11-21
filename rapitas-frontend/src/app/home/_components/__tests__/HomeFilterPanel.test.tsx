@@ -2,10 +2,11 @@
  * HomeFilterPanel.test
  *
  * Asked 2026-11-21: a way to hide the whole filter (category tabs, theme row,
- * FILTER). Hidden, it leaves one line naming the category and theme in view,
- * because auto-run acts on the selected theme and the user must still see it.
+ * FILTER). The panel only offers the hide control and steps aside; the line
+ * that names the category and theme while hidden is drawn by the toolbar,
+ * merged into the auto-run strip.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import type { Category, Theme } from '@/types';
@@ -28,7 +29,9 @@ const categories = [
 ] as unknown as Category[];
 const themes = [{ id: 7, name: 'rapitas', color: '#f97316', categoryId: 1 }] as unknown as Theme[];
 
-const props = (): ComponentProps<typeof HomeFilterPanel> =>
+const props = (
+  over: Partial<ComponentProps<typeof HomeFilterPanel>> = {},
+): ComponentProps<typeof HomeFilterPanel> =>
   ({
     categories,
     themes,
@@ -50,6 +53,8 @@ const props = (): ComponentProps<typeof HomeFilterPanel> =>
     canScrollRight: false,
     statusCounts: { all: 0 },
     themeScrollRef: { current: null },
+    filterHidden: false,
+    onFilterHiddenChange: vi.fn(),
     onCategoryChange: vi.fn(),
     onThemeChange: vi.fn(),
     onFilterChange: vi.fn(),
@@ -61,58 +66,31 @@ const props = (): ComponentProps<typeof HomeFilterPanel> =>
     onScrollLeft: vi.fn(),
     onScrollRight: vi.fn(),
     onRetry: vi.fn(),
+    ...over,
   }) as unknown as ComponentProps<typeof HomeFilterPanel>;
 
-const hideButton = () => screen.getByRole('button', { name: 'home.filterPanel.hide' });
-const showButton = () => screen.getByRole('button', { name: 'home.filterPanel.show' });
-
-beforeEach(() => {
-  localStorage.clear();
-});
-
 describe('hiding the filter', () => {
-  it('shows the whole filter with a hide control by default', () => {
+  it('shows the whole filter with a hide control', () => {
     render(<HomeFilterPanel {...props()} />);
     expect(screen.getByTestId('theme-row')).toBeTruthy();
-    expect(hideButton()).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'home.filterPanel.hide' })).toBeTruthy();
   });
 
-  it('collapses to one line naming the category and theme', () => {
-    render(<HomeFilterPanel {...props()} />);
-    fireEvent.click(hideButton());
-    expect(screen.queryByTestId('theme-row')).toBeNull();
-    const summary = screen.getByTestId('filter-summary');
-    expect(summary.textContent).toContain('開発');
-    expect(summary.textContent).toContain('rapitas');
-    expect(showButton()).toBeTruthy();
+  it('asks to be hidden when the control is pressed', () => {
+    const onFilterHiddenChange = vi.fn();
+    render(<HomeFilterPanel {...props({ onFilterHiddenChange })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'home.filterPanel.hide' }));
+    expect(onFilterHiddenChange).toHaveBeenCalledWith(true);
   });
 
-  it('brings the filter back from the summary', () => {
-    render(<HomeFilterPanel {...props()} />);
-    fireEvent.click(hideButton());
-    fireEvent.click(showButton());
-    expect(screen.getByTestId('theme-row')).toBeTruthy();
-    expect(screen.queryByTestId('filter-summary')).toBeNull();
+  // The toolbar's band names the category and theme instead.
+  it('draws nothing while hidden', () => {
+    const { container } = render(<HomeFilterPanel {...props({ filterHidden: true })} />);
+    expect(container.firstChild).toBeNull();
   });
 
-  // Asked 2026-11-21: next to the auto-run strip the outlined summary stood
-  // out, so hidden it takes the strip's look — a white band, top hairline.
-  it('draws the summary like the auto-run strip, with no outline', () => {
-    render(<HomeFilterPanel {...props()} />);
-    fireEvent.click(hideButton());
-    const cls = screen.getByTestId('filter-summary').className.split(/\s+/);
-    expect(cls).toContain('border-t');
-    expect(cls).not.toContain('border');
-    expect(cls).not.toContain('shadow-sm');
-    expect(cls).toContain('text-[13px]');
-    expect(cls).not.toContain('uppercase');
-  });
-
-  it('stays hidden the next time the page opens', () => {
-    const first = render(<HomeFilterPanel {...props()} />);
-    fireEvent.click(hideButton());
-    first.unmount();
-    render(<HomeFilterPanel {...props()} />);
-    expect(screen.getByTestId('filter-summary')).toBeTruthy();
+  it('still reports a load error while hidden', () => {
+    render(<HomeFilterPanel {...props({ filterHidden: true, filtersError: 'boom' })} />);
+    expect(screen.getByText(/boom/)).toBeTruthy();
   });
 });

@@ -6,8 +6,9 @@
  * (2026-11-21). The strip under the toolbar shows those while a run is on.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
+import type { Category, Theme } from '@/types';
 
 vi.mock('next-intl', () => ({
   useTranslations: (namespace?: string) => (key: string, params?: Record<string, unknown>) =>
@@ -141,6 +142,36 @@ describe('AutoRunProgressStrip', () => {
   it('shows no send-back for a task that only moved forward', () => {
     renderTask({ workflowStatus: 'in_progress', workflowMode: 'standard', rework: null });
     expect(screen.queryByText(/autoRun\.progress\.rework/)).toBeNull();
+  });
+
+  // 2026-11-21: with the filter hidden, the category and theme lead the strip
+  // and a short "show" control ends it, instead of a second band.
+  it('leads with the hidden filter scope and offers to show it', () => {
+    const onShow = vi.fn();
+    render(
+      <AutoRunProgressStrip
+        status="running"
+        currentTask={{ ...task, workflowStatus: 'in_progress' }}
+        remainingCount={5}
+        startedAt={null}
+        scope={{
+          category: { id: 1, name: '開発', color: '#2563eb', icon: '' } as unknown as Category,
+          theme: { id: 7, name: 'rapitas', color: '#f97316' } as unknown as Theme,
+          onShow,
+        }}
+      />,
+    );
+    const strip = screen.getByTestId('auto-run-progress-strip');
+    expect(strip.textContent?.indexOf('rapitas')).toBeLessThan(
+      strip.textContent?.indexOf('#1682') ?? -1,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'home.filterPanel.show' }));
+    expect(onShow).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no show control while the filter is shown', () => {
+    renderStrip('running', 'in_progress');
+    expect(screen.queryByRole('button', { name: 'home.filterPanel.show' })).toBeNull();
   });
 
   // Design C's mock: a white band with a hairline on top, no outline.

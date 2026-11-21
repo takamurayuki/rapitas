@@ -18,6 +18,7 @@ import {
   progressFromWorkflowStatus,
   type ProgressStepState,
 } from './auto-run-progress.utils';
+import { FilterScopeLabel, ShowFilterButton, type FilterScope } from './HomeFilterSummary';
 
 interface AutoRunProgressStripProps {
   /** Auto-run status; the strip renders only while running or paused. / 自動実行の状態 */
@@ -28,7 +29,16 @@ interface AutoRunProgressStripProps {
   remainingCount: number;
   /** When the run started (ISO), or null. / 開始時刻 */
   startedAt: string | null;
+  /**
+   * The hidden filter's category and theme, merged in rather than drawn as a
+   * second band (2026-11-21); null while the filter is shown. / 隠したフィルターの範囲
+   */
+  scope?: FilterScope | null;
 }
+
+const SEPARATOR = (
+  <span aria-hidden="true" className="h-4 w-px shrink-0 bg-zinc-300 dark:bg-zinc-700" />
+);
 
 const STEP_TEXT: Record<ProgressStepState, string> = {
   done: 'text-emerald-600 dark:text-emerald-400',
@@ -54,6 +64,7 @@ function StepIcon({ state }: { state: ProgressStepState }) {
  * @param props.currentTask - Task being worked on / 処理中のタスク
  * @param props.remainingCount - Remaining backlog / 残りのタスク数
  * @param props.startedAt - Run start time / 開始時刻
+ * @param props.scope - Hidden filter's category and theme / 隠したフィルターの範囲
  * @returns The strip, or null while auto-run is idle or stopping / 帯（停止時は null）
  */
 export function AutoRunProgressStrip({
@@ -61,6 +72,7 @@ export function AutoRunProgressStrip({
   currentTask,
   remainingCount,
   startedAt,
+  scope,
 }: AutoRunProgressStripProps) {
   const t = useTranslations('autoRun');
   const visible = status === 'running' || status === 'paused';
@@ -108,6 +120,12 @@ export function AutoRunProgressStrip({
       aria-label={t('progress.label')}
       className="mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-zinc-200 bg-white px-3.5 py-2 text-[13px] dark:border-zinc-800 dark:bg-zinc-900"
     >
+      {scope && (
+        <>
+          <FilterScopeLabel category={scope.category} theme={scope.theme} />
+          {SEPARATOR}
+        </>
+      )}
       {currentTask && view ? (
         <>
           <Link
@@ -179,6 +197,12 @@ export function AutoRunProgressStrip({
           </>
         )}
       </span>
+      {scope && (
+        <>
+          {SEPARATOR}
+          <ShowFilterButton onShow={scope.onShow} short />
+        </>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { useHomeActions } from '../_hooks/useHomeActions';
 import { useHomeInit } from '../_hooks/useHomeInit';
 import { useHomeKeyboard } from '../_hooks/useHomeKeyboard';
 import { useHomeSyncEffects } from '../_hooks/useHomeSyncEffects';
+import { useHomeFilterHidden } from '../_hooks/useHomeFilterHidden';
 import { HomeToolbar } from './HomeToolbar';
 import { HomeFilterPanel } from './HomeFilterPanel';
 import { HomeTaskList } from './HomeTaskList';
@@ -91,6 +92,8 @@ function HomeClientPage() {
     setIsSelectionMode,
     progressRingRef,
   } = useHomeState();
+  // Lifted here so the toolbar can merge the hidden filter into its band.
+  const [filterHidden, setFilterHidden] = useHomeFilterHidden();
 
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
@@ -363,6 +366,15 @@ function HomeClientPage() {
                 setIsSelectionMode(!isSelectionMode);
                 setSelectedTasks(new Set());
               }}
+              filterScope={
+                filterHidden && !isSelectionMode && categories.length > 0
+                  ? {
+                      category: categories.find((c) => c.id === categoryFilter),
+                      theme: themes.find((th) => th.id === themeFilter),
+                      onShow: () => setFilterHidden(false),
+                    }
+                  : null
+              }
             />
           )}
 
@@ -388,6 +400,8 @@ function HomeClientPage() {
               canScrollRight={canScrollRight}
               statusCounts={{ ...statusCounts, all: statusCounts.all ?? 0 }}
               themeScrollRef={themeScrollRef as React.RefObject<HTMLDivElement>}
+              filterHidden={filterHidden}
+              onFilterHiddenChange={setFilterHidden}
               onCategoryChange={(catId, newThemeId) => {
                 setCategoryFilter(catId);
                 setThemeFilter(newThemeId);

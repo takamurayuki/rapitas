@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -19,8 +20,21 @@ vi.mock('@/hooks/workflow/useThemeAutoRun', () => ({
   useThemeAutoRun: () => ({ data: autoRunState.data }),
 }));
 vi.mock('../AutoRunProgressStrip', () => ({
-  AutoRunProgressStrip: (p: { currentTask: { title: string } | null }) => (
-    <div data-testid="strip">{p.currentTask?.title}</div>
+  AutoRunProgressStrip: (p: {
+    status: string;
+    currentTask: { title: string } | null;
+    scope?: { theme?: { name: string } } | null;
+  }) =>
+    p.status === 'running' || p.status === 'paused' ? (
+      <div data-testid="strip">
+        {p.currentTask?.title}
+        {p.scope && <span data-testid="strip-scope">{p.scope.theme?.name}</span>}
+      </div>
+    ) : null,
+}));
+vi.mock('../HomeFilterSummary', () => ({
+  HomeFilterSummary: (p: { theme?: { name: string } }) => (
+    <div data-testid="filter-summary">{p.theme?.name}</div>
   ),
 }));
 vi.mock('@/stores/execution-state-store', () => ({
@@ -228,6 +242,57 @@ describe('the auto-run progress strip', () => {
   it('draws no strip without auto-run data', () => {
     withTheme(true);
     expect(screen.queryByTestId('strip')).toBeNull();
+  });
+});
+
+// 2026-11-21: with the filter hidden, the line naming the category and theme
+// is merged into the auto-run strip rather than drawn as a second band.
+describe('the hidden filter merged into the strip', () => {
+  const scope = {
+    category: { id: 1, name: '開発' },
+    theme: { id: 7, name: 'rapitas' },
+    onShow: vi.fn(),
+  } as unknown as NonNullable<ComponentProps<typeof HomeToolbar>['filterScope']>;
+
+  const withScope = (status: string) => {
+    autoRunState.data = {
+      autoRun: { status, startedAt: null },
+      currentTask: null,
+      remainingCount: 3,
+    };
+    return render(
+      <HomeToolbar
+        completedTasksCount={0}
+        totalTasksCount={1}
+        hasVisibleTasks
+        isSelectionMode={false}
+        selectedTasksSize={0}
+        paginatedTasks={[]}
+        themeFilter={7}
+        defaultThemeId={undefined}
+        autoRunTheme={{ id: 7, isDevelopment: true }}
+        filterScope={scope}
+        onBulkUpdateStatus={vi.fn()}
+        onBulkDelete={vi.fn()}
+        onSelectAll={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+      />,
+    );
+  };
+
+  it('puts the theme into the strip while auto-run runs, with no second band', () => {
+    withScope('running');
+    expect(screen.getByTestId('strip-scope').textContent).toBe('rapitas');
+    expect(screen.queryByTestId('filter-summary')).toBeNull();
+    autoRunState.data = null;
+  });
+
+  it('shows the theme line alone while auto-run is idle', () => {
+    withScope('idle');
+    expect(screen.getByTestId('filter-summary').textContent).toBe('rapitas');
+    expect(screen.queryByTestId('strip')).toBeNull();
+    expect(screen.getByTestId('home-toolbar-row').className.split(/\s+/)).toContain('mb-0');
+    autoRunState.data = null;
   });
 });
 
