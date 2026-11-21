@@ -50,3 +50,19 @@ describe('withInterleavingCheck', () => {
     expect(withInterleavingCheck('BASE', table, 'en')).toContain('Interleaving cross-check');
   });
 });
+
+// 2026-11-21 (task 1521): the plan marked the concurrent-takeover window of a
+// double-start guard as accepted — the one window that lets two starts both
+// run. The verifier honoured it; the diff review rightly did not.
+describe('what may be accepted', () => {
+  test.each(['ja', 'en'])('never a window that defeats an acceptance criterion (%s)', (lang) => {
+    const text = plannerInterleavingGuidance(lang);
+    expect(text).toMatch(/受入条件|acceptance criterion/);
+    expect(text).toMatch(/許容しない|never accept/i);
+  });
+
+  test('the verifier checks that an accepted window does not defeat a criterion', () => {
+    const table = `${INTERLEAVING_HEADING}\n\n| a | b | c | d | e |\n| --- | --- | --- | --- | --- |\n| x | y | z | 許容 | t |`;
+    expect(withInterleavingCheck('BASE', table, 'ja')).toMatch(/受入条件の目的/);
+  });
+});
