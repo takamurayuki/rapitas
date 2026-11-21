@@ -238,7 +238,9 @@ describe('executeCLIAgent — verify phase', () => {
     const result = await run();
 
     expect(result.status).toBe('in_progress');
-    expect(spies.performAutoCommitAndPR).not.toHaveBeenCalled();
+    // The commit/PR flow still runs so this round's commits reach the linked
+    // PR (trendline task 514's repair commit never did); it does not complete.
+    expect(spies.performAutoCommitAndPR).toHaveBeenCalledTimes(1);
     expect(spies.completeReviewedTask).not.toHaveBeenCalled();
   });
 

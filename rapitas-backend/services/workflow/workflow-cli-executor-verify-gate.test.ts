@@ -333,9 +333,16 @@ describe('resolveVerifyPhaseStatus — 回収経路でも陪審を通す', () =>
     expect(completeReview).not.toHaveBeenCalled();
   });
 
-  test('PR が既に紐付いていれば（HTTP 経路で陪審済み）ゲートは呼ばない', async () => {
+  // trendline task 514 (2026-11-21): a repair round committed a fix, the HTTP
+  // save deferred publishing, and this path saw the PR from an earlier round
+  // and skipped commit/push. The fix never reached the PR, its CI stayed red,
+  // and the task waited for a merge that could not happen.
+  test('PR が既に紐付いていても、修正を既存 PR へ届けるため commit/PR の処理を通す', async () => {
     linkedPr.mockResolvedValue(true);
+    autoCommit.mockResolvedValueOnce({ autoPRResult: { success: true } } as never);
     await resolveVerifyPhaseStatus(params());
-    expect(fallbackJury).not.toHaveBeenCalled();
+    expect(autoCommit).toHaveBeenCalledTimes(1);
+    // The gate itself skips an artifact the HTTP save already judged.
+    expect(fallbackJury).toHaveBeenCalledTimes(1);
   });
 });
