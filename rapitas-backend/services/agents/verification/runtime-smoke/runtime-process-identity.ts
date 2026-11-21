@@ -76,7 +76,16 @@ export function extendOwnedRuntimeTree(
 
 /**
  * A missing snapshot is unknown, never evidence that every process exited.
- * Unknown/reused/protected targets block the entire stop operation.
+ * Unknown/protected targets block the entire stop operation.
+ *
+ * NOTE: A reused PID (same number, different birth or command) proves the
+ * recorded process exited, so it now counts as exited instead of blocking the
+ * stop. It used to return `identity-mismatch`: task 1521's dev-all started
+ * short-lived helpers, Windows reused one helper's PID, and the stop gave up on
+ * the whole tree — the real dev-all kept running and holding its lock, and the
+ * worktree stayed quarantined (2026-11-21). The new holder is never in `alive`,
+ * so it is never signalled, and terminateRuntimeIdentities re-checks the birth
+ * of every handle before signalling.
  */
 export function inspectOwnedRuntimeTree(
   recorded: RuntimeProcessIdentity[],
@@ -90,8 +99,7 @@ export function inspectOwnedRuntimeTree(
   for (const item of recorded) {
     const current = byPid.get(item.pid);
     if (!current) continue;
-    if (!sameRuntimeProcess(item, current))
-      return { safe: false, alive: [], reason: 'identity-mismatch' };
+    if (!sameRuntimeProcess(item, current)) continue;
     if (protectedPids.has(item.pid)) return { safe: false, alive: [], reason: 'protected-process' };
     alive.push(current);
   }
@@ -124,7 +132,7 @@ export function describeStartOwnershipLoss(inspected: {
  * a dev script (trendline's dev-all.mjs) spawns short-lived helpers, and keeping
  * them made the tracker report `identity-mismatch` and abort a healthy launch
  * (task 520, 2026-11-20). The new holder is not added, so it is never signalled.
- * Stop paths keep using {@link inspectOwnedRuntimeTree} on the full record.
+ * {@link inspectOwnedRuntimeTree} applies the same rule on stop paths.
  *
  * @param recorded - Identities proven earlier / 以前に確認した所有プロセス
  * @param snapshot - Current process snapshot / 現在のプロセス一覧

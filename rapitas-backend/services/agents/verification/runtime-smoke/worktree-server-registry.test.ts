@@ -18,6 +18,7 @@ let spawnCount = 0;
 let birth = '100';
 let ready: () => Promise<boolean> = async () => true;
 let stopCount = 0;
+let stopTargets: Array<{ spawnedBefore: number; ids: Array<{ birth?: string }> }> = [];
 let stopped = true;
 let listenerOccupied = true;
 let rootPresent = true;
@@ -30,6 +31,7 @@ const temporaryWorkdirs: string[] = [];
 mock.module('./runtime-process-stop', () => ({
   stopRuntimeProcesses: async (identities: unknown[]) => {
     stopCount++;
+    stopTargets.push({ spawnedBefore: spawnCount, ids: identities as Array<{ birth?: string }> });
     if (stopped) listenerOccupied = false;
     return { stopped, identities, reason: stopped ? undefined : 'exit-not-confirmed' };
   },
@@ -169,6 +171,7 @@ beforeEach(() => {
   birth = '100';
   ready = async () => true;
   stopCount = 0;
+  stopTargets = [];
   stopped = true;
   listenerOccupied = true;
   extraProcesses = [];
@@ -382,13 +385,21 @@ test('reboot proof cannot bypass a failed durable removal', async () => {
   expect(stopCount).toBe(0);
 });
 
-test('restart preserves reused PID ownership without signalling the new process', async () => {
+// NOTE: Was "restart preserves reused PID ownership" — the reused PID kept the
+// workdir quarantined. A reused PID now proves the recorded server exited
+// (task 1521, 2026-11-21); what must hold is that the new holder of the number
+// is never a stop target (runtime-process-stop re-checks birth before any
+// signal, covered in runtime-process-stop.test.ts).
+test('restart forgets a server whose PID was reused, never targeting the new process', async () => {
   rows = [persistedServer()];
   birth = '200';
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
-  expect(rows[0].state).toBe('quarantined');
-  expect(stopCount).toBe(0);
-  expect(spawnCount).toBe(0);
+  await acquireRuntimeServer(process.cwd(), cfg);
+  expect(rows.some((r) => r.state === 'quarantined')).toBe(false);
+  // Only stops issued while clearing the old record count: in this fake world
+  // a server spawned afterwards also appears as pid 123 / birth 200.
+  for (const stop of stopTargets.filter((s) => s.spawnedBefore === 0)) {
+    expect(stop.ids.some((t) => t.birth === '200')).toBe(false);
+  }
 });
 
 test('concurrent consumers share one spawn and receive separate leases on its actual port', async () => {

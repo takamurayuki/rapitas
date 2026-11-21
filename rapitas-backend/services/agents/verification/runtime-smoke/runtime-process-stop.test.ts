@@ -68,10 +68,15 @@ test('persistence failure does not prevent stopping a positively identified proc
   expect(killed).toEqual([root.pid]);
 });
 
-test('reused child prevents even the root from being stopped', async () => {
+// NOTE: Was "reused child prevents even the root from being stopped". A reused
+// child PID now counts as exited, so the root is still stopped and the new
+// holder of the child's number is never signalled (task 1521, 2026-11-21).
+test('a reused child does not keep the root from being signalled', async () => {
   const { deps, killed } = fixture([root, { ...child, birth: '200' }]);
-  expect((await stopRuntimeProcesses([root, child], async () => {}, 20, deps)).stopped).toBe(false);
-  expect(killed).toEqual([]);
+  await stopRuntimeProcesses([root, child], async () => {}, 20, deps);
+  // The root never exits in this fixture, so it is signalled on each retry.
+  expect(killed.length).toBeGreaterThan(0);
+  expect(killed.every((pid) => pid === root.pid)).toBe(true);
 });
 
 test('snapshot failure cannot be interpreted as successful termination', async () => {
@@ -183,4 +188,28 @@ test('protected backend prevents dispatching a batch', async () => {
   };
   expect((await stopRuntimeProcesses([root, child], async () => {}, 20, deps)).stopped).toBe(false);
   expect(calls).toBe(0);
+});
+
+// 2026-11-21 (task 1521): a helper's reused PID left the live tree running.
+test('stops the live tree when a helper PID was reused, never signalling the new holder', async () => {
+  const helper: RuntimeProcessIdentity = {
+    pid: 12,
+    parentPid: 10,
+    birth: '102',
+    command: 'helper',
+  };
+  const stranger: RuntimeProcessIdentity = {
+    pid: 12,
+    parentPid: 1,
+    birth: '900',
+    command: 'other',
+  };
+  const { deps, killed } = fixture([root, stranger]);
+  deps.snapshot = async () => ({
+    processes: killed.includes(10) ? [stranger] : [root, stranger],
+    protectedPids: new Set(),
+  });
+  const result = await stopRuntimeProcesses([root, helper], async () => {}, 50, deps);
+  expect(result.stopped).toBe(true);
+  expect(killed).toEqual([10]);
 });
