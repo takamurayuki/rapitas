@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
+import { reloadOnceForChunkError } from '@/lib/chunk-reload';
 
 const logger = createLogger('RootError');
 
@@ -16,6 +17,8 @@ export default function Error({
   const t = useTranslations('common');
 
   useEffect(() => {
+    // A chunk missing after a deploy recovers on a fresh load (see chunk-reload).
+    if (reloadOnceForChunkError(error)) return;
     logger.error('Unhandled error:', error);
   }, [error]);
 

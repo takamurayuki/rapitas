@@ -3,6 +3,7 @@
 import { Component, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
+import { reloadOnceForChunkError } from '@/lib/chunk-reload';
 
 const logger = createLogger('ErrorBoundary');
 
@@ -42,6 +43,7 @@ class ErrorBoundaryInner extends Component<ErrorBoundaryInnerProps, ErrorBoundar
   }
 
   override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    if (reloadOnceForChunkError(error)) return;
     logger.error(
       `[ErrorBoundary${this.props.section ? `:${this.props.section}` : ''}]`,
       error,
