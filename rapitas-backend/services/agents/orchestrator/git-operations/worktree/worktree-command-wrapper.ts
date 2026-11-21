@@ -24,6 +24,23 @@ export const WRAPPER_RELATIVE_PATH = 'scripts/run-checked.cjs';
 export const VERIFICATION_LOGS_PATTERN = '.verification-logs/';
 
 /**
+ * Workflow artifacts an agent sometimes writes to disk at the repository
+ * root. They live in the WorkflowFile table; on disk they are strays, and
+ * task 1512 (2026-11-21) committed question.md into trendline. Root-anchored,
+ * so a project's own docs/plan.md is untouched, and an exclude never hides a
+ * file the project already tracks.
+ */
+export const WORKFLOW_ARTIFACT_PATTERNS: readonly string[] = [
+  '/question.md',
+  '/research.md',
+  '/plan.md',
+  '/verify.md',
+];
+
+/** Everything a worktree's local exclude list must hide, wrapper aside. */
+const RUN_ARTIFACT_PATTERNS = [VERIFICATION_LOGS_PATTERN, ...WORKFLOW_ARTIFACT_PATTERNS];
+
+/**
  * rapitas's own copy of the wrapper. Derived from this module's location so it
  * follows the checkout rather than an absolute path baked into a config.
  *
@@ -66,14 +83,14 @@ export async function ensureRunCheckedWrapper(
   const destination = join(worktreePath, WRAPPER_RELATIVE_PATH);
   if (existsSync(destination)) {
     // A wrapper already in place still writes logs, so they are excluded too.
-    await excludeQuietly(worktreePath, [VERIFICATION_LOGS_PATTERN]);
+    await excludeQuietly(worktreePath, RUN_ARTIFACT_PATTERNS);
     return 'present';
   }
   if (!existsSync(source)) return 'source-missing';
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
   await fsPromises.copyFile(source, destination);
-  await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, VERIFICATION_LOGS_PATTERN]);
+  await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, ...RUN_ARTIFACT_PATTERNS]);
   return 'copied';
 }
 

@@ -18,6 +18,7 @@ import {
   defaultWrapperSource,
   WRAPPER_RELATIVE_PATH,
   VERIFICATION_LOGS_PATTERN,
+  WORKFLOW_ARTIFACT_PATTERNS,
 } from './worktree-command-wrapper';
 
 let root: string;
@@ -103,6 +104,17 @@ describe('ensureRunCheckedWrapper', () => {
     expect(await ensureRunCheckedWrapper(wt, source)).toBe('present');
     const exclude = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8');
     expect(exclude.split(/\r?\n/)).toContain(VERIFICATION_LOGS_PATTERN);
+  });
+
+  // Task 1512 (2026-11-21) committed question.md at the repository root; the
+  // workflow artifacts belong in the database, never in the project.
+  test('excludes workflow artifacts written at the repository root', async () => {
+    const repo = makeRepo('artifacts');
+    await ensureRunCheckedWrapper(makeWorktree(repo, 'task-1'), source);
+
+    const lines = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8').split(/\r?\n/);
+    for (const pattern of WORKFLOW_ARTIFACT_PATTERNS) expect(lines).toContain(pattern);
+    expect(WORKFLOW_ARTIFACT_PATTERNS).toContain('/question.md');
   });
 
   test('still provisions the wrapper when the exclude file cannot be resolved', async () => {
