@@ -11,6 +11,7 @@
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { BENIGN_ERROR_PATTERNS, matchesPattern } from '@/config/benign-error-patterns';
+import { reloadOnceForChunkError } from '@/lib/chunk-reload';
 
 export type { BenignErrorPattern } from '@/config/benign-error-patterns';
 export { BENIGN_ERROR_PATTERNS };
@@ -71,6 +72,7 @@ function send(payload: { message: string; stack?: string; url?: string; userAgen
 export default function GlobalErrorReporter() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
+      if (reloadOnceForChunkError(event.error ?? event.message)) return;
       send({
         message: event.message,
         stack: event.error?.stack,
@@ -80,6 +82,7 @@ export default function GlobalErrorReporter() {
     };
     const onRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
+      if (reloadOnceForChunkError(reason)) return;
       const message =
         reason instanceof Error ? reason.message : String(reason ?? 'unhandled rejection');
       send({

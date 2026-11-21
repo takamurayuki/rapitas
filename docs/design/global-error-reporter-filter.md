@@ -232,6 +232,15 @@ flowchart TD
 `isBenign()` は `shouldReport()` より**前**に評価されます。
 無害エラーは重複チェックの対象にも入らないため、`recentMessages` バッファを不必要に消費しません。
 
+### チャンク読み込み失敗の自動再読み込み
+
+デプロイでフロントエンドの開発サーバーが作り直されると、開いたままの画面は消えたチャンク名を読みに行き、`Failed to load chunk ...` で「エラーが発生しました」になります。新しく読み込み直せば新しいチャンク名で取得できるため、このエラーだけは報告せずにページを 1 回だけ再読み込みします。
+
+- 判定と再読み込みは `rapitas-frontend/src/lib/chunk-reload.ts` の `reloadOnceForChunkError()` が行います。
+- 呼び出し元は `GlobalErrorReporter`（`error` と `unhandledrejection`）、`ErrorBoundary`、`app/error.tsx`、`app/global-error.tsx` の 4 か所です。
+- 直前の再読み込みから 60 秒以内なら再読み込みせず、従来のエラー画面を出します。本当に配信が止まっている場合に再読み込みを繰り返さないためです。
+- 再読み込みの時刻は `sessionStorage` に記録します。記録できない環境では、繰り返しを防げないため再読み込みしません。
+
 ---
 
 ## 10. 将来の拡張 (スコープ外)
