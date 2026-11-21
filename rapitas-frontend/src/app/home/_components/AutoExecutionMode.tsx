@@ -6,15 +6,12 @@
  * development theme's auto-run. Not AI task generation — runs existing todo
  * tasks in priority order. Rendered only when a development theme is active.
  *
- * Shape/spacing match the toolbar's "タスクを作成"/"一括" buttons (HomeToolbar.tsx):
- * rounded-lg, px-3.5 py-2, gap-2. Icon stays this control's own rounded-full
- * badge (deliberately kept distinct — do not simplify to a plain icon). Only
- * the accent color (indigo/emerald/amber) and the hover-swap-to-stop behavior
- * below are otherwise unique to this control.
- * Hover: opaque absolute overlay swaps to red "停止" without touching the
- *        spinning ancestor (prevents rasterization glitch on the Orbit icon).
+ * Buttons (開始 / 再開 / 停止) match the toolbar's "タスクを作成"/"一括" buttons
+ * (HomeToolbar.tsx): rounded-lg, px-3.5 py-2, gap-2 and the 2px bottom ridge.
+ * The running / paused status beside them is plain text, never a button shape.
+ * One accent (indigo) for the whole control; 停止 is neutral until hovered.
  */
-import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
+import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { Spinner } from '@/components/ui/spinner';
@@ -117,47 +114,50 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   // every theme (memory: pause-strands-the-only-slot).
   const paused = status === 'paused';
 
-  const restBorder = paused
-    ? 'border-amber-300 dark:border-amber-700'
-    : 'border-emerald-300 dark:border-emerald-700';
-  const restShadow = paused
-    ? 'shadow-[0_2px_0_0_#fcd34d] dark:shadow-[0_2px_0_0_#78350f]'
-    : 'shadow-[0_2px_0_0_#a7f3d0] dark:shadow-[0_2px_0_0_#065f46]';
-  const restText = paused
-    ? 'text-amber-700 dark:text-amber-400'
-    : 'text-emerald-700 dark:text-emerald-400';
-  const iconBg = paused ? 'bg-amber-400 dark:bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400';
+  // NOTE (2026-11-21): the status used to carry the same border and bottom
+  // ridge as the toolbar buttons, so it read as a button, while the stop
+  // beside it read as flat. Now the status is plain text with one coloured
+  // dot, and only the actions are raised. The whole control keeps one accent
+  // (indigo, the 開始 colour): resuming is the same act as starting, and the
+  // stop is a neutral ridge that turns red only under the pointer — five
+  // differently coloured buttons on one toolbar hid which one mattered.
+  const dot = paused ? 'bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400';
 
   return (
     <div className="flex items-center gap-2">
-      {/* STATUS — says what is happening, and does nothing when clicked. */}
+      {/* STATUS — says what is happening; plain text, never a button shape. */}
       <span
-        className={`inline-flex items-center gap-2 rounded-lg border bg-white px-3.5 py-2 text-sm font-medium select-none dark:bg-zinc-900 ${restBorder} ${restShadow} ${restText}`}
+        data-auto-run-status=""
+        className="inline-flex items-center gap-1.5 px-1 text-sm font-medium text-zinc-600 select-none dark:text-zinc-300"
       >
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBg}`}
-        >
-          {paused ? (
-            <Pause className="h-3 w-3 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
-          ) : (
-            // NOTE: Fixed color on Orbit so ancestor color changes can't
-            // trigger a mid-frame repaint that warps the spinning raster.
-            <span className="inline-flex h-3 w-3 animate-spin items-center justify-center [transform-origin:center]">
-              <Orbit className="h-3 w-3 text-white dark:text-zinc-900" />
-            </span>
-          )}
-        </span>
+        {paused ? (
+          <Pause className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+        ) : (
+          <span className={`h-2 w-2 shrink-0 animate-pulse rounded-full ${dot}`} />
+        )}
         <span>{paused ? t('autoExecutionMode.paused') : t('autoExecutionMode.runningLabel')}</span>
       </span>
 
-      {/* STOP — the one action, always legible. Zinc until hovered: the square
-          and the word already say what it does, so the colour only has to
-          confirm it on approach rather than shout from the toolbar. */}
+      {/* RESUME — only while paused; the same act and colour as 開始. */}
+      {paused && (
+        <button
+          onClick={() => start('priority')}
+          disabled={actionLoading}
+          title={tAutoRun('resumeTitle')}
+          className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3.5 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
+        >
+          <Play className="h-3 w-3 fill-current" />
+          {tAutoRun('resume')}
+        </button>
+      )}
+
+      {/* STOP — raised like the toolbar buttons, neutral until hovered: it
+          cannot be undone, so it does not compete with the primary action. */}
       <button
         onClick={() => stop()}
         disabled={actionLoading}
         title={t('autoExecutionMode.stopTitle')}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-sm font-medium text-zinc-600 shadow-[0_2px_0_0_#e4e4e7] select-none transition-colors duration-75 hover:border-red-300 hover:text-red-600 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:shadow-[0_2px_0_0_#27272a] dark:hover:border-red-700 dark:hover:text-red-400"
+        className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-[0_2px_0_0_#d4d4d8] select-none transition-all duration-75 hover:border-red-300 hover:bg-red-50 hover:text-red-600 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:shadow-[0_2px_0_0_#3f3f46] dark:hover:border-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400"
       >
         {actionLoading ? (
           <Spinner size="sm" className="text-zinc-400 dark:text-zinc-500" />
