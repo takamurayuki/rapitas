@@ -20,6 +20,7 @@ const autoRun = {
   start: vi.fn(),
   stop: vi.fn(),
   actionLoading: false,
+  reconnecting: false,
   error: null as string | null,
 };
 
@@ -48,6 +49,7 @@ const control = () =>
   ({
     data: { autoRun: { status: autoRun.status } },
     actionLoading: autoRun.actionLoading,
+    reconnecting: autoRun.reconnecting,
     error: autoRun.error,
     start: autoRun.start,
     stop: autoRun.stop,
@@ -60,6 +62,7 @@ const stopButton = () => screen.getByRole('button', { name: /autoRun\.stop/ });
 beforeEach(() => {
   autoRun.status = 'running';
   autoRun.actionLoading = false;
+  autoRun.reconnecting = false;
   autoRun.error = null;
   autoRun.start.mockClear();
   autoRun.stop.mockClear();
@@ -145,6 +148,28 @@ describe('status reads as text, actions read as buttons', () => {
     renderControl();
     expect(screen.queryByRole('button', { name: /autoRun\.pause/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /autoRun\.resume/ })).toBeNull();
+  });
+});
+
+// 2026-11-21: 再開 pressed while the backend restarted left the run paused,
+// and the only sign was "Failed to fetch" truncated in a small badge.
+describe('when the server cannot be reached', () => {
+  it('says the resume is reconnecting while the action retries', () => {
+    autoRun.status = 'paused';
+    autoRun.actionLoading = true;
+    autoRun.reconnecting = true;
+    renderControl();
+    const resume = screen.getByRole('button', { name: /autoRun\.reconnecting/ });
+    expect(resume.querySelector('[data-testid="spinner"]')).toBeTruthy();
+  });
+
+  it('explains an unreachable server in words, not the raw fetch error', () => {
+    autoRun.status = 'paused';
+    autoRun.error = 'unreachable';
+    renderControl();
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('autoRun.errorUnreachable');
+    expect(alert.className).not.toContain('truncate');
   });
 });
 

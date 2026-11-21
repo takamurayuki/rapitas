@@ -18,6 +18,8 @@ vi.mock('../AutoExecutionMode', () => ({ AutoExecutionMode: () => <button>auto</
 const autoRunState = vi.hoisted(() => ({ data: null as unknown }));
 vi.mock('@/hooks/workflow/useThemeAutoRun', () => ({
   useThemeAutoRun: () => ({ data: autoRunState.data }),
+  AUTO_RUN_ERROR_UNREACHABLE: 'unreachable',
+  AUTO_RUN_ACTION_RETRY_MS: 90_000,
 }));
 vi.mock('../AutoRunProgressStrip', () => ({
   AutoRunProgressStrip: (p: {

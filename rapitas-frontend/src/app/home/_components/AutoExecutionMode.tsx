@@ -13,7 +13,10 @@
  */
 import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ThemeAutoRunControl } from '@/hooks/workflow/useThemeAutoRun';
+import {
+  AUTO_RUN_ERROR_UNREACHABLE,
+  type ThemeAutoRunControl,
+} from '@/hooks/workflow/useThemeAutoRun';
 import { Spinner } from '@/components/ui/spinner';
 import { AutoRunPanel } from './AutoRunPanel';
 
@@ -21,7 +24,10 @@ interface AutoExecutionModeProps {
   /** Selected development theme to control, or null when none is active. */
   theme?: { id: number; isDevelopment?: boolean } | null;
   /** The theme's auto-run state and actions (useThemeAutoRun). / 自動実行の状態と操作 */
-  control: Pick<ThemeAutoRunControl, 'data' | 'actionLoading' | 'error' | 'start' | 'stop'>;
+  control: Pick<
+    ThemeAutoRunControl,
+    'data' | 'actionLoading' | 'reconnecting' | 'error' | 'start' | 'stop'
+  >;
 }
 
 /**
@@ -37,15 +43,23 @@ interface AutoExecutionModeProps {
 export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
   const t = useTranslations('home');
   const tAutoRun = useTranslations('autoRun');
-  const { data, actionLoading, error, start, stop } = control;
+  const { data, actionLoading, reconnecting, error, start, stop } = control;
 
   if (!theme?.isDevelopment) return null;
 
   const status = data?.autoRun?.status ?? 'idle';
 
-  const errorBadge = error ? (
-    <span className="max-w-40 truncate text-xs text-red-600 dark:text-red-400" title={error}>
-      {error}
+  // NOTE: An unreachable server is said in words and not truncated
+  // (2026-11-21): a resume lost to a backend restart showed only a clipped
+  // "Failed to fetch", and the run stayed paused without anyone noticing.
+  const errorText = error === AUTO_RUN_ERROR_UNREACHABLE ? tAutoRun('errorUnreachable') : error;
+  const errorBadge = errorText ? (
+    <span
+      role="alert"
+      className="max-w-64 text-xs leading-snug font-medium text-red-600 dark:text-red-400"
+      title={errorText}
+    >
+      {errorText}
     </span>
   ) : null;
 
@@ -78,7 +92,7 @@ export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
               <Play className="h-2.5 w-2.5 fill-white text-white dark:fill-zinc-900 dark:text-zinc-900" />
             </span>
           )}
-          {t('autoExecutionMode.start')}
+          {reconnecting ? tAutoRun('reconnecting') : t('autoExecutionMode.start')}
         </button>
         {errorBadge}
       </AutoRunPanel>
@@ -160,8 +174,12 @@ export function AutoExecutionMode({ theme, control }: AutoExecutionModeProps) {
           title={tAutoRun('resumeTitle')}
           className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3.5 py-2 text-sm font-medium text-indigo-600 shadow-[0_2px_0_0_#a5b4fc] select-none transition-all duration-75 hover:border-indigo-400 hover:bg-indigo-50 active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-400 dark:shadow-[0_2px_0_0_#312e81] dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
         >
-          <Play className="h-3 w-3 fill-current" />
-          {tAutoRun('resume')}
+          {actionLoading ? (
+            <Spinner size="sm" className="text-indigo-400 dark:text-indigo-400" />
+          ) : (
+            <Play className="h-3 w-3 fill-current" />
+          )}
+          {reconnecting ? tAutoRun('reconnecting') : tAutoRun('resume')}
         </button>
       )}
 

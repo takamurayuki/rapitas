@@ -6,6 +6,8 @@
     "pauseTitle": "Pause auto-run after current task completes",
     "resume": "Resume",
     "resumeTitle": "Resume auto-run",
+    "reconnecting": "Reconnecting",
+    "errorUnreachable": "Could not reach the server, so nothing changed. Press it again",
     "stop": "Stop",
     "stopTitle": "Stop auto-run and cancel the in-flight task",
     "awaitingApproval": "Awaiting approval",

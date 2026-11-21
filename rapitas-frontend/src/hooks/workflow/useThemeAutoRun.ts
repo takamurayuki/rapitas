@@ -62,6 +62,61 @@ export type ThemeAutoRunControl = ReturnType<typeof useThemeAutoRun>;
 const ACTIVE_POLL_MS = 8_000;
 
 /**
+ * How long an action keeps retrying while the backend cannot be reached (ms).
+ * The backend restarts itself to apply new commits (dev.js, exit code 75); a
+ * restart takes from a few seconds to about a minute.
+ */
+export const AUTO_RUN_ACTION_RETRY_MS = 90_000;
+
+/** `error` value when the server stayed unreachable for the whole retry window. */
+export const AUTO_RUN_ERROR_UNREACHABLE = 'unreachable';
+
+type ActionResponse = { success: boolean; error?: string; autoRun?: ThemeAutoRunState };
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * POST an auto-run action, retrying while the backend is down or still starting.
+ *
+ * NOTE: Added 2026-11-21. 再開 pressed during a backend restart failed once
+ * with "Failed to fetch" and the run stayed paused. Retrying is safe because
+ * all three actions are idempotent: start is a no-op when already running,
+ * pause and stop write the same status again.
+ *
+ * @param themeId - Theme to act on / 対象テーマID
+ * @param action - start / pause / stop / 操作
+ * @param order - Selection order for start / 開始時の選択順
+ * @param onRetrying - Told when retrying starts / 再試行中かを通知する
+ * @returns The response body, or null when the server stayed unreachable / 応答本文（接続できなければ null）
+ */
+async function postActionWithRetry(
+  themeId: number,
+  action: 'start' | 'pause' | 'stop',
+  order: 'priority' | 'created' | undefined,
+  onRetrying: (retrying: boolean) => void,
+): Promise<ActionResponse | null> {
+  const deadline = Date.now() + AUTO_RUN_ACTION_RETRY_MS;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/themes/${themeId}/auto-run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, order }),
+      });
+      // 502-504 come from a backend that is going down or not yet serving;
+      // any other status is the handler's own answer and is returned as is.
+      if (!(res.status >= 502 && res.status <= 504)) return (await res.json()) as ActionResponse;
+    } catch (err) {
+      // fetch rejects with TypeError when nothing answers on the port.
+      if (!(err instanceof TypeError)) throw err;
+    }
+    if (Date.now() >= deadline) return null;
+    onRetrying(true);
+    await sleep(Math.min(1_000 * 2 ** attempt, 5_000));
+  }
+}
+
+/**
  * Hook for managing theme auto-run state and sending control actions.
  *
  * @param themeId - Theme to control; null/undefined → returns idle state
@@ -72,6 +127,8 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
   const [data, setData] = useState<AutoRunData | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  // True while an action waits for a restarting backend to come back.
+  const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -142,17 +199,10 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
       setActionLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/themes/${themeId}/auto-run`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, order }),
-        });
-        const json = (await res.json()) as {
-          success: boolean;
-          error?: string;
-          autoRun?: ThemeAutoRunState;
-        };
-        if (!json.success) {
+        const json = await postActionWithRetry(themeId, action, order, setReconnecting);
+        if (!json) {
+          setError(AUTO_RUN_ERROR_UNREACHABLE);
+        } else if (!json.success) {
           setError(json.error ?? 'Auto-run action failed');
         } else {
           // Optimistically update state then re-fetch
@@ -169,6 +219,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Network error');
       } finally {
+        setReconnecting(false);
         setActionLoading(false);
       }
     },
@@ -179,6 +230,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
     data,
     loading,
     actionLoading,
+    reconnecting,
     error,
     start: (order?: 'priority' | 'created') => sendAction('start', order),
     pause: () => sendAction('pause'),

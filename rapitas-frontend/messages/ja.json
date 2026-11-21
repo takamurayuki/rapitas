@@ -4594,6 +4594,8 @@
     "pauseTitle": "現在のタスク完了後に自動実行を一時停止",
     "resume": "再開",
     "resumeTitle": "自動実行を再開",
+    "reconnecting": "再接続中",
+    "errorUnreachable": "サーバーに接続できず、操作できませんでした。もう一度押してください",
     "stop": "停止",
     "stopTitle": "自動実行を停止し実行中タスクをキャンセル",
     "awaitingApproval": "承認待ち",
