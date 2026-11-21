@@ -126,6 +126,11 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
     else sessionsByPath.set(session.worktreePath, [session.id]);
   }
 
+  // Sessions of other repositories' tasks are not in keepSet (built from the
+  // caller's baseDir only) — protect those whose task is still live by id.
+  const { liveTaskWorktreePaths } = await import('../../../worktree-keep-list');
+  const liveElsewhere = await liveTaskWorktreePaths([...sessionsByPath.keys()]);
+
   let keptSessionCount = 0;
   let skippedCount = 0;
   let refusedCount = 0;
@@ -133,7 +138,7 @@ async function reconcileTerminalSessions(keepSet: ReadonlySet<string>): Promise<
 
   for (const [worktreePath, sessionIds] of sessionsByPath) {
     const normalized = normalizePath(worktreePath);
-    if (keepSet.has(normalized)) {
+    if (keepSet.has(normalized) || liveElsewhere.has(worktreePath)) {
       // Per-group "nothing to do" noise — one line per still-live task on
       // every cleanup cycle. Debug-only; see the summary after the loop.
       logger.debug(

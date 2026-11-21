@@ -27,6 +27,7 @@ mock.module('../../../services/agents/orchestrator/git-operations/worktree/workt
 }));
 mock.module('../../../services/agents/worktree-keep-list', () => ({
   computeWorktreeKeepPaths: mockComputeKeep,
+  liveTaskWorktreePaths: async () => new Set<string>(),
 }));
 
 const { gitCleanupRoutes } = await import('../../../routes/system/git-cleanup');

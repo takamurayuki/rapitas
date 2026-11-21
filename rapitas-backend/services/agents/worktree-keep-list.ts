@@ -15,7 +15,7 @@ import { readdir } from 'fs/promises';
 // with a partial stub must not fail at link time; a missing lstatSync throws
 // at call time instead, which hasGitEntry turns into "protect".
 import * as fs from 'node:fs';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { runAcrossAllWorkspaces } from '../tenancy/workspace-context';
@@ -135,5 +135,41 @@ export async function computeWorktreeKeepPaths(baseDir: string): Promise<string[
       '[worktree-keep-list] Keep-list computation failed — protecting ALL worktrees',
     );
     return dirs.map((d) => join(worktreeRoot, d));
+  }
+}
+
+/**
+ * Of the given worktree paths, those whose owning task (by the `task-<id>-`
+ * directory name) is still live — wherever the path lives.
+ *
+ * NOTE: {@link computeWorktreeKeepPaths} only reads `<baseDir>/.worktrees`, and
+ * the cleanup scheduler passes rapitas's root. Sessions of OTHER repositories'
+ * tasks still reached removal, so a finished verifier session of trendline task
+ * 1520 got that live task's worktree removed on the next cycle, three times in
+ * a row (2026-11-21). Session paths are checked here by their own task id.
+ *
+ * @param paths - Worktree paths from session rows / セッションが記録したパス
+ * @returns The subset to keep; all of them when liveness cannot be read / 保持するパス（判定不能なら全件）
+ */
+export async function liveTaskWorktreePaths(paths: readonly string[]): Promise<Set<string>> {
+  const byId = new Map<number, string[]>();
+  for (const path of paths) {
+    const id = parseTaskIdFromWorktreeName(basename(path));
+    if (id === null) continue;
+    byId.set(id, [...(byId.get(id) ?? []), path]);
+  }
+  if (byId.size === 0) return new Set();
+  try {
+    const live = await runAcrossAllWorkspaces(() =>
+      prisma.task.findMany({
+        where: { id: { in: [...byId.keys()] }, status: { notIn: TERMINAL_STATUSES } },
+        select: { id: true },
+      }),
+    );
+    return new Set(live.flatMap(({ id }) => byId.get(id) ?? []));
+  } catch (err) {
+    // Same fail-safe as computeWorktreeKeepPaths: unknown liveness protects.
+    log.warn({ err }, '[worktree-keep-list] Liveness of session worktrees unknown — keeping them');
+    return new Set(paths);
   }
 }

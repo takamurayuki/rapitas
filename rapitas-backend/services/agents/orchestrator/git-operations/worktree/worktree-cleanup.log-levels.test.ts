@@ -48,6 +48,7 @@ mock.module('../core/resolve-worktree-base-dir', () => ({
 }));
 mock.module('../../../worktree-keep-list', () => ({
   computeWorktreeKeepPaths: async () => [],
+  liveTaskWorktreePaths: async () => new Set<string>(),
 }));
 
 const { cleanupOrphanedWorktrees } = await import('./worktree-cleanup');
