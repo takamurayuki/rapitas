@@ -103,9 +103,11 @@ function releaseSlot(): void {
   }
 }
 
-// Availability probe result, memoized for the process lifetime (the CLI binary
-// does not appear/disappear during a run). A restart re-probes.
-let availabilityCache: boolean | null = null;
+// NOTE: A success is kept for the process; a failure only for a minute. One
+// missed 10s deadline on a busy host right after a deploy used to be kept for
+// the whole process and left every jury seat empty (task 514, 2026-11-21).
+const FAILED_RECHECK_MS = 60_000;
+let availabilityCache: { ok: boolean; until: number } | null = null;
 let availabilityPending: Promise<boolean> | null = null;
 
 /**
@@ -114,16 +116,21 @@ let availabilityPending: Promise<boolean> | null = null;
  * @returns true if the CLI is invokable / CLIが起動可能ならtrue
  */
 export async function isClaudeCliAvailable(): Promise<boolean> {
-  if (availabilityCache !== null) return availabilityCache;
+  if (availabilityCache && availabilityCache.until > Date.now()) return availabilityCache.ok;
   availabilityPending ??= checkClaudeAvailable()
-    .then((result) => {
-      availabilityCache = result;
-      return result;
+    .then((ok) => {
+      availabilityCache = { ok, until: ok ? Infinity : Date.now() + FAILED_RECHECK_MS };
+      return ok;
     })
     .finally(() => {
       availabilityPending = null;
     });
   return availabilityPending;
+}
+
+/** Forget the memoised availability. Test-only. */
+export function __resetClaudeCliAvailabilityForTests(): void {
+  availabilityCache = null;
 }
 
 // NOTE: Moved to cli-model-alias.ts so the jury resolves seats with the very
