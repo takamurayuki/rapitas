@@ -19,6 +19,7 @@ import { buildFileCommands } from './command-batches';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
+import { isCoverageExempt, isCoverageTestFile } from './coverage-test-files';
 import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
@@ -732,9 +733,7 @@ export function mergeChecks(
   };
 }
 
-/** Files that don't need a paired test (declarations / config / stories). */
-const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)/i;
-
+// NOTE: The exempt list moved to coverage-test-files.ts with the test names.
 /**
  * Paths whose modification by an agent counts as GATE TAMPERING: the
  * verification gates themselves, CI workflows, and commit hooks. Reward-hacking
@@ -854,10 +853,8 @@ export function coverageCheck(changedCodeFiles: string[], force = false): Verifi
   const enabled = force || raw === '1' || raw === 'true' || raw === 'on';
   if (!enabled) return null;
 
-  const tests = changedCodeFiles.filter((f) => TEST_FILE_RE.test(f));
-  const sources = changedCodeFiles.filter(
-    (f) => !TEST_FILE_RE.test(f) && !COVERAGE_EXEMPT_RE.test(f),
-  );
+  const tests = changedCodeFiles.filter((f) => isCoverageTestFile(f));
+  const sources = changedCodeFiles.filter((f) => !isCoverageTestFile(f) && !isCoverageExempt(f));
   if (sources.length === 0) return null; // nothing that needs a test
   const ok = tests.length > 0;
   return {
