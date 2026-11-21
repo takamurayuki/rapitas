@@ -474,6 +474,10 @@
         "auto_verifier": "自動検証",
         "other": "その他"
       }
+    },
+    "toolbarGroup": {
+      "tasks": "タスク",
+      "autoRun": "自動実行"
     }
   },
   "task": {

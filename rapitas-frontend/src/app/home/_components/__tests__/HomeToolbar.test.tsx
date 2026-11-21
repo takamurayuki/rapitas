@@ -75,4 +75,30 @@ describe('the action groups', () => {
     expect(auto).toBeGreaterThan(create);
     expect(auto).toBeGreaterThan(bulk);
   });
+
+  it('wraps the task actions in their own labelled group', () => {
+    render(
+      <HomeToolbar
+        completedTasksCount={0}
+        totalTasksCount={1}
+        hasVisibleTasks
+        isSelectionMode={false}
+        selectedTasksSize={0}
+        paginatedTasks={[]}
+        themeFilter={null}
+        defaultThemeId={undefined}
+        autoRunTheme={null}
+        onBulkUpdateStatus={vi.fn()}
+        onBulkDelete={vi.fn()}
+        onSelectAll={vi.fn()}
+        onToggleSelectionMode={vi.fn()}
+      />,
+    );
+    const group = screen.getByText('toolbarGroup.tasks').closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('tasks');
+    const inside = Array.from(group?.querySelectorAll('button') ?? []).map((b) => b.textContent);
+    expect(inside.some((t) => t?.includes('createTask'))).toBe(true);
+    expect(inside.some((t) => t?.includes('bulk'))).toBe(true);
+    expect(inside).not.toContain('auto');
+  });
 });

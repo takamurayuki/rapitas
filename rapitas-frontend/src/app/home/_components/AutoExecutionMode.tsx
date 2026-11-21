@@ -15,6 +15,7 @@ import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { Spinner } from '@/components/ui/spinner';
+import { ToolbarGroup } from './ToolbarGroup';
 
 interface AutoExecutionModeProps {
   /** Selected development theme to control, or null when none is active. */
@@ -46,22 +47,15 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
     </span>
   ) : null;
 
-  // Sits after the task actions (作成 / 一括) in the toolbar, and draws the
-  // divider itself: the control renders nothing for non-development themes,
-  // and a divider owned by the toolbar would be left hanging there.
-  const divider = (
-    <span
-      data-testid="auto-run-divider"
-      aria-hidden="true"
-      className="mx-1 h-6 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700"
-    />
-  );
+  // Sits after the task actions in the toolbar, in its own labelled group
+  // (タスク実行). The group is drawn here, not by the toolbar, because the
+  // control renders nothing for non-development themes.
+  const groupLabel = t('toolbarGroup.autoRun');
 
   // ── Idle ─────────────────────────────────────────────────────────────────
   if (status === 'idle') {
     return (
-      <div className="flex items-center gap-2">
-        {divider}
+      <ToolbarGroup id="auto-run" label={groupLabel}>
         <button
           onClick={() => start('priority')}
           disabled={actionLoading}
@@ -81,15 +75,14 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           {tSettings('devModeTitle')}
         </button>
         {errorBadge}
-      </div>
+      </ToolbarGroup>
     );
   }
 
   // ── Stopping ──────────────────────────────────────────────────────────────
   if (status === 'stopping') {
     return (
-      <div className="flex items-center gap-2">
-        {divider}
+      <ToolbarGroup id="auto-run" label={groupLabel}>
         <button
           disabled
           className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-500 opacity-70 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500"
@@ -100,7 +93,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           {tAutoRun('statusStopping')}
         </button>
         {errorBadge}
-      </div>
+      </ToolbarGroup>
     );
   }
 
@@ -137,8 +130,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   const dot = paused ? 'bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400';
 
   return (
-    <div className="flex items-center gap-2">
-      {divider}
+    <ToolbarGroup id="auto-run" label={groupLabel}>
       {/* STATUS — says what is happening; plain text, never a button shape. */}
       <span
         data-auto-run-status=""
@@ -181,6 +173,6 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         {tAutoRun('stop')}
       </button>
       {errorBadge}
-    </div>
+    </ToolbarGroup>
   );
 }

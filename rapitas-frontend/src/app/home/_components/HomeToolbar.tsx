@@ -9,6 +9,7 @@ import { getStatusDisplay, renderStatusIcon } from '@/feature/tasks/config/Statu
 import { useTranslations } from 'next-intl';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { AutoExecutionMode } from './AutoExecutionMode';
+import { ToolbarGroup } from './ToolbarGroup';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -131,7 +132,7 @@ export function HomeToolbar({
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <ToolbarGroup id="tasks" label={t('toolbarGroup.tasks')}>
             {/* Normal mode buttons */}
             {!isSelectionMode && (
               <>
@@ -231,10 +232,10 @@ export function HomeToolbar({
               <CopyCheck className="w-4 h-4" />
               {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
             </button>
-          </div>
+          </ToolbarGroup>
 
-          {/* Auto-run actions last, after the task actions, behind a divider the
-              control draws itself (2026-11-21). Hidden during bulk selection. */}
+          {/* タスク実行 last, after タスク管理; the control draws its own labelled
+              group (2026-11-21). Hidden during bulk selection. */}
           {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
         </div>
       )}

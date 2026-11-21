@@ -140,12 +140,18 @@ describe('status reads as text, actions read as buttons', () => {
     expect(autoRun.start).toHaveBeenCalledWith('priority');
   });
 
-  it('separates itself from the task actions with a divider', () => {
+  // 2026-11-21: task actions and run actions should read as two groups at a
+  // glance, without making the toolbar taller.
+  it('sits in its own labelled group, also when idle', () => {
     renderControl();
-    expect(screen.getByTestId('auto-run-divider')).toBeTruthy();
+    let group = screen.getByText('home.toolbarGroup.autoRun').closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
+    expect(group?.contains(stopButton())).toBe(true);
+
     autoRun.status = 'idle';
     renderControl();
-    expect(screen.getAllByTestId('auto-run-divider').length).toBe(2);
+    group = screen.getAllByText('home.toolbarGroup.autoRun')[1].closest('[data-toolbar-group]');
+    expect(group?.getAttribute('data-toolbar-group')).toBe('auto-run');
   });
 
   it('offers no pause while running (a pause holds the only run slot)', () => {
