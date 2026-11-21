@@ -92,6 +92,7 @@ const {
   callClaudeCli,
   callClaudeCliStream,
   isClaudeCliAvailable,
+  __resetClaudeCliAvailabilityForTests,
   resolveCliTimeoutMs,
   DEFAULT_CLI_TIMEOUT_MS,
   MAX_CLI_TIMEOUT_MS,
@@ -470,5 +471,27 @@ describe('isClaudeCliAvailable', () => {
     const callsBefore = mockSpawn.mock.calls.length;
     expect(await isClaudeCliAvailable()).toBe(true);
     expect(mockSpawn.mock.calls.length).toBe(callsBefore); // cached — no second spawn
+  });
+
+  // 2026-11-21: one missed --version deadline right after a deploy was kept
+  // for the whole process, and every jury seat of task 514 was left empty.
+  test('re-probes after a minute when the first probe failed', async () => {
+    __resetClaudeCliAvailabilityForTests();
+    const first = isClaudeCliAvailable();
+    await flush();
+    spawnedChildren.at(-1)!.emit('close', 1);
+    expect(await first).toBe(false);
+
+    const realNow = Date.now;
+    try {
+      const t0 = realNow();
+      Date.now = () => t0 + 61_000;
+      const second = isClaudeCliAvailable();
+      await flush();
+      spawnedChildren.at(-1)!.emit('close', 0);
+      expect(await second).toBe(true);
+    } finally {
+      Date.now = realNow;
+    }
   });
 });

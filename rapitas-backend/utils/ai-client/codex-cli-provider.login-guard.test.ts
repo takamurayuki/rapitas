@@ -307,3 +307,23 @@ describe('a login probe that cannot run is not a missing login', () => {
     }
   });
 });
+
+// 2026-11-21: right after a deploy `codex --version` missed its deadline once,
+// the status was remembered as 'missing' for the whole process, and every jury
+// seat of task 514 was left empty although Codex was running other phases.
+describe('a CLI that did not answer once is checked again', () => {
+  test('re-probes a missing CLI after a minute', async () => {
+    scripts = [{ spawnError: true }];
+    expect(await getCodexCliStatus()).toBe('missing');
+
+    const realNow = Date.now;
+    try {
+      const t0 = realNow();
+      Date.now = () => t0 + 61_000;
+      scripts = [{ stdout: 'codex-cli 0.164.0' }, CHATGPT];
+      expect(await getCodexCliStatus()).toBe('ready');
+    } finally {
+      Date.now = realNow;
+    }
+  });
+});

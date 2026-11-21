@@ -166,10 +166,16 @@ const LOGIN_RECHECK_MS = 5 * 60_000;
  * phase off Codex for five minutes (2026-11-20).
  */
 const PROBE_FAILED_RECHECK_MS = 30_000;
+/** A CLI that did not answer `--version` once is tried again after a minute. */
+const MISSING_RECHECK_MS = 60_000;
 
 /** How long a non-ready login status stays memoised. */
 const recheckMsFor = (status: CodexCliStatus): number =>
-  status === 'probe_failed' ? PROBE_FAILED_RECHECK_MS : LOGIN_RECHECK_MS;
+  status === 'probe_failed'
+    ? PROBE_FAILED_RECHECK_MS
+    : status === 'missing'
+      ? MISSING_RECHECK_MS
+      : LOGIN_RECHECK_MS;
 let statusCache: { status: CodexCliStatus; until: number } | null = null;
 let statusPending: Promise<CodexCliStatus> | null = null;
 
@@ -243,7 +249,9 @@ export async function getCodexCliStatus(): Promise<CodexCliStatus> {
   if (statusCache && statusCache.until > Date.now()) return statusCache.status;
   statusPending ??= probeStatus()
     .then((status) => {
-      const keep = status === 'ready' || status === 'missing';
+      // NOTE: 'missing' is re-probed (recheckMsFor): one missed --version deadline
+      // after a deploy left every jury seat of task 514 empty (2026-11-21).
+      const keep = status === 'ready';
       statusCache = {
         status,
         until: keep ? Number.POSITIVE_INFINITY : Date.now() + recheckMsFor(status),
