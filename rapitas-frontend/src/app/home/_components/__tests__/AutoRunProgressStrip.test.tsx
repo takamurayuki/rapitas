@@ -67,6 +67,15 @@ describe('AutoRunProgressStrip', () => {
     expect(link.getAttribute('href')).toBe('/tasks/1682?showHeader=true');
   });
 
+  // Asked 2026-11-21: only the id shows; the title stays for hover and
+  // screen readers.
+  it('shows only the task id, keeping the title for hover', () => {
+    renderStrip('running', 'in_progress');
+    const link = screen.getByRole('link', { name: /自動実行パネルに今のタスクを出す/ });
+    expect(link.textContent).toBe('#1682');
+    expect(link.getAttribute('title')).toBe(task.title);
+  });
+
   it('marks the implement phase as current once the plan is approved', () => {
     renderStrip('running', 'in_progress');
     expect(stepState('research')).toBe('done');

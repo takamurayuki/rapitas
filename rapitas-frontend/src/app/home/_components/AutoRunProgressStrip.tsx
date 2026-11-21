@@ -130,12 +130,15 @@ export function AutoRunProgressStrip({
       )}
       {currentTask && view ? (
         <>
+          {/* NOTE: Only the id shows (asked 2026-11-21); the title stays in
+              title / aria-label for hover and screen readers. */}
           <Link
             href={`/tasks/${currentTask.id}?showHeader=true`}
             title={currentTask.title}
-            className="max-w-sm min-w-0 truncate text-indigo-600 hover:underline dark:text-indigo-400"
+            aria-label={`#${currentTask.id} ${currentTask.title}`}
+            className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
           >
-            #{currentTask.id} {currentTask.title}
+            #{currentTask.id}
           </Link>
 
           <ol className="flex items-center gap-1.5">
