@@ -23,6 +23,7 @@ import { quoteEvidenceLine } from './verify-repeat-evidence';
 import { isRunnerExitFailureLine } from './verify-exit-signal';
 import { validateSections } from './phase-output-validator-sections';
 import { isPastReferenceLine } from './past-reference-line';
+import { isResolvedFailureLine } from './verify-resolved-failure';
 import {
   parseOutOfScopeCriteria,
   isDeclaredScopeReductionOnly,
@@ -292,7 +293,9 @@ export function validateVerify(content: string, planContent?: string): Validatio
   // only the ❌-anchored scan got the exemption — a verifier that reports the
   // identical honest disclosure as "テスト2件が失敗（懸念#…として起票済み）" prose
   // instead of a ❌ row still tripped the gate (task 943, attempts 1 and 2).
+  // NOTE: isResolvedFailureLine is applied to all three detectors below (task 1519).
   const isExemptFailureLine = (line: string): boolean =>
+    isResolvedFailureLine(line) ||
     (documentsOutOfScopeEscalation && attributesFailureOutOfScope(line)) ||
     isHistoricalBaselineComparison(line) ||
     // Same rule the ❌ scan applies (task 1112): "fixed 3 failed tests" in a
@@ -320,7 +323,7 @@ export function validateVerify(content: string, planContent?: string): Validatio
     // 機械判定の抽出精度の限界であり、実装上の欠落ではない。" — a dismissal note.
     if (/^\s*>/.test(line)) return false;
     if (CHANGED_FILE_ROW.test(line)) return false;
-    if (isPastReferenceLine(line)) return false;
+    if (isPastReferenceLine(line) || isResolvedFailureLine(line)) return false;
     if (isPendingPublicationRow(line)) return false;
     if (/❌\s*(?:の)?\s*(?:場合|とき|時|なら|ならば|であれば|if\b)/i.test(line)) return false;
     if (/[(（]\s*❌\s*[)）]/.test(line)) return false;
@@ -385,7 +388,9 @@ export function validateVerify(content: string, planContent?: string): Validatio
     failureHits.push(`❌ ${quoteEvidenceLine(crossMarkFailureLine)}`);
   }
 
-  const exitFailureLine = scanText.split(/\r?\n/).find(isRunnerExitFailureLine);
+  const exitFailureLine = scanText
+    .split(/\r?\n/)
+    .find((line) => isRunnerExitFailureLine(line) && !isResolvedFailureLine(line));
   if (exitFailureLine !== undefined) {
     failureHits.push(`exit 1 ${quoteEvidenceLine(exitFailureLine)}`);
   }
