@@ -11,6 +11,7 @@ import { existsSync, realpathSync } from 'fs';
 import { dirname, join } from 'path';
 import { createLogger } from '../../../../config/logger';
 import { killProcessTreeSafely } from '../../agent-process-tracker';
+import { buildSanitizedSpawnEnv } from '../../../../utils/agent/sanitize-cli-env';
 
 const log = createLogger('runtime-smoke:launcher');
 
@@ -100,13 +101,16 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
     shell: true,
     cwd,
     windowsHide: true,
-    env: {
-      ...process.env,
+    // NOTE: Sanitized like agent CLIs. The raw process.env handed rapitas's
+    // own DATABASE_URL (file:...rapitas-dev.db), ENCRYPTION_KEY and tokens to
+    // every project's app; trendline's worker failed to parse that URL and the
+    // runtime gate failed (task 1520, 2026-11-22). The app reads its own .env.
+    env: buildSanitizedSpawnEnv({
       PORT: String(port),
       BROWSER: 'none',
       CI: '1',
       ...(turbopackRoot ? { RAPITAS_TURBOPACK_ROOT: turbopackRoot } : {}),
-    },
+    }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   proc.stdout?.on('data', push);
