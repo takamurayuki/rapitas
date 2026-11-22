@@ -300,3 +300,22 @@ describe('workflow artifacts are not repository paths', () => {
     expect(check?.ok).toBe(true);
   });
 });
+
+// 2026-11-22 (trendline task 1527): the criterion "go test ./... と web のテスト・
+// 型検査が終了コード 0 で通る" yielded the token `./` — `./...` with its dots
+// stripped as punctuation — which no changed file can match, so the check
+// reported ✗ on every pass and the task could never complete.
+describe('extractReferenceTokens — package patterns and bare relative roots', () => {
+  it('does not take a Go package pattern for a path', () => {
+    expect(extractReferenceTokens('go test ./... と web のテストが通る')).toEqual([]);
+    expect(extractReferenceTokens('`go test ./...` が通る')).toEqual([]);
+  });
+
+  it('keeps a real directory under a package pattern as a directory', () => {
+    expect(extractReferenceTokens('go test ./internal/api/... が通る')).toEqual(['internal/api/']);
+  });
+
+  it('never yields a bare ./ or ../', () => {
+    expect(extractReferenceTokens('./ と ../ の下を見る')).toEqual([]);
+  });
+});

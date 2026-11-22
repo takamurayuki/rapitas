@@ -121,6 +121,28 @@ export function resolveAcceptanceCriteria(task: {
 }
 
 /** Strips a trailing `:12`, `:12:5` or `:12-34` line reference from a token. */
+/**
+ * Rewrite a Go-style package pattern (`./...`, `./internal/api/...`) to the
+ * directory it names, or to '' when it names only the module root. Other
+ * tokens come back unchanged.
+ *
+ * NOTE: Trendline task 1527's criterion "go test ./... と web のテストが通る"
+ * yielded `./` (the dots were stripped as trailing punctuation), which no
+ * changed file can match, so the self-check reported ✗ on every pass and the
+ * task could not complete (2026-11-22).
+ */
+function packagePatternToDir(token: string): string {
+  const m = /^(.*?)\/?\.\.\.$/.exec(token);
+  if (!m) return token;
+  const dir = m[1].replace(/^\.\//, '').replace(/^\.$/, '');
+  return dir ? `${dir.replace(/\/$/, '')}/` : '';
+}
+
+/** A bare relative root (`./`, `../`) names no file a diff could touch. */
+function isRelativeRoot(token: string): boolean {
+  return /^(?:\.{1,2}\/)+$/.test(token);
+}
+
 function stripLineRef(token: string): string {
   return token.replace(/:\d+(?:[-:]\d+)?$/, '');
 }
@@ -137,8 +159,8 @@ function stripLineRef(token: string): string {
 export function extractReferenceTokens(text: string): string[] {
   const out = new Set<string>();
   const considerBacktick = (piece: string, requireSeparator: boolean): void => {
-    const token = stripLineRef(piece.trim()).replace(/\\/g, '/');
-    if (!token) return;
+    const token = packagePatternToDir(stripLineRef(piece.trim()).replace(/\\/g, '/'));
+    if (!token || isRelativeRoot(token)) return;
     if (requireSeparator && !token.includes('/')) return;
     if (isWorkflowArtifact(token)) return;
     if (PATHISH_RE.test(token) || DIRISH_RE.test(token)) out.add(token);
@@ -156,8 +178,9 @@ export function extractReferenceTokens(text: string): string[] {
   }
   // Bare (non-backtick) tokens: split on whitespace + CJK/ASCII punctuation.
   for (const piece of rest.split(/[\s、。，（）「」『』【】()<>[\]{}"'`,;！？!?…]+/)) {
-    const token = stripLineRef(piece.trim().replace(/[.,:;]+$/, '')).replace(/\\/g, '/');
-    if (!token) continue;
+    const raw = packagePatternToDir(piece.trim().replace(/\\/g, '/'));
+    const token = stripLineRef(raw.replace(/[.,:;]+$/, ''));
+    if (!token || isRelativeRoot(token)) continue;
     if (DIRISH_RE.test(token)) {
       if (token.includes('/')) out.add(token);
       continue;
