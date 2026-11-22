@@ -15,6 +15,27 @@ import { basename, extname, join, relative } from 'path';
 /** Conventional test-file naming (foo.test.ts / foo.spec.tsx / .mts / .cjs …). */
 export const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
 
+/** A file that imports Playwright's test runner is an E2E spec, not a unit test. */
+const PLAYWRIGHT_IMPORT_RE =
+  /from\s+['"]@playwright\/test['"]|require\(\s*['"]@playwright\/test['"]\s*\)/;
+
+/**
+ * Whether a test file is a Playwright spec. Unreadable files are not.
+ *
+ * NOTE: Temporaid task 1353 changed e2e/prediction.spec.ts and the gate ran it
+ * with `vitest run`, which does not include it and exits 1 with "No test files
+ * found", so the gate failed on every pass (2026-11-22). Running it under
+ * Playwright instead would need browsers and a dev server inside the gate;
+ * E2E is covered by the runtime browser check and CI.
+ */
+function isPlaywrightSpec(projectRoot: string, file: string): boolean {
+  try {
+    return PLAYWRIGHT_IMPORT_RE.test(readFileSync(join(projectRoot, file), 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
 /** How deep to scan a tests/ tree for basename matches. */
 const TESTS_DIR_MAX_DEPTH = 5;
 
@@ -212,7 +233,9 @@ export function buildScopedTestCommands(
   );
   const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
   const related = findRelatedTestFiles(projectRoot, projectRel);
-  const scoped = [...new Set([...changedTests, ...related])];
+  const scoped = [...new Set([...changedTests, ...related])].filter(
+    (f) => !isPlaywrightSpec(projectRoot, f),
+  );
 
   // bun and vitest are both file-scopeable (default-on, never full-suite).
   // NOTE: delegates to detectFileScopedRunner/buildFileScopedCommand so this
