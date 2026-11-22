@@ -18,6 +18,7 @@ validateEnvironment();
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { buildCorsOptions } from './config/cors-options';
+import { SERVER_IDLE_TIMEOUT_S } from './config/server-timeouts';
 import { swagger } from '@elysiajs/swagger';
 
 // All modular routes are registered via registerAllRoutes() in register-routes.ts.
@@ -176,7 +177,8 @@ const listener = wrapAppWithWorkspaceScope(app);
 listener.listen({
   port: PORT,
   hostname: BIND_HOST,
-  idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
+  // Releases sockets left in CLOSE_WAIT; the SSE ping must stay inside it.
+  idleTimeout: SERVER_IDLE_TIMEOUT_S,
   // NOTE: reusePort is intentionally OFF. It previously let a fresh process bind
   // a SECOND listen socket on top of one orphaned by a force-killed predecessor;
   // Windows then split incoming connections between the live and the dead socket,

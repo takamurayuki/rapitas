@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from '../../config/logger';
+import { SSE_PING_INTERVAL_MS } from '../../config/server-timeouts';
 
 const log = createLogger('realtime-service');
 
@@ -351,8 +352,9 @@ export class RealtimeService {
    * Start ping interval.
    */
   private startPingInterval(): void {
-    // NOTE: Extended from 30s to 60s — pings are only for keepalive and stale-client
-    // detection; 30s was halving SSE broadcast overhead for no UX benefit.
+    // NOTE: The interval is the stream's keepalive, not only stale-client
+    // detection — see SSE_PING_INTERVAL_MS for why it must stay under the
+    // server idle timeout.
     this.pingInterval = setInterval(() => {
       const now = new Date();
       for (const client of this.clients.values()) {
@@ -363,7 +365,7 @@ export class RealtimeService {
         });
         client.lastPingAt = now;
       }
-    }, 60_000);
+    }, SSE_PING_INTERVAL_MS);
   }
 
   /**
