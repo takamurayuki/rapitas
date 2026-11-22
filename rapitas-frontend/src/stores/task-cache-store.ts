@@ -346,12 +346,17 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => {
         const newFailures = consecutiveFailures + 1;
         const errorMessage = e instanceof Error ? e.message : String(e);
 
-        // Suppress repeated error logs after MAX_LOGGED_FAILURES
-        if (newFailures <= MAX_LOGGED_FAILURES) {
-          logger.error('[taskCacheStore] fetchUpdates error:', e);
-        } else if (newFailures === MAX_LOGGED_FAILURES + 1) {
+        // NOTE: A thrown error here means the backend was unreachable after
+        // fetchWithRetry's own retries — an outage the UI already shows as
+        // offline, not a defect. Logging it at ERROR up to three times per
+        // outage, again after every brief recovery and once per app window
+        // flooded the console while SSE reconnects starved the browser's
+        // connections to :3001 (2026-11-22). One warning per outage, and the
+        // existing "Connection recovered" line closes it.
+        if (newFailures === 1) {
           logger.warn(
-            '[taskCacheStore] fetchUpdates: Suppressing further error logs until recovery',
+            '[taskCacheStore] fetchUpdates: backend unreachable — keeping cached tasks, retrying silently until it recovers:',
+            errorMessage,
           );
         }
 
