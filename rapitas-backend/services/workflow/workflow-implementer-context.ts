@@ -20,6 +20,7 @@ import { buildRepairRiskTacticSection } from './learning/repair-risk-tactic-sect
 import { budgetSection, resolveBudgetMode } from './workflow-context-budget';
 import { buildGoalAnchor } from './workflow-goal-anchor';
 import type { ImplementerTexts } from './workflow-role-prompts';
+import { liveProcessGuidance } from './live-process-guidance';
 
 /**
  * Builds the TDD protocol instruction block appended to the implementer
@@ -230,6 +231,7 @@ export async function buildImplementerContext(
     ctx += tddSection;
   }
   ctx += buildDependencyChangeGuidance(language);
+  ctx += `\n\n${liveProcessGuidance('implementer', language)}`;
   // research / verifyFeedback are budget-eligible: record BOTH the pre-budget
   // (raw) and injected (budgeted) size so the slimming effect is measurable
   // and the oversized-section culprit stays identifiable even in `log` mode.

@@ -21,6 +21,7 @@ import { NOT_REVIEW_COST_ROW } from '../agents/review-cost-rows';
 import { buildPreviousRoundSection } from './verify-previous-round';
 import { withInterleavingCheck } from './planner-interleaving-guidance';
 import { verifierRedEvidenceGuidance } from './red-evidence-guidance';
+import { liveProcessGuidance } from './live-process-guidance';
 
 /** Newest real run of the task (the one whose output is being measured), for audit. */
 async function latestRunExecutionId(taskId: number): Promise<number | null> {
@@ -265,6 +266,7 @@ Preserve command exit codes before formatting output: piping a command into tail
   // NOTE: Task 1521 bounced on "pre-fix run history unconfirmed" each round;
   // RED is judged on re-runnable evidence only (red-evidence-guidance.ts).
   verifierInstruction += `\n${verifierRedEvidenceGuidance(language)}`;
+  verifierInstruction += `\n\n${liveProcessGuidance('verifier', language)}`;
   ctx += `\n\n${verifierInstruction}\n\n${styleRule}`;
   // prettier-ignore
   void recordContextMetrics(taskId, role, mode, { taskInfo, memory: verifierMemory, lessons: verifyLessons, repairRisk: verifyRepairRisk, hypothesis, gatePrecision, plan, diff: diffBlock, groundTruth: groundTruthBlock, instruction: verifierInstruction, styleRule });
