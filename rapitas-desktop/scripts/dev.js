@@ -59,7 +59,11 @@ const { waitForFrontendReady, DEFAULT_TIMEOUT_MS } = require('./wait-for-fronten
 const { createDevSessionLog } = require('./dev-session-log.cjs');
 const { nextLiveness, initialLiveness, LIVENESS_DEFAULTS } = require('./frontend-liveness.cjs');
 const { classifyOccupancy, describePortConflict } = require('./port-ownership.cjs');
-const { GHOST_HOLDER_NAMES, recoverGhostSocket } = require('./ghost-socket-recovery.cjs');
+const {
+  GHOST_HOLDER_NAMES,
+  recoverGhostSocket,
+  backendHandleAfterStop,
+} = require('./ghost-socket-recovery.cjs');
 const { findOrphanWorktreeTrees } = require('./orphan-worktree-trees.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
 const { syncForLaunch } = require('./dep-sync.cjs');
@@ -2192,6 +2196,15 @@ function startBackend(retryCount = 0) {
  * @param {boolean} skipShutdownApi - trueの場合、プロセスが既に終了済みなのでシャットダウンAPIの呼び出しをスキップ
  */
 async function stopBackendCompletely(skipShutdownApi = false) {
+  // NOTE: A start-retry armed by a refused start must not fire while this stop
+  // awaits the port release: it spawned a backend in that window and the stop
+  // then dropped its handle, so a second backend started beside it
+  // (2026-11-23 06:53). The caller that stops decides when to start again.
+  if (backendStartRetryTimer) {
+    clearTimeout(backendStartRetryTimer);
+    backendStartRetryTimer = null;
+  }
+  const stoppedBackend = backend;
   const isRunning = backend && !backend.killed && backend.exitCode === null;
 
   if (!skipShutdownApi && isRunning) {
@@ -2278,8 +2291,9 @@ async function stopBackendCompletely(skipShutdownApi = false) {
     }
   }
 
-  backend = null;
-  removeBackendPidFile();
+  // Clear only the handle this stop began with (backendHandleAfterStop).
+  backend = backendHandleAfterStop(backend, stoppedBackend);
+  if (backend === null) removeBackendPidFile();
 }
 
 // Set when syncForLaunch stopped the frontend to reinstall it; the restart
