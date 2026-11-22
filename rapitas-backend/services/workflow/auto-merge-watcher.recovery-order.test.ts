@@ -50,6 +50,8 @@ mock.module('./auto-merge-candidates', () => ({
 }));
 
 mock.module('./auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   blockingChecks: () => blockingFixture,
   evaluateAutoMergeChecks: () => 'pending',
   readPrChecks: mock(() => Promise.resolve([])),

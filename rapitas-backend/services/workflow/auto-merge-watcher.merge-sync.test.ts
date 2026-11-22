@@ -15,6 +15,8 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // mock replaces auto-merge-checks wholesale (bun mock.module is process-global),
 // so omitting any export would crash importers.
 mock.module('./auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => 'pass',
   readPrChecks: mock(() => Promise.resolve([{ name: 'Lint Code', bucket: 'pass' }])),

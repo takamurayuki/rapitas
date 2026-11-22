@@ -22,6 +22,8 @@ mock.module('../../../../config', () => ({
 const readCalls: Array<{ cwd: string; prNumber: number }> = [];
 let states: Array<string | null> = [];
 mock.module('../../../../services/workflow/auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   readMergeState: (cwd: string, prNumber: number) => {
     readCalls.push({ cwd, prNumber });
     return Promise.resolve(states.length > 0 ? states.shift()! : null);
