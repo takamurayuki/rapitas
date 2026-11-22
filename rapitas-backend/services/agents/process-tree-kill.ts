@@ -109,6 +109,8 @@ function collectAncestors(snapshot: ProcessSnapshotEntry[], pid: number): Set<nu
  * @param snapshot - Full process snapshot / プロセススナップショット
  * @param rootPid - Spawned root process id / 起動ルートのPID
  * @param workdir - Launch working directory, if known / 起動時の作業ディレクトリ
+ * @param spare - Pids the workdir match must never take: live agents and
+ *        their children (see {@link withDescendants}) / 照合から外すPID
  * @returns Target pids, root excluded (the caller decides whether the root
  *          itself is alive and killable) / ルートを除く対象PID集合
  */
@@ -116,6 +118,7 @@ export function collectKillTargets(
   snapshot: ProcessSnapshotEntry[],
   rootPid: number,
   workdir?: string,
+  spare: ReadonlySet<number> = new Set(),
 ): Set<number> {
   const targets = new Set<number>();
 
@@ -143,6 +146,11 @@ export function collectKillTargets(
       if (
         e.pid !== rootPid &&
         e.cmd.includes(workdir) &&
+        // NOTE: A live agent CLI names its worktree on its own command line
+        // (`codex exec --cd <worktree>`); the runtime launcher's sweep killed
+        // a running verifier that way, five times in a row (task 1527,
+        // 2026-11-22). Live agents and their children are never matched.
+        !spare.has(e.pid) &&
         !protectedAncestors.has(e.pid) &&
         !protectedRootAncestors.has(e.pid)
       ) {
@@ -183,4 +191,53 @@ export function captureDescendants(rootPid: number, workdir?: string): Set<numbe
   const snapshot = listWindowsProcessSnapshot();
   if (snapshot.length === 0) return new Set();
   return collectKillTargets(snapshot, rootPid, workdir);
+}
+
+/**
+ * The given pids plus every descendant reachable through live parent links in
+ * the snapshot.
+ *
+ * @param snapshot - Full process snapshot / プロセススナップショット
+ * @param roots - Starting pids / 起点のPID
+ * @returns The roots and their descendants / 起点と子孫のPID集合
+ */
+export function withDescendants(
+  snapshot: ProcessSnapshotEntry[],
+  roots: Iterable<number>,
+): Set<number> {
+  const children = new Map<number, number[]>();
+  for (const e of snapshot) {
+    const list = children.get(e.ppid);
+    if (list) list.push(e.pid);
+    else children.set(e.ppid, [e.pid]);
+  }
+  const out = new Set<number>();
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (out.has(cur)) continue;
+    out.add(cur);
+    queue.push(...(children.get(cur) ?? []));
+  }
+  return out;
+}
+
+/**
+ * Whether a kill needs a Windows process snapshot: to find the tree when no
+ * descendants were captured, and always for a workdir sweep.
+ *
+ * NOTE: The snapshot used to be skipped whenever `knownTargets` was given, so
+ * the post-exit reap (which passes both) silently never swept its worktree
+ * (2026-11-22).
+ *
+ * @param platform - process.platform / 実行プラットフォーム
+ * @param opts - The kill options / 停止オプション
+ * @returns True when a snapshot must be taken / スナップショットが必要なら true
+ */
+export function needsProcessSnapshot(
+  platform: string,
+  opts: { workdir?: string; knownTargets?: Iterable<number> },
+): boolean {
+  if (platform !== 'win32') return false;
+  return !opts.knownTargets || !!opts.workdir;
 }

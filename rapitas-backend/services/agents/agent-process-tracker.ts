@@ -13,6 +13,8 @@ import { createLogger } from '../../config/logger';
 import {
   listWindowsProcessSnapshot,
   collectKillTargets,
+  needsProcessSnapshot,
+  withDescendants,
   type ProcessSnapshotEntry,
 } from './process-tree-kill';
 import { ancestorPids, parseListenerPids } from './backend-process-identity';
@@ -349,6 +351,23 @@ export function cleanupZombieProcesses(): number {
  *        / 事前に捕捉した子孫PID（指定時は再スナップショットを省略）
  * @returns true if a kill was issued / killを実行したら true
  */
+/**
+ * PIDs of registered agent processes that are still alive. Read from the PID
+ * files, so a crash between register and unregister only over-protects.
+ */
+function liveRegisteredAgentPids(): number[] {
+  try {
+    if (!existsSync(PID_DIR)) return [];
+    return readdirSync(PID_DIR)
+      .map((f) => /-(\d+)\.pid$/.exec(f)?.[1])
+      .filter((v): v is string => !!v)
+      .map(Number)
+      .filter((p) => Number.isInteger(p) && p > 0 && isProcessAlive(p));
+  } catch {
+    return [];
+  }
+}
+
 export function killProcessTreeSafely(
   pid: number,
   opts: { workdir?: string; knownTargets?: Iterable<number> } = {},
@@ -363,11 +382,16 @@ export function killProcessTreeSafely(
       if (t !== process.pid && isProcessAlive(t)) targets.add(t);
     }
     let snapshot: ProcessSnapshotEntry[] = [];
-    if (process.platform === 'win32' && !opts.knownTargets) {
+    if (needsProcessSnapshot(process.platform, opts)) {
       // Snapshot-based enumeration also catches subtrees whose live parent
       // link is gone; [] on enumeration failure degrades to plain /T below.
       snapshot = listWindowsProcessSnapshot();
-      for (const t of collectKillTargets(snapshot, pid, opts.workdir)) targets.add(t);
+      // Live agents (and their children) are spared from the workdir match.
+      const spare = withDescendants(
+        snapshot,
+        liveRegisteredAgentPids().filter((p) => p !== pid),
+      );
+      for (const t of collectKillTargets(snapshot, pid, opts.workdir, spare)) targets.add(t);
     }
     if (targets.size === 0) return false;
 
