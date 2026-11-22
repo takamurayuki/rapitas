@@ -274,3 +274,45 @@ describe('buildFileScopedCommand', () => {
     expect(cmd).toBe('bun test --isolate "src/foo.test.ts"');
   });
 });
+
+// 2026-11-22 (temporaid task 1353): a changed Playwright spec
+// (e2e/prediction.spec.ts) was handed to `vitest run`, which does not
+// include it and exits 1 with "No test files found" — the gate went red on
+// every pass. A Playwright spec is not a unit test, so the scoped gate leaves
+// it to the runtime browser check and CI.
+describe('buildScopedTestCommands — Playwright specs', () => {
+  let root: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'scoped-pw-'));
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    mkdirSync(join(root, 'e2e'), { recursive: true });
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(
+      join(root, 'e2e', 'prediction.spec.ts'),
+      "import { test, expect } from '@playwright/test';\ntest('x', async () => {});\n",
+    );
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  test('never hands a Playwright spec to vitest', () => {
+    expect(buildScopedTestCommands(root, root, ['e2e/prediction.spec.ts'])).toBeNull();
+  });
+
+  test('keeps unit tests and drops the Playwright spec from one command', () => {
+    writeFileSync(join(root, 'src', 'foo.test.ts'), "import { it } from 'vitest';\n");
+    const result = buildScopedTestCommands(root, root, [
+      'e2e/prediction.spec.ts',
+      'src/foo.test.ts',
+    ]);
+    expect(result).not.toBeNull();
+    expect(result![0]).toContain('src/foo.test.ts');
+    expect(result![0]).not.toContain('prediction.spec.ts');
+  });
+
+  test('keeps a vitest spec file that does not import Playwright', () => {
+    writeFileSync(join(root, 'src', 'bar.spec.ts'), "import { it } from 'vitest';\n");
+    const result = buildScopedTestCommands(root, root, ['src/bar.spec.ts']);
+    expect(result![0]).toContain('src/bar.spec.ts');
+  });
+});
