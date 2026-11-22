@@ -16,6 +16,17 @@
 import { mock } from 'bun:test';
 
 // ---------------------------------------------------------------------------
+// resume-tenure: only the backend boot time is replaced (default 0 = booted
+// long ago), so the wall-clock backstop tests keep measuring their own stamps.
+// ---------------------------------------------------------------------------
+const realResumeTenure = await import('./resume-tenure');
+export const mockBackendBootAt = mock(() => 0);
+mock.module('./resume-tenure', () => ({
+  ...realResumeTenure,
+  backendBootAt: mockBackendBootAt,
+}));
+
+// ---------------------------------------------------------------------------
 // Silent logger (mirrors the shape used elsewhere: info/warn/error/debug)
 // ---------------------------------------------------------------------------
 export const mockLogWarn = mock(() => {});

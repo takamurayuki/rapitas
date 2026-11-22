@@ -55,6 +55,7 @@ import {
   mockMarkEventLoopSection,
   mockReleaseEventLoopSection,
   mockMarkEventLoopSectionCalls,
+  mockBackendBootAt,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -223,6 +224,7 @@ const ALL_MOCKS = [
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
 export function resetAllMocks(): void {
   for (const m of ALL_MOCKS) m.mockClear();
+  mockBackendBootAt.mockReset().mockReturnValue(0);
   mockTaskCount.mockResolvedValue(0);
   mockTaskFindMany.mockResolvedValue([]);
   mockTaskUpdate.mockResolvedValue({});
