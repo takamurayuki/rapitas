@@ -80,3 +80,27 @@ test('never takes explorer (an orphan on Windows) or a desktop app as a root or 
   ];
   assert.deepEqual(findOrphanWorktreeTrees(snap), []);
 });
+
+// 2026-11-23 06:30: TempoRaid task 1347's runtime preview was started by the
+// standalone pnpm binary. ROOT_KIND had no pnpm, so the orphaned tree
+// (pnpm → cmd → node vite) was never a candidate; it held :3001 as a ghost
+// socket and dev.js gave up after 20 retries.
+test('takes an orphaned standalone pnpm as a root', () => {
+  const TR = 'C:\\Projects\\temporaid\\.worktrees\\task-1347-b7010d72';
+  const snap = [
+    p(
+      15424,
+      6408,
+      'pnpm.exe',
+      '"C:\\Users\\u\\AppData\\Local\\pnpm\\pnpm.exe" -C apps/web run dev --host 127.0.0.1 --port 53827 --strictPort',
+    ),
+    p(25868, 15424, 'cmd.exe', 'cmd.exe /d /s /c vite --host 127.0.0.1 --port 53827 --strictPort'),
+    p(
+      8744,
+      25868,
+      'node.exe',
+      `node "${TR}\\apps\\web\\node_modules\\.bin\\..\\vite\\bin\\vite.js" --host 127.0.0.1`,
+    ),
+  ];
+  assert.deepEqual(findOrphanWorktreeTrees(snap), [15424]);
+});
