@@ -75,3 +75,34 @@ test('a hung stop is bounded by the timeout', async () => {
   const result = await stopAllRuntimeServersForShutdown('x', 50);
   expect(result).toEqual({ attempted: 1, stopped: 0, timedOut: true });
 });
+
+// 2026-11-23 00:08: a deploy restarted the backend while task 1307's runtime
+// check was still in `starting`. The sweep handed the entry to
+// stopOwnedAndVerify, which quarantines an entry without identities and
+// returns — the spawn went ahead after the sweep, the preview (pnpm → vite)
+// inherited the dying backend's socket, and port 3001 stayed LISTENING under
+// a dead pid until it was stopped by hand.
+test('a starting entry is cancelled so its spawn cannot go ahead after the sweep', async () => {
+  stopImpl = async () => false; // the real stopOwnedAndVerify without identities
+  const s = entry('s', 'starting');
+  await stopAllRuntimeServersForShutdown('backend restart');
+  expect(s.startCancelled).toBe(true);
+});
+
+test('a starting entry that already spawned has its process tree stopped', async () => {
+  stopImpl = async () => false;
+  const s = entry('s', 'starting');
+  const stop = mock(() => {});
+  s.app = { stop, pid: 4321, logs: () => [], hasExited: () => false, exitCode: () => null };
+  await stopAllRuntimeServersForShutdown('backend restart');
+  expect(stop).toHaveBeenCalledTimes(1);
+});
+
+test('an active entry is not cancelled or stopped through the start path', async () => {
+  const a = entry('a', 'active');
+  const stop = mock(() => {});
+  a.app = { stop, pid: 1, logs: () => [], hasExited: () => false, exitCode: () => null };
+  await stopAllRuntimeServersForShutdown('backend restart');
+  expect(a.startCancelled).toBeUndefined();
+  expect(stop).not.toHaveBeenCalled();
+});
