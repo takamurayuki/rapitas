@@ -69,3 +69,34 @@ export async function resolveAutoRunRestartTenureStart(
     ? Math.max(original, startedAt)
     : original;
 }
+
+/** When this backend process started (epoch ms). */
+const BACKEND_BOOT_AT = Date.now();
+
+/**
+ * When this backend process started. A tenure or progress stamp older than
+ * this spans time the backend was not running.
+ *
+ * @returns Process start time (epoch ms) / プロセス起動時刻
+ */
+export function backendBootAt(): number {
+  return BACKEND_BOOT_AT;
+}
+
+/**
+ * Move a start that predates the backend boot up to the boot, so time the
+ * backend was down is never measured as a hang.
+ *
+ * NOTE: On 2026-11-23 the backend was down ~6 h (a ghost socket held port
+ * 3001). TempoRaid task 1307's last progress predated the outage, so the first
+ * tick after the restart fired auto_run_hang_backstop and blocked it, and the
+ * blocked auto-retry reset its finished implementation to draft. A task that
+ * is truly wedged after a restart still trips the backstop one wall later.
+ *
+ * @param startMs - Tenure start or last-progress stamp (ms) / 起点
+ * @param bootAt - Backend boot time (ms) / 起動時刻
+ * @returns The later of the two (ms) / 遅い方
+ */
+export function clampToBackendBoot(startMs: number, bootAt: number): number {
+  return Math.max(startMs, bootAt);
+}

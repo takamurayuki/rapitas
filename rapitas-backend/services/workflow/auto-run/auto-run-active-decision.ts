@@ -35,7 +35,12 @@ import { handOffExhaustedMerge } from '../merge-exhausted-handoff';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { forceStopOverWallBudget, requeueAndResetTenure } from './auto-run-hang-backstop-stop';
 
-import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
+import {
+  resolveResumedTenureStart,
+  resolveAutoRunRestartTenureStart,
+  backendBootAt,
+  clampToBackendBoot,
+} from './resume-tenure';
 import { resolveCurrentTaskOutcome } from './auto-run-resolve-outcome';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -77,6 +82,8 @@ export async function advanceActiveTaskLocked(
     // 2026-10-06). Clamp to when auto-run actually restarted.
     tenureStart = await resolveAutoRunRestartTenureStart(prisma, themeId, tenureStart);
   }
+  // Time the backend was down is not time the task was hung — see clampToBackendBoot.
+  tenureStart = clampToBackendBoot(tenureStart, backendBootAt());
   const tenureMs = Date.now() - tenureStart;
   if (lastRunAt && tenureMs >= MAX_TASK_WALL_MS) {
     if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
@@ -141,7 +148,10 @@ export async function advanceActiveTaskLocked(
     // wedged run that began before a pause.
     const since = new Date(lastRunAt);
     const neverExecuted = await taskNeverExecuted(prisma, currentTaskId, since);
-    const lastProgressAt = await resolveLastProgressAt(prisma, currentTaskId, tenureStart);
+    const lastProgressAt = clampToBackendBoot(
+      await resolveLastProgressAt(prisma, currentTaskId, tenureStart),
+      backendBootAt(),
+    );
     const sinceProgressMs = Date.now() - lastProgressAt;
     // Liveness exemption: a running execution with a fresh heartbeat is
     // SLOW, not wedged — killing it destroys legitimate long work (task
