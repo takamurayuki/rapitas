@@ -82,7 +82,16 @@ export async function resolveVerifyPhaseStatus(params: {
   // The HTTP rejection owns the next action. Only review a still-admissible
   // artifact, and never treat an unreadable rejection history as approval.
   const { attemptRequirementReplan } = await import('./requirement-replan-service');
-  const replan = await attemptRequirementReplan(prisma, taskId);
+  let replan = await attemptRequirementReplan(prisma, taskId);
+  // NOTE: The HTTP verify save runs the commit/PR pipeline in parallel and
+  // writes the task row (githubPrId) while this review runs, so the review's
+  // final re-read sees `stale_task`. Throwing it as a generic error blocked
+  // trendline task 1528 after PR #26 was open, and the blocked-retry sweep
+  // reset it to draft (2026-11-22). The review result is cached per content
+  // snapshot, so one re-read settles it; a second stale_task still fails.
+  if (!replan.committed && replan.reason === 'stale_task') {
+    replan = await attemptRequirementReplan(prisma, taskId);
+  }
   if (replan.committed) return 'research_done';
   if (replan.reason !== 'no_mismatch') {
     // NOTE: Expected state-guard holds (theme_paused etc.) must surface as the same
