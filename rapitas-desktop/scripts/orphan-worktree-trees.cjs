@@ -42,8 +42,16 @@ function runsWorktreeProgram(p) {
  */
 const PROTECTED = /^(claude|explorer|windowsterminal|wt|code|cursor|devenv|idea64|rider64)\.exe$/i;
 
-/** Only what an agent starts can be a root: a shell or a runtime. */
-const ROOT_KIND = /^(node|bun|bash|sh|cmd|powershell|pwsh|go|codex|python|npm)\.exe$/i;
+/**
+ * Only what an agent starts can be a root: a shell, a runtime or a package manager.
+ *
+ * NOTE: pnpm, yarn and npx ship standalone .exe launchers. TempoRaid task 1347's
+ * runtime preview was `pnpm.exe -C apps/web run dev …`; without pnpm here its
+ * orphaned tree was never a candidate and held :3001 as a ghost socket until it
+ * was stopped by hand (2026-11-23).
+ */
+const ROOT_KIND =
+  /^(node|bun|bash|sh|cmd|powershell|pwsh|go|codex|python|npm|npx|pnpm|pnpx|yarn)\.exe$/i;
 
 function isProtected(p) {
   return PROTECTED.test(p.Name || '');
