@@ -9,7 +9,7 @@
  * restart for 19 minutes. Not responsible for deciding when to shut down.
  */
 import { createLogger } from '../../../../config/logger';
-import { cancelIdleTimer, registry } from './runtime-server-registry-types';
+import { cancelIdleTimer, registry, type RegistryEntry } from './runtime-server-registry-types';
 import { stopOwnedAndVerify } from './runtime-server-registry-lifecycle';
 
 const log = createLogger('runtime-smoke:shutdown');
@@ -22,6 +22,23 @@ export interface RuntimeServerShutdownResult {
   attempted: number;
   stopped: number;
   timedOut: boolean;
+}
+
+/**
+ * Cancel an entry that is still starting: before the spawn it must not happen,
+ * after the spawn the tree is stopped without waiting for identities.
+ *
+ * NOTE: stopOwnedAndVerify quarantines an entry with no identities and returns,
+ * which is every `starting` entry until its spawn is snapshotted. On 2026-11-23
+ * 00:08 a restart landed while task 1307's runtime check was starting; the
+ * spawn went ahead after the sweep, the preview (pnpm → vite) inherited the
+ * dying backend's socket and port 3001 stayed LISTENING under a dead pid.
+ * spawnNewEntry checks `startCancelled` right before launching, and the launch
+ * itself is synchronous, so the flag plus `app.stop()` cover both sides.
+ */
+function cancelStart(entry: RegistryEntry): void {
+  entry.startCancelled = true;
+  if (entry.app && !entry.app.hasExited()) entry.app.stop();
 }
 
 /**
@@ -44,7 +61,10 @@ export async function stopAllRuntimeServersForShutdown(
   );
   if (entries.length === 0) return { attempted: 0, stopped: 0, timedOut: false };
   log.info({ count: entries.length, reason }, '[shutdown] stopping owned runtime servers');
-  for (const entry of entries) cancelIdleTimer(entry);
+  for (const entry of entries) {
+    cancelIdleTimer(entry);
+    if (entry.state === 'starting') cancelStart(entry);
+  }
   const sweep = Promise.allSettled(entries.map((entry) => stopOwnedAndVerify(entry, reason)));
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<'timeout'>((resolve) => {
