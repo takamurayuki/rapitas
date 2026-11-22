@@ -22,8 +22,22 @@ mock.module('../../config/logger', () => ({
 }));
 
 const mockTaskUpdate = mock(() => Promise.resolve({}));
+/** Latest requirement-replan-exhausted transition, or null. */
+let exhaustedAtFixture: Date | null = null;
+/** When plan.md was last written, or null when there is no row. */
+let planUpdatedAtFixture: Date | null = null;
 mock.module('../../config/database', () => ({
-  prisma: { task: { update: mockTaskUpdate } },
+  prisma: {
+    task: { update: mockTaskUpdate },
+    workflowTransition: {
+      findFirst: () =>
+        Promise.resolve(exhaustedAtFixture ? { createdAt: exhaustedAtFixture } : null),
+    },
+    workflowFile: {
+      findFirst: () =>
+        Promise.resolve(planUpdatedAtFixture ? { updatedAt: planUpdatedAtFixture } : null),
+    },
+  },
 }));
 
 let resolvedDir: { dir: string } | null = { dir: '/fake/tasks/1' };
@@ -77,6 +91,8 @@ const THIN_CONTENT = '短い';
 describe('reconcileStatusFromExistingArtifacts', () => {
   beforeEach(() => {
     pendingRevisionFixture = null;
+    exhaustedAtFixture = null;
+    planUpdatedAtFixture = null;
     mockTaskUpdate.mockClear();
     mockRecordTransition.mockClear();
     mockResolveWorkflowDir.mockClear();
@@ -189,5 +205,41 @@ describe('reconcileStatusFromExistingArtifacts', () => {
     const result = await reconcileStatusFromExistingArtifacts(1, 'draft', true);
     expect(result).toEqual({ status: 'draft', advanced: false });
     expect(mockTaskUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-11-23: TempoRaid task 1347's verify found a counterexample to AC-5 that
+// the approved plan itself allowed; the requirement review concluded the plan
+// must be revised but its replan budget was spent
+// (requirement_replan_budget_exhausted). The task was blocked, the auto-retry
+// reset it to draft, and this reconciler fast-forwarded it to plan_created on
+// the very plan the review had rejected — a guaranteed repeat of the failure.
+describe('reconcileStatusFromExistingArtifacts — plan rejected by the requirement review', () => {
+  beforeEach(() => {
+    pendingRevisionFixture = null;
+    mockTaskUpdate.mockClear();
+    resolvedDir = { dir: '/fake/tasks/1347' };
+    fileContents = { research: REUSABLE_RESEARCH, plan: REUSABLE_PLAN };
+  });
+
+  test('does not reuse a plan.md written before the review exhausted its replan budget', async () => {
+    planUpdatedAtFixture = new Date('2026-11-23T08:00:00Z');
+    exhaustedAtFixture = new Date('2026-11-23T08:35:00Z');
+    const result = await reconcileStatusFromExistingArtifacts(1347, 'draft', true);
+    expect(result).toEqual({ status: 'research_done', advanced: true });
+  });
+
+  test('reuses a plan.md rewritten after that verdict', async () => {
+    exhaustedAtFixture = new Date('2026-11-23T08:35:00Z');
+    planUpdatedAtFixture = new Date('2026-11-23T09:10:00Z');
+    const result = await reconcileStatusFromExistingArtifacts(1347, 'draft', true);
+    expect(result).toEqual({ status: 'plan_created', advanced: true });
+  });
+
+  test('reuses the plan as before when the review never rejected it', async () => {
+    exhaustedAtFixture = null;
+    planUpdatedAtFixture = new Date('2026-11-23T08:00:00Z');
+    const result = await reconcileStatusFromExistingArtifacts(1347, 'draft', true);
+    expect(result).toEqual({ status: 'plan_created', advanced: true });
   });
 });

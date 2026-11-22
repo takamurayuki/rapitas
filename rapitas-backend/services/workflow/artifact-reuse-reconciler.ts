@@ -21,6 +21,40 @@ import type { WorkflowStatus } from './workflow-types';
 
 const log = createLogger('artifact-reuse-reconciler');
 
+/**
+ * Cause recorded when the requirement review rules the plan must change but
+ * has no replan budget left (requirement-replan-commit's
+ * REQUIREMENT_REPLAN_EXHAUSTED_CAUSE). Inlined to keep that module's import
+ * graph out of this one.
+ */
+const REQUIREMENT_REPLAN_EXHAUSTED_CAUSE = 'requirement_replan_budget_exhausted';
+
+/**
+ * Whether the requirement review rejected the current plan.md: its
+ * budget-exhausted verdict is newer than the plan's last write.
+ *
+ * NOTE: TempoRaid task 1347 (2026-11-23): verify found an AC-5 counterexample
+ * that the approved plan itself allowed, the review ruled the plan must change
+ * with no replan budget left, the task was blocked, the auto-retry reset it to
+ * draft and this reconciler fast-forwarded it to plan_created on that same
+ * plan — the failure was guaranteed to repeat. Read failures count as "not
+ * rejected" so a DB hiccup never blocks a legitimate reuse.
+ */
+async function planRejectedByRequirementReview(taskId: number): Promise<boolean> {
+  const verdict = await prisma.workflowTransition
+    .findFirst({
+      where: { taskId, cause: REQUIREMENT_REPLAN_EXHAUSTED_CAUSE },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    })
+    .catch(() => null);
+  if (!verdict) return false;
+  const plan = await prisma.workflowFile
+    .findFirst({ where: { taskId, fileType: 'plan' }, select: { updatedAt: true } })
+    .catch(() => null);
+  return !!plan && plan.updatedAt.getTime() <= verdict.createdAt.getTime();
+}
+
 export interface ArtifactReconcileResult {
   /** The status to use for the rest of this dispatch (advanced or unchanged). */
   status: WorkflowStatus;
@@ -69,7 +103,11 @@ export async function reconcileStatusFromExistingArtifacts(
     // 755, 2026-08-30: the jury failed the same unrevised plan a third time).
     const { getPendingPlanRevision } = await import('./workflow-plan-revision-context');
     const revisionPending = (await getPendingPlanRevision(taskId)) !== null;
-    const planReusable = !revisionPending && !!plan && isReusableArtifact('plan', plan);
+    const planReusable =
+      !revisionPending &&
+      !!plan &&
+      isReusableArtifact('plan', plan) &&
+      !(await planRejectedByRequirementReview(taskId));
     if (planReusable) target = 'plan_created';
   }
 
