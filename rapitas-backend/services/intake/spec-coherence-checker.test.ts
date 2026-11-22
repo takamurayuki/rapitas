@@ -187,3 +187,25 @@ describe('findContaminatedCriteria — タイトル重複経路 (task 1003 実�
     expect(hits).toEqual([]);
   });
 });
+
+// 2026-11-22 (task 1527): a security fix for 521's snapshot API was stopped
+// at intake because its criteria said スナップショット — 8 characters shared with
+// 521's title. The word was the task's own subject; it is in 1527's own title.
+describe('findContaminatedCriteria — own vocabulary of the task', () => {
+  const ref = [{ id: 521, title: '『あの時代』スナップショット — トレンド時間軸共有・比較機能' }];
+  const ownText =
+    '[Security] スナップショット所有者面APIが無認証で、誰でも共有トークンを発行・一覧閲覧できる';
+  const criteria = [
+    '所有者面の 6 ルートは requireAuth を必須にし、認証なしでは 401 を返す',
+    '利用者ごとの所有者判定（自分のスナップショットだけ操作できる）はこのタスクの範囲外とする',
+  ];
+
+  test('a word the task itself uses is not contamination', () => {
+    expect(findContaminatedCriteria(criteria, ref, ownText)).toEqual([]);
+  });
+
+  test('the same criteria still flag when the task never says the word', () => {
+    const hits = findContaminatedCriteria(criteria, ref, '所有者面APIが無認証で誰でも呼べる');
+    expect(hits.map((h) => h.index)).toEqual([2]);
+  });
+});

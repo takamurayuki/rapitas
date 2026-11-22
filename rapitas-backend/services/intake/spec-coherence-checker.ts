@@ -283,5 +283,11 @@ export function findContaminatedCriteria(
   for (const hit of findLiftedByTitleOverlap(criteria, referenced)) {
     if (!flagged.has(hit.index)) out.push(hit);
   }
-  return out.sort((a, b) => a.index - b.index);
+  // NOTE: Words this task itself uses outside any quoted foreign title are its
+  // own vocabulary. Task 1527 (a security fix for 521's snapshot API) was
+  // stopped at intake because its criteria said スナップショット, the subject in
+  // its own title, which also ran 8 characters into 521's title (2026-11-22).
+  const own = ownText ? normalizeForOverlap(stripQuotedTaskTitles(ownText)) : '';
+  const isOwn = (phrase: string) => own !== '' && own.includes(normalizeForOverlap(phrase));
+  return out.filter((hit) => !hit.phrases.every(isOwn)).sort((a, b) => a.index - b.index);
 }
