@@ -76,7 +76,7 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
                 // held on port 3001 by a backend that had already exited, and
                 // they kept the port occupied against its replacement.
                 //
-                // The 60s ping is what surfaces a dead client; closing here is
+                // The periodic ping is what surfaces a dead client; closing here is
                 // what actually releases the socket.
                 realtimeService.removeClient(activeClientId);
                 realtimeService.removeStreamController(activeClientId);
@@ -132,7 +132,7 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
                 // held on port 3001 by a backend that had already exited, and
                 // they kept the port occupied against its replacement.
                 //
-                // The 60s ping is what surfaces a dead client; closing here is
+                // The periodic ping is what surfaces a dead client; closing here is
                 // what actually releases the socket.
                 realtimeService.removeClient(activeClientId);
                 realtimeService.removeStreamController(activeClientId);

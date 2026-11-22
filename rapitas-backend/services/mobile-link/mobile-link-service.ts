@@ -38,7 +38,7 @@ const bunListen: Listen = (port, fetch) => {
     hostname: '0.0.0.0',
     port,
     fetch,
-    // SSE stays open; the backend pings every 60s, so 2 minutes covers one missed ping.
+    // SSE stays open; the backend pings every SSE_PING_INTERVAL_MS (15s), so 2 minutes covers several missed pings.
     idleTimeout: 120,
   });
   return { stop: () => void server.stop(true) };
