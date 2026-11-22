@@ -56,4 +56,21 @@ function recoverGhostSocket(port, deps) {
   }
 }
 
-module.exports = { GHOST_HOLDER_NAMES, recoverGhostSocket };
+/**
+ * The backend handle to keep once a stop has finished: cleared only when it
+ * is still the process this stop was asked to stop.
+ *
+ * NOTE: The stop awaits the port release for up to 20 s, and a start-retry
+ * timer could spawn a new backend in that window. Clearing the handle
+ * unconditionally lost that backend, so the next start saw none and spawned a
+ * second one — two live backends LISTENING on :3001 (2026-11-23 06:53).
+ *
+ * @param {object|null} current - The handle now / 現在の backend
+ * @param {object|null} stopped - The handle the stop began with / 停止対象だった backend
+ * @returns {object|null} The handle to keep / 残す backend
+ */
+function backendHandleAfterStop(current, stopped) {
+  return current === stopped ? null : current;
+}
+
+module.exports = { GHOST_HOLDER_NAMES, recoverGhostSocket, backendHandleAfterStop };

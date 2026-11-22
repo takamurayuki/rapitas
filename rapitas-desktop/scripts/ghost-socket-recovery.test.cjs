@@ -15,7 +15,24 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { GHOST_HOLDER_NAMES, recoverGhostSocket } = require('./ghost-socket-recovery.cjs');
+const {
+  GHOST_HOLDER_NAMES,
+  recoverGhostSocket,
+  backendHandleAfterStop,
+} = require('./ghost-socket-recovery.cjs');
+
+// 2026-11-23 06:53: stopBackendCompletely awaited the port release; meanwhile
+// the armed start-retry timer spawned backend A. The stop then cleared the
+// handle unconditionally, so the health retry's startBackend saw no backend
+// and spawned B beside A — two live backends LISTENING on :3001.
+test('the stop clears only the handle it stopped, never one spawned meanwhile', () => {
+  const stopped = { pid: 1 };
+  const spawnedMeanwhile = { pid: 2 };
+  assert.equal(backendHandleAfterStop(stopped, stopped), null);
+  assert.equal(backendHandleAfterStop(spawnedMeanwhile, stopped), spawnedMeanwhile);
+  assert.equal(backendHandleAfterStop(spawnedMeanwhile, null), spawnedMeanwhile);
+  assert.equal(backendHandleAfterStop(null, stopped), null);
+});
 
 const fakePort = (clearAfterSweeps) => {
   let sweeps = 0;
