@@ -5,7 +5,12 @@
  * 中間の親が消えた後は辿れなくなること（＝事前捕捉が必要な理由）を固定する。
  */
 import { describe, test, expect } from 'bun:test';
-import { collectKillTargets, type ProcessSnapshotEntry } from './process-tree-kill';
+import {
+  collectKillTargets,
+  withDescendants,
+  needsProcessSnapshot,
+  type ProcessSnapshotEntry,
+} from './process-tree-kill';
 
 const snap = (rows: Array<[number, number, string?]>): ProcessSnapshotEntry[] =>
   rows.map(([pid, ppid, cmd]) => ({ pid, ppid, cmd: cmd ?? '' }));
@@ -122,4 +127,51 @@ test('excludes launch ancestors from the final BFS set', () => {
     100,
   );
   expect([...result]).toEqual([101]);
+});
+
+// 2026-11-22 (trendline task 1527): the runtime-check launcher swept the task
+// worktree by command line after the app exited. The Codex verifier running in
+// that worktree has `--cd <worktree>` on its own command line, so the sweep
+// killed it mid-run — five verifier runs in a row, and the task was blocked.
+describe('the workdir sweep spares live agents', () => {
+  const wd = 'C:/Projects/trendline/.worktrees/task-1527-19f5daed';
+  const s = snap([
+    [100, 1, 'node dev-all.mjs'],
+    [500, 1, `codex exec --json --cd ${wd} -m gpt-6-astra -`],
+    [510, 500, `rg -n snapshot ${wd}/internal`],
+    [300, 999, `${wd}/server.exe`],
+  ]);
+
+  test('a live agent and its children are not matched', () => {
+    const spare = withDescendants(s, [500]);
+    expect([...collectKillTargets(s, 100, wd, spare)]).toEqual([300]);
+  });
+
+  test('without a spare set the agent would be matched (the incident)', () => {
+    expect([...collectKillTargets(s, 100, wd)].sort()).toEqual([300, 500, 510]);
+  });
+
+  test('withDescendants collects the whole subtree', () => {
+    expect([...withDescendants(s, [500])].sort()).toEqual([500, 510]);
+  });
+});
+
+// 2026-11-22: #1683's post-exit reap passed knownTargets AND workdir, but the
+// snapshot (and with it the workdir sweep) only ran without knownTargets — so
+// the sweep the reap was added for never happened.
+describe('needsProcessSnapshot', () => {
+  test('a workdir sweep needs the snapshot even when descendants are known', () => {
+    expect(
+      needsProcessSnapshot('win32', { knownTargets: [1], workdir: 'C:/x/.worktrees/t-1' }),
+    ).toBe(true);
+  });
+  test('known descendants alone do not', () => {
+    expect(needsProcessSnapshot('win32', { knownTargets: [1] })).toBe(false);
+  });
+  test('neither given: the snapshot finds the tree', () => {
+    expect(needsProcessSnapshot('win32', {})).toBe(true);
+  });
+  test('never on other platforms (no Windows snapshot there)', () => {
+    expect(needsProcessSnapshot('linux', { workdir: '/x/.worktrees/t-1' })).toBe(false);
+  });
 });
