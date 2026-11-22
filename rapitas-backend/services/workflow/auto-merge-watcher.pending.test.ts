@@ -11,6 +11,8 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 // so omitting any export would crash importers.
 let draftFixture: boolean | null = false;
 mock.module('./auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => evaluateFixture,
   readPrChecks: mock(() => Promise.resolve([{ name: 'Lint Code', bucket: 'pass' }])),

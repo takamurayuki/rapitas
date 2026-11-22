@@ -10,6 +10,8 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 mock.module('./auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => 'pass',
   readPrChecks: async () => [{ name: 'Lint Code', bucket: 'pass' }],

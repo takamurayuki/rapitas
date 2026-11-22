@@ -22,6 +22,8 @@ const mockReadMergeState = mock(() =>
 const mockReadHeadSha = mock(() => Promise.resolve('sha-current'));
 const mockUpdatePrBranch = mock(() => Promise.resolve(true));
 mock.module('../../services/workflow/auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   blockingChecks: () => new Set(['Lint Code']),
   evaluateAutoMergeChecks: () => 'fail',
   readPrChecks: mockReadPrChecks,

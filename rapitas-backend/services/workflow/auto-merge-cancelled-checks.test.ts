@@ -77,6 +77,8 @@ mock.module('../../config/database', () => ({
 }));
 
 mock.module('./auto-merge-checks', () => ({
+  // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
+  readPrState: async () => 'open',
   ghPath: () => 'gh',
   readHeadSha: mock(async () => 'deadbeef'),
 }));

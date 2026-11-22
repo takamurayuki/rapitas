@@ -42,13 +42,13 @@ import { reapStalePrs } from './stale-pr-reaper';
 import { reconcilePrStates } from './pr-state-reconciler';
 import { readyPullRequest } from '../agents/orchestrator/git-operations/pr/pr-draft-ops';
 import { resolveDraftHold } from './auto-merge-draft-promotion';
+import { handlePendingTimeout } from './auto-merge-pending-timeout';
 
 const log = createLogger('workflow:auto-merge-watcher');
 
 /** Poll cadence. CI takes minutes, so a 60s tick is plenty. */
 const POLL_INTERVAL_MS = 60_000;
 /** Give up waiting for CI after this long and flag the PR for review. */
-const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
 /**
  * File a conflict-resolution task at most this many times for one PR before
  * giving up and blocking for manual review. Each re-file happens only AFTER the
@@ -466,16 +466,7 @@ export class AutoMergeWatcher {
       return;
     }
 
-    // pending / unknown — wait, unless we have waited too long.
-    const since = (c.waitSince ?? c.completedAt)?.getTime() ?? Date.now();
-    if (Date.now() - since > PENDING_TIMEOUT_MS) {
-      await mark(c.taskId, 'auto_merge_blocked', 'ci timeout');
-      await notify({
-        taskId: c.taskId,
-        type: 'auto_merge_timeout',
-        title: '自動マージ保留（CIタイムアウト）',
-        message: `PR #${c.prNumber} のCIが時間内に完了しなかったため自動マージを保留しました。`,
-      });
-    }
+    // pending / unknown — wait; past the window, confirm the PR is still open first.
+    await handlePendingTimeout(c, { mark });
   }
 }
