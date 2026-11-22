@@ -111,4 +111,20 @@ describe('buildSanitizedSpawnEnv', () => {
       expect(env.OPENAI_API_KEY).toBeUndefined();
     });
   });
+
+  // 2026-11-22: rapitas-backend/.env sets NODE_ENV=development and Bun loads it
+  // into process.env, so every agent and every app under test inherited it.
+  // Trendline's `next build` then failed (concern #14840, task 1523). The run
+  // mode belongs to the project being built, not to rapitas.
+  test("NODE_ENV is rapitas's own run mode and is not handed down", () => {
+    withEnv({ NODE_ENV: 'development' }, () => {
+      expect(buildSanitizedSpawnEnv().NODE_ENV).toBeUndefined();
+    });
+  });
+
+  test('a caller may still set NODE_ENV explicitly through overrides', () => {
+    withEnv({ NODE_ENV: 'development' }, () => {
+      expect(buildSanitizedSpawnEnv({ NODE_ENV: 'test' }).NODE_ENV).toBe('test');
+    });
+  });
 });

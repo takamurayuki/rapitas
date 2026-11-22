@@ -19,6 +19,12 @@ const SENSITIVE_ENV_KEY_PATTERN =
 // still sensitive (or would otherwise false-positive-survive it).
 const SENSITIVE_ENV_KEYS = new Set(['ENCRYPTION_KEY', 'DATABASE_URL', 'DIRECT_DATABASE_URL']);
 
+// NOTE: Not secret, but rapitas's own run mode: rapitas-backend/.env sets
+// NODE_ENV=development and Bun loads it into process.env, so every agent and
+// every app under test inherited it and another project's `next build` failed
+// (concern #14840, task 1523; 2026-11-22). The project picks its own mode.
+const BACKEND_RUNTIME_KEYS = new Set(['NODE_ENV']);
+
 // Never strip these even if they match the pattern above — the CLI itself
 // authenticates with them (subscription OR API-key mode, depending on how
 // the operator has it configured). Only the aux-AI CLI path deliberately
@@ -44,7 +50,11 @@ export function buildSanitizedSpawnEnv(
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
     if (keepPrefixes.some((prefix) => key.startsWith(prefix))) continue;
-    if (SENSITIVE_ENV_KEYS.has(key) || SENSITIVE_ENV_KEY_PATTERN.test(key)) {
+    if (
+      SENSITIVE_ENV_KEYS.has(key) ||
+      BACKEND_RUNTIME_KEYS.has(key) ||
+      SENSITIVE_ENV_KEY_PATTERN.test(key)
+    ) {
       delete env[key];
     }
   }
