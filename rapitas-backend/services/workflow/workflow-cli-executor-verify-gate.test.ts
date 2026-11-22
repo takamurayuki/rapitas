@@ -154,6 +154,25 @@ describe('resolveVerifyPhaseStatus — 完了と必須マージ待ちの分岐',
     expect(completeReview).not.toHaveBeenCalled();
   });
 
+  // 2026-11-22 (trendline task 1528): the HTTP verify save committed and opened
+  // PR #26 while this path's requirement review ran; the review then saw the
+  // task row changed (stale_task) and the generic error blocked a verified task,
+  // which the blocked-retry sweep reset to draft.
+  test('a stale_task from a concurrent write is re-reviewed once, not blocked', async () => {
+    reviewReplan.mockResolvedValueOnce({ committed: false, reason: 'stale_task' });
+    await resolveVerifyPhaseStatus(params());
+    expect(reviewReplan).toHaveBeenCalledTimes(2);
+    expect(completeReview).toHaveBeenCalled();
+  });
+
+  test('a stale_task that persists after the retry is still an error', async () => {
+    reviewReplan
+      .mockResolvedValueOnce({ committed: false, reason: 'stale_task' })
+      .mockResolvedValueOnce({ committed: false, reason: 'stale_task' });
+    await expect(resolveVerifyPhaseStatus(params())).rejects.toThrow('stale_task');
+    expect(reviewReplan).toHaveBeenCalledTimes(2);
+  });
+
   test('task 1236: an unclassified hold reason stays a generic Error', async () => {
     reviewReplan.mockResolvedValueOnce({ committed: false, reason: 'something_unknown' });
     const err = await resolveVerifyPhaseStatus(params()).catch((e: Error) => e);
