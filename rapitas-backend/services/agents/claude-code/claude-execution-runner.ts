@@ -17,12 +17,8 @@ import { tmpdir } from 'os';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
-import {
-  registerProcess,
-  unregisterProcess,
-  killProcessTreeSafely,
-  captureDescendants,
-} from '../agent-process-tracker';
+import { registerProcess, unregisterProcess } from '../agent-process-tracker';
+import { scheduleAgentReap } from '../agent-reap';
 import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
 import { buildSanitizedSpawnEnv } from '../../../utils/agent';
@@ -308,12 +304,8 @@ export async function runClaudeExecution(
         // Capture descendants NOW, while the parent links are still live — a
         // command the agent launched can outlive both the agent and the shell
         // that started it, and is then unreachable from the root.
-        const known = captureDescendants(closedPid);
-        const reap = setTimeout(
-          () => killProcessTreeSafely(closedPid, { knownTargets: known }),
-          3000,
-        );
-        (reap as { unref?: () => void }).unref?.();
+        // Also sweeps detached processes naming the task worktree (agent-reap.ts).
+        scheduleAgentReap(closedPid, workDir);
       }
       const executionTimeMs = Date.now() - startTime;
 
