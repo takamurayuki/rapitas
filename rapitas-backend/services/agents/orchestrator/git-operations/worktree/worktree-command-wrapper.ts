@@ -90,7 +90,18 @@ export async function ensureRunCheckedWrapper(
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
   const content = await fsPromises.readFile(source, 'utf8');
-  await fsPromises.writeFile(destination, withLintDisabled(content), 'utf8');
+  try {
+    // 'wx' creates the file only if it is still absent, so a wrapper that
+    // appeared after the existsSync check above is never overwritten.
+    await fsPromises.writeFile(destination, withLintDisabled(content), {
+      encoding: 'utf8',
+      flag: 'wx',
+    });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    await excludeQuietly(worktreePath, RUN_ARTIFACT_PATTERNS);
+    return 'present';
+  }
   await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, ...RUN_ARTIFACT_PATTERNS]);
   return 'copied';
 }
