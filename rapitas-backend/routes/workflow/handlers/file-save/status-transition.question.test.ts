@@ -352,7 +352,27 @@ test('運用者作業待ちの質問は、エージェントの質問予算を�
   );
 });
 
-test('運用者作業でない選択肢を推奨している質問は、従来どおり予算で止まる', async () => {
+// NOTE: This used to expect a block. Since 2026-11-23 an exhausted agent
+// budget adopts a safe recommendation instead (plan-question-budget-gate,
+// TempoRaid task 1347's block → draft → same plan → same question loop).
+test('予算を使い切っても、安全な推奨案（運用者作業でもゲート変更でもない）なら止めずに自動採用へ回す', async () => {
+  workflowStatus = 'plan_approved';
+  status = 'in-progress';
+  planQuestionCount = 3;
+  const result = await computeAndApplyStatusTransition({
+    taskId: 901,
+    fileType: 'question',
+    currentStatus: 'plan_approved',
+    savedContent: operatorWaitQuestion('B'),
+  });
+  expect(result.newStatus).toBe('awaiting_question');
+  expect(blockPlanQuestionOverBudget).not.toHaveBeenCalled();
+  expect(recordTransition).toHaveBeenCalledWith(
+    expect.objectContaining({ cause: 'plan_question_budget_auto_adopt' }),
+  );
+});
+
+test('予算を使い切り、推奨案を自動採用できない質問は、従来どおり予算で止まる', async () => {
   workflowStatus = 'plan_approved';
   status = 'in-progress';
   planQuestionCount = 3;
@@ -361,7 +381,7 @@ test('運用者作業でない選択肢を推奨している質問は、従来�
       taskId: 901,
       fileType: 'question',
       currentStatus: 'plan_approved',
-      savedContent: operatorWaitQuestion('B'),
+      savedContent: '# 質問\n\n選択肢の無い自由記述の質問です。',
     }),
   ).rejects.toThrow(/lifetime cap/);
   expect(blockPlanQuestionOverBudget).toHaveBeenCalledWith(901, 3, 3, 'agent');
