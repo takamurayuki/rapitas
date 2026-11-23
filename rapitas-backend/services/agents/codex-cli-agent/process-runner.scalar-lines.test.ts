@@ -142,6 +142,21 @@ describe('spawnCodexProcess — raw lines that are JSON scalars', () => {
     expect(state.outputBuffer).toBe('42\ntrue\nnull\n');
   });
 
+  // 2026-11-23: TempoRaid task 1347's planner wrote its declaration on one
+  // line (`{"version":1,"files":[...]}`). That line is a JSON object, so the
+  // handler took it for an event with no type and dropped it, and the saved
+  // plan had an empty ```json:plan-declaration fence.
+  test('keeps a one-line JSON object that has no Codex event type', async () => {
+    const line =
+      '{"version":1,"files":["apps/web/src/a.ts"],"commands":["pnpm"],"externalHosts":[]}';
+    const { state } = await run(
+      { investigationMode: true },
+      `${line}
+`,
+    );
+    expect(state.outputBuffer).toContain(line);
+  });
+
   test('still treats a JSON object line as a Codex event', async () => {
     const { state, callbacks } = await run(
       { investigationMode: true },

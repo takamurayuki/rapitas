@@ -200,7 +200,16 @@ function createStdoutLineHandler(
       // agent wrote. Treating it as an event dropped the comma-less last
       // element of every JSON array in TempoRaid task 1403's plan four times
       // (2026-11-23), and the planner was blamed for an edit it had made.
-      if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+      // NOTE: An object is still text unless it carries Codex's string `type`.
+      // TempoRaid task 1347's planner wrote its declaration as one JSON line
+      // (`{"version":1,"files":[...]}`), which was taken for a typeless event
+      // and dropped, leaving an empty json:plan-declaration fence (2026-11-23).
+      if (
+        json === null ||
+        typeof json !== 'object' ||
+        Array.isArray(json) ||
+        typeof (json as { type?: unknown }).type !== 'string'
+      ) {
         throw new Error('not a Codex event');
       }
       const event = json as { type?: unknown };
