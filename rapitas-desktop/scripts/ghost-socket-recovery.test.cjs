@@ -19,7 +19,20 @@ const {
   GHOST_HOLDER_NAMES,
   recoverGhostSocket,
   backendHandleAfterStop,
+  backendStartRetryPlan,
 } = require('./ghost-socket-recovery.cjs');
+
+// 2026-11-23: dev.js gave up after 20 refused starts (about 5 minutes) twice
+// while an orphaned preview held :3001; each time the app needed a manual
+// restart even after the holder was gone. The retry never ends now — it only
+// slows down — and the operator is told once, when it slows down.
+test('retries fast at first, then keeps retrying slowly and notifies once', () => {
+  assert.deepEqual(backendStartRetryPlan(1), { delayMs: 15000, notify: false });
+  assert.deepEqual(backendStartRetryPlan(20), { delayMs: 15000, notify: false });
+  assert.deepEqual(backendStartRetryPlan(21), { delayMs: 60000, notify: true });
+  assert.deepEqual(backendStartRetryPlan(22), { delayMs: 60000, notify: false });
+  assert.deepEqual(backendStartRetryPlan(500), { delayMs: 60000, notify: false });
+});
 
 // 2026-11-23 06:53: stopBackendCompletely awaited the port release; meanwhile
 // the armed start-retry timer spawned backend A. The stop then cleared the
