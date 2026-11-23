@@ -21,6 +21,7 @@ import { budgetSection, resolveBudgetMode } from './workflow-context-budget';
 import { buildGoalAnchor } from './workflow-goal-anchor';
 import type { ImplementerTexts } from './workflow-role-prompts';
 import { liveProcessGuidance } from './live-process-guidance';
+import { planIdentityLine } from './plan-identity';
 
 /**
  * Builds the TDD protocol instruction block appended to the implementer
@@ -95,6 +96,19 @@ export function buildDependencyChangeGuidance(language: 'ja' | 'en'): string {
         '- The worktree dependency tree is a shared link. `pnpm install` / `pnpm add` / `npm i` / `yarn add` are rejected in any shape; editing `package.json` installs nothing.\n' +
         '- Check installed binaries with `ls node_modules/.bin` and run them via `pnpm exec <tool>`.\n' +
         '- If a genuinely undeclared package is required, record its name, version, and why it is needed as a plain fact in your final summary (verify), and complete everything that does not need it.';
+}
+
+/**
+ * The plan section of the implementer prompt: heading, the line identifying
+ * the saved approved version (planIdentityLine), then the plan itself.
+ *
+ * @param header - Section heading / 見出し
+ * @param plan - plan.md content / plan.md の内容
+ * @param language - Output language / 出力言語
+ * @returns The section, starting with a blank line / 空行から始まるセクション
+ */
+export function buildPlanSection(header: string, plan: string, language: 'ja' | 'en'): string {
+  return `\n\n${header}\n\n${planIdentityLine(plan, language)}\n\n${plan}`;
 }
 
 /**
@@ -206,7 +220,7 @@ export async function buildImplementerContext(
     ctx += `\n\n${fileSizeAwareness}`;
   }
   if (plan) {
-    ctx += `\n\n${texts.planHeader}\n\n${plan}`;
+    ctx += buildPlanSection(texts.planHeader, plan, language);
   }
   if (question) {
     ctx += `\n\n${texts.reviewHeader}\n\n${question}`;
