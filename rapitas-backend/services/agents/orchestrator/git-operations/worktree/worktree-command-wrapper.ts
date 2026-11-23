@@ -89,9 +89,27 @@ export async function ensureRunCheckedWrapper(
   if (!existsSync(source)) return 'source-missing';
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
-  await fsPromises.copyFile(source, destination);
+  const content = await fsPromises.readFile(source, 'utf8');
+  await fsPromises.writeFile(destination, withLintDisabled(content), 'utf8');
   await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, ...RUN_ARTIFACT_PATTERNS]);
   return 'copied';
+}
+
+/**
+ * Put `/* eslint-disable *\/` at the top of the copy, after a shebang line.
+ *
+ * NOTE: The git exclude hides the copy from commits but not from the
+ * project's `eslint .`. TempoRaid task 1347's `pnpm lint` failed with four
+ * errors, all `require()` in this CommonJS wrapper inside an ESM project, and
+ * the implementer stopped to ask (2026-11-23). The wrapper is rapitas's
+ * tooling, so the project's lint has nothing to say about it.
+ */
+function withLintDisabled(content: string): string {
+  const header = '/* eslint-disable */\n';
+  if (!content.startsWith('#!')) return header + content;
+  const end = content.indexOf('\n');
+  if (end === -1) return `${content}\n${header}`;
+  return content.slice(0, end + 1) + header + content.slice(end + 1);
 }
 
 /** Add patterns to the repository's local exclude list, ignoring failures. */
