@@ -28,6 +28,17 @@ export const PLAN_QUESTION_AUTO_ADOPT_CAUSE = 'plan_question_budget_auto_adopt';
 /** How long to let the question.md save commit before answering it. */
 const AUTO_ADOPT_DELAY_MS = 3_000;
 
+/**
+ * Rounds past the cap that may still auto-adopt; beyond them the task blocks.
+ *
+ * NOTE: Unbounded adoption looped TempoRaid task 1403 (2026-11-23): its
+ * planner kept producing a broken plan (a Codex output bug dropped lines), the
+ * implementer asked the same question each round, "revise the plan" was
+ * adopted, and the planner failed again — five adopted rounds in under an
+ * hour, with auto-run paused, since answer-driven phases dispatch directly.
+ */
+const MAX_AUTO_ADOPTED_ROUNDS = 2;
+
 /** What happened to the round. */
 export type PlanQuestionBudgetOutcome = 'allowed' | 'auto_adopt';
 
@@ -94,7 +105,14 @@ export async function enforcePlanQuestionBudget(
   const used = axis === 'operator' ? budget.operatorCount : budget.count;
   const cap = axis === 'operator' ? budget.operatorLimit : budget.limit;
 
-  if (axis === 'agent' && block && isQuestionBlockEligibleForAutoAnswer(block).eligible) {
+  // `used` counts the prior rounds, so rounds cap+1 … cap+MAX are adopted.
+  const withinAutoAdopt = used < cap + MAX_AUTO_ADOPTED_ROUNDS;
+  if (
+    axis === 'agent' &&
+    withinAutoAdopt &&
+    block &&
+    isQuestionBlockEligibleForAutoAnswer(block).eligible
+  ) {
     await recordTransition({
       taskId,
       fromStatus: 'plan_approved',
