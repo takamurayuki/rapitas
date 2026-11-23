@@ -55,7 +55,22 @@ describe('ensureRunCheckedWrapper', () => {
     const wt = makeWorktree(makeRepo('temporaid'), 'task-1183');
 
     expect(await ensureRunCheckedWrapper(wt, source)).toBe('copied');
-    expect(readFileSync(join(wt, WRAPPER_RELATIVE_PATH), 'utf8')).toBe('// heartbeat wrapper\n');
+    expect(readFileSync(join(wt, WRAPPER_RELATIVE_PATH), 'utf8')).toBe(
+      '/* eslint-disable */\n// heartbeat wrapper\n',
+    );
+  });
+
+  // 2026-11-23: TempoRaid task 1347's `pnpm lint` failed with 4 errors, all in
+  // the copied wrapper (`require()` in an ESM project). The project's lint was
+  // judging rapitas's tooling, and the implementer had to stop and ask.
+  test("keeps the project's lint off the copy, after a shebang line", async () => {
+    writeFileSync(source, '#!/usr/bin/env node\nconst x = require("x");\n', 'utf8');
+    const wt = makeWorktree(makeRepo('esm-project'), 'task-1347');
+
+    await ensureRunCheckedWrapper(wt, source);
+    expect(readFileSync(join(wt, WRAPPER_RELATIVE_PATH), 'utf8')).toBe(
+      '#!/usr/bin/env node\n/* eslint-disable */\nconst x = require("x");\n',
+    );
   });
 
   test('never overwrites a project that already has one', async () => {

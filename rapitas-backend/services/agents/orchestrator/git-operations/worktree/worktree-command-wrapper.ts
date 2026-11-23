@@ -81,17 +81,46 @@ export async function ensureRunCheckedWrapper(
   source: string,
 ): Promise<WrapperAction> {
   const destination = join(worktreePath, WRAPPER_RELATIVE_PATH);
-  if (existsSync(destination)) {
-    // A wrapper already in place still writes logs, so they are excluded too.
+  // A wrapper already in place still writes logs, so they are excluded too.
+  const present = async (): Promise<WrapperAction> => {
     await excludeQuietly(worktreePath, RUN_ARTIFACT_PATTERNS);
     return 'present';
-  }
-  if (!existsSync(source)) return 'source-missing';
+  };
+  const content = await fsPromises.readFile(source, 'utf8').catch(() => null);
+  if (content === null) return existsSync(destination) ? present() : 'source-missing';
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
-  await fsPromises.copyFile(source, destination);
+  try {
+    // NOTE: 'wx' is the existence check: the file is created only if absent,
+    // so a project's own wrapper is never overwritten and there is no
+    // check-then-write window (CodeQL js/file-system-race).
+    await fsPromises.writeFile(destination, withLintDisabled(content), {
+      encoding: 'utf8',
+      flag: 'wx',
+    });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    return present();
+  }
   await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, ...RUN_ARTIFACT_PATTERNS]);
   return 'copied';
+}
+
+/**
+ * Put `/* eslint-disable *\/` at the top of the copy, after a shebang line.
+ *
+ * NOTE: The git exclude hides the copy from commits but not from the
+ * project's `eslint .`. TempoRaid task 1347's `pnpm lint` failed with four
+ * errors, all `require()` in this CommonJS wrapper inside an ESM project, and
+ * the implementer stopped to ask (2026-11-23). The wrapper is rapitas's
+ * tooling, so the project's lint has nothing to say about it.
+ */
+function withLintDisabled(content: string): string {
+  const header = '/* eslint-disable */\n';
+  if (!content.startsWith('#!')) return header + content;
+  const end = content.indexOf('\n');
+  if (end === -1) return `${content}\n${header}`;
+  return content.slice(0, end + 1) + header + content.slice(end + 1);
 }
 
 /** Add patterns to the repository's local exclude list, ignoring failures. */
