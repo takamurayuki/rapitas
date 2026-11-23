@@ -128,3 +128,47 @@ describe('buildSanitizedSpawnEnv', () => {
     });
   });
 });
+
+// 2026-11-23: Git for Windows ships `core.autocrlf=true` in its system
+// gitconfig, and generated projects such as TempoRaid have no .gitattributes.
+// Every worktree working copy therefore had CRLF while the commits were LF, so
+// the project's `prettier --check` failed on files the agent never changed
+// (tasks 1307 and 1403 had to ask for line-ending exceptions).
+describe('buildSanitizedSpawnEnv — line endings', () => {
+  /** The git config pairs carried by GIT_CONFIG_COUNT/KEY_n/VALUE_n. */
+  const gitConfigPairs = (env: NodeJS.ProcessEnv): Record<string, string> => {
+    const out: Record<string, string> = {};
+    const n = Number(env.GIT_CONFIG_COUNT ?? 0);
+    for (let i = 0; i < n; i++)
+      out[String(env[`GIT_CONFIG_KEY_${i}`])] = String(env[`GIT_CONFIG_VALUE_${i}`]);
+    return out;
+  };
+
+  test('turns off core.autocrlf for every spawned process', () => {
+    withEnv({ GIT_CONFIG_COUNT: '' }, () => {
+      delete process.env.GIT_CONFIG_COUNT;
+      expect(gitConfigPairs(buildSanitizedSpawnEnv())).toEqual({ 'core.autocrlf': 'false' });
+    });
+  });
+
+  test('appends after git config entries the environment already carries', () => {
+    withEnv(
+      { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'safe.directory', GIT_CONFIG_VALUE_0: '*' },
+      () => {
+        expect(gitConfigPairs(buildSanitizedSpawnEnv())).toEqual({
+          'safe.directory': '*',
+          'core.autocrlf': 'false',
+        });
+      },
+    );
+  });
+
+  test('leaves an explicit core.autocrlf in the environment alone', () => {
+    withEnv(
+      { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.autocrlf', GIT_CONFIG_VALUE_0: 'input' },
+      () => {
+        expect(gitConfigPairs(buildSanitizedSpawnEnv())).toEqual({ 'core.autocrlf': 'input' });
+      },
+    );
+  });
+});

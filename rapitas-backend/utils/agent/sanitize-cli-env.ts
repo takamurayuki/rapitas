@@ -58,5 +58,34 @@ export function buildSanitizedSpawnEnv(
       delete env[key];
     }
   }
-  return { ...env, ...overrides };
+  return { ...withLfCheckout(env), ...overrides };
+}
+
+/**
+ * Add `core.autocrlf=false` through GIT_CONFIG_COUNT/KEY_n/VALUE_n unless the
+ * environment already sets core.autocrlf that way.
+ *
+ * NOTE: Git for Windows ships `core.autocrlf=true` in its system gitconfig,
+ * and generated projects such as TempoRaid have no .gitattributes. Every
+ * worktree working copy therefore had CRLF while the commits were LF, so the
+ * project's `prettier --check` failed on files no one changed and tasks 1307
+ * and 1403 stopped to ask for line-ending exceptions (2026-11-23). Environment
+ * config reaches only the processes rapitas spawns; the user's git config and
+ * the primary checkout are untouched. A project's .gitattributes still wins.
+ *
+ * @param env - Environment to extend / 追加対象の環境変数
+ * @returns The environment with core.autocrlf=false added / core.autocrlf=false を加えた環境変数
+ */
+export function withLfCheckout(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const count = Number.parseInt(env.GIT_CONFIG_COUNT ?? '', 10);
+  const n = Number.isInteger(count) && count > 0 ? count : 0;
+  for (let i = 0; i < n; i++) {
+    if (env[`GIT_CONFIG_KEY_${i}`]?.toLowerCase() === 'core.autocrlf') return env;
+  }
+  return {
+    ...env,
+    GIT_CONFIG_COUNT: String(n + 1),
+    [`GIT_CONFIG_KEY_${n}`]: 'core.autocrlf',
+    [`GIT_CONFIG_VALUE_${n}`]: 'false',
+  };
 }

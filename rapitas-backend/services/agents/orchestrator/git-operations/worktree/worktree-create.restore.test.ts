@@ -72,6 +72,8 @@ const BRANCH = 'feature/t911-update-task';
 /** Remote refs `git branch -r --list <ref>` reports as existing. */
 let remoteRefs: Set<string> = new Set();
 const execFileCalls: string[][] = [];
+/** The options object each execFile call received, in call order. */
+const execFileOptions: unknown[] = [];
 
 const mockExecFile = mock((file: string, args: unknown, options: unknown, callback?: unknown) => {
   const argv = Array.isArray(args) ? (args as string[]) : [];
@@ -79,6 +81,7 @@ const mockExecFile = mock((file: string, args: unknown, options: unknown, callba
     | ((error: Error | null, result: unknown) => void)
     | undefined;
   execFileCalls.push([file, ...argv]);
+  execFileOptions.push(typeof options === 'function' ? undefined : options);
   let stdout = '';
   if (argv[0] === 'worktree' && argv[1] === 'list')
     stdout = 'worktree /test/repo\nHEAD abcd1234\n\n';
@@ -102,6 +105,7 @@ function addCall(): string[] | undefined {
 
 beforeEach(() => {
   execFileCalls.length = 0;
+  execFileOptions.length = 0;
   remoteRefs = new Set(['origin/develop']);
 });
 
@@ -147,5 +151,23 @@ describe('createWorktree — start point when the local branch is gone', () => {
     expect(add).toBeDefined();
     expect(add![3]).toBe('--no-track');
     expect(add![add!.length - 1]).toBe('origin/develop');
+  });
+});
+
+// 2026-11-23: Git for Windows' system gitconfig sets core.autocrlf=true, so
+// a worktree checked out for a project without .gitattributes got CRLF files
+// over LF commits and the project's prettier check failed (tasks 1307, 1403).
+describe('createWorktree — line endings', () => {
+  test('checks the worktree out with core.autocrlf=false', async () => {
+    await createWorktree('/test/repo', BRANCH, 911, null, 'develop');
+
+    const index = execFileCalls.findIndex((c) => c[1] === 'worktree' && c[2] === 'add');
+    const env = (execFileOptions[index] as { env?: NodeJS.ProcessEnv } | undefined)?.env ?? {};
+    const n = Number(env.GIT_CONFIG_COUNT ?? 0);
+    const pairs = Array.from({ length: n }, (_, i) => [
+      env[`GIT_CONFIG_KEY_${i}`],
+      env[`GIT_CONFIG_VALUE_${i}`],
+    ]);
+    expect(pairs).toContainEqual(['core.autocrlf', 'false']);
   });
 });

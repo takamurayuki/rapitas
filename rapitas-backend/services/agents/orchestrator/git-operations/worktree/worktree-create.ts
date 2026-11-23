@@ -16,6 +16,13 @@ import { WORKTREE_DIR } from '../core/safety';
 import { appendExcludeBlock } from '../core/git-exclude';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
 import { preflightReusedWorktree, preflightWorktree } from './worktree-preflight';
+import { withLfCheckout } from '../../../../../utils/agent/sanitize-cli-env';
+
+// NOTE: Git for Windows' system gitconfig sets core.autocrlf=true; a project
+// without .gitattributes then gets CRLF working files over LF commits and its
+// prettier check fails on untouched files (tasks 1307, 1403, 2026-11-23).
+// Environment config affects only this git call, never the repository config.
+const LF_CHECKOUT_ENV = withLfCheckout(process.env);
 
 // NOTE: execFile (array-args, no shell) instead of exec (shell string) — branch
 // names, paths, and other caller-controlled values are passed as literal argv
@@ -208,6 +215,7 @@ export async function createWorktree(
         cwd: baseDir,
         encoding: 'utf8',
         timeout: GIT_OP_TIMEOUT_MS,
+        env: LF_CHECKOUT_ENV,
       });
     } else if (restoreFrom) {
       logger.info(
@@ -216,7 +224,7 @@ export async function createWorktree(
       await execFileAsync(
         'git',
         ['worktree', 'add', '--track', '-b', effectiveBranchName, worktreePath, restoreFrom],
-        { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS },
+        { cwd: baseDir, encoding: 'utf8', timeout: GIT_OP_TIMEOUT_MS, env: LF_CHECKOUT_ENV },
       );
     } else {
       let parentBranch = 'develop';
@@ -331,6 +339,7 @@ export async function createWorktree(
           cwd: baseDir,
           encoding: 'utf8',
           timeout: GIT_OP_TIMEOUT_MS,
+          env: LF_CHECKOUT_ENV,
         },
       );
     }
