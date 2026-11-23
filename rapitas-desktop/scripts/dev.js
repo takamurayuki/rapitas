@@ -63,6 +63,7 @@ const {
   GHOST_HOLDER_NAMES,
   recoverGhostSocket,
   backendHandleAfterStop,
+  backendStartRetryPlan,
 } = require('./ghost-socket-recovery.cjs');
 const { findOrphanWorktreeTrees } = require('./orphan-worktree-trees.cjs');
 const { maybeRebuildTauri } = require('./tauri-rebuild.cjs');
@@ -2004,32 +2005,36 @@ function showBalloon(title, body) {
   }
 }
 
-const BACKEND_START_RETRY_MS = 15000;
-const BACKEND_START_MAX_RETRIES = 20;
 let backendStartRetries = 0;
 let backendStartRetryTimer = null;
 
 /**
  * Try the backend start again later. A refused start used to be final: on
  * 2026-11-20 another project's dev server held :3001 for half an hour after it
- * left, and nothing retried once it was gone.
+ * left, and nothing retried once it was gone. It then gave up after 20
+ * retries, which needed a manual app restart twice on 2026-11-23; it now never
+ * gives up (backendStartRetryPlan).
  */
 function scheduleBackendStartRetry() {
   if (backendStartRetryTimer) return;
-  if (backendStartRetries >= BACKEND_START_MAX_RETRIES) {
-    console.error(
-      `❌ Gave up starting the backend after ${backendStartRetries} retries — free port ${actualBackendPort} and restart.`,
-    );
-    return;
-  }
   backendStartRetries += 1;
+  const plan = backendStartRetryPlan(backendStartRetries);
+  if (plan.notify) {
+    log.warn(
+      `Backend still cannot start after ${backendStartRetries - 1} retries — port ${actualBackendPort} is held. Retrying every ${plan.delayMs / 1000}s.`,
+    );
+    showBalloon(
+      'rapitas: バックエンドを起動できません',
+      `ポート ${actualBackendPort} を別のプロセスが掴んでいます。1分ごとに自動で再試行を続けます。`,
+    );
+  }
   console.log(
-    `  Retrying the backend start in ${BACKEND_START_RETRY_MS / 1000}s (${backendStartRetries}/${BACKEND_START_MAX_RETRIES})...`,
+    `  Retrying the backend start in ${plan.delayMs / 1000}s (attempt ${backendStartRetries})...`,
   );
   backendStartRetryTimer = setTimeout(() => {
     backendStartRetryTimer = null;
     startBackend();
-  }, BACKEND_START_RETRY_MS);
+  }, plan.delayMs);
 }
 
 function startBackend(retryCount = 0) {

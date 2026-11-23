@@ -73,4 +73,33 @@ function backendHandleAfterStop(current, stopped) {
   return current === stopped ? null : current;
 }
 
-module.exports = { GHOST_HOLDER_NAMES, recoverGhostSocket, backendHandleAfterStop };
+/** Fast retries while a held port is likely to clear on its own (5 minutes at 15 s). */
+const FAST_START_RETRIES = 20;
+const FAST_START_RETRY_MS = 15000;
+/** After that, keep trying once a minute for as long as dev.js runs. */
+const SLOW_START_RETRY_MS = 60000;
+
+/**
+ * How long to wait before the Nth refused backend start is retried, and
+ * whether to tell the operator now.
+ *
+ * NOTE: dev.js used to give up after 20 refusals. On 2026-11-23 an orphaned
+ * runtime preview held :3001 twice for longer than that; once it was stopped
+ * the port was free, but nothing retried and the app had to be restarted by
+ * hand both times. The retry now never ends, only slows down, and the
+ * operator is notified once — when it slows down.
+ *
+ * @param {number} attempt - 1-based retry number / 何回目の再試行か（1始まり）
+ * @returns {{ delayMs: number, notify: boolean }} Delay and whether to notify / 待ち時間と通知の要否
+ */
+function backendStartRetryPlan(attempt) {
+  if (attempt <= FAST_START_RETRIES) return { delayMs: FAST_START_RETRY_MS, notify: false };
+  return { delayMs: SLOW_START_RETRY_MS, notify: attempt === FAST_START_RETRIES + 1 };
+}
+
+module.exports = {
+  GHOST_HOLDER_NAMES,
+  recoverGhostSocket,
+  backendHandleAfterStop,
+  backendStartRetryPlan,
+};
