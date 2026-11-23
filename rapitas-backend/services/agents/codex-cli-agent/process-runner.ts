@@ -24,6 +24,7 @@ import { registerProcess, unregisterProcess } from '../agent-process-tracker';
 import { scheduleAgentReap } from '../agent-reap';
 import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
 import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
+import { parseCodexEventLine } from './codex-event-line';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -194,26 +195,10 @@ function createStdoutLineHandler(
     if (!line.trim()) return;
 
     try {
-      const json: unknown = JSON.parse(line);
-      // NOTE: Only a JSON object is a Codex event. A raw line that is a JSON
-      // scalar — `    "docs/requirements.md"`, `42`, `true` — is text the
-      // agent wrote. Treating it as an event dropped the comma-less last
-      // element of every JSON array in TempoRaid task 1403's plan four times
-      // (2026-11-23), and the planner was blamed for an edit it had made.
-      // NOTE: An object is still text unless it carries Codex's string `type`.
-      // TempoRaid task 1347's planner wrote its declaration as one JSON line
-      // (`{"version":1,"files":[...]}`), which was taken for a typeless event
-      // and dropped, leaving an empty json:plan-declaration fence (2026-11-23).
-      if (
-        json === null ||
-        typeof json !== 'object' ||
-        Array.isArray(json) ||
-        typeof (json as { type?: unknown }).type !== 'string'
-      ) {
-        throw new Error('not a Codex event');
-      }
-      const event = json as { type?: unknown };
-      logger.info(`${logPrefix} Event: ${String(event.type)}`);
+      // Only a typed object is an event; any other line is agent text.
+      const event = parseCodexEventLine(line);
+      if (!event) throw new Error('not a Codex event');
+      logger.info(`${logPrefix} Event: ${event.type}`);
       processJsonEvent(
         event as Parameters<typeof processJsonEvent>[0],
         state,
