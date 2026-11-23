@@ -153,7 +153,7 @@ export async function computeAndApplyStatusTransition(params: {
     // #1215 では「運用者作業が終わるまで保留にする」という正当な
     // エスカレーションが 3/3 で弾かれて blocked になった（B6）。
     if (currentStatus === 'plan_approved') {
-      await enforcePlanQuestionBudget(taskId, questionWaitsOnOperator);
+      await enforcePlanQuestionBudget(taskId, questionWaitsOnOperator, questionBlock);
     }
     // 質問.md が保存されたらユーザー回答待ち状態に遷移する。
     // 復帰先 status は transition log の metadata.previousStatus に保存しておき、
