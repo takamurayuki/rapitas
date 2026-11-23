@@ -9,8 +9,24 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildDependencyChangeGuidance,
+  buildPlanSection,
   buildTddProtocolSection,
 } from './workflow-implementer-context';
+
+// TempoRaid task 1403 (2026-11-23) asked twice whether its plan was the saved
+// approved version; the prompt now says so right under the plan heading.
+describe('buildPlanSection', () => {
+  test('puts the saved-version identity between the heading and the plan', () => {
+    const plan = '# 計画\n\n- [ ] 一つ目\n';
+    const section = buildPlanSection('## 実装計画', plan, 'ja');
+    const heading = section.indexOf('## 実装計画');
+    const identity = section.indexOf('保存されている承認済み');
+    const body = section.indexOf('# 計画');
+    expect(heading).toBeGreaterThanOrEqual(0);
+    expect(identity).toBeGreaterThan(heading);
+    expect(body).toBeGreaterThan(identity);
+  });
+});
 
 describe('buildDependencyChangeGuidance', () => {
   test('ja: forbids install/add in any shape and says to record the package in verify', () => {
