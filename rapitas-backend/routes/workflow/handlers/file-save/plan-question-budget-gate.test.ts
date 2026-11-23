@@ -136,3 +136,40 @@ describe('enforcePlanQuestionBudget', () => {
     expect(mockBlock).toHaveBeenCalledTimes(1);
   });
 });
+
+// 2026-11-23: TempoRaid task 1403's planner kept producing a broken plan (a
+// Codex output bug dropped lines), so every round asked the same question,
+// the recommendation ("revise the plan") was adopted, and the planner failed
+// again — five auto-adopted rounds in under an hour, even with auto-run
+// paused. Auto-adoption is bounded; past it the task blocks as before.
+describe('enforcePlanQuestionBudget — auto-adopt is bounded', () => {
+  const spentBy = (count: number) => {
+    budget = {
+      allowed: false,
+      count,
+      limit: 3,
+      operatorCount: 0,
+      operatorLimit: 3,
+      exhausted: 'agent',
+    };
+  };
+
+  test('adopts for the first rounds past the cap', async () => {
+    spentBy(4);
+    const schedule = mock(() => {});
+    expect(
+      await enforcePlanQuestionBudget(1403, false, block(), { scheduleAutoAdopt: schedule }),
+    ).toBe('auto_adopt');
+    expect(schedule).toHaveBeenCalledTimes(1);
+  });
+
+  test('blocks once the auto-adopted rounds are used up', async () => {
+    spentBy(5);
+    const schedule = mock(() => {});
+    await expect(
+      enforcePlanQuestionBudget(1403, false, block(), { scheduleAutoAdopt: schedule }),
+    ).rejects.toThrow('lifetime cap');
+    expect(schedule).not.toHaveBeenCalled();
+    expect(mockBlock).toHaveBeenCalledTimes(1);
+  });
+});
