@@ -312,6 +312,19 @@ export async function gracefulRestart(): Promise<void> {
   } catch (err) {
     log.warn({ err }, '[dev-restart] workflow runner stop error; continuing shutdown');
   }
+  // NOTE: A runtime-smoke preview that outlives the backend inherits its
+  // listening socket and keeps :3001 a ghost. The shared shutdown sequence has
+  // stopped them since 6b0f7a05, but this restart path never did: on
+  // 2026-11-23 13:43 a dev-restart landed 23 s after task 1403's preview
+  // (pnpm → vite) launched, and the backend stayed down until it was stopped
+  // by hand. Dynamic import keeps the runtime-smoke graph out of this module.
+  try {
+    const { stopAllRuntimeServersForShutdown } =
+      await import('../../agents/verification/runtime-smoke/runtime-server-shutdown');
+    await stopAllRuntimeServersForShutdown('[dev-restart] shutdown');
+  } catch (err) {
+    log.warn({ err }, '[dev-restart] runtime server stop error; continuing shutdown');
+  }
   try {
     await AgentOrchestrator.getInstance(prisma).gracefulShutdown();
   } catch (err) {
