@@ -56,12 +56,68 @@ function toStringList(value: unknown): string[] {
   return out;
 }
 
+/**
+ * Remove commas that directly precede `]` or `}` outside string literals.
+ *
+ * @param text - Fence body / フェンス本文
+ * @returns The body without trailing commas / 末尾カンマを除いた本文
+ */
+function stripTrailingCommas(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      out += ch;
+      if (ch === '\\') {
+        out += text[i + 1] ?? '';
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    if (ch === ',') {
+      const rest = text.slice(i + 1).trimStart();
+      if (rest.startsWith(']') || rest.startsWith('}')) continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
+ * JSON.parse that also accepts trailing commas, reporting when it had to.
+ *
+ * NOTE: TempoRaid tasks 1411 and 1403 (2026-11-23) ended their files array
+ * with `"docs/design.md",`. Strict parsing dropped the whole fence and the
+ * scope check fell back to the prose section, judging against a different
+ * list than the declared one. A trailing comma is the only leniency: any
+ * other syntax error still rejects the fence.
+ */
+function parseFenceJson(body: string, warnings: string[]): unknown {
+  try {
+    return JSON.parse(body);
+  } catch (strictErr) {
+    const relaxed = stripTrailingCommas(body);
+    if (relaxed === body) throw strictErr;
+    const value: unknown = JSON.parse(relaxed);
+    warnings.push(`${PLAN_DECLARATION_FENCE} block had a trailing comma; read it anyway`);
+    return value;
+  }
+}
+
 /** Parse the fence body; null when absent or invalid (with a warning pushed). */
 function readFence(planContent: string, warnings: string[]): PlanDeclaration | null {
   const m = FENCE_RE.exec(planContent);
   if (!m) return null;
   try {
-    const raw = JSON.parse(m[1]) as Record<string, unknown> | null;
+    const raw = parseFenceJson(m[1], warnings) as Record<string, unknown> | null;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       warnings.push(`${PLAN_DECLARATION_FENCE} block is not a JSON object`);
       return null;

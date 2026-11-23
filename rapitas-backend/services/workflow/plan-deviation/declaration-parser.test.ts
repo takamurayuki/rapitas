@@ -80,3 +80,32 @@ describe('hashDeclaration', () => {
     expect(hashDeclaration(a)).toHaveLength(16);
   });
 });
+
+// 2026-11-23: TempoRaid tasks 1411 and 1403 wrote their declaration with a
+// trailing comma after the last file (`"docs/design.md",\n  ],`). JSON.parse
+// rejected the whole fence, so the parser fell back to the prose section and
+// the scope check judged against a different file list than the one declared.
+describe('parsePlanDeclaration — trailing commas', () => {
+  test('reads a fence whose arrays and object end with a trailing comma', () => {
+    const body =
+      '{\n  "version": 1,\n  "files": [\n    "apps/web/src/a.ts",\n    "docs/design.md",\n  ],\n' +
+      '  "commands": ["pnpm", "git",],\n  "externalHosts": [],\n}';
+    const r = parsePlanDeclaration(`# 計画\n\n${fence(body)}\n`);
+    expect(r.source).toBe('fence');
+    expect(r.declaration.files).toEqual(['apps/web/src/a.ts', 'docs/design.md']);
+    expect(r.declaration.commands).toEqual(['pnpm', 'git']);
+    expect(r.warnings.some((w) => w.includes('trailing comma'))).toBe(true);
+  });
+
+  test('leaves a comma inside a string alone', () => {
+    const body = '{"version":1,"files":["docs/a, b.md",],"commands":[],"externalHosts":[]}';
+    const r = parsePlanDeclaration(fence(body));
+    expect(r.declaration.files).toEqual(['docs/a, b.md']);
+  });
+
+  test('still rejects a fence that is broken in other ways', () => {
+    const r = parsePlanDeclaration(fence('{"version":1,"files":["a.ts" "b.ts"]}'));
+    expect(r.source).not.toBe('fence');
+    expect(r.warnings.some((w) => w.includes('could not be parsed'))).toBe(true);
+  });
+});
