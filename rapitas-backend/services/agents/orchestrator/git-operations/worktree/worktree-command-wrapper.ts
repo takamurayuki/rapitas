@@ -81,26 +81,26 @@ export async function ensureRunCheckedWrapper(
   source: string,
 ): Promise<WrapperAction> {
   const destination = join(worktreePath, WRAPPER_RELATIVE_PATH);
-  if (existsSync(destination)) {
-    // A wrapper already in place still writes logs, so they are excluded too.
+  // A wrapper already in place still writes logs, so they are excluded too.
+  const present = async (): Promise<WrapperAction> => {
     await excludeQuietly(worktreePath, RUN_ARTIFACT_PATTERNS);
     return 'present';
-  }
-  if (!existsSync(source)) return 'source-missing';
+  };
+  const content = await fsPromises.readFile(source, 'utf8').catch(() => null);
+  if (content === null) return existsSync(destination) ? present() : 'source-missing';
 
   await fsPromises.mkdir(dirname(destination), { recursive: true });
-  const content = await fsPromises.readFile(source, 'utf8');
   try {
-    // 'wx' creates the file only if it is still absent, so a wrapper that
-    // appeared after the existsSync check above is never overwritten.
+    // NOTE: 'wx' is the existence check: the file is created only if absent,
+    // so a project's own wrapper is never overwritten and there is no
+    // check-then-write window (CodeQL js/file-system-race).
     await fsPromises.writeFile(destination, withLintDisabled(content), {
       encoding: 'utf8',
       flag: 'wx',
     });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
-    await excludeQuietly(worktreePath, RUN_ARTIFACT_PATTERNS);
-    return 'present';
+    return present();
   }
   await excludeQuietly(worktreePath, [WRAPPER_RELATIVE_PATH, ...RUN_ARTIFACT_PATTERNS]);
   return 'copied';
