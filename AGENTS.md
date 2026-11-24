@@ -94,7 +94,7 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 2. `plan.md` 保存後: `plan_created`
 3. Plan 承認後: `plan_approved`
 4. 実装開始後: `in_progress`
-5. `verify.md` 保存後、差分レビューの合格で `verify_done`（レビュー中は `in_progress` のまま `verify_review_pending` の遷移を記録する。自己検証で同じ差分が合格済みなら保存直後に `verify_done`）
+5. `verify.md` 保存後: `verify_done`
 6. 必要な commit / PR / merge などの完了ゲート通過後: `completed` またはタスク `done`
 
 `question.md` を保存すると、どのフェーズからでも `awaiting_question` になり、回答されると直前の状態に戻る。

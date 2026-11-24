@@ -183,7 +183,6 @@ export async function handleSaveFile({
     // task 658 mid-jury, 3.5 minutes before its PR landed).
     const commitPr = await runVerifyPostSaveAutomation({
       completionReceipt: transition.completionReceipt,
-      admission: transition.admission,
       taskId,
       fileType,
       newStatus,

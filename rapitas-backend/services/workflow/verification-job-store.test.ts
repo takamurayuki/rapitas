@@ -140,25 +140,6 @@ describe('getJobByRunId', () => {
     expect(record?.finishedAt).toBeTruthy();
   });
 
-  it('completed: 差分レビューの判定を保存して読み出す', async () => {
-    await recordJobStart(40, 'run-40', 'fp', {
-      operation: 'POST /workflow/tasks/40/run-verification',
-      worktreePath: '/tmp/worktree-40',
-      revision: 'h',
-    });
-    const diffReview = {
-      status: 'reviewed' as const,
-      verdict: 'pass' as const,
-      severity: 0,
-      reasons: [],
-      diffFingerprint: 'fp-40',
-      headSha: 'h',
-      criteriaRevision: 'c',
-    };
-    await recordJobFinish(40, 'run-40', { status: 'completed', ok: true, diffReview });
-    expect((await getJobByRunId(40, 'run-40'))?.diffReview).toEqual(diffReview);
-  });
-
   it('failed: 開始＋失敗イベントで error を含めて返す', async () => {
     await recordJobStart(5, 'run-5', 'fp-5', {
       operation: 'POST /workflow/tasks/5/run-verification',

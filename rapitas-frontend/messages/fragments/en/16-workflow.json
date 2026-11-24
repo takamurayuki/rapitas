@@ -154,7 +154,6 @@
       "planCreated": "Plan created",
       "implementing": "Implementing",
       "verifying": "Verifying",
-      "verifyingDiffReview": "Verifying (diff review)",
       "awaitingAnswer": "Awaiting answer",
       "blocked": "Blocked",
       "blockedGenericHint": "This task is blocked. Check the notification feed or logs for the cause.",
