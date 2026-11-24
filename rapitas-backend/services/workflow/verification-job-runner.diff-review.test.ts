@@ -13,7 +13,11 @@ mock.module('../github/git-exec', () => ({
 mock.module('../../config', () => ({
   prisma: {
     task: {
-      findUnique: mock(async () => ({ title: 'Feature', description: '', acceptanceCriteria: null })),
+      findUnique: mock(async () => ({
+        title: 'Feature',
+        description: '',
+        acceptanceCriteria: null,
+      })),
     },
   },
 }));

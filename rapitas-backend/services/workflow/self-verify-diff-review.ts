@@ -126,7 +126,10 @@ export async function runSelfVerifyDiffReview(p: {
       criteriaRevision: key.criteriaRevision,
     };
   } catch (err) {
-    log.warn({ err, taskId: p.taskId }, '[self-verify-review] Review errored — recorded as unknown');
+    log.warn(
+      { err, taskId: p.taskId },
+      '[self-verify-review] Review errored — recorded as unknown',
+    );
     return { status: 'reviewed', verdict: 'unknown', severity: 0, reasons: [] };
   }
 }
