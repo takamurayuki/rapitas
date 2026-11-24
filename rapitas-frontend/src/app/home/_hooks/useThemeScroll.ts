@@ -12,6 +12,21 @@ export function useThemeScroll(deps: unknown[]) {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [isScrollNeeded, setIsScrollNeeded] = useState(false);
+  // NOTE: Counts each new row element. The row can mount long after the deps
+  // last changed — the home filter can be folded away and starts folded when
+  // that was saved (2026-11-21) — and the effects below only measured on a
+  // deps change, so a row shown later never got its "<" / ">" (2026-11-24).
+  const attachedElementRef = useRef<HTMLDivElement | null>(null);
+  const [elementVersion, setElementVersion] = useState(0);
+  // Runs after every render on purpose: a ref change does not re-render. It
+  // cannot loop — it sets state only when the element differs, then records it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (themeScrollRef.current !== attachedElementRef.current) {
+      attachedElementRef.current = themeScrollRef.current;
+      setElementVersion((v) => v + 1);
+    }
+  });
 
   const checkThemeScrollPosition = useCallback(() => {
     const scrollElement = themeScrollRef.current;
@@ -68,9 +83,10 @@ export function useThemeScroll(deps: unknown[]) {
     }
 
     return () => clearTimeout(timeoutId);
-    // NOTE: deps is intentionally spread here — callers control what triggers re-check.
+    // NOTE: deps is intentionally spread here — callers control what triggers
+    // re-check; elementVersion adds "the row element itself was replaced".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, elementVersion]);
 
   // Additional delayed checks to ensure correct init after page transitions
   useEffect(() => {
