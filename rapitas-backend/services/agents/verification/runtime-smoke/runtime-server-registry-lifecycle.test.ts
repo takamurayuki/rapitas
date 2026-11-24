@@ -69,11 +69,12 @@ mock.module('./runtime-config', () => ({
 let launched = 0;
 let stopSpy = 0;
 let exited = false;
+let exitLog = 'Error: Cannot find module cross-env';
 mock.module('./app-launcher', () => ({
   allocateFreePort: async () => 45999,
   launchApp: () => ({
     pid: (launched++, 999),
-    logs: () => (exited ? ['Error: Cannot find module cross-env'] : []),
+    logs: () => (exited ? [exitLog] : []),
     hasExited: () => exited,
     exitCode: () => (exited ? 1 : null),
     markStopRequested: () => {},
@@ -139,6 +140,7 @@ beforeEach(() => {
   stopSpy = 0;
   launched = 0;
   exited = false;
+  exitLog = 'Error: Cannot find module cross-env';
   snapshotCalls = 0;
   fixedPortHolder = null;
   snapshotFailAfterCall = null;
@@ -268,4 +270,20 @@ test('a fixed port held by a process that is not this worktree is an environment
   expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'foreign_process' });
   expect(launched).toBe(0);
   expect(registry.has(dir)).toBe(false);
+});
+
+// Task 1539 (1519): a dev server that exits at once on a taken port/lock must reach
+// the AcquireFailure with a machine-readable cause, not only the log text.
+test.each([
+  ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
+  ['別のインスタンスが既に起動しています', 'lock_held'],
+])('a launch that exits on "%s" carries cause %s', async (line, cause) => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  exited = true;
+  exitLog = line;
+
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause });
 });

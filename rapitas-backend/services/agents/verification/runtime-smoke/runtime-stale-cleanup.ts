@@ -6,14 +6,15 @@
  * names the environment cause when the port or lock cannot be cleared.
  * Not responsible for spawning, health checks, or the registry's own state.
  *
- * Safety model: a process is stopped only when ALL hold — it listens on a port
- * or holds this worktree's lock, its command line names this worktree at a
- * path boundary, and it is not a protected (port 3001) process, this process
- * or an ancestor of it. Everything else is left alone and reported.
+ * Safety model: every decision is made from ONE snapshot before any signal is
+ * sent. A holder is stopped only when its command line names this worktree at a
+ * path boundary (or it descends from such a process) and it is not a protected
+ * (port 3001) process, this process, or an ancestor of it. If ANY holder of the
+ * fixed port or the lock fails that test, nothing is stopped.
  */
 import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
 import { stopRuntimeProcesses, type RuntimeStopDependencies } from './runtime-process-stop';
-import type { RuntimeProcessIdentity } from './runtime-process-identity';
+import { extendOwnedRuntimeTree, type RuntimeProcessIdentity } from './runtime-process-identity';
 import {
   readRuntimeProcessSnapshot,
   type RuntimeProcessSnapshot,
@@ -51,6 +52,9 @@ const defaults: StaleCleanupDeps = {
   inspectDirectory: inspectRuntimeDirectory,
 };
 
+/** Backend (agent self) port: never cleaned, never a launch target. */
+const BACKEND_PORT = 3001;
+
 function normalizePath(value: string): string {
   const slashed = value.replace(/\\/g, '/');
   return process.platform === 'win32' ? slashed.toLowerCase() : slashed;
@@ -58,7 +62,7 @@ function normalizePath(value: string): string {
 
 /**
  * Whether a command line names the worktree as a whole path, so `task-15` never
- * matches `task-153` and a path inside another directory never matches.
+ * matches `task-153`, `task-15+x` or `task-15別`.
  *
  * @param command - Process command line / コマンドライン
  * @param workdir - Absolute worktree path / worktree の絶対パス
@@ -73,8 +77,10 @@ export function commandReferencesWorkdir(command: string, workdir: string): bool
     const at = haystack.indexOf(target, from);
     if (at < 0) return false;
     const before = at === 0 ? ' ' : haystack[at - 1];
+    // End of the command counts as a boundary.
     const after = haystack[at + target.length] ?? ' ';
-    if (/[\s"'=(]/.test(before) && !/[A-Za-z0-9_.@~-]/.test(after)) return true;
+    // Only a separator, quote or the end may follow: anything else is another path.
+    if (/[\s"'=(]/.test(before) && /[\s/"';,)]/.test(after)) return true;
     from = at + 1;
   }
 }
@@ -97,18 +103,26 @@ export function fixedPortOf(url: string): number | null {
 }
 
 /**
- * Classify launch logs that show the port or lock was taken (post-launch signal).
+ * Explicit ports a start command pins (`--port N`, `-p N`, `PORT=N`, `host:N`).
+ * `{port}` placeholders are OS-allocated and never listed.
  *
- * @param logs - Captured launch output / 起動ログ
- * @returns The environment cause, or undefined when the logs show neither / 原因
+ * @param start - Start command template / 起動コマンド
+ * @returns Distinct fixed ports / 固定ポート一覧
  */
-export function classifyLaunchLogCause(logs: string[]): RuntimeEnvCause | undefined {
-  const text = logs.join('\n');
-  if (/EADDRINUSE|address already in use|Port \d+ is (?:already )?in use/i.test(text))
-    return 'port_in_use';
-  if (/already running|既に起動しています|already (?:locked|in use by another)/i.test(text))
-    return 'lock_held';
-  return undefined;
+export function extractStartPorts(start: string): number[] {
+  const found = new Set<number>();
+  const patterns = [
+    /(?:^|\s)(?:--port|-p)(?:\s+|=)(\d{2,5})(?=\s|$)/g,
+    /\bPORT=(\d{2,5})\b/g,
+    /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b/g,
+  ];
+  for (const re of patterns) {
+    for (const m of start.matchAll(re)) {
+      const port = Number(m[1]);
+      if (port > 0 && port < 65536) found.add(port);
+    }
+  }
+  return [...found];
 }
 
 function ancestorsOf(pid: number, rows: RuntimeProcessIdentity[]): Set<number> {
@@ -122,32 +136,78 @@ function ancestorsOf(pid: number, rows: RuntimeProcessIdentity[]): Set<number> {
 
 /**
  * Clear leftovers of an earlier launch from this worktree, then confirm the
- * fixed port and the runtime lock are free.
+ * fixed port(s) and the runtime lock are free.
  *
  * @param workdir - Worktree about to be launched / 起動対象 worktree
- * @param cfg - Runtime config (only `url` is read) / 設定
+ * @param cfg - Runtime config (`url`, `start` are read) / 設定
  * @param deps - Injection points / 注入点
  * @returns ok with the stopped PIDs, or the environment cause / 結果
  */
 export async function cleanupStaleRuntime(
   workdir: string,
-  cfg: { url: string },
+  cfg: { url: string; start?: string },
   deps: StaleCleanupDeps = defaults,
 ): Promise<StaleCleanupResult> {
+  const ports = [...new Set([fixedPortOf(cfg.url), ...extractStartPorts(cfg.start ?? '')])].filter(
+    (p): p is number => p !== null,
+  );
+  if (ports.includes(BACKEND_PORT)) {
+    return {
+      ok: false,
+      cause: 'port_in_use',
+      reason: `ポート ${BACKEND_PORT} は rapitas バックエンドのため起動確認には使えません`,
+    };
+  }
   const before = await deps.snapshot();
   const directory = await deps.inspectDirectory(workdir, before.processes);
-  const port = fixedPortOf(cfg.url);
   const ancestors = ancestorsOf(process.pid, before.processes);
-  const eligible = (p: RuntimeProcessIdentity): boolean =>
-    !before.protectedPids.has(p.pid) &&
-    p.pid !== process.pid &&
-    !ancestors.has(p.pid) &&
-    commandReferencesWorkdir(p.command, workdir);
-  const listenerPids = new Set((before.listeners ?? []).map((l) => l.pid));
-  const candidates = before.processes.filter(
-    (p) => eligible(p) && (listenerPids.has(p.pid) || p.pid === directory.pid),
-  );
 
+  /** PIDs provably from this worktree: command names it, plus their descendants. */
+  const ownedPids = (snap: RuntimeProcessSnapshot): Set<number> => {
+    const excluded = (pid: number) =>
+      snap.protectedPids.has(pid) || pid === process.pid || ancestors.has(pid);
+    const roots = snap.processes.filter(
+      (p) => !excluded(p.pid) && commandReferencesWorkdir(p.command, workdir),
+    );
+    return new Set(
+      extendOwnedRuntimeTree(roots, snap.processes)
+        .map((p) => p.pid)
+        .filter((pid) => !excluded(pid)),
+    );
+  };
+  const holdersOf = (snap: RuntimeProcessSnapshot) =>
+    (snap.listeners ?? []).filter((l) => ports.includes(l.port));
+
+  if (ports.length > 0 && !before.listeners) {
+    return {
+      ok: false,
+      cause: 'port_in_use',
+      reason: `ポート ${ports.join(',')} の使用状況を確認できません`,
+    };
+  }
+  const owned = ownedPids(before);
+  const holders = holdersOf(before);
+  const strangers = holders.filter((h) => !owned.has(h.pid));
+  if (strangers.length > 0) {
+    return {
+      ok: false,
+      cause: 'foreign_process',
+      reason: `ポート ${[...new Set(strangers.map((h) => h.port))].join(',')} は PID ${strangers.map((h) => h.pid).join(',')} が使用中です（この worktree の起動確認由来と確認できないため停止しません）`,
+    };
+  }
+  const lockHolder =
+    directory.pid === undefined ? undefined : before.processes.find((p) => p.pid === directory.pid);
+  if (lockHolder && !owned.has(lockHolder.pid)) {
+    return {
+      ok: false,
+      cause: lockHolder.command ? 'lock_held' : 'foreign_process',
+      reason: directory.reason ?? `runtime ロックを PID ${lockHolder.pid} が保持しています`,
+    };
+  }
+
+  const targets = new Set(holders.map((h) => h.pid));
+  if (lockHolder) targets.add(lockHolder.pid);
+  const candidates = before.processes.filter((p) => targets.has(p.pid));
   let after = before;
   let afterDirectory = directory;
   if (candidates.length > 0) {
@@ -167,26 +227,15 @@ export async function cleanupStaleRuntime(
     afterDirectory = await deps.inspectDirectory(workdir, after.processes);
   }
 
-  if (port !== null) {
-    if (!after.listeners) {
-      return {
-        ok: false,
-        cause: 'port_in_use',
-        reason: `ポート ${port} の使用状況を確認できません`,
-      };
-    }
-    const holders = after.listeners.filter((l) => l.port === port);
-    if (holders.length > 0) {
-      const ours = holders.every((h) => {
-        const row = after.processes.find((p) => p.pid === h.pid);
-        return row !== undefined && eligible(row);
-      });
-      return {
-        ok: false,
-        cause: ours ? 'port_in_use' : 'foreign_process',
-        reason: `ポート ${port} は PID ${holders.map((h) => h.pid).join(',')} が使用中です${ours ? '' : '（この worktree のプロセスと確認できないため停止しません）'}`,
-      };
-    }
+  const remaining = holdersOf(after);
+  if (remaining.length > 0) {
+    const ownedNow = ownedPids(after);
+    const ours = remaining.every((h) => ownedNow.has(h.pid));
+    return {
+      ok: false,
+      cause: ours ? 'port_in_use' : 'foreign_process',
+      reason: `ポート ${[...new Set(remaining.map((h) => h.port))].join(',')} は PID ${remaining.map((h) => h.pid).join(',')} が使用中です`,
+    };
   }
   if (!afterDirectory.free) {
     return {

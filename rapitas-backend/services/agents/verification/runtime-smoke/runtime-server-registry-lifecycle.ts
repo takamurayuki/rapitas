@@ -8,6 +8,7 @@
  */
 import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
 import { cleanupStaleRuntime, RuntimeEnvBlockedError } from './runtime-stale-cleanup';
+import { classifyLaunchLogCause } from './runtime-env-cause';
 import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
@@ -281,9 +282,18 @@ export async function spawnNewEntry(
     }
 
     if (!healthy || entry.startCancelled) {
+      // A launch that died on a taken port/lock says so in its log: an environment
+      // cause, not evidence about the app.
+      const logCause = classifyLaunchLogCause(app.logs());
       const result = failure(
         `アプリが ${cfg.readyTimeoutMs / 1_000}s 以内に起動しませんでした (${baseUrl}${cfg.healthPath} 無応答)`,
-        { logs: app.logs(), exitCode: app.exitCode(), hasExited: app.hasExited() },
+        {
+          logs: app.logs(),
+          exitCode: app.exitCode(),
+          hasExited: app.hasExited(),
+          unverifiable: logCause ? true : undefined,
+          cause: logCause,
+        },
       );
       await stopOwnedAndVerify(entry, 'startup-failure');
       return result;
@@ -363,6 +373,7 @@ export async function spawnNewEntry(
           if (registry.get(key) === entry) registry.delete(key);
           return failure(`起動に失敗しました: ${String(error)}`, {
             unverifiable: true,
+            cause: classifyLaunchLogCause(entry.app.logs()),
             logs: entry.app.logs(),
             exitCode: entry.app.exitCode(),
             hasExited: true,

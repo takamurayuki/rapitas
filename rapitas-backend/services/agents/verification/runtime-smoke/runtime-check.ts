@@ -19,7 +19,7 @@ import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { applyFeatureReachability, readDeclaredFeatures } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
-import { classifyLaunchLogCause } from './runtime-stale-cleanup';
+import { classifyLaunchLogCause } from './runtime-env-cause';
 
 const log = createLogger('runtime-smoke');
 
