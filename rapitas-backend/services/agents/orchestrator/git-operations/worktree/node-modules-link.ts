@@ -23,6 +23,7 @@ import { SCAN_DEPTH } from './project-manifests';
 import {
   detachLinksSafely,
   isManagedRoot,
+  isWorktreeLocal,
   linkRootEntries,
   managedRootIsUsable,
   removeLink,
@@ -234,4 +235,30 @@ export function worktreeHasUsableModules(worktree: string): boolean {
     }
   }
   return holdsRealInstall(worktree);
+}
+
+/**
+ * Whether a usable root node_modules still has a shape pnpm 12 refuses, so the
+ * bootstrap must re-link it even though dependencies resolve.
+ *
+ * NOTE: Two shapes, both seen on TempoRaid 1420's worktree (2026-11-24): the
+ * whole root is one junction (set up before #1717), or a managed root whose
+ * pnpm state directory was linked to the main tree's. Either way pnpm -r and
+ * --filter fail with ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH.
+ *
+ * @param worktree - Worktree to check / 対象 worktree
+ * @returns Whether the root must be re-linked / ルートの張り直しが必要か
+ */
+export function rootNeedsRelink(worktree: string): boolean {
+  const nodeModules = join(worktree, 'node_modules');
+  const state = inspectLinkPath(nodeModules);
+  if (state === 'link') return true;
+  if (state !== 'managed') return false;
+  try {
+    return readdirSync(nodeModules).some(
+      (name) => isWorktreeLocal(name) && lstatSync(join(nodeModules, name)).isSymbolicLink(),
+    );
+  } catch {
+    return false;
+  }
 }

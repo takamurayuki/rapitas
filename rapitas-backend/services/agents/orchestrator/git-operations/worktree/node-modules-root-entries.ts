@@ -78,6 +78,18 @@ function syncFile(from: string, to: string, src: fs.Stats): void {
 }
 
 /**
+ * pnpm 12 が再帰・filter 実行のたびに書く状態ディレクトリ。worktree ごとに持つ。
+ *
+ * NOTE: メインに残っていた .pnpm-task-run-state-v1 までリンクすると、pnpm は
+ * 状態ディレクトリがリンクだとして同じ ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH で
+ * 拒否する（TempoRaid 1420、2026-11-24）。リンクしなければ、既存のリンクは
+ * 下の余剰エントリの掃除で外れ、pnpm が worktree 内に実ディレクトリを作る。
+ */
+export function isWorktreeLocal(name: string): boolean {
+  return name.startsWith('.pnpm-task-run-state');
+}
+
+/**
  * ディレクトリは junction、ファイルはコピーとして同期する。
  * ローカルの実ディレクトリと未記録ファイルは、余剰エントリの掃除で消さない。
  */
@@ -87,7 +99,7 @@ export function linkRootEntries(target: string, link: string): boolean {
   try {
     const root = lstatOrNull(link);
     if (root && !root.isDirectory()) return false;
-    names = fs.readdirSync(target).filter((name) => name !== ROOT_MARKER);
+    names = fs.readdirSync(target).filter((name) => name !== ROOT_MARKER && !isWorktreeLocal(name));
     fs.mkdirSync(link, { recursive: true });
     saveCopies(link, copies);
   } catch (err) {
