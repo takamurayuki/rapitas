@@ -129,4 +129,26 @@ describe('confirm-link store', () => {
     await store.issue(record('d'), NOW);
     expect((await createConfirmLinkStore({ dir }).get('d'))?.questionDigest).toBe('digest-1');
   });
+  test('a re-issue at the same millisecond still keeps the released old link revoked', async () => {
+    const store = createConfirmLinkStore({ dir });
+    await store.issue(record('old', { issuedAt: NOW }), NOW);
+    expect(await store.reserve('old', NOW)).toBe(true);
+    await store.issue(record('new', { issuedAt: NOW }), NOW);
+    await store.release('old');
+
+    expect((await store.get('old'))?.state).toBe('revoked');
+    expect((await store.list(1)).filter((l) => l.state === 'active')).toHaveLength(1);
+  });
+
+  test('revokeIfActive leaves a link that is being answered untouched', async () => {
+    const store = createConfirmLinkStore({ dir });
+    await store.issue(record('busy'), NOW);
+    await store.reserve('busy', NOW);
+    await store.revokeIfActive('busy', 'question_resolved_internally');
+    expect((await store.get('busy'))?.state).toBe('answering');
+
+    await store.issue(record('idle', { taskId: 2 }), NOW);
+    await store.revokeIfActive('idle', 'question_resolved_internally');
+    expect((await store.get('idle'))?.state).toBe('revoked');
+  });
 });

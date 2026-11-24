@@ -93,18 +93,31 @@ describe('confirm-link audit', () => {
   });
 
   test('an append waits for a running prune, so a fresh line is never judged mid-write', async () => {
+    // A line must already be on file so the prune actually runs (and waits in) isOrphan.
+    await appendConfirmLinkAudit(entry(NOW - 1, 'orphan'), { dir, now: NOW });
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => (release = r));
+    let judged = 0;
     const prune = pruneOrphanConfirmLinkAudits(
-      async () => {
+      async (e) => {
+        judged += 1;
         await gate;
-        return true;
+        return e.linkId === 'orphan';
       },
       { dir },
     );
     const append = appendConfirmLinkAudit(entry(NOW, 'late'), { dir, now: NOW });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(judged).toBe(1);
     release();
     await Promise.all([prune, append]);
     expect((await readConfirmLinkAudit({ dir })).map((e) => e.linkId)).toEqual(['late']);
+  });
+  test('a new line for a link replaces the earlier line of that link (one line per link)', async () => {
+    await appendConfirmLinkAudit(entry(NOW, 'same'), { dir, now: NOW });
+    await appendConfirmLinkAudit(entry(NOW + 5, 'same'), { dir, now: NOW });
+    const lines = await readConfirmLinkAudit({ dir });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].id).toBe(`id-${NOW + 5}`);
   });
 });

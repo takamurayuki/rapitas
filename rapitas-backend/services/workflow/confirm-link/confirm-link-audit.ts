@@ -97,7 +97,8 @@ async function writeEntries(dir: string, entries: ConfirmLinkAuditEntry[]): Prom
 
 /**
  * Append one entry and drop lines past the retention window. Idempotent: an
- * entry whose `id` is already on file is not written twice.
+ * entry whose `id` is already on file is not written twice, and an earlier
+ * line for the same link is replaced.
  *
  * @param entry - The answer about to be applied / 記録する回答
  * @param options - Audit directory and current time / 保存先と現在時刻
@@ -111,8 +112,13 @@ export function appendConfirmLinkAudit(
     const cutoff = now - CONFIRM_LINK_AUDIT_RETENTION_MS;
     const kept = (await readConfirmLinkAudit(options)).filter((e) => Date.parse(e.at) >= cutoff);
     if (kept.some((e) => e.id === entry.id)) return;
-    kept.push(entry);
-    await writeEntries(options.dir, kept);
+    // NOTE: One line per link. A link answers at most once, and an append only
+    // happens while it is reserved from `active`, so an earlier line for the
+    // same link is a lost compensation of an unapplied attempt. Replacing it
+    // keeps the count at one even when that compensation and the prune failed.
+    const others = kept.filter((e) => e.linkId !== entry.linkId);
+    others.push(entry);
+    await writeEntries(options.dir, others);
   });
 }
 

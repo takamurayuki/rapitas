@@ -107,7 +107,7 @@ export async function loadConfirmLinkView(
   if (record.state !== 'active') return GONE;
   const question = await isStillPending(record, deps);
   if (!question) {
-    await deps.store.revoke(record.linkId, 'question_resolved_internally');
+    await deps.store.revokeIfActive(record.linkId, 'question_resolved_internally');
     return GONE;
   }
   return {

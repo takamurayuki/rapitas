@@ -50,6 +50,8 @@ export interface ConfirmLinkStore {
   reserve(linkId: string, now: number): Promise<boolean>;
   markAnswered(linkId: string, now: number): Promise<void>;
   revoke(linkId: string, reason: string): Promise<void>;
+  /** Revoke only an `active` link — for readers that may hold a stale record. */
+  revokeIfActive(linkId: string, reason: string): Promise<void>;
   release(linkId: string): Promise<void>;
   getResourceTags(): Promise<Record<string, string[]>>;
   setResourceTag(resourceId: number, externalPublic: boolean): Promise<void>;
@@ -168,12 +170,26 @@ export function createConfirmLinkStore(options: ConfirmLinkStoreOptions): Confir
         return true;
       });
     },
+    revokeIfActive: async (linkId, reason) => {
+      // NOTE: A page view reads the link before it re-checks the task. If an
+      // answer reserved the link in between, revoking it would make the next
+      // prune delete that answer's audit line (criterion 4).
+      await update(linkId, (l) => {
+        if (l.state !== 'active') return false;
+        l.state = 'revoked';
+        l.revokedReason = reason;
+        return true;
+      });
+    },
     release: async (linkId) => {
       await update(linkId, (l, links) => {
         if (l.state !== 'answering') return false;
         // A newer link for the task was issued while this one was reserved:
         // reopening it would leave two usable links for one decision (Q3).
-        if (links.some((o) => o.taskId === l.taskId && o.issuedAt > l.issuedAt)) {
+        // NOTE: Compared by position, not issuedAt — issue() appends, and two
+        // issues can share a millisecond.
+        const own = links.indexOf(l);
+        if (links.some((o, i) => i > own && o.taskId === l.taskId)) {
           l.state = 'revoked';
           l.revokedReason = 'reissued';
         } else {
