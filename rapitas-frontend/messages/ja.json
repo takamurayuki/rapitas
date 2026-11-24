@@ -2876,6 +2876,26 @@
     }
   },
   "workflow": {
+    "confirmLink": {
+      "openButton": "社外確認リンク",
+      "title": "社外確認リンクを発行",
+      "description": "ログイン不要で A/B のどちらかを1回だけ回答できるリンクです。24時間で失効し、再発行すると以前のリンクは無効になります。",
+      "messageLabel": "依頼文（社外の回答者に表示されます）",
+      "messagePlaceholder": "確認していただきたい内容を書いてください（question.md の本文は表示されません）",
+      "resourcesLabel": "根拠資料の公開範囲",
+      "resourcesEmpty": "このタスクに資料はありません",
+      "externalPublic": "外部公開可",
+      "issueButton": "リンクを発行",
+      "issuing": "発行中...",
+      "issuedUrl": "発行したリンク",
+      "expiresAt": "失効: {time}",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "relativeWarning": "RAPITAS_CONFIRM_LINK_PUBLIC_ORIGIN が未設定のため、相対パスで表示しています。公開ホストを前に付けて共有してください。",
+      "disabled": "RAPITAS_CONFIRM_LINK_SECRET が未設定のため、確認リンクは無効です。",
+      "error": "操作に失敗しました: {message}",
+      "close": "閉じる"
+    },
     "title": "ワークフロー",
     "researchTab": "調査",
     "qaTab": "Q&A",

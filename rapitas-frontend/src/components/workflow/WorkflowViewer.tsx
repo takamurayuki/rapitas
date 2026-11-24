@@ -20,6 +20,7 @@ import { WorkflowFileContent } from './WorkflowFileContent';
 import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 import { IntakeQuestionFlow } from './IntakeQuestionFlow';
 import { StructuredQuestionFlow } from './StructuredQuestionFlow';
+import { ConfirmLinkIssuer } from './confirm-link';
 import {
   splitIntakeQuestion,
   parseIntakeQuestions,
@@ -355,6 +356,7 @@ export default function WorkflowViewer({
                           // block would otherwise be dropped entirely.
                           body={stripOptionsBlock(content)}
                         />
+                        <ConfirmLinkIssuer taskId={taskId} />
                       </div>
                     );
                   }

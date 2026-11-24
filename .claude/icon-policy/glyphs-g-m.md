@@ -37,3 +37,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Medal`                   | 節目の達成（ゴール詳細の「達成を確認」ボタン・確認ダイアログ・達成済みの節目カード — 本人が根拠を書いて確かめた達成。注: `Trophy`/`Award`＝今日のタスク進捗ウィジェットの達成演出とは別概念） |
 | `Megaphone` | 通知の種別「システム通知」（system。`NotificationBell`、#1510。`Bell`＝未知タイプのフォールバックと区別するため） |
 | `MessageSquareWarning` | 通知の種別「PRの変更依頼」（pr_changes_requested。`NotificationBell`、#1510。`MessageSquarePlus`＝エージェントへの追加指示とは別概念） |
+| `MessageSquareShare` | 社外確認リンクの発行（`ConfirmLinkIssuer` — ブロック中の判断事項1件をログイン不要の二択リンクで社外関係者に共有する。注: `MessageSquarePlus`＝エージェントへの追加指示、`MessageSquareWarning`＝PRの変更依頼とは別概念） |

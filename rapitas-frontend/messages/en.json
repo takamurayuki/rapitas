@@ -2876,6 +2876,26 @@
     }
   },
   "workflow": {
+    "confirmLink": {
+      "openButton": "External confirm link",
+      "title": "Issue an external confirm link",
+      "description": "A link that lets someone answer A or B once without logging in. It expires after 24 hours, and issuing a new one revokes the previous link.",
+      "messageLabel": "Request text (shown to the outside respondent)",
+      "messagePlaceholder": "Describe what you need confirmed (the question.md body is not shown)",
+      "resourcesLabel": "Which resources are public",
+      "resourcesEmpty": "This task has no resources",
+      "externalPublic": "Public",
+      "issueButton": "Issue link",
+      "issuing": "Issuing...",
+      "issuedUrl": "Issued link",
+      "expiresAt": "Expires: {time}",
+      "copy": "Copy",
+      "copied": "Copied",
+      "relativeWarning": "RAPITAS_CONFIRM_LINK_PUBLIC_ORIGIN is not set, so the link is shown as a relative path. Prefix it with the public host before sharing.",
+      "disabled": "Confirm links are disabled because RAPITAS_CONFIRM_LINK_SECRET is not set.",
+      "error": "The request failed: {message}",
+      "close": "Close"
+    },
     "title": "Workflow",
     "researchTab": "Research",
     "qaTab": "Q&A",
