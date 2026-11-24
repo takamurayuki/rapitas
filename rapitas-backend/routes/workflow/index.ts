@@ -13,6 +13,7 @@ import { workflowLearningRoutes } from './workflow-learning';
 import { themeAutoRunRoutes } from './theme-auto-run';
 import { taskSpecRoutes } from '../tasks/task-spec-routes';
 import { deviationRoutes } from './deviation';
+import confirmLinkConfirmLinkRoute from './confirm-link/confirm-link.routes';
 import corePhaseRoutingRoute from './core/phase-routing.routes';
 import executionDashboardRoute from './execution-dashboard.routes';
 import haltReleaseRoute from './halt-release.routes';
@@ -37,6 +38,7 @@ export const workflowDomainRoutes = new Elysia()
   .use(themeAutoRunRoutes)
   .use(taskSpecRoutes)
   .use(deviationRoutes)
+  .use(confirmLinkConfirmLinkRoute)
   .use(corePhaseRoutingRoute)
   .use(executionDashboardRoute)
   .use(haltReleaseRoute)
