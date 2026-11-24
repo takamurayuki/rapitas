@@ -2,6 +2,20 @@ import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
 
+export interface RuntimeLockOccupancy {
+  path: string;
+  pid?: number;
+  reason?: string;
+}
+export interface RuntimeDirectoryOccupancy {
+  free: boolean;
+  reason?: string;
+  pid?: number;
+  path?: string;
+  /** 死亡した持ち主のロックも、履歴照合のために残す。 */
+  locks?: RuntimeLockOccupancy[];
+}
+
 /**
  * Inspect Next's server-info files in the supported Rapitas layouts. Never
  * delete a lock or signal its PID: these files establish occupancy, not
@@ -10,38 +24,52 @@ import type { RuntimeProcessIdentity } from './runtime-process-identity';
 export async function inspectRuntimeDirectory(
   workdir: string,
   processes: RuntimeProcessIdentity[],
-): Promise<{ free: boolean; reason?: string; pid?: number; path?: string }> {
+  historyPaths: readonly string[] = [],
+): Promise<RuntimeDirectoryOccupancy> {
+  const locks: RuntimeLockOccupancy[] = [];
+  let blocked: RuntimeLockOccupancy | undefined;
+  const paths = new Set(historyPaths);
   for (const project of ['', 'rapitas-frontend']) {
     for (const output of ['.next', '.next-tauri']) {
       for (const variant of ['', 'dev']) {
-        const path = join(workdir, project, output, variant, 'lock');
-        let content: string;
-        try {
-          content = await readFile(path, 'utf8');
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-          return { free: false, reason: `Cannot inspect runtime lock: ${path}` };
-        }
-        try {
-          const info = JSON.parse(content);
-          if (!Number.isInteger(info?.pid) || info.pid <= 0) {
-            return { free: false, reason: `Unknown runtime lock owner: ${path}` };
-          }
-          if (processes.some((process) => process.pid === info.pid)) {
-            return {
-              free: false,
-              reason: `Runtime directory occupied by PID ${info.pid}: ${path}`,
-              pid: info.pid,
-              path,
-            };
-          }
-        } catch {
-          return { free: false, reason: `Unreadable runtime lock metadata: ${path}` };
-        }
+        paths.add(join(workdir, project, output, variant, 'lock'));
       }
     }
   }
-  return { free: true };
+  for (const path of paths) {
+    let content: string;
+    try {
+      content = await readFile(path, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      const lock = { path, reason: `Cannot inspect runtime lock: ${path}` };
+      locks.push(lock);
+      blocked ??= lock;
+      continue;
+    }
+    try {
+      const info = JSON.parse(content);
+      if (!Number.isInteger(info?.pid) || info.pid <= 0) {
+        const lock = { path, reason: `Unknown runtime lock owner: ${path}` };
+        locks.push(lock);
+        blocked ??= lock;
+        continue;
+      }
+      const lock = { path, pid: info.pid as number };
+      locks.push(lock);
+      if (processes.some((process) => process.pid === info.pid)) {
+        blocked ??= {
+          reason: `Runtime directory occupied by PID ${info.pid}: ${path}`,
+          ...lock,
+        };
+      }
+    } catch {
+      const lock = { path, reason: `Unreadable runtime lock metadata: ${path}` };
+      locks.push(lock);
+      blocked ??= lock;
+    }
+  }
+  return locks.length ? { free: !blocked, ...(blocked ?? locks[0]), locks } : { free: true };
 }
 
 /**

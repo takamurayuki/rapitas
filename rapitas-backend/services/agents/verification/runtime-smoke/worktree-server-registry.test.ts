@@ -28,7 +28,9 @@ let healthUrl: string | undefined;
 let extraProcesses: Array<{ pid: number; parentPid: number; birth: string; command: string }> = [];
 const originalFetch = globalThis.fetch;
 const temporaryWorkdirs: string[] = [];
+let testWorkdir: string;
 mock.module('./runtime-process-stop', () => ({
+  terminateRuntimeIdentities: async () => {},
   stopRuntimeProcesses: async (identities: unknown[]) => {
     stopCount++;
     stopTargets.push({ spawnedBefore: spawnCount, ids: identities as Array<{ birth?: string }> });
@@ -97,10 +99,10 @@ const { registry } = await import('./runtime-server-registry-types');
 const { stopOwnedAndVerify } = await import('./runtime-server-registry-lifecycle');
 
 async function quarantineAfterUnconfirmedStop() {
-  const acquired = await acquireRuntimeServer(process.cwd(), cfg);
+  const acquired = await acquireRuntimeServer(testWorkdir, cfg);
   if (!acquired.ok) throw new Error('Initial acquisition failed');
   releaseRuntimeServer(acquired.lease);
-  const entry = registry.get(normalizeWorkdirKey(process.cwd())!)!;
+  const entry = registry.get(normalizeWorkdirKey(testWorkdir)!)!;
   stopped = false;
   await stopOwnedAndVerify(entry, 'test-timeout');
   expect(entry.state).toBe('quarantined');
@@ -134,8 +136,8 @@ test('fresh exit proof clears a transient quarantine and concurrent borrowers sh
     return 45678;
   };
   const results = await Promise.all([
-    acquireRuntimeServer(process.cwd(), cfg),
-    acquireRuntimeServer(process.cwd(), cfg),
+    acquireRuntimeServer(testWorkdir, cfg),
+    acquireRuntimeServer(testWorkdir, cfg),
   ]);
   expect(results.every((result) => result.ok)).toBe(true);
   expect(spawnCount).toBe(2);
@@ -155,7 +157,7 @@ test.each(['alive', 'port', 'reused', 'persistence', 'snapshot'])(
       listenerOccupied = false;
       storeFailed = true;
     }
-    const refused = await acquireRuntimeServer(process.cwd(), cfg);
+    const refused = await acquireRuntimeServer(testWorkdir, cfg);
     expect(refused.ok).toBe(false);
     // Task 1539: a quarantined worktree is an environment cause, machine-readable.
     expect(refused).toMatchObject({ unverifiable: true, cause: 'quarantined' });
@@ -164,7 +166,9 @@ test.each(['alive', 'port', 'reused', 'persistence', 'snapshot'])(
     expect(stopCount).toBe(1);
   },
 );
-beforeEach(() => {
+beforeEach(async () => {
+  testWorkdir = await mkdtemp(join(tmpdir(), 'runtime-registry-case-'));
+  temporaryWorkdirs.push(testWorkdir);
   observedBoot = 'linux:00000000-0000-0000-0000-000000000001';
   removalFailed = false;
   _resetForTests();
@@ -213,8 +217,8 @@ test('different workdirs acquire independently on distinct ports and retain sepa
 
 function persistedServer() {
   return {
-    key: normalizeWorkdirKey(process.cwd()),
-    workdir: process.cwd(),
+    key: normalizeWorkdirKey(testWorkdir),
+    workdir: testWorkdir,
     state: 'active',
     configFingerprint: `${cfg.start}\u0000${cfg.url}\u0000${cfg.healthPath}`,
     port: 45678,
@@ -228,7 +232,7 @@ function persistedServer() {
 test('restart reuses a proven healthy server and persists discovered children', async () => {
   rows = [persistedServer()];
   extraProcesses = [{ pid: 124, parentPid: 123, birth: '101', command: 'child' }];
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
   expect(spawnCount).toBe(0);
   expect(stopCount).toBe(0);
   expect(rows[0].identities.map((p: { pid: number }) => p.pid)).toEqual([123, 124]);
@@ -246,7 +250,7 @@ test('restart removes a record only after identified processes and port are abse
 
 test('restart preserves unknown ownership without spawning or stopping anything', async () => {
   rows = [{ ...persistedServer(), identities: undefined, state: 'starting' }];
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
   expect(rows[0].state).toBe('quarantined');
   expect(spawnCount).toBe(0);
@@ -279,11 +283,7 @@ test('a recent identity-less start stays blocked in the same OS boot until a dif
   }
 });
 
-/**
- * The shape task 970's worktree was stuck in on 2026-09-19: a start intent
- * persisted before the root identity was captured, then re-persisted as
- * `quarantined` on every backend restart. No port, no pid, no identities.
- */
+/** Task 970: 根の身元取得前に保存され、再起動ごとに隔離された起動予約。 */
 function staleIdentityLessRecord(overrides: Record<string, unknown> = {}) {
   const { port: _port, baseUrl: _baseUrl, pid: _pid, ...base } = persistedServer();
   return {
@@ -310,7 +310,7 @@ test('a stale identity-less record is released in the same OS boot once port and
     listenerOccupied = true;
     return 45678;
   };
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
   expect(spawnCount).toBe(1);
 });
 
@@ -339,7 +339,7 @@ test('a stale identity-less record stays quarantined while its recorded port is 
   listenerOccupied = true;
   await recoverRuntimeServerRegistry();
   expect(rows).toHaveLength(1);
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(spawnCount).toBe(0);
 });
 
@@ -348,16 +348,16 @@ test('a quarantined identity-less entry clears on a later acquire once its recor
   rootPresent = false;
   listenerOccupied = false;
   await recoverRuntimeServerRegistry();
-  const key = normalizeWorkdirKey(process.cwd())!;
+  const key = normalizeWorkdirKey(testWorkdir)!;
   expect(registry.get(key)?.state).toBe('quarantined');
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   registry.get(key)!.recordedAt = Date.now() - 2 * 60_000;
   allocate = async () => {
     rootPresent = true;
     listenerOccupied = true;
     return 45678;
   };
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
   expect(spawnCount).toBe(1);
   expect(stopCount).toBe(0);
 });
@@ -382,7 +382,7 @@ test('reboot proof cannot bypass a failed durable removal', async () => {
   listenerOccupied = false;
   removalFailed = true;
   await expect(recoverRuntimeServerRegistry()).rejects.toThrow('removal failed');
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(rows).toHaveLength(1);
   expect(spawnCount).toBe(0);
   expect(stopCount).toBe(0);
@@ -396,7 +396,7 @@ test('reboot proof cannot bypass a failed durable removal', async () => {
 test('restart forgets a server whose PID was reused, never targeting the new process', async () => {
   rows = [persistedServer()];
   birth = '200';
-  await acquireRuntimeServer(process.cwd(), cfg);
+  await acquireRuntimeServer(testWorkdir, cfg);
   expect(rows.some((r) => r.state === 'quarantined')).toBe(false);
   // Only stops issued while clearing the old record count: in this fake world
   // a server spawned afterwards also appears as pid 123 / birth 200.
@@ -407,8 +407,8 @@ test('restart forgets a server whose PID was reused, never targeting the new pro
 
 test('concurrent consumers share one spawn and receive separate leases on its actual port', async () => {
   const [a, b] = await Promise.all([
-    acquireRuntimeServer(process.cwd(), cfg),
-    acquireRuntimeServer(process.cwd(), cfg),
+    acquireRuntimeServer(testWorkdir, cfg),
+    acquireRuntimeServer(testWorkdir, cfg),
   ]);
   expect(a.ok && b.ok).toBe(true);
   if (!a.ok || !b.ok) throw new Error('acquire failed');
@@ -421,12 +421,25 @@ test('concurrent consumers share one spawn and receive separate leases on its ac
 });
 
 test('localhost is normalized before the initial health check', async () => {
-  const result = await acquireRuntimeServer(process.cwd(), {
+  const result = await acquireRuntimeServer(testWorkdir, {
     ...cfg,
     url: 'http://localhost:{port}',
   });
   expect(result.ok).toBe(true);
   expect(healthUrl).toBe('http://127.0.0.1:45678/');
+});
+
+test('他の借り手の占有待機がタイムアウトすると lock_held で返す', async () => {
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
+  const result = await acquireRuntimeServer(
+    testWorkdir,
+    { ...cfg, start: 'different-server {port}' },
+    { waitTimeoutMs: 0 },
+  );
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'lock_held' });
+  expect(spawnCount).toBe(1);
+  expect(stopCount).toBe(0);
+  expect(_debugSnapshotForTests()[0]).toMatchObject({ state: 'active', leases: 1 });
 });
 
 test('last cancellation during port allocation releases the reservation without spawning', async () => {
@@ -436,7 +449,7 @@ test('last cancellation during port allocation releases the reservation without 
       finish = resolve;
     });
   const controller = new AbortController();
-  const pending = acquireRuntimeServer(process.cwd(), cfg, { signal: controller.signal });
+  const pending = acquireRuntimeServer(testWorkdir, cfg, { signal: controller.signal });
   for (let i = 0; i < 100 && !finish; i++) await new Promise((r) => setTimeout(r, 1));
   expect(finish).toBeDefined();
   controller.abort();
@@ -449,19 +462,19 @@ test('last cancellation during port allocation releases the reservation without 
   expect(rows).toEqual([]);
   expect(_debugSnapshotForTests()).toEqual([]);
   allocate = async () => 45678;
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
 });
 
 test('corrupt persisted state prevents any spawn', async () => {
   storeFailed = true;
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(spawnCount).toBe(0);
 });
 
 test('PID reuse during reacquisition holds the workdir without a replacement spawn', async () => {
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(true);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(true);
   birth = '200';
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
   expect(spawnCount).toBe(1);
 });
@@ -473,8 +486,8 @@ test('one cancelled consumer does not cancel the other shared startup', async ()
       finish = resolve;
     });
   const controller = new AbortController();
-  const a = acquireRuntimeServer(process.cwd(), cfg, { signal: controller.signal });
-  const b = acquireRuntimeServer(process.cwd(), cfg);
+  const a = acquireRuntimeServer(testWorkdir, cfg, { signal: controller.signal });
+  const b = acquireRuntimeServer(testWorkdir, cfg);
   for (let i = 0; i < 20 && !finish; i++) await new Promise((r) => setTimeout(r, 1));
   expect(finish).toBeDefined();
   controller.abort();
@@ -492,7 +505,7 @@ test('last cancellation cleans up startup and never leaks a success lease', asyn
       finish = resolve;
     });
   const controller = new AbortController();
-  const result = acquireRuntimeServer(process.cwd(), cfg, { signal: controller.signal });
+  const result = acquireRuntimeServer(testWorkdir, cfg, { signal: controller.signal });
   for (let i = 0; i < 20 && !finish; i++) await new Promise((r) => setTimeout(r, 1));
   controller.abort();
   expect((await result).ok).toBe(false);
@@ -506,9 +519,9 @@ test('last cancellation cleans up startup and never leaks a success lease', asyn
 test('startup timeout with unconfirmed termination blocks a replacement spawn', async () => {
   ready = async () => false;
   stopped = false;
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(spawnCount).toBe(1);
 });
 
@@ -517,10 +530,10 @@ test('active-record write failure triggers cleanup and keeps exclusion until dur
     storeFailed = true;
     return true;
   };
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(stopCount).toBe(1);
   expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
-  expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+  expect((await acquireRuntimeServer(testWorkdir, cfg)).ok).toBe(false);
   expect(spawnCount).toBe(1);
 });
 
@@ -530,7 +543,7 @@ test('children born during health polling are recorded before startup finishes',
     new Promise((resolve) => {
       finish = resolve;
     });
-  const starting = acquireRuntimeServer(process.cwd(), cfg);
+  const starting = acquireRuntimeServer(testWorkdir, cfg);
   for (let i = 0; i < 20 && !finish; i++) await new Promise((r) => setTimeout(r, 1));
   extraProcesses = [{ pid: 124, parentPid: 123, birth: '101', command: 'late child' }];
   await new Promise((r) => setTimeout(r, 2700));
@@ -540,9 +553,7 @@ test('children born during health polling are recorded before startup finishes',
   expect((await starting).ok).toBe(true);
 });
 
-// Task 520 (2026-11-20): a short-lived helper of the dev script exited and its
-// PID went to an unrelated process before the app answered; the tracker called
-// that `identity-mismatch` and quarantined a healthy launch.
+// Task 520: 起動中に終了した子プロセスの PID 再利用で正常な起動を隔離しない。
 test('a helper whose PID is reused during startup does not abort the launch', async () => {
   extraProcesses = [{ pid: 124, parentPid: 123, birth: '101', command: 'helper' }];
   ready = async () => {
@@ -551,7 +562,7 @@ test('a helper whose PID is reused during startup does not abort the launch', as
     await new Promise((r) => setTimeout(r, 2800)); // second tick sees the reuse
     return true;
   };
-  const result = await acquireRuntimeServer(process.cwd(), cfg);
+  const result = await acquireRuntimeServer(testWorkdir, cfg);
   expect(result.ok).toBe(true);
   const owned = _debugSnapshotForTests()[0];
   expect(owned.state).not.toBe('quarantined');

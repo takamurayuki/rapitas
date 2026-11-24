@@ -171,10 +171,12 @@ test.each(['port_in_use', 'lock_held', 'quarantined', 'foreign_process'])(
       errorCount: 0,
       cause,
     });
+    expect(result?.details).toContain(`cause=${cause}`);
   },
 );
 test.each([
   ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
+  ['Port TCP 8090 is in use', 'port_in_use'],
   ['別のインスタンスが既に起動しています', 'lock_held'],
 ])(
   'a launch that died on "%s" is an environment cause, not an app failure',
@@ -189,5 +191,36 @@ test.each([
       errorCount: 0,
       cause,
     });
+    expect(result?.details).toContain(`cause=${cause}`);
   },
 );
+
+// Task 1539: a log that merely MENTIONS a port or lock must not turn an implementation
+// error into an environment cause (that would let broken code through verification).
+test.each([
+  [
+    'recovery then TypeError',
+    [
+      'Port 3000 is in use, trying 3001 instead',
+      'Ready in 1.2s',
+      'TypeError: x is not a function',
+      '    at handler (app.ts:1:1)',
+    ],
+  ],
+  [
+    'conflict warning then another fatal error',
+    ['Error: listen EADDRINUSE: address already in use :::3000', 'TypeError: boom'],
+  ],
+  ['lock file parse error', ['Failed to parse lock file: Unexpected token']],
+  [
+    'port and lock both named',
+    ['Error: listen EADDRINUSE: address already in use', 'Unable to acquire lock'],
+  ],
+])('an app failure that only mentions a conflict stays a failure: %s', async (_name, lines) => {
+  healthy = false;
+  logs = lines;
+  const result = await runRuntimeSmokeCheck(`/app-failure-${_name}`);
+  expect(result).toMatchObject({ ran: true, ok: false, errorCount: 1 });
+  expect(result?.unverifiable).toBeUndefined();
+  expect(result?.cause).toBeUndefined();
+});

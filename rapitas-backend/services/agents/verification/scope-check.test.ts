@@ -202,6 +202,13 @@ describe('evaluateScopeCheck — backup and temp files', () => {
     'notes.swp',
     'notes.swo',
     'dir\\deep\\old.tmp',
+    'src/~',
+    'src/.bak',
+    'src/.orig',
+    'src/.swp',
+    'src/.swo',
+    'src/.tmp',
+    'src/.#',
   ])('does not count %s as out of plan', (file) => {
     const result = evaluateScopeCheck([file], PLAN);
     expect(result!.ok).toBe(true);
@@ -220,7 +227,7 @@ describe('evaluateScopeCheck — backup and temp files', () => {
   });
 
   it('does not treat names that merely contain the suffix text as backups', () => {
-    for (const name of ['bak.ts', '.bakery', 'a.orig.ts', '.#', '~', '.bak']) {
+    for (const name of ['bak.ts', '.bakery', 'a.orig.ts']) {
       expect(evaluateScopeCheck([`src/${name}`], PLAN)!.ok).toBe(false);
     }
   });

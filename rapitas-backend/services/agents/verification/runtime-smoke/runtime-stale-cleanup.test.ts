@@ -11,9 +11,10 @@ import {
   cleanupStaleRuntime,
   extractStartPorts,
   fixedPortOf,
+  extractFixedPorts,
   type StaleCleanupDeps,
 } from './runtime-stale-cleanup';
-import { tokenizeCommandLine } from './runtime-command-match';
+import { normalizeForMatch, tokenizeCommandLine } from './runtime-command-match';
 import type { LaunchRecord } from './runtime-launch-history';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
 import type { RuntimeProcessSnapshot } from './runtime-process-snapshot';
@@ -30,7 +31,7 @@ const proc = (pid: number, command: string, parentPid = 1): RuntimeProcessIdenti
 const rec = (row: RuntimeProcessIdentity, role: 'root' | 'observed' = 'root'): LaunchRecord => ({
   key: `process:${row.pid}:${row.birth}`,
   kind: 'process',
-  workdir: WORKDIR.toLowerCase(),
+  workdir: normalizeForMatch(WORKDIR),
   pid: row.pid,
   birth: row.birth,
   role,
@@ -41,7 +42,7 @@ const rec = (row: RuntimeProcessIdentity, role: 'root' | 'observed' = 'root'): L
 const lockRec = (pid: number, birth: string): LaunchRecord => ({
   key: `lock:${LOCK_PATH}`,
   kind: 'lock',
-  workdir: WORKDIR.toLowerCase(),
+  workdir: normalizeForMatch(WORKDIR),
   pid,
   birth,
   role: 'lock',
@@ -84,16 +85,22 @@ function world(
     snapshot: async () => view(),
     inspectDirectory: async (_dir, processes) => {
       if (opts.lock?.unknown) return { free: false, reason: 'Unknown runtime lock owner' };
-      const holder = opts.lock?.pid;
-      if (holder !== undefined && processes.some((p) => p.pid === holder)) {
-        return { free: false, reason: `occupied by PID ${holder}`, pid: holder, path: LOCK_PATH };
+      const holder = opts.lockFilePid ?? opts.lock?.pid;
+      if (holder !== undefined && holder !== null && !removed.includes(LOCK_PATH)) {
+        return {
+          free: !processes.some((p) => p.pid === holder),
+          reason: `occupied by PID ${holder}`,
+          pid: holder,
+          path: LOCK_PATH,
+        };
       }
       return { free: true };
     },
     readHistory: async () => opts.history ?? [],
-    readLockPid: async () => opts.lockFilePid ?? null,
+    readLockPid: async () =>
+      removed.includes(LOCK_PATH) ? null : (opts.lockFilePid ?? opts.lock?.pid ?? null),
     removeLock: async (path, expected) => {
-      if (opts.lockFilePid !== expected) return false;
+      if ((opts.lockFilePid ?? opts.lock?.pid) !== expected) return false;
       removed.push(path);
       return true;
     },
@@ -125,6 +132,12 @@ describe('fixedPortOf / extractStartPorts', () => {
     expect(extractStartPorts('set PORT=4000 && node a.js')).toEqual([4000]);
     expect(extractStartPorts('serve 127.0.0.1:5000')).toEqual([5000]);
     expect(extractStartPorts('next dev -p {port}')).toEqual([]);
+    expect(
+      extractFixedPorts({ url: 'http://localhost:8090', start: 'server --port 9000' }),
+    ).toEqual([8090]);
+    expect(extractStartPorts('server --port 1')).toEqual([1]);
+    expect(extractStartPorts('server --port 65536')).toEqual([]);
+    expect(extractStartPorts('server --listen :8090 http://[::1]:8091')).toEqual([8090, 8091]);
   });
 });
 
@@ -242,7 +255,10 @@ describe('cleanupStaleRuntime — only what the launch history proves', () => {
       history: [rec(backend)],
       protectedPids: [30],
     });
-    expect(await cleanupStaleRuntime(WORKDIR, CFG, other.deps)).toMatchObject({ ok: false });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, other.deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
+    });
     expect(base.killed).toEqual([]);
     expect(other.killed).toEqual([]);
   });
@@ -302,14 +318,14 @@ describe('cleanupStaleRuntime — only what the launch history proves', () => {
     expect(killed).toEqual([]);
   });
 
-  test('an unkillable recorded leftover is reported as port_in_use', async () => {
+  test('停止を確認できなければ foreign_process を返す', async () => {
     const { deps } = world([SERVER], [{ port: 8090, pid: 40 }], {
       history: [rec(SERVER)],
       unkillable: true,
     });
     expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
       ok: false,
-      cause: 'port_in_use',
+      cause: 'foreign_process',
     });
   });
 
@@ -322,21 +338,24 @@ describe('cleanupStaleRuntime — only what the launch history proves', () => {
     });
   });
 
-  test('with no fixed port and no lock there is nothing to do', async () => {
+  test('ポートが未指定でも履歴由来の残存プロセスを回収する', async () => {
     const stray = proc(41, `node ${WORKDIR}/other.js`);
     const { deps, killed } = world([stray], [{ port: 9099, pid: 41 }], { history: [rec(stray)] });
     expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
       ok: true,
-      stoppedPids: [],
+      stoppedPids: [41],
     });
-    expect(killed).toEqual([]);
+    expect(killed).toEqual([41]);
   });
 });
 
 describe('cleanupStaleRuntime — runtime lock', () => {
   test('a live lock holder proven by the history is stopped', async () => {
     const next = proc(61, `node "${WORKDIR}/node_modules/next/dist/bin/next" dev`);
-    const { deps, killed } = world([next], [], { history: [rec(next)], lock: { pid: 61 } });
+    const { deps, killed } = world([next], [], {
+      history: [rec(next), lockRec(61, next.birth)],
+      lock: { pid: 61 },
+    });
     expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
       ok: true,
       stoppedPids: [61],
@@ -394,13 +413,19 @@ describe('cleanupStaleRuntime — runtime lock', () => {
 
   test('a lock rewritten by a new owner after the record is not removed', async () => {
     const { deps, removed } = world([], [], { history: [lockRec(60, '1060')], lockFilePid: 99 });
-    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
     expect(removed).toEqual([]);
   });
 
   test('a dead-owner lock with no record is left alone', async () => {
     const { deps, removed } = world([], [], { lockFilePid: 60 });
-    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
     expect(removed).toEqual([]);
   });
 
@@ -411,6 +436,181 @@ describe('cleanupStaleRuntime — runtime lock', () => {
       lockFilePid: 60,
     });
     await cleanupStaleRuntime(WORKDIR, NO_PORT, deps);
+    expect(removed).toEqual([]);
+  });
+});
+
+describe('差し戻しの停止境界と割り込み', () => {
+  test('停止直前のコマンド表現が変わっても引数の完全一致で同じ身元を照合する', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+    });
+    const snapshot = deps.stopDeps!.snapshot;
+    deps.stopDeps!.snapshot = async () => {
+      const current = await snapshot();
+      return {
+        ...current,
+        processes: current.processes.map((row) => ({
+          ...row,
+          command:
+            process.platform === 'win32'
+              ? '"c:\\w\\task-15\\SERVER.EXE" --serve'
+              : `'${WORKDIR}/server.exe' --serve`,
+        })),
+      };
+    };
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: true,
+      stoppedPids: [40],
+    });
+    expect(killed).toEqual([40]);
+  });
+  test('区切りが異なる同じロックを重複削除しない', async () => {
+    const { deps, removed } = world([], [], { history: [lockRec(60, '1060')], lockFilePid: 60 });
+    deps.inspectDirectory = async () =>
+      removed.length
+        ? { free: true }
+        : {
+            free: true,
+            locks: [
+              { path: LOCK_PATH, pid: 60 },
+              { path: LOCK_PATH.replaceAll('/', '\\'), pid: 60 },
+            ],
+          };
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+    expect(removed).toEqual([LOCK_PATH]);
+  });
+  test('既知の生存ロックと未知の死亡ロックが混在しても全体を拒否する', async () => {
+    const { deps, killed, removed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER), lockRec(40, SERVER.birth)],
+      lock: { pid: 40 },
+    });
+    deps.inspectDirectory = async () => ({
+      free: false,
+      path: LOCK_PATH,
+      pid: 40,
+      locks: [
+        { path: LOCK_PATH, pid: 40 },
+        { path: `${WORKDIR}/.next/lock`, pid: 99 },
+      ],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
+    expect(killed).toEqual([]);
+    expect(removed).toEqual([]);
+  });
+  test.each(['C:/elsewhere/lock', `${WORKDIR}/../other/lock`])(
+    'worktree外の履歴ロックは読み書きしない: %s',
+    async (lockPath) => {
+      const { deps, removed } = world([], [], { history: [{ ...lockRec(60, '1060'), lockPath }] });
+      const reads: string[] = [];
+      deps.readLockPid = async (path) => {
+        reads.push(path);
+        return 60;
+      };
+      expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+      expect(reads).toEqual([]);
+      expect(removed).toEqual([]);
+    },
+  );
+  test('全件停止の直前に身元が変わると一件も停止しない', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], { history: [rec(SERVER)] });
+    const view = deps.stopDeps!.snapshot;
+    let calls = 0;
+    deps.stopDeps!.snapshot = async () => {
+      const snapshot = await view();
+      return ++calls === 1
+        ? snapshot
+        : { ...snapshot, processes: [{ ...SERVER, command: 'another.exe' }] };
+    };
+    deps.stopDeps!.terminateMany = async (identities) => {
+      killed.push(...identities.map((p) => p.pid));
+    };
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([]);
+  });
+  test('別の active 借り手が子孫に含まれる場合は全体を停止しない', async () => {
+    const child = proc(41, 'other active server', 40);
+    const { deps, killed } = world([SERVER, child], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      excludePids: [41],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([]);
+  });
+  test('根が死亡した observed プロセスの未記録子孫を停止しない', async () => {
+    const child = proc(45, 'server.exe', 40);
+    const grandchild = proc(46, 'unknown.exe', 45);
+    const { deps, killed } = world([child, grandchild], [{ port: 8090, pid: 45 }], {
+      history: [rec(SERVER), rec(child, 'observed')],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: true,
+      stoppedPids: [45],
+    });
+    expect(killed).toEqual([45]);
+  });
+  test('プロセス履歴だけではロックを所有した証明にならない', async () => {
+    const { deps, killed, removed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      lock: { pid: 40 },
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
+    expect(killed).toEqual([]);
+    expect(removed).toEqual([]);
+  });
+  test('未知の死亡ロックがあれば既知のポート所有者も停止しない', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      lockFilePid: 60,
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
+    expect(killed).toEqual([]);
+  });
+  test('最初の一覧取得失敗は掃除せず起動を許可する', async () => {
+    const { deps, killed } = world([], []);
+    deps.snapshot = async () => {
+      throw new Error('snapshot unavailable');
+    };
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: true });
+    expect(killed).toEqual([]);
+  });
+  test('別 worktree の履歴は停止根拠にしない', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [{ ...rec(SERVER), workdir: 'c:/w/other' }],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
+    });
+    expect(killed).toEqual([]);
+  });
+  test('ロック削除直前に持ち主が変わると削除も起動もしない', async () => {
+    const state: WorldOptions = { history: [lockRec(60, '1060')], lockFilePid: 60 };
+    const { deps, removed } = world([], [], state);
+    const remove = deps.removeLock;
+    deps.removeLock = async (path, pid) => {
+      state.lockFilePid = 99;
+      return remove(path, pid);
+    };
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
     expect(removed).toEqual([]);
   });
 });

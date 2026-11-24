@@ -10,10 +10,12 @@ import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
 import {
   cleanupStaleRuntime,
   defaultStaleCleanupDeps,
+  extractFixedPorts,
+  fixedPortOf,
   RuntimeEnvBlockedError,
 } from './runtime-stale-cleanup';
 import { recordLaunchLock, recordLaunchProcesses } from './runtime-launch-history';
-import { classifyLaunchLogCause } from './runtime-env-cause';
+import { classifyEnvCause } from './runtime-env-cause';
 import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
@@ -88,7 +90,6 @@ export async function stopOwnedAndVerify(
     return !registry.has(entry.key) || registry.get(entry.key)?.state !== 'quarantined';
   }
   entry.state = 'stopping';
-  await recordLaunchProcesses(entry.workdir, entry.identities, 'observed');
 
   const run = (async (): Promise<void> => {
     entry.app?.markStopRequested?.();
@@ -96,6 +97,8 @@ export async function stopOwnedAndVerify(
       entry.identities ?? [],
       async (identities) => {
         entry.identities = identities;
+        // 停止層が直前に確認した子孫も、シグナルを送る前に履歴へ残す。
+        await recordLaunchProcesses(entry.workdir, identities, 'observed');
         await persistQuarantine(entry);
       },
       STOP_VERIFY_TIMEOUT_MS,
@@ -191,7 +194,7 @@ export async function spawnNewEntry(
     if (entry.startCancelled) throw new Error('Startup cancelled before spawn');
     const { app, port, baseUrl } = await withRuntimeLaunchLock(async () => {
       if (entry.startCancelled) throw new Error('Startup cancelled before port allocation');
-      const port = await allocateFreePort();
+      const port = fixedPortOf(cfg.url) ?? (await allocateFreePort());
       if (entry.startCancelled) throw new Error('Startup cancelled during port allocation');
       const parsedUrl = new URL(substitutePort(cfg.url, port));
       if (parsedUrl.hostname === 'localhost') parsedUrl.hostname = '127.0.0.1';
@@ -211,7 +214,7 @@ export async function spawnNewEntry(
     entry.identities = extendOwnedRuntimeTree([root], snapshot.processes);
     // Proof that THIS launch started the process — written before anything can fail
     // and kept after the registry entry is gone (it is what a later cleanup trusts).
-    await recordLaunchProcesses(workdir, [root], 'root');
+    await recordLaunchProcesses(workdir, [root], 'root', { fixedPorts: extractFixedPorts(cfg) });
     await persistActive(entry, app.pid);
 
     log.info({ key, workdir, port, label }, '[registry] spawning new server for workdir');
@@ -301,7 +304,8 @@ export async function spawnNewEntry(
     if (!healthy || entry.startCancelled) {
       // A launch that died on a taken port/lock says so in its log: an environment
       // cause, not evidence about the app.
-      const logCause = classifyLaunchLogCause(app.logs());
+      const logCause =
+        classifyEnvCause({ text: app.logs().join('\n'), reachedReady: false }) ?? undefined;
       const result = failure(
         `アプリが ${cfg.readyTimeoutMs / 1_000}s 以内に起動しませんでした (${baseUrl}${cfg.healthPath} 無応答)`,
         {
@@ -336,7 +340,7 @@ export async function spawnNewEntry(
     // Children (e.g. the real server behind a shell) and the lock holder only exist now.
     await recordLaunchProcesses(workdir, readyIdentity.alive, 'observed');
     const lockInfo = await inspectRuntimeDirectory(workdir, readySnapshot.processes);
-    const lockOwner = readySnapshot.processes.find((p) => p.pid === lockInfo.pid);
+    const lockOwner = readyIdentity.alive.find((p) => p.pid === lockInfo.pid);
     if (lockInfo.path && lockOwner) {
       await recordLaunchLock(workdir, {
         path: lockInfo.path,
@@ -401,7 +405,9 @@ export async function spawnNewEntry(
           if (registry.get(key) === entry) registry.delete(key);
           return failure(`起動に失敗しました: ${String(error)}`, {
             unverifiable: true,
-            cause: classifyLaunchLogCause(entry.app.logs()),
+            cause:
+              classifyEnvCause({ text: entry.app.logs().join('\n'), reachedReady: false }) ??
+              undefined,
             logs: entry.app.logs(),
             exitCode: entry.app.exitCode(),
             hasExited: true,

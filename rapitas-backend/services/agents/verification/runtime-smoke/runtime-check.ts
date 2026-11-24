@@ -19,7 +19,7 @@ import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { applyFeatureReachability, readDeclaredFeatures } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
-import { classifyLaunchLogCause } from './runtime-env-cause';
+import { classifyEnvCause } from './runtime-env-cause';
 
 const log = createLogger('runtime-smoke');
 
@@ -249,7 +249,7 @@ export async function runRuntimeSmokeCheck(
         cause: acquired.cause,
         errorCount: 0,
         details:
-          `runtime検証はスキップしました（環境要因${acquired.cause ? `: ${acquired.cause}` : ''} — 実装の失敗ではありません）: ${acquired.reason}${exitNote}` +
+          `runtime検証はスキップしました（環境要因${acquired.cause ? `: cause=${acquired.cause}` : ''} — 実装の失敗ではありません）: ${acquired.reason}${exitNote}` +
           (tail ? `\n--- 起動ログ末尾 ---\n${tail}` : ''),
       };
     }
@@ -259,7 +259,9 @@ export async function runRuntimeSmokeCheck(
     // A port or lock taken by a leftover process shows up only in the launch
     // log (a fixed-port start command, or a dev server exiting with "already
     // running"). Not an app defect: the same code starts fine once it is freed.
-    const logCause = classifyLaunchLogCause(acquired.logs);
+    // The acquisition failed, so the launch never became ready.
+    const logCause =
+      classifyEnvCause({ text: acquired.logs.join('\n'), reachedReady: false }) ?? undefined;
     if (logCause) {
       log.warn(
         { workdir, label, cause: logCause },
@@ -273,7 +275,7 @@ export async function runRuntimeSmokeCheck(
         cause: logCause,
         errorCount: 0,
         details:
-          `runtime検証は環境要因（${logCause}）で起動できずスキップしました — 実装の欠陥ではありません${exitNote}。` +
+          `runtime検証は環境要因（cause=${logCause}）で起動できずスキップしました — 実装の欠陥ではありません${exitNote}。` +
           `\n--- 起動ログ末尾 ---\n${tail}`,
       };
     }

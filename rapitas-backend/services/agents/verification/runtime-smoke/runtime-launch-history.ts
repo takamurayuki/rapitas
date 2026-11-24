@@ -13,6 +13,10 @@ import { dirname, join } from 'path';
 import { randomUUID } from 'crypto';
 import { normalizeForMatch, tokenizeCommandLine } from './runtime-command-match';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
+import {
+  readRuntimeProcessSnapshot,
+  type RuntimeProcessSnapshot,
+} from './runtime-process-snapshot';
 import { createLogger } from '../../../../config/logger';
 
 const log = createLogger('runtime-smoke:launch-history');
@@ -37,8 +41,37 @@ export interface LaunchRecord {
   argv: string[] | null;
   /** Lock file path (kind `lock` only). */
   lockPath?: string;
+  /** 起動設定から得た固定ポート。停止候補を作る根拠には使用しない。 */
+  fixedPorts?: number[];
   recordedAt: string;
 }
+
+export interface LaunchHistoryDependencies {
+  read(path: string): Promise<string>;
+  mkdir(path: string): Promise<void>;
+  write(path: string, content: string): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
+  unlink(path: string): Promise<void>;
+  snapshot(): Promise<RuntimeProcessSnapshot>;
+  now(): number;
+}
+
+export interface LaunchHistoryOptions {
+  fixedPorts?: number[];
+  deps?: Partial<LaunchHistoryDependencies>;
+}
+
+const defaults: LaunchHistoryDependencies = {
+  read: (path) => readFile(path, 'utf8'),
+  mkdir: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+  write: (path, content) => writeFile(path, content, { flag: 'wx' }),
+  rename,
+  unlink,
+  snapshot: readRuntimeProcessSnapshot,
+  now: Date.now,
+};
 
 function isLaunchRecord(value: unknown): value is LaunchRecord {
   if (!value || typeof value !== 'object') return false;
@@ -53,9 +86,15 @@ function isLaunchRecord(value: unknown): value is LaunchRecord {
     typeof v.birth === 'string' &&
     /^\d+$/.test(v.birth) &&
     ['root', 'observed', 'lock'].includes(v.role) &&
+    (v.kind === 'lock' ? v.role === 'lock' : v.role !== 'lock') &&
     typeof v.command === 'string' &&
     (v.argv === null || (Array.isArray(v.argv) && v.argv.every((a) => typeof a === 'string'))) &&
-    typeof v.recordedAt === 'string'
+    typeof v.recordedAt === 'string' &&
+    Number.isFinite(Date.parse(v.recordedAt)) &&
+    (v.fixedPorts === undefined ||
+      (Array.isArray(v.fixedPorts) &&
+        v.fixedPorts.every((port) => Number.isInteger(port) && port > 0 && port <= 65535))) &&
+    (v.kind !== 'lock' || (typeof v.lockPath === 'string' && v.lockPath.length > 0))
   );
 }
 
@@ -72,10 +111,10 @@ export function launchHistoryPath(workdir: string): string {
 /** Per-file write chain: updates are applied in order, each as temp file + rename. */
 const chains = new Map<string, Promise<unknown>>();
 
-async function readAll(path: string): Promise<LaunchRecord[]> {
+async function readAll(path: string, deps: LaunchHistoryDependencies): Promise<LaunchRecord[]> {
   let raw: string;
   try {
-    raw = await readFile(path, 'utf8');
+    raw = await deps.read(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw error;
@@ -93,20 +132,19 @@ async function readAll(path: string): Promise<LaunchRecord[]> {
 
 function updateAll(
   path: string,
-  change: (entries: LaunchRecord[]) => LaunchRecord[],
+  change: (entries: LaunchRecord[]) => Promise<LaunchRecord[]>,
+  deps: LaunchHistoryDependencies,
 ): Promise<void> {
   const operation = (chains.get(path) ?? Promise.resolve()).then(async () => {
     // A corrupt file is replaced rather than extended: it carried no usable evidence.
-    const current = await readAll(path).catch(() => []);
-    await mkdir(dirname(path), { recursive: true });
+    const current = await readAll(path, deps).catch(() => []);
+    await deps.mkdir(dirname(path));
     const temp = `${path}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temp, JSON.stringify({ version: 1, entries: change(current) }), {
-        flag: 'wx',
-      });
-      await rename(temp, path);
+      await deps.write(temp, JSON.stringify({ version: 1, entries: await change(current) }));
+      await deps.rename(temp, path);
     } finally {
-      await unlink(temp).catch(() => {});
+      await deps.unlink(temp).catch(() => {});
     }
   });
   chains.set(
@@ -123,34 +161,64 @@ function updateAll(
  * @param workdir - Worktree root / worktree ルート
  * @returns Records belonging to this worktree / この worktree の記録
  */
-export async function readLaunchHistory(workdir: string): Promise<LaunchRecord[]> {
+export async function readLaunchHistory(
+  workdir: string,
+  dependencies: Partial<LaunchHistoryDependencies> = {},
+): Promise<LaunchRecord[]> {
   try {
     const mine = normalizeForMatch(workdir);
-    return (await readAll(launchHistoryPath(workdir))).filter((r) => r.workdir === mine);
+    return (await readAll(launchHistoryPath(workdir), { ...defaults, ...dependencies })).filter(
+      (r) => r.workdir === mine,
+    );
   } catch (error) {
     log.warn({ err: error, workdir }, '[launch-history] unreadable — treated as no evidence');
     return [];
   }
 }
 
-function trim(records: LaunchRecord[]): LaunchRecord[] {
+async function trim(
+  records: LaunchRecord[],
+  deps: LaunchHistoryDependencies,
+): Promise<LaunchRecord[]> {
   if (records.length <= MAX_HISTORY_PER_WORKDIR) return records;
-  const now = Date.now();
-  const fresh = records.filter((r) => now - Date.parse(r.recordedAt) < DEAD_RECORD_TTL_MS);
-  return (fresh.length >= MAX_HISTORY_PER_WORKDIR ? fresh : records).slice(
-    -MAX_HISTORY_PER_WORKDIR,
-  );
+  const old = records.filter((r) => deps.now() - Date.parse(r.recordedAt) > DEAD_RECORD_TTL_MS);
+  if (old.length > 0) {
+    try {
+      const { processes } = await deps.snapshot();
+      const dead = new Set(
+        old
+          .filter((r) => !processes.some((p) => p.pid === r.pid && p.birth === r.birth))
+          .map((r) => r.key),
+      );
+      // 死亡済みの古い記録を優先し、残る記録は新しい順で50件まで保持する。
+      records = [
+        ...records.filter((r) => dead.has(r.key)),
+        ...records.filter((r) => !dead.has(r.key)),
+      ];
+    } catch (error) {
+      log.warn({ err: error }, '[launch-history] 死亡確認不可のため最新50件で制限');
+    }
+  }
+  return records.slice(-MAX_HISTORY_PER_WORKDIR);
 }
 
-async function upsert(workdir: string, added: LaunchRecord[]): Promise<boolean> {
+async function upsert(
+  workdir: string,
+  added: LaunchRecord[],
+  deps: LaunchHistoryDependencies,
+): Promise<boolean> {
   try {
-    await updateAll(launchHistoryPath(workdir), (entries) => {
-      // A later `observed` sighting must not demote the spawned root of the same process.
-      const roots = new Set(entries.filter((e) => e.role === 'root').map((e) => e.key));
-      const fresh = added.filter((r) => !(r.role === 'observed' && roots.has(r.key)));
-      const keys = new Set(fresh.map((r) => r.key));
-      return trim([...entries.filter((e) => !keys.has(e.key)), ...fresh]);
-    });
+    await updateAll(
+      launchHistoryPath(workdir),
+      async (entries) => {
+        // A later `observed` sighting must not demote the spawned root of the same process.
+        const roots = new Set(entries.filter((e) => e.role === 'root').map((e) => e.key));
+        const fresh = added.filter((r) => !(r.role === 'observed' && roots.has(r.key)));
+        const keys = new Set(fresh.map((r) => r.key));
+        return trim([...entries.filter((e) => !keys.has(e.key)), ...fresh], deps);
+      },
+      deps,
+    );
     return true;
   } catch (error) {
     // A lost record only means a later cleanup stops less — the safe direction.
@@ -174,8 +242,10 @@ export function recordLaunchProcesses(
   workdir: string,
   identities: RuntimeProcessIdentity[],
   role: 'root' | 'observed',
+  options: LaunchHistoryOptions = {},
 ): Promise<boolean> {
-  const at = new Date().toISOString();
+  const deps = { ...defaults, ...options.deps };
+  const at = new Date(deps.now()).toISOString();
   return upsert(
     workdir,
     identities.map((p) => ({
@@ -187,8 +257,10 @@ export function recordLaunchProcesses(
       role,
       command: p.command,
       argv: tokenizeCommandLine(p.command),
+      ...(options.fixedPorts ? { fixedPorts: [...new Set(options.fixedPorts)] } : {}),
       recordedAt: at,
     })),
+    deps,
   );
 }
 
@@ -204,19 +276,25 @@ export function recordLaunchProcesses(
 export function recordLaunchLock(
   workdir: string,
   lock: { path: string; pid: number; birth: string },
+  options: LaunchHistoryOptions = {},
 ): Promise<boolean> {
-  return upsert(workdir, [
-    {
-      key: `lock:${normalizeForMatch(lock.path)}`,
-      kind: 'lock',
-      workdir: normalizeForMatch(workdir),
-      pid: lock.pid,
-      birth: lock.birth,
-      role: 'lock',
-      command: '',
-      argv: null,
-      lockPath: lock.path,
-      recordedAt: new Date().toISOString(),
-    },
-  ]);
+  const deps = { ...defaults, ...options.deps };
+  return upsert(
+    workdir,
+    [
+      {
+        key: `lock:${normalizeForMatch(lock.path)}`,
+        kind: 'lock',
+        workdir: normalizeForMatch(workdir),
+        pid: lock.pid,
+        birth: lock.birth,
+        role: 'lock',
+        command: '',
+        argv: null,
+        lockPath: lock.path,
+        recordedAt: new Date(deps.now()).toISOString(),
+      },
+    ],
+    deps,
+  );
 }

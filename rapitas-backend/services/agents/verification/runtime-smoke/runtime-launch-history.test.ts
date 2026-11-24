@@ -15,6 +15,7 @@ import {
   readLaunchHistory,
   recordLaunchLock,
   recordLaunchProcesses,
+  type LaunchHistoryDependencies,
 } from './runtime-launch-history';
 import { PERSIST_PATH } from './runtime-server-registry-types';
 
@@ -32,6 +33,33 @@ const row = (pid: number, command = `"${'C:/w'}/app.exe" --serve`) => ({
   birth: String(1000 + pid),
   command,
 });
+
+function memoryHistory() {
+  const files = new Map<string, string>();
+  const operations: string[] = [];
+  const deps: LaunchHistoryDependencies = {
+    read: async (path) => {
+      if (!files.has(path)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      return files.get(path)!;
+    },
+    mkdir: async () => {},
+    write: async (path, content) => {
+      operations.push(`write:${path}`);
+      files.set(path, content);
+    },
+    rename: async (from, to) => {
+      operations.push(`rename:${from}:${to}`);
+      files.set(to, files.get(from)!);
+      files.delete(from);
+    },
+    unlink: async (path) => {
+      files.delete(path);
+    },
+    now: () => Date.parse('2026-11-25T00:00:00Z'),
+    snapshot: async () => ({ processes: [], protectedPids: new Set() }),
+  };
+  return { files, operations, deps };
+}
 
 describe('launch history', () => {
   test('an empty or missing history reads as no evidence', async () => {
@@ -99,5 +127,133 @@ describe('launch history', () => {
   test('lives in its own file, so removing registry entries cannot erase it', () => {
     expect(launchHistoryPath(dir)).not.toBe(PERSIST_PATH);
     expect(launchHistoryPath(dir)).toContain('runtime-launch-history.json');
+  });
+
+  test('ファイル操作を注入して一時ファイルからのrenameと固定ポートを確認する', async () => {
+    const { deps, files, operations } = memoryHistory();
+    expect(await recordLaunchProcesses(dir, [row(10)], 'root', { fixedPorts: [8090], deps })).toBe(
+      true,
+    );
+    const records = await readLaunchHistory(dir, deps);
+    expect(records[0]).toMatchObject({
+      pid: 10,
+      fixedPorts: [8090],
+      recordedAt: '2026-11-25T00:00:00.000Z',
+    });
+    expect([...files.keys()]).toEqual([launchHistoryPath(dir)]);
+    expect(operations[0]).toStartWith(`write:${launchHistoryPath(dir)}.`);
+    expect(operations[1]).toStartWith(`rename:${launchHistoryPath(dir)}.`);
+  });
+
+  test('rename失敗でも以前の履歴が残り失敗した起動の証拠は返さない', async () => {
+    const { deps, files } = memoryHistory();
+    await recordLaunchProcesses(dir, [row(10)], 'root', { deps });
+    deps.rename = async () => {
+      throw new Error('rename拒否');
+    };
+    expect(await recordLaunchProcesses(dir, [row(11)], 'root', { deps })).toBe(false);
+    expect((await readLaunchHistory(dir, deps)).map((r) => r.pid)).toEqual([10]);
+    expect([...files.keys()]).toEqual([launchHistoryPath(dir)]);
+  });
+
+  test('新規履歴の書込失敗は証拠なしになり再試行を妨げない', async () => {
+    const { deps } = memoryHistory();
+    const originalWrite = deps.write;
+    deps.write = async () => {
+      throw new Error('書込拒否');
+    };
+    expect(await recordLaunchProcesses(dir, [row(10)], 'root', { deps })).toBe(false);
+    expect(await readLaunchHistory(dir, deps)).toEqual([]);
+    deps.write = originalWrite;
+    expect(await recordLaunchProcesses(dir, [row(11)], 'root', { deps })).toBe(true);
+    expect((await readLaunchHistory(dir, deps)).map((r) => r.pid)).toEqual([11]);
+  });
+
+  test('7日超かつ死亡確認済みの記録を生存中の古い記録より先に間引く', async () => {
+    const { deps } = memoryHistory();
+    let now = Date.parse('2026-11-01T00:00:00Z');
+    deps.now = () => now;
+    await recordLaunchProcesses(dir, [row(10)], 'root', { deps });
+    now += 1000;
+    await recordLaunchProcesses(dir, [row(11)], 'observed', { deps });
+    now = Date.parse('2026-11-25T00:00:00Z');
+    deps.snapshot = async () => ({ processes: [row(10)], protectedPids: new Set() });
+    await recordLaunchProcesses(
+      dir,
+      Array.from({ length: 49 }, (_, i) => row(100 + i)),
+      'observed',
+      { deps },
+    );
+    const records = await readLaunchHistory(dir, deps);
+    expect(records).toHaveLength(50);
+    expect(records.some((r) => r.pid === 10)).toBe(true);
+    expect(records.some((r) => r.pid === 11)).toBe(false);
+  });
+
+  test('7日ちょうどは死亡確認による優先間引きの対象外とする', async () => {
+    const { deps } = memoryHistory();
+    let now = Date.parse('2026-11-18T00:00:00Z');
+    deps.now = () => now;
+    await recordLaunchProcesses(dir, [row(10), row(11)], 'observed', { deps });
+    now += 7 * 24 * 60 * 60 * 1000;
+    deps.snapshot = async () => ({ processes: [row(10)], protectedPids: new Set() });
+    await recordLaunchProcesses(
+      dir,
+      Array.from({ length: 49 }, (_, i) => row(100 + i)),
+      'observed',
+      { deps },
+    );
+    const records = await readLaunchHistory(dir, deps);
+    expect(records.some((r) => r.pid === 10)).toBe(false);
+    expect(records.some((r) => r.pid === 11)).toBe(true);
+  });
+
+  test('一覧取得失敗は死亡と見なさず最新50件の上限を維持する', async () => {
+    const { deps } = memoryHistory();
+    let now = Date.parse('2026-11-01T00:00:00Z');
+    deps.now = () => now;
+    await recordLaunchProcesses(dir, [row(10)], 'root', { deps });
+    now = Date.parse('2026-11-25T00:00:00Z');
+    deps.snapshot = async () => {
+      throw new Error('一覧取得失敗');
+    };
+    expect(
+      await recordLaunchProcesses(
+        dir,
+        Array.from({ length: 50 }, (_, i) => row(100 + i)),
+        'observed',
+        { deps },
+      ),
+    ).toBe(true);
+    expect(await readLaunchHistory(dir, deps)).toHaveLength(50);
+  });
+
+  test('所有記録を実際に削除しても根とロックの起動履歴は保持する', async () => {
+    const { deps, files } = memoryHistory();
+    const ownershipPath = join(dir, '.agent-pids', 'runtime-servers.json');
+    files.set(ownershipPath, JSON.stringify({ entries: [{ pid: 10 }] }));
+    await recordLaunchProcesses(dir, [row(10)], 'root', { deps });
+    await recordLaunchLock(
+      dir,
+      { path: join(dir, '.next', 'dev', 'lock'), pid: 10, birth: '1010' },
+      { deps },
+    );
+    await deps.unlink(ownershipPath);
+    expect(files.has(ownershipPath)).toBe(false);
+    expect((await readLaunchHistory(dir, deps)).map((r) => r.kind)).toEqual(['process', 'lock']);
+  });
+
+  test('processとlockの種別や役割が矛盾する履歴は証拠として返さない', async () => {
+    const { deps, files } = memoryHistory();
+    await recordLaunchProcesses(dir, [row(10)], 'root', { deps });
+    const original = await readLaunchHistory(dir, deps);
+    for (const invalid of [
+      { ...original[0], role: 'lock' },
+      { ...original[0], kind: 'lock', lockPath: join(dir, '.next', 'lock') },
+      { ...original[0], recordedAt: 'invalid' },
+    ]) {
+      files.set(launchHistoryPath(dir), JSON.stringify({ version: 1, entries: [invalid] }));
+      expect(await readLaunchHistory(dir, deps)).toEqual([]);
+    }
   });
 });

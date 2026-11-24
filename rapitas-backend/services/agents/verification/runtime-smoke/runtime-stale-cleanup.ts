@@ -20,10 +20,15 @@ import {
   inspectRuntimeDirectory,
   readRuntimeLockPid,
   removeRuntimeLockIfOwnedBy,
+  type RuntimeDirectoryOccupancy,
 } from './runtime-directory-occupancy';
-import { sameArgv, tokenizeCommandLine } from './runtime-command-match';
+import { normalizeForMatch, sameArgv, tokenizeCommandLine } from './runtime-command-match';
 import { readLaunchHistory, type LaunchRecord } from './runtime-launch-history';
-import { stopRuntimeProcesses, type RuntimeStopDependencies } from './runtime-process-stop';
+import {
+  stopRuntimeProcesses,
+  terminateRuntimeIdentities,
+  type RuntimeStopDependencies,
+} from './runtime-process-stop';
 import { extendOwnedRuntimeTree, type RuntimeProcessIdentity } from './runtime-process-identity';
 import {
   readRuntimeProcessSnapshot,
@@ -37,7 +42,8 @@ export interface StaleCleanupDeps {
   inspectDirectory(
     workdir: string,
     processes: RuntimeProcessIdentity[],
-  ): Promise<{ free: boolean; reason?: string; pid?: number; path?: string }>;
+    historyPaths?: readonly string[],
+  ): Promise<RuntimeDirectoryOccupancy>;
   readHistory(workdir: string): Promise<LaunchRecord[]>;
   readLockPid(path: string): Promise<number | null>;
   /** Removes the lock only while it still names `expectedPid`. */
@@ -102,9 +108,9 @@ export function fixedPortOf(url: string): number | null {
 export function extractStartPorts(start: string): number[] {
   const found = new Set<number>();
   const patterns = [
-    /(?:^|\s)(?:--port|-p)(?:\s+|=)(\d{2,5})(?=\s|$)/g,
-    /\bPORT=(\d{2,5})\b/g,
-    /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b/g,
+    /(?:^|\s)(?:--port|-p)(?:\s+|=)(\d{1,5})(?=\s|$)/g,
+    /\bPORT=(\d{1,5})\b/g,
+    /:(\d{1,5})(?=[/?#\s"'&;]|$)/g,
   ];
   for (const re of patterns) {
     for (const m of start.matchAll(re)) {
@@ -113,6 +119,12 @@ export function extractStartPorts(start: string): number[] {
     }
   }
   return [...found];
+}
+
+/** 設定URLの固定ポートを優先し、未指定なら起動コマンドから取得する。 */
+export function extractFixedPorts(cfg: { url: string; start?: string }): number[] {
+  const port = fixedPortOf(cfg.url);
+  return port === null ? extractStartPorts(cfg.start ?? '') : [port];
 }
 
 function ancestorsOf(pid: number, rows: RuntimeProcessIdentity[]): Set<number> {
@@ -138,9 +150,7 @@ export async function cleanupStaleRuntime(
   cfg: { url: string; start?: string },
   deps: StaleCleanupDeps = defaultStaleCleanupDeps,
 ): Promise<StaleCleanupResult> {
-  const ports = [...new Set([fixedPortOf(cfg.url), ...extractStartPorts(cfg.start ?? '')])].filter(
-    (p): p is number => p !== null,
-  );
+  const ports = extractFixedPorts(cfg);
   if (ports.includes(BACKEND_PORT)) {
     return {
       ok: false,
@@ -148,45 +158,61 @@ export async function cleanupStaleRuntime(
       reason: `ポート ${BACKEND_PORT} は rapitas バックエンドのため起動確認には使えません`,
     };
   }
-  const history = await deps.readHistory(workdir);
+  const history = (await deps.readHistory(workdir).catch(() => [])).filter(
+    (record) => normalizeForMatch(record.workdir) === normalizeForMatch(workdir),
+  );
   const processRecords = history.filter((r) => r.kind === 'process');
   const lockRecords = history.filter((r) => r.kind === 'lock');
-  const before = await deps.snapshot();
-  const directory = await deps.inspectDirectory(workdir, before.processes);
-  const ancestors = ancestorsOf(process.pid, before.processes);
+  let before: RuntimeProcessSnapshot;
+  try {
+    before = await deps.snapshot();
+  } catch {
+    // 初回の検査基盤障害だけは掃除を省略する。停止開始後の失敗は許可しない。
+    return { ok: true, stoppedPids: [], removedLocks: [] };
+  }
 
   const isExcluded = (snap: RuntimeProcessSnapshot, pid: number): boolean =>
     snap.protectedPids.has(pid) ||
+    snap.listeners?.some((listener) => listener.port === BACKEND_PORT && listener.pid === pid) ===
+      true ||
     pid === process.pid ||
-    ancestors.has(pid) ||
+    ancestorsOf(process.pid, snap.processes).has(pid) ||
     deps.excludePids?.has(pid) === true;
   const matchesRecord = (row: RuntimeProcessIdentity, rec: LaunchRecord): boolean =>
     rec.pid === row.pid &&
     rec.birth === row.birth &&
     sameArgv(rec.argv, tokenizeCommandLine(row.command));
 
-  /** PIDs proven by the history: recorded processes still alive and unchanged, plus descendants of live recorded roots. */
-  const provenPids = (snap: RuntimeProcessSnapshot): Set<number> => {
-    const live = snap.processes.filter(
-      (row) => !isExcluded(snap, row.pid) && processRecords.some((rec) => matchesRecord(row, rec)),
-    );
+  // 候補は履歴から引く。保護対象を先に除くと、混在時の全体拒否を判定できない。
+  const candidatesOf = (snap: RuntimeProcessSnapshot): RuntimeProcessIdentity[] => {
+    const live = processRecords.flatMap((record) => {
+      const row = snap.processes.find((p) => p.pid === record.pid);
+      return row && matchesRecord(row, record) ? [row] : [];
+    });
     const liveRoots = live.filter((row) =>
       processRecords.some((rec) => rec.role === 'root' && matchesRecord(row, rec)),
     );
-    return new Set(
-      [...live, ...extendOwnedRuntimeTree(liveRoots, snap.processes)]
-        .map((p) => p.pid)
-        .filter((pid) => !isExcluded(snap, pid)),
-    );
+    return [
+      ...new Map(
+        [...live, ...extendOwnedRuntimeTree(liveRoots, snap.processes)].map((row) => [
+          row.pid,
+          row,
+        ]),
+      ).values(),
+    ];
   };
   const holdersOf = (snap: RuntimeProcessSnapshot) =>
     (snap.listeners ?? []).filter((l) => ports.includes(l.port));
 
   /** Why a holder is not provably ours. `foreign_process` = it conflicts with a record or cannot be identified. */
   const classifyStranger = (snap: RuntimeProcessSnapshot, pid: number): RuntimeEnvCause => {
+    if (
+      snap.protectedPids.has(pid) ||
+      snap.listeners?.some((l) => l.pid === pid && l.port === BACKEND_PORT)
+    )
+      return 'port_in_use';
     const row = snap.processes.find((p) => p.pid === pid);
     if (!row || !row.command || !row.birth) return 'foreign_process';
-    if (snap.protectedPids.has(pid)) return 'port_in_use';
     return processRecords.some((rec) => rec.pid === pid) ? 'foreign_process' : 'port_in_use';
   };
   const refuseStrangers = (
@@ -210,48 +236,147 @@ export async function cleanupStaleRuntime(
       reason: `ポート ${ports.join(',')} の使用状況を確認できません`,
     };
   }
-  const proven = provenPids(before);
+  const candidates = candidatesOf(before);
+  const proven = new Set(candidates.map((p) => p.pid));
+  const failure = (cause: RuntimeEnvCause, reason: string): StaleCleanupResult => ({
+    ok: false,
+    cause,
+    reason,
+  });
+  // 既知ロックに加え、履歴に残ったworktree内のパスだけを照合する。
+  const withinWorkdir = (path: string) => {
+    const normalized = normalizeForMatch(path);
+    return (
+      normalized.startsWith(`${normalizeForMatch(workdir).replace(/\/$/, '')}/`) &&
+      !normalized.split('/').includes('..')
+    );
+  };
+  const historyPaths = lockRecords.flatMap((record) =>
+    record.lockPath && withinWorkdir(record.lockPath) ? [record.lockPath] : [],
+  );
+  const directory = await deps.inspectDirectory(workdir, before.processes, historyPaths);
+  const locks = [
+    ...new Map(
+      (directory.locks ?? (directory.path ? [directory] : [])).map((lock) => [
+        normalizeForMatch(lock.path!),
+        lock,
+      ]),
+    ).values(),
+  ];
+  if (!directory.free && !directory.path)
+    return failure('lock_held', directory.reason ?? 'ロックの所有者を確認できません');
+  for (const record of lockRecords) {
+    if (
+      !record.lockPath ||
+      !withinWorkdir(record.lockPath) ||
+      locks.some((lock) => normalizeForMatch(lock.path!) === normalizeForMatch(record.lockPath!))
+    )
+      continue;
+    const pid = await deps.readLockPid(record.lockPath);
+    if (pid !== null) locks.push({ path: record.lockPath, pid });
+  }
+  const removable: LaunchRecord[] = [];
+  for (const lock of locks) {
+    const record = lockRecords.find(
+      (r) =>
+        r.lockPath &&
+        lock.path &&
+        normalizeForMatch(r.lockPath) === normalizeForMatch(lock.path) &&
+        r.pid === lock.pid,
+    );
+    if (!lock.path || !withinWorkdir(lock.path) || !record)
+      return failure('lock_held', lock.reason ?? '履歴に記録のないロックが残っています');
+    const owner = before.processes.find((p) => p.pid === lock.pid);
+    if (owner && (owner.birth !== record.birth || !proven.has(owner.pid)))
+      return failure('foreign_process', 'ロック所有者が起動履歴と一致しません');
+    removable.push(record);
+  }
   const refusedPort = refuseStrangers(before, proven);
   if (refusedPort) return refusedPort;
-
-  const lockHolder =
-    directory.pid === undefined ? undefined : before.processes.find((p) => p.pid === directory.pid);
-  if (!directory.free && !lockHolder) {
-    // Unknown format, unreadable, or a holder we cannot see: never touch it.
-    return {
-      ok: false,
-      cause: 'lock_held',
-      reason: directory.reason ?? 'runtime ディレクトリのロックが残っています',
-    };
-  }
-  if (lockHolder && !proven.has(lockHolder.pid)) {
-    const rec = lockRecords.find((r) => r.pid === lockHolder.pid);
-    return {
-      ok: false,
-      cause: rec && rec.birth !== lockHolder.birth ? 'foreign_process' : 'lock_held',
-      reason: directory.reason ?? `runtime ロックを PID ${lockHolder.pid} が保持しています`,
-    };
-  }
-
-  const targets = new Set(holdersOf(before).map((h) => h.pid));
-  if (lockHolder) targets.add(lockHolder.pid);
-  const candidates = before.processes.filter((p) => targets.has(p.pid));
+  if (
+    holdersOf(before).some(
+      (holder) =>
+        before.protectedPids.has(holder.pid) ||
+        before.listeners?.some(
+          (listener) => listener.pid === holder.pid && listener.port === BACKEND_PORT,
+        ),
+    )
+  )
+    return failure('port_in_use', '固定ポートの所有者はバックエンドの保護対象です');
+  if (candidates.some((row) => isExcluded(before, row.pid)))
+    return failure('foreign_process', '停止候補に保護対象または別の借り手が含まれています');
+  // 待受の有無に依存せず、履歴のPIDが再利用された場合は停止しない。
+  if (
+    processRecords.some((record) => {
+      const row = before.processes.find((p) => p.pid === record.pid);
+      return row && !matchesRecord(row, record) && !proven.has(row.pid);
+    })
+  )
+    return failure('foreign_process', '履歴のプロセス身元が変化しています');
   let after = before;
   if (candidates.length > 0) {
+    const source: RuntimeStopDependencies = deps.stopDeps ?? {
+      snapshot: deps.snapshot,
+      terminate: (identity) => terminateRuntimeIdentities([identity]),
+      terminateMany: terminateRuntimeIdentities,
+      wait: () => new Promise((resolve) => setTimeout(resolve, 250)),
+      now: Date.now,
+    };
+    const checkedSnapshot = async (): Promise<RuntimeProcessSnapshot> => {
+      const snap = await source.snapshot();
+      for (const target of candidates) {
+        const row = snap.processes.find((p) => p.pid === target.pid);
+        if (
+          row &&
+          (row.birth !== target.birth ||
+            !sameArgv(tokenizeCommandLine(target.command), tokenizeCommandLine(row.command)) ||
+            isExcluded(snap, row.pid))
+        )
+          throw new Error('停止直前にプロセス身元または保護状態が変化しました');
+      }
+      if (candidatesOf(snap).some((row) => isExcluded(snap, row.pid)))
+        throw new Error('停止直前のツリーに保護対象が含まれています');
+      const refused = refuseStrangers(snap, proven);
+      if (refused) throw new Error(refused.ok ? '' : refused.reason);
+      // 停止層の子孫再展開にも、同じ許可集合を適用する。保護情報と待受は削らない。
+      // argv の一致を確認済みの表記差は、停止層の生コマンド比較でも同じ身元に揃える。
+      return {
+        ...snap,
+        processes: snap.processes.flatMap((row) => {
+          const target = candidates.find((candidate) => candidate.pid === row.pid);
+          return target ? [{ ...row, command: target.command }] : [];
+        }),
+      };
+    };
+    const guardedDeps: RuntimeStopDependencies = {
+      ...source,
+      snapshot: checkedSnapshot,
+      terminate: async (identity) => {
+        await checkedSnapshot();
+        await source.terminate(identity);
+      },
+      terminateMany: source.terminateMany
+        ? async (identities) => {
+            await checkedSnapshot();
+            await source.terminateMany!(identities);
+          }
+        : undefined,
+    };
     const stop = await stopRuntimeProcesses(
       candidates,
       async () => {},
       deps.stopTimeoutMs ?? STOP_VERIFY_TIMEOUT_MS,
-      deps.stopDeps,
+      guardedDeps,
     );
     if (!stop.stopped) {
-      // 'exit-not-confirmed' means a plain identified process ignored the stop;
-      // any other refusal (a protected PID in the tree) means it is not ours.
-      const cause = stop.reason === 'exit-not-confirmed' ? 'port_in_use' : 'foreign_process';
-      return { ok: false, cause, reason: `残存プロセスを停止できませんでした: ${stop.reason}` };
+      return failure('foreign_process', `残存プロセスを停止できませんでした: ${stop.reason}`);
     }
-    after = await deps.snapshot();
-    const refusedAfter = refuseStrangers(after, provenPids(after));
+    try {
+      after = await deps.snapshot();
+    } catch {
+      return failure('foreign_process', '停止後の死亡確認に失敗しました');
+    }
+    const refusedAfter = refuseStrangers(after, new Set(candidatesOf(after).map((p) => p.pid)));
     if (refusedAfter) return refusedAfter;
     const remaining = holdersOf(after);
     if (remaining.length > 0) {
@@ -266,15 +391,18 @@ export async function cleanupStaleRuntime(
   // A lock written by a launch of ours whose holder is gone is stale. Only a lock
   // that still names the recorded PID is removed (re-read just before unlinking).
   const removedLocks: string[] = [];
-  for (const rec of lockRecords) {
+  for (const rec of removable) {
     if (!rec.lockPath) continue;
     const alive = after.processes.find((p) => p.pid === rec.pid);
-    if (alive && alive.birth === rec.birth) continue;
-    if ((await deps.readLockPid(rec.lockPath)) !== rec.pid) continue;
-    if (await deps.removeLock(rec.lockPath, rec.pid)) removedLocks.push(rec.lockPath);
+    if (alive) return failure('foreign_process', 'ロック所有者の死亡を確認できません');
+    if ((await deps.readLockPid(rec.lockPath)) !== rec.pid)
+      return failure('lock_held', '削除前にロックの内容が変化しました');
+    if (!(await deps.removeLock(rec.lockPath, rec.pid)))
+      return failure('lock_held', 'ロックの再確認付き削除に失敗しました');
+    removedLocks.push(rec.lockPath);
   }
-  const afterDirectory = await deps.inspectDirectory(workdir, after.processes);
-  if (!afterDirectory.free) {
+  const afterDirectory = await deps.inspectDirectory(workdir, after.processes, historyPaths);
+  if (!afterDirectory.free || afterDirectory.path || afterDirectory.locks?.length) {
     return {
       ok: false,
       cause: 'lock_held',
