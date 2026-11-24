@@ -33,6 +33,28 @@ const log = createLogger('workflow:overlap-guard');
  */
 export const OVERLAP_PR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
+/** Transition causes that record an auto-merge outcome; the latest one decides "parked". */
+export const MERGE_OUTCOME_CAUSES = [
+  'auto_merged',
+  'auto_merge_exhausted',
+  'auto_merge_conflict_filed',
+] as const;
+
+/**
+ * Whether a PR's latest auto-merge outcome leaves it unable to merge on its own.
+ *
+ * NOTE: "conflict filed" joins "exhausted": the PR conflicts with the base and
+ * merges only after the filed resolver task runs — which may be queued behind
+ * the very task being held. TempoRaid 1420 and 1418 each sat out the 30-minute
+ * ceiling twice on such a PR (#35) on 2026-11-24.
+ *
+ * @param cause - Latest outcome cause, or undefined when none / 最新の結果、無ければ undefined
+ * @returns True when nothing will merge the PR without outside help / 外部の助け無しにマージされないなら true
+ */
+export function isParkedMergeOutcome(cause: string | undefined): boolean {
+  return cause === 'auto_merge_exhausted' || cause === 'auto_merge_conflict_filed';
+}
+
 /** Per-task hold start (epoch ms); deleted on release. */
 const holdSince = new Map<number, number>();
 /** Per-task timeout-release time; no fresh hold starts within one ceiling of it. */
@@ -111,11 +133,11 @@ const defaultDeps: OverlapGuardDeps = {
   isParked: async (linkedTaskId) => {
     const { prisma } = await import('../../config');
     const latest = await prisma.workflowTransition.findFirst({
-      where: { taskId: linkedTaskId, cause: { in: ['auto_merged', 'auto_merge_exhausted'] } },
+      where: { taskId: linkedTaskId, cause: { in: [...MERGE_OUTCOME_CAUSES] } },
       orderBy: { createdAt: 'desc' },
       select: { cause: true },
     });
-    return latest?.cause === 'auto_merge_exhausted';
+    return isParkedMergeOutcome(latest?.cause);
   },
   isHalted: async (linkedTaskId) => {
     const { prisma } = await import('../../config');
