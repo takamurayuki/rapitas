@@ -2,17 +2,27 @@
  * runtime-smoke/runtime-stale-cleanup
  *
  * Before a runtime launch, stops leftovers of an EARLIER launch from the same
- * worktree (a server still holding the fixed port or the dev-server lock) and
- * names the environment cause when the port or lock cannot be cleared.
+ * worktree (a server still holding the fixed port or the dev-server lock),
+ * removes the lock file such a launch left behind, and names the environment
+ * cause when the port or lock cannot be cleared.
  * Not responsible for spawning, health checks, or the registry's own state.
  *
- * Safety model: every decision is made from ONE snapshot before any signal is
- * sent. A holder is stopped only when its command line names this worktree at a
- * path boundary (or it descends from such a process) and it is not a protected
- * (port 3001) process, this process, or an ancestor of it. If ANY holder of the
- * fixed port or the lock fails that test, nothing is stopped.
+ * Safety model: a process is stopped ONLY when the launch history proves this
+ * launch family started it — same PID, same birth, and an argument list that
+ * equals the recorded one argument for argument (or it descends from such a
+ * recorded root) — and it is not a protected (port 3001) process, this process,
+ * an ancestor of it, or owned by another active borrower. The live process list
+ * and listening ports are only used to LOOK UP records, never to create
+ * candidates. Every decision is made before the first signal: if any holder of
+ * the fixed port or the lock is not proven, nothing is stopped.
  */
-import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
+import {
+  inspectRuntimeDirectory,
+  readRuntimeLockPid,
+  removeRuntimeLockIfOwnedBy,
+} from './runtime-directory-occupancy';
+import { sameArgv, tokenizeCommandLine } from './runtime-command-match';
+import { readLaunchHistory, type LaunchRecord } from './runtime-launch-history';
 import { stopRuntimeProcesses, type RuntimeStopDependencies } from './runtime-process-stop';
 import { extendOwnedRuntimeTree, type RuntimeProcessIdentity } from './runtime-process-identity';
 import {
@@ -27,14 +37,20 @@ export interface StaleCleanupDeps {
   inspectDirectory(
     workdir: string,
     processes: RuntimeProcessIdentity[],
-  ): Promise<{ free: boolean; reason?: string; pid?: number }>;
+  ): Promise<{ free: boolean; reason?: string; pid?: number; path?: string }>;
+  readHistory(workdir: string): Promise<LaunchRecord[]>;
+  readLockPid(path: string): Promise<number | null>;
+  /** Removes the lock only while it still names `expectedPid`. */
+  removeLock(path: string, expectedPid: number): Promise<boolean>;
+  /** PIDs owned by other active registry entries; never stopped. */
+  excludePids?: ReadonlySet<number>;
   /** Passed straight to stopRuntimeProcesses (tests inject a fake OS). */
   stopDeps?: RuntimeStopDependencies;
   stopTimeoutMs?: number;
 }
 
 export type StaleCleanupResult =
-  | { ok: true; stoppedPids: number[] }
+  | { ok: true; stoppedPids: number[]; removedLocks: string[] }
   | { ok: false; cause: RuntimeEnvCause; reason: string };
 
 /** Thrown by the launch path so the registry can attach `cause` to its failure. */
@@ -47,43 +63,17 @@ export class RuntimeEnvBlockedError extends Error {
   }
 }
 
-const defaults: StaleCleanupDeps = {
+/** OS-backed dependencies. */
+export const defaultStaleCleanupDeps: StaleCleanupDeps = {
   snapshot: readRuntimeProcessSnapshot,
   inspectDirectory: inspectRuntimeDirectory,
+  readHistory: readLaunchHistory,
+  readLockPid: readRuntimeLockPid,
+  removeLock: removeRuntimeLockIfOwnedBy,
 };
 
 /** Backend (agent self) port: never cleaned, never a launch target. */
 const BACKEND_PORT = 3001;
-
-function normalizePath(value: string): string {
-  const slashed = value.replace(/\\/g, '/');
-  return process.platform === 'win32' ? slashed.toLowerCase() : slashed;
-}
-
-/**
- * Whether a command line names the worktree as a whole path, so `task-15` never
- * matches `task-153`, `task-15+x` or `task-15別`.
- *
- * @param command - Process command line / コマンドライン
- * @param workdir - Absolute worktree path / worktree の絶対パス
- * @returns True when the worktree path appears at a path boundary / 境界一致ならtrue
- */
-export function commandReferencesWorkdir(command: string, workdir: string): boolean {
-  const target = normalizePath(workdir).replace(/\/+$/, '');
-  if (!command || !target) return false;
-  const haystack = normalizePath(command);
-  let from = 0;
-  while (true) {
-    const at = haystack.indexOf(target, from);
-    if (at < 0) return false;
-    const before = at === 0 ? ' ' : haystack[at - 1];
-    // End of the command counts as a boundary.
-    const after = haystack[at + target.length] ?? ' ';
-    // Only a separator, quote or the end may follow: anything else is another path.
-    if (/[\s"'=(]/.test(before) && /[\s/"';,)]/.test(after)) return true;
-    from = at + 1;
-  }
-}
 
 /**
  * The fixed port a runtime config URL pins, or null when it uses `{port}` or
@@ -141,12 +131,12 @@ function ancestorsOf(pid: number, rows: RuntimeProcessIdentity[]): Set<number> {
  * @param workdir - Worktree about to be launched / 起動対象 worktree
  * @param cfg - Runtime config (`url`, `start` are read) / 設定
  * @param deps - Injection points / 注入点
- * @returns ok with the stopped PIDs, or the environment cause / 結果
+ * @returns ok with what was stopped/removed, or the environment cause / 結果
  */
 export async function cleanupStaleRuntime(
   workdir: string,
   cfg: { url: string; start?: string },
-  deps: StaleCleanupDeps = defaults,
+  deps: StaleCleanupDeps = defaultStaleCleanupDeps,
 ): Promise<StaleCleanupResult> {
   const ports = [...new Set([fixedPortOf(cfg.url), ...extractStartPorts(cfg.start ?? '')])].filter(
     (p): p is number => p !== null,
@@ -158,25 +148,60 @@ export async function cleanupStaleRuntime(
       reason: `ポート ${BACKEND_PORT} は rapitas バックエンドのため起動確認には使えません`,
     };
   }
+  const history = await deps.readHistory(workdir);
+  const processRecords = history.filter((r) => r.kind === 'process');
+  const lockRecords = history.filter((r) => r.kind === 'lock');
   const before = await deps.snapshot();
   const directory = await deps.inspectDirectory(workdir, before.processes);
   const ancestors = ancestorsOf(process.pid, before.processes);
 
-  /** PIDs provably from this worktree: command names it, plus their descendants. */
-  const ownedPids = (snap: RuntimeProcessSnapshot): Set<number> => {
-    const excluded = (pid: number) =>
-      snap.protectedPids.has(pid) || pid === process.pid || ancestors.has(pid);
-    const roots = snap.processes.filter(
-      (p) => !excluded(p.pid) && commandReferencesWorkdir(p.command, workdir),
+  const isExcluded = (snap: RuntimeProcessSnapshot, pid: number): boolean =>
+    snap.protectedPids.has(pid) ||
+    pid === process.pid ||
+    ancestors.has(pid) ||
+    deps.excludePids?.has(pid) === true;
+  const matchesRecord = (row: RuntimeProcessIdentity, rec: LaunchRecord): boolean =>
+    rec.pid === row.pid &&
+    rec.birth === row.birth &&
+    sameArgv(rec.argv, tokenizeCommandLine(row.command));
+
+  /** PIDs proven by the history: recorded processes still alive and unchanged, plus descendants of live recorded roots. */
+  const provenPids = (snap: RuntimeProcessSnapshot): Set<number> => {
+    const live = snap.processes.filter(
+      (row) => !isExcluded(snap, row.pid) && processRecords.some((rec) => matchesRecord(row, rec)),
+    );
+    const liveRoots = live.filter((row) =>
+      processRecords.some((rec) => rec.role === 'root' && matchesRecord(row, rec)),
     );
     return new Set(
-      extendOwnedRuntimeTree(roots, snap.processes)
+      [...live, ...extendOwnedRuntimeTree(liveRoots, snap.processes)]
         .map((p) => p.pid)
-        .filter((pid) => !excluded(pid)),
+        .filter((pid) => !isExcluded(snap, pid)),
     );
   };
   const holdersOf = (snap: RuntimeProcessSnapshot) =>
     (snap.listeners ?? []).filter((l) => ports.includes(l.port));
+
+  /** Why a holder is not provably ours. `foreign_process` = it conflicts with a record or cannot be identified. */
+  const classifyStranger = (snap: RuntimeProcessSnapshot, pid: number): RuntimeEnvCause => {
+    const row = snap.processes.find((p) => p.pid === pid);
+    if (!row || !row.command || !row.birth) return 'foreign_process';
+    if (snap.protectedPids.has(pid)) return 'port_in_use';
+    return processRecords.some((rec) => rec.pid === pid) ? 'foreign_process' : 'port_in_use';
+  };
+  const refuseStrangers = (
+    snap: RuntimeProcessSnapshot,
+    proven: Set<number>,
+  ): StaleCleanupResult | null => {
+    const strangers = holdersOf(snap).filter((h) => !proven.has(h.pid));
+    if (strangers.length === 0) return null;
+    const causes = strangers.map((h) => classifyStranger(snap, h.pid));
+    return {
+      ok: false,
+      cause: causes.includes('foreign_process') ? 'foreign_process' : 'port_in_use',
+      reason: `ポート ${[...new Set(strangers.map((h) => h.port))].join(',')} は PID ${strangers.map((h) => h.pid).join(',')} が使用中です（この worktree の起動確認由来と履歴で証明できないため停止しません）`,
+    };
+  };
 
   if (ports.length > 0 && !before.listeners) {
     return {
@@ -185,31 +210,33 @@ export async function cleanupStaleRuntime(
       reason: `ポート ${ports.join(',')} の使用状況を確認できません`,
     };
   }
-  const owned = ownedPids(before);
-  const holders = holdersOf(before);
-  const strangers = holders.filter((h) => !owned.has(h.pid));
-  if (strangers.length > 0) {
-    return {
-      ok: false,
-      cause: 'foreign_process',
-      reason: `ポート ${[...new Set(strangers.map((h) => h.port))].join(',')} は PID ${strangers.map((h) => h.pid).join(',')} が使用中です（この worktree の起動確認由来と確認できないため停止しません）`,
-    };
-  }
+  const proven = provenPids(before);
+  const refusedPort = refuseStrangers(before, proven);
+  if (refusedPort) return refusedPort;
+
   const lockHolder =
     directory.pid === undefined ? undefined : before.processes.find((p) => p.pid === directory.pid);
-  if (lockHolder && !owned.has(lockHolder.pid)) {
+  if (!directory.free && !lockHolder) {
+    // Unknown format, unreadable, or a holder we cannot see: never touch it.
     return {
       ok: false,
-      cause: lockHolder.command ? 'lock_held' : 'foreign_process',
+      cause: 'lock_held',
+      reason: directory.reason ?? 'runtime ディレクトリのロックが残っています',
+    };
+  }
+  if (lockHolder && !proven.has(lockHolder.pid)) {
+    const rec = lockRecords.find((r) => r.pid === lockHolder.pid);
+    return {
+      ok: false,
+      cause: rec && rec.birth !== lockHolder.birth ? 'foreign_process' : 'lock_held',
       reason: directory.reason ?? `runtime ロックを PID ${lockHolder.pid} が保持しています`,
     };
   }
 
-  const targets = new Set(holders.map((h) => h.pid));
+  const targets = new Set(holdersOf(before).map((h) => h.pid));
   if (lockHolder) targets.add(lockHolder.pid);
   const candidates = before.processes.filter((p) => targets.has(p.pid));
   let after = before;
-  let afterDirectory = directory;
   if (candidates.length > 0) {
     const stop = await stopRuntimeProcesses(
       candidates,
@@ -224,19 +251,29 @@ export async function cleanupStaleRuntime(
       return { ok: false, cause, reason: `残存プロセスを停止できませんでした: ${stop.reason}` };
     }
     after = await deps.snapshot();
-    afterDirectory = await deps.inspectDirectory(workdir, after.processes);
+    const refusedAfter = refuseStrangers(after, provenPids(after));
+    if (refusedAfter) return refusedAfter;
+    const remaining = holdersOf(after);
+    if (remaining.length > 0) {
+      return {
+        ok: false,
+        cause: 'port_in_use',
+        reason: `ポート ${[...new Set(remaining.map((h) => h.port))].join(',')} は停止後も PID ${remaining.map((h) => h.pid).join(',')} が使用中です`,
+      };
+    }
   }
 
-  const remaining = holdersOf(after);
-  if (remaining.length > 0) {
-    const ownedNow = ownedPids(after);
-    const ours = remaining.every((h) => ownedNow.has(h.pid));
-    return {
-      ok: false,
-      cause: ours ? 'port_in_use' : 'foreign_process',
-      reason: `ポート ${[...new Set(remaining.map((h) => h.port))].join(',')} は PID ${remaining.map((h) => h.pid).join(',')} が使用中です`,
-    };
+  // A lock written by a launch of ours whose holder is gone is stale. Only a lock
+  // that still names the recorded PID is removed (re-read just before unlinking).
+  const removedLocks: string[] = [];
+  for (const rec of lockRecords) {
+    if (!rec.lockPath) continue;
+    const alive = after.processes.find((p) => p.pid === rec.pid);
+    if (alive && alive.birth === rec.birth) continue;
+    if ((await deps.readLockPid(rec.lockPath)) !== rec.pid) continue;
+    if (await deps.removeLock(rec.lockPath, rec.pid)) removedLocks.push(rec.lockPath);
   }
+  const afterDirectory = await deps.inspectDirectory(workdir, after.processes);
   if (!afterDirectory.free) {
     return {
       ok: false,
@@ -244,5 +281,5 @@ export async function cleanupStaleRuntime(
       reason: afterDirectory.reason ?? 'runtime ディレクトリのロックが残っています',
     };
   }
-  return { ok: true, stoppedPids: candidates.map((p) => p.pid) };
+  return { ok: true, stoppedPids: candidates.map((p) => p.pid), removedLocks };
 }

@@ -24,7 +24,7 @@ const SCOPE_ALLOWLIST = new Set([
  * Editor/tool backup and temp file NAMES (`server.exe~`, `a.bak`, `b.orig`,
  * `.#lock`, `c.swp`, `d.tmp`). A stem is required, so `.bak` alone is not one.
  */
-const BACKUP_NAME_RE = /^(?:.+~|.+\.(?:bak|orig|swp|tmp)|\.#.+)$/;
+const BACKUP_NAME_RE = /^(?:.+~|.+\.(?:bak|orig|swp|swo|tmp)|\.#.+)$/;
 
 /**
  * Whether a path is an editor/tool backup or temp file. Judged on the file

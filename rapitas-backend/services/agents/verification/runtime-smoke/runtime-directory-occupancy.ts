@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
 
@@ -10,7 +10,7 @@ import type { RuntimeProcessIdentity } from './runtime-process-identity';
 export async function inspectRuntimeDirectory(
   workdir: string,
   processes: RuntimeProcessIdentity[],
-): Promise<{ free: boolean; reason?: string; pid?: number }> {
+): Promise<{ free: boolean; reason?: string; pid?: number; path?: string }> {
   for (const project of ['', 'rapitas-frontend']) {
     for (const output of ['.next', '.next-tauri']) {
       for (const variant of ['', 'dev']) {
@@ -32,6 +32,7 @@ export async function inspectRuntimeDirectory(
               free: false,
               reason: `Runtime directory occupied by PID ${info.pid}: ${path}`,
               pid: info.pid,
+              path,
             };
           }
         } catch {
@@ -41,4 +42,41 @@ export async function inspectRuntimeDirectory(
     }
   }
   return { free: true };
+}
+
+/**
+ * Read the PID a runtime lock file names, or null when the file is absent or
+ * unreadable.
+ *
+ * @param path - Lock file path / ロックファイルのパス
+ * @returns PID in the lock, or null / ロックのPID
+ */
+export async function readRuntimeLockPid(path: string): Promise<number | null> {
+  try {
+    const pid = JSON.parse(await readFile(path, 'utf8'))?.pid;
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete a lock file only if it still names the expected PID (re-read right
+ * before unlinking, so a lock rewritten by a new owner is never removed).
+ *
+ * @param path - Lock file path / ロックファイルのパス
+ * @param expectedPid - PID recorded at launch / 起動時に記録したPID
+ * @returns True when the file was removed / 削除したらtrue
+ */
+export async function removeRuntimeLockIfOwnedBy(
+  path: string,
+  expectedPid: number,
+): Promise<boolean> {
+  if ((await readRuntimeLockPid(path)) !== expectedPid) return false;
+  try {
+    await unlink(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

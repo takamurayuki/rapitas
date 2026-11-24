@@ -12,6 +12,8 @@ test.each([
   [['Port 3000 is in use, trying another one'], 'port_in_use'],
   [['別のインスタンスが既に起動しています'], 'lock_held'],
   [['Another next dev server is already running.'], 'lock_held'],
+  [['Port 8090 in use'], 'port_in_use'],
+  [['lock file exists: .next/dev/lock'], 'lock_held'],
   [['TypeError: x is not a function'], undefined],
   [[], undefined],
 ])('%j classifies as %s', (logs, cause) => {

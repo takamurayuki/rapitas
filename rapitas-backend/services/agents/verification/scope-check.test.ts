@@ -200,6 +200,7 @@ describe('evaluateScopeCheck — backup and temp files', () => {
     'src/b.orig',
     'src/.#c.ts',
     'notes.swp',
+    'notes.swo',
     'dir\\deep\\old.tmp',
   ])('does not count %s as out of plan', (file) => {
     const result = evaluateScopeCheck([file], PLAN);

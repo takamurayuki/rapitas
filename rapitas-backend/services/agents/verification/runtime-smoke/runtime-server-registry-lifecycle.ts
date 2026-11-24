@@ -7,7 +7,12 @@
  * down before releasing the workdir — live in one focused module.
  */
 import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
-import { cleanupStaleRuntime, RuntimeEnvBlockedError } from './runtime-stale-cleanup';
+import {
+  cleanupStaleRuntime,
+  defaultStaleCleanupDeps,
+  RuntimeEnvBlockedError,
+} from './runtime-stale-cleanup';
+import { recordLaunchLock, recordLaunchProcesses } from './runtime-launch-history';
 import { classifyLaunchLogCause } from './runtime-env-cause';
 import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
@@ -83,6 +88,7 @@ export async function stopOwnedAndVerify(
     return !registry.has(entry.key) || registry.get(entry.key)?.state !== 'quarantined';
   }
   entry.state = 'stopping';
+  await recordLaunchProcesses(entry.workdir, entry.identities, 'observed');
 
   const run = (async (): Promise<void> => {
     entry.app?.markStopRequested?.();
@@ -172,7 +178,15 @@ export async function spawnNewEntry(
     // Leftovers of an earlier launch from this worktree are stopped here (inside
     // the registry's exclusion: no entry exists, so no borrower is disturbed);
     // a port/lock we cannot clear is an environment cause, not an app failure.
-    const cleanup = await cleanupStaleRuntime(workdir, cfg);
+    const otherOwned = new Set<number>(
+      [...registry.values()]
+        .filter((other) => other.key !== key)
+        .flatMap((other) => other.identities?.map((identity) => identity.pid) ?? []),
+    );
+    const cleanup = await cleanupStaleRuntime(workdir, cfg, {
+      ...defaultStaleCleanupDeps,
+      excludePids: otherOwned,
+    });
     if (!cleanup.ok) throw new RuntimeEnvBlockedError(cleanup.cause, cleanup.reason);
     if (entry.startCancelled) throw new Error('Startup cancelled before spawn');
     const { app, port, baseUrl } = await withRuntimeLaunchLock(async () => {
@@ -195,6 +209,9 @@ export async function spawnNewEntry(
       throw new Error('Spawned process identity cannot be confirmed');
     }
     entry.identities = extendOwnedRuntimeTree([root], snapshot.processes);
+    // Proof that THIS launch started the process — written before anything can fail
+    // and kept after the registry entry is gone (it is what a later cleanup trusts).
+    await recordLaunchProcesses(workdir, [root], 'root');
     await persistActive(entry, app.pid);
 
     log.info({ key, workdir, port, label }, '[registry] spawning new server for workdir');
@@ -316,6 +333,17 @@ export async function spawnNewEntry(
           port,
         ),
       );
+    // Children (e.g. the real server behind a shell) and the lock holder only exist now.
+    await recordLaunchProcesses(workdir, readyIdentity.alive, 'observed');
+    const lockInfo = await inspectRuntimeDirectory(workdir, readySnapshot.processes);
+    const lockOwner = readySnapshot.processes.find((p) => p.pid === lockInfo.pid);
+    if (lockInfo.path && lockOwner) {
+      await recordLaunchLock(workdir, {
+        path: lockInfo.path,
+        pid: lockOwner.pid,
+        birth: lockOwner.birth,
+      });
+    }
     entry.state = 'active';
     const lease = randomUUID();
     entry.leases.add(lease);

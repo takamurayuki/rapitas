@@ -15,11 +15,13 @@ import type { RuntimeEnvCause } from './runtime-server-registry-types';
 export function classifyLaunchLogCause(logs: string[]): RuntimeEnvCause | undefined {
   const text = logs.join('\n');
   if (
-    /EADDRINUSE|address already in use|Port \d+ is (?:already )?in use|ポート.*使用中/i.test(text)
+    /EADDRINUSE|address already in use|Port \d+ (?:is )?(?:already )?in use|ポート.*使用中/i.test(
+      text,
+    )
   )
     return 'port_in_use';
   if (
-    /already running|既に起動しています|Unable to acquire lock|already (?:locked|in use by another)/i.test(
+    /already running|既に起動しています|Unable to acquire lock|lock file|already (?:locked|in use by another)/i.test(
       text,
     )
   )

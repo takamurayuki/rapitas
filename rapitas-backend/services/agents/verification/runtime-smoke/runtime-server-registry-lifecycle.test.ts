@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readLaunchHistory } from './runtime-launch-history';
 
 mock.module('./runtime-boot-identity', () => ({
   readRuntimeBootId: async () => 'linux:00000000-0000-0000-0000-000000000001',
@@ -255,7 +256,7 @@ test('unconfirmed listener ownership is unverifiable and logs PID diagnostics wi
 
 // Task 1539 (trendline 514): a leftover `server.exe` held the fixed port, and the
 // launch then failed as if the app were broken. The port is checked BEFORE spawn.
-test('a fixed port held by a process that is not this worktree is an environment cause', async () => {
+test('a fixed port held by a process the launch history does not know is an environment cause', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
   fixedPortHolder = { pid: 4242, command: 'C:\elsewhere\server.exe', port: 8090 };
@@ -267,7 +268,7 @@ test('a fixed port held by a process that is not this worktree is an environment
     'fp',
   );
 
-  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'foreign_process' });
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'port_in_use' });
   expect(launched).toBe(0);
   expect(registry.has(dir)).toBe(false);
 });
@@ -286,4 +287,17 @@ test.each([
   const result = await spawnNewEntry(dir, dir, cfg, 'fp');
 
   expect(result).toMatchObject({ ok: false, unverifiable: true, cause });
+});
+
+// Task 1539: the proof that a launch started a process is written as soon as the
+// spawned root is identified, before anything later can fail.
+test('the spawned root is written to the launch history right after spawn', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  rootPresent = true;
+
+  await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  const history = await readLaunchHistory(dir);
+  expect(history.find((r) => r.pid === 999)).toMatchObject({ kind: 'process', role: 'root' });
 });

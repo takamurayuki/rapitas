@@ -1,45 +1,80 @@
 /**
  * runtime-stale-cleanup.test
  *
- * Injected process lists and listener tables prove that only leftovers of THIS
- * worktree's runtime launch are stopped, and that everything else (port 3001,
- * siblings, unidentifiable processes) is left alone and reported as an
- * environment cause.
+ * Injected process lists, listener tables and launch history prove that only
+ * processes the history shows this launch family started are stopped, and that
+ * everything else (manual services, siblings, port 3001, unidentifiable or
+ * re-used PIDs) is left alone and reported as an environment cause.
  */
 import { describe, expect, test } from 'bun:test';
 import {
   cleanupStaleRuntime,
-  commandReferencesWorkdir,
-  fixedPortOf,
   extractStartPorts,
+  fixedPortOf,
   type StaleCleanupDeps,
 } from './runtime-stale-cleanup';
+import { tokenizeCommandLine } from './runtime-command-match';
+import type { LaunchRecord } from './runtime-launch-history';
 import type { RuntimeProcessIdentity } from './runtime-process-identity';
 import type { RuntimeProcessSnapshot } from './runtime-process-snapshot';
 
-const WORKDIR = process.platform === 'win32' ? 'C:\\w\\task-15' : '/w/task-15';
-const SIBLING = process.platform === 'win32' ? 'C:\\w\\task-153' : '/w/task-153';
+const WORKDIR = 'C:/w/task-15';
+const LOCK_PATH = `${WORKDIR}/.next/dev/lock`;
 const proc = (pid: number, command: string, parentPid = 1): RuntimeProcessIdentity => ({
   pid,
   parentPid,
   birth: String(1000 + pid),
   command,
 });
+/** A history record exactly as the launch would have written it for `row`. */
+const rec = (row: RuntimeProcessIdentity, role: 'root' | 'observed' = 'root'): LaunchRecord => ({
+  key: `process:${row.pid}:${row.birth}`,
+  kind: 'process',
+  workdir: WORKDIR.toLowerCase(),
+  pid: row.pid,
+  birth: row.birth,
+  role,
+  command: row.command,
+  argv: tokenizeCommandLine(row.command),
+  recordedAt: '2026-11-25T00:00:00.000Z',
+});
+const lockRec = (pid: number, birth: string): LaunchRecord => ({
+  key: `lock:${LOCK_PATH}`,
+  kind: 'lock',
+  workdir: WORKDIR.toLowerCase(),
+  pid,
+  birth,
+  role: 'lock',
+  command: '',
+  argv: null,
+  lockPath: LOCK_PATH,
+  recordedAt: '2026-11-25T00:00:00.000Z',
+});
+const SERVER = proc(40, `"${WORKDIR}/server.exe" --serve`);
 const CFG = { url: 'http://127.0.0.1:8090', start: 'server' };
+const NO_PORT = { url: 'http://127.0.0.1:{port}', start: 'server {port}' };
+
+interface WorldOptions {
+  history?: LaunchRecord[];
+  protectedPids?: number[];
+  /** Pid named by a live runtime lock; `unknown` = a lock the directory check cannot attribute. */
+  lock?: { pid?: number; unknown?: boolean };
+  /** PID the lock FILE currently names (for stale removal). */
+  lockFilePid?: number | null;
+  unkillable?: boolean;
+  excludePids?: number[];
+}
 
 /** Simulated OS: a mutable process table where stopping removes the process. */
 function world(
   initial: RuntimeProcessIdentity[],
   listeners: Array<{ port: number; pid: number }>,
-  opts: {
-    protectedPids?: number[];
-    lock?: { free: boolean; reason?: string; pid?: number };
-    unkillable?: boolean;
-  } = {},
+  opts: WorldOptions = {},
 ) {
   let rows = [...initial];
   let time = 0;
   const killed: number[] = [];
+  const removed: string[] = [];
   const view = (): RuntimeProcessSnapshot => ({
     processes: rows,
     protectedPids: new Set(opts.protectedPids ?? []),
@@ -47,13 +82,22 @@ function world(
   });
   const deps: StaleCleanupDeps = {
     snapshot: async () => view(),
-    inspectDirectory: async (_dir, processes) =>
-      opts.lock &&
-      !opts.lock.free &&
-      opts.lock.pid &&
-      !processes.some((p) => p.pid === opts.lock!.pid)
-        ? { free: true }
-        : (opts.lock ?? { free: true }),
+    inspectDirectory: async (_dir, processes) => {
+      if (opts.lock?.unknown) return { free: false, reason: 'Unknown runtime lock owner' };
+      const holder = opts.lock?.pid;
+      if (holder !== undefined && processes.some((p) => p.pid === holder)) {
+        return { free: false, reason: `occupied by PID ${holder}`, pid: holder, path: LOCK_PATH };
+      }
+      return { free: true };
+    },
+    readHistory: async () => opts.history ?? [],
+    readLockPid: async () => opts.lockFilePid ?? null,
+    removeLock: async (path, expected) => {
+      if (opts.lockFilePid !== expected) return false;
+      removed.push(path);
+      return true;
+    },
+    excludePids: new Set(opts.excludePids ?? []),
     stopTimeoutMs: 50,
     stopDeps: {
       snapshot: async () => view(),
@@ -67,70 +111,143 @@ function world(
       now: () => time,
     },
   };
-  return { deps, killed };
+  return { deps, killed, removed };
 }
 
-describe('commandReferencesWorkdir', () => {
-  test('matches on a path boundary only', () => {
-    expect(commandReferencesWorkdir(`node ${WORKDIR}\\x\\server.js`, WORKDIR)).toBe(true);
-    expect(commandReferencesWorkdir(`"${WORKDIR}/server.exe"`, WORKDIR)).toBe(true);
-    expect(commandReferencesWorkdir(`node ${SIBLING}/server.js`, WORKDIR)).toBe(false);
-    expect(commandReferencesWorkdir('', WORKDIR)).toBe(false);
-  });
-});
-
-describe('fixedPortOf', () => {
-  test('returns null for a placeholder or missing port, else the port', () => {
+describe('fixedPortOf / extractStartPorts', () => {
+  test('read pinned ports and ignore placeholders', () => {
     expect(fixedPortOf('http://127.0.0.1:{port}')).toBeNull();
     expect(fixedPortOf('http://127.0.0.1')).toBeNull();
     expect(fixedPortOf('not a url')).toBeNull();
     expect(fixedPortOf('http://localhost:8090/x')).toBe(8090);
+    expect(extractStartPorts('server.exe --port 8090')).toEqual([8090]);
+    expect(extractStartPorts('next dev -p 3000')).toEqual([3000]);
+    expect(extractStartPorts('set PORT=4000 && node a.js')).toEqual([4000]);
+    expect(extractStartPorts('serve 127.0.0.1:5000')).toEqual([5000]);
+    expect(extractStartPorts('next dev -p {port}')).toEqual([]);
   });
 });
 
-describe('cleanupStaleRuntime', () => {
-  test('stops a leftover listener of the same worktree and frees the port', async () => {
-    const { deps, killed } = world([proc(40, `${WORKDIR}\\server.exe`)], [{ port: 8090, pid: 40 }]);
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toEqual({ ok: true, stoppedPids: [40] });
+describe('cleanupStaleRuntime — only what the launch history proves', () => {
+  test('stops a recorded leftover that holds the fixed port', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], { history: [rec(SERVER)] });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: true,
+      stoppedPids: [40],
+    });
     expect(killed).toEqual([40]);
   });
 
-  test('never touches the port 3001 backend, even when its command names the worktree', async () => {
-    const backend = proc(30, `bun ${WORKDIR}\\rapitas-backend\\index.ts`);
-    const { deps, killed } = world([backend], [{ port: 3001, pid: 30 }], { protectedPids: [30] });
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toEqual({ ok: true, stoppedPids: [] });
+  test('a manually started service in the same worktree (no record) is never stopped', async () => {
+    const manual = proc(41, `"${WORKDIR}/server.exe" --serve`);
+    const { deps, killed } = world([manual], [{ port: 8090, pid: 41 }], { history: [] });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
+    });
     expect(killed).toEqual([]);
   });
 
-  test('a protected child under a matching leftover stops nothing and is foreign_process', async () => {
-    const parent = proc(40, `${WORKDIR}\\server.exe`);
-    const backend = proc(41, 'bun backend', 40); // younger than its parent, so part of its tree
-    const { deps, killed } = world([parent, backend], [{ port: 8090, pid: 40 }], {
+  test('missing or unreadable history means nothing is stopped', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }]);
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
+    });
+    expect(killed).toEqual([]);
+  });
+
+  test.each([
+    ['a space', `"C:/w/task-15 other/server.exe" --serve`],
+    ['a comma', `"C:/w/task-15,other/server.exe" --serve`],
+    ['a longer sibling', `"C:/w/task-153/server.exe" --serve`],
+  ])('a different program whose path only contains %s is not the recorded one', async (_n, cmd) => {
+    const impostor = proc(40, cmd);
+    // The record holds the genuine argv for PID 40 / birth 1040.
+    const { deps, killed } = world([impostor], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([]);
+  });
+
+  test('a re-used PID (same number, new birth) is not stopped', async () => {
+    const reused = { ...proc(40, 'C:/elsewhere/new.exe'), birth: '9999' };
+    const { deps, killed } = world([reused], [{ port: 8090, pid: 40 }], { history: [rec(SERVER)] });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([]);
+  });
+
+  test('a PID re-used between the listing and the stop is not signalled', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], { history: [rec(SERVER)] });
+    const reused = { ...proc(40, 'C:/elsewhere/new.exe'), birth: '9999' };
+    const later = async (): Promise<RuntimeProcessSnapshot> => ({
+      processes: [reused],
+      protectedPids: new Set(),
+      listeners: [{ port: 8090, pid: 40 }],
+    });
+    const first = deps.snapshot;
+    let calls = 0;
+    deps.snapshot = async () => (calls++ === 0 ? first() : later());
+    deps.stopDeps!.snapshot = later;
+    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
+    expect(killed).toEqual([]);
+    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
+  });
+
+  test('a fixed port shared by a recorded leftover and a stranger stops nothing at all', async () => {
+    const stranger = proc(50, 'C:/elsewhere/app.exe');
+    const { deps, killed } = world(
+      [SERVER, stranger],
+      [
+        { port: 8090, pid: 40 },
+        { port: 8090, pid: 50 },
+      ],
+      { history: [rec(SERVER)] },
+    );
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: false });
+    expect(killed).toEqual([]);
+  });
+
+  test('a protected process sharing a recorded tree stops nothing', async () => {
+    const backend = proc(41, 'bun backend', 40);
+    const { deps, killed } = world([SERVER, backend], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
       protectedPids: [41],
     });
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
     expect(killed).toEqual([]);
   });
 
-  test('a fixed-port holder whose identity is another worktree is not stopped', async () => {
-    const other = proc(50, `node ${SIBLING}\\server.js`);
-    const { deps, killed } = world([other], [{ port: 8090, pid: 50 }]);
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
-    expect(killed).toEqual([]);
+  test('port 3001 and its owner are refused even when recorded', async () => {
+    const backend = proc(30, `bun ${WORKDIR}/rapitas-backend/index.ts`);
+    const base = world([backend], [{ port: 3001, pid: 30 }], {
+      history: [rec(backend)],
+      protectedPids: [30],
+    });
+    expect(
+      await cleanupStaleRuntime(WORKDIR, { url: 'http://127.0.0.1:3001', start: 's' }, base.deps),
+    ).toMatchObject({ ok: false, cause: 'port_in_use' });
+    // Recorded and holding the fixed port, but it is the backend: not proven.
+    const other = world([backend], [{ port: 8090, pid: 30 }], {
+      history: [rec(backend)],
+      protectedPids: [30],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, other.deps)).toMatchObject({ ok: false });
+    expect(base.killed).toEqual([]);
+    expect(other.killed).toEqual([]);
   });
 
-  test('a fixed-port holder with an unreadable command line is not stopped', async () => {
-    const { deps, killed } = world([proc(51, '')], [{ port: 8090, pid: 51 }]);
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
-    expect(killed).toEqual([]);
-  });
-
-  test('does not stop its own process or an ancestor even if they name the worktree', async () => {
+  test('this process and its ancestors are never stopped, whatever the history says', async () => {
     const self = proc(process.pid, `bun test ${WORKDIR}`, 700);
     const ancestor = proc(700, `claude --cwd ${WORKDIR}`);
     const { deps, killed } = world(
@@ -139,54 +256,64 @@ describe('cleanupStaleRuntime', () => {
         { port: 8090, pid: process.pid },
         { port: 8091, pid: 700 },
       ],
+      { history: [rec(self), rec(ancestor)] },
     );
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: false });
     expect(killed).toEqual([]);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
   });
 
-  test('an unkillable leftover is reported as port_in_use and nothing else is touched', async () => {
-    const { deps } = world([proc(40, `${WORKDIR}\\server.exe`)], [{ port: 8090, pid: 40 }], {
+  test('a process owned by another active borrower is never stopped', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      excludePids: [40],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: false });
+    expect(killed).toEqual([]);
+  });
+
+  test('a child that only holds the port is stopped through its live recorded root', async () => {
+    const root = proc(40, `cmd /c "${WORKDIR}/start.bat"`);
+    const child = proc(45, 'server.exe', 40);
+    const { deps, killed } = world([root, child], [{ port: 8090, pid: 45 }], {
+      history: [rec(root, 'root')],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: true });
+    expect(killed).toContain(45);
+  });
+
+  test('an observed child is stopped even after its root died', async () => {
+    const child = proc(45, 'server.exe --serve', 40);
+    const { deps, killed } = world([child], [{ port: 8090, pid: 45 }], {
+      history: [rec(proc(40, 'cmd /c start.bat'), 'root'), rec(child, 'observed')],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: true });
+    expect(killed).toEqual([45]);
+  });
+
+  test('an unrecorded child of a dead root is not stopped', async () => {
+    const child = proc(45, 'server.exe --serve', 40);
+    const { deps, killed } = world([child], [{ port: 8090, pid: 45 }], {
+      history: [rec(proc(40, 'cmd /c start.bat'), 'root')],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
+    });
+    expect(killed).toEqual([]);
+  });
+
+  test('an unkillable recorded leftover is reported as port_in_use', async () => {
+    const { deps } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
       unkillable: true,
     });
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: false, cause: 'port_in_use' });
-  });
-
-  test('a held runtime lock that survives cleanup is lock_held', async () => {
-    const holder = proc(60, 'something unrelated');
-    const { deps, killed } = world([holder], [], {
-      lock: { free: false, reason: 'Runtime directory occupied by PID 60', pid: 60 },
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'port_in_use',
     });
-    const result = await cleanupStaleRuntime(
-      WORKDIR,
-      { url: 'http://127.0.0.1:{port}', start: 'server {port}' },
-      deps,
-    );
-    expect(result).toMatchObject({ ok: false, cause: 'lock_held' });
-    expect(killed).toEqual([]);
   });
 
-  test('a lock holder that names this worktree is stopped and the directory becomes free', async () => {
-    const holder = proc(61, `node ${WORKDIR}\\node_modules\\next\\dist\\bin\\next dev`);
-    const { deps, killed } = world([holder], [], {
-      lock: { free: false, reason: 'occupied', pid: 61 },
-    });
-    const result = await cleanupStaleRuntime(
-      WORKDIR,
-      { url: 'http://127.0.0.1:{port}', start: 'server {port}' },
-      deps,
-    );
-    expect(result).toEqual({ ok: true, stoppedPids: [61] });
-    expect(killed).toEqual([61]);
-  });
-
-  test('an empty world is a clean pass', async () => {
-    const { deps } = world([], []);
-    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toEqual({ ok: true, stoppedPids: [] });
-  });
-
-  test('a snapshot without listener data cannot prove the port is free', async () => {
+  test('an unanswered listener table cannot prove the fixed port is free', async () => {
     const { deps } = world([], []);
     deps.snapshot = async () => ({ processes: [], protectedPids: new Set() });
     expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
@@ -194,80 +321,34 @@ describe('cleanupStaleRuntime', () => {
       cause: 'port_in_use',
     });
   });
+
+  test('with no fixed port and no lock there is nothing to do', async () => {
+    const stray = proc(41, `node ${WORKDIR}/other.js`);
+    const { deps, killed } = world([stray], [{ port: 9099, pid: 41 }], { history: [rec(stray)] });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: true,
+      stoppedPids: [],
+    });
+    expect(killed).toEqual([]);
+  });
 });
 
-describe('cleanupStaleRuntime — verifier counter-examples (task 1539)', () => {
-  test.each(['+other', '別', '-b', '_x', '.old', '~'])(
-    'a process under a sibling path %s is never treated as this worktree',
-    async (suffix) => {
-      const { deps, killed } = world(
-        [proc(40, `${WORKDIR}${suffix}/server.exe`)],
-        [{ port: 8090, pid: 40 }],
-      );
-      const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-      expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
-      expect(killed).toEqual([]);
-    },
-  );
-
-  test('an unrelated service of the same worktree on another port is left running', async () => {
-    const mine = proc(40, `${WORKDIR}/server.exe`);
-    const unrelated = proc(41, `node ${WORKDIR}/tools/other.js`);
-    const { deps, killed } = world(
-      [mine, unrelated],
-      [
-        { port: 8090, pid: 40 },
-        { port: 9099, pid: 41 },
-      ],
-    );
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toEqual({ ok: true, stoppedPids: [40] });
-    expect(killed).toEqual([40]);
+describe('cleanupStaleRuntime — runtime lock', () => {
+  test('a live lock holder proven by the history is stopped', async () => {
+    const next = proc(61, `node "${WORKDIR}/node_modules/next/dist/bin/next" dev`);
+    const { deps, killed } = world([next], [], { history: [rec(next)], lock: { pid: 61 } });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: true,
+      stoppedPids: [61],
+    });
+    expect(killed).toEqual([61]);
   });
 
-  test('with no fixed port, no listener is stopped on a hunch', async () => {
-    const { deps, killed } = world(
-      [proc(41, `node ${WORKDIR}\\other.js`)],
-      [{ port: 9099, pid: 41 }],
-    );
-    const result = await cleanupStaleRuntime(
-      WORKDIR,
-      { url: 'http://127.0.0.1:{port}', start: 'x' },
-      deps,
-    );
-    expect(result).toEqual({ ok: true, stoppedPids: [] });
-    expect(killed).toEqual([]);
-  });
-
-  test('a fixed port shared by ours and another process stops nothing at all', async () => {
-    const mine = proc(40, `${WORKDIR}/server.exe`);
-    const other = proc(50, 'C:/elsewhere/app.exe');
-    const { deps, killed } = world(
-      [mine, other],
-      [
-        { port: 8090, pid: 40 },
-        { port: 8090, pid: 50 },
-      ],
-    );
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
-    expect(killed).toEqual([]);
-  });
-
-  test('a child without the path is owned through its parent that names the worktree', async () => {
-    const parent = proc(40, `cmd /c ${WORKDIR}/start.bat`);
-    const child = proc(45, 'server.exe', 40);
-    const { deps, killed } = world([parent, child], [{ port: 8090, pid: 45 }]);
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
-    expect(result).toMatchObject({ ok: true });
-    expect(killed).toContain(45);
-  });
-
-  test('a live lock holder that is not ours blocks the launch without stopping our port holder', async () => {
-    const mine = proc(40, `${WORKDIR}/server.exe`);
+  test('a live holder with no record keeps the lock and stops nothing', async () => {
     const holder = proc(60, 'C:/elsewhere/next.exe');
-    const { deps, killed } = world([mine, holder], [{ port: 8090, pid: 40 }], {
-      lock: { free: false, reason: 'occupied', pid: 60 },
+    const { deps, killed } = world([SERVER, holder], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      lock: { pid: 60 },
     });
     expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
       ok: false,
@@ -276,40 +357,60 @@ describe('cleanupStaleRuntime — verifier counter-examples (task 1539)', () => 
     expect(killed).toEqual([]);
   });
 
-  test('a fixed port of 3001 is refused as port_in_use before anything is touched', async () => {
-    const { deps, killed } = world([proc(40, `${WORKDIR}/s.exe`)], [{ port: 3001, pid: 40 }]);
-    const result = await cleanupStaleRuntime(
-      WORKDIR,
-      { url: 'http://127.0.0.1:3001', start: 's' },
-      deps,
-    );
-    expect(result).toMatchObject({ ok: false, cause: 'port_in_use' });
-    expect(killed).toEqual([]);
-  });
-
-  test('a PID re-used between the listing and the stop is not signalled', async () => {
-    const { deps, killed } = world([proc(40, `${WORKDIR}/server.exe`)], [{ port: 8090, pid: 40 }]);
-    const reused = { ...proc(40, 'C:/elsewhere/new.exe'), birth: '9999' };
-    deps.stopDeps!.snapshot = async () => ({
-      processes: [reused],
-      protectedPids: new Set(),
-      listeners: [{ port: 8090, pid: 40 }],
+  test('a lock whose recorded holder was replaced by a new process is foreign_process', async () => {
+    const reused = { ...proc(60, 'C:/elsewhere/new.exe'), birth: '7777' };
+    const { deps, killed } = world([reused], [], {
+      history: [lockRec(60, '1060')],
+      lock: { pid: 60 },
     });
-    const first = deps.snapshot;
-    let calls = 0;
-    deps.snapshot = async () => (calls++ === 0 ? first() : deps.stopDeps!.snapshot());
-    const result = await cleanupStaleRuntime(WORKDIR, CFG, deps);
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
     expect(killed).toEqual([]);
-    expect(result).toMatchObject({ ok: false, cause: 'foreign_process' });
   });
-});
 
-describe('extractStartPorts', () => {
-  test('reads explicit ports from the start command, not placeholders', () => {
-    expect(extractStartPorts('server.exe --port 8090')).toEqual([8090]);
-    expect(extractStartPorts('next dev -p 3000')).toEqual([3000]);
-    expect(extractStartPorts('set PORT=4000 && node a.js')).toEqual([4000]);
-    expect(extractStartPorts('serve 127.0.0.1:5000')).toEqual([5000]);
-    expect(extractStartPorts('next dev -p {port}')).toEqual([]);
+  test('a lock in an unknown format is never touched', async () => {
+    const { deps, killed, removed } = world([SERVER], [{ port: 8090, pid: 40 }], {
+      history: [rec(SERVER)],
+      lock: { unknown: true },
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'lock_held',
+    });
+    expect(killed).toEqual([]);
+    expect(removed).toEqual([]);
+  });
+
+  test('a recorded lock whose holder is dead is removed, once re-read', async () => {
+    const { deps, removed } = world([], [], { history: [lockRec(60, '1060')], lockFilePid: 60 });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({
+      ok: true,
+      removedLocks: [LOCK_PATH],
+    });
+    expect(removed).toEqual([LOCK_PATH]);
+  });
+
+  test('a lock rewritten by a new owner after the record is not removed', async () => {
+    const { deps, removed } = world([], [], { history: [lockRec(60, '1060')], lockFilePid: 99 });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+    expect(removed).toEqual([]);
+  });
+
+  test('a dead-owner lock with no record is left alone', async () => {
+    const { deps, removed } = world([], [], { lockFilePid: 60 });
+    expect(await cleanupStaleRuntime(WORKDIR, NO_PORT, deps)).toMatchObject({ ok: true });
+    expect(removed).toEqual([]);
+  });
+
+  test('a recorded lock whose holder is still the same live process is kept', async () => {
+    const holder = proc(60, 'C:/elsewhere/next.exe');
+    const { deps, removed } = world([holder], [], {
+      history: [lockRec(60, '1060')],
+      lockFilePid: 60,
+    });
+    await cleanupStaleRuntime(WORKDIR, NO_PORT, deps);
+    expect(removed).toEqual([]);
   });
 });
