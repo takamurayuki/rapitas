@@ -221,6 +221,13 @@ export function buildRoleTexts(
           '- まず `git diff` で実装者の変更を確認してください。**差分が空**（実装者がコードを変更していない）の場合、多くは「タスクの要件が既存コードで**既に満たされていた**」ことを意味します。\n' +
           '- その場合は verify.md に必ず明示的な**修正不要の結論**を記載してください（全体判定を `✅ 検証成功（修正不要）` とし、本文に `## 結論: 修正不要` 見出し ＋「既存実装で対応済み」である根拠を1〜2行）。**この justification が無いと完了ゲートが「無言のスキップ」と誤判定し、タスクを不当にブロック**します。\n' +
           '- 逆に、本当にやるべき変更が未実装（実装漏れ）で差分が空の場合は「修正不要」とは書かず、`❌ 検証失敗` とし残課題に未実装項目を明記して実装者へ差し戻してください。\n' +
+          '\n### 主張ブロック `json:verify-claim`（機械照合・必須）★重要\n' +
+          '- verify.md に、次の形の機械可読ブロックを**ちょうど1個**書いてください。`runId` は最後の自己検証 GET 応答の `runId`、`sha` は同じ応答の `revision` をそのまま転記します（追加コミットをした場合は最後のコミットで自己検証をやり直し、その runId と revision を書く。祖先判定はしないので完全一致が必要です）。`tests.ran` / `tests.failed` は応答の `checks` のテスト検査の `ran` / `errorCount` と一致させます。\n' +
+          '```json:verify-claim\n' +
+          '{"version":1,"overall":"success","runId":"<GET応答のrunId>","sha":"<GET応答のrevision>","tests":{"ran":true,"failed":0,"passed":42}}\n' +
+          '```\n' +
+          '- 正直さの判定は、このブロックと自己検証ジョブの実測の照合で行います。主張が成功なのに実測が失敗・未実行・SHA/runId/件数の不一致・ジョブ無しなら差し戻されます。\n' +
+          '- 失敗の経過や RED の確認（修正を外すと N 件失敗した等）、初回の失敗、環境に拒否されて別経路で実行した記録は、本文に正直に書いてかまいません。ブロックが実測と一致していれば、これらの表現だけで差し戻されることはありません。表現を避けて書く必要はありません。\n' +
           '\n### 必須セクション\n' +
           '```markdown\n' +
           '# 検証レポート\n' +
@@ -246,7 +253,7 @@ export function buildRoleTexts(
           '- 全体判定は冒頭サマリと表の「全体判定」セルの両方で `✅ 検証成功` / `❌ 検証失敗` / `⚠️ 一部失敗` をこの表記のまま使用する。「合格」「条件付き合格」「不合格」等への言い換えは禁止（機械判定はこの語彙のみを認識する）。\n' +
           '- チェックリスト・受入基準の各行は `✅ 完了` / `❌ 未完了` / `➖ 対象外（理由）` の3値。`❌` は「本タスクの差分に欠陥または未実装があり、実装者が次の実装ラウンドで直せる項目」にだけ使う。前提となるモデル・フラグ・ファイルがこのコードベースに存在しない、この環境（OS・CI）では実行できない、計画側で撤回された、後工程（push/CI/merge）である — こうした項目は `➖ 対象外（理由）` と書く（`❌` は機械ゲートが実失敗として読み、同じ指摘での差し戻しループになる）。実行はできたが確認しきれなかった項目は `⚠️ 未検証（理由）` とし、**対応する受入基準がある場合に限り**全体判定に反映する（受入基準の無い注記は上記「全体判定の範囲」に従い反映しない）。\n' +
           '- 変更ファイル一覧は「ファイル | 種別（新規/変更） | 変更内容の要約」の表で書く。`| +追加 | -削除 |` 列・`(+120/-45)` などの行数差分数値・✏️/⏭️/🆕 の絵文字は書かない。\n' +
-          '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）を記録する場合、`Tests N failed` / `N failed` のような数値集計行を本文に書かない（機械ゲートが実失敗と誤認し差し戻しループになる）。「修正を除去するとRED、復元するとGREENを確認」と1行で要約する。生ログを貼る場合は ```text フェンス内に限り、集計行は含めない。',
+          '- 偽陽性検証（修正を一時的に外して意図的にREDを確認する検証）は、修正を外した時点と復元後の結果を区別して正直に記録する。実測と一致する主張ブロックがあれば、`Tests N failed` / `N failed` のような数値集計行も本文に記載してよい。生ログを貼る場合は読みやすさのため ```text フェンスを使い、失敗件数を隠す必要はない。',
       },
     },
     en: {
@@ -353,6 +360,13 @@ export function buildRoleTexts(
           '- First check the implementer’s changes with `git diff`. An **EMPTY diff** (the implementer changed no code) usually means the task’s requirement was **already satisfied** by existing code.\n' +
           '- In that case verify.md MUST state an explicit **no-change conclusion** (set the overall verdict to `✅ Pass (no change needed)` and add a `## 結論: 修正不要` heading with a 1–2 line reason that existing code already covers it). **Without this justification the completion gate misreads it as a silent skip and wrongly BLOCKS the task.**\n' +
           '- Conversely, if the diff is empty because work that SHOULD have been done was not (a real miss), do NOT write “no change needed” — mark `❌ Fail` and list the unimplemented items under outstanding work to bounce it back to the implementer.\n' +
+          '\n### Claim block `json:verify-claim` (machine-checked, REQUIRED) ★IMPORTANT\n' +
+          "- Write exactly ONE machine-readable block in verify.md. Copy `runId` from the last self-verification GET response and `sha` from its `revision`. If you made further commits, re-run self-verification on the last commit and cite that runId and revision (no ancestor matching: the SHA must match exactly). `tests.ran` / `tests.failed` must equal the test check's `ran` / `errorCount` in the response `checks`.\n" +
+          '```json:verify-claim\n' +
+          '{"version":1,"overall":"success","runId":"<runId from the GET response>","sha":"<revision from the GET response>","tests":{"ran":true,"failed":0,"passed":42}}\n' +
+          '```\n' +
+          '- Honesty is judged by reconciling this block with the measured self-verification job. A success claim is sent back when the measurement failed or did not run, when the SHA, runId or counts differ, or when no such job exists.\n' +
+          '- You MAY honestly write the history of failures and RED checks (e.g. "removing the fix fails 9 of 10"), a first failed run, or that the environment refused a command and you ran another route. While the block matches the measurement, such wording alone never causes a bounce — do not phrase around it.\n' +
           '\n### Required sections\n' +
           '```markdown\n' +
           '# Verification Report\n' +
@@ -378,7 +392,7 @@ export function buildRoleTexts(
           '- Use the verdict vocabulary `✅ Pass` / `❌ Fail` / `⚠️ Partial` verbatim in BOTH the opening summary and the overall-verdict table cell; paraphrases such as "passed with conditions" are forbidden (the machine gates only recognize this vocabulary).\n' +
           '- Each checklist / acceptance-criterion row is one of three values: `✅ done` / `❌ not done` / `➖ N/A (reason)`. Use `❌` ONLY for an item where this task\'s diff is defective or unimplemented and the implementer can fix it in the next round. An item whose premise (a model, flag or file) does not exist in this codebase, cannot run in this environment (OS / CI), was withdrawn by the plan owner, or is a downstream step (push / CI / merge) is written as `➖ N/A (reason)` — a `❌` there is read by the machine gate as a real failure and loops the task on the same finding. An item you ran but could not fully confirm is `⚠️ unverified (reason)` and is reflected in the overall verdict ONLY when an acceptance criterion stands behind it (a note with none is not, per "What the overall verdict covers" above).\n' +
           '- Report changed files as a "File | Kind (new/modified) | What changed & why" table. Never emit `| +added | -removed |` columns, `(+120/-45)` line deltas, or ✏️/⏭️/🆕 emoji.\n' +
-          '- When recording deliberate-RED (false-positive) verification — temporarily removing the fix to confirm failure — do NOT write numeric summary lines like `Tests N failed` in the body (the machine gate reads them as real failures and loops the task). Summarize in one line: "fix removed → RED, restored → GREEN". Raw logs, if pasted at all, go ONLY inside a ```text fence with the summary count lines removed.',
+          '- Record deliberate-RED (false-positive) verification honestly, distinguishing the results with the fix removed from those after restoring it. When the claim block matches the measured job, numeric summary lines such as `Tests N failed` or `N failed` may appear in the body. Use a ```text fence for readability when including raw logs; failure counts need not be hidden.',
       },
     },
   };

@@ -110,6 +110,14 @@ mock.module('./phase-output-validator', () => ({
   validateVerify: mockValidateVerify,
 }));
 
+const MEASURED = { job: { status: 'completed', ok: true, revision: 'abc1234' } };
+const mockLoadMeasuredVerification = mock(
+  async (_taskId: number, _content: string): Promise<typeof MEASURED | undefined> => MEASURED,
+);
+mock.module('./verify-claim-loader', () => ({
+  loadMeasuredVerification: mockLoadMeasuredVerification,
+}));
+
 const mockAttemptVerifyRepair = mock(() =>
   Promise.resolve<{ bounced: boolean; newStatus?: string; attempt?: number }>({ bounced: false }),
 );
@@ -498,7 +506,9 @@ describe('executeAPIAgent — verify.md honesty gate', () => {
 
     mockWriteWorkflowFile.mockResolvedValueOnce('persisted verification');
     const result = await runVerify();
-    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification', undefined);
+    // The measured job the report's claim cites is looked up by task id and handed on as the 3rd argument.
+    expect(mockLoadMeasuredVerification).toHaveBeenCalledWith(1, 'persisted verification');
+    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification', undefined, MEASURED);
 
     expect(mockAttemptVerifyRepair).toHaveBeenCalledWith(
       1,
