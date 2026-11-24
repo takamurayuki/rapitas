@@ -14,7 +14,7 @@ const READY_RE = /\b(?:listening|ready|started server)\b|Local:/i;
 const PORT_RE =
   /EADDRINUSE|address already in use|\bport\b[^\n]*\b(?:is\s+)?(?:already\s+)?in use\b|ポート[^\n]*使用中/i;
 const LOCK_RE =
-  /\bis locked\b|already running|既に起動して|EBUSY|\bheld by\b|another instance|Unable to acquire lock/i;
+  /\bis locked\b|already running|既に起動して|EBUSY[^\n]*[\\/.]lock\b|[\\/.]lock\b[^\n]*EBUSY|\bheld by\b|another instance|Unable to acquire lock/i;
 const FATAL_START_RE =
   /^\s*(?:Error|TypeError|ReferenceError|SyntaxError|RangeError|Unhandled|FATAL|EADDRINUSE|Unable to acquire lock)\b/;
 const FRAME_RE = /^\s+at\s/;

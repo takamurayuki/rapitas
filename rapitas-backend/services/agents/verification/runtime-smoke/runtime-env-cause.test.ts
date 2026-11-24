@@ -20,7 +20,8 @@ describe('classifyEnvCause — environment causes', () => {
     [['Error: Another next dev server is already running.'], 'lock_held'],
     [['Unable to acquire lock at .next/dev/lock'], 'lock_held'],
     [['Error: the workspace is locked by pid 12'], 'lock_held'],
-    [['Error: EBUSY: resource busy or locked'], 'lock_held'],
+    [["Error: EBUSY: resource busy or locked, open '/w/.next/dev/lock'"], 'lock_held'],
+    [["Error: EBUSY: resource busy or locked, open 'C:\\w\\.next\\dev\\lock'"], 'lock_held'],
     [['Error: lock held by another process'], 'lock_held'],
   ])('%j is %s', (lines, cause) => {
     expect(classify(lines)).toBe(cause);
@@ -79,6 +80,14 @@ describe('classifyEnvCause — never an environment cause', () => {
     expect(
       classify(['Error: listen EADDRINUSE: address already in use', 'Unable to acquire lock']),
     ).toBeNull();
+  });
+
+  test.each([
+    "Error: EBUSY: resource busy or locked, rename 'a.txt' -> 'b.txt'",
+    'Error: EBUSY: resource busy or locked',
+    "Error: EBUSY: resource busy or locked, unlink '/w/src/blocked.ts'",
+  ])('D: a generic EBUSY (%s) does not prove a held launch lock', (line) => {
+    expect(classify([line])).toBeNull();
   });
 
   test('no fatal message at all cannot be judged', () => {
