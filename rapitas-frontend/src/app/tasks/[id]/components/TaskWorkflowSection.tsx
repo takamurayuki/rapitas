@@ -16,6 +16,7 @@ import DryRunPanel from '@/components/workflow/DryRunPanel';
 import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
 import { useLatestTransitionCause } from '@/hooks/workflow/useLatestTransitionCause';
+import { isDiffReviewPending } from '@/hooks/workflow/diff-review-pending';
 
 // Statuses where a worktree is likely to exist — DryRunPanel is not shown
 // before this (it would just 404). See workflow-handlers-dry-run.ts.
@@ -74,8 +75,7 @@ export default function TaskWorkflowSection({
     status: currentWorkflowStatus,
   });
   const blockedCause = isBlocked ? resolveBlockedCauseLabel(t, latestCause) : null;
-  const diffReviewPending =
-    currentWorkflowStatus === 'in_progress' && latestCause === 'verify_review_pending';
+  const diffReviewPending = isDiffReviewPending(currentWorkflowStatus, latestCause);
 
   // The phase-critic gate can silently archive a freshly-saved research.md /
   // plan.md and roll workflowStatus back a step (research_done → draft,

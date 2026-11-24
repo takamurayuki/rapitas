@@ -33,6 +33,7 @@ import {
 } from './jury-review-run';
 import type { DiffReviewResult } from '../agents/verification/adversarial-diff-review-verdict';
 import { applyFallbackJuryFail } from './verify-fallback-jury-fail';
+import { REVIEW_HOLD_HALT_REASON } from './review-hold-status';
 
 const log = createLogger('workflow-cli-executor');
 
@@ -96,10 +97,19 @@ async function runGateLocked(params: {
 }): Promise<FallbackJuryOutcome> {
   const { taskId, currentWfStatus } = params;
   const task = await prisma.task
-    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+    .findUnique({
+      where: { id: taskId },
+      select: { title: true, githubPrId: true, haltReason: true, workflowStatus: true },
+    })
     .catch(() => null);
   if (task?.githubPrId != null && CONFLICT_RESOLUTION_TITLE_RE.test(task.title ?? '')) {
     return { stop: false, skipped: 'conflict_resolution' };
+  }
+  // A review held for a human (e.g. by the pending HTTP diff review at
+  // in_progress, task 1538) owns the next step: no second review or bounce.
+  if (task?.haltReason === REVIEW_HOLD_HALT_REASON) {
+    const phaseStatus = (task.workflowStatus ?? currentWfStatus) as WorkflowAdvanceResult['status'];
+    return { stop: true, phaseStatus };
   }
 
   // NOTE: The verifier-eligibility hold moved to the caller
@@ -146,29 +156,48 @@ async function runGateLocked(params: {
     return { stop: true, phaseStatus, skipped: 'already_reviewed' };
   }
 
-  // Checked only after the HTTP records above: a `stopped` outcome for this
-  // diff must never be overridden by a self-verify pass (task 1538).
-  const { findReusableSelfVerifyReview } = await import('./self-verify-diff-review');
-  const reusable = await findReusableSelfVerifyReview(taskId, worktreePath);
-  if (reusable) {
-    log.info(
-      { taskId, runId: reusable.runId, diffFingerprint: reusable.review.diffFingerprint },
-      '[WorkflowCLIExecutor] Self-verify diff review passed this exact diff — reusing it on the epilogue path',
-    );
-  }
-
   // A real review runs under the DB lock (JuryReviewRun + Task.juryRunId,
   // design 4.5.1); the identifiers the run records are read after the lock.
   // A reused verdict goes through the same lock, drift check and record.
   return withJuryRun(
     { taskId, source: 'cli_epilogue' },
-    (run) => reviewAndApplyLocked({ ...params, worktreePath, reuseReview: reusable?.review }, run),
+    async (run) =>
+      reviewAndApplyLocked(
+        {
+          ...params,
+          worktreePath,
+          reuseReview: await reusableUnderLock(taskId, worktreePath, run),
+        },
+        run,
+      ),
     async () => ({
       stop: true,
       phaseStatus: await liveStatus(taskId, currentWfStatus),
       skipped: 'gate_busy',
     }),
   );
+}
+
+/**
+ * A self-verify pass for exactly this diff, looked up only once the jury lock
+ * is held: a lookup before it could match keys that change before the lock
+ * (G2 task 1538 verifier). The pass must also be for the criteria revision
+ * the run recorded, or it would be stored under criteria it never judged.
+ * Checked after the HTTP records: a `stopped` outcome is never overridden.
+ */
+async function reusableUnderLock(
+  taskId: number,
+  worktreePath: string,
+  run: JuryRunHandle,
+): Promise<DiffReviewResult | undefined> {
+  const { findReusableSelfVerifyReview } = await import('./self-verify-diff-review');
+  const reusable = await findReusableSelfVerifyReview(taskId, worktreePath);
+  if (!reusable || reusable.criteriaRevision !== run.criteriaRevision) return undefined;
+  log.info(
+    { taskId, runId: reusable.runId, diffFingerprint: reusable.review.diffFingerprint },
+    '[WorkflowCLIExecutor] Self-verify diff review passed this exact diff — reusing it on the epilogue path',
+  );
+  return reusable.review;
 }
 
 async function liveStatus(

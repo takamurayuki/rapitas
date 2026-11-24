@@ -11,15 +11,16 @@
 import { describe, expect, mock, test, beforeEach } from 'bun:test';
 
 const verifySha = 'sha-v1';
+const TASK_ROW = {
+  title: 'Add feature',
+  githubPrId: null,
+  workflowStatus: 'in_progress',
+  haltReason: null as string | null,
+};
+let taskRow = { ...TASK_ROW };
 mock.module('../../config', () => ({
   prisma: {
-    task: {
-      findUnique: mock(async () => ({
-        title: 'Add feature',
-        githubPrId: null,
-        workflowStatus: 'in_progress',
-      })),
-    },
+    task: { findUnique: mock(async () => ({ ...taskRow })) },
     workflowFile: { findFirst: mock(async () => ({ sha256: verifySha })) },
     agentSession: { findFirst: mock(async () => ({ worktreePath: '/wt' })) },
   },
@@ -86,7 +87,8 @@ mock.module('./verification-job-store', () => ({ getLatestJob: async () => lates
 
 const { fakeJuryRunModule, fakeJuryRunState, EMPTY_CRITERIA_REVISION } =
   await import('./jury-review-run.test-helpers');
-mock.module('./jury-review-run', () => fakeJuryRunModule(fakeJuryRunState(() => verifySha)));
+const juryRun = fakeJuryRunState(() => verifySha);
+mock.module('./jury-review-run', () => fakeJuryRunModule(juryRun));
 
 const { runFallbackJuryGate } = await import('./verify-fallback-jury-gate');
 const { recordJuryGateCompletion, JURY_GATE_COMPLETED_EVENT } =
@@ -125,6 +127,8 @@ const gate = () =>
   });
 
 beforeEach(() => {
+  taskRow = { ...TASK_ROW };
+  juryRun.criteriaRevision = EMPTY_CRITERIA_REVISION;
   timeline = [];
   transitions.length = 0;
   review.mockClear();
@@ -201,5 +205,22 @@ describe('runFallbackJuryGate — self-verify review reuse', () => {
     expect(out).toMatchObject({ stop: true, skipped: 'already_reviewed' });
     expect(review).toHaveBeenCalledTimes(0);
     expect(completions()).toHaveLength(1);
+  });
+
+  test('H-4: 人の判断待ちの保留中は陪審も再利用の照合も行わず止まる', async () => {
+    taskRow = { ...TASK_ROW, haltReason: 'awaiting_review_decision' };
+    const out = await gate();
+    expect(out).toMatchObject({ stop: true, phaseStatus: 'in_progress' });
+    expect(review).toHaveBeenCalledTimes(0);
+    expect(completions()).toHaveLength(0);
+    expect(repair).toHaveBeenCalledTimes(0);
+  });
+
+  test('ロック取得時の条件の版が自己検証の版と違えば再利用せず陪審を呼ぶ', async () => {
+    // The criteria changed between an early lookup and the DB lock: the run
+    // records the new revision, so the old pass must not be stored under it.
+    juryRun.criteriaRevision = 'crit-new';
+    await gate();
+    expect(review).toHaveBeenCalledTimes(1);
   });
 });

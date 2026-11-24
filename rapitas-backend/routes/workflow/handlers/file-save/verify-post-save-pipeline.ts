@@ -151,8 +151,8 @@ async function runReviewPendingAutomation(p: {
     preferredBaseBranchForVerify,
   });
   if (adversarial.verifyGateBlocked || adversarial.staleVerifyRequest) {
-    // verify_done was never written unless a review hold wrote it; report the
-    // status the task is really at, not the target this save aimed for.
+    // verify_done was never written (a hold stays at in_progress too); report
+    // the status the task is really at, not the target this save aimed for.
     const reported =
       adversarial.newStatus === 'verify_done'
         ? ((await liveWorkflowStatus(taskId)) ?? adversarial.newStatus)

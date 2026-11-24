@@ -29,6 +29,11 @@ export interface ReviewHoldDetails {
   severity?: number;
   /** Criteria revision when the hold was written (absent on holds older than design 4.5). */
   criteriaRevision?: string;
+  /**
+   * Workflow status the task is held at: `in_progress` when a pending diff
+   * review was held (task 1538), else `verify_done` (absent = verify_done).
+   */
+  heldStatus?: 'verify_done' | 'in_progress';
 }
 
 /** A review-hold read: held, confirmed not held, or not known (read failed). */
@@ -49,7 +54,13 @@ export async function probeReviewHold(taskId: number): Promise<ReviewHoldProbe> 
       where: { id: taskId },
       select: { haltReason: true, workflowStatus: true },
     });
-    if (task?.haltReason !== REVIEW_HOLD_HALT_REASON || task.workflowStatus !== 'verify_done') {
+    // NOTE: in_progress too — a pending diff review is held there so the task
+    // never shows verify_done before the review passed (task 1538).
+    const heldStatus = task?.workflowStatus;
+    if (
+      task?.haltReason !== REVIEW_HOLD_HALT_REASON ||
+      (heldStatus !== 'verify_done' && heldStatus !== 'in_progress')
+    ) {
       return { state: 'clear' };
     }
     const row = await prisma.workflowTransition.findFirst({
@@ -69,6 +80,7 @@ export async function probeReviewHold(taskId: number): Promise<ReviewHoldProbe> 
       ...(typeof m.criteriaRevision === 'string' && m.criteriaRevision
         ? { criteriaRevision: m.criteriaRevision }
         : {}),
+      heldStatus,
     };
     return { state: 'held', hold };
   } catch (err) {

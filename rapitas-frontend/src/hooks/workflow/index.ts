@@ -8,3 +8,4 @@ export { useWorkflowFiles } from './useWorkflowFiles';
 export type { WorkflowFilesData } from './useWorkflowFiles';
 export { useWorkflowRoles } from './useWorkflowRoles';
 export { useLatestTransitionCause } from './useLatestTransitionCause';
+export { isDiffReviewPending } from './diff-review-pending';

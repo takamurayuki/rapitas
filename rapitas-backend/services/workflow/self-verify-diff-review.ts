@@ -138,6 +138,8 @@ export async function runSelfVerifyDiffReview(p: {
 export interface ReusableSelfVerifyReview {
   review: DiffReviewResult;
   runId: string;
+  /** Criteria revision the reused review judged against (checked under the jury lock). */
+  criteriaRevision: string;
 }
 
 /**
@@ -182,6 +184,7 @@ export async function findReusableSelfVerifyReview(
     }
     return {
       runId: job.runId,
+      criteriaRevision: r.criteriaRevision,
       review: {
         verdict: 'pass',
         severity: r.severity ?? 0,
