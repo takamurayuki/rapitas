@@ -36,6 +36,8 @@ let snapshotFailAfterCall: number | null = null;
 /** Snapshot calls that reject before succeeding again (null = keep failing). */
 let snapshotFailCount: number | null = null;
 let snapshotCalls = 0;
+/** A process on a fixed port that the injected OS reports (null = port free). */
+let fixedPortHolder: { pid: number; command: string; port: number } | null = null;
 mock.module('./runtime-process-snapshot', () => ({
   ownsRuntimePort: () => false,
   readRuntimeProcessSnapshot: async () => {
@@ -46,10 +48,16 @@ mock.module('./runtime-process-snapshot', () => ({
         throw new Error('INJECTED_SNAPSHOT_TIMEOUT');
       }
     }
+    const holder = fixedPortHolder;
     return {
-      processes: rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : [],
+      processes: [
+        ...(rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : []),
+        ...(holder
+          ? [{ pid: holder.pid, parentPid: 1, birth: '200', command: holder.command }]
+          : []),
+      ],
       protectedPids: new Set(),
-      listeners: [],
+      listeners: holder ? [{ port: holder.port, pid: holder.pid }] : [],
     };
   },
 }));
@@ -58,12 +66,13 @@ mock.module('./runtime-config', () => ({
   substitutePort: (s: string, p: number) => s.replaceAll('{port}', String(p)),
 }));
 
+let launched = 0;
 let stopSpy = 0;
 let exited = false;
 mock.module('./app-launcher', () => ({
   allocateFreePort: async () => 45999,
   launchApp: () => ({
-    pid: 999,
+    pid: (launched++, 999),
     logs: () => (exited ? ['Error: Cannot find module cross-env'] : []),
     hasExited: () => exited,
     exitCode: () => (exited ? 1 : null),
@@ -128,8 +137,10 @@ beforeEach(() => {
   rows = [];
   rootPresent = false;
   stopSpy = 0;
+  launched = 0;
   exited = false;
   snapshotCalls = 0;
+  fixedPortHolder = null;
   snapshotFailAfterCall = null;
   snapshotFailCount = null;
   healthyDelayMs = 0;
@@ -238,4 +249,23 @@ test('unconfirmed listener ownership is unverifiable and logs PID diagnostics wi
     ownedPids: [999],
     listenersKnown: true,
   });
+});
+
+// Task 1539 (trendline 514): a leftover `server.exe` held the fixed port, and the
+// launch then failed as if the app were broken. The port is checked BEFORE spawn.
+test('a fixed port held by a process that is not this worktree is an environment cause', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  fixedPortHolder = { pid: 4242, command: 'C:\elsewhere\server.exe', port: 8090 };
+
+  const result = await spawnNewEntry(
+    dir,
+    dir,
+    { ...cfg, start: 'server', url: 'http://127.0.0.1:8090' },
+    'fp',
+  );
+
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'foreign_process' });
+  expect(launched).toBe(0);
+  expect(registry.has(dir)).toBe(false);
 });

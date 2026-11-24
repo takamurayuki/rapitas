@@ -5,6 +5,8 @@ let healthy = true;
 let logs: string[] = [];
 let browserAvailable = true;
 let harnessError = false;
+/** Set to make the mocked registry refuse before launch, as for a taken port/lock. */
+let refusal: { cause: string } | null = null;
 /** Whether the task under verification is the `[UI]` task that owes an entry. */
 let screenTask = false;
 const stop = mock(() => {});
@@ -17,7 +19,17 @@ const launch = mock(async () =>
         lease: 'test-lease',
         logs: () => logs,
       }
-    : { ok: false, reason: 'startup failed', logs, hasExited: false, exitCode: null },
+    : refusal
+      ? {
+          ok: false,
+          reason: 'refused',
+          logs,
+          hasExited: false,
+          exitCode: null,
+          unverifiable: true,
+          ...refusal,
+        }
+      : { ok: false, reason: 'startup failed', logs, hasExited: false, exitCode: null },
 );
 mock.module('./worktree-server-registry', () => ({
   acquireRuntimeServer: launch,
@@ -65,6 +77,7 @@ beforeEach(() => {
   logs = [];
   browserAvailable = true;
   harnessError = false;
+  refusal = null;
   screenTask = false;
   stop.mockClear();
   launch.mockClear();
@@ -143,3 +156,38 @@ test('harness error retains unavailable evidence and cleans up', async () => {
   });
   expect(stop).toHaveBeenCalledTimes(1);
 });
+
+// Task 1539: port/lock/quarantine stops are environment causes, never an app failure.
+test.each(['port_in_use', 'lock_held', 'quarantined', 'foreign_process'])(
+  'a pre-launch %s refusal is unverifiable with errorCount 0 and carries the cause',
+  async (cause) => {
+    healthy = false;
+    refusal = { cause };
+    const result = await runRuntimeSmokeCheck(`/refused-${cause}`);
+    expect(result).toMatchObject({
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      cause,
+    });
+  },
+);
+test.each([
+  ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
+  ['別のインスタンスが既に起動しています', 'lock_held'],
+])(
+  'a launch that died on "%s" is an environment cause, not an app failure',
+  async (line, cause) => {
+    healthy = false;
+    logs = [line];
+    const result = await runRuntimeSmokeCheck(`/log-${cause}`);
+    expect(result).toMatchObject({
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      cause,
+    });
+  },
+);

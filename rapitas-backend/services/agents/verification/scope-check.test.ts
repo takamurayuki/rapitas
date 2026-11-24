@@ -189,3 +189,38 @@ describe('evaluateScopeCheck', () => {
     expect(result!.ok).toBe(true);
   });
 });
+
+// Tasks 514 / 520: a deleted `server.exe~` editor backup failed the scope check.
+describe('evaluateScopeCheck — backup and temp files', () => {
+  const PLAN = ['services/foo.ts'];
+
+  it.each([
+    'trendline/server.exe~',
+    'src/a.bak',
+    'src/b.orig',
+    'src/.#c.ts',
+    'notes.swp',
+    'dir\\deep\\old.tmp',
+  ])('does not count %s as out of plan', (file) => {
+    const result = evaluateScopeCheck([file], PLAN);
+    expect(result!.ok).toBe(true);
+    expect(result!.errorCount).toBe(0);
+  });
+
+  it('still detects an ordinary out-of-plan source file next to a backup', () => {
+    const result = evaluateScopeCheck(['trendline/server.exe~', 'src/unplanned.ts'], PLAN);
+    expect(result!.ok).toBe(false);
+    expect(result!.offendingFiles).toEqual(['src/unplanned.ts']);
+  });
+
+  it('matches on the file name only, never on a directory name', () => {
+    const result = evaluateScopeCheck(['backup~/real.ts', 'x.bak/real.ts'], PLAN);
+    expect(result!.offendingFiles).toEqual(['backup~/real.ts', 'x.bak/real.ts']);
+  });
+
+  it('does not treat names that merely contain the suffix text as backups', () => {
+    for (const name of ['bak.ts', '.bakery', 'a.orig.ts', '.#', '~', '.bak']) {
+      expect(evaluateScopeCheck([`src/${name}`], PLAN)!.ok).toBe(false);
+    }
+  });
+});

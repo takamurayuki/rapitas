@@ -7,6 +7,7 @@
  * down before releasing the workdir — live in one focused module.
  */
 import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
+import { cleanupStaleRuntime, RuntimeEnvBlockedError } from './runtime-stale-cleanup';
 import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
@@ -167,9 +168,11 @@ export async function spawnNewEntry(
     entry.bootId = await readRuntimeBootId();
     await persistStartingIntent(key, workdir, fp, entry.bootId);
     await checkRuntimeStartScript(cfg.start, workdir);
-    const beforeStart = await readRuntimeProcessSnapshot();
-    const directory = await inspectRuntimeDirectory(workdir, beforeStart.processes);
-    if (!directory.free) throw new Error(directory.reason);
+    // Leftovers of an earlier launch from this worktree are stopped here (inside
+    // the registry's exclusion: no entry exists, so no borrower is disturbed);
+    // a port/lock we cannot clear is an environment cause, not an app failure.
+    const cleanup = await cleanupStaleRuntime(workdir, cfg);
+    if (!cleanup.ok) throw new RuntimeEnvBlockedError(cleanup.cause, cleanup.reason);
     if (entry.startCancelled) throw new Error('Startup cancelled before spawn');
     const { app, port, baseUrl } = await withRuntimeLaunchLock(async () => {
       if (entry.startCancelled) throw new Error('Startup cancelled before port allocation');
@@ -318,7 +321,10 @@ export async function spawnNewEntry(
       try {
         await persistRemoval(key);
         if (registry.get(key) === entry) registry.delete(key);
-        return failure(String(error), { unverifiable: true });
+        return failure(String(error), {
+          unverifiable: true,
+          cause: error instanceof RuntimeEnvBlockedError ? error.envCause : undefined,
+        });
       } catch (cleanupError) {
         log.error({ err: cleanupError, key }, '[registry] reservation removal failed');
       }
@@ -368,6 +374,7 @@ export async function spawnNewEntry(
     }
     return failure(entry.quarantineReason, {
       unverifiable: true,
+      cause: 'quarantined',
       logs: entry.app?.logs(),
       exitCode: entry.app?.exitCode(),
       hasExited: entry.app?.hasExited(),

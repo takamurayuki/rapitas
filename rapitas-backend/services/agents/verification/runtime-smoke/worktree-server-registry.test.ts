@@ -155,7 +155,10 @@ test.each(['alive', 'port', 'reused', 'persistence', 'snapshot'])(
       listenerOccupied = false;
       storeFailed = true;
     }
-    expect((await acquireRuntimeServer(process.cwd(), cfg)).ok).toBe(false);
+    const refused = await acquireRuntimeServer(process.cwd(), cfg);
+    expect(refused.ok).toBe(false);
+    // Task 1539: a quarantined worktree is an environment cause, machine-readable.
+    expect(refused).toMatchObject({ unverifiable: true, cause: 'quarantined' });
     expect(_debugSnapshotForTests()[0].state).toBe('quarantined');
     expect(spawnCount).toBe(1);
     expect(stopCount).toBe(1);

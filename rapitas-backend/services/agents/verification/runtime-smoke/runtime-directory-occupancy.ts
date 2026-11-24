@@ -10,7 +10,7 @@ import type { RuntimeProcessIdentity } from './runtime-process-identity';
 export async function inspectRuntimeDirectory(
   workdir: string,
   processes: RuntimeProcessIdentity[],
-): Promise<{ free: boolean; reason?: string }> {
+): Promise<{ free: boolean; reason?: string; pid?: number }> {
   for (const project of ['', 'rapitas-frontend']) {
     for (const output of ['.next', '.next-tauri']) {
       for (const variant of ['', 'dev']) {
@@ -31,6 +31,7 @@ export async function inspectRuntimeDirectory(
             return {
               free: false,
               reason: `Runtime directory occupied by PID ${info.pid}: ${path}`,
+              pid: info.pid,
             };
           }
         } catch {
