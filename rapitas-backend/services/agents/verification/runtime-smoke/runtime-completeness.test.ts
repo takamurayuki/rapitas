@@ -176,8 +176,8 @@ test.each(['port_in_use', 'lock_held', 'quarantined', 'foreign_process'])(
 );
 test.each([
   ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
-  ['Port TCP 8090 is in use', 'port_in_use'],
-  ['別のインスタンスが既に起動しています', 'lock_held'],
+  ['Error: Port TCP 8090 is in use', 'port_in_use'],
+  ['Error: 別のインスタンスが既に起動しています', 'lock_held'],
 ])(
   'a launch that died on "%s" is an environment cause, not an app failure',
   async (line, cause) => {
@@ -212,6 +212,19 @@ test.each([
     ['Error: listen EADDRINUSE: address already in use :::3000', 'TypeError: boom'],
   ],
   ['lock file parse error', ['Failed to parse lock file: Unexpected token']],
+  [
+    '競合警告の後の別異常終了',
+    [
+      'Warning: Port 8090 is in use, trying 8091 instead',
+      'build-worker terminated with exit code 2',
+    ],
+  ],
+  [
+    'TypeErrorの後の競合警告',
+    ['TypeError: x is not a function', 'Warning: Port 8090 is in use, trying 8091 instead'],
+  ],
+  ['致命行のないポート言及', ['Port TCP 8090 is in use']],
+  ['致命行のないロック言及', ['別のインスタンスが既に起動しています']],
   [
     'port and lock both named',
     ['Error: listen EADDRINUSE: address already in use', 'Unable to acquire lock'],

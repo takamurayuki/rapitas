@@ -18,6 +18,7 @@ const LOCK_RE =
 const FATAL_START_RE =
   /^\s*(?:Error|TypeError|ReferenceError|SyntaxError|RangeError|Unhandled|FATAL|EADDRINUSE|Unable to acquire lock)\b/;
 const FRAME_RE = /^\s+at\s/;
+const EXIT_CODE_RE = /\bexit code\s*[:=]?\s*(-?\d+)\b/i;
 
 /**
  * Classify a failed launch.
@@ -35,16 +36,15 @@ export function classifyEnvCause(input: {
   if (reachedReady || READY_RE.test(text)) return null;
   if (PORT_RE.test(text) && LOCK_RE.test(text)) return null;
 
-  // Stack frames continue the error line above them, so they never start a new message.
+  // スタックは直前のエラーの続きであり、単独では環境原因の根拠にしない。
   let lastFatal: string | null = null;
   for (const line of text.split('\n')) {
-    if (FRAME_RE.test(line)) {
-      lastFatal ??= line;
-    } else if (
+    if (FRAME_RE.test(line)) continue;
+    const exitCode = EXIT_CODE_RE.exec(line);
+    if (
       FATAL_START_RE.test(line) ||
       /uncaught|unhandled/i.test(line) ||
-      PORT_RE.test(line) ||
-      LOCK_RE.test(line)
+      (exitCode !== null && Number(exitCode[1]) !== 0 && !/ELIFECYCLE/i.test(line))
     ) {
       lastFatal = line;
     }

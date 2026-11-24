@@ -14,10 +14,10 @@ const classify = (lines: string[], reachedReady = false) =>
 describe('classifyEnvCause — environment causes', () => {
   test.each([
     [['Error: listen EADDRINUSE: address already in use :::8090'], 'port_in_use'],
-    [['Port 8090 in use'], 'port_in_use'],
-    [['ポート 8090 は使用中です'], 'port_in_use'],
-    [['別のインスタンスが既に起動しています'], 'lock_held'],
-    [['Another next dev server is already running.'], 'lock_held'],
+    [['Error: Port 8090 in use'], 'port_in_use'],
+    [['Error: ポート 8090 は使用中です'], 'port_in_use'],
+    [['Error: 別のインスタンスが既に起動しています'], 'lock_held'],
+    [['Error: Another next dev server is already running.'], 'lock_held'],
     [['Unable to acquire lock at .next/dev/lock'], 'lock_held'],
     [['Error: the workspace is locked by pid 12'], 'lock_held'],
     [['Error: EBUSY: resource busy or locked'], 'lock_held'],
@@ -84,5 +84,36 @@ describe('classifyEnvCause — never an environment cause', () => {
   test('no fatal message at all cannot be judged', () => {
     expect(classify(['compiling...', 'still compiling'])).toBeNull();
     expect(classify([])).toBeNull();
+  });
+
+  test.each([
+    [
+      'Warning: Port 8090 is in use, trying 8091 instead',
+      'build-worker terminated with exit code 2',
+    ],
+    ['TypeError: x is not a function', 'Warning: Port 8090 is in use, trying 8091 instead'],
+    ['Error: listen EADDRINUSE', 'build-worker terminated with exit code 2'],
+    ['Error: workspace is locked', 'build-worker terminated with exit code -1'],
+    ['TypeError: x is not a function', 'Warning: another instance is already running'],
+  ])('致命的エラーを競合への言及で上書きしない: %s → %s', (first, last) => {
+    expect(classify([first, last])).toBeNull();
+  });
+
+  test.each([
+    'Warning: Port 8090 is in use, trying 8091 instead',
+    'Port 8090 in use',
+    'ポート 8090 は使用中です',
+    '別のインスタンスが既に起動しています',
+    'Another next dev server is already running.',
+    '    at EADDRINUSE (app.ts:1:1)',
+  ])('致命的メッセージがない競合への言及は原因にしない: %s', (line) => {
+    expect(classify([line])).toBeNull();
+  });
+
+  test.each([
+    'ELIFECYCLE Command failed with exit code 1',
+    'build-worker completed with exit code 0',
+  ])('異常終了を示さない補助行は最後の致命的原因を変えない: %s', (line) => {
+    expect(classify(['Error: listen EADDRINUSE', line])).toBe('port_in_use');
   });
 });

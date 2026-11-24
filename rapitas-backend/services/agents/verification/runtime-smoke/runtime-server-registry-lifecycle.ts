@@ -393,6 +393,8 @@ export async function spawnNewEntry(
       // launched child process itself is still known via entry.app (its real
       // PID from child_process.spawn()), so fall back to killing it directly
       // instead of leaving it as an unreferenced leak.
+      // 停止操作による終了と、アプリ自身の起動失敗を取り違えない。
+      const exitedBeforeStop = entry.app.hasExited();
       entry.app.stop();
       if (entry.app.hasExited()) {
         // The only process this reservation ever launched is gone — it died
@@ -403,11 +405,12 @@ export async function spawnNewEntry(
         try {
           await persistRemoval(key);
           if (registry.get(key) === entry) registry.delete(key);
+          const cause =
+            classifyEnvCause({ text: entry.app.logs().join('\n'), reachedReady: false }) ??
+            undefined;
           return failure(`起動に失敗しました: ${String(error)}`, {
-            unverifiable: true,
-            cause:
-              classifyEnvCause({ text: entry.app.logs().join('\n'), reachedReady: false }) ??
-              undefined,
+            unverifiable: cause || !exitedBeforeStop ? true : undefined,
+            cause,
             logs: entry.app.logs(),
             exitCode: entry.app.exitCode(),
             hasExited: true,
