@@ -13,7 +13,6 @@
  * performAutoCommitAndPR on that path.
  */
 import { prisma } from '../../config';
-import { createLogger } from '../../config/logger';
 import type { TransitionActor } from './transition-recorder';
 import type { WorkflowAdvanceResult } from './workflow-types';
 import {
@@ -33,9 +32,12 @@ import {
 } from './jury-review-run';
 import type { DiffReviewResult } from '../agents/verification/adversarial-diff-review-verdict';
 import { applyFallbackJuryFail } from './verify-fallback-jury-fail';
+import {
+  reusableUnderLock,
+  reuseStillCurrent,
+  type LockedReuse,
+} from './verify-fallback-jury-reuse';
 import { REVIEW_HOLD_HALT_REASON } from './review-hold-status';
-
-const log = createLogger('workflow-cli-executor');
 
 /** Same title shape verify-completion-gate.ts uses to skip the jury for conflict fixes. */
 const CONFLICT_RESOLUTION_TITLE_RE = /^PR #\d+ の競合を解消/;
@@ -166,7 +168,7 @@ async function runGateLocked(params: {
         {
           ...params,
           worktreePath,
-          reuseReview: await reusableUnderLock(taskId, worktreePath, run),
+          reuse: await reusableUnderLock(taskId, worktreePath, run),
         },
         run,
       ),
@@ -176,28 +178,6 @@ async function runGateLocked(params: {
       skipped: 'gate_busy',
     }),
   );
-}
-
-/**
- * A self-verify pass for exactly this diff, looked up only once the jury lock
- * is held: a lookup before it could match keys that change before the lock
- * (G2 task 1538 verifier). The pass must also be for the criteria revision
- * the run recorded, or it would be stored under criteria it never judged.
- * Checked after the HTTP records: a `stopped` outcome is never overridden.
- */
-async function reusableUnderLock(
-  taskId: number,
-  worktreePath: string,
-  run: JuryRunHandle,
-): Promise<DiffReviewResult | undefined> {
-  const { findReusableSelfVerifyReview } = await import('./self-verify-diff-review');
-  const reusable = await findReusableSelfVerifyReview(taskId, worktreePath);
-  if (!reusable || reusable.criteriaRevision !== run.criteriaRevision) return undefined;
-  log.info(
-    { taskId, runId: reusable.runId, diffFingerprint: reusable.review.diffFingerprint },
-    '[WorkflowCLIExecutor] Self-verify diff review passed this exact diff — reusing it on the epilogue path',
-  );
-  return reusable.review;
 }
 
 async function liveStatus(
@@ -219,16 +199,16 @@ async function reviewAndApplyLocked(
     actor: TransitionActor;
     sessionId: number;
     /** Passing self-verify review of this exact diff, used instead of the jury. */
-    reuseReview?: DiffReviewResult;
+    reuse?: LockedReuse;
   },
   run: JuryRunHandle,
 ): Promise<{ result: FallbackJuryOutcome; seen: JuryRunSeen }> {
   const { taskId, currentWfStatus, verifyContent, actor, sessionId, worktreePath } = params;
-  const review =
-    params.reuseReview ??
-    (await import('../agents/verification/adversarial-diff-review')
+  const callJury = () =>
+    import('../agents/verification/adversarial-diff-review')
       .then(({ reviewDiffAdversarially }) => reviewDiffAdversarially({ taskId, worktreePath }))
-      .catch(() => null));
+      .catch(() => null);
+  let review: DiffReviewResult | null = params.reuse?.review ?? (await callJury());
   const seen = (outcome: 'passed' | 'stopped' | null): JuryRunSeen => ({
     diffFingerprint: review?.diffFingerprint ?? null,
     verdict: review?.verdict ?? null,
@@ -237,11 +217,16 @@ async function reviewAndApplyLocked(
   // Design 4.5.1: the run must still own the lock and the criteria / verify.md
   // must be what it started on before ANY of the verdict is applied —
   // otherwise it is discarded (task halted) and nothing proceeds, not even commit.
-  if (!(await confirmJuryRunStillBound(run, review))) {
-    return {
-      result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
-      seen: seen(null),
-    };
+  const stale = async () => ({
+    result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
+    seen: seen(null),
+  });
+  if (!(await confirmJuryRunStillBound(run, review))) return stale();
+  if (params.reuse && !(await reuseStillCurrent(taskId, worktreePath, run, params.reuse))) {
+    // NOTE: git can change after the lookup and the DB lock cannot prevent it
+    // (task 1538): the reused pass is no longer about this diff, so judge it.
+    review = await callJury();
+    if (!(await confirmJuryRunStillBound(run, review))) return stale();
   }
   const complete = (outcome: 'passed' | 'stopped') =>
     review?.diffFingerprint && run.verifySha256 && run.criteriaRevision
