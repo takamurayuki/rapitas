@@ -22,21 +22,13 @@
  * node_modules. If any link is left, the worktree is kept.
  */
 import { execFile } from 'node:child_process';
-import {
-  existsSync,
-  lstatSync,
-  readdirSync,
-  readFileSync,
-  rmdirSync,
-  rmSync,
-  statSync,
-  unlinkSync,
-} from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { createLogger } from '../../../../../config/logger';
 import { isWorkPreserved, type GitRunner, type PullRequestLookup } from './work-preserved';
+import { detachLinksSafely, unlinkRootEntries } from '../worktree/node-modules-root-entries';
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger('git-operations/worktree-sweep');
@@ -49,8 +41,6 @@ const MANAGED_ROOTS = ['.worktrees', '.claude/worktrees'];
 const TASK_WORKTREE = /^task-\d+-/;
 /** auto-merge-premerge-gate.ts names its throwaway worktrees like this. */
 const RATCHET_TEMP = /^rapitas-ratchet-/;
-/** Deep enough for rapitas-backend/generated/prisma-sqlite. */
-const LINK_SEARCH_DEPTH = 4;
 const GIT_TIMEOUT_MS = 60_000;
 const FETCH_TIMEOUT_MS = 120_000;
 
@@ -161,72 +151,9 @@ async function lastTouched(git: GitRunner, entry: WorktreeEntry): Promise<number
   return Math.max(...times);
 }
 
-/**
- * Remove a link itself, never what it points at.
- *
- * NOTE: unlinkSync is what setup-worktree.cjs uses (under node). Under bun a
- * Windows directory junction can refuse unlink, and rmSync fails with EFAULT
- * on it; rmdirSync without `recursive` removes the junction entry only.
- */
-function unlinkOnly(p: string): void {
-  try {
-    unlinkSync(p);
-  } catch {
-    try {
-      rmdirSync(p);
-    } catch {
-      /* left in place; hasLinks() then keeps the worktree */
-    }
-  }
-}
-
-/** Unlink every symlink / junction under `dir` without following any. */
-function unlinkLinks(dir: string, depth = 0): void {
-  if (depth > LINK_SEARCH_DEPTH) return;
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return;
-  }
-  for (const name of names) {
-    if (depth === 0 && name === '.git') continue;
-    const p = join(dir, name);
-    let st;
-    try {
-      st = lstatSync(p);
-    } catch {
-      continue;
-    }
-    if (st.isSymbolicLink()) {
-      unlinkOnly(p);
-    } else if (st.isDirectory()) {
-      unlinkLinks(p, depth + 1);
-    }
-  }
-}
-
-function hasLinks(dir: string, depth = 0): boolean {
-  if (depth > LINK_SEARCH_DEPTH) return false;
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return false;
-  }
-  for (const name of names) {
-    const p = join(dir, name);
-    try {
-      const st = lstatSync(p);
-      if (st.isSymbolicLink()) return true;
-      if (st.isDirectory() && !(depth === 0 && name === '.git') && hasLinks(p, depth + 1)) {
-        return true;
-      }
-    } catch {
-      /* unreadable entry: ignore */
-    }
-  }
-  return false;
+/** 深さにかかわらず解除し、失敗または未走査の場所があれば削除を拒否する。 */
+function unlinkLinks(dir: string): boolean {
+  return unlinkRootEntries(join(dir, 'node_modules')) && detachLinksSafely(dir);
 }
 
 /**
@@ -299,13 +226,17 @@ export async function sweepIdleWorktrees(
       continue;
     }
 
-    unlinkLinks(entry.path);
-    if (hasLinks(entry.path)) {
+    if (!unlinkLinks(entry.path)) {
       keep('links-remaining');
       continue;
     }
     const removed = await git(['worktree', 'remove', '--force', entry.path], baseDir);
     if (removed.code !== 0 && existsSync(entry.path)) {
+      // git 実行中の変化も確認し、残存リンクや未走査部分を再帰削除しない。
+      if (!unlinkLinks(entry.path)) {
+        keep('links-remaining');
+        continue;
+      }
       // git refuses on a locked file; the directory is link-free, so a plain delete is safe.
       try {
         rmSync(entry.path, { recursive: true, force: true });

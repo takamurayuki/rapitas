@@ -7,16 +7,18 @@
  * clear one and recursing through it would delete the shared tree).
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import fs from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
   discoverInstalledDirs,
   holdsRealInstall,
+  inspectLinkPath,
   linkNodeModules,
   worktreeHasUsableModules,
 } from './node-modules-link';
+import { linkRootEntries, unlinkRootEntries } from './node-modules-root-entries';
 
 let base: string;
 let root: string;
@@ -30,15 +32,20 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Clear junctions first: a recursive remove would descend through them.
-  for (const rel of ['', 'apps/web', 'apps/server']) {
-    const link = path.join(worktree, rel, 'node_modules');
-    try {
-      if (fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
-    } catch {
-      /* not present */
+  // 一時領域もリンクをたどらず、深いリンクを先に解除する。
+  const detach = (entry: string): void => {
+    const stat = fs.lstatSync(entry);
+    if (stat.isSymbolicLink()) {
+      try {
+        fs.unlinkSync(entry);
+      } catch {
+        fs.rmdirSync(entry);
+      }
+    } else if (stat.isDirectory()) {
+      for (const name of fs.readdirSync(entry)) detach(path.join(entry, name));
     }
-  }
+  };
+  detach(base);
   fs.rmSync(base, { recursive: true, force: true });
 });
 
@@ -151,6 +158,33 @@ describe('discoverInstalledDirs', () => {
   });
 });
 
+describe('inspectLinkPath', () => {
+  it.each([
+    ['未作成', 'absent'],
+    ['空ディレクトリ', 'real'],
+    ['実インストール', 'real'],
+    ['管理下ルート', 'managed'],
+    ['旧junction', 'link'],
+    ['切れたjunction', 'link'],
+  ] as const)('%s を %s と判定する', (kind, expected) => {
+    const modules = path.join(worktree, 'node_modules');
+    if (kind === '空ディレクトリ') install(worktree, []);
+    if (kind === '実インストール') install(worktree);
+    if (kind === '管理下ルート') {
+      install(root);
+      linkNodeModules(root, worktree);
+    }
+    if (kind === '旧junction' || kind === '切れたjunction') {
+      install(root);
+      fs.symlinkSync(path.join(root, 'node_modules'), modules, 'junction');
+      if (kind === '切れたjunction') {
+        fs.rmSync(path.join(root, 'node_modules'), { recursive: true });
+      }
+    }
+    expect(inspectLinkPath(modules)).toBe(expected);
+  });
+});
+
 describe('linkNodeModules', () => {
   it('links the root and each package dir', () => {
     install(root);
@@ -159,7 +193,7 @@ describe('linkNodeModules', () => {
     const linked = linkNodeModules(root, worktree).sort();
 
     expect(linked).toEqual(['', 'apps/web']);
-    expect(linkState()).toBe(`link->${path.join(root, 'node_modules')}`);
+    expect(linkState()).toBe('real');
     expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
     // The binaries every lint/test/build command resolves through.
     expect(fs.existsSync(path.join(worktree, 'node_modules', '.bin'))).toBe(true);
@@ -169,14 +203,16 @@ describe('linkNodeModules', () => {
     install(root);
     linkNodeModules(root, worktree);
     expect(linkNodeModules(root, worktree)).toEqual(['']);
-    expect(linkState()).toBe(`link->${path.join(root, 'node_modules')}`);
+    expect(linkState()).toBe('real');
   });
 
   it('replaces a cache-only node_modules instead of skipping it forever', () => {
     install(root);
     install(worktree, ['.vite']);
     expect(linkNodeModules(root, worktree)).toEqual(['']);
-    expect(linkState()).toBe(`link->${path.join(root, 'node_modules')}`);
+    expect(linkState()).toBe('real');
+    expect(fs.existsSync(path.join(worktree, 'node_modules', '.vite'))).toBe(false);
+    expect(fs.lstatSync(path.join(worktree, 'node_modules', 'zod')).isSymbolicLink()).toBe(true);
   });
 
   it('never destroys a real install in the worktree', () => {
@@ -203,9 +239,7 @@ describe('linkNodeModules', () => {
     expect(fs.existsSync(path.join(worktree, 'apps/web', 'node_modules', '.bin'))).toBe(true);
   });
 
-  it('keeps a link that points elsewhere but still resolves', () => {
-    // A project prepared by an earlier revision is linked to a different tree.
-    // Re-pointing a WORKING link would strand the agent mid-task for no gain.
+  it('replaces a whole-directory root link so pnpm 12 accepts the root', () => {
     install(root);
     const other = path.join(base, 'other-tree');
     install(other);
@@ -216,7 +250,27 @@ describe('linkNodeModules', () => {
     );
 
     expect(linkNodeModules(root, worktree)).toEqual(['']);
-    expect(linkState()).toBe(`link->${path.join(other, 'node_modules')}`);
+    expect(linkState()).toBe('real');
+    // The old link target is untouched.
+    expect(fs.existsSync(path.join(other, 'node_modules', 'zod'))).toBe(true);
+  });
+
+  it('keeps a package-level link that points elsewhere but still resolves', () => {
+    // A project prepared by an earlier revision is linked to a different tree.
+    // Re-pointing a WORKING link would strand the agent mid-task for no gain.
+    install(root);
+    install(path.join(root, 'apps/web'));
+    const other = path.join(base, 'other-tree');
+    install(other);
+    fs.mkdirSync(path.join(worktree, 'apps/web'), { recursive: true });
+    fs.symlinkSync(
+      path.join(other, 'node_modules'),
+      path.join(worktree, 'apps/web', 'node_modules'),
+      'junction',
+    );
+
+    linkNodeModules(root, worktree);
+    expect(linkState('apps/web')).toBe(`link->${path.join(other, 'node_modules')}`);
   });
 
   it('replaces a dangling link', () => {
@@ -231,23 +285,139 @@ describe('linkNodeModules', () => {
     fs.rmSync(gone, { recursive: true, force: true });
 
     expect(linkNodeModules(root, worktree)).toEqual(['']);
-    expect(linkState()).toBe(`link->${path.join(root, 'node_modules')}`);
+    expect(linkState()).toBe('real');
+  });
+
+  it.each(['', 'apps/web'])('%s のキャッシュ内の深いjunctionを再帰削除前に解除する', (rel) => {
+    install(root);
+    const source = path.join(root, rel);
+    if (rel) install(source);
+    const modules = path.join(worktree, rel, 'node_modules');
+    const cache = path.join(modules, '.vite', 'a', 'b', 'c', 'd');
+    fs.mkdirSync(cache, { recursive: true });
+    const linkedCache = path.join(cache, 'shared');
+    const target = path.join(source, 'node_modules', 'zod');
+    fs.writeFileSync(path.join(target, 'keep.txt'), '共有依存');
+    fs.symlinkSync(target, linkedCache, 'junction');
+    const detach = spyOn(fs, 'unlinkSync');
+    try {
+      expect(linkNodeModules(root, worktree).sort()).toEqual(rel ? ['', rel] : ['']);
+      expect(detach).toHaveBeenCalledWith(linkedCache);
+      expect(fs.readFileSync(path.join(target, 'keep.txt'), 'utf8')).toBe('共有依存');
+    } finally {
+      detach.mockRestore();
+    }
+  });
+
+  it('パッケージ配下の管理済み実ディレクトリを安全にjunctionへ戻す', () => {
+    install(root);
+    const source = path.join(root, 'apps/web', 'node_modules');
+    install(path.join(root, 'apps/web'));
+    fs.writeFileSync(path.join(source, '.modules.yaml'), 'layoutVersion: 5\n');
+    fs.writeFileSync(path.join(source, 'zod', 'keep.txt'), '共有依存');
+    const modules = path.join(worktree, 'apps/web', 'node_modules');
+    expect(linkRootEntries(source, modules)).toBe(true);
+
+    expect(linkNodeModules(root, worktree).sort()).toEqual(['', 'apps/web']);
+    expect(fs.lstatSync(modules).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(path.join(source, '.modules.yaml'), 'utf8')).toBe('layoutVersion: 5\n');
+    expect(fs.readFileSync(path.join(source, 'zod', 'keep.txt'), 'utf8')).toBe('共有依存');
+  });
+});
+
+describe('linkNodeModules root shape (pnpm 12)', () => {
+  const seedMain = () => {
+    install(root, ['.pnpm', '.bin', 'zod', '@types']);
+    fs.writeFileSync(path.join(root, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    fs.writeFileSync(path.join(root, 'node_modules', '.pnpm', 'keep.txt'), 'x');
+  };
+  const wtNm = () => path.join(worktree, 'node_modules');
+
+  it('makes the root a real directory, directories junctions, files copies', () => {
+    seedMain();
+    install(path.join(root, 'apps/web'));
+
+    expect(linkNodeModules(root, worktree).sort()).toEqual(['', 'apps/web']);
+
+    expect(fs.lstatSync(wtNm()).isDirectory()).toBe(true);
+    expect(fs.lstatSync(wtNm()).isSymbolicLink()).toBe(false);
+    for (const dir of ['.pnpm', '.bin', 'zod', '@types']) {
+      expect(fs.lstatSync(path.join(wtNm(), dir)).isSymbolicLink()).toBe(true);
+    }
+    const copy = fs.lstatSync(path.join(wtNm(), '.modules.yaml'));
+    expect(copy.isFile() && !copy.isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(path.join(wtNm(), '.modules.yaml'), 'utf8')).toBe('layoutVersion: 5\n');
+    // Package-level node_modules stay whole-directory junctions.
+    expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
+    expect(fs.existsSync(path.join(wtNm(), '.pnpm', 'keep.txt'))).toBe(true);
+  });
+
+  it('follows the main checkout on a rerun: adds new entries, drops vanished links', () => {
+    seedMain();
+    linkNodeModules(root, worktree);
+    fs.mkdirSync(path.join(root, 'node_modules', 'react'));
+    fs.rmSync(path.join(root, 'node_modules', 'zod'), { recursive: true });
+
+    expect(linkNodeModules(root, worktree)).toEqual(['']);
+    expect(fs.lstatSync(path.join(wtNm(), 'react')).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(wtNm(), 'zod'))).toBe(false);
+  });
+
+  it('is not mistaken for a real install because of the copied .modules.yaml', () => {
+    seedMain();
+    linkNodeModules(root, worktree);
+    expect(holdsRealInstall(worktree)).toBe(false);
+    expect(holdsRealInstall(root)).toBe(true);
+  });
+
+  it('unlinking the root entries leaves every main entry in place', () => {
+    seedMain();
+    linkNodeModules(root, worktree);
+    expect(unlinkRootEntries(wtNm())).toBe(true);
+    expect(fs.existsSync(wtNm())).toBe(false);
+    for (const e of ['.pnpm', '.bin', 'zod', '@types', '.modules.yaml']) {
+      expect(fs.existsSync(path.join(root, 'node_modules', e))).toBe(true);
+    }
+    expect(fs.existsSync(path.join(root, 'node_modules', '.pnpm', 'keep.txt'))).toBe(true);
+  });
+
+  it('keeps a directory the worktree owns and still spares the main tree', () => {
+    seedMain();
+    linkNodeModules(root, worktree);
+    fs.mkdirSync(path.join(wtNm(), '.vite'));
+    expect(unlinkRootEntries(wtNm())).toBe(true);
+    expect(fs.existsSync(path.join(root, 'node_modules', '.pnpm', 'keep.txt'))).toBe(true);
+    expect(fs.existsSync(path.join(wtNm(), '.vite'))).toBe(true);
   });
 });
 
 describe('worktreeHasUsableModules', () => {
-  it('is true for a real install', () => {
-    install(worktree);
+  it('is true for a managed root whose links resolve, false once one dangles', () => {
+    install(root, ['.pnpm', '.bin', 'zod']);
+    linkNodeModules(root, worktree);
     expect(worktreeHasUsableModules(worktree)).toBe(true);
+    fs.rmSync(path.join(root, 'node_modules', '.pnpm'), { recursive: true });
+    expect(worktreeHasUsableModules(worktree)).toBe(false);
   });
 
-  it('is true for a link that still resolves', () => {
-    install(root);
-    linkNodeModules(root, worktree);
+  it.each(['実インストール', '生存する旧junction'])('%s は利用可能と判定する', (kind) => {
+    if (kind === '実インストール') {
+      install(worktree);
+    } else {
+      install(root);
+      fs.symlinkSync(
+        path.join(root, 'node_modules'),
+        path.join(worktree, 'node_modules'),
+        'junction',
+      );
+    }
     expect(worktreeHasUsableModules(worktree)).toBe(true);
   });
 
   it('is false for nothing, for a cache-only directory, and for a dangling link', () => {
+    expect(worktreeHasUsableModules(worktree)).toBe(false);
+
+    install(worktree, []);
     expect(worktreeHasUsableModules(worktree)).toBe(false);
 
     install(worktree, ['.vite']);

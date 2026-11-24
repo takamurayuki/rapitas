@@ -16,12 +16,15 @@
  * not "the directory went away" — it is "the directory went away and the
  * thing it pointed at did not".
  */
-import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, beforeEach, afterEach, spyOn } from 'bun:test';
+import * as fs from 'node:fs';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync, rmSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isLinkSkeleton, removeLinkSkeleton } from './worktree-link-skeleton';
+import { linkNodeModules } from './node-modules-link';
+import { ROOT_MARKER, detachLinksSafely } from './node-modules-root-entries';
 
 let root: string;
 /** Stands in for the main checkout's node_modules — must survive everything. */
@@ -35,9 +38,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // The links are gone by now in the passing cases; where they are not, rmSync
-  // would follow them, so unlink-aware teardown is the test's own concern.
+  // 削除を拒否したケースにはリンクが残るため、一時領域も個別解除してから消す。
   try {
+    if (!detachLinksSafely(root)) return;
     rmSync(root, { recursive: true, force: true });
   } catch {
     /* best effort — the OS reclaims the temp dir */
@@ -211,5 +214,100 @@ describe('the copies the tooling itself leaves behind', () => {
     expect(removeLinkSkeleton(dir, { repoRoot: repo })).toBe(false);
     expect(existsSync(join(dir, 'scripts', 'run-checked.cjs'))).toBe(true);
     expect(existsSync(join(dir, 'node_modules'))).toBe(true);
+  });
+});
+
+describe('a root node_modules built as a real directory of junctions', () => {
+  test.each(['notes', 'node_modules'])('%s のマーカーだけで独自ファイルを削除しない', (name) => {
+    const dir = join(root, 'unmanaged');
+    const marked = join(dir, name);
+    mkdirSync(marked, { recursive: true });
+    writeFileSync(join(marked, ROOT_MARKER), 'managed by rapitas node-modules-link\n');
+    const ownFile = join(marked, 'keep.txt');
+    writeFileSync(ownFile, '手元の作業');
+
+    expect(isLinkSkeleton(dir)).toBe(false);
+    expect(removeLinkSkeleton(dir)).toBe(false);
+    expect(existsSync(ownFile)).toBe(true);
+    expect(existsSync(join(marked, ROOT_MARKER))).toBe(true);
+  });
+
+  test('管理下ルートでもコピー記録にないファイルがあれば全体を保持する', () => {
+    const main = join(root, 'managed-main');
+    mkdirSync(join(main, 'node_modules', 'pkg'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    const dir = join(root, 'managed-worktree');
+    expect(linkNodeModules(main, dir)).toEqual(['']);
+    const ownFile = join(dir, 'node_modules', 'keep.txt');
+    writeFileSync(ownFile, '手元の作業');
+
+    expect(isLinkSkeleton(dir)).toBe(false);
+    expect(removeLinkSkeleton(dir)).toBe(false);
+    expect(existsSync(ownFile)).toBe(true);
+    expect(existsSync(join(dir, 'node_modules', 'pkg'))).toBe(true);
+    expect(existsSync(join(dir, 'node_modules', ROOT_MARKER))).toBe(true);
+  });
+
+  test('リンク解除失敗時は管理情報を残し、再試行でメインを保全して削除する', () => {
+    const main = join(root, 'retry-main');
+    mkdirSync(join(main, 'node_modules', 'pkg'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', 'pkg', 'index.js'), 'package');
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    const dir = join(root, 'retry-worktree');
+    expect(linkNodeModules(main, dir)).toEqual(['']);
+    const blocked = join(dir, 'node_modules', 'pkg');
+    const unlink = fs.unlinkSync;
+    const rmdir = fs.rmdirSync;
+    const failure = Object.assign(new Error('テスト用ロック'), { code: 'EBUSY' });
+    const unlinkSpy = spyOn(fs, 'unlinkSync').mockImplementation((path) => {
+      if (String(path) === blocked) throw failure;
+      return unlink(path);
+    });
+    const rmdirSpy = spyOn(fs, 'rmdirSync').mockImplementation((path, options) => {
+      if (String(path) === blocked) throw failure;
+      return rmdir(path, options);
+    });
+    try {
+      expect(removeLinkSkeleton(dir)).toBe(false);
+      expect(existsSync(join(dir, 'node_modules', ROOT_MARKER))).toBe(true);
+      expect(existsSync(join(dir, 'node_modules', '.modules.yaml'))).toBe(true);
+      expect(fs.lstatSync(blocked).isSymbolicLink()).toBe(true);
+    } finally {
+      unlinkSpy.mockRestore();
+      rmdirSpy.mockRestore();
+    }
+    expect(removeLinkSkeleton(dir)).toBe(true);
+    expect(existsSync(dir)).toBe(false);
+    expect(fs.readFileSync(join(main, 'node_modules', 'pkg', 'index.js'), 'utf8')).toBe('package');
+    expect(fs.readFileSync(join(main, 'node_modules', '.modules.yaml'), 'utf8')).toBe(
+      'layoutVersion: 5\n',
+    );
+  });
+
+  test('is a skeleton, and removing it leaves every main entry in place', () => {
+    const main = join(root, 'main-tree');
+    mkdirSync(join(main, 'node_modules', '.pnpm', 'pkg'), { recursive: true });
+    mkdirSync(join(main, 'node_modules', 'zod'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', 'zod', 'index.js'), 'z');
+    writeFileSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'), 'p');
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    const dir = join(root, 'leftover');
+    mkdirSync(dir, { recursive: true });
+    expect(linkNodeModules(main, dir)).toEqual(['']);
+
+    expect(isLinkSkeleton(dir)).toBe(true);
+    expect(removeLinkSkeleton(dir)).toBe(true);
+
+    expect(existsSync(dir)).toBe(false);
+    expect(existsSync(join(main, 'node_modules', 'zod', 'index.js'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
+  });
+
+  test('a copied file WITHOUT the marker is still real work and keeps the directory', () => {
+    const dir = join(root, 'plain');
+    mkdirSync(join(dir, 'node_modules'), { recursive: true });
+    writeFileSync(join(dir, 'node_modules', '.modules.yaml'), 'hand written');
+    expect(isLinkSkeleton(dir)).toBe(false);
   });
 });

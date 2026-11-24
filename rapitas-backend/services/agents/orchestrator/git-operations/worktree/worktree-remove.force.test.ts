@@ -5,9 +5,13 @@
  * comparison-cell worktrees) deletes a dirty worktree and its branch, while the
  * default mode still refuses to destroy uncommitted work.
  */
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { linkNodeModules } from './node-modules-link';
+import { detachLinksSafely } from './node-modules-root-entries';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { removeWorktree } from './worktree-remove';
@@ -38,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (!detachLinksSafely(root)) throw new Error('テスト用ディレクトリのリンク解除に失敗');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -65,4 +70,112 @@ describe('removeWorktree forceRemove', () => {
     expect(existsSync(wt)).toBe(false);
     expect(git(repo, 'branch', '--list', BRANCH)).toBe('');
   });
+});
+
+describe('removeWorktree with a managed root node_modules', () => {
+  test('メイン側の node_modules の全エントリを残して worktree を消す（teardown スクリプト無し）', async () => {
+    const main = join(root, 'main-tree');
+    mkdirSync(join(main, 'node_modules', '.pnpm', 'pkg'), { recursive: true });
+    mkdirSync(join(main, 'node_modules', 'zod'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', 'zod', 'index.js'), 'z');
+    writeFileSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'), 'p');
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    expect(linkNodeModules(main, wt)).toEqual(['']);
+
+    const removed = await removeWorktree(repo, wt, true, undefined, true);
+
+    expect(removed).toBe(true);
+    expect(existsSync(wt)).toBe(false);
+    expect(existsSync(join(main, 'node_modules', 'zod', 'index.js'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
+  });
+
+  test('解除失敗後もマーカーを維持し、再試行時に残存リンクの削除を拒否する', async () => {
+    const main = join(root, 'main-tree');
+    mkdirSync(join(main, 'node_modules', 'pkg'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', 'pkg', 'index.js'), 'keep');
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    expect(linkNodeModules(main, wt)).toEqual(['']);
+    const link = join(wt, 'node_modules', 'pkg');
+    const originalUnlink = fs.unlinkSync;
+    const originalRmdir = fs.rmdirSync;
+    const failBusy = () => {
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+    };
+    const unlink = spyOn(fs, 'unlinkSync').mockImplementation((path) =>
+      String(path) === link ? failBusy() : originalUnlink(path),
+    );
+    const rmdir = spyOn(fs, 'rmdirSync').mockImplementation((path, options) =>
+      String(path) === link ? failBusy() : originalRmdir(path, options),
+    );
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect(await removeWorktree(repo, wt, false, undefined, true)).toBe(false);
+        expect(existsSync(join(wt, 'node_modules', '.rapitas-linked-root'))).toBe(true);
+        expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+      }
+      expect(existsSync(join(main, 'node_modules', 'pkg', 'index.js'))).toBe(true);
+      expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
+    } finally {
+      unlink.mockRestore();
+      rmdir.mockRestore();
+      try {
+        originalUnlink(link);
+      } catch {
+        if (existsSync(link)) originalRmdir(link);
+      }
+    }
+  });
+
+  test.each(['事前', 'git失敗後'])(
+    '%s に作られた深いリンクを解除してから fs フォールバックを実行する',
+    async (timing) => {
+      const main = join(root, 'main-tree');
+      const packageModules = join(main, 'apps', 'web', 'node_modules');
+      mkdirSync(join(main, 'node_modules', '.pnpm', 'pkg'), { recursive: true });
+      mkdirSync(join(packageModules, 'pkg'), { recursive: true });
+      writeFileSync(join(packageModules, 'pkg', 'index.js'), 'package keep');
+      writeFileSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'), 'keep');
+      writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+      expect(linkNodeModules(main, wt)).toEqual(['', 'apps/web']);
+      const packageLink = join(wt, 'apps', 'web', 'node_modules');
+      const cache = join(wt, 'node_modules', '.cache', 'a', 'b', 'c', 'd');
+      mkdirSync(cache, { recursive: true });
+      const deepLink = join(cache, 'deep-link');
+      if (timing === '事前')
+        fs.symlinkSync(join(main, 'node_modules', '.pnpm'), deepLink, 'junction');
+      git(repo, 'worktree', 'lock', wt);
+      const originalRm = fsPromises.rm;
+      const originalStat = fsPromises.stat;
+      const stat = spyOn(fsPromises, 'stat').mockImplementation(async (...args) => {
+        if (timing === 'git失敗後' && String(args[0]) === join(wt, '.git')) {
+          mkdirSync(cache, { recursive: true });
+          fs.symlinkSync(join(main, 'node_modules', '.pnpm'), deepLink, 'junction');
+        }
+        return originalStat(...args);
+      });
+      let linkedBeforeFallback: boolean | undefined;
+      let packageLinkedBeforeFallback: boolean | undefined;
+      const rm = spyOn(fsPromises, 'rm').mockImplementation(async (path, options) => {
+        if (String(path) === wt) {
+          linkedBeforeFallback = existsSync(deepLink);
+          packageLinkedBeforeFallback = existsSync(packageLink);
+        }
+        return originalRm(path, options);
+      });
+      try {
+        expect(await removeWorktree(repo, wt, false, undefined, true)).toBe(true);
+        expect(linkedBeforeFallback).toBe(false);
+        expect(packageLinkedBeforeFallback).toBe(false);
+        expect(existsSync(wt)).toBe(false);
+        expect(existsSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'))).toBe(true);
+        expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
+        expect(existsSync(join(packageModules, 'pkg', 'index.js'))).toBe(true);
+      } finally {
+        rm.mockRestore();
+        stat.mockRestore();
+      }
+    },
+  );
 });

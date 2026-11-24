@@ -90,9 +90,9 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     const result = await bootstrapProjectDependencies(worktree);
 
     expect(result.action).toBe('linked');
-    expect(fs.readlinkSync(path.join(worktree, 'node_modules'))).toBe(
-      path.join(root, 'node_modules'),
-    );
+    // The root is a real directory (pnpm 12 refuses a linked one); its entries link to main.
+    expect(fs.lstatSync(path.join(worktree, 'node_modules')).isSymbolicLink()).toBe(false);
+    expect(fs.lstatSync(path.join(worktree, 'node_modules', '.bin')).isSymbolicLink()).toBe(true);
     expect(fs.readlinkSync(path.join(worktree, 'apps', 'web', 'node_modules'))).toBe(
       path.join(root, 'apps', 'web', 'node_modules'),
     );
@@ -120,7 +120,8 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     await bootstrapProjectDependencies(worktree);
 
     const link = path.join(worktree, 'node_modules');
-    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
+    expect(fs.existsSync(path.join(link, '.vite'))).toBe(false);
     expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
   });
 
@@ -154,7 +155,8 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     await bootstrapProjectDependencies(worktree);
 
     const link = path.join(worktree, 'node_modules');
-    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(false);
+    expect(fs.existsSync(path.join(link, '.vite'))).toBe(false);
     expect(fs.existsSync(path.join(link, '.bin'))).toBe(true);
   });
 

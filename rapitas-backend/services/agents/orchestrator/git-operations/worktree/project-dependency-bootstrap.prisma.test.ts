@@ -104,8 +104,8 @@ describe('bootstrapProjectDependencies — prisma client (2026-10-11)', () => {
 
     expect(result.action).toBe('linked');
     expect(result.detail).toContain('prisma failed');
-    expect(fs.readlinkSync(path.join(worktree, 'node_modules'))).toBe(
-      path.join(root, 'node_modules'),
-    );
+    // Root is a real directory of links (pnpm 12), not a whole-directory link.
+    expect(fs.lstatSync(path.join(worktree, 'node_modules')).isDirectory()).toBe(true);
+    expect(fs.lstatSync(path.join(worktree, 'node_modules')).isSymbolicLink()).toBe(false);
   });
 });
