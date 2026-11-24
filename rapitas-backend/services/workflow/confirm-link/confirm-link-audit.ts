@@ -81,8 +81,10 @@ export async function readConfirmLinkAudit(
 ): Promise<ConfirmLinkAuditEntry[]> {
   try {
     return parseLines(await readFile(join(options.dir, 'audit.ndjson'), 'utf8'));
-  } catch {
-    return [];
+  } catch (err) {
+    // 未作成の場合だけ空とする。読取障害を空扱いすると次の追記で既存監査を失う。
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return [];
+    throw err;
   }
 }
 

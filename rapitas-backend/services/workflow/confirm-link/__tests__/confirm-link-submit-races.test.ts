@@ -7,8 +7,9 @@
  * compensation and the orphan prune failed. Split out of
  * confirm-link-submit.test.ts to keep each file under 300 lines.
  */
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'fs';
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import * as fsPromises from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
@@ -149,4 +150,57 @@ describe('confirm-link submit races', () => {
     expect(applyAnswer).toHaveBeenCalledTimes(2);
     expect(await audits()).toHaveLength(1);
   });
+
+  test.each(['EIO', 'EACCES'])(
+    'R4: 監査読取の%sで既存監査を保持して回答を拒否し、復旧後は一度だけ受け付ける',
+    async (code) => {
+      // 未作成の監査ファイルでは初回回答を受け付ける。
+      expect(await audits()).toEqual([]);
+      expect((await submit(await issue())).status).toBe(200);
+      const accepted = await audits();
+      expect(accepted).toHaveLength(1);
+
+      snapshot = { workflowStatus: 'awaiting_question', latestPauseId: 11 };
+      const token = await issue();
+      const link = (await store.list(1)).find((record) => record.state === 'active')!;
+      const before = readFileSync(join(dir, 'audit.ndjson'), 'utf8');
+      applyAnswer.mockClear();
+
+      const appendAudit = deps.appendAudit;
+      deps.appendAudit = async (entry) => {
+        // 先行する孤児掃除ではなく、実際の追記の読取だけに一時障害を注入する。
+        const read = spyOn(fsPromises, 'readFile').mockRejectedValueOnce(
+          Object.assign(new Error('監査読取の一時障害'), { code }),
+        );
+        try {
+          await appendAudit(entry);
+        } finally {
+          read.mockRestore();
+        }
+      };
+      const refused = await submit(token);
+      expect(readFileSync(join(dir, 'audit.ndjson'), 'utf8')).toBe(before);
+      expect(refused).toEqual({ status: 503, kind: 'unavailable' });
+      expect(applyAnswer).not.toHaveBeenCalled();
+      expect((await store.get(link.linkId))?.state).toBe('active');
+      expect(await audits()).toEqual(accepted);
+
+      deps.appendAudit = appendAudit;
+      expect((await submit(token)).status).toBe(200);
+      expect(applyAnswer).toHaveBeenCalledTimes(1);
+      expect((await store.get(link.linkId))?.state).toBe('answered');
+      const recovered = await audits();
+      expect(recovered).toHaveLength(2);
+      expect(recovered[0]).toEqual(accepted[0]);
+      expect(recovered[1]).toMatchObject({
+        linkId: link.linkId,
+        respondentName: '外部 太郎',
+        at: new Date(NOW + 1000).toISOString(),
+        route: `external_confirm_link:${link.linkId}`,
+      });
+      expect((await submit(token)).status).toBe(410);
+      expect(applyAnswer).toHaveBeenCalledTimes(1);
+      expect(await audits()).toEqual(recovered);
+    },
+  );
 });
