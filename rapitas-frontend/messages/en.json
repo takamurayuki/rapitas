@@ -2887,6 +2887,7 @@
       "externalPublic": "Public",
       "issueButton": "Issue link",
       "issuing": "Issuing...",
+      "copyFailed": "Could not copy. Select the URL and copy it manually.",
       "issuedUrl": "Issued link",
       "expiresAt": "Expires: {time}",
       "copy": "Copy",

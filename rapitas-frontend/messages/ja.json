@@ -2887,6 +2887,7 @@
       "externalPublic": "外部公開可",
       "issueButton": "リンクを発行",
       "issuing": "発行中...",
+      "copyFailed": "コピーできませんでした。URL を選択してコピーしてください",
       "issuedUrl": "発行したリンク",
       "expiresAt": "失効: {time}",
       "copy": "コピー",

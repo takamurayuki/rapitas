@@ -93,4 +93,19 @@ describe('ConfirmLinkIssuer', () => {
       expect(sourceHeader(put?.[1])).toBe('ui');
     });
   });
+  it('shows copyFailed, not copied, when the clipboard write is rejected', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    render(<ConfirmLinkIssuer taskId={9} />);
+    fireEvent.click(screen.getByRole('button', { name: /openButton/ }));
+    await screen.findByText('仕様書');
+    fireEvent.click(screen.getByRole('button', { name: 'issueButton' }));
+    await screen.findByDisplayValue('/public/confirm-links/v1.L1.1.sig');
+
+    fireEvent.click(screen.getByRole('button', { name: /copy/ }));
+
+    await screen.findByText('copyFailed');
+    expect(writeText).toHaveBeenCalledWith('/public/confirm-links/v1.L1.1.sig');
+    expect(screen.queryByText('copied')).toBeNull();
+  });
 });

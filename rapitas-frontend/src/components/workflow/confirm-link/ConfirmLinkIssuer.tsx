@@ -29,16 +29,26 @@ export function ConfirmLinkIssuer({ taskId }: ConfirmLinkIssuerProps) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const openPanel = () => {
     setOpen(true);
     void state.load();
   };
 
+  // NOTE: Only a resolved writeText counts as copied — a denied or missing
+  // clipboard used to show 「コピーしました」 for a URL that was never copied.
   const copy = async () => {
     if (!state.issued) return;
-    await navigator.clipboard?.writeText(state.issued.url).catch(() => undefined);
-    setCopied(true);
+    try {
+      if (!navigator.clipboard) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(state.issued.url);
+      setCopied(true);
+      setCopyFailed(false);
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+    }
   };
 
   if (!open) {
@@ -155,6 +165,9 @@ export function ConfirmLinkIssuer({ taskId }: ConfirmLinkIssuerProps) {
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {t('expiresAt', { time: new Date(state.issued.expiresAt).toLocaleString() })}
           </p>
+          {copyFailed && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">{t('copyFailed')}</p>
+          )}
           {state.issued.relative && (
             <p className="text-xs text-amber-700 dark:text-amber-400">{t('relativeWarning')}</p>
           )}
