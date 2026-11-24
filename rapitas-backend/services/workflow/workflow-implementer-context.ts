@@ -99,6 +99,31 @@ export function buildDependencyChangeGuidance(language: 'ja' | 'en'): string {
 }
 
 /**
+ * Guidance for when the pre-execution hook refuses a prisma operation.
+ *
+ * Task 1420: a chain was refused, but the incident log cut it at 200 chars, so which prisma
+ * step it contained is unknown (presumed generate/db push/migrate). Task 1347 is a separate
+ * case: it was refused for reading the generated client under the primary checkout.
+ * Conditional wording keeps this from misleading tasks whose own tree allows these.
+ *
+ * @param language - Output language. / 出力言語
+ * @returns Guidance block with leading blank line. / 先頭に空行を持つ案内ブロック
+ */
+export function buildPrismaOperationGuidance(language: 'ja' | 'en'): string {
+  return language === 'ja'
+    ? '\n\n## prisma 操作が拒否された場合\n' +
+        '- 実行前フックが `prisma generate` / `prisma db push` / `prisma migrate`（`db:prepare` 含む）を拒否した場合、または worktree の依存が共有リンクの場合は、これらを実行しないでください。連鎖コマンドは一部が該当するだけで全体が拒否されるため、分けて実行してください。\n' +
+        '- `prisma validate` と `prisma format` は拒否されません。対象プロジェクト自身の規則が worktree でのスキーマ編集を許す場合を除き、worktree でスキーマや migration を作らないでください。\n' +
+        '- 生成クライアントの内容を見たいときは、primary や `node_modules/.prisma` を読まず、`schema.prisma` 本体を読んでください。\n' +
+        '- 必要なスキーマ変更と migration の内容を verify に記録し、適用とクライアント再生成はメインチェックアウトでユーザーが行うものとしてください。'
+    : '\n\n## When a prisma operation is rejected\n' +
+        '- If the pre-execution hook rejects `prisma generate` / `prisma db push` / `prisma migrate` (including `db:prepare`), or the worktree dependencies are a shared link, do not run them. A chained command is rejected as a whole when any part matches, so run the parts separately.\n' +
+        '- `prisma validate` and `prisma format` are not rejected. Do not edit the Prisma schema or create migrations in the worktree unless the target project own rules allow it.\n' +
+        '- To inspect the generated client, read `schema.prisma` itself, not the primary checkout or `node_modules/.prisma`.\n' +
+        '- Record the needed schema change and migration in verify; applying it and regenerating the client is left to the user in the main checkout.';
+}
+
+/**
  * The plan section of the implementer prompt: heading, the line identifying
  * the saved approved version (planIdentityLine), then the plan itself.
  *
@@ -245,6 +270,7 @@ export async function buildImplementerContext(
     ctx += tddSection;
   }
   ctx += buildDependencyChangeGuidance(language);
+  ctx += buildPrismaOperationGuidance(language);
   ctx += `\n\n${liveProcessGuidance('implementer', language)}`;
   // research / verifyFeedback are budget-eligible: record BOTH the pre-budget
   // (raw) and injected (budgeted) size so the slimming effect is measurable

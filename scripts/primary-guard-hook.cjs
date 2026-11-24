@@ -504,7 +504,7 @@ function decision(input, ctx) {
     primary_readonly:
       'Command rejected: never cd into the primary checkout, even to inspect it. Read-only git inspection is allowed without entering it (e.g. `git -C <primary-checkout-path> status`); everything else belongs in your task worktree.',
     prisma:
-      'Command rejected: prisma generate/db push/db:prepare must not be run by agents (dev.js does it on startup; running it rewrites shared generated files and can kill the backend).',
+      'Command rejected: prisma generate / db push / migrate (and db:prepare) must not be run by agents here: this checkout shares its dependency tree or generated Prisma client with the project root, so running them rewrites shared files (dev.js does it on startup and it can kill the backend). A chained command is rejected as a whole when ANY part matches, so split it. Not rejected: `prisma validate` and `prisma format`. Instead: do not edit the Prisma schema or write migrations inside this worktree unless the target project own rules allow it; read the schema from schema.prisma itself (never from node_modules/.prisma or a primary checkout path), and record the needed schema change and migration in verify.md, with applying the migration / regenerating the client left to the user in the main checkout. Do not retry in another shape.',
     process_kill:
       "Command rejected: never stop/kill processes (Stop-Process/taskkill/pkill). The backend on port 3001 is the agent's own connection. Do not stop a process you started yourself either; record its PID, command, and start reason in your final report (reflected into verify).",
     // NOTE: must not read as "give up and file a concern" — that is what task

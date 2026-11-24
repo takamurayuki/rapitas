@@ -266,6 +266,9 @@ test('a denial carries a deny payload with the incident kind and reason', () => 
   assert.equal(r.hookSpecificOutput.permissionDecision, 'deny');
   assert.equal(r._kind, 'prisma');
   assert.match(r.hookSpecificOutput.permissionDecisionReason, /prisma/);
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /migrate.*validate.*schema\.prisma.*verify\.md/);
+  assert.doesNotMatch(r.hookSpecificOutput.permissionDecisionReason, /by hand/);
+  assert.match(r.hookSpecificOutput.permissionDecisionReason, /left to the user/);
 });
 
 test('decision() itself is pure: a denial writes nothing', () => {
