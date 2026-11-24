@@ -1,101 +1,158 @@
 /**
- * verify-fallback-jury-gate.reuse-race.test
- *
- * A self-verify pass matched under the jury lock must still be current when it
- * is applied (task 1538 受入条件2): the DB lock cannot stop git from changing,
- * so a HEAD or diff change after the lookup — injected here at the run's
- * drift check — sends the verdict back to the jury. The jury's own verdict is
- * drift-checked again before it is applied. The real reuse lookup and re-check
- * run; the jury lock is the shared fake (its SQLite form is covered in
- * jury-review-run.test.ts) with a hook on its drift check.
+ * CLI の差分レビューが、実際の陪審ロックと適用前の確認を通る回帰テスト（タスク1538）。
+ * 最初の確認で DB がロック所有者を読み取る時点に、git や自己検証ジョブの変化を注入する。
+ * 再陪審中の条件変更は、DB の受入条件を変えて実際の版の照合で検出する。
  */
-import { describe, expect, mock, test, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { computeCriteriaRevision } from '../task/task-criteria-revision';
 
-const verifySha = 'sha-v1';
-const TASK_ROW = {
-  title: 'Add feature',
+const TASK_ID = 9;
+const JURY_RUN_ID = 17;
+const VERIFY_SHA = 'sha-v1';
+const INITIAL_TASK = {
+  title: '機能を追加',
   githubPrId: null,
   workflowStatus: 'in_progress',
   haltReason: null as string | null,
+  juryRunId: null as number | null,
+  updatedAt: new Date(0),
+  goals: null,
+  constraints: null,
+  acceptanceCriteria: '["初回の条件"]',
 };
-let taskRow = { ...TASK_ROW };
-mock.module('../../config', () => ({
-  prisma: {
-    task: { findUnique: mock(async () => ({ ...taskRow })) },
-    workflowFile: { findFirst: mock(async () => ({ sha256: verifySha })) },
-    agentSession: { findFirst: mock(async () => ({ worktreePath: '/wt' })) },
+const initialCriteriaRevision = computeCriteriaRevision(INITIAL_TASK);
+
+type TaskRow = typeof INITIAL_TASK;
+type RunRow = {
+  status: string;
+  verifySha256?: string | null;
+  criteriaRevision?: string | null;
+  diffFingerprint?: string | null;
+  discardReason?: string;
+};
+
+let taskRow = { ...INITIAL_TASK };
+let runRow: RunRow | undefined;
+let confirmReads = 0;
+let onFirstConfirm = () => {};
+let firstConfirm:
+  | { juryRunId: number | null; lookupCalls: number; reviewCalls: number }
+  | undefined;
+
+const prisma = {
+  task: {
+    findUnique: async ({ select }: { select: { juryRunId?: boolean; updatedAt?: boolean } }) => {
+      // 適用前の確認は juryRunId だけを読む。ロック取得・解放では updatedAt も読む。
+      if (select.juryRunId && !select.updatedAt && ++confirmReads === 1) {
+        firstConfirm = {
+          juryRunId: taskRow.juryRunId,
+          lookupCalls: getLatestJob.mock.calls.length,
+          reviewCalls: review.mock.calls.length,
+        };
+        onFirstConfirm();
+      }
+      return { ...taskRow };
+    },
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: { juryRunId?: number | null; updatedAt?: Date; OR?: { haltReason: string | null }[] };
+      data: Partial<TaskRow>;
+    }) => {
+      if ('juryRunId' in where && where.juryRunId !== taskRow.juryRunId) return { count: 0 };
+      if (where.updatedAt && where.updatedAt !== taskRow.updatedAt) return { count: 0 };
+      if (where.OR && !where.OR.some((filter) => filter.haltReason === taskRow.haltReason)) {
+        return { count: 0 };
+      }
+      taskRow = { ...taskRow, ...data };
+      return { count: 1 };
+    },
   },
-}));
+  juryReviewRun: {
+    create: async ({ data }: { data: RunRow }) => {
+      runRow = { ...data };
+      return { id: JURY_RUN_ID };
+    },
+    update: async ({ data }: { data: Partial<RunRow> }) => {
+      if (!runRow) throw new Error('陪審の実行が作成されていません');
+      runRow = { ...runRow, ...data };
+      return runRow;
+    },
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: { id: number; status: string };
+      data: Partial<RunRow>;
+    }) => {
+      if (where.id !== JURY_RUN_ID || runRow?.status !== where.status) return { count: 0 };
+      runRow = { ...runRow, ...data };
+      return { count: 1 };
+    },
+  },
+  workflowFile: { findFirst: async () => ({ sha256: VERIFY_SHA }) },
+};
+mock.module('../../config', () => ({ prisma }));
+mock.module('../../config/database', () => ({ prisma }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
+mock.module('./transition-recorder', () => ({ recordTransition: async () => {} }));
 
-type Ev = { eventType: string; correlationId?: string; payload: Record<string, unknown> };
-let timeline: Ev[] = [];
+type TimelineEvent = { eventType: string; correlationId: string; payload: Record<string, unknown> };
+let timeline: TimelineEvent[] = [];
 mock.module('../memory/timeline', () => ({
-  appendEvent: mock(async (e: Ev) => {
-    timeline.unshift(e);
+  appendEvent: async (event: TimelineEvent) => {
+    timeline.unshift(event);
     return { id: timeline.length };
-  }),
-  queryEvents: mock(async (o: { eventType?: string; correlationId?: string; limit?: number }) => {
+  },
+  queryEvents: async (filter: { eventType: string; correlationId: string; limit: number }) => {
     const events = timeline
-      .filter(
-        (e) =>
-          (!o.eventType || e.eventType === o.eventType) &&
-          (!o.correlationId || e.correlationId === o.correlationId),
-      )
-      .slice(0, o.limit ?? 50);
+      .filter((e) => e.eventType === filter.eventType && e.correlationId === filter.correlationId)
+      .slice(0, filter.limit);
     return { events, total: events.length };
-  }),
+  },
 }));
 
-let currentFp: string | null = 'fp-A';
+let headSha = 'h1';
+let currentFp = 'fp-A';
+mock.module('../github/git-exec', () => ({ runGitCommand: async () => `${headSha}\n` }));
 mock.module('../agents/verification/review-diff-fingerprint', () => ({
-  currentDiffFingerprint: mock(async () => currentFp),
-  fingerprintDiff: () => currentFp,
+  currentDiffFingerprint: async () => currentFp,
 }));
-type Review = { verdict: string; severity: number; reasons: string[]; diffFingerprint?: string };
-let reviewImpl = async (): Promise<Review> => ({
-  verdict: 'pass',
+
+const passedReview = (diffFingerprint: string) => ({
+  verdict: 'pass' as const,
   severity: 0,
   reasons: [],
-  diffFingerprint: currentFp ?? undefined,
+  diffFingerprint,
 });
-const review = mock(() => reviewImpl());
+const review = mock(async () => passedReview(currentFp));
 mock.module('../agents/verification/adversarial-diff-review', () => ({
   reviewDiffAdversarially: review,
   isAdversarialReviewEnabled: () => true,
 }));
-mock.module('./verify-self-repair', () => ({
-  attemptVerifyRepair: mock(async () => ({ bounced: true, newStatus: 'plan_approved' })),
-}));
-mock.module('./transition-recorder', () => ({ recordTransition: mock(async () => {}) }));
-mock.module('./blocked-task-write', () => ({ writeBlockedTask: mock(async () => {}) }));
-mock.module('./publish/mark-latest-execution-failed', () => ({
-  markLatestExecutionFailed: mock(async () => {}),
-}));
-mock.module('./review-hold', () => ({ holdFromReview: mock(async () => 'held') }));
 
-// Inputs of the real reuse lookup: the newest self-verify job and HEAD.
-let headSha = 'h1';
-let latestJob: Record<string, unknown> | null = null;
-mock.module('../github/git-exec', () => ({ runGitCommand: async () => `${headSha}\n` }));
-mock.module('./verification-job-store', () => ({ getLatestJob: async () => latestJob }));
+function passedJob(runId = 'r1') {
+  return {
+    runId,
+    taskId: TASK_ID,
+    status: 'completed',
+    ok: true,
+    unverifiable: false,
+    diffReview: {
+      status: 'reviewed',
+      ...passedReview('fp-A'),
+      headSha: 'h1',
+      criteriaRevision: initialCriteriaRevision,
+    },
+  };
+}
 
-const { fakeJuryRunModule, fakeJuryRunState, EMPTY_CRITERIA_REVISION } =
-  await import('./jury-review-run.test-helpers');
-const juryRun = fakeJuryRunState(() => verifySha);
-const fakeRun = fakeJuryRunModule(juryRun);
-// Runs on every drift check, before the fake decides; tests inject changes here.
-let onConfirm: (call: number) => void = () => {};
-let confirmCalls = 0;
-mock.module('./jury-review-run', () => ({
-  ...fakeRun,
-  confirmJuryRunStillBound: async (...a: Parameters<typeof fakeRun.confirmJuryRunStillBound>) => {
-    onConfirm(++confirmCalls);
-    return fakeRun.confirmJuryRunStillBound(...a);
-  },
-}));
+let latestJob = passedJob();
+const getLatestJob = mock(async () => latestJob);
+mock.module('./verification-job-store', () => ({ getLatestJob }));
 
 const { runFallbackJuryGate } = await import('./verify-fallback-jury-gate');
 const { JURY_GATE_COMPLETED_EVENT } = await import('./verify-jury-completion');
@@ -103,28 +160,9 @@ const { JURY_GATE_COMPLETED_EVENT } = await import('./verify-jury-completion');
 const completions = () =>
   timeline.filter((e) => e.eventType === JURY_GATE_COMPLETED_EVENT).map((e) => e.payload);
 
-function passedJob(runId = 'r1'): Record<string, unknown> {
-  return {
-    runId,
-    taskId: 9,
-    status: 'completed',
-    ok: true,
-    unverifiable: false,
-    diffReview: {
-      status: 'reviewed',
-      verdict: 'pass',
-      severity: 0,
-      reasons: [],
-      diffFingerprint: 'fp-A',
-      headSha: 'h1',
-      criteriaRevision: EMPTY_CRITERIA_REVISION,
-    },
-  };
-}
-
 const gate = () =>
   runFallbackJuryGate({
-    taskId: 9,
+    taskId: TASK_ID,
     currentWfStatus: 'in_progress',
     verifyContent: '# verify',
     worktreePath: '/wt',
@@ -132,81 +170,117 @@ const gate = () =>
     sessionId: 3,
   });
 
+function expectInitialReuseUnderLock() {
+  // 最初の確認までに照合が1回済み、陪審が未実行なら、最初の合格が選ばれている。
+  expect(firstConfirm).toEqual({ juryRunId: JURY_RUN_ID, lookupCalls: 1, reviewCalls: 0 });
+  expect(taskRow.juryRunId).toBeNull();
+}
+
 beforeEach(() => {
-  taskRow = { ...TASK_ROW };
-  juryRun.criteriaRevision = EMPTY_CRITERIA_REVISION;
-  juryRun.stillBound = true;
+  taskRow = { ...INITIAL_TASK };
+  runRow = undefined;
   timeline = [];
-  review.mockClear();
-  currentFp = 'fp-A';
   headSha = 'h1';
+  currentFp = 'fp-A';
   latestJob = passedJob();
-  confirmCalls = 0;
-  onConfirm = () => {};
-  reviewImpl = async () => ({
-    verdict: 'pass',
-    severity: 0,
-    reasons: [],
-    diffFingerprint: currentFp ?? undefined,
-  });
+  getLatestJob.mockClear();
+  review.mockReset();
+  review.mockImplementation(async () => passedReview(currentFp));
+  confirmReads = 0;
+  firstConfirm = undefined;
+  onFirstConfirm = () => {};
 });
 
-describe('runFallbackJuryGate — reuse re-checked before it is applied', () => {
-  test('C-6: 照合の後に HEAD が変われば陪審を1回呼び、その判定の指紋で記録する', async () => {
-    let injected = 0;
-    onConfirm = (n) => {
-      if (n === 1) {
-        headSha = 'h2';
-        currentFp = 'fp-H2';
-        injected++;
-      }
+describe('CLI 経路の自己検証結果の再照合', () => {
+  test('C-6: 照合後に HEAD だけが変わると、陪審を1回呼び、その判定の指紋を記録する', async () => {
+    onFirstConfirm = () => {
+      headSha = 'h2';
     };
+    review.mockResolvedValueOnce(passedReview('fp-reviewed-h2'));
+
     const out = await gate();
-    expect(injected).toBe(1);
+
+    expect(headSha).toBe('h2');
+    expect(currentFp).toBe('fp-A');
     expect(review).toHaveBeenCalledTimes(1);
     expect(out.stop).toBe(false);
-    expect(completions()).toHaveLength(1);
-    expect(completions()[0]).toMatchObject({ diffFingerprint: 'fp-H2', outcome: 'passed' });
+    expect(completions()).toEqual([
+      expect.objectContaining({ diffFingerprint: 'fp-reviewed-h2', outcome: 'passed' }),
+    ]);
+    expect(runRow).toMatchObject({ status: 'applied', diffFingerprint: 'fp-reviewed-h2' });
+    expectInitialReuseUnderLock();
   });
 
-  test('C-7: 照合の後に差分の指紋だけが変われば陪審を1回呼ぶ', async () => {
-    onConfirm = (n) => {
-      if (n === 1) currentFp = 'fp-B';
+  test('C-7: 照合後に差分の指紋だけが変わると、陪審を1回呼ぶ', async () => {
+    onFirstConfirm = () => {
+      currentFp = 'fp-B';
     };
-    await gate();
-    expect(review).toHaveBeenCalledTimes(1);
-    expect(completions().some((c) => c.diffFingerprint === 'fp-A')).toBe(false);
-  });
 
-  test('C-7b: 照合の後に別の自己検証ジョブが合格すれば陪審を1回呼ぶ', async () => {
-    onConfirm = (n) => {
-      if (n === 1) latestJob = passedJob('r2');
-    };
-    await gate();
-    expect(review).toHaveBeenCalledTimes(1);
-  });
-
-  test('C-8: 何も変わらなければ陪審0回で stop:false、完了記録は1件', async () => {
     const out = await gate();
+
+    expect(headSha).toBe('h1');
+    expect(currentFp).toBe('fp-B');
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(out.stop).toBe(false);
+    expect(completions()).toEqual([
+      expect.objectContaining({ diffFingerprint: 'fp-B', outcome: 'passed' }),
+    ]);
+    expectInitialReuseUnderLock();
+  });
+
+  test('C-7b: 照合後に別の自己検証ジョブが合格すると、陪審を1回呼ぶ', async () => {
+    onFirstConfirm = () => {
+      latestJob = passedJob('r2');
+    };
+
+    await gate();
+
+    expect(review).toHaveBeenCalledTimes(1);
+    expectInitialReuseUnderLock();
+  });
+
+  test('C-8: 照合後に何も変わらなければ、陪審を呼ばず合格の完了記録を1件残す', async () => {
+    const out = await gate();
+
     expect(review).toHaveBeenCalledTimes(0);
     expect(out.stop).toBe(false);
-    expect(confirmCalls).toBe(1);
-    expect(completions()).toHaveLength(1);
-    expect(completions()[0]).toMatchObject({ diffFingerprint: 'fp-A', outcome: 'passed' });
+    expect(confirmReads).toBe(1);
+    expect(completions()).toEqual([
+      expect.objectContaining({ diffFingerprint: 'fp-A', outcome: 'passed' }),
+    ]);
+    expect(runRow).toMatchObject({ status: 'applied', diffFingerprint: 'fp-A' });
+    expectInitialReuseUnderLock();
   });
 
-  test('C-9: 呼び直した陪審の最中に条件が変われば、2回目の確認で止まり記録しない', async () => {
-    onConfirm = (n) => {
-      if (n === 1) headSha = 'h2';
+  test('C-9: 再陪審中に受入条件が変わると、2回目の確認で判定を破棄する', async () => {
+    onFirstConfirm = () => {
+      headSha = 'h2';
     };
-    reviewImpl = async () => {
-      juryRun.stillBound = false;
-      return { verdict: 'pass', severity: 0, reasons: [], diffFingerprint: 'fp-A' };
-    };
+    review.mockImplementationOnce(async () => {
+      taskRow.acceptanceCriteria = '["再陪審中に変更した条件"]';
+      return passedReview(currentFp);
+    });
+
     const out = await gate();
+
     expect(review).toHaveBeenCalledTimes(1);
-    expect(confirmCalls).toBe(2);
     expect(out.stop).toBe(true);
+    expect(confirmReads).toBe(2);
     expect(completions()).toHaveLength(0);
+    expect(taskRow.haltReason).toBe('jury_result_discarded');
+    expect(runRow).toMatchObject({
+      status: 'discarded_stale',
+      criteriaRevision: initialCriteriaRevision,
+    });
+    expect(JSON.parse(runRow?.discardReason ?? 'null')).toEqual({
+      drift: [
+        {
+          field: 'criteriaRevision',
+          before: initialCriteriaRevision,
+          after: computeCriteriaRevision(taskRow),
+        },
+      ],
+    });
+    expectInitialReuseUnderLock();
   });
 });
