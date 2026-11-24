@@ -129,6 +129,12 @@ interface WorkflowStatusIndicatorProps {
    * object itself) can omit it — a generic actionable hint is shown instead.
    */
   blockedCause?: string | null;
+  /**
+   * The saved verify.md is waiting for the adversarial diff review (latest
+   * transition cause `verify_review_pending`, task 1538). Only read when
+   * `status === 'in_progress'`; callers without the transitions omit it.
+   */
+  diffReviewPending?: boolean;
 }
 
 export default function WorkflowStatusIndicator({
@@ -136,6 +142,7 @@ export default function WorkflowStatusIndicator({
   size = 'sm',
   workflowMode,
   blockedCause,
+  diffReviewPending,
 }: WorkflowStatusIndicatorProps) {
   const t = useTranslations('workflow');
   const tc = useTranslations('common');
@@ -147,7 +154,14 @@ export default function WorkflowStatusIndicator({
   // Lightweight skips planning (research → implement), so at research_done the
   // IMPLEMENTER runs, not the planner — show 実装中 instead of 計画中.
   const isLightweightImplement = status === 'research_done' && workflowMode === 'lightweight';
-  const label = isLightweightImplement ? t('statusIndicator.implementing') : config.label;
+  // NOTE: Same in_progress hue and FlaskConical icon — still the verify phase,
+  // only the label says the diff review is what it is waiting on.
+  const isDiffReviewPending = status === 'in_progress' && diffReviewPending === true;
+  const label = isLightweightImplement
+    ? t('statusIndicator.implementing')
+    : isDiffReviewPending
+      ? t('statusIndicator.verifyingDiffReview')
+      : config.label;
   const Icon = isLightweightImplement ? Code : config.icon;
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';

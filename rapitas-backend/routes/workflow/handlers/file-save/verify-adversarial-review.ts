@@ -23,6 +23,8 @@ import {
   withJuryRun,
   confirmJuryRunStillBound,
 } from '../../../../services/workflow/jury-review-run';
+import type { DiffReviewResult } from '../../../../services/agents/verification/adversarial-diff-review-verdict';
+import { blockUnrecoverableContamination } from './verify-adversarial-recovery-block';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -51,6 +53,10 @@ type ReviewParams = {
   preferredBaseBranchForVerify: string | null;
   /** Wait limit for the other gate (tests shorten it). */
   gateMaxWaitMs?: number;
+  /** Status the review is applied against; in_progress while verify_done waits on it (task 1538). */
+  reviewFromStatus?: string;
+  /** A passing self-verify review of this exact diff — used instead of calling the jury. */
+  reuseReview?: DiffReviewResult;
 };
 
 /** The jury verdict that decided the outcome, for the completion record. */
@@ -156,6 +162,7 @@ async function reviewAndApply(
   canApply: ApplyGuard,
 ): Promise<{ outcome: AdversarialReviewOutcome; deciding: DecidingReview }> {
   const { taskId, savedContent, preferredBaseBranchForVerify } = params;
+  const from = params.reviewFromStatus ?? 'verify_done';
   let newStatus = params.newStatus;
   let verifyGateBlocked = params.verifyGateBlocked;
   let staleVerifyRequest = false;
@@ -170,10 +177,13 @@ async function reviewAndApply(
     .catch(() => null);
   const { reviewDiffAdversarially } =
     await import('../../../../services/agents/verification/adversarial-diff-review');
-  const review = await reviewDiffAdversarially({
-    taskId,
-    worktreePath: reviewSession?.worktreePath,
-  }).catch(() => null);
+  // The lock and the completion record still apply when the verdict is reused.
+  const review =
+    params.reuseReview ??
+    (await reviewDiffAdversarially({
+      taskId,
+      worktreePath: reviewSession?.worktreePath,
+    }).catch(() => null));
   deciding = review;
   // Design 4.5.1: before ANY of the verdict is applied (hold, bounce, block,
   // worktree rebuild, commit/PR, completion record) the run must still own the
@@ -189,7 +199,7 @@ async function reviewAndApply(
     // serious dispute the verifier could not decide): neither bounce work
     // nobody has shown to be wrong, nor commit it — park it for a human.
     const { holdFromReview } = await import('../../../../services/workflow/review-hold');
-    const held = await holdFromReview({ taskId, review, source: 'http_save' });
+    const held = await holdFromReview({ taskId, review, source: 'http_save', fromStatus: from });
     if (held === 'held') {
       verifyGateBlocked = true;
     } else {
@@ -217,7 +227,7 @@ async function reviewAndApply(
     // another task's unmerged branch), an implementer bounce can never fix
     // it — editing the working tree cannot remove ancestor commits. Rebuild
     // the worktree from the base branch instead, then re-review ONCE.
-    const { tryRecoverFromHistoryContamination, notifyRecoveryFallbackBlocked } =
+    const { tryRecoverFromHistoryContamination } =
       await import('../../../../services/workflow/worktree-rebuild-recovery');
     const recovery = await tryRecoverFromHistoryContamination(
       taskId,
@@ -246,7 +256,7 @@ async function reviewAndApply(
         const liveAfterRecovery = await prisma.task
           .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
           .catch(() => null);
-        if (liveAfterRecovery?.workflowStatus !== 'verify_done') {
+        if (liveAfterRecovery?.workflowStatus !== from) {
           staleVerifyRequest = true;
           if (liveAfterRecovery?.workflowStatus) newStatus = liveAfterRecovery.workflowStatus;
           log.warn(
@@ -281,65 +291,17 @@ async function reviewAndApply(
       // worktree was destroyed (受入基準2c): an implementer bounce is either
       // futile (same contaminated history again) or impossible (no worktree)
       // — block + notify directly, WITHOUT attemptVerifyRepair.
-      const liveTask = await prisma.task
-        .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
-        .catch(() => null);
-      if (liveTask?.workflowStatus !== 'verify_done') {
+      const blocked = await blockUnrecoverableContamination({
+        taskId,
+        fromStatus: from,
+        recoveryReason: recovery.reason,
+        review: activeReview,
+        reason,
+      });
+      if (blocked.stale) {
         staleVerifyRequest = true;
-        if (liveTask?.workflowStatus) newStatus = liveTask.workflowStatus;
-        log.warn(
-          {
-            taskId,
-            recoveryReason: recovery.reason,
-            actualStatus: liveTask?.workflowStatus,
-            reasons: activeReview.reasons.slice(0, 5),
-          },
-          '[Workflow] Recovery-blocked verdict arrived after the workflow moved on — skipping',
-        );
-      } else {
-        verifyGateBlocked = true;
-        const blockedTitle =
-          recovery.reason === 'recovery_already_used'
-            ? '差分レビューが再び計画外混入で不合格（worktree再構築の上限到達）'
-            : 'worktree再構築リカバリが失敗しました';
-        const blockedMessage =
-          recovery.reason === 'recovery_already_used'
-            ? `タスク #${taskId} はブランチ履歴汚染による worktree 再構築を既に1回実施済みですが、再度計画外混入が検出されました。手動確認が必要です。`
-            : `タスク #${taskId} の worktree 再構築中にパッチ適用が失敗しました。退避タグ（recovery/task-${taskId}-*）から手動復旧してください。`;
-        // Dynamic import mirrors this handler's convention — keeps the
-        // static graph free of config/database for test isolation.
-        const { writeBlockedStatusDurable } =
-          await import('../../../../services/workflow/durable-blocked-write');
-        await writeBlockedStatusDurable({
-          taskId,
-          log,
-          source: 'Workflow',
-          notification: { title: blockedTitle, message: blockedMessage },
-        });
-        await notifyRecoveryFallbackBlocked(taskId, blockedTitle, blockedMessage);
-        await markLatestExecutionFailed(taskId, reason);
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'verify_done',
-          actor: 'system',
-          cause: 'adversarial_review_failed',
-          phase: 'verify',
-          metadata: {
-            severity: activeReview.severity,
-            reasons: activeReview.reasons.slice(0, 5),
-            findings: capFindingsForStorage(activeReview.findings),
-            recoveryOutcome: recovery.reason,
-            recoveryExhausted: recovery.reason === 'recovery_already_used',
-          },
-          invariantViolation: true,
-          invariantMessage: reason,
-        }).catch(() => {});
-        log.warn(
-          { taskId, recoveryReason: recovery.reason, severity: activeReview.severity },
-          '[Workflow] History-contamination recovery unavailable — task blocked (no implementer bounce)',
-        );
-      }
+        if (blocked.liveStatus) newStatus = blocked.liveStatus;
+      } else verifyGateBlocked = true;
     } else if (reviewStillFailing) {
       const { attemptVerifyRepair } =
         await import('../../../../services/workflow/verify-self-repair');
@@ -350,7 +312,7 @@ async function reviewAndApply(
       // used to see every HTTP jury bounce as ungrounded.
       const repair = await attemptVerifyRepair(
         taskId,
-        'verify_done',
+        from,
         reason,
         savedContent,
         juryBounceGrounds(reason, capFindingsForStorage(activeReview.findings)),
@@ -366,7 +328,7 @@ async function reviewAndApply(
       const liveTask = await prisma.task
         .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
         .catch(() => null);
-      if (liveTask?.workflowStatus !== 'verify_done') {
+      if (liveTask?.workflowStatus !== from) {
         staleVerifyRequest = true;
         // Report what the task ACTUALLY is now (e.g. 'completed'), not the
         // 'verify_done' this stale evaluation was based on — the response
@@ -387,7 +349,7 @@ async function reviewAndApply(
         if (repair.bounced && repair.newStatus) {
           const rolled = await prisma.task
             .updateMany({
-              where: { id: taskId, workflowStatus: 'verify_done' },
+              where: { id: taskId, workflowStatus: from },
               data: { workflowStatus: repair.newStatus },
             })
             .catch(() => ({ count: 0 }));
@@ -435,10 +397,9 @@ async function reviewAndApply(
         if (!repair.cutoffRecorded && !(await wasNonConvergenceCutoffJustRecorded(taskId))) {
           await recordTransition({
             taskId,
-            // newStatus is 'verify_done' here unless the bounce above rolled
-            // it back — the fallback only guards the (unreachable) undefined.
-            toStatus: newStatus ?? 'verify_done',
-            fromStatus: 'verify_done',
+            // The task is still at `from` here unless the bounce above rolled it back.
+            toStatus: newStatus && newStatus !== params.newStatus ? newStatus : from,
+            fromStatus: from,
             actor: 'system',
             cause: 'adversarial_review_failed',
             phase: 'verify',
