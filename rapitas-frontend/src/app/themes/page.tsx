@@ -4,6 +4,7 @@ import { Plus, SwatchBook } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { useThemesPage, defaultFormData } from './_hooks/useThemesPage';
+import { useEditThemeFromQuery } from './_hooks/useEditThemeFromQuery';
 import { CategoryTabs } from './_components/category-tabs';
 import { ThemeForm } from './_components/theme-form';
 import { ThemeList } from './_components/theme-list';
@@ -48,6 +49,7 @@ export default function ThemesPage() {
     handleDragEnd,
     renderIcon,
   } = useThemesPage();
+  useEditThemeFromQuery({ items, categories, startEdit, setSelectedCategoryId });
 
   return (
     <div className="min-h-screen bg-background">

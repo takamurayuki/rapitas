@@ -220,7 +220,10 @@ async function notifyParkedOncePerWindow(
   pending: number,
   nowMs: number,
 ): Promise<void> {
-  const link = `/themes/${themeId}`;
+  // NOTE: `/themes?edit=<id>` opens this theme on the theme list. `/themes/<id>`
+  // has no frontend page and every click on the notification was a 404
+  // (2026-11-24). The id stays in the link: the once-per-window lookup keys on it.
+  const link = `/themes?edit=${themeId}`;
   const recent = await prisma.notification
     .findFirst({
       where: { link, title: PARKED_TITLE, createdAt: { gt: new Date(nowMs - RENOTIFY_WINDOW_MS) } },
@@ -254,7 +257,10 @@ async function notifyOncePerWindow(
   stalledMinutes: number,
   nowMs: number,
 ): Promise<void> {
-  const link = `/themes/${themeId}`;
+  // NOTE: `/themes?edit=<id>` opens this theme on the theme list. `/themes/<id>`
+  // has no frontend page and every click on the notification was a 404
+  // (2026-11-24). The id stays in the link: the once-per-window lookup keys on it.
+  const link = `/themes?edit=${themeId}`;
   const recent = await prisma.notification
     .findFirst({
       where: { link, title: NOTIFY_TITLE, createdAt: { gt: new Date(nowMs - RENOTIFY_WINDOW_MS) } },
