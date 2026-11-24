@@ -56,6 +56,29 @@ describe('isResolvedFailureLine', () => {
   });
 });
 
+describe('isResolvedFailureLine — RED-state evidence', () => {
+  // 2026-11-24: task 1534's passing verify.md recorded its RED check —
+  // "リンク付きスコープのテストは10件中9件が失敗した。修正を除去すると RED、
+  // 復元すると GREEN" — and the honesty gate read the expected failures as a
+  // hidden one and bounced a 189/189 report. Failures on the base commit or
+  // with the fix removed are the evidence that the tests measure the fix.
+  test.each([
+    '> RED の確認: 現在の差分を基準コミット 601831b60 の使い捨て worktree にコピーし、`statSync` の2か所だけを前回の `lstat` 判定に戻した。リンク付きスコープのテストは10件中9件が失敗した。修正を除去すると RED、復元すると GREEN になることを確認した。',
+    '| RED 確認 | 基準コミットで 3件中3件が失敗、修正後に通過 |',
+    '- red-state: with the fix removed 4 of 5 tests fail; restored, all pass',
+  ])('treats a RED-state check as evidence, not a failure: %s', (line) => {
+    expect(isResolvedFailureLine(line)).toBe(true);
+  });
+
+  test.each([
+    '| テスト | 10件中9件が失敗 | 修正後も RED のまま |',
+    '- RED の確認: 基準コミットで失敗したが、修正後も依然として失敗',
+    '| node --test | 3 failed | |',
+  ])('keeps a real failure detectable: %s', (line) => {
+    expect(isResolvedFailureLine(line)).toBe(false);
+  });
+});
+
 describe('collectNonpassingRows', () => {
   test('does not quote a resolved row as an open finding', async () => {
     const { collectNonpassingRows } = await import('./verify-scan-text');

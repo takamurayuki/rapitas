@@ -47,5 +47,26 @@ const WORKAROUND_RE =
  */
 export function isResolvedFailureLine(line: string): boolean {
   if (STILL_FAILING_RE.test(line)) return false;
-  return RESOLUTION_RE.test(line) || (ENV_REFUSAL_RE.test(line) && WORKAROUND_RE.test(line));
+  return (
+    RESOLUTION_RE.test(line) ||
+    (ENV_REFUSAL_RE.test(line) && WORKAROUND_RE.test(line)) ||
+    isRedStateEvidence(line)
+  );
+}
+
+/**
+ * A RED-state check: the tests fail with the fix removed and pass with it
+ * restored. Those failures are the evidence the tests measure the fix.
+ *
+ * NOTE: Both halves are required — the RED side (fix removed / base commit) and
+ * the GREEN side (restored / passes) — so a line that only says "RED" is still
+ * a failure. Task 1534's 189/189 report was bounced for "リンク付きスコープの
+ * テストは10件中9件が失敗した。修正を除去すると RED、復元すると GREEN"
+ * (2026-11-24).
+ */
+function isRedStateEvidence(line: string): boolean {
+  const redSide =
+    /修正を(?:除去|外|戻)|基準コミット|基点のコード|fix (?:removed|reverted)|without the fix|with the fix removed|base commit|red-state/i;
+  const greenSide = /復元|戻すと|GREEN|restored|passes|all pass|通過/i;
+  return /\bRED\b|red-state/i.test(line) && redSide.test(line) && greenSide.test(line);
 }
