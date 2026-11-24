@@ -10,6 +10,9 @@
 import type { RuntimeEnvCause } from './runtime-server-registry-types';
 
 /** Output that shows the server became ready; a failure after it is not a launch conflict. */
+/** Phrases that mention readiness without claiming it ("not ready", "waiting ... to be ready"). */
+const NOT_READY_RE =
+  /(?:\b(?:not|never|until)|n't|\bto (?:be|become))\s+(?:(?:became|become|becoming|been)\s+)?ready/gi;
 const READY_RE = /\b(?:listening|ready|started server)\b|Local:/i;
 const PORT_RE =
   /EADDRINUSE|address already in use|\bport\b[^\n]*\b(?:is\s+)?(?:already\s+)?in use\b|ポート[^\n]*使用中/i;
@@ -33,7 +36,7 @@ export function classifyEnvCause(input: {
   reachedReady: boolean;
 }): RuntimeEnvCause | null {
   const { text, reachedReady } = input;
-  if (reachedReady || READY_RE.test(text)) return null;
+  if (reachedReady || READY_RE.test(text.replace(NOT_READY_RE, ''))) return null;
   if (PORT_RE.test(text) && LOCK_RE.test(text)) return null;
 
   // スタックは直前のエラーの続きであり、単独では環境原因の根拠にしない。

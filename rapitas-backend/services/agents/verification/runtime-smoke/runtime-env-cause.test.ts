@@ -38,6 +38,17 @@ describe('classifyEnvCause — environment causes', () => {
   });
 });
 
+describe('classifyEnvCause — a negated readiness mention is not readiness', () => {
+  test.each(['the app is not ready', 'waiting for the server to be ready', 'never became ready'])(
+    '%s before the conflict still classifies it',
+    (line) => {
+      expect(classify([line, 'Error: listen EADDRINUSE: address already in use :::8090'])).toBe(
+        'port_in_use',
+      );
+    },
+  );
+});
+
 describe('classifyEnvCause — never an environment cause', () => {
   test('recovery A: a port conflict followed by a ready server and then a TypeError', () => {
     expect(
