@@ -47,6 +47,10 @@ const DEFAULT_MAX_CONCURRENCY = Math.max(
 export class WorkflowQueueService {
   private static instance: WorkflowQueueService;
   private maxConcurrency = DEFAULT_MAX_CONCURRENCY;
+  // NOTE: kept apart from maxConcurrency (task 1543) — AIOrchestra writes that
+  // field per session via setMaxConcurrency, and sharing it would let either
+  // writer silently undo the other. The runner uses the larger of the two.
+  private autoRunConcurrency = 1;
 
   static getInstance(): WorkflowQueueService {
     if (!WorkflowQueueService.instance) {
@@ -59,8 +63,18 @@ export class WorkflowQueueService {
     this.maxConcurrency = Math.max(1, Math.min(10, max));
   }
 
+  /**
+   * Follow the auto-run concurrency setting, re-synced by the theme scheduler
+   * every tick so a selected 2nd theme is not left queued behind a cap of 1.
+   *
+   * @param max - Resolved auto-run limit / 解決済みの自動実行の同時実行数
+   */
+  setAutoRunConcurrency(max: number): void {
+    this.autoRunConcurrency = Math.max(1, Math.min(10, Math.floor(max) || 1));
+  }
+
   getMaxConcurrency(): number {
-    return this.maxConcurrency;
+    return Math.max(this.maxConcurrency, this.autoRunConcurrency);
   }
 
   /**

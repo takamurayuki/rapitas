@@ -8,6 +8,7 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma-postgres';
 import { UNMET_DEPENDENCIES_EXCLUDED } from '../../task/task-dependencies';
 import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
+import { resolveAutoRunMaxConcurrency } from './auto-run-concurrency';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -56,7 +57,11 @@ export interface ScopeOverlapContext {
   getPlanFiles: (taskId: number) => Promise<string[]>;
 }
 
-/** Auto-run concurrency constants (overridable via env). */
+/**
+ * Env-only startup value of the global limit. NOTE: kept for backward
+ * compatibility (importers and mock.module mirrors) — the gate itself uses
+ * resolveAutoRunMaxConcurrency, which also reads the UserSettings value.
+ */
 export const AUTO_RUN_GLOBAL_MAX_CONCURRENCY = Math.max(
   1,
   parseInt(process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY ?? '1', 10) || 1,
@@ -367,7 +372,8 @@ export async function selectNextTask(
   themeSuccessRate: number | null = null,
   scopeOverlap?: ScopeOverlapContext,
 ): Promise<SelectionResult> {
-  if (globalActiveCount >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
+  const { limit } = await resolveAutoRunMaxConcurrency(prisma);
+  if (globalActiveCount >= limit) {
     return { found: false, reason: 'concurrency_limit' };
   }
 

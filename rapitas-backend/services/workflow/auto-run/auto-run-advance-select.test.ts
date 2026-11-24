@@ -127,3 +127,52 @@ describe('selectAndEnqueueNextTask — calendar-slot gate (task 1174)', () => {
     expect(enqueueMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('selectAndEnqueueNextTask — yields to a higher-priority waiting theme (task 1543)', () => {
+  // Theme 35 (priority 10) was refused for want of a slot; theme 1 (priority 0)
+  // then reaches the completion path with a free slot and must leave it alone.
+  function prismaWithPriorities(priorities: Record<number, number>) {
+    return {
+      task: {
+        findMany: mock(async () => []),
+        findUnique: mock(async () => ({ workflowStatus: 'todo' })),
+        count: mock(async () => 1),
+      },
+      theme: {
+        findMany: mock(async (args: { where: { id: { in: number[] } } }) =>
+          args.where.id.in.map((id) => ({ id, autoRunPriority: priorities[id] ?? 0 })),
+        ),
+      },
+      userSettings: { findFirst: mock(async () => ({ autoRunMaxConcurrency: 1 })) },
+    } as unknown as import('../../../generated/prisma-postgres').PrismaClient;
+  }
+
+  it('高優先テーマが枠待ちなら、低優先テーマは選定も enqueue もせずに譲る', async () => {
+    const { __resetConcurrencyWaitersForTests } = await import('./auto-run-concurrency');
+    __resetConcurrencyWaitersForTests();
+    const prisma = prismaWithPriorities({ 1: 0, 35: 10 });
+    selectNextTaskMock.mockClear();
+    enqueueMock.mockClear();
+
+    // Theme 35 is refused at the limit → recorded as waiting.
+    await selectAndEnqueueNextTask(prisma, 35, 'priority', 1, new Map());
+    expect(enqueueMock).not.toHaveBeenCalled();
+
+    await selectAndEnqueueNextTask(prisma, 1, 'priority', 0, new Map());
+
+    expect(selectNextTaskMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  it('同じ優先度のテーマが枠待ちでも譲らずに enqueue する', async () => {
+    const { __resetConcurrencyWaitersForTests } = await import('./auto-run-concurrency');
+    __resetConcurrencyWaitersForTests();
+    const prisma = prismaWithPriorities({ 1: 0, 35: 0 });
+    enqueueMock.mockClear();
+
+    await selectAndEnqueueNextTask(prisma, 35, 'priority', 1, new Map());
+    await selectAndEnqueueNextTask(prisma, 1, 'priority', 0, new Map());
+
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+  });
+});

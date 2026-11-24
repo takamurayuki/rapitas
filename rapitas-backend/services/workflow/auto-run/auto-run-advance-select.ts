@@ -14,7 +14,12 @@ import { promoteBacklogForTheme } from './backlog-task-promoter';
 import { maybeRestartForUpdate } from './dev-restart-on-dry';
 import { logCycleEvent } from '../../observability';
 import {
-  AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
+  clearConcurrencyWaiter,
+  noteConcurrencyWaiter,
+  resolveAutoRunMaxConcurrency,
+  shouldYieldToHigherPriorityTheme,
+} from './auto-run-concurrency';
+import {
   overlappingFiles,
   selectNextTask,
   recentThemeSuccessRate,
@@ -61,8 +66,21 @@ export async function selectAndEnqueueNextTask(
   barrierHoldSince: Map<number, number>,
 ): Promise<void> {
   // No current task — select and enqueue the next one
-  if (globalActive >= AUTO_RUN_GLOBAL_MAX_CONCURRENCY) {
-    return; // global limit reached
+  const { limit } = await resolveAutoRunMaxConcurrency(prisma);
+  if (globalActive >= limit) {
+    // Refused only for want of a slot: record it so a lower-priority theme
+    // freeing a slot on its completion path leaves it to us (task 1543).
+    await noteConcurrencyWaiter(prisma, themeId);
+    return;
+  }
+  clearConcurrencyWaiter(themeId);
+  const yieldDecision = await shouldYieldToHigherPriorityTheme(prisma, themeId);
+  if (yieldDecision.yield) {
+    log.info(
+      { themeId, yieldTo: yieldDecision.to },
+      '[ThemeAutoRunScheduler] Leaving the free slot to a higher-priority waiting theme',
+    );
+    return;
   }
 
   if (await checkResourceContentionGate(prisma, themeId)) return;

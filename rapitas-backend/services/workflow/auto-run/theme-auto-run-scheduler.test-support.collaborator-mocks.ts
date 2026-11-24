@@ -80,10 +80,18 @@ export const mockUserSettingsFindFirst = mock(() =>
   ),
 );
 
+/** Theme priorities read by the tick's ordering (task 1543) — [] → every theme is 0. */
+export const mockThemeFindMany = mock((_args: { where: { id: { in: number[] } } }) =>
+  Promise.resolve([] as Array<{ id: number; autoRunPriority: number }>),
+);
+
 mock.module('../../../config', () => ({
   prisma: {
     userSettings: {
       findFirst: mockUserSettingsFindFirst,
+    },
+    theme: {
+      findMany: mockThemeFindMany,
     },
     task: {
       count: mockTaskCount,
@@ -174,11 +182,14 @@ mock.module('../../task/task-resolver', () => ({
 // workflow-queue / workflow-runner / agent-worker-manager / realtime-service
 // ---------------------------------------------------------------------------
 export const mockEnqueue = mock(() => Promise.resolve({}));
+/** Receives the limit the tick resolves each pass (task 1543). */
+export const mockSetAutoRunConcurrency = mock((_n: number) => {});
 
 mock.module('../workflow-queue', () => ({
   WorkflowQueueService: {
     getInstance: () => ({
       setMaxConcurrency: () => {},
+      setAutoRunConcurrency: mockSetAutoRunConcurrency,
       getMaxConcurrency: () => 1,
       enqueue: mockEnqueue,
       dequeue: () => Promise.resolve(null),

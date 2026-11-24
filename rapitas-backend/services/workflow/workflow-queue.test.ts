@@ -179,6 +179,25 @@ describe('WorkflowQueueService — concurrency config', () => {
     svc.setMaxConcurrency(4);
     expect(svc.getMaxConcurrency()).toBe(4);
   });
+
+  // task 1543: the auto-run setting must lift the runner's cap too, or a 2nd
+  // selected theme would sit queued behind a cap of 1.
+  test('setAutoRunConcurrency(2) で実行キューの上限が 2 になること', () => {
+    const svc = new WorkflowQueueService();
+    svc.setAutoRunConcurrency(2);
+    expect(svc.getMaxConcurrency()).toBe(2);
+  });
+
+  test('AIOrchestra の上書きと自動実行の上限は大きい方を採ること', () => {
+    const svc = new WorkflowQueueService();
+    svc.setMaxConcurrency(3);
+    svc.setAutoRunConcurrency(2);
+    expect(svc.getMaxConcurrency()).toBe(3);
+    svc.setMaxConcurrency(1);
+    expect(svc.getMaxConcurrency()).toBe(2);
+    svc.setAutoRunConcurrency(99);
+    expect(svc.getMaxConcurrency()).toBe(10);
+  });
 });
 
 describe('WorkflowQueueService.enqueue', () => {

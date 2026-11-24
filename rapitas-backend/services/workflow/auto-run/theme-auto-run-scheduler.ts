@@ -11,9 +11,11 @@
  *
  * Execution is ALWAYS delegated to the existing WorkflowRunner via
  * WorkflowQueueService.enqueue() — the scheduler never spawns agents itself.
- * Global auto-run concurrency = AUTO_RUN_GLOBAL_MAX_CONCURRENCY (default 1).
- * This is a separate limit from WorkflowRunner.maxConcurrency (which governs
- * ALL queue items including subtasks).
+ * Global auto-run concurrency = the AUTO_RUN_GLOBAL_MAX_CONCURRENCY env var
+ * when set, else UserSettings.autoRunMaxConcurrency (default 1), resolved each
+ * tick and pushed to WorkflowQueueService so the runner's cap follows it.
+ * Running themes are advanced in descending Theme.autoRunPriority (ties by
+ * ascending themeId), re-counting the active items per theme (task 1543).
  *
  * The class is a thin delegation layer (task 628): the per-branch bodies live
  * in auto-run-lifecycle.ts, auto-run-advance-active.ts and
@@ -25,6 +27,12 @@ import { resolveTaskThemeId } from '../../task/task-resolver';
 import { WorkflowRunner } from '../workflow-runner';
 import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
 import { POLL_INTERVAL_MS, getGlobalAutoRunActiveCount } from './auto-run-selection';
+import {
+  loadThemeAutoRunPriorities,
+  resolveAutoRunMaxConcurrency,
+  sortRunningThemesByPriority,
+} from './auto-run-concurrency';
+import { WorkflowQueueService } from '../workflow-queue';
 import {
   findByStatuses,
   resumeAutoRun,
@@ -229,12 +237,21 @@ export class ThemeAutoRunScheduler {
 
   /** Core logic: advance running themes to their next task. */
   private async processRunningThemes(running: ThemeAutoRunState[]): Promise<void> {
+    // Synced before the empty check so a saved setting reaches the runner even
+    // while no theme is running.
+    const { limit } = await resolveAutoRunMaxConcurrency(prisma);
+    WorkflowQueueService.getInstance().setAutoRunConcurrency(limit);
     if (running.length === 0) return;
 
-    const globalActive = await getGlobalAutoRunActiveCount(prisma);
-
-    for (const state of running) {
+    const priorities = await loadThemeAutoRunPriorities(
+      prisma,
+      running.map((s) => s.themeId),
+    );
+    for (const state of sortRunningThemesByPriority(running, priorities)) {
       try {
+        // Re-counted per theme: a single count per tick let every theme see the
+        // same free slot, so one tick could enqueue past the limit.
+        const globalActive = await getGlobalAutoRunActiveCount(prisma);
         await this.advanceTheme(
           state.themeId,
           state.currentTaskId,

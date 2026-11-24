@@ -56,6 +56,8 @@ import {
   mockReleaseEventLoopSection,
   mockMarkEventLoopSectionCalls,
   mockBackendBootAt,
+  mockThemeFindMany,
+  mockSetAutoRunConcurrency,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -219,6 +221,8 @@ const ALL_MOCKS = [
   mockResolveIterationBudgetForTask,
   mockMarkEventLoopSection,
   mockReleaseEventLoopSection,
+  mockThemeFindMany,
+  mockSetAutoRunConcurrency,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -227,6 +231,7 @@ export function resetAllMocks(): void {
   mockBackendBootAt.mockReset().mockReturnValue(0);
   mockTaskCount.mockResolvedValue(0);
   mockTaskFindMany.mockResolvedValue([]);
+  mockThemeFindMany.mockReset().mockResolvedValue([]);
   mockTaskUpdate.mockResolvedValue({});
   mockTransitionCount.mockResolvedValue(0);
   mockTaskFindUnique.mockResolvedValue(null);
