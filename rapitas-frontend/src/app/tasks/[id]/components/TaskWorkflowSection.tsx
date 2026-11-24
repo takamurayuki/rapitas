@@ -15,6 +15,7 @@ import RepairIterationMetricsPanel from '@/components/workflow/RepairIterationMe
 import DryRunPanel from '@/components/workflow/DryRunPanel';
 import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
+import { useLatestTransitionCause } from '@/hooks/workflow/useLatestTransitionCause';
 
 // Statuses where a worktree is likely to exist — DryRunPanel is not shown
 // before this (it would just 404). See workflow-handlers-dry-run.ts.
@@ -63,38 +64,18 @@ export default function TaskWorkflowSection({
   // (same pattern as TaskCard.tsx's isRetryable check).
   const isBlocked = (task?.status as string) === 'blocked';
 
-  // Why the task is blocked — fetched lazily (only while blocked) from the
-  // append-only WorkflowTransition log, since the cause isn't on the Task
-  // object itself. See BLOCKED_CAUSE_I18N_KEYS above for the causes this
-  // recognizes; anything else falls back to the generic hint.
-  const [blockedCause, setBlockedCause] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isBlocked || !taskId) {
-      setBlockedCause(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/transitions`);
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          success?: boolean;
-          transitions?: Array<{ cause?: string | null }>;
-        };
-        if (cancelled || !data.success || !data.transitions?.length) return;
-        const latestCause = data.transitions[data.transitions.length - 1]?.cause ?? null;
-        const label = resolveBlockedCauseLabel(t, latestCause);
-        if (label) setBlockedCause(label);
-      } catch {
-        // Non-fatal — the pill falls back to the generic hint.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isBlocked, taskId, t]);
+  // Why the task is blocked, and whether a saved verify.md is waiting for the
+  // diff review — both only live in the append-only WorkflowTransition log, so
+  // the newest cause is read while either can apply. See
+  // BLOCKED_CAUSE_I18N_KEYS for the blocked causes recognized; anything else
+  // falls back to the generic hint.
+  const latestCause = useLatestTransitionCause(taskId, {
+    enabled: isBlocked || currentWorkflowStatus === 'in_progress',
+    status: currentWorkflowStatus,
+  });
+  const blockedCause = isBlocked ? resolveBlockedCauseLabel(t, latestCause) : null;
+  const diffReviewPending =
+    currentWorkflowStatus === 'in_progress' && latestCause === 'verify_review_pending';
 
   // The phase-critic gate can silently archive a freshly-saved research.md /
   // plan.md and roll workflowStatus back a step (research_done → draft,
@@ -277,6 +258,7 @@ export default function TaskWorkflowSection({
               size="sm"
               workflowMode={task?.workflowMode}
               blockedCause={isBlocked ? blockedCause : undefined}
+              diffReviewPending={diffReviewPending}
             />
             {/* Loading spinner lives on the left so the right chips end flush
                 with the card padding (matching the title's left inset). */}
