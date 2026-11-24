@@ -223,6 +223,21 @@ describe('verify.md save — diff review pending', () => {
     expect(gateMock).toHaveBeenCalledTimes(0);
   });
 
+  it('陪審の判定中に完了済みへ移ったら、不合格でも差し戻しも verify_done も書かない', async () => {
+    reviewImpl = async () => {
+      // A faster round completed (and merged) the task while this jury ran.
+      liveStatus = 'completed';
+      return { verdict: 'fail', severity: 80, reasons: ['古い判定'] };
+    };
+    const out = await save();
+    expect(advanceMock).toHaveBeenCalledTimes(0);
+    expect(updateManyMock).toHaveBeenCalledTimes(0);
+    expect(transitions.some((t) => t.toStatus === 'verify_done')).toBe(false);
+    expect(transitions.map((t) => t.cause)).not.toContain('adversarial_review_failed');
+    expect(gateMock).toHaveBeenCalledTimes(0);
+    expect(out.status).toBe('completed');
+  });
+
   it('陪審が保留なら in_progress から保留に回す', async () => {
     reviewImpl = async () => ({ verdict: 'hold', severity: 0, reasons: ['人の判断が必要'] });
     await save();
