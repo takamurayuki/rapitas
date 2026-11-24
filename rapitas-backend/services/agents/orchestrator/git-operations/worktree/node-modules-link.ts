@@ -14,14 +14,20 @@ import {
   mkdirSync,
   readdirSync,
   readlinkSync,
-  rmdirSync,
   rmSync,
   symlinkSync,
-  unlinkSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createLogger } from '../../../../../config/logger';
 import { SCAN_DEPTH } from './project-manifests';
+import {
+  detachLinksSafely,
+  isManagedRoot,
+  linkRootEntries,
+  managedRootIsUsable,
+  removeLink,
+  unlinkRootEntries,
+} from './node-modules-root-entries';
 
 const logger = createLogger('git-operations/node-modules-link');
 
@@ -64,6 +70,9 @@ const INSTALL_MARKERS = ['.bin', '.package-lock.json', '.modules.yaml', '.yarn-s
  * @returns Whether it is a complete install / 完全なインストールか
  */
 export function holdsRealInstall(dir: string): boolean {
+  // A root this module built holds a COPY of `.modules.yaml`; that is not an
+  // install of its own and must stay eligible for re-sync.
+  if (isManagedRoot(join(dir, 'node_modules'))) return false;
   let entries: string[];
   try {
     entries = readdirSync(join(dir, 'node_modules'));
@@ -73,49 +82,30 @@ export function holdsRealInstall(dir: string): boolean {
   return entries.some((name) => INSTALL_MARKERS.includes(name));
 }
 
-/** What sits at a prospective link path. */
-export function inspectLinkPath(link: string): 'link' | 'real' | 'absent' {
+/**
+ * What sits at a prospective link path. `managed` is a real directory built by
+ * linkRootEntries (root node_modules whose entries are links).
+ */
+export function inspectLinkPath(link: string): 'link' | 'real' | 'managed' | 'absent' {
   try {
-    return lstatSync(link).isSymbolicLink() ? 'link' : 'real';
+    if (lstatSync(link).isSymbolicLink()) return 'link';
   } catch {
     return 'absent';
   }
-}
-
-/**
- * Remove a link (not its target).
- *
- * NOTE: `rmSync(..., { recursive: true })` must never be used here — on Windows
- * it descends THROUGH a junction and deletes the shared tree it points at.
- * unlink is the correct call for both POSIX symlinks and Windows junctions;
- * rmdir is the documented fallback for a junction unlink refuses.
- *
- * @param link - Link path to clear / 解除するリンクのパス
- * @returns Whether the path is now free / パスが空いたか
- */
-function removeLink(link: string): boolean {
-  for (const remove of [unlinkSync, rmdirSync]) {
-    try {
-      remove(link);
-      return true;
-    } catch {
-      /* try the next form */
-    }
-  }
-  logger.warn({ link }, '[nodeModulesLink] Could not remove a stale node_modules link');
-  return false;
+  return isManagedRoot(link) ? 'managed' : 'real';
 }
 
 /**
  * Delete a node_modules that {@link holdsRealInstall} rejected, so a link can
  * take its place.
  *
- * Safe to recurse here, unlike {@link removeLink}: this path is a real
- * directory (never a junction) whose only contents are regenerable tool caches
- * — that is what being rejected by holdsRealInstall means.
+ * キャッシュの深い位置にもリンクがあり得るため、再帰削除の前に
+ * 管理下エントリと残存リンクを個別に解除する。
  */
 function removeCacheOnlyNodeModules(link: string): boolean {
   try {
+    // A managed root holds junctions; recursing would follow them into main.
+    if (!unlinkRootEntries(link) || !detachLinksSafely(link)) return false;
     rmSync(link, { recursive: true, force: true });
     logger.info(
       `[nodeModulesLink] Removed a cache-only node_modules to link the shared tree: ${link}`,
@@ -156,6 +146,24 @@ export function discoverInstalledDirs(source: string): string[] {
 }
 
 /**
+ * Build the worktree's root node_modules as a real directory of links.
+ *
+ * pnpm 12 refuses to run recursively when this directory is itself a link, so
+ * the root alone is not linked wholesale. An old whole-directory link is
+ * replaced; a real install of the worktree's own is never touched.
+ */
+function linkRoot(target: string, link: string, worktree: string): boolean {
+  const existing = inspectLinkPath(link);
+  if (existing === 'link') {
+    if (!removeLink(link)) return false;
+  } else if (existing === 'real') {
+    if (holdsRealInstall(worktree)) return false;
+    if (!removeCacheOnlyNodeModules(link)) return false;
+  }
+  return linkRootEntries(target, link);
+}
+
+/**
  * Link every node_modules `source` owns into `worktree`.
  *
  * A real install in the worktree is left alone; a cache-only directory is
@@ -174,6 +182,11 @@ export function linkNodeModules(source: string, worktree: string): string[] {
     const target = join(source, rel, 'node_modules');
     const link = join(worktree, rel, 'node_modules');
 
+    if (rel === '') {
+      if (linkRoot(target, link, worktree)) linked.push(rel);
+      continue;
+    }
+
     let existing = inspectLinkPath(link);
     if (existing === 'link') {
       if (holdsRealInstall(join(worktree, rel))) {
@@ -183,7 +196,7 @@ export function linkNodeModules(source: string, worktree: string): string[] {
       if (!removeLink(link)) continue;
       existing = 'absent';
     }
-    if (existing === 'real') {
+    if (existing === 'real' || existing === 'managed') {
       if (holdsRealInstall(join(worktree, rel))) continue;
       if (!removeCacheOnlyNodeModules(link)) continue;
     }
@@ -208,12 +221,14 @@ export function linkNodeModules(source: string, worktree: string): string[] {
  * @returns Whether node_modules is usable as-is / そのまま使えるか
  */
 export function worktreeHasUsableModules(worktree: string): boolean {
-  const state = inspectLinkPath(join(worktree, 'node_modules'));
+  const nodeModules = join(worktree, 'node_modules');
+  const state = inspectLinkPath(nodeModules);
   if (state === 'absent') return false;
+  if (state === 'managed') return managedRootIsUsable(nodeModules);
   if (state === 'link') {
     try {
       // A dangling junction resolves to nothing; holdsRealInstall follows it.
-      readlinkSync(join(worktree, 'node_modules'));
+      readlinkSync(nodeModules);
     } catch {
       return false;
     }

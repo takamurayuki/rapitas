@@ -7,7 +7,8 @@
  * inside it (node_modules junctions into the main checkout) are unlinked,
  * never followed — the target must survive.
  */
-import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, spyOn, test } from 'bun:test';
+import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -21,6 +22,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sweepIdleWorktrees } from './worktree-sweep';
+import { linkNodeModules } from '../worktree/node-modules-link';
+import { detachLinksSafely } from '../worktree/node-modules-root-entries';
 import type { PullRequestHead } from '../../../../github/pr-head-lookup';
 
 setDefaultTimeout(120_000);
@@ -91,7 +94,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (ratchetDir && existsSync(ratchetDir)) rmSync(ratchetDir, { recursive: true, force: true });
+  if (ratchetDir && existsSync(ratchetDir)) {
+    if (!detachLinksSafely(ratchetDir)) throw new Error('一時 worktree のリンク解除に失敗');
+    rmSync(ratchetDir, { recursive: true, force: true });
+  }
+  if (!detachLinksSafely(root)) throw new Error('テスト用ディレクトリのリンク解除に失敗');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -109,6 +116,26 @@ describe('sweepIdleWorktrees', () => {
     expect(existsSync(join(outsideTarget, 'keep.txt'))).toBe(true);
   });
 
+  test('spares every main node_modules entry when the worktree root is a real directory of junctions', async () => {
+    const dir = worktreeWithCommit('.worktrees/pnpm12', 'feature/pnpm12');
+    mergeIntoDevelop('feature/pnpm12');
+    const main = join(root, 'main-tree');
+    mkdirSync(join(main, 'node_modules', '.pnpm', 'pkg'), { recursive: true });
+    mkdirSync(join(main, 'node_modules', '@types', 'node'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'), 'p');
+    writeFileSync(join(main, 'node_modules', '@types', 'node', 'index.d.ts'), 't');
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    expect(linkNodeModules(main, dir)).toEqual(['']);
+
+    const result = await sweepIdleWorktrees(repo, { lookupPrs, now: LATER(), idleMs: HOUR });
+
+    expect(result.removed).toEqual([dir.replace(/\\/g, '/')]);
+    expect(existsSync(dir)).toBe(false);
+    expect(existsSync(join(main, 'node_modules', '.pnpm', 'pkg', 'index.js'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '@types', 'node', 'index.d.ts'))).toBe(true);
+    expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
+  });
+
   test('keeps a worktree with uncommitted work', async () => {
     const dir = worktreeWithCommit('.worktrees/dirty', 'feature/dirty');
     mergeIntoDevelop('feature/dirty');
@@ -118,6 +145,90 @@ describe('sweepIdleWorktrees', () => {
 
     expect(result.removed).toEqual([]);
     expect(result.kept).toContainEqual({ path: dir.replace(/\\/g, '/'), reason: 'dirty' });
+  });
+
+  test.each(['managed', 'unmarked'])(
+    '%s な依存ルートの深いリンクを git 削除とフォールバックより先に解除する',
+    async (kind) => {
+      const dir = worktreeWithCommit('.worktrees/deep-links', 'feature/deep-links');
+      mergeIntoDevelop('feature/deep-links');
+      const modules = join(dir, 'node_modules');
+      if (kind === 'managed') {
+        const main = join(root, 'main-tree');
+        mkdirSync(join(main, 'node_modules', '.pnpm'), { recursive: true });
+        writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+        expect(linkNodeModules(main, dir)).toEqual(['']);
+      }
+      const cache = join(modules, '.cache', 'a', 'b', 'c', 'd');
+      mkdirSync(cache, { recursive: true });
+      const deepLink = join(cache, 'deep-link');
+      symlinkSync(outsideTarget, deepLink, 'junction');
+      let linkedBeforeGit: boolean | undefined;
+      const result = await sweepIdleWorktrees(repo, {
+        lookupPrs,
+        now: LATER(),
+        idleMs: HOUR,
+        git: async (args, cwd) => {
+          if (args[0] === 'worktree' && args[1] === 'remove') {
+            linkedBeforeGit = existsSync(deepLink);
+            return { code: 1, stdout: '' };
+          }
+          try {
+            return { code: 0, stdout: git(cwd, ...args) };
+          } catch {
+            return { code: 1, stdout: '' };
+          }
+        },
+      });
+
+      expect(linkedBeforeGit).toBe(false);
+      expect(result.removed).toEqual([dir.replace(/\\/g, '/')]);
+      expect(existsSync(join(outsideTarget, 'keep.txt'))).toBe(true);
+    },
+  );
+
+  test('深いリンクを解除できない間は繰り返し sweep しても削除を拒否する', async () => {
+    const dir = worktreeWithCommit('.worktrees/busy-links', 'feature/busy-links');
+    mergeIntoDevelop('feature/busy-links');
+    const main = join(root, 'main-tree');
+    mkdirSync(join(main, 'node_modules', '.pnpm'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', '.modules.yaml'), 'layoutVersion: 5\n');
+    expect(linkNodeModules(main, dir)).toEqual(['']);
+    const cache = join(dir, 'node_modules', '.cache', 'a', 'b', 'c', 'd');
+    mkdirSync(cache, { recursive: true });
+    const deepLink = join(cache, 'deep-link');
+    symlinkSync(outsideTarget, deepLink, 'junction');
+    const originalUnlink = fs.unlinkSync;
+    const originalRmdir = fs.rmdirSync;
+    const failBusy = () => {
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+    };
+    const unlink = spyOn(fs, 'unlinkSync').mockImplementation((path) =>
+      String(path) === deepLink ? failBusy() : originalUnlink(path),
+    );
+    const rmdir = spyOn(fs, 'rmdirSync').mockImplementation((path, options) =>
+      String(path) === deepLink ? failBusy() : originalRmdir(path, options),
+    );
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await sweepIdleWorktrees(repo, { lookupPrs, now: LATER(), idleMs: HOUR });
+        expect(result.removed).toEqual([]);
+        expect(result.kept).toContainEqual({
+          path: dir.replace(/\\/g, '/'),
+          reason: 'links-remaining',
+        });
+        expect(existsSync(join(dir, 'node_modules', '.rapitas-linked-root'))).toBe(true);
+      }
+      expect(existsSync(join(outsideTarget, 'keep.txt'))).toBe(true);
+    } finally {
+      unlink.mockRestore();
+      rmdir.mockRestore();
+      try {
+        originalUnlink(deepLink);
+      } catch {
+        if (existsSync(deepLink)) originalRmdir(deepLink);
+      }
+    }
   });
 
   test('keeps a worktree whose commits exist nowhere else', async () => {

@@ -102,6 +102,11 @@ const fsMock = {
   // appending. An export the graph needs but the mock omits is a load-time
   // SyntaxError under bun, not a missing function.
   readFileSync: mock(() => ''),
+  // このスイートの仮想 worktree は実ファイルを持たない。リンク走査にも
+  // 不在を返し、解除失敗とファイル未配置を区別する。
+  lstatSync: mock(() => {
+    throw Object.assign(new Error('fixture path does not exist'), { code: 'ENOENT' });
+  }),
 };
 mock.module('node:fs', () => fsMock);
 mock.module('fs', () => fsMock);

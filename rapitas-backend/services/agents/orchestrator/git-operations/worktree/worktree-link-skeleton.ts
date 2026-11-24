@@ -44,6 +44,12 @@
 // it (CLAUDE.md's "watch the pass COUNT" hazard, from the importing side).
 import * as fs from 'node:fs';
 import { join } from 'node:path';
+import {
+  ROOT_MARKER,
+  detachLinksSafely,
+  isManagedRoot,
+  managedRootCopies,
+} from './node-modules-root-entries';
 
 /**
  * How far down the walk will vouch for a directory.
@@ -120,6 +126,11 @@ function collectProvisioned(
     return null;
   }
 
+  // マーカーがあるだけでは独自ファイルを削除しない。管理下 node_modules の
+  // コピー記録に載る直下ファイルとマーカーだけを骨組みとして扱う。
+  const managedCopies = new Set(
+    isManagedRoot(dirPath) ? [ROOT_MARKER, ...managedRootCopies(dirPath)] : [],
+  );
   const provisioned: string[] = [];
   for (const entry of entries) {
     const child = join(dirPath, entry);
@@ -141,7 +152,8 @@ function collectProvisioned(
     }
     // A real file. Only a copy the checkout already has, at this same path,
     // or output the caller vouches for, is something nobody can lose by deleting.
-    const disposable = stat.isFile() && options.isDisposable?.(childRelative) === true;
+    const disposable =
+      stat.isFile() && (managedCopies.has(entry) || options.isDisposable?.(childRelative) === true);
     if (!disposable && !matchesCheckout(child, childRelative, stat.size, options.repoRoot)) {
       return null;
     }
@@ -233,6 +245,8 @@ export function removeLinkSkeleton(dirPath: string, options: ReclaimOptions = {}
   const provisioned = collectProvisioned(dirPath, '', 0, options);
   if (provisioned === null) return false;
   try {
+    // リンク解除に失敗した場合は、再試行の識別に必要なマーカーを残す。
+    if (!detachLinksSafely(dirPath)) return false;
     // Deleted by the exact paths the walk approved, never by re-deciding
     // here: one list, one judgement, no second chance to get it wrong.
     for (const file of provisioned) fs.unlinkSync(file);

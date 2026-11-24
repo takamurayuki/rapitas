@@ -86,6 +86,10 @@ mock.module('node:child_process', () => ({ execFile: mockExecFile, exec: mockExe
 // probe a WORKTREE's `.git` through the same function, and answering yes there
 // would flip the preservation checks these tests exist to pin.
 const fsMock = {
+  // このfixtureにはnode_modulesがない。安全解除側もlstatで不在を確認する。
+  lstatSync: () => {
+    throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+  },
   existsSync: (p: string) =>
     String(p).replace(/\\/g, '/') === '/test/repo/.git' || mockExistsSync(p),
   // Mirrored for core/git-exclude.ts, which reads the exclude list before

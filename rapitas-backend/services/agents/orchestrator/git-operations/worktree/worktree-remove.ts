@@ -20,6 +20,7 @@ import {
   settleInflightWorktreeDependencies,
 } from './dependency-installer';
 import { rmDirWithRetry } from './dir-remove-retry';
+import { detachLinksSafely, unlinkRootEntries } from './node-modules-root-entries';
 import { isWorktreeContentPreserved } from './worktree-preservation';
 import { deleteWorktreeBranch } from './worktree-branch-delete';
 
@@ -157,6 +158,18 @@ export async function removeWorktree(
     }
   }
 
+  // The root node_modules of a worktree of a target project is a real directory
+  // holding junctions into the main checkout, and the teardown script above only
+  // exists in rapitas's own worktrees. Detach those junctions first so neither
+  // `git worktree remove` nor the recursive fallback can descend into main.
+  const detachWorktreeLinks = (): boolean => {
+    const modules = join(worktreePath, 'node_modules');
+    if (unlinkRootEntries(modules) && detachLinksSafely(worktreePath)) return true;
+    logger.error({ worktreePath }, '[removeWorktree] 依存リンクの解除に失敗したため削除を拒否');
+    return false;
+  };
+  if (!detachWorktreeLinks()) return false;
+
   // NOTE: Windows NTFS/junction handles can linger for ~100-200ms after the teardown
   // script closes them. This wait prevents EBUSY on the subsequent git worktree remove.
   await new Promise<void>((r) => setTimeout(r, 200));
@@ -177,7 +190,7 @@ export async function removeWorktree(
   }
 
   // Dependency setup and teardown may take time; do not rely on the earlier snapshot.
-  if (!(await contentIsSafe())) return false;
+  if (!(await contentIsSafe()) || !detachWorktreeLinks()) return false;
 
   let removed = false;
   try {
@@ -214,7 +227,7 @@ export async function removeWorktree(
         }
       }
 
-      if (!(await contentIsSafe())) return false;
+      if (!(await contentIsSafe()) || !detachWorktreeLinks()) return false;
       removed = await rmDirWithRetry(worktreePath);
       if (removed) {
         logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
