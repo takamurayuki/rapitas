@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import type { CommandEvidence } from '../agents/verification/command-evidence';
 import { appendEvent, queryEvents } from '../memory/timeline';
 import type { VerificationCheck } from '../agents/verification/automated-verifier';
+import type { SelfVerifyDiffReview } from './self-verify-diff-review';
 
 /**
  * Generated once per process boot — doubles as the "executionCodeVersion"
@@ -60,6 +61,8 @@ export interface VerificationJobOutcome {
   fingerprintAtFinish?: string | null;
   /** Actual observed subprocess outcomes, independent of the gate verdict. */
   commands?: CommandEvidence[];
+  /** Adversarial diff review run after the gates (task 1538). */
+  diffReview?: SelfVerifyDiffReview;
 }
 
 /** Derived state of a verification job, ready for the GET status handler to shape into a response. */
@@ -80,6 +83,7 @@ export interface VerificationJobRecord {
   worktreePath?: string;
   revision?: string | null;
   commands?: CommandEvidence[];
+  diffReview?: SelfVerifyDiffReview;
 }
 
 function correlationIdFor(taskId: number): string {
@@ -157,6 +161,7 @@ export async function recordJobFinish(
       durationMs: outcome.durationMs,
       fingerprintAtFinish: outcome.fingerprintAtFinish,
       commands: outcome.commands,
+      diffReview: outcome.diffReview,
     },
   });
 }
@@ -187,6 +192,7 @@ interface FinishPayload {
   durationMs?: number;
   fingerprintAtFinish?: string | null;
   commands?: CommandEvidence[];
+  diffReview?: SelfVerifyDiffReview;
 }
 
 /** Derive `running`/`completed`/`failed`/`interrupted` from a job's start row and (if any) finish row. Never mutates either row. */
@@ -214,6 +220,7 @@ function deriveRecord(
       worktreePath: start.worktreePath,
       revision: start.revision,
       commands: finish.commands,
+      diffReview: finish.diffReview,
     };
   }
   const startedAtMs = new Date(start.startedAt).getTime();

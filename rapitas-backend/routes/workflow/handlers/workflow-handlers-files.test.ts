@@ -214,6 +214,26 @@ mock.module('../../../services/agents/verification/adversarial-diff-review', () 
   reviewDiffAdversarially: mockReviewDiffAdversarially,
 }));
 
+// NOTE: These suites pin the immediate path (verify_done on save, review after)
+// and queue prisma mock values in that call order. The review-pending path of
+// task 1538 has its own suites (file-save/verify-review-admission.test.ts,
+// file-save/verify-post-save-pipeline.review-pending.test.ts).
+mock.module('./file-save/verify-review-admission', () => ({
+  admitVerifyForReview: async (p: { completionReceipt?: { taskId: number } }) => {
+    if (!p.completionReceipt) throw new Error('Missing server completion review receipt');
+    const { advanceReviewedVerify } =
+      await import('../../../services/workflow/requirement-replan-commit');
+    return {
+      completionReceipt: await advanceReviewedVerify(
+        mockPrisma as never,
+        p.completionReceipt as never,
+      ),
+      reviewPending: false,
+    };
+  },
+  recordVerifyReviewPending: async () => {},
+}));
+
 // ---- completion-gate mock ----
 mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),

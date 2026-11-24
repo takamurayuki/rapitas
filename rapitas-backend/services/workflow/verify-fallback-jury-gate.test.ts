@@ -104,8 +104,8 @@ mock.module('./publish/mark-latest-execution-failed', () => ({
 const holdForHumanReview = mock(async (_p: Record<string, unknown>): Promise<string> => 'held');
 mock.module('./review-hold', () => ({ holdFromReview: holdForHumanReview }));
 
-// The DB jury lock (design 4.5.1) is covered on real SQLite in
-// jury-review-run.test.ts; here it is granted and nothing drifts.
+// DB jury lock (4.5.1): real SQLite in jury-review-run.test.ts; here granted, nothing drifts.
+mock.module('./self-verify-diff-review', () => ({ findReusableSelfVerifyReview: () => null }));
 const { fakeJuryRunModule, fakeJuryRunState, EMPTY_CRITERIA_REVISION } =
   await import('./jury-review-run.test-helpers');
 const juryRun = fakeJuryRunState(() => verifySha);

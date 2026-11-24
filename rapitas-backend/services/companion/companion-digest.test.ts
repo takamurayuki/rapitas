@@ -78,6 +78,14 @@ describe('decisionFor — what the person must decide, from current columns', ()
     ).toEqual({ kind: 'review_hold', holdReason: 'unresolved_dispute', link: '/tasks/7/decide' });
   });
 
+  test('a review hold left at in_progress by a pending diff review also asks (task 1538)', () => {
+    expect(
+      decisionFor(
+        task(7, { workflowStatus: 'in_progress', haltReason: 'awaiting_review_decision' }),
+      )?.kind,
+    ).toBe('review_hold');
+  });
+
   test('any other halt asks for a release, carrying the halt code', () => {
     for (const code of ['budget_cost_exceeded', 'no_progress', 'jury_result_discarded']) {
       expect(decisionFor(task(7, { haltReason: code }))).toEqual({

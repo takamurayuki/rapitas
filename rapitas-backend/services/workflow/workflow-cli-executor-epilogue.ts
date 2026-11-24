@@ -12,7 +12,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import type { AgentOrchestrator } from '../agents/agent-orchestrator';
-import { resolveTaskWorkflowState } from '../task/task-resolver';
+import { resolveSettledWorkflowState } from './verify-review-pending';
 import {
   readWorkflowFile,
   writeWorkflowFile,
@@ -147,7 +147,7 @@ export async function runPhaseEpilogue(params: {
   const { taskId, transition, session, result, resolvedWorktreePath, phaseStartedAt, language } =
     params;
 
-  const updatedTask = await resolveTaskWorkflowState(taskId);
+  const updatedTask = await resolveSettledWorkflowState(taskId, transition);
   const currentWfStatus = updatedTask?.workflowStatus || 'draft';
   if (await requirementReplannedSince(prisma, taskId, phaseStartedAt)) {
     log.info(

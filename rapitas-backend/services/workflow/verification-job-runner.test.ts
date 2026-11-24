@@ -65,6 +65,11 @@ mock.module('./verification-job-store', () => ({
   recordJobFinish: recordJobFinishMock,
 }));
 
+// The diff-review step has its own suite (verification-job-runner.diff-review.test.ts).
+mock.module('./self-verify-diff-review', () => ({
+  runSelfVerifyDiffReview: async () => ({ status: 'skipped', skippedReason: 'disabled' }),
+}));
+
 const { beginVerificationRun, runVerificationGateAndRecord, computeVerificationCacheKey } =
   await import('./verification-job-runner');
 

@@ -101,7 +101,10 @@ export function decisionFor(
   if (task.status === 'done') return null;
   const link = `/tasks/${task.id}/decide`;
   const halt = task.haltReason?.trim();
-  if (halt === REVIEW_HOLD_HALT_REASON && task.workflowStatus === 'verify_done') {
+  if (
+    halt === REVIEW_HOLD_HALT_REASON &&
+    /^(verify_done|in_progress)$/.test(task.workflowStatus ?? '')
+  ) {
     return { kind: 'review_hold', ...(holdReason ? { holdReason } : {}), link };
   }
   if (halt && halt !== REVIEW_HOLD_HALT_REASON)
