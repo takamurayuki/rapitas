@@ -12,7 +12,9 @@ import {
   CONFIRM_LINK_AUDIT_RETENTION_MS,
   appendConfirmLinkAudit,
   confirmLinkRoute,
+  pruneOrphanConfirmLinkAudits,
   readConfirmLinkAudit,
+  removeConfirmLinkAudit,
   type ConfirmLinkAuditEntry,
 } from '../confirm-link-audit';
 
@@ -30,6 +32,7 @@ function entry(at: number, linkId = 'abc'): ConfirmLinkAuditEntry {
     selectedKey: 'A',
     respondentName: '山田 花子',
     route: confirmLinkRoute(linkId),
+    questionDigest: 'd1',
   };
 }
 
@@ -65,5 +68,43 @@ describe('confirm-link audit', () => {
 
   test('retention is 180 days', () => {
     expect(CONFIRM_LINK_AUDIT_RETENTION_MS).toBe(180 * 86_400_000);
+  });
+  test('appending the same id twice keeps one line', async () => {
+    await appendConfirmLinkAudit(entry(NOW), { dir, now: NOW });
+    await appendConfirmLinkAudit(entry(NOW), { dir, now: NOW });
+    expect(await readConfirmLinkAudit({ dir })).toHaveLength(1);
+  });
+
+  test('removeConfirmLinkAudit deletes the line by id', async () => {
+    await appendConfirmLinkAudit(entry(NOW), { dir, now: NOW });
+    await removeConfirmLinkAudit(entry(NOW).id, { dir });
+    expect(await readConfirmLinkAudit({ dir })).toHaveLength(0);
+  });
+
+  test('pruning drops only the lines judged orphan', async () => {
+    await appendConfirmLinkAudit(entry(NOW, 'orphan'), { dir, now: NOW });
+    await appendConfirmLinkAudit(entry(NOW + 1, 'answering'), { dir, now: NOW });
+    const states: Record<string, string> = { orphan: 'revoked', answering: 'answering' };
+    await pruneOrphanConfirmLinkAudits(
+      async (e) => states[e.linkId] === 'active' || states[e.linkId] === 'revoked',
+      { dir },
+    );
+    expect((await readConfirmLinkAudit({ dir })).map((e) => e.linkId)).toEqual(['answering']);
+  });
+
+  test('an append waits for a running prune, so a fresh line is never judged mid-write', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const prune = pruneOrphanConfirmLinkAudits(
+      async () => {
+        await gate;
+        return true;
+      },
+      { dir },
+    );
+    const append = appendConfirmLinkAudit(entry(NOW, 'late'), { dir, now: NOW });
+    release();
+    await Promise.all([prune, append]);
+    expect((await readConfirmLinkAudit({ dir })).map((e) => e.linkId)).toEqual(['late']);
   });
 });

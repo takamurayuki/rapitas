@@ -7,6 +7,7 @@
  * bytes — the route streams the file this returns.
  */
 import { EXTERNAL_PUBLIC_TAG, type ConfirmLinkStore } from './confirm-link-store';
+import { ConfirmLinkError } from './confirm-link-types';
 
 /** The Resource columns this module reads. */
 export interface ConfirmLinkResourceRow {
@@ -24,6 +25,12 @@ export interface ConfirmLinkResourceRow {
 export interface ConfirmLinkResourceDeps {
   store: Pick<ConfirmLinkStore, 'getResourceTags'>;
   readResources: (taskId: number) => Promise<ConfirmLinkResourceRow[]>;
+}
+
+/** Owner of a resource as the workspace-scoped lookup sees it. */
+export interface ConfirmLinkResourceOwner {
+  id: number;
+  taskId: number | null;
 }
 
 /** A resource as the public page shows it. File paths never leave the server. */
@@ -107,4 +114,29 @@ export async function listIssuerResources(
   return rows
     .filter((r) => r.taskId === taskId)
     .map((r) => ({ id: r.id, title: r.title, externalPublic: isTagged(tags, r.id) }));
+}
+
+/**
+ * Set or clear a resource's 「外部公開可」 tag, only for a resource the
+ * caller's workspace can see and that belongs to a task. The lookup is
+ * workspace-scoped, so another workspace's id reads as missing.
+ *
+ * @param input - Resource id and the new flag / 資料IDと公開可フラグ
+ * @param deps - Tag store and owner lookup / 依存
+ * @returns The applied flag / 適用したフラグ
+ * @throws {ConfirmLinkError} 404 `resource_not_found` when the resource is not visible or has no task
+ */
+export async function setConfirmLinkResourceVisibility(
+  input: { resourceId: number; externalPublic: boolean },
+  deps: {
+    store: Pick<ConfirmLinkStore, 'setResourceTag'>;
+    readResourceOwner: (resourceId: number) => Promise<ConfirmLinkResourceOwner | null>;
+  },
+): Promise<{ resourceId: number; externalPublic: boolean }> {
+  const owner = await deps.readResourceOwner(input.resourceId);
+  if (!owner || owner.taskId === null) {
+    throw new ConfirmLinkError(404, 'resource_not_found', '資料が見つかりません');
+  }
+  await deps.store.setResourceTag(input.resourceId, input.externalPublic);
+  return { resourceId: input.resourceId, externalPublic: input.externalPublic };
 }

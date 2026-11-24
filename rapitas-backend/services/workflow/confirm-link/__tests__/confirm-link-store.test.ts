@@ -20,6 +20,7 @@ function record(linkId: string, overrides: Partial<ConfirmLinkRecord> = {}): Con
     pauseTransitionId: 10,
     questionId: 'Q1',
     optionKeys: ['A', 'B'],
+    questionDigest: 'digest-1',
     message: '',
     issuedAt: NOW,
     expiresAt: NOW + 86_400_000,
@@ -110,5 +111,22 @@ describe('confirm-link store', () => {
     expect(await store.getResourceTags()).toEqual({ '5': ['external_public'] });
     await store.setResourceTag(5, false);
     expect(await store.getResourceTags()).toEqual({});
+  });
+  test('releasing an old link after a re-issue revokes it instead of reopening it', async () => {
+    const store = createConfirmLinkStore({ dir });
+    await store.issue(record('old', { issuedAt: NOW }), NOW);
+    expect(await store.reserve('old', NOW)).toBe(true);
+    await store.issue(record('new', { issuedAt: NOW + 10 }), NOW + 10);
+    await store.release('old');
+
+    expect((await store.get('old'))?.state).toBe('revoked');
+    expect((await store.get('old'))?.revokedReason).toBe('reissued');
+    expect((await store.list(1)).filter((l) => l.state === 'active')).toHaveLength(1);
+  });
+
+  test('the question digest survives a round trip through the file', async () => {
+    const store = createConfirmLinkStore({ dir });
+    await store.issue(record('d'), NOW);
+    expect((await createConfirmLinkStore({ dir }).get('d'))?.questionDigest).toBe('digest-1');
   });
 });

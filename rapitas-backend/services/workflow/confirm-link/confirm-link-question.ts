@@ -6,6 +6,7 @@
  * same format the frontend's composeStructuredAnswer sends. Not responsible
  * for applying the answer.
  */
+import { createHash } from 'crypto';
 import { parseQuestionOptionsBlock, type ParsedQuestion } from '../question-options-parser';
 
 /** Why a question cannot be answered through a link, or null when it can. */
@@ -67,4 +68,15 @@ export function normalizeRespondentName(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const name = raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim();
   return name.length >= 1 && name.length <= 50 ? name : null;
+}
+
+/**
+ * Version of a question.md body: SHA-256 hex of the raw text, unnormalised,
+ * so any re-save changes it.
+ *
+ * @param content - question.md body / question.md 本文
+ * @returns Hex digest / 版のハッシュ
+ */
+export function computeQuestionDigest(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
 }

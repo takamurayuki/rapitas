@@ -133,7 +133,14 @@ export function renderConfirmLinkPage(result: ConfirmLinkPageResult, token: stri
         '回答の変更が必要な場合は、依頼元の担当者にご連絡ください。',
       );
     case 'error':
-      return renderMessage('回答を処理できませんでした', '時間をおいて再度お試しください。');
+      return result.uncertain
+        ? renderMessage(
+            '受付状態を確認できませんでした',
+            '回答が反映された可能性があります。再送はできないため、依頼元の担当者にご確認ください。',
+          )
+        : renderMessage('回答を処理できませんでした', '時間をおいて再度お試しください。');
+    case 'unavailable':
+      return renderMessage('一時的に受け付けできません', '時間をおいて再度送信してください。');
     default:
       return renderMessage('ページが見つかりません', 'リンクが正しいかご確認ください。');
   }

@@ -7,7 +7,11 @@
  */
 import type { ApplyQuestionAnswerByKindParams } from '../../../routes/workflow/handlers/workflow-handlers-resume-dispatch';
 import type { ConfirmLinkAuditEntry } from './confirm-link-audit';
-import type { ConfirmLinkResourceDeps, PublicResourceView } from './confirm-link-resources';
+import type {
+  ConfirmLinkResourceDeps,
+  ConfirmLinkResourceOwner,
+  PublicResourceView,
+} from './confirm-link-resources';
 import type { ConfirmLinkStore } from './confirm-link-store';
 
 /** Task state the service re-checks before showing or applying. */
@@ -28,7 +32,14 @@ export interface ConfirmLinkServiceDeps {
   applyAnswer: (params: ApplyQuestionAnswerByKindParams) => Promise<{ kind: string }>;
   releaseHalt: (taskId: number, answer: string, label: string) => Promise<unknown>;
   triggerReExecution: (taskId: number) => Promise<void>;
+  /** Written BEFORE the answer is applied; failing it refuses the answer. / 適用前に書く監査 */
   appendAudit: (entry: ConfirmLinkAuditEntry) => Promise<void>;
+  /** Compensating delete once the answer is known not to be applied. / 補償削除 */
+  removeAudit: (id: string) => Promise<void>;
+  /** Drop the task's audit lines whose link is `active` or `revoked`. / 孤児の掃除 */
+  pruneOrphanAudits: (taskId: number) => Promise<void>;
+  /** Workspace-scoped resource lookup for the visibility toggle. / 資料の所属照合 */
+  readResourceOwner: (resourceId: number) => Promise<ConfirmLinkResourceOwner | null>;
 }
 
 /** Thrown by {@link issueConfirmLink}; the route maps `status` to the response. */
@@ -58,4 +69,5 @@ export type ConfirmLinkPageResult =
   | { status: 200; kind: 'answered'; selectedLabel: string }
   | { status: 404; kind: 'not_found' }
   | { status: 409 | 410; kind: 'gone' }
-  | { status: 500; kind: 'error' };
+  | { status: 500; kind: 'error'; uncertain?: boolean }
+  | { status: 503; kind: 'unavailable' };

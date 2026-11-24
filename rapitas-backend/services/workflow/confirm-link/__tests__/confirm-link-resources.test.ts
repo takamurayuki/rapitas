@@ -4,7 +4,7 @@
  * Only resources tagged 「外部公開可」 are listed or fetchable, including by
  * direct id (acceptance criterion 5 of task 1430).
  */
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -13,6 +13,7 @@ import {
   getPublicResource,
   listIssuerResources,
   listPublicResources,
+  setConfirmLinkResourceVisibility,
   type ConfirmLinkResourceRow,
 } from '../confirm-link-resources';
 
@@ -92,5 +93,43 @@ describe('confirm-link resources', () => {
       { id: 1, title: '公開資料', externalPublic: true },
       { id: 2, title: '社内限定', externalPublic: false },
     ]);
+  });
+  test('a resource the workspace cannot see is refused (404) and no tag is written', async () => {
+    const setResourceTag = mock(store.setResourceTag);
+    await expect(
+      setConfirmLinkResourceVisibility(
+        { resourceId: 999, externalPublic: true },
+        { store: { ...store, setResourceTag }, readResourceOwner: async () => null },
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'resource_not_found' });
+    expect(setResourceTag).not.toHaveBeenCalled();
+  });
+
+  test('a resource attached to no task is refused (404) and no tag is written', async () => {
+    const setResourceTag = mock(store.setResourceTag);
+    await expect(
+      setConfirmLinkResourceVisibility(
+        { resourceId: 2, externalPublic: true },
+        {
+          store: { ...store, setResourceTag },
+          readResourceOwner: async () => ({ id: 2, taskId: null }),
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404, code: 'resource_not_found' });
+    expect(setResourceTag).not.toHaveBeenCalled();
+  });
+
+  test('an existing task resource is tagged with exactly one write', async () => {
+    const setResourceTag = mock(store.setResourceTag);
+    const res = await setConfirmLinkResourceVisibility(
+      { resourceId: 2, externalPublic: true },
+      {
+        store: { ...store, setResourceTag },
+        readResourceOwner: async () => ({ id: 2, taskId: 7 }),
+      },
+    );
+    expect(res).toEqual({ resourceId: 2, externalPublic: true });
+    expect(setResourceTag).toHaveBeenCalledTimes(1);
+    expect((await store.getResourceTags())['2']).toEqual(['external_public']);
   });
 });

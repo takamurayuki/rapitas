@@ -11,7 +11,11 @@ import { applyQuestionAnswerByKind } from '../../../routes/workflow/handlers/wor
 import { triggerReExecutionAfterAnswer } from '../../../routes/workflow/handlers/workflow-handlers-resume-redispatch';
 import { releaseHaltOnHumanAnswer } from '../halt-release';
 import { readWorkflowFile } from '../workflow-file-utils';
-import { appendConfirmLinkAudit } from './confirm-link-audit';
+import {
+  appendConfirmLinkAudit,
+  pruneTaskOrphanAudits,
+  removeConfirmLinkAudit,
+} from './confirm-link-audit';
 import type { ConfirmLinkResourceRow } from './confirm-link-resources';
 import { createConfirmLinkStore, getDefaultConfirmLinkDir } from './confirm-link-store';
 import { resolveConfirmLinkSecret } from './confirm-link-token';
@@ -25,8 +29,9 @@ import type { ConfirmLinkServiceDeps } from './confirm-link-types';
  */
 export function createDefaultConfirmLinkDeps(): ConfirmLinkServiceDeps {
   const dir = getDefaultConfirmLinkDir();
+  const store = createConfirmLinkStore({ dir });
   return {
-    store: createConfirmLinkStore({ dir }),
+    store,
     secret: resolveConfirmLinkSecret(),
     publicOrigin: process.env.RAPITAS_CONFIRM_LINK_PUBLIC_ORIGIN?.trim() || null,
     readTaskSnapshot: async (taskId) => {
@@ -62,5 +67,13 @@ export function createDefaultConfirmLinkDeps(): ConfirmLinkServiceDeps {
     releaseHalt: releaseHaltOnHumanAnswer,
     triggerReExecution: triggerReExecutionAfterAnswer,
     appendAudit: (entry) => appendConfirmLinkAudit(entry, { dir }),
+    removeAudit: (id) => removeConfirmLinkAudit(id, { dir }),
+    pruneOrphanAudits: async (taskId) => {
+      await pruneTaskOrphanAudits(taskId, store, { dir });
+    },
+    // Workspace-scoped like resolveAuthorizedAttachment (routes/tasks/resources.ts):
+    // another workspace's or a missing resource reads as null.
+    readResourceOwner: (resourceId) =>
+      prisma.resource.findFirst({ where: { id: resourceId }, select: { id: true, taskId: true } }),
   };
 }

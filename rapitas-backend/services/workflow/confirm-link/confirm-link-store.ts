@@ -28,6 +28,11 @@ export interface ConfirmLinkRecord {
   pauseTransitionId: number;
   questionId: string;
   optionKeys: string[];
+  /**
+   * SHA-256 of question.md at issue time. A re-saved question no longer
+   * matches, so the old link cannot answer a new decision. / 発行時の質問の版
+   */
+  questionDigest: string;
   /** Request text the issuer typed; question.md itself is never shown. / 依頼文 */
   message: string;
   issuedAt: number;
@@ -114,11 +119,14 @@ export function createConfirmLinkStore(options: ConfirmLinkStoreOptions): Confir
   };
 
   /** Read-modify-write one link under the lock; `mutate` returns false to skip the write. */
-  const update = (linkId: string, mutate: (link: ConfirmLinkRecord) => boolean) =>
+  const update = (
+    linkId: string,
+    mutate: (link: ConfirmLinkRecord, links: ConfirmLinkRecord[]) => boolean,
+  ) =>
     withLock(dir, async () => {
       const links = await readLinks();
       const link = links.find((l) => l.linkId === linkId);
-      if (!link || !mutate(link)) return false;
+      if (!link || !mutate(link, links)) return false;
       await writeLinks(links);
       return true;
     });
@@ -161,9 +169,16 @@ export function createConfirmLinkStore(options: ConfirmLinkStoreOptions): Confir
       });
     },
     release: async (linkId) => {
-      await update(linkId, (l) => {
+      await update(linkId, (l, links) => {
         if (l.state !== 'answering') return false;
-        l.state = 'active';
+        // A newer link for the task was issued while this one was reserved:
+        // reopening it would leave two usable links for one decision (Q3).
+        if (links.some((o) => o.taskId === l.taskId && o.issuedAt > l.issuedAt)) {
+          l.state = 'revoked';
+          l.revokedReason = 'reissued';
+        } else {
+          l.state = 'active';
+        }
         return true;
       });
     },

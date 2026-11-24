@@ -7,6 +7,7 @@
  * question_already_answered).
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { createHash } from 'crypto';
 
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 const mockFindFirstTransition = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
@@ -616,6 +617,42 @@ describe('applyQuestionAnswerByKind — expectedPauseTransitionId (task 1430)', 
     const result = await applyQuestionAnswerByKind({
       ...BASE_PARAMS,
       expectedPauseTransitionId: 7,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('applyQuestionAnswerByKind — expectedQuestionDigest (task 1430)', () => {
+  const PAUSE = { id: 7, cause: 'file_saved:question', fromStatus: 'in_progress', metadata: {} };
+  const digest = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
+
+  test('a re-saved question.md rejects with question_outdated and no state change', async () => {
+    mockFindFirstTransition.mockResolvedValue(PAUSE);
+    mockReadWorkflowFile.mockResolvedValue('# 差し替え後の質問');
+
+    const err = await applyQuestionAnswerByKind({
+      ...BASE_PARAMS,
+      expectedPauseTransitionId: 7,
+      expectedQuestionDigest: digest('# 元の質問'),
+    })
+      .then(() => null)
+      .catch((e: { code?: string }) => e);
+
+    expect(err?.code).toBe('question_outdated');
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+  });
+
+  test('the same question.md version applies the answer', async () => {
+    mockFindFirstTransition.mockResolvedValue(PAUSE);
+    mockReadWorkflowFile.mockResolvedValue('# 元の質問');
+
+    const result = await applyQuestionAnswerByKind({
+      ...BASE_PARAMS,
+      expectedPauseTransitionId: 7,
+      expectedQuestionDigest: digest('# 元の質問'),
     });
 
     expect(result.ok).toBe(true);

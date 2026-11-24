@@ -25,6 +25,7 @@ import type { WorkflowStatus } from '../../../services/workflow/workflow-types';
 import { applyIntakeQuestionAnswerLocked, type AnswerSelection } from './workflow-handlers-resume';
 import { applyResumeFromQuestionAnswerLocked } from './workflow-handlers-resume-continuation';
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import { computeQuestionDigest } from '../../../services/workflow/confirm-link/confirm-link-question';
 import {
   parseQuestionOptionsBlock,
   resolvePlanRevisionSelection,
@@ -76,6 +77,8 @@ export interface ApplyQuestionAnswerByKindParams {
    * the latest pause differs, reject with `question_outdated`. / 捕捉した質問の遷移ID
    */
   expectedPauseTransitionId?: number;
+  /** SHA-256 of the question.md the caller showed; a re-save rejects. / 捕捉した質問の版 */
+  expectedQuestionDigest?: string;
 }
 
 const VALID_KINDS = new Set<QuestionKind>([
@@ -355,6 +358,12 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   const expectedPause = params.expectedPauseTransitionId;
   if (expectedPause !== undefined && target.id !== expectedPause) {
     throw new ConflictError('この質問は既に別の質問に置き換わっています', 'question_outdated');
+  }
+  if (params.expectedQuestionDigest !== undefined) {
+    const current = await readWorkflowFile(taskId, 'question');
+    if (current === null || computeQuestionDigest(current) !== params.expectedQuestionDigest) {
+      throw new ConflictError('この質問は既に別の質問に置き換わっています', 'question_outdated');
+    }
   }
 
   const meta = readQuestionMetadata(target.metadata);

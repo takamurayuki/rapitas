@@ -18,13 +18,16 @@ import {
   CONFIRM_LINK_PUBLIC_HEADERS,
   renderConfirmLinkPage,
 } from '../../../services/workflow/confirm-link/confirm-link-page';
-import { listIssuerResources } from '../../../services/workflow/confirm-link/confirm-link-resources';
+import {
+  listIssuerResources,
+  setConfirmLinkResourceVisibility,
+} from '../../../services/workflow/confirm-link/confirm-link-resources';
 import {
   findConfirmLinkResource,
   issueConfirmLink,
   loadConfirmLinkView,
-  submitConfirmLinkAnswer,
 } from '../../../services/workflow/confirm-link/confirm-link-service';
+import { submitConfirmLinkAnswer } from '../../../services/workflow/confirm-link/confirm-link-submit';
 import {
   ConfirmLinkError,
   type ConfirmLinkPageResult,
@@ -132,9 +135,14 @@ export function createConfirmLinkRoutes(getDeps: DepsProvider, now: () => number
           set.status = 400;
           return { error: 'externalPublic must be a boolean' };
         }
-        const deps = await getDeps();
-        await deps.store.setResourceTag(Number(params.resourceId), externalPublic);
-        return { resourceId: Number(params.resourceId), externalPublic };
+        try {
+          return await setConfirmLinkResourceVisibility(
+            { resourceId: Number(params.resourceId), externalPublic },
+            await getDeps(),
+          );
+        } catch (err) {
+          return issueErrorBody(err, set);
+        }
       },
     )
     .get('/public/confirm-links/:token', async ({ params, set }) => {

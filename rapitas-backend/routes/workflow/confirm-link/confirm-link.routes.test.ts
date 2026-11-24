@@ -93,6 +93,9 @@ beforeEach(() => {
     releaseHalt: async () => false,
     triggerReExecution: async () => {},
     appendAudit: async () => {},
+    removeAudit: async () => {},
+    pruneOrphanAudits: async () => {},
+    readResourceOwner: async (id) => (id === 11 ? { id: 11, taskId: 1 } : null),
   };
 });
 afterEach(() => {
@@ -187,5 +190,18 @@ describe('confirm-link routes', () => {
     expect(body.links).toHaveLength(1);
     expect(JSON.stringify(body.links)).not.toContain('v1.');
     expect(body.resources).toEqual([{ id: 11, title: '社内限定資料', externalPublic: true }]);
+  });
+  test('a visibility PUT for a resource that does not exist is 404 and writes no tag', async () => {
+    const setResourceTag = mock(deps.store.setResourceTag);
+    deps.store = { ...deps.store, setResourceTag };
+    const res = await app().handle(
+      new Request('http://localhost/workflow/confirm-links/resources/999/visibility', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'x-rapitas-source': 'ui' },
+        body: JSON.stringify({ externalPublic: true }),
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(setResourceTag).not.toHaveBeenCalled();
   });
 });
