@@ -33,6 +33,27 @@ describe('isResolvedFailureLine', () => {
   ])('keeps a current failure detectable: %s', (line) => {
     expect(isResolvedFailureLine(line)).toBe(false);
   });
+
+  // 2026-11-24: TempoRaid task 1347's passing report recorded that pnpm refused
+  // the worktree's junctioned node_modules and the verifier ran the same check
+  // directly instead. The honesty gate read the row's "exit 1" as a hidden
+  // failure and bounced it. A refusal by the environment with the workaround
+  // named on the same line is history; a refusal with no workaround is not.
+  test.each([
+    '| pnpm filter経由のPrisma validate | ジャンクション拒否、exit 1 | CLI直接検査へ切替 |',
+    '| pnpm -r test | ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH, exit 1 | パッケージ位置から vitest を直接実行 |',
+    '| pnpm --filter server test | junction refused, exit 1 | ran vitest directly instead |',
+  ])('treats an environment refusal with a named workaround as history: %s', (line) => {
+    expect(isResolvedFailureLine(line)).toBe(true);
+  });
+
+  test.each([
+    '| pnpm filter経由のテスト | ジャンクション拒否、exit 1 | |',
+    '| pnpm -r test | ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH, exit 1 | 直接実行に切替えたが依然として失敗 |',
+    '| e2e | exit 1 | 直接実行に切替 |',
+  ])('keeps a refusal with no workaround, or a plain failure, detectable: %s', (line) => {
+    expect(isResolvedFailureLine(line)).toBe(false);
+  });
 });
 
 describe('collectNonpassingRows', () => {
