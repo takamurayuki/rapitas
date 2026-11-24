@@ -15,6 +15,7 @@ import { useElapsedTime } from '@/hooks/common/useElapsedTime';
 import type { AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
 import {
   phaseOfStatus,
+  phaseSendBackLeft,
   progressFromWorkflowStatus,
   type ProgressStepState,
 } from './auto-run-progress.utils';
@@ -97,13 +98,8 @@ export function AutoRunProgressStrip({
     : null;
 
   // "検証 → 実装": the phase the latest send-back left and the one it redoes.
-  // research_done left means research had been reached, not the next phase.
   const rework = currentTask?.rework;
-  const fromPhase = rework
-    ? rework.lastFromStatus === 'research_done'
-      ? 'research'
-      : phaseOfStatus(rework.lastFromStatus, currentTask?.workflowMode)
-    : null;
+  const fromPhase = rework ? phaseSendBackLeft(rework, currentTask?.workflowMode) : null;
   const toPhase = rework ? phaseOfStatus(rework.lastToStatus, currentTask?.workflowMode) : null;
   const reworkRoute =
     rework && fromPhase && toPhase
