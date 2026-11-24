@@ -34,3 +34,35 @@ export function shellExitCodeSafetyRule(language: 'ja' | 'en'): string {
         '- Never append post-processing outside the wrapper either. `node ../scripts/run-checked.cjs -- "bunx tsc --noEmit" 2>&1 | tail -40` is forbidden. To reduce output, run `node ../scripts/run-checked.cjs --tail-lines 40 -- "bunx tsc --noEmit"` directly.\n' +
         '- `run-checked.cjs` can reject (exit 2) pipes, `;`, `&&`, or `||` only inside its command argument. It cannot detect an outer shell pipeline. If you already used a pipeline, do not use it as success evidence: confirm the original process has exited, then verify again without a pipe. For multiple steps, run each command separately and check every exit code.\n';
 }
+
+/**
+ * The probes the verifier runs on every task, handed to the implementer so the
+ * gaps they find are fixed in the first round instead of after a bounce.
+ *
+ * NOTE: Of the 79 repair bounces in the 7 days to 2026-11-24, about 25 were
+ * gaps the verifier found by trying inputs the implementer had not: empty or
+ * zero rows, boundaries, a stale async response after a restart, a failure
+ * part-way through (TempoRaid 1403, 1420, 1521, 506).
+ *
+ * @param language - Prompt language / プロンプトの言語
+ * @returns The self-check block / 自己点検の節
+ */
+export function implementerSelfCheckPrompt(language: 'ja' | 'en'): string {
+  return language === 'ja'
+    ? '\n### 渡す前の自己点検（検証者と同じ観点）\n' +
+        '- 検証者は、実装者が試していない入力を追加で試して漏れを見つけます（差し戻しの最多要因の一つ）。自己検証の前に、変更した関数・画面・API ごとに次の観点を当て、当てはまるものはテストを追加して確かめてください。\n' +
+        '  - 空・0件・null・未設定のとき（一覧が空、データが1件もない、値が無い）\n' +
+        '  - 境界の値（上限・下限ちょうど、1件だけ、同じ時刻・同じスコア）\n' +
+        '  - 順序と同時実行（非同期の応答が遅れて届く、再開始・再接続の後に古い応答が届く、2つの操作が重なる）\n' +
+        '  - 途中での失敗（DB・ファイル・外部呼び出しの失敗、一部だけ成功したとき、失敗した後に状態が残らないか）\n' +
+        '  - 再実行・冪等性（同じ操作を2回したとき、同じ入力の再取り込み）\n' +
+        '- 当てはまらない観点は省いてよい。最終サマリに「自己点検: 当てはめた観点 N件、追加したテスト M件」の1行を書いてください。\n'
+    : "\n### Self-check before handing off (the verifier's probes)\n" +
+        '- The verifier finds gaps by trying inputs the implementer did not (one of the top causes of repair bounces). Before self-verification, apply these probes to each function, screen or API you changed, and add a test for every one that applies:\n' +
+        '  - empty / zero rows / null / unset (an empty list, no data at all, a missing value)\n' +
+        '  - boundary values (exactly at a limit, a single item, equal timestamps or scores)\n' +
+        '  - ordering and concurrency (an async reply arriving late, a stale reply after a restart or reconnect, two operations overlapping)\n' +
+        '  - failure part-way through (a DB, file or external call that fails, partial success, no state left behind after a failure)\n' +
+        '  - re-run / idempotency (the same operation twice, re-importing the same input)\n' +
+        '- Skip probes that do not apply. End your final summary with one line: "self-check: N probes applied, M tests added".\n';
+}
