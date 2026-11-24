@@ -149,6 +149,52 @@ describe('AutoRunProgressStrip', () => {
     ).toBeTruthy();
   });
 
+  // 2026-11-24: task 1534 showed 「差し戻し 3回（実装 → 実装）」. A verify
+  // bounce is recorded as in_progress → plan_approved — verification runs while
+  // the status is still in_progress — so the route must come from the cause,
+  // not from the status the send-back left.
+  it.each([
+    ['verify_repair', 'in_progress', 'plan_approved'],
+    ['verify_repair', 'verify_done', 'plan_approved'],
+    ['ci_repair', 'completed', 'plan_approved'],
+  ])('reads a %s send-back from %s as leaving the verify phase', (cause, from, to) => {
+    renderTask({
+      workflowStatus: 'plan_approved',
+      workflowMode: 'standard',
+      rework: {
+        count: 3,
+        lastFromStatus: from,
+        lastToStatus: to,
+        lastCause: cause,
+        lastAt: '2026-11-24T13:41:00.000Z',
+      },
+    });
+    expect(
+      screen.getByText(
+        /autoRun\.progress\.reworkRoute\{"from":"autoRun\.progress\.steps\.verify","to":"autoRun\.progress\.steps\.implement"\}/,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('keeps the status-based route for a send-back with another cause', () => {
+    renderTask({
+      workflowStatus: 'research_done',
+      workflowMode: 'standard',
+      rework: {
+        count: 1,
+        lastFromStatus: 'plan_approved',
+        lastToStatus: 'research_done',
+        lastCause: 'plan_revision_requested',
+        lastAt: '2026-11-24T13:41:00.000Z',
+      },
+    });
+    expect(
+      screen.getByText(
+        /autoRun\.progress\.reworkRoute\{"from":"autoRun\.progress\.steps\.implement","to":"autoRun\.progress\.steps\.plan"\}/,
+      ),
+    ).toBeTruthy();
+  });
+
   it('shows no send-back for a task that only moved forward', () => {
     renderTask({ workflowStatus: 'in_progress', workflowMode: 'standard', rework: null });
     expect(screen.queryByText(/autoRun\.progress\.rework/)).toBeNull();

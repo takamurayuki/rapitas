@@ -63,6 +63,30 @@ export function phaseOfStatus(
   }
 }
 
+/** Send-back causes raised by the verify phase (and the CI checks after it). */
+const VERIFY_SEND_BACK_CAUSES = new Set(['verify_repair', 'ci_repair']);
+
+/**
+ * The phase a send-back left, for the "検証 → 実装" route.
+ *
+ * NOTE: Read from the cause first. Verification runs while the status is still
+ * in_progress, so a verify bounce is recorded as in_progress → plan_approved and
+ * the status alone read as 「実装 → 実装」 (task 1534, 2026-11-24).
+ *
+ * @param rework - The latest send-back / 直近の差し戻し
+ * @param workflowMode - Workflow mode / ワークフローのモード
+ * @returns The phase it left, or null when unknown / 差し戻し元の工程
+ */
+export function phaseSendBackLeft(
+  rework: { lastFromStatus: string; lastCause: string },
+  workflowMode: string | null | undefined,
+): ProgressStep | null {
+  if (VERIFY_SEND_BACK_CAUSES.has(rework.lastCause)) return 'verify';
+  // research_done left means research had been reached, not the next phase.
+  if (rework.lastFromStatus === 'research_done') return 'research';
+  return phaseOfStatus(rework.lastFromStatus, workflowMode);
+}
+
 /**
  * Build the strip's view of a task.
  *
