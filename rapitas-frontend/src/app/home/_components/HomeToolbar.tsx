@@ -73,23 +73,21 @@ export function HomeToolbar({
   const autoRunData = autoRunTheme?.isDevelopment ? autoRun.data : null;
   const autoRunStatus = autoRunData?.autoRun.status;
   const stripVisible = autoRunStatus === 'running' || autoRunStatus === 'paused';
-  // The band under the row: the strip (with the hidden filter merged in) or,
-  // with auto-run off, the hidden filter's line alone.
-  const bandVisible = stripVisible || !!filterScope;
 
   // NOTE: the row wraps instead of squeezing — at 390px the actions were
   // crushed into one-character-wide columns of vertical text. min-h-[62px] is
   // the due-today card's height: on a day with nothing due the card shrinks to
   // one line, and the row fell to the buttons' 38px, leaving them less room
   // above and below than on a day with the card (2026-11-16).
-  // With the progress strip under it, the row drops its bottom margin: the
-  // 62px floor already leaves 12px under the buttons, the same gap the strip
-  // keeps above the filters (2026-11-21).
+  // NOTE: The row keeps its 12px bottom margin even with the progress strip
+  // under it. Dropping it (2026-11-21) let the due-today card's bottom touch
+  // the strip; 12px matches the gap above the card, and the buttons get the
+  // same room below them (2026-11-25).
   return (
     <>
       <div
         data-testid="home-toolbar-row"
-        className={`${bandVisible ? 'mb-0' : 'mb-3'} flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2`}
+        className={`mb-3 flex min-h-[62px] flex-wrap items-center justify-between gap-x-4 gap-y-2`}
       >
         <div className="flex items-center gap-4">
           <TodayTaskProgressBar compact={true} className="w-60" />
