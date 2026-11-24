@@ -93,8 +93,11 @@ describe('bootstrapProjectDependencies — the normal path', () => {
     // The root is a real directory (pnpm 12 refuses a linked one); its entries link to main.
     expect(fs.lstatSync(path.join(worktree, 'node_modules')).isSymbolicLink()).toBe(false);
     expect(fs.lstatSync(path.join(worktree, 'node_modules', '.bin')).isSymbolicLink()).toBe(true);
-    expect(fs.readlinkSync(path.join(worktree, 'apps', 'web', 'node_modules'))).toBe(
-      path.join(root, 'apps', 'web', 'node_modules'),
+    // Package-level too: a real directory whose entries reach the main tree.
+    const pkgNm = path.join(worktree, 'apps', 'web', 'node_modules');
+    expect(fs.lstatSync(pkgNm).isSymbolicLink()).toBe(false);
+    expect(fs.readdirSync(pkgNm).filter((n) => !n.startsWith('.rapitas'))).toEqual(
+      fs.readdirSync(path.join(root, 'apps', 'web', 'node_modules')),
     );
     expect(fs.existsSync(path.join(worktree, 'node_modules', '.bin'))).toBe(true);
   });
@@ -214,8 +217,10 @@ describe('bootstrapProjectDependencies — the legacy path', () => {
     const result = await bootstrapProjectDependencies(worktree);
 
     expect(result.action).toBe('linked');
-    expect(fs.readlinkSync(path.join(worktree, 'web', 'node_modules'))).toBe(
-      path.join(root, 'web', 'node_modules'),
+    const pkgNm = path.join(worktree, 'web', 'node_modules');
+    expect(fs.lstatSync(pkgNm).isSymbolicLink()).toBe(false);
+    expect(fs.readdirSync(pkgNm).filter((n) => !n.startsWith('.rapitas'))).toEqual(
+      fs.readdirSync(path.join(root, 'web', 'node_modules')),
     );
   });
 

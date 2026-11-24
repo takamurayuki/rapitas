@@ -91,6 +91,35 @@ describe('removeWorktree with a managed root node_modules', () => {
     expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
   });
 
+  test('ワークスペースリンクを持つ worktree を消しても、メイン側の node_modules と packages/core が残る', async () => {
+    const main = join(root, 'main-tree');
+    const mainNm = join(main, 'apps', 'server', 'node_modules');
+    mkdirSync(join(main, 'packages', 'core'), { recursive: true });
+    writeFileSync(join(main, 'packages', 'core', 'index.ts'), 'main core');
+    mkdirSync(join(mainNm, 'zod'), { recursive: true });
+    writeFileSync(join(mainNm, 'zod', 'index.js'), 'z');
+    mkdirSync(join(mainNm, '@scope'), { recursive: true });
+    try {
+      fs.symlinkSync('../../../../packages/core', join(mainNm, '@scope', 'core'), 'dir');
+    } catch {
+      // Windows without symlink privilege: a junction resolves to the same place.
+      fs.symlinkSync(join(main, 'packages', 'core'), join(mainNm, '@scope', 'core'), 'junction');
+    }
+    mkdirSync(join(wt, 'packages', 'core'), { recursive: true });
+    writeFileSync(join(wt, 'packages', 'core', 'index.ts'), 'wt core');
+    expect(linkNodeModules(main, wt)).toEqual(['apps/server']);
+    expect(realpathSync(join(wt, 'apps', 'server', 'node_modules', '@scope', 'core'))).toBe(
+      realpathSync(join(wt, 'packages', 'core')),
+    );
+
+    expect(await removeWorktree(repo, wt, true, undefined, true)).toBe(true);
+
+    expect(existsSync(wt)).toBe(false);
+    expect(existsSync(join(main, 'packages', 'core', 'index.ts'))).toBe(true);
+    expect(existsSync(join(mainNm, 'zod', 'index.js'))).toBe(true);
+    expect(existsSync(join(mainNm, '@scope', 'core', 'index.ts'))).toBe(true);
+  });
+
   test('解除失敗後もマーカーを維持し、再試行時に残存リンクの削除を拒否する', async () => {
     const main = join(root, 'main-tree');
     mkdirSync(join(main, 'node_modules', 'pkg'), { recursive: true });
@@ -160,7 +189,8 @@ describe('removeWorktree with a managed root node_modules', () => {
       const rm = spyOn(fsPromises, 'rm').mockImplementation(async (path, options) => {
         if (String(path) === wt) {
           linkedBeforeFallback = existsSync(deepLink);
-          packageLinkedBeforeFallback = existsSync(packageLink);
+          // パッケージ配下も実ディレクトリ＋エントリ単位リンクなので、エントリで確かめる。
+          packageLinkedBeforeFallback = existsSync(join(packageLink, 'pkg'));
         }
         return originalRm(path, options);
       });

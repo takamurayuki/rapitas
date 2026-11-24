@@ -14,8 +14,8 @@ import {
   mkdirSync,
   readdirSync,
   readlinkSync,
+  realpathSync,
   rmSync,
-  symlinkSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createLogger } from '../../../../../config/logger';
@@ -28,7 +28,9 @@ import {
   managedRootIsUsable,
   removeLink,
   unlinkRootEntries,
+  type EntryResolver,
 } from './node-modules-root-entries';
+import { packagesNeedRelinkIn, workspaceResolver } from './node-modules-workspace-links';
 
 const logger = createLogger('git-operations/node-modules-link');
 
@@ -153,15 +155,33 @@ export function discoverInstalledDirs(source: string): string[] {
  * the root alone is not linked wholesale. An old whole-directory link is
  * replaced; a real install of the worktree's own is never touched.
  */
-function linkRoot(target: string, link: string, worktree: string): boolean {
+function linkManaged(
+  target: string,
+  link: string,
+  dir: string,
+  resolve: EntryResolver,
+  isPackage: boolean,
+): boolean {
   const existing = inspectLinkPath(link);
   if (existing === 'link') {
+    // A package-level link to somewhere other than the shared tree that still
+    // resolves is a project set up by an earlier version; keep it.
+    if (isPackage && !pointsAtShared(link, target) && holdsRealInstall(dir)) return true;
     if (!removeLink(link)) return false;
   } else if (existing === 'real') {
-    if (holdsRealInstall(worktree)) return false;
+    if (holdsRealInstall(dir)) return false;
     if (!removeCacheOnlyNodeModules(link)) return false;
   }
-  return linkRootEntries(target, link);
+  return linkRootEntries(target, link, resolve);
+}
+
+/** Whether `link` resolves to the shared `target` tree. */
+function pointsAtShared(link: string, target: string): boolean {
+  try {
+    return realpathSync(link) === realpathSync(target);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -179,39 +199,31 @@ function linkRoot(target: string, link: string, worktree: string): boolean {
  */
 export function linkNodeModules(source: string, worktree: string): string[] {
   const linked: string[] = [];
+  const resolve = workspaceResolver(source, worktree);
   for (const rel of discoverInstalledDirs(source)) {
     const target = join(source, rel, 'node_modules');
     const link = join(worktree, rel, 'node_modules');
-
-    if (rel === '') {
-      if (linkRoot(target, link, worktree)) linked.push(rel);
-      continue;
-    }
-
-    let existing = inspectLinkPath(link);
-    if (existing === 'link') {
-      if (holdsRealInstall(join(worktree, rel))) {
-        linked.push(rel);
-        continue;
-      }
-      if (!removeLink(link)) continue;
-      existing = 'absent';
-    }
-    if (existing === 'real' || existing === 'managed') {
-      if (holdsRealInstall(join(worktree, rel))) continue;
-      if (!removeCacheOnlyNodeModules(link)) continue;
-    }
-
     try {
-      mkdirSync(dirname(link), { recursive: true });
-      // 'junction' is honored on Windows (no admin needed), ignored on POSIX.
-      symlinkSync(target, link, 'junction');
-      linked.push(rel);
+      if (rel !== '') mkdirSync(dirname(link), { recursive: true });
+      if (linkManaged(target, link, join(worktree, rel), resolve, rel !== '')) linked.push(rel);
     } catch (err) {
       logger.warn({ err, link, target }, '[nodeModulesLink] Failed to link node_modules');
     }
   }
   return linked;
+}
+
+/**
+ * Whether a worktree's package-level node_modules still reaches the main
+ * checkout (one old junction, or a workspace link into the main tree), so a
+ * reused worktree must be re-linked.
+ *
+ * @param source - Project root / プロジェクトルート
+ * @param worktree - Worktree to check / 対象 worktree
+ * @returns Whether the packages must be re-linked / 張り直しが必要か
+ */
+export function packagesNeedRelink(source: string, worktree: string): boolean {
+  return packagesNeedRelinkIn(source, worktree, discoverInstalledDirs(source));
 }
 
 /**

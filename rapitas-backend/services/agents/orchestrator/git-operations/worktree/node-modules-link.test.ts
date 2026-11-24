@@ -194,7 +194,7 @@ describe('linkNodeModules', () => {
 
     expect(linked).toEqual(['', 'apps/web']);
     expect(linkState()).toBe('real');
-    expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
+    expect(linkState('apps/web')).toBe('real');
     // The binaries every lint/test/build command resolves through.
     expect(fs.existsSync(path.join(worktree, 'node_modules', '.bin'))).toBe(true);
   });
@@ -235,7 +235,7 @@ describe('linkNodeModules', () => {
     const linked = linkNodeModules(root, worktree).sort();
 
     expect(linked).toEqual(['', 'apps/web']);
-    expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
+    expect(linkState('apps/web')).toBe('real');
     expect(fs.existsSync(path.join(worktree, 'apps/web', 'node_modules', '.bin'))).toBe(true);
   });
 
@@ -309,7 +309,7 @@ describe('linkNodeModules', () => {
     }
   });
 
-  it('パッケージ配下の管理済み実ディレクトリを安全にjunctionへ戻す', () => {
+  it('パッケージ配下の管理済み実ディレクトリを再同期し共有先を壊さない', () => {
     install(root);
     const source = path.join(root, 'apps/web', 'node_modules');
     install(path.join(root, 'apps/web'));
@@ -319,7 +319,8 @@ describe('linkNodeModules', () => {
     expect(linkRootEntries(source, modules)).toBe(true);
 
     expect(linkNodeModules(root, worktree).sort()).toEqual(['', 'apps/web']);
-    expect(fs.lstatSync(modules).isSymbolicLink()).toBe(true);
+    expect(fs.lstatSync(modules).isSymbolicLink()).toBe(false);
+    expect(fs.lstatSync(path.join(modules, 'zod')).isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(path.join(source, '.modules.yaml'), 'utf8')).toBe('layoutVersion: 5\n');
     expect(fs.readFileSync(path.join(source, 'zod', 'keep.txt'), 'utf8')).toBe('共有依存');
   });
@@ -347,8 +348,9 @@ describe('linkNodeModules root shape (pnpm 12)', () => {
     const copy = fs.lstatSync(path.join(wtNm(), '.modules.yaml'));
     expect(copy.isFile() && !copy.isSymbolicLink()).toBe(true);
     expect(fs.readFileSync(path.join(wtNm(), '.modules.yaml'), 'utf8')).toBe('layoutVersion: 5\n');
-    // Package-level node_modules stay whole-directory junctions.
-    expect(linkState('apps/web')).toBe(`link->${path.join(root, 'apps', 'web', 'node_modules')}`);
+    // Package-level node_modules are real directories of links too, so a
+    // workspace link can point at the worktree.
+    expect(linkState('apps/web')).toBe('real');
     expect(fs.existsSync(path.join(wtNm(), '.pnpm', 'keep.txt'))).toBe(true);
   });
 

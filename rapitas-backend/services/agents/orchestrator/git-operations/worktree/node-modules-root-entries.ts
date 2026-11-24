@@ -89,11 +89,77 @@ export function isWorktreeLocal(name: string): boolean {
   return name.startsWith('.pnpm-task-run-state');
 }
 
+/** 共有先 `from` の代わりに向けるパスを返す（ワークスペースパッケージ用）。無ければ null。 */
+export type EntryResolver = (from: string) => string | null;
+
+/** `to` を `dest` への junction にする。既に同じ実体を指していれば何もしない。 */
+function linkDir(to: string, dest: string): boolean {
+  const have = lstatOrNull(to);
+  if (have?.isSymbolicLink()) {
+    if (fs.existsSync(to) && fs.realpathSync(to) === fs.realpathSync(dest)) return true;
+    if (!removeLink(to)) return false;
+  } else if (have) {
+    return true;
+  }
+  try {
+    fs.symlinkSync(dest, to, 'junction');
+  } catch (err) {
+    // 同時作成でも、期待した共有先へのリンクであることを確認する。
+    if (
+      (err as NodeJS.ErrnoException).code !== 'EEXIST' ||
+      !fs.lstatSync(to).isSymbolicLink() ||
+      fs.realpathSync(to) !== fs.realpathSync(dest)
+    )
+      throw err;
+  }
+  return true;
+}
+
+/** リンク先も含め、`@scope` の直下にワークスペースパッケージがあるか。 */
+function scopeHoldsWorkspace(from: string, resolve: EntryResolver): boolean {
+  if (!fs.statSync(from).isDirectory()) return false;
+  return fs.readdirSync(from).some((kid) => resolve(join(from, kid)) !== null);
+}
+
+/**
+ * `@scope` を実ディレクトリにし、直下を1段ずつリンクする。
+ *
+ * NOTE: スコープごと junction にすると、中の相対リンク
+ * (`@scope/core -> ../../../../packages/core`) がメイン側で解決される。
+ */
+function linkScope(from: string, to: string, resolve: EntryResolver): boolean {
+  const have = lstatOrNull(to);
+  if (have?.isSymbolicLink()) {
+    if (!removeLink(to)) return false;
+  } else if (have && !have.isDirectory()) {
+    return false;
+  }
+  fs.mkdirSync(to, { recursive: true });
+  const kids = fs.readdirSync(from);
+  let clean = true;
+  for (const kid of kids) {
+    const src = join(from, kid);
+    if (!fs.existsSync(src)) continue;
+    if (!fs.statSync(src).isDirectory()) continue;
+    if (!linkDir(join(to, kid), resolve(src) ?? src)) clean = false;
+  }
+  for (const name of fs.readdirSync(to)) {
+    const p = join(to, name);
+    if (!kids.includes(name) && lstatOrNull(p)?.isSymbolicLink() && !removeLink(p)) clean = false;
+  }
+  return clean;
+}
+
 /**
  * ディレクトリは junction、ファイルはコピーとして同期する。
  * ローカルの実ディレクトリと未記録ファイルは、余剰エントリの掃除で消さない。
+ * `resolve` が行き先を返したエントリ（と、それを含む `@scope`）は共有先ではなくそこへ向ける。
  */
-export function linkRootEntries(target: string, link: string): boolean {
+export function linkRootEntries(
+  target: string,
+  link: string,
+  resolve: EntryResolver = () => null,
+): boolean {
   let names: string[];
   const copies = new Set(managedRootCopies(link));
   try {
@@ -114,25 +180,10 @@ export function linkRootEntries(target: string, link: string): boolean {
       const src = fs.statSync(from);
       const have = lstatOrNull(to);
       if (src.isDirectory()) {
-        if (have?.isSymbolicLink()) {
-          if (fs.existsSync(to) && fs.realpathSync(to) === fs.realpathSync(from)) continue;
-          if (!removeLink(to)) {
-            clean = false;
-            continue;
-          }
-        } else if (have) {
-          continue;
-        }
-        try {
-          fs.symlinkSync(from, to, 'junction');
-        } catch (err) {
-          // 同時作成でも、期待した共有先へのリンクであることを確認する。
-          if (
-            (err as NodeJS.ErrnoException).code !== 'EEXIST' ||
-            !fs.lstatSync(to).isSymbolicLink() ||
-            fs.realpathSync(to) !== fs.realpathSync(from)
-          )
-            throw err;
+        if (name.startsWith('@') && (have?.isDirectory() || scopeHoldsWorkspace(from, resolve))) {
+          if (!linkScope(from, to, resolve)) clean = false;
+        } else if (!linkDir(to, (name.startsWith('@') ? null : resolve(from)) ?? from)) {
+          clean = false;
         }
       } else if (src.isFile()) {
         if (have && !have.isFile()) continue;
@@ -209,6 +260,20 @@ export function unlinkRootEntries(nodeModules: string): boolean {
   } catch (err) {
     logger.warn({ err, nodeModules }, '[nodeModulesLink] コピーの解除を完了できませんでした');
     return false;
+  }
+  try {
+    // リンク解除後に空になった @scope 実ディレクトリだけを非再帰で外す。
+    for (const name of fs.readdirSync(nodeModules)) {
+      if (name.startsWith('@') && lstatOrNull(join(nodeModules, name))?.isDirectory()) {
+        try {
+          fs.rmdirSync(join(nodeModules, name));
+        } catch {
+          // 中身が残っていれば worktree 自身のもの。消さない。
+        }
+      }
+    }
+  } catch {
+    // 一覧できなければ、下の rmdir も失敗するだけで害はない。
   }
   try {
     fs.rmdirSync(nodeModules);
