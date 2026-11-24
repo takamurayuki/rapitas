@@ -95,3 +95,36 @@ describe('createApiTokenGuard', () => {
     expect(res).toBeUndefined();
   });
 });
+
+describe('createApiTokenGuard — public confirm-link paths (task 1430)', () => {
+  beforeEach(resetEnv);
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  function statusFor(url: string, method = 'GET'): number | undefined {
+    process.env.RAPITAS_API_TOKEN = 'secret-token';
+    const guard = createApiTokenGuard()!;
+    return guard({ request: new Request(url, { method }) })?.status;
+  }
+
+  test.each([
+    ['GET', 'http://localhost:3001/public/confirm-links/v1.abc.123.sig'],
+    ['POST', 'http://localhost:3001/public/confirm-links/v1.abc.123.sig'],
+    ['GET', 'http://localhost:3001/public/confirm-links/v1.abc.123.sig/resources/42'],
+  ])('%s %s passes without the API token', (method, url) => {
+    expect(statusFor(url, method)).toBeUndefined();
+  });
+
+  test.each([
+    'http://localhost:3001/public/confirm-links/x/../../tasks',
+    'http://localhost:3001/public/confirm-links/x/resources/abc',
+    'http://localhost:3001/public/confirm-links/x/other',
+    'http://localhost:3001/public/confirm-links-evil/x',
+    'http://localhost:3001/public/confirm-links/',
+    'http://localhost:3001/workflow/tasks/1/confirm-links',
+    'http://localhost:3001/workflow/public/confirm-links/x',
+  ])('%s still requires the API token', (url) => {
+    expect(statusFor(url)).toBe(401);
+  });
+});

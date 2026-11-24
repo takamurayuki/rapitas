@@ -593,3 +593,32 @@ describe('applyQuestionAnswerByKind — criteria review question', () => {
     expect(mockApplyCriteriaReviewSelection).not.toHaveBeenCalled();
   });
 });
+
+describe('applyQuestionAnswerByKind — expectedPauseTransitionId (task 1430)', () => {
+  const PAUSE = { id: 7, cause: 'file_saved:question', fromStatus: 'in_progress', metadata: {} };
+
+  test('a caller-captured pause id that is no longer the latest rejects with question_outdated and no state change', async () => {
+    mockFindFirstTransition.mockResolvedValue(PAUSE);
+
+    const err = await applyQuestionAnswerByKind({ ...BASE_PARAMS, expectedPauseTransitionId: 6 })
+      .then(() => null)
+      .catch((e: { code?: string }) => e);
+
+    expect(err?.code).toBe('question_outdated');
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockApplyIntakeQuestionAnswerLocked).not.toHaveBeenCalled();
+  });
+
+  test('a matching pause id applies the answer as before', async () => {
+    mockFindFirstTransition.mockResolvedValue(PAUSE);
+
+    const result = await applyQuestionAnswerByKind({
+      ...BASE_PARAMS,
+      expectedPauseTransitionId: 7,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledTimes(1);
+  });
+});

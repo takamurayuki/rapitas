@@ -71,6 +71,11 @@ export interface ApplyQuestionAnswerByKindParams {
    * with `actor:'user'` on a task still in `awaiting_question`. / 停止の上書きを要求
    */
   stopOverride?: boolean;
+  /**
+   * Pause the caller captured earlier (task 1430's confirm link). When set and
+   * the latest pause differs, reject with `question_outdated`. / 捕捉した質問の遷移ID
+   */
+  expectedPauseTransitionId?: number;
 }
 
 const VALID_KINDS = new Set<QuestionKind>([
@@ -346,6 +351,10 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   });
   if (!target) {
     throw new NotFoundError('No pending question found for this task');
+  }
+  const expectedPause = params.expectedPauseTransitionId;
+  if (expectedPause !== undefined && target.id !== expectedPause) {
+    throw new ConflictError('この質問は既に別の質問に置き換わっています', 'question_outdated');
   }
 
   const meta = readQuestionMetadata(target.metadata);

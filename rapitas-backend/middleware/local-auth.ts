@@ -60,6 +60,13 @@ function tokenMatches(provided: string, expected: string): boolean {
 }
 
 /**
+ * Public confirm-link routes (task 1430). They authenticate themselves with an
+ * HMAC-signed token, so they are the only paths the API token guard lets
+ * through. Kept to this one anchored pattern so no other route is exposed.
+ */
+const PUBLIC_CONFIRM_LINK_PATH = /^\/public\/confirm-links\/[^/]+(\/resources\/\d+)?\/?$/;
+
+/**
  * Build the request-level token guard, or null when no token is configured
  * (the default loopback-only deployment, where the OS already scopes access
  * to local processes).
@@ -80,6 +87,7 @@ export function createApiTokenGuard():
 
   return ({ request }) => {
     if (request.method === 'OPTIONS') return undefined;
+    if (PUBLIC_CONFIRM_LINK_PATH.test(new URL(request.url).pathname)) return undefined;
 
     const header = request.headers.get('authorization');
     if (header?.startsWith('Bearer ') && tokenMatches(header.slice(7), token)) {
