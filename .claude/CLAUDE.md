@@ -226,7 +226,7 @@ Any status before `verify_done` (`draft` through `in_progress`) can move to
 | research.md | `research_done`                                                     |
 | question.md | `awaiting_question` (returns to the previous status once answered)  |
 | plan.md     | `plan_created` (awaiting approval)                                  |
-| verify.md   | `verify_done` (only when the verify gates pass)                     |
+| verify.md   | `verify_done` once the verify gates and the diff review pass (stays `in_progress` with a `verify_review_pending` transition while the review runs) |
 
 `completed` is NOT set by saving verify.md. It is set only after the
 commit / PR pipeline finishes what the task requires
