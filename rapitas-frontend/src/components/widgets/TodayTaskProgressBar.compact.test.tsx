@@ -74,6 +74,15 @@ describe('a day with nothing due', () => {
     expect(bar(container)).toBeNull();
   });
 
+  // 2026-11-25: bare text did not read as "nothing due"; it is drawn as an
+  // empty-state chip with a dashed border and a calendar-check.
+  it('shows the empty state as a dashed chip with an icon', () => {
+    renderBar({ totalCount: 0 });
+    const chip = screen.getByTestId('due-today-empty');
+    expect(chip.className).toContain('border-dashed');
+    expect(chip.querySelector('[data-testid="CalendarCheck-icon"]')).not.toBeNull();
+  });
+
   it('says what is still past due', () => {
     renderBar({ totalCount: 0, overdueCount: 2 });
     expect(screen.getByText('overdue:2')).toBeTruthy();

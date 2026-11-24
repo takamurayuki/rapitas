@@ -38,3 +38,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Combine` | 通知の種別「記憶の統合完了」（consolidation_completed。`NotificationBell`、#1510） |
 | `CalendarClock` | 通知の種別「予定のリマインダー」（schedule_reminder。`NotificationBell`、#1510。ヘッダ nav の予定導線と同じ「予定・時刻」概念の再利用） |
 | `FileWarning` | 通知の種別「矛盾の検出」（contradiction_detected。`NotificationBell`、#1510） |
+| `CalendarCheck` | 本日期限のタスクなし（ホームの `TodayTaskProgressBar` compact の空状態チップ。注: `Calendar`＝期限・日付の入力/表示、`CalendarClock`＝予定のリマインダー通知とは別概念） |
