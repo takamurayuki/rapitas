@@ -136,12 +136,20 @@ export async function preflightWorktree(
     // Imported on demand, not at module scope: this chain reaches a package
     // manager and the project's Prisma client, and the managed-setup path above
     // — which is every rapitas worktree — needs none of it.
-    const { worktreeHasUsableModules } = await import('./node-modules-link');
+    const { rootNeedsRelink, worktreeHasUsableModules } = await import('./node-modules-link');
     // Not existsSync: #1215's worktree HAD a node_modules, holding only pnpm's
     // store, which resolves nothing.
     // Root modules say nothing about web/node_modules, so only a root package
     // may stop here; linking an already-linked sub-package is a no-op.
-    if (hasPackageJson && worktreeHasUsableModules(worktreePath)) return;
+    // A usable root may still have a shape pnpm 12 refuses (one junction from
+    // before #1717, or a linked state directory); re-link those (2026-11-24).
+    if (
+      hasPackageJson &&
+      worktreeHasUsableModules(worktreePath) &&
+      !rootNeedsRelink(worktreePath)
+    ) {
+      return;
+    }
 
     const bootstrap =
       opts.bootstrap ??

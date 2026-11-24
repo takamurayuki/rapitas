@@ -169,3 +169,38 @@ describe('ルートエントリの安全解除', () => {
     expect(fs.readFileSync(join(notes, 'work.txt'), 'utf8')).toBe('作業データ');
   });
 });
+
+// 2026-11-24: TempoRaid のメインの node_modules には、メインで pnpm -r を
+// 走らせたときの .pnpm-task-run-state-v1 があった。#1717 はこれも junction に
+// したため、worktree の pnpm -r が同じ ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH で
+// 拒否された（今度は状態ディレクトリそのものがリンクだった）。
+describe('pnpm の状態ディレクトリは worktree ごとに持つ', () => {
+  it('メインの .pnpm-task-run-state-* をリンクしない', () => {
+    fs.mkdirSync(join(source, '.pnpm-task-run-state-v1'), { recursive: true });
+    expect(linkRootEntries(source, root)).toBe(true);
+    expect(fs.existsSync(join(root, '.pnpm-task-run-state-v1'))).toBe(false);
+    expect(fs.lstatSync(join(root, '.pnpm')).isSymbolicLink()).toBe(true);
+  });
+
+  it('既にリンクされた状態ディレクトリを外し、メイン側は残す', () => {
+    fs.mkdirSync(join(source, '.pnpm-task-run-state-v1'), { recursive: true });
+    fs.writeFileSync(join(source, '.pnpm-task-run-state-v1', 'state'), 'main');
+    fs.mkdirSync(root, { recursive: true });
+    fs.symlinkSync(
+      join(source, '.pnpm-task-run-state-v1'),
+      join(root, '.pnpm-task-run-state-v1'),
+      'junction',
+    );
+    expect(linkRootEntries(source, root)).toBe(true);
+    expect(fs.existsSync(join(root, '.pnpm-task-run-state-v1'))).toBe(false);
+    expect(fs.readFileSync(join(source, '.pnpm-task-run-state-v1', 'state'), 'utf8')).toBe('main');
+  });
+
+  it('worktree が自分で作った状態ディレクトリは消さない', () => {
+    expect(linkRootEntries(source, root)).toBe(true);
+    fs.mkdirSync(join(root, '.pnpm-task-run-state-v1'));
+    fs.writeFileSync(join(root, '.pnpm-task-run-state-v1', 'state'), 'local');
+    expect(linkRootEntries(source, root)).toBe(true);
+    expect(fs.readFileSync(join(root, '.pnpm-task-run-state-v1', 'state'), 'utf8')).toBe('local');
+  });
+});
