@@ -363,3 +363,54 @@ describe('runAdversarialDiffReview — DB jury lock and pre-apply re-check (desi
     expect(completionRecords().length).toBe(before);
   });
 });
+
+describe('runAdversarialDiffReview — review pending / reuse (task 1538)', () => {
+  beforeEach(() => {
+    appendedEvents.length = 0;
+    transitionCalls.length = 0;
+    storedVerifySha = 'sha-v2';
+    juryRun.stillBound = true;
+    mockReviewDiffAdversarially.mockClear();
+    mockUpdateMany.mockClear();
+    mockAttemptVerifyRepair
+      .mockReset()
+      .mockResolvedValue({ bounced: true, newStatus: 'plan_approved', attempt: 1 });
+  });
+
+  test('reuseReview があれば陪審を呼ばず、完了記録は残す', async () => {
+    mockFindUnique.mockReset().mockResolvedValue({ workflowStatus: 'verify_done' });
+    const reuseReview = { verdict: 'pass' as const, severity: 0, reasons: [], judged: true };
+    const out = await runAdversarialDiffReview({
+      ...buildParams(),
+      reuseReview: { ...reuseReview, diffFingerprint: 'fp-R' },
+    });
+    expect(mockReviewDiffAdversarially).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ verifyGateBlocked: false, staleVerifyRequest: false });
+    expect(completionRecords().at(-1)).toMatchObject({
+      diffFingerprint: 'fp-R',
+      outcome: 'passed',
+    });
+  });
+
+  test('reviewFromStatus=in_progress の FAIL は in_progress から差し戻す', async () => {
+    mockFindUnique.mockReset().mockResolvedValue({ workflowStatus: 'in_progress' });
+    mockReviewDiffAdversarially.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 80,
+      reasons: ['基準1を満たさない'],
+      diffFingerprint: 'fp-B',
+    });
+    const out = await runAdversarialDiffReview({
+      ...buildParams(),
+      reviewFromStatus: 'in_progress',
+    });
+    expect(mockAttemptVerifyRepair.mock.calls[0][1]).toBe('in_progress');
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 715, workflowStatus: 'in_progress' } }),
+    );
+    expect(out.newStatus).toBe('plan_approved');
+    expect(
+      transitionCalls.some((c) => (c as { toStatus?: string }).toStatus === 'verify_done'),
+    ).toBe(false);
+  });
+});
