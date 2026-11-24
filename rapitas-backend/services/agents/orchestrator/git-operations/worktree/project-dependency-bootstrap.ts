@@ -31,7 +31,8 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { join } from 'node:path';
+import { projectRootOf } from './node-modules-workspace-links';
 import { createLogger } from '../../../../../config/logger';
 import { linkNodeModules, worktreeHasUsableModules, holdsRealInstall } from './node-modules-link';
 import {
@@ -68,13 +69,7 @@ export interface BootstrapResult {
  * @param worktreePath - Worktree (or project) path / worktree のパス
  * @returns Owning project root, or the path itself when it is not a worktree / 所有プロジェクトのルート
  */
-export function projectRootOf(worktreePath: string): string {
-  for (const marker of [`${sep}.worktrees${sep}`, '/.worktrees/']) {
-    const idx = worktreePath.indexOf(marker);
-    if (idx > 0) return worktreePath.slice(0, idx);
-  }
-  return worktreePath;
-}
+export { projectRootOf };
 
 /** Fingerprint recorded by the last successful install in `dir`. */
 function recordedFingerprint(dir: string): string {

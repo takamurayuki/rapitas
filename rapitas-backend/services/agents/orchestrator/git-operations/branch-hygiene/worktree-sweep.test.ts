@@ -136,6 +136,34 @@ describe('sweepIdleWorktrees', () => {
     expect(existsSync(join(main, 'node_modules', '.modules.yaml'))).toBe(true);
   });
 
+  test('spares main node_modules and packages/core when the worktree holds a workspace link', async () => {
+    const dir = worktreeWithCommit('.worktrees/workspace', 'feature/workspace');
+    mergeIntoDevelop('feature/workspace');
+    const main = join(root, 'main-tree');
+    const mainNm = join(main, 'apps', 'server', 'node_modules');
+    mkdirSync(join(main, 'packages', 'core'), { recursive: true });
+    writeFileSync(join(main, 'packages', 'core', 'index.ts'), 'main core');
+    mkdirSync(join(mainNm, 'zod'), { recursive: true });
+    writeFileSync(join(mainNm, 'zod', 'index.js'), 'z');
+    mkdirSync(join(mainNm, '@scope'), { recursive: true });
+    try {
+      symlinkSync('../../../../packages/core', join(mainNm, '@scope', 'core'), 'dir');
+    } catch {
+      // Windows without symlink privilege: a junction resolves to the same place.
+      symlinkSync(join(main, 'packages', 'core'), join(mainNm, '@scope', 'core'), 'junction');
+    }
+    mkdirSync(join(dir, 'packages', 'core'), { recursive: true });
+    expect(linkNodeModules(main, dir)).toEqual(['apps/server']);
+
+    const result = await sweepIdleWorktrees(repo, { lookupPrs, now: LATER(), idleMs: HOUR });
+
+    expect(result.removed).toEqual([dir.replace(/\\/g, '/')]);
+    expect(existsSync(dir)).toBe(false);
+    expect(existsSync(join(main, 'packages', 'core', 'index.ts'))).toBe(true);
+    expect(existsSync(join(mainNm, 'zod', 'index.js'))).toBe(true);
+    expect(existsSync(join(mainNm, '@scope', 'core', 'index.ts'))).toBe(true);
+  });
+
   test('keeps a worktree with uncommitted work', async () => {
     const dir = worktreeWithCommit('.worktrees/dirty', 'feature/dirty');
     mergeIntoDevelop('feature/dirty');

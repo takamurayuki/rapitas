@@ -311,3 +311,73 @@ describe('a root node_modules built as a real directory of junctions', () => {
     expect(isLinkSkeleton(dir)).toBe(false);
   });
 });
+
+describe('管理下パッケージのワークスペースリンクを持つ骨組み', () => {
+  /** git が追跡済みソースを除去した後の、実スコープとリンクの残骸を作る。 */
+  function workspaceSkeleton(): { main: string; dir: string; scope: string } {
+    const main = join(root, 'workspace-main');
+    const dir = join(root, 'workspace-leftover');
+    for (const tree of [main, dir]) {
+      mkdirSync(join(tree, 'packages', 'core'), { recursive: true });
+      mkdirSync(join(tree, 'apps', 'server'), { recursive: true });
+      writeFileSync(join(tree, 'packages', 'core', 'index.ts'), tree === main ? 'main' : 'branch');
+    }
+    const mainModules = join(main, 'apps', 'server', 'node_modules');
+    mkdirSync(join(main, 'node_modules', 'zod'), { recursive: true });
+    writeFileSync(join(main, 'node_modules', 'zod', 'index.js'), 'dependency');
+    mkdirSync(join(mainModules, '@scope'), { recursive: true });
+    symlinkSync(join(main, 'packages', 'core'), join(mainModules, '@scope', 'core'), 'junction');
+    expect(linkNodeModules(main, dir)).toEqual(['', 'apps/server']);
+
+    const scope = join(dir, 'apps', 'server', 'node_modules', '@scope');
+    expect(fs.lstatSync(scope).isDirectory()).toBe(true);
+    expect(fs.realpathSync(join(scope, 'core'))).toBe(
+      fs.realpathSync(join(dir, 'packages', 'core')),
+    );
+    // 追跡済みソースだけを除去し、node_modules と空のパッケージディレクトリを残す。
+    fs.unlinkSync(join(dir, 'packages', 'core', 'index.ts'));
+    return { main, dir, scope };
+  }
+
+  test.each(['リンクあり', '空スコープ'])(
+    '%s を削除してもメインの依存とソースを保持する',
+    (state) => {
+      const { main, dir, scope } = workspaceSkeleton();
+      if (state === '空スコープ') {
+        expect(detachLinksSafely(scope)).toBe(true);
+        expect(readdirSync(scope)).toEqual([]);
+      }
+
+      expect(isLinkSkeleton(dir)).toBe(true);
+      expect(removeLinkSkeleton(dir)).toBe(true);
+
+      expect(existsSync(dir)).toBe(false);
+      expect(fs.readFileSync(join(main, 'node_modules', 'zod', 'index.js'), 'utf8')).toBe(
+        'dependency',
+      );
+      expect(fs.readFileSync(join(main, 'packages', 'core', 'index.ts'), 'utf8')).toBe('main');
+      expect(
+        fs.readFileSync(
+          join(main, 'apps', 'server', 'node_modules', '@scope', 'core', 'index.ts'),
+          'utf8',
+        ),
+      ).toBe('main');
+    },
+  );
+
+  test('実スコープ内に未管理ファイルがあれば骨組み全体の削除を拒否する', () => {
+    const { main, dir, scope } = workspaceSkeleton();
+    const ownFile = join(scope, 'keep.txt');
+    writeFileSync(ownFile, '未保存の作業');
+
+    expect(isLinkSkeleton(dir)).toBe(false);
+    expect(removeLinkSkeleton(dir)).toBe(false);
+
+    expect(fs.readFileSync(ownFile, 'utf8')).toBe('未保存の作業');
+    expect(fs.lstatSync(join(scope, 'core')).isSymbolicLink()).toBe(true);
+    expect(fs.readFileSync(join(main, 'node_modules', 'zod', 'index.js'), 'utf8')).toBe(
+      'dependency',
+    );
+    expect(fs.readFileSync(join(main, 'packages', 'core', 'index.ts'), 'utf8')).toBe('main');
+  });
+});
