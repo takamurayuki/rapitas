@@ -10,6 +10,9 @@ describe('isDiffReviewPending', () => {
   it.each([
     ['in_progress', 'verify_review_pending', true],
     ['in_progress', 'adversarial_review_awaiting_human', true],
+    // A refused override leaves the hold in place (task 1538, F-2).
+    ['in_progress', 'adversarial_review_override_refused', true],
+    ['verify_done', 'adversarial_review_override_refused', false],
     ['verify_done', 'adversarial_review_awaiting_human', false],
     ['verify_done', 'verify_review_pending', false],
     ['in_progress', 'file_saved:verify', false],

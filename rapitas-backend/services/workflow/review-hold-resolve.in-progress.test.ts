@@ -62,17 +62,19 @@ mock.module('./transition-recorder', () => ({
     transitions.push(t);
   }),
 }));
+const TARGET = {
+  verifySha256: 'sha-1',
+  treeId: 'tree-1',
+  worktreePath: '/wt',
+  criteriaRevision: 'crit-1',
+};
+let overrideTarget: Record<string, unknown> = { ...TARGET };
 mock.module('./review-hold-records', () => ({
   parseHoldMetadata: (raw: unknown) => (typeof raw === 'string' ? JSON.parse(raw) : {}),
   readOverrideTarget: () => null,
   overrideTargetDrift: async () => null,
   appendHoldEvent: async () => {},
-  readCurrentOverrideTarget: async () => ({
-    verifySha256: 'sha-1',
-    treeId: 'tree-1',
-    worktreePath: '/wt',
-    criteriaRevision: 'crit-1',
-  }),
+  readCurrentOverrideTarget: async () => overrideTarget,
 }));
 mock.module('../task/task-criteria-revision', () => ({
   readCriteriaRevision: async () => 'crit-1',
@@ -96,7 +98,7 @@ mock.module('./publish/mark-latest-execution-failed', () => ({
 mock.module('./blocked-task-write', () => ({ writeBlockedTask: async () => {} }));
 mock.module('./workflow-file-utils', () => ({ readWorkflowFile: async () => '# verify' }));
 
-const { resolveReviewHold } = await import('./review-hold-resolve');
+const { resolveReviewHold, REVIEW_OVERRIDE_REFUSED_CAUSE } = await import('./review-hold-resolve');
 const { holdFromReview, holdForHumanReview } = await import('./review-hold');
 const { REVIEW_HOLD_HALT_REASON, REVIEW_HOLD_CAUSE, probeReviewHold } =
   await import('./review-hold-status');
@@ -116,6 +118,7 @@ beforeEach(() => {
   };
   statusWrites.length = 0;
   transitions.length = 0;
+  overrideTarget = { ...TARGET };
   publish.mockClear();
   repair.mockClear();
 });
@@ -214,5 +217,31 @@ describe('in_progress review hold', () => {
       haltReason: REVIEW_HOLD_HALT_REASON,
     });
     expect(statusWrites).not.toContain('verify_done');
+  });
+
+  test.each([
+    ['unbound', { missing: '公開処理が使う worktree が見つかりません' }],
+    ['criteria_changed_since', { ...TARGET, criteriaRevision: 'crit-2' }],
+  ] as const)('H-6: 上書きの拒否（%s）でも in_progress の保留は残る', async (reason, target) => {
+    overrideTarget = { ...target };
+    const r = await resolveReviewHold({
+      taskId: 1,
+      action: 'override',
+      resolvedBy: 'op',
+      publisher: PUBLISHER,
+    });
+    expect(r).toEqual({ ok: false, reason });
+    expect(row).toMatchObject({
+      workflowStatus: 'in_progress',
+      haltReason: REVIEW_HOLD_HALT_REASON,
+    });
+    expect(statusWrites).toEqual([]);
+    expect(publish).toHaveBeenCalledTimes(0);
+    expect(transitions.at(-1)).toMatchObject({
+      cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
+      fromStatus: 'in_progress',
+      toStatus: 'in_progress',
+    });
+    expect(REVIEW_OVERRIDE_REFUSED_CAUSE).toBe('adversarial_review_override_refused');
   });
 });

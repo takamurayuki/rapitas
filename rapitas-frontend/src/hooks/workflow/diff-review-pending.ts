@@ -7,10 +7,17 @@
  * newest transition cause tells them apart from plain verification.
  */
 
-/** Newest-transition causes that mean "the diff review is still deciding". */
+/**
+ * Newest-transition causes that mean "the diff review is still deciding".
+ * NOTE: Every cause the backend records on an `in_progress` task while the
+ * review is undecided, without changing its status, must be listed here —
+ * otherwise the label drops while the task is still held. A refused override
+ * (`REVIEW_OVERRIDE_REFUSED_CAUSE`, review-hold-resolve.ts) keeps the hold.
+ */
 const DIFF_REVIEW_PENDING_CAUSES = new Set([
   'verify_review_pending',
   'adversarial_review_awaiting_human',
+  'adversarial_review_override_refused',
 ]);
 
 /**
