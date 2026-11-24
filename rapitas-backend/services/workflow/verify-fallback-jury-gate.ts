@@ -13,7 +13,9 @@
  * performAutoCommitAndPR on that path.
  */
 import { prisma } from '../../config';
-import type { TransitionActor } from './transition-recorder';
+import { createLogger } from '../../config/logger';
+import { recordTransition, type TransitionActor } from './transition-recorder';
+import { writeBlockedTask } from './blocked-task-write';
 import type { WorkflowAdvanceResult } from './workflow-types';
 import {
   withTaskJuryGate,
@@ -30,14 +32,9 @@ import {
   type JuryRunHandle,
   type JuryRunSeen,
 } from './jury-review-run';
-import type { DiffReviewResult } from '../agents/verification/adversarial-diff-review-verdict';
-import { applyFallbackJuryFail } from './verify-fallback-jury-fail';
-import {
-  reusableUnderLock,
-  reuseStillCurrent,
-  type LockedReuse,
-} from './verify-fallback-jury-reuse';
-import { REVIEW_HOLD_HALT_REASON } from './review-hold-status';
+import { capFindingsForStorage } from '../agents/verification/review-findings';
+
+const log = createLogger('workflow-cli-executor');
 
 /** Same title shape verify-completion-gate.ts uses to skip the jury for conflict fixes. */
 const CONFLICT_RESOLUTION_TITLE_RE = /^PR #\d+ の競合を解消/;
@@ -99,19 +96,10 @@ async function runGateLocked(params: {
 }): Promise<FallbackJuryOutcome> {
   const { taskId, currentWfStatus } = params;
   const task = await prisma.task
-    .findUnique({
-      where: { id: taskId },
-      select: { title: true, githubPrId: true, haltReason: true, workflowStatus: true },
-    })
+    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
     .catch(() => null);
   if (task?.githubPrId != null && CONFLICT_RESOLUTION_TITLE_RE.test(task.title ?? '')) {
     return { stop: false, skipped: 'conflict_resolution' };
-  }
-  // A review held for a human (e.g. by the pending HTTP diff review at
-  // in_progress, task 1538) owns the next step: no second review or bounce.
-  if (task?.haltReason === REVIEW_HOLD_HALT_REASON) {
-    const phaseStatus = (task.workflowStatus ?? currentWfStatus) as WorkflowAdvanceResult['status'];
-    return { stop: true, phaseStatus };
   }
 
   // NOTE: The verifier-eligibility hold moved to the caller
@@ -160,18 +148,9 @@ async function runGateLocked(params: {
 
   // A real review runs under the DB lock (JuryReviewRun + Task.juryRunId,
   // design 4.5.1); the identifiers the run records are read after the lock.
-  // A reused verdict goes through the same lock, drift check and record.
   return withJuryRun(
     { taskId, source: 'cli_epilogue' },
-    async (run) =>
-      reviewAndApplyLocked(
-        {
-          ...params,
-          worktreePath,
-          reuse: await reusableUnderLock(taskId, worktreePath, run),
-        },
-        run,
-      ),
+    (run) => reviewAndApplyLocked({ ...params, worktreePath }, run),
     async () => ({
       stop: true,
       phaseStatus: await liveStatus(taskId, currentWfStatus),
@@ -198,17 +177,13 @@ async function reviewAndApplyLocked(
     worktreePath: string;
     actor: TransitionActor;
     sessionId: number;
-    /** Passing self-verify review of this exact diff, used instead of the jury. */
-    reuse?: LockedReuse;
   },
   run: JuryRunHandle,
 ): Promise<{ result: FallbackJuryOutcome; seen: JuryRunSeen }> {
   const { taskId, currentWfStatus, verifyContent, actor, sessionId, worktreePath } = params;
-  const callJury = () =>
-    import('../agents/verification/adversarial-diff-review')
-      .then(({ reviewDiffAdversarially }) => reviewDiffAdversarially({ taskId, worktreePath }))
-      .catch(() => null);
-  let review: DiffReviewResult | null = params.reuse?.review ?? (await callJury());
+  const { reviewDiffAdversarially } =
+    await import('../agents/verification/adversarial-diff-review');
+  const review = await reviewDiffAdversarially({ taskId, worktreePath }).catch(() => null);
   const seen = (outcome: 'passed' | 'stopped' | null): JuryRunSeen => ({
     diffFingerprint: review?.diffFingerprint ?? null,
     verdict: review?.verdict ?? null,
@@ -217,16 +192,11 @@ async function reviewAndApplyLocked(
   // Design 4.5.1: the run must still own the lock and the criteria / verify.md
   // must be what it started on before ANY of the verdict is applied —
   // otherwise it is discarded (task halted) and nothing proceeds, not even commit.
-  const stale = async () => ({
-    result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
-    seen: seen(null),
-  });
-  if (!(await confirmJuryRunStillBound(run, review))) return stale();
-  if (params.reuse && !(await reuseStillCurrent(taskId, worktreePath, run, params.reuse))) {
-    // NOTE: git can change after the lookup and the DB lock cannot prevent it
-    // (task 1538): the reused pass is no longer about this diff, so judge it.
-    review = await callJury();
-    if (!(await confirmJuryRunStillBound(run, review))) return stale();
+  if (!(await confirmJuryRunStillBound(run, review))) {
+    return {
+      result: { stop: true, phaseStatus: await liveStatus(taskId, currentWfStatus) },
+      seen: seen(null),
+    };
   }
   const complete = (outcome: 'passed' | 'stopped') =>
     review?.diffFingerprint && run.verifySha256 && run.criteriaRevision
@@ -267,14 +237,64 @@ async function reviewAndApplyLocked(
     return { result: { stop: false }, seen: seen('passed') };
   }
 
-  const failed = await applyFallbackJuryFail({
+  const reason = `差分レビュー不合格: ${
+    review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
+  }`;
+  const { attemptVerifyRepair } = await import('./verify-self-repair');
+  const { juryBounceGrounds } = await import('./repair-cause');
+  // Grounds ride on the bounce row (see verify-adversarial-review.ts).
+  const repair = await attemptVerifyRepair(
     taskId,
     currentWfStatus,
+    reason,
     verifyContent,
-    actor,
-    sessionId,
-    review,
-    complete,
-  });
-  return { result: failed.result, seen: seen(failed.seen) };
+    juryBounceGrounds(reason, capFindingsForStorage(review.findings)),
+  );
+  if (repair.stale) {
+    // The workflow moved past the evaluated status meanwhile — neither
+    // bounce nor block (same CAS rule as the hard-fail branch), and no
+    // completion record: this verdict was not acted on.
+    return {
+      result: { stop: true, phaseStatus: currentWfStatus as WorkflowAdvanceResult['status'] },
+      seen: seen(null),
+    };
+  }
+
+  const { markLatestExecutionFailed } = await import('./publish/mark-latest-execution-failed');
+  await markLatestExecutionFailed(taskId, reason);
+  let phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+  if (repair.bounced && repair.newStatus) {
+    phaseStatus = repair.newStatus as WorkflowAdvanceResult['status'];
+    log.warn(
+      { taskId, attempt: repair.attempt, severity: review.severity },
+      '[WorkflowCLIExecutor] Adversarial review FAILED on the epilogue path — bounced to implementer',
+    );
+  } else {
+    await writeBlockedTask(prisma, taskId).catch(() => {});
+    log.warn(
+      { taskId, severity: review.severity },
+      '[WorkflowCLIExecutor] Adversarial review FAILED on the epilogue path and repairs exhausted — blocked',
+    );
+  }
+  if (!repair.cutoffRecorded) {
+    await recordTransition({
+      taskId,
+      fromStatus: currentWfStatus,
+      toStatus: phaseStatus,
+      actor,
+      cause: 'adversarial_review_failed',
+      phase: 'verify',
+      sessionId,
+      metadata: {
+        severity: review.severity,
+        reasons: review.reasons.slice(0, 5),
+        findings: capFindingsForStorage(review.findings),
+        source: 'cli_epilogue',
+      },
+      invariantViolation: true,
+      invariantMessage: reason,
+    }).catch(() => {});
+  }
+  await complete('stopped');
+  return { result: { stop: true, phaseStatus }, seen: seen('stopped') };
 }

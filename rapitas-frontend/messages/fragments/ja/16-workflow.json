@@ -154,7 +154,6 @@
       "planCreated": "計画作成済",
       "implementing": "実装中",
       "verifying": "検証中",
-      "verifyingDiffReview": "検証中（差分レビュー）",
       "awaitingAnswer": "回答待ち",
       "blocked": "ブロック中",
       "blockedGenericHint": "タスクがブロックされています。通知一覧またはログで原因を確認してください。",

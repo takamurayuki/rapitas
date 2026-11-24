@@ -16,7 +16,6 @@ import { checkWorkflowInvariants } from '../../../../services/workflow/workflow-
 import { attemptInvariantCutoff } from '../../../../services/workflow/verify-invariant-repair';
 import { markLatestExecutionFailed, wasNonConvergenceCutoffJustRecorded } from './shared';
 import type { CompletionReviewReceipt } from '../../../../services/workflow/requirement-replan-commit';
-import type { VerifyReviewAdmission } from './verify-review-admission';
 import { parseQuestionOptionsBlock } from '../../../../services/workflow/question-options-parser';
 import { resolveExplicitOrDefaultKind } from '../../../../services/workflow/question-kind-resolver';
 import {
@@ -35,8 +34,6 @@ const log = createLogger('routes:workflow:handlers:files');
  */
 export interface StatusTransitionOutcome {
   completionReceipt?: CompletionReviewReceipt;
-  /** verify saves only: whether verify_done waits for the diff review (task 1538). */
-  admission?: VerifyReviewAdmission;
   newStatus?: string;
   researchCompleted: boolean;
   verifyRerunAlreadyDone: boolean;
@@ -57,7 +54,6 @@ export async function computeAndApplyStatusTransition(params: {
 }): Promise<StatusTransitionOutcome> {
   const { taskId, fileType, savedContent } = params;
   let completionReceipt: CompletionReviewReceipt | undefined;
-  let admission: VerifyReviewAdmission | undefined;
   let { currentStatus } = params;
   // Question saves may have waited behind a scheduler/answer decision. Never
   // use the caller's pre-lock snapshot to overwrite a terminal or held task.
@@ -104,30 +100,33 @@ export async function computeAndApplyStatusTransition(params: {
 
   log.info(`[Workflow] Processing fileType: ${fileType}, currentStatus: ${currentStatus}`);
 
-  // Research concluded the requirement is ALREADY satisfied (explicit "修正不要" verdict).
-  // Complete the task directly from research — no plan.md, no implementation, no verify — so
-  // already-done work doesn't get a duplicate PR. Only valid while still in the research phase.
-  // NOTE: hypothesis/decision ledger seeding moved INTO writeWorkflowFile (the universal save
-  // choke point) so the auto-run path — which writes via writeWorkflowFile directly, bypassing
-  // this API route — also fires it. writeWorkflowFile was already called above to persist
-  // savedContent.
+  // Research concluded the requirement is ALREADY satisfied (explicit
+  // "修正不要" verdict). Complete the task directly from research — no plan.md,
+  // no implementation, no verify — so already-done work doesn't get a
+  // duplicate PR. Only valid while still in the research phase.
+  // NOTE: hypothesis/decision ledger seeding moved INTO writeWorkflowFile (the
+  // universal save choke point) so the auto-run path — which writes via
+  // writeWorkflowFile directly, bypassing this API route — also fires it.
+  // writeWorkflowFile was already called above to persist savedContent.
   const researchCompleted = false;
   // True when a verify RE-RUN (ci_repair / verify_repair) reported a failure on
   // work that was ALREADY validated + PR'd — a false negative we complete instead
   // of looping. Marks the task done like researchCompleted does.
   let verifyRerunAlreadyDone = false;
-  // True when attemptVerifyRepair() already bounced the workflow (and recorded its OWN
-  // `verify_repair`-caused transition + task.update). Without this flag the generic
-  // `if (newStatus)` block below unconditionally re-runs BOTH the task.update and a SECOND
-  // `file_saved:verify` transition for the same save — recorded milliseconds after the real
-  // `verify_repair` one. That redundant transition becomes the newest row, so
-  // verify-self-repair.hasFreshVerifyRejection() (which only looks at the single most recent
-  // transition) no longer sees the bounce as fresh. The CLI executor's completion epilogue
-  // then fails to skip, re-validates the same verify.md on its own stale copy, hard-blocks
-  // the task, and a downstream watchdog resets it all the way to `draft` — silently
-  // discarding the research/plan/implementation work already done (observed live on task
-  // 415: verify_repair bounce → redundant file_saved:verify → epilogue hard-block →
-  // blocked_auto_retry → reset to draft).
+  // True when attemptVerifyRepair() already bounced the workflow (and recorded
+  // its OWN `verify_repair`-caused transition + task.update). Without this
+  // flag the generic `if (newStatus)` block below unconditionally re-runs
+  // BOTH the task.update and a SECOND `file_saved:verify` transition for the
+  // same save — recorded milliseconds after the real `verify_repair` one.
+  // That redundant transition becomes the newest row, so
+  // verify-self-repair.hasFreshVerifyRejection() (which only looks at the
+  // single most recent transition) no longer sees the bounce as fresh. The
+  // CLI executor's completion epilogue then fails to skip, re-validates the
+  // same verify.md on its own stale copy, hard-blocks the task, and a
+  // downstream watchdog resets it all the way to `draft` — silently
+  // discarding the research/plan/implementation work already done (observed
+  // live on task 415: verify_repair bounce → redundant file_saved:verify →
+  // epilogue hard-block → blocked_auto_retry → reset to draft).
   let verifyRepairBounced = false;
   // Parsed once and reused by the budget axis below and the kind resolution at
   // the end of this function — the same block answers both.
@@ -323,10 +322,10 @@ export async function computeAndApplyStatusTransition(params: {
         };
       }
     } else if (fileType === 'verify' && newStatus === 'verify_done') {
-      // NOTE: verify_done is written here only when nothing is left to review (task 1538).
-      const { admitVerifyForReview } = await import('./verify-review-admission');
-      admission = await admitVerifyForReview({ taskId, currentStatus, completionReceipt });
-      completionReceipt = admission.completionReceipt;
+      if (!completionReceipt) throw new Error('Missing server completion review receipt');
+      const { advanceReviewedVerify } =
+        await import('../../../../services/workflow/requirement-replan-commit');
+      completionReceipt = await advanceReviewedVerify(prisma, completionReceipt);
     } else
       await prisma.task.update({
         where: { id: taskId },
@@ -335,8 +334,9 @@ export async function computeAndApplyStatusTransition(params: {
         // (e9d608c1c) were removed so completion always passes the gates.
         data: { workflowStatus: newStatus, updatedAt: new Date() },
       });
-    // Record the transition + immediately verify invariants. We log violations but DO NOT
-    // throw — the file was already saved and rolling back would create a worse "ghost" state.
+    // Record the transition + immediately verify invariants. We log
+    // violations but DO NOT throw — the file was already saved on disk
+    // and rolling back would create a worse "ghost" state.
     const violations = await checkWorkflowInvariants(taskId);
     // Invariant non-convergence (task 755): a violation code that keeps
     // recurring across newStatus-confirm cycles used to be logged forever
@@ -395,7 +395,7 @@ export async function computeAndApplyStatusTransition(params: {
       await recordTransition({
         taskId,
         fromStatus: currentStatus ?? null,
-        toStatus: admission?.reviewPending ? (admission.reviewFromStatus ?? newStatus) : newStatus,
+        toStatus: newStatus,
         actor: 'system',
         cause: `file_saved:${fileType}`,
         phase: fileType,
@@ -453,6 +453,6 @@ export async function computeAndApplyStatusTransition(params: {
     researchCompleted,
     verifyRerunAlreadyDone,
     verifyRepairBounced,
-    ...(completionReceipt && newStatus === 'verify_done' ? { completionReceipt, admission } : {}),
+    ...(completionReceipt && newStatus === 'verify_done' ? { completionReceipt } : {}),
   };
 }

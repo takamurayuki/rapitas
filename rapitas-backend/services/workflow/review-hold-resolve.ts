@@ -78,13 +78,11 @@ export async function resolveReviewHold(p: {
   // NOTE: The override's binding is resolved BEFORE the hold is cleared, so an
   // override that cannot name what it covers leaves the task held.
   const bound = p.action === 'override' ? await resolveOverrideBinding(p.taskId) : null;
-  // in_progress = a pending diff review was held there (task 1538).
-  const heldStatus = hold.heldStatus ?? 'verify_done';
   if (bound && 'missing' in bound) {
     await recordTransition({
       taskId: p.taskId,
-      fromStatus: heldStatus,
-      toStatus: heldStatus,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
       actor: 'user',
       cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
       phase: 'verify',
@@ -101,8 +99,8 @@ export async function resolveReviewHold(p: {
   if (bound && hold.criteriaRevision && bound.target.criteriaRevision !== hold.criteriaRevision) {
     await recordTransition({
       taskId: p.taskId,
-      fromStatus: heldStatus,
-      toStatus: heldStatus,
+      fromStatus: 'verify_done',
+      toStatus: 'verify_done',
       actor: 'user',
       cause: REVIEW_OVERRIDE_REFUSED_CAUSE,
       phase: 'verify',
@@ -122,13 +120,7 @@ export async function resolveReviewHold(p: {
   }
   const { publisher, ...resolution } = p;
   if (
-    !(await clearReviewHold({
-      ...resolution,
-      hold,
-      ...(bound ? { target: bound.target } : {}),
-      // An override of an in_progress hold is the pass: release and promote in one CAS.
-      ...(bound && heldStatus === 'in_progress' ? { advanceTo: 'verify_done' as const } : {}),
-    }))
+    !(await clearReviewHold({ ...resolution, hold, ...(bound ? { target: bound.target } : {}) }))
   ) {
     return { ok: false, reason: 'cas_lost' };
   }
@@ -165,9 +157,8 @@ async function acceptHold(
   verifyContent: string,
 ): Promise<ReviewHoldResolution> {
   const reason = acceptedHoldReason(hold);
-  const heldStatus = hold.heldStatus ?? 'verify_done';
   const { attemptVerifyRepair } = await import('./verify-self-repair');
-  const repair = await attemptVerifyRepair(taskId, heldStatus, reason, verifyContent).catch(
+  const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, verifyContent).catch(
     () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
   );
   if (repair.stale) return { ok: true, action: 'accept', outcome: 'stale' };
@@ -179,8 +170,8 @@ async function acceptHold(
   if (!repair.cutoffRecorded) {
     await recordTransition({
       taskId,
-      fromStatus: heldStatus,
-      toStatus: bounced ? repair.newStatus! : heldStatus,
+      fromStatus: 'verify_done',
+      toStatus: bounced ? repair.newStatus! : 'verify_done',
       actor: 'user',
       cause: 'adversarial_review_failed',
       phase: 'verify',
@@ -198,7 +189,7 @@ async function acceptHold(
   log.info({ taskId, bounced }, '[review-hold] Hold accepted — findings sent to repair');
   return bounced
     ? { ok: true, action: 'accept', outcome: 'bounced', workflowStatus: repair.newStatus }
-    : { ok: true, action: 'accept', outcome: 'blocked', workflowStatus: heldStatus };
+    : { ok: true, action: 'accept', outcome: 'blocked', workflowStatus: 'verify_done' };
 }
 
 async function overrideHold(
