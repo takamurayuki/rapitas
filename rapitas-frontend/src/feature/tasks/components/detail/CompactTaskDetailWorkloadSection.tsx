@@ -7,6 +7,7 @@
  * the size limit; markup and behavior are unchanged.
  */
 'use client';
+import { useEffect, useRef } from 'react';
 import { type useTranslations } from 'next-intl';
 import { type Task } from '@/types';
 import { sumSubtaskActualHours } from '@/utils/subtask-hours';
@@ -45,13 +46,40 @@ export default function CompactTaskDetailWorkloadSection({
   const subtaskActualSum = sumSubtaskActualHours(task.subtasks);
   const actualFromSubtasks = subtaskActualSum !== null;
 
+  // NOTE: Due-date saves are ordered and de-duplicated. A pick saved the new
+  // date and leaving the field then saved `dueDateInput` — still the date from
+  // before the pick — as a second PATCH sent at the same time; whichever the
+  // backend handled last won, so a picked date was sometimes lost (2026-11-25).
+  const latestDueDate = useRef(dueDateInput);
+  const lastQueuedDueDate = useRef<string | null>(null);
+  const dueDateSaves = useRef<Promise<void> | null>(null);
+  useEffect(() => {
+    latestDueDate.current = dueDateInput;
+  }, [dueDateInput]);
+
   /**
-   * Store a due date, from the value given rather than from state.
+   * Store a due date after any save already in flight, skipping a repeat of
+   * the value queued last.
    *
    * @param value - `YYYY-MM-DDTHH:mm`, or '' to clear the date / 期限（空文字で解除）
    */
-  const saveDueDate = (value: string) =>
-    patchTask({ dueDate: value ? new Date(value).toISOString() : null });
+  const saveDueDate = (value: string) => {
+    latestDueDate.current = value;
+    if (value === lastQueuedDueDate.current) return;
+    lastQueuedDueDate.current = value;
+    const dueDate = value ? new Date(value).toISOString() : null;
+    // Sent at once when nothing is in flight; otherwise after the save before it.
+    const previous = dueDateSaves.current;
+    const save = previous ? previous.then(() => patchTask({ dueDate })) : patchTask({ dueDate });
+    dueDateSaves.current = save;
+    void save.finally(() => {
+      if (dueDateSaves.current === save) dueDateSaves.current = null;
+    });
+  };
+  const changeDueDate = (value: string) => {
+    latestDueDate.current = value;
+    setDueDateInput(value);
+  };
 
   // NOTE: Use local input state for the progress bar so it updates on keystroke,
   // not only after the parent re-fetches the task on blur.
@@ -142,12 +170,12 @@ export default function CompactTaskDetailWorkloadSection({
           <DateField
             withTime
             value={dueDateInput}
-            onChange={setDueDateInput}
-            // Both paths save the value they are handed rather than reading
-            // `dueDateInput`: on a pick that state still holds the previous
+            onChange={changeDueDate}
+            // Both paths save the latest value rather than the `dueDateInput`
+            // of this render: on a pick that state still holds the previous
             // render's date, so reading it would store the old one.
             onCommit={saveDueDate}
-            onBlur={() => saveDueDate(dueDateInput)}
+            onBlur={() => saveDueDate(latestDueDate.current)}
             aria-label={t('dueDate')}
             className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
           />
