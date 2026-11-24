@@ -119,6 +119,29 @@ describe('checkNoSelectionProgress', () => {
     expect(createNotificationMock).toHaveBeenCalled();
   });
 
+  // 2026-11-24: 通知のリンク `/themes/<id>` はフロントに存在しないページで、押すと 404
+  // だった。テーマ一覧で該当テーマの編集を開く `/themes?edit=<id>` を指す。
+  test.each([
+    ['前進していない', () => {}, 'reported'],
+    [
+      'park',
+      () =>
+        (themeTasks = [
+          { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: true },
+        ]),
+      'parked',
+    ],
+  ])('通知のリンクは実在するテーマ一覧のページを指す: %s', async (_label, arrange, outcome) => {
+    arrange();
+    await checkNoSelectionProgress(18, NOW);
+    expect(await checkNoSelectionProgress(18, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      outcome,
+    );
+    expect(createNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({ link: '/themes?edit=18' }),
+    );
+  });
+
   test.each([
     ['発行可能な待機項目がある', () => (waiters = { working: false, dispatchable: 1 })],
     ['エージェントが稼働中', () => (waiters = { working: true, dispatchable: 0 })],

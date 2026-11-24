@@ -137,7 +137,7 @@ describe('reportIntakeOutcome', () => {
       5_000,
     );
     const [args] = notifyOnceMock.mock.calls[0] as [Record<string, unknown>];
-    expect(args).toMatchObject({ link: '/themes/35', nowMs: 5_000 });
+    expect(args).toMatchObject({ link: '/themes?edit=35', nowMs: 5_000 });
     expect(String(args.title)).toContain('要件定義');
   });
 });

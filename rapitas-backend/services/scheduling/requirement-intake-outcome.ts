@@ -180,7 +180,9 @@ export async function reportIntakeOutcome(
   await notifyOncePerWindow({
     title,
     message: `テーマ #${outcome.themeId}: ${message}`,
-    link: `/themes/${outcome.themeId}`,
+    // NOTE: `/themes/<id>` has no frontend page (a 404); this opens the theme
+    // on the theme list (2026-11-24).
+    link: `/themes?edit=${outcome.themeId}`,
     metadata: { ...outcome, reason: `intake_${outcome.kind}` },
     nowMs,
   });
