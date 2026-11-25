@@ -9,7 +9,7 @@
 'use client';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, CheckCheck } from 'lucide-react';
+import { Trophy, CheckCheck, CalendarCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { withHeaderVisible } from '@/components/header/task-detail-link';
 
@@ -78,7 +78,19 @@ export default function TodayTaskProgressBarCompact({
       // to. A sentence sizes itself, and staying one line also keeps the
       // toolbar the same height whether or not anything is due today, so the
       // task list below does not jump when the theme changes.
-      <div className="relative">
+      // NOTE: An empty-state chip rather than bare text (asked for 2026-11-25):
+      // the sentence alone read as a stray label, not as "nothing is due". The
+      // dashed border is the app's empty-slot cue, and the calendar-check says
+      // the day's deadlines are clear without drawing the 0% bar removed above.
+      <div
+        data-testid="due-today-empty"
+        className="relative inline-flex items-center gap-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/40"
+      >
+        <CalendarCheck
+          size={15}
+          aria-hidden="true"
+          className="shrink-0 text-zinc-400 dark:text-zinc-500"
+        />
         <p className="whitespace-nowrap text-[12px] font-medium tracking-wide text-zinc-500 dark:text-zinc-400">
           {overdueCount > 0
             ? // Only the overdue half is emphasised. "Nothing due" is a status
