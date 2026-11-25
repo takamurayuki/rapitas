@@ -53,8 +53,12 @@ export function phaseOfStatus(
     case 'plan_created':
       return 'plan';
     case 'plan_approved':
-    case 'in_progress':
       return 'implement';
+    // NOTE: in_progress is verification, not implementation. The implementer
+    // runs while the task is plan_approved (research_done for lightweight), and
+    // its completion is what moves the task to in_progress; the verifier runs
+    // there. Mapping it to implement showed 実装中 during 検証 (2026-11-25).
+    case 'in_progress':
     case 'verify_done':
     case 'completed':
       return 'verify';

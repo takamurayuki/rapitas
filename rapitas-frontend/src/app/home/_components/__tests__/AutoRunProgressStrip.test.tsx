@@ -77,11 +77,20 @@ describe('AutoRunProgressStrip', () => {
   });
 
   it('marks the implement phase as current once the plan is approved', () => {
-    renderStrip('running', 'in_progress');
+    renderStrip('running', 'plan_approved');
     expect(stepState('research')).toBe('done');
     expect(stepState('plan')).toBe('done');
     expect(stepState('implement')).toBe('current');
     expect(stepState('verify')).toBe('pending');
+  });
+
+  // 2026-11-25: 「検証中なのに実装中になってしまっている」. The implementer runs
+  // while the task is plan_approved; finishing it is what moves the task to
+  // in_progress (356 of the recorded entries), and verification runs there.
+  it('marks the verify phase as current once implementation finished', () => {
+    renderStrip('running', 'in_progress');
+    expect(stepState('implement')).toBe('done');
+    expect(stepState('verify')).toBe('current');
   });
 
   it('shows the plan as waiting for approval', () => {
@@ -129,12 +138,12 @@ describe('AutoRunProgressStrip', () => {
   // A send-back restarts from where it was sent, even past a finished phase.
   it('shows a send-back and redoes the phases after it', () => {
     renderTask({
-      workflowStatus: 'in_progress',
+      workflowStatus: 'plan_approved',
       workflowMode: 'comprehensive',
       rework: {
         count: 2,
         lastFromStatus: 'verify_done',
-        lastToStatus: 'in_progress',
+        lastToStatus: 'plan_approved',
         lastCause: 'ci_repair',
         lastAt: '2026-11-21T00:00:00.000Z',
       },
