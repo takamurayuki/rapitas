@@ -11,6 +11,7 @@ import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { NotFoundError, ValidationError } from '../../../middleware/error-handler';
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import { runWithDirectSlotIfPaused } from '../../../services/workflow/workflow-direct-slot';
 import { persistPlanRevision } from '../../../services/workflow/plan-revision-persistence';
 import { isValidEntityId } from '../../../utils/common/id-validation';
 import { humanSourceLabel } from '../../../utils/common/human-source';
@@ -43,9 +44,18 @@ interface RevisePlanContext {
  */
 async function triggerPlannerRerun(taskId: number): Promise<void> {
   try {
+    // Same rule as the answered-question resume: a paused theme holds a real slot for this
+    // direct advance and is deferred when none is free (task 1535).
     const { WorkflowOrchestrator } =
       await import('../../../services/workflow/workflow-orchestrator');
-    const result = await WorkflowOrchestrator.getInstance().advanceWorkflow(taskId);
+    const outcome = await runWithDirectSlotIfPaused(taskId, () =>
+      WorkflowOrchestrator.getInstance().advanceWorkflow(taskId),
+    );
+    if (outcome.status === 'deferred') {
+      log.info({ taskId }, '[plan-revision] theme is paused and no slot is free — re-run deferred');
+      return;
+    }
+    const result = outcome.value;
     if (!result.success) {
       log.warn(
         { taskId, error: result.error },

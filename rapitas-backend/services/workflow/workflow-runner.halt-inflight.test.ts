@@ -21,7 +21,9 @@ mock.module('../../config/logger', () => ({
 }));
 
 /** Halt state the guard's own prisma lookup resolves to. */
-let haltRow: { haltReason: string | null } | null = null;
+let haltRow: { haltReason: string | null; themeId?: number | null } | null = null;
+/** ThemeAutoRun row the theme-pause guard resolves to (task 1535). */
+let themeRunRow: { status: string } | null = null;
 let haltLookupThrows = false;
 const haltFindUniqueMock = mock(() => {
   if (haltLookupThrows) return Promise.reject(new Error('db down'));
@@ -36,6 +38,7 @@ mock.module('../../config', () => ({
       findUnique: haltFindUniqueMock,
       update: mock(() => Promise.resolve({})),
     },
+    themeAutoRun: { findFirst: mock(() => Promise.resolve(themeRunRow)) },
     userSettings: { findFirst: mock(() => Promise.resolve(null)) },
   },
   ensureDatabaseConnection: () => Promise.resolve(),
@@ -166,6 +169,7 @@ function resetMocks(): void {
   dequeueSequence = [];
   resolveWorkflowStateSequence = [];
   haltRow = null;
+  themeRunRow = null;
   haltLookupThrows = false;
   advanceWorkflowImpl = () =>
     Promise.resolve({ success: true, role: 'researcher', status: 'plan_created', skipped: false });
@@ -296,4 +300,74 @@ describe('WorkflowRunner — halted task already in flight', () => {
 
     expect(advanceWorkflowMock).toHaveBeenCalledWith(QUEUE_ITEM.taskId);
   }, 7000);
+
+  test('paused theme: requeues the item and does not dispatch the next phase (task 1535)', async () => {
+    haltRow = { haltReason: null, themeId: 35 };
+    themeRunRow = { status: 'paused_user' };
+    resolveWorkflowStateSequence = [state({ workflowStatus: 'plan_approved' })];
+
+    const runner = WorkflowRunner.getInstance();
+    await runAndSettle(runner);
+
+    expect(advanceWorkflowMock).not.toHaveBeenCalled();
+    expect(
+      updateStatusMock.mock.calls.find((c) => c[0] === QUEUE_ITEM.id && c[1] === 'queued'),
+    ).toBeDefined();
+    expect(broadcastItemUpdateCalls).toContainEqual({
+      event: 'execution_requeued',
+      phase: 'plan_approved',
+    });
+  }, 7000);
+
+  test('running theme still dispatches its next phase', async () => {
+    haltRow = { haltReason: null, themeId: 35 };
+    themeRunRow = { status: 'running' };
+    resolveWorkflowStateSequence = [
+      state({ workflowStatus: 'plan_approved' }),
+      state({ workflowStatus: 'completed', status: 'done' }),
+    ];
+    advanceWorkflowImpl = () =>
+      Promise.resolve({
+        success: true,
+        role: 'implementer',
+        status: 'in_progress',
+        skipped: false,
+      });
+
+    const runner = WorkflowRunner.getInstance();
+    await runAndSettle(runner, 5000);
+
+    expect(advanceWorkflowMock).toHaveBeenCalledWith(QUEUE_ITEM.taskId);
+  }, 7000);
+
+  test('同じ項目: paused で queued に戻り、テーマ再開後に再 dequeue されると次フェーズを dispatch する', async () => {
+    haltRow = { haltReason: null, themeId: 35 };
+    themeRunRow = { status: 'paused_user' };
+    resolveWorkflowStateSequence = [state({ workflowStatus: 'plan_approved' })];
+
+    const runner = WorkflowRunner.getInstance();
+    await runAndSettle(runner);
+    expect(advanceWorkflowMock).not.toHaveBeenCalled();
+    expect(
+      updateStatusMock.mock.calls.find((c) => c[0] === QUEUE_ITEM.id && c[1] === 'queued'),
+    ).toBeDefined();
+
+    // テーマ再開: dequeue ガードが同じ queued 項目を running に戻して渡す
+    themeRunRow = { status: 'running' };
+    resolveWorkflowStateSequence = [
+      state({ workflowStatus: 'plan_approved' }),
+      state({ workflowStatus: 'completed', status: 'done' }),
+    ];
+    advanceWorkflowImpl = () =>
+      Promise.resolve({
+        success: true,
+        role: 'implementer',
+        status: 'in_progress',
+        skipped: false,
+      });
+    resetRunner();
+    await runAndSettle(WorkflowRunner.getInstance(), 5000);
+
+    expect(advanceWorkflowMock).toHaveBeenCalledWith(QUEUE_ITEM.taskId);
+  }, 12000);
 });

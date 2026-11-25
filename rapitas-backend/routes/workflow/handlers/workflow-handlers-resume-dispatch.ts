@@ -325,6 +325,8 @@ export function applyQuestionAnswerByKind(params: ApplyQuestionAnswerByKindParam
   ok: true;
   toStatus: WorkflowStatus;
   kind: QuestionAnswerKind;
+  /** Set when a paused theme had no free slot for the resume (task 1535). / 枠待ち */
+  waitingForSlot?: true;
 }> {
   return withTaskLifecycleLock(params.taskId, () => applyQuestionAnswerByKindLocked(params));
 }
@@ -334,6 +336,8 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   ok: true;
   toStatus: WorkflowStatus;
   kind: QuestionAnswerKind;
+  /** Set when a paused theme had no free slot for the resume (task 1535). / 枠待ち */
+  waitingForSlot?: true;
 }> {
   const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
 

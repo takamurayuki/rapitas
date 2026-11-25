@@ -22,6 +22,8 @@ import { hasLiveExecution } from './auto-run/auto-run-selection';
 import { resolveQueuedWaiters } from './queue-starvation-waiters';
 import { isCalendarHoldActive } from '../scheduling/calendar-slot/calendar-hold-state';
 import { classifyThemeWork } from './auto-run/auto-run-theme-parked';
+import { getGlobalAutoRunActiveCount } from './auto-run/auto-run-global-active-count';
+import { resolveAutoRunMaxConcurrency } from './auto-run/auto-run-concurrency';
 
 const log = createLogger('auto-run-no-selection-watch');
 
@@ -46,10 +48,14 @@ const sinceMs = new Map<number, number>();
 /** Themes already reported as parked in the CURRENT episode. */
 const parkedReported = new Set<number>();
 
+/** Themes already logged as waiting for a slot held by another theme in the CURRENT episode. */
+const slotWaitReported = new Set<number>();
+
 /** Reset the tracker. Test-only — never call from production code. */
 export function resetNoSelectionTracker(): void {
   sinceMs.clear();
   parkedReported.clear();
+  slotWaitReported.clear();
 }
 
 /**
@@ -60,6 +66,7 @@ export function resetNoSelectionTracker(): void {
 export function resetNoSelectionEpisode(themeId: number): void {
   sinceMs.delete(themeId);
   parkedReported.delete(themeId);
+  slotWaitReported.delete(themeId);
 }
 
 /** What the watch concluded for one theme. */
@@ -68,7 +75,8 @@ export type NoSelectionVerdict =
   | 'progressing'
   | 'below-threshold'
   | 'reported'
-  | 'parked';
+  | 'parked'
+  | 'slot-held-by-other-theme';
 
 /**
  * Decide whether a theme's "running with no current task" state is a stall.
@@ -120,8 +128,33 @@ export async function checkNoSelectionProgress(
   if (progressing) {
     sinceMs.delete(themeId);
     parkedReported.delete(themeId);
+    slotWaitReported.delete(themeId);
     return 'progressing';
   }
+
+  // Every global slot is in use by another theme: selection is correctly waiting its turn,
+  // which is neither a stall nor a human-wait (task 1535).
+  const slot = await readSlotState(themeId);
+  if (slot === 'unreadable') {
+    // Same policy as the progress signals above: an unreadable signal never manufactures a stall report.
+    sinceMs.delete(themeId);
+    return 'progressing';
+  }
+  if (slot === 'held') {
+    sinceMs.delete(themeId);
+    parkedReported.delete(themeId);
+    if (!slotWaitReported.has(themeId)) {
+      slotWaitReported.add(themeId);
+      logCycleEvent('theme.waiting_for_slot', {
+        theme: themeId,
+        ok: true,
+        cause: 'slot_held_by_other_theme',
+        msg: 'theme selected nothing because every global auto-run slot is used by another theme — waiting for a slot, not stalled',
+      });
+    }
+    return 'slot-held-by-other-theme';
+  }
+  slotWaitReported.delete(themeId);
 
   const anchor = sinceMs.get(themeId);
   if (anchor === undefined) {
@@ -172,6 +205,31 @@ export async function checkNoSelectionProgress(
   });
   await notifyOncePerWindow(themeId, stalledMinutes, nowMs);
   return 'reported';
+}
+
+/**
+ * Whether the global slots are full and none of them belongs to this theme.
+ *
+ * A read error is reported as `unreadable` so the caller treats it as progressing,
+ * matching the other progress signals (no notification from an unreadable state).
+ *
+ * @param themeId - Theme that selected nothing. / 対象テーマ
+ * @returns held when another theme uses every slot, free otherwise, unreadable on error. / 枠の状態
+ */
+async function readSlotState(themeId: number): Promise<'held' | 'free' | 'unreadable'> {
+  try {
+    const [active, concurrency] = await Promise.all([
+      getGlobalAutoRunActiveCount(prisma),
+      resolveAutoRunMaxConcurrency(prisma),
+    ]);
+    if (active < concurrency.limit) return 'free';
+    const own = await prisma.workflowQueueItem.count({
+      where: { themeId, status: { in: ['running', 'waiting_approval'] } },
+    });
+    return own === 0 ? 'held' : 'free';
+  } catch {
+    return 'unreadable';
+  }
 }
 
 /**

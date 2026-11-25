@@ -11,6 +11,7 @@
 
 import { createLogger } from '../../../config';
 import { resolveTaskThemeId } from '../../../services/task/task-resolver';
+import { startWithDirectSlotIfPaused } from '../../../services/workflow/workflow-direct-slot';
 import { WorkflowQueueService } from '../../../services/workflow/workflow-queue';
 import {
   getAutoRunState,
@@ -36,8 +37,12 @@ const log = createLogger('routes:workflow:resume');
  * best-effort and never undo the already persisted answer.
  *
  * @param taskId - Task whose question was just answered. / 回答されたタスクID
+ * @returns `waiting_slot` when a paused theme found no free global slot (the answer stays saved
+ *   and the task waits `queued`), otherwise `started`. / 枠待ちなら waiting_slot
  */
-export async function triggerReExecutionAfterAnswer(taskId: number): Promise<void> {
+export async function triggerReExecutionAfterAnswer(
+  taskId: number,
+): Promise<'started' | 'waiting_slot'> {
   try {
     const theme = await resolveTaskThemeId(taskId);
     const state = theme?.themeId ? await getAutoRunState(theme.themeId) : null;
@@ -46,15 +51,26 @@ export async function triggerReExecutionAfterAnswer(taskId: number): Promise<voi
       // scheduler instead; a successful claim also rebases lastRunAt so the
       // question's waiting time cannot trip the resumed run's hard ceiling.
       await triggerRedispatchAfterResume(taskId);
-      return;
+      return 'started';
     }
 
     // An answered workflow question must retain role selection and artifact
     // reuse. The generic execute route replays the task description instead.
+    // A paused theme has no queue item, so this direct advance holds a real slot
+    // (workflow-direct-slot) and is deferred when none is free (task 1535).
     const { WorkflowOrchestrator } =
       await import('../../../services/workflow/workflow-orchestrator');
-    void WorkflowOrchestrator.getInstance()
-      .advanceWorkflow(taskId)
+    const outcome = await startWithDirectSlotIfPaused(taskId, () =>
+      WorkflowOrchestrator.getInstance().advanceWorkflow(taskId),
+    );
+    if (outcome.status === 'deferred') {
+      log.info(
+        { taskId },
+        '[Workflow:Answer] Theme is paused and no slot is free — resume deferred to the queue',
+      );
+      return 'waiting_slot';
+    }
+    void outcome.done
       .then((result) => {
         if (!result.success)
           log.warn({ taskId, result }, '[Workflow:Answer] Workflow resume failed');
@@ -66,6 +82,7 @@ export async function triggerReExecutionAfterAnswer(taskId: number): Promise<voi
   } catch (err) {
     log.warn({ err, taskId }, '[Workflow:Answer] Auto re-run trigger failed (non-fatal)');
   }
+  return 'started';
 }
 
 /**
