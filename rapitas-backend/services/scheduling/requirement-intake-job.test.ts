@@ -266,6 +266,24 @@ describe('runRequirementIntakeJob', () => {
     expect(created).toHaveLength(0);
   });
 
+  // The reporter is injected so fixtures stay off the real notification table
+  // (the at-cap case timed out at 5 s); the job must still hand it the outcome.
+  it('hands the at-cap outcome to the injected reporter', async () => {
+    const { deps } = makeDeps({
+      themes: [{ id: 7, workingDirectory: '/p' }],
+      docs: { '/p': MANY_FEATURES },
+      unstarted: { 7: MAX_UNSTARTED_PER_THEME },
+    });
+    const reported: unknown[] = [];
+    deps.reportOutcome = async (outcome) => {
+      reported.push(outcome);
+    };
+    await runRequirementIntakeJob(deps);
+    expect(reported).toEqual([
+      expect.objectContaining({ themeId: 7, kind: 'throttled', filed: 0 }),
+    ]);
+  });
+
   it('files only the headroom when the theme is partly occupied', async () => {
     const { deps, created } = makeDeps({
       themes: [{ id: 7, workingDirectory: '/p' }],
