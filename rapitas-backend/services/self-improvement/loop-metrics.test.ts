@@ -137,3 +137,73 @@ describe('bucketTransitions diff-review sub-classification', () => {
     ).toBe(c.verify_repair_diff_review);
   });
 });
+
+describe('bucketTransitions bounce breakdown', () => {
+  const meta = (reason: string) => JSON.stringify({ reason });
+
+  it('adds per-kind counts (incl. other) and top tasks to each window', () => {
+    const rows = [
+      row(1, { cause: 'verify_repair', taskId: 10, metadata: meta('差分レビュー不合格: x') }),
+      row(1, { cause: 'verify_repair', taskId: 10, metadata: meta('ERR_PNPM_FETCH_404') }),
+      row(2, { cause: 'verify_repair', taskId: 11, metadata: meta('verify.md self-contradicts') }),
+      row(2, {
+        cause: 'ci_repair',
+        taskId: 11,
+        metadata: JSON.stringify({ failedChecks: ['lint'] }),
+      }),
+      row(2, { cause: 'verify_repair', taskId: 12, metadata: 'not json' }),
+    ];
+    const w = bucketTransitions(rows, NOW, 7, 1)[0]!;
+    expect(w.bounceKinds).toEqual({
+      verify_contradiction: 1,
+      diff_review: 1,
+      environment: 1,
+      plan_gap: 0,
+      implementation_gap: 0,
+      other: 2,
+    });
+    expect(w.topBounceTasks).toEqual([
+      { taskId: 10, count: 2 },
+      { taskId: 11, count: 2 },
+      { taskId: 12, count: 1 },
+    ]);
+    // Existing counters are untouched.
+    expect(w.counts.verify_repair_total).toBe(4);
+    expect(w.counts.ci_repair).toBe(1);
+  });
+
+  it('returns zeroed kinds and no tasks for an empty window', () => {
+    const w = bucketTransitions([], NOW, 7, 1)[0]!;
+    expect(Object.values(w.bounceKinds!).every((n) => n === 0)).toBe(true);
+    expect(w.topBounceTasks).toEqual([]);
+    expect(w.contradictionPatterns).toEqual([]);
+  });
+
+  it('本文の分類優先順と候補を現在窓だけに反映する', () => {
+    const rows = [
+      row(1, {
+        cause: 'verify_repair',
+        taskId: 1,
+        metadata: JSON.stringify({
+          reason: '自動検証に失敗しました（test=NG）',
+          verifyContent: 'ERR_PNPM_FETCH_404',
+        }),
+      }),
+      ...[1, 2, 3, 8].map((daysAgo) =>
+        row(daysAgo, {
+          cause: 'verify_repair',
+          metadata: JSON.stringify({ verifyContent: `self-contradicts run ${daysAgo}` }),
+        }),
+      ),
+      row(1, { cause: 'ci_repair', metadata: JSON.stringify({ failedChecks: ['EADDRINUSE'] }) }),
+    ];
+    const [current, previous] = bucketTransitions(rows, NOW, 7, 2);
+    expect(current!.bounceKinds!.environment).toBe(2);
+    expect(current!.contradictionPatterns).toEqual([
+      expect.objectContaining({ count: 3, sample: expect.stringContaining('self-contradicts') }),
+    ]);
+    expect(previous!.contradictionPatterns).toEqual([expect.objectContaining({ count: 1 })]);
+    expect(current!.topBounceTasks).toEqual([{ taskId: 1, count: 1 }]);
+    expect(current!.counts.verify_repair_auto_gate).toBe(1);
+  });
+});
