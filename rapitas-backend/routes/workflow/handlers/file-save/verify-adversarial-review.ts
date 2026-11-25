@@ -352,10 +352,7 @@ async function reviewAndApply(
       const { attemptVerifyRepair } =
         await import('../../../../services/workflow/verify-self-repair');
       const { juryBounceGrounds } = await import('../../../../services/workflow/repair-cause');
-      // NOTE: routing2a-fix1 — the findings ride on the bounce itself. The
-      // `adversarial_review_failed` row below is written only while the task
-      // is still verify_done, which a committed bounce never is, so routing
-      // used to see every HTTP jury bounce as ungrounded.
+      // 差し戻しでは、状態変更と根拠付きの verify_repair 遷移が同時に確定する。
       const repair = await attemptVerifyRepair(
         taskId,
         'verify_done',
@@ -363,18 +360,17 @@ async function reviewAndApply(
         savedContent,
         juryBounceGrounds(reason, capFindingsForStorage(activeReview.findings)),
       ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
-      // Compare-and-swap: this review runs an LLM jury synchronously and can
-      // take a while — a second, faster verify attempt (self-repair round, or
-      // a race) can legitimately complete and even merge the task before this
-      // verdict comes back. Applying it unconditionally would then stomp an
-      // already-completed/merged task back to plan_approved (observed: task
-      // 503 was rolled back ~40s after its PR had already merged). Skip the
-      // entire rollback — including verifyGateBlocked and the transition log —
-      // when the task has already moved off the status this review evaluated.
+      if (repair.bounced && repair.newStatus) {
+        return {
+          outcome: { newStatus: repair.newStatus, verifyGateBlocked: true, staleVerifyRequest },
+          deciding,
+        };
+      }
+      // 修復側の競合判定は、別の実行が同じ状態名に戻った場合も検出する。
       const liveTask = await prisma.task
         .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
         .catch(() => null);
-      if (liveTask?.workflowStatus !== 'verify_done') {
+      if (repair.stale || liveTask?.workflowStatus !== 'verify_done') {
         staleVerifyRequest = true;
         // Report what the task ACTUALLY is now (e.g. 'completed'), not the
         // 'verify_done' this stale evaluation was based on — the response
@@ -392,46 +388,12 @@ async function reviewAndApply(
         );
       } else {
         verifyGateBlocked = true;
-        if (repair.bounced && repair.newStatus) {
-          const rolled = await prisma.task
-            .updateMany({
-              where: { id: taskId, workflowStatus: 'verify_done' },
-              data: { workflowStatus: repair.newStatus },
-            })
-            .catch(() => ({ count: 0 }));
-          if (rolled.count === 0) {
-            log.warn(
-              { taskId, attempt: repair.attempt, severity: activeReview.severity },
-              '[Workflow] Adversarial review FAIL lost the compare-and-swap race — skipping rollback',
-            );
-          } else {
-            newStatus = repair.newStatus;
-            // Bounced ≠ this execution succeeded: the diff it produced was
-            // rejected, even though the workflow itself lives on for a retry
-            // (a fresh AgentExecution row is created for that). Without this,
-            // markLatestExecutionFailed only ran once repairs were exhausted,
-            // so a bounced-for-retry run kept showing 完了/success in the
-            // execution log while the task had just been rolled back.
-            await markLatestExecutionFailed(taskId, reason);
-            log.warn(
-              { taskId, attempt: repair.attempt, severity: activeReview.severity },
-              '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
-            );
-          }
-        } else {
-          // NOTE: this update was previously missing — the log claimed "task
-          // stays blocked" but task.status was never actually set, leaving
-          // the task looking untouched (status stuck at whatever it already
-          // was, e.g. 'todo') instead of clearly flagged for attention
-          // (task 504: workflowStatus stayed 'verify_done' with no PR/commit
-          // and status='todo', indistinguishable from a never-started task).
-          await writeBlockedTask(prisma, taskId).catch(() => {});
-          await markLatestExecutionFailed(taskId, reason);
-          log.warn(
-            { taskId, severity: activeReview.severity },
-            '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
-          );
-        }
+        await writeBlockedTask(prisma, taskId).catch(() => {});
+        await markLatestExecutionFailed(taskId, reason);
+        log.warn(
+          { taskId, severity: activeReview.severity },
+          '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+        );
         // The non-convergence cutoff already recorded its OWN
         // `verify_repair_non_convergence` transition for this rejection
         // (verify-self-repair.ts) — recording `adversarial_review_failed`
@@ -443,9 +405,7 @@ async function reviewAndApply(
         if (!repair.cutoffRecorded && !(await wasNonConvergenceCutoffJustRecorded(taskId))) {
           await recordTransition({
             taskId,
-            // newStatus is 'verify_done' here unless the bounce above rolled
-            // it back — the fallback only guards the (unreachable) undefined.
-            toStatus: newStatus ?? 'verify_done',
+            toStatus: 'verify_done',
             fromStatus: 'verify_done',
             actor: 'system',
             cause: 'adversarial_review_failed',

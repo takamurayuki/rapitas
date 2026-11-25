@@ -125,7 +125,7 @@ describe('runAdversarialDiffReview — follow_up record per jury run (task 1547)
     expect(typeof done.juryRunId).toBe('number');
   });
 
-  test('a fail that still bounces records the deferral next to adversarial_review_failed', async () => {
+  test('修復予算を使い切った不合格は既存の不合格遷移と併せて記録する', async () => {
     mockReview.mockResolvedValueOnce({
       verdict: 'fail',
       severity: 70,
@@ -137,6 +137,53 @@ describe('runAdversarialDiffReview — follow_up record per jury run (task 1547)
     expect(followUpRows()).toHaveLength(1);
     expect(followUpRows()[0].metadata).toMatchObject({ outcome: 'stopped', verdict: 'fail' });
     expect(transitions.some((t) => t.cause === 'adversarial_review_failed')).toBe(true);
+  });
+
+  test('差し戻しが先に保存した状態で後続対応を1件記録する', async () => {
+    const followUp = { ...FOLLOW_UP, count: 1, verdictChanged: false };
+    mockReview.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 70,
+      reasons: ['受入基準2: [major] データを消す（根拠: a.ts:1）'],
+      diffFingerprint: 'fp-A',
+      followUp,
+    });
+    mockRepair.mockImplementationOnce(async () => {
+      mockFindUnique.mockResolvedValue({ workflowStatus: 'plan_approved', updatedAt: new Date(1) });
+      return { bounced: true, newStatus: 'plan_approved' };
+    });
+
+    const outcome = await runAdversarialDiffReview(params());
+
+    expect(followUpRows()).toHaveLength(1);
+    expect(followUpRows()[0]).toMatchObject({
+      fromStatus: 'plan_approved',
+      toStatus: 'plan_approved',
+      metadata: { juryRunId: completion()?.juryRunId, outcome: 'stopped', followUp },
+    });
+    expect(completion()).toMatchObject({ outcome: 'stopped', followUp });
+    expect(outcome).toEqual({
+      newStatus: 'plan_approved',
+      verifyGateBlocked: true,
+      staleVerifyRequest: false,
+    });
+  });
+
+  test('状態名が同じでも修復が stale を返した場合は記録しない', async () => {
+    mockReview.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 70,
+      reasons: ['受入基準2: [major] データを消す（根拠: a.ts:1）'],
+      diffFingerprint: 'fp-A',
+      followUp: { ...FOLLOW_UP, count: 1, verdictChanged: false },
+    });
+    mockRepair.mockResolvedValueOnce({ bounced: false, stale: true });
+
+    const outcome = await runAdversarialDiffReview(params());
+
+    expect(followUpRows()).toHaveLength(0);
+    expect(completion()).toBeUndefined();
+    expect(outcome.staleVerifyRequest).toBe(true);
   });
 
   test('a verdict that was not applied (run no longer bound) records nothing', async () => {
