@@ -71,6 +71,10 @@ export const mockQueueItemUpdateMany = mock(() => Promise.resolve({ count: 0 }))
 /** Counts `actor:'user'` transitions after a failure — the revival check. */
 export const mockResumeTransition = mock(() => Promise.resolve<{ createdAt: Date } | null>(null));
 export const mockTransitionCount = mock(() => Promise.resolve(0));
+/** 承認保留判定の計画読取。既定では計画ファイルなし。 */
+export const mockWorkflowFileFindFirst = mock(() =>
+  Promise.resolve(null as { content: string | null } | null),
+);
 /** Resource-contention gate hold record (task 725) — default unused (gate off in tests). */
 export const mockActivityLogCreate = mock(() => Promise.resolve({}));
 /** UserSettings row for the idle-stop timer (task 784) — null → defaults (60 min armed). */
@@ -85,7 +89,7 @@ export const mockThemeFindMany = mock((_args: { where: { id: { in: number[] } } 
   Promise.resolve([] as Array<{ id: number; autoRunPriority: number }>),
 );
 
-mock.module('../../../config', () => ({
+const configMock = {
   prisma: {
     userSettings: {
       findFirst: mockUserSettingsFindFirst,
@@ -118,6 +122,9 @@ mock.module('../../../config', () => ({
       count: mockTransitionCount,
       findFirst: mockResumeTransition,
     },
+    workflowFile: {
+      findFirst: mockWorkflowFileFindFirst,
+    },
     activityLog: {
       create: mockActivityLogCreate,
     },
@@ -128,6 +135,13 @@ mock.module('../../../config', () => ({
   getProjectRoot: () => '/tmp/rapitas-test',
   logger: silentLogger,
   createLogger: () => silentLogger,
+};
+
+mock.module('../../../config', () => configMock);
+// 承認保留ヘルパーの直接importも同じDBモックに接続し、実DBへの読取を防ぐ。
+mock.module('../../../config/database', () => ({
+  prisma: configMock.prisma,
+  ensureDatabaseConnection: configMock.ensureDatabaseConnection,
 }));
 
 mock.module('../../../config/logger', () => ({

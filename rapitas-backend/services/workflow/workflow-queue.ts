@@ -125,7 +125,7 @@ export class WorkflowQueueService {
     const runningCount = await prisma.workflowQueueItem.count({
       where: { status: 'running' },
     });
-    if (runningCount >= this.maxConcurrency) {
+    if (runningCount >= this.getMaxConcurrency()) {
       return null;
     }
 
@@ -146,7 +146,7 @@ export class WorkflowQueueService {
 
     for (const candidate of candidates) {
       try {
-        const result = await tryDequeueCandidate(candidate, this.maxConcurrency);
+        const result = await tryDequeueCandidate(candidate, this.getMaxConcurrency());
         if (result) return result;
         // Not dispatchable (dependency wait / vanished / terminal / sibling
         // serialization / lost the acquire race) — try the next candidate.
@@ -314,7 +314,7 @@ export class WorkflowQueueService {
       completed: mapped.filter((i) => i.status === 'completed'),
       failed: mapped.filter((i) => i.status === 'failed'),
       totalItems: mapped.length,
-      maxConcurrency: this.maxConcurrency,
+      maxConcurrency: this.getMaxConcurrency(),
     };
   }
 

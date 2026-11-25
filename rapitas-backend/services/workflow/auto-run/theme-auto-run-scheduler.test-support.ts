@@ -28,6 +28,7 @@ import {
   mockTaskFindMany,
   mockTaskUpdate,
   mockTransitionCount,
+  mockWorkflowFileFindFirst,
   mockTaskFindUnique,
   mockThemeAutoRunUpdateMany,
   mockThemeAutoRunCount,
@@ -160,6 +161,7 @@ const ALL_MOCKS = [
   mockTaskFindMany,
   mockTaskUpdate,
   mockTransitionCount,
+  mockWorkflowFileFindFirst,
   mockTaskFindUnique,
   mockThemeAutoRunUpdateMany,
   mockThemeAutoRunCount,
@@ -234,6 +236,7 @@ export function resetAllMocks(): void {
   mockThemeFindMany.mockReset().mockResolvedValue([]);
   mockTaskUpdate.mockResolvedValue({});
   mockTransitionCount.mockResolvedValue(0);
+  mockWorkflowFileFindFirst.mockReset().mockResolvedValue(null);
   mockTaskFindUnique.mockResolvedValue(null);
   mockThemeAutoRunUpdateMany.mockResolvedValue({ count: 0 });
   mockThemeAutoRunCount.mockResolvedValue(0);
