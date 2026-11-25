@@ -198,19 +198,27 @@ async function reviewAndApplyLocked(
       seen: seen(null),
     };
   }
-  const complete = (outcome: 'passed' | 'stopped') =>
-    review?.diffFingerprint && run.verifySha256 && run.criteriaRevision
-      ? recordJuryGateCompletion({
-          taskId,
-          verifySha256: run.verifySha256,
-          diffFingerprint: review.diffFingerprint,
-          criteriaRevision: run.criteriaRevision,
-          juryRunId: run.id,
-          verdict: review.verdict,
-          outcome,
-          source: 'cli_epilogue',
-        })
-      : Promise.resolve();
+  // `status` = the workflow status once this verdict took effect; given only on
+  // the paths that applied it, which are the ones that record a follow_up deferral.
+  const complete = async (outcome: 'passed' | 'stopped', status?: string) => {
+    if (!(review?.diffFingerprint && run.verifySha256 && run.criteriaRevision)) return;
+    const fu = await import('./jury-follow-up-record');
+    const key = { taskId, juryRunId: run.id, review, source: 'cli_epilogue' as const };
+    const followUp = status
+      ? await fu.recordFollowUpDeferral({ ...key, status, outcome, actor, sessionId })
+      : null;
+    await recordJuryGateCompletion({
+      ...(followUp ? { followUp } : {}),
+      taskId,
+      verifySha256: run.verifySha256,
+      diffFingerprint: review.diffFingerprint,
+      criteriaRevision: run.criteriaRevision,
+      juryRunId: run.id,
+      verdict: review.verdict,
+      outcome,
+      source: 'cli_epilogue',
+    });
+  };
   if (review?.verdict === 'hold') {
     // Same review hold as the HTTP pipeline: no bounce, no commit/PR.
     const { holdFromReview } = await import('./review-hold');
@@ -233,7 +241,7 @@ async function reviewAndApplyLocked(
     };
   }
   if (!review || review.verdict !== 'fail') {
-    await complete('passed');
+    await complete('passed', currentWfStatus);
     return { result: { stop: false }, seen: seen('passed') };
   }
 
@@ -295,6 +303,6 @@ async function reviewAndApplyLocked(
       invariantMessage: reason,
     }).catch(() => {});
   }
-  await complete('stopped');
+  await complete('stopped', phaseStatus);
   return { result: { stop: true, phaseStatus }, seen: seen('stopped') };
 }

@@ -71,6 +71,11 @@ export interface JuryGateCompletion {
   verdict: string;
   outcome: JuryGateOutcome;
   source: JuryGateSource;
+  /**
+   * Findings this run moved to follow-up concerns (task 1547 step 7); only
+   * when at least one was. Readers that predate it ignore it.
+   */
+  followUp?: { count: number; reasons: string[]; verdictChanged: boolean };
   completedAt: string;
 }
 

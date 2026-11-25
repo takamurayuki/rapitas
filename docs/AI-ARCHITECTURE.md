@@ -95,6 +95,14 @@ change of method is not cut off by the non-convergence detectors
 implementer. A later repeat is cut off as before, so the cutoff waits at most
 one bounce.
 
+When an applied verdict deferred at least one finding, the deferral is also
+recorded per jury run (`services/workflow/jury-follow-up-record.ts`). One
+`WorkflowTransition` row with cause `adversarial_review_follow_up` keeps the
+count and reasons and does not move the status. The
+`adversarial_review_gate_completed` event carries the same `followUp`. Both hold the `JuryReviewRun` id
+(`juryRunId`), so no column is added to `JuryReviewRun`. A stale verdict, or
+one that deferred nothing, records nothing.
+
 On FAIL the workflow goes back to the implementer. When no reviewer produced a
 verdict, or the review errored, the outcome depends on risk
 (`jury-unavailable-outcome.ts`): low-risk work proceeds as `'unknown'`, and

@@ -113,7 +113,14 @@ export async function runAdversarialDiffReview(
             run.verifySha256 &&
             run.criteriaRevision
           ) {
+            // Applied verdict only: the follow_up deferral, keyed by this run (task 1547).
+            const fu = await import('../../../../services/workflow/jury-follow-up-record');
+            const key = { taskId: params.taskId, juryRunId: run.id, review: deciding };
+            // The jury runs only on a verify_done save, so that is the status when unset.
+            const at = { status: outcome.newStatus ?? 'verify_done', source: 'http_save' as const };
+            const followUp = await fu.recordFollowUpDeferral({ ...key, ...at, outcome: judged });
             await recordJuryGateCompletion({
+              ...(followUp ? { followUp } : {}),
               taskId: params.taskId,
               verifySha256: run.verifySha256,
               diffFingerprint: deciding.diffFingerprint,
