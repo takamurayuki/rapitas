@@ -44,6 +44,9 @@ model Theme {
   // without the file) is simply not opted into runtime verification/preview.
   runtimeConfigJson String?
   sortOrder        Int            @default(0)
+  // Auto-run priority across themes (task 1543): when one slot frees up, the
+  // running theme with the HIGHER value takes it first; ties keep themeId order.
+  autoRunPriority  Int            @default(0)
   categoryId       Int?
   category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())

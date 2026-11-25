@@ -39,6 +39,8 @@ export type Theme = {
   /** JSON: {start,url,healthPath,readyTimeoutMs,checkPaths} — see rapitas-backend's runtime-config.ts. Powers live preview + runtime verification for this project. */
   runtimeConfigJson?: string | null;
   sortOrder: number;
+  /** Auto-run priority across themes (-100..100, default 0); higher takes a free slot first. */
+  autoRunPriority?: number;
   categoryId?: number | null;
   category?: Category | null;
   createdAt: string;

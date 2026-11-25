@@ -1,5 +1,5 @@
 /**
- * workflow-queue テスト（concurrency設定 / enqueue）
+ * workflow-queue テスト（concurrency設定と実行経路への反映 / enqueue）
  *
  * updateStatus/retryIfPossible/cancel/updatePriority は workflow-queue.status.test.ts、
  * getQueueState/getSessionItems/recoverStaleItems/findByTaskId は
@@ -79,6 +79,15 @@ function makePrisma(): FakePrisma {
 }
 
 const prismaMock = makePrisma();
+
+// 実行可否を固定し、実 DB に接続せずに実際の dequeue と取得トランザクションを通す。
+mock.module('./queue-provider-gate', () => ({
+  hasUsableProvider: mock(async () => true),
+  isProviderOutageFailure: mock(async () => false),
+}));
+mock.module('./queue-theme-guard', () => ({
+  isQueueThemeRunning: mock(async () => true),
+}));
 
 mock.module('../../config', () => ({
   prisma: prismaMock,
@@ -179,6 +188,116 @@ describe('WorkflowQueueService — concurrency config', () => {
     svc.setMaxConcurrency(4);
     expect(svc.getMaxConcurrency()).toBe(4);
   });
+
+  // task 1543: the auto-run setting must lift the runner's cap too, or a 2nd
+  // selected theme would sit queued behind a cap of 1.
+  test('setAutoRunConcurrency(2) で実行キューの上限が 2 になること', () => {
+    const svc = new WorkflowQueueService();
+    svc.setAutoRunConcurrency(2);
+    expect(svc.getMaxConcurrency()).toBe(2);
+  });
+
+  test('AIOrchestra の上書きと自動実行の上限は大きい方を採ること', () => {
+    const svc = new WorkflowQueueService();
+    svc.setMaxConcurrency(3);
+    svc.setAutoRunConcurrency(2);
+    expect(svc.getMaxConcurrency()).toBe(3);
+    svc.setMaxConcurrency(1);
+    expect(svc.getMaxConcurrency()).toBe(2);
+    svc.setAutoRunConcurrency(99);
+    expect(svc.getMaxConcurrency()).toBe(10);
+  });
+});
+
+describe('WorkflowQueueService — 自動実行の実効上限', () => {
+  function prepareDequeue(runningBefore: number, runningInTransaction: number) {
+    const svc = new WorkflowQueueService();
+    svc.setMaxConcurrency(1);
+    svc.setAutoRunConcurrency(2);
+    prismaMock.workflowQueueItem.count
+      .mockResolvedValueOnce(runningBefore)
+      .mockResolvedValueOnce(runningInTransaction);
+    prismaMock.workflowQueueItem.findMany.mockResolvedValueOnce([row()]);
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row());
+    prismaMock.workflowQueueItem.update.mockResolvedValueOnce(row({ status: 'running' }));
+    return svc;
+  }
+
+  test.each([1, 0])('入口の実行数%d・取得時1件なら上限2で次の項目を実行できる', async (before) => {
+    const svc = prepareDequeue(before, 1);
+
+    expect((await svc.dequeue())?.status).toBe('running');
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { status: 'running', startedAt: expect.any(Date) },
+    });
+  });
+
+  test.each([2, 1])('入口の実行数%d・取得時2件なら上限2を超えて開始しない', async (before) => {
+    const svc = prepareDequeue(before, 2);
+
+    expect(await svc.dequeue()).toBeNull();
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(before === 2 ? 0 : 1);
+    expect(prismaMock.workflowQueueItem.update).not.toHaveBeenCalled();
+  });
+
+  test('上限を2から1へ下げても実行中項目を変更せず追加取得だけを止める', async () => {
+    const svc = prepareDequeue(1, 1);
+    svc.setAutoRunConcurrency(1);
+
+    expect(await svc.dequeue()).toBeNull();
+    expect(prismaMock.workflowQueueItem.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.workflowQueueItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.workflowQueueItem.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('上限2なら異なる2テーマを実行し、3テーマ目はキューに残す', async () => {
+    const svc = new WorkflowQueueService();
+    svc.setMaxConcurrency(1);
+    svc.setAutoRunConcurrency(2);
+    const items = [1, 35, 50].map((themeId) => ({
+      ...row({ id: themeId, taskId: themeId }),
+      themeId,
+    }));
+    prismaMock.workflowQueueItem.count.mockImplementation(
+      async () => items.filter((item) => item.status === 'running').length,
+    );
+    prismaMock.workflowQueueItem.findMany.mockImplementation(async () =>
+      items.filter((item) => item.status === 'queued'),
+    );
+    prismaMock.workflowQueueItem.findUnique.mockImplementation(
+      async ({ where }: { where: { id: number } }) => items.find((item) => item.id === where.id),
+    );
+    prismaMock.workflowQueueItem.update.mockImplementation(
+      async ({ where, data }: { where: { id: number }; data: Partial<WorkflowQueueItemRow> }) =>
+        Object.assign(items.find((item) => item.id === where.id)!, data),
+    );
+
+    expect((await svc.dequeue())?.taskId).toBe(1);
+    expect((await svc.dequeue())?.taskId).toBe(35);
+    expect(await svc.dequeue()).toBeNull();
+    expect(items.map((item) => item.status)).toEqual(['running', 'running', 'queued']);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([
+    [1, 2, 2],
+    [3, 2, 3],
+    [1, 1, 1],
+  ])(
+    '空キューでも通常上限%d・自動実行上限%dの実効値%dを状態に返す',
+    async (base, auto, expected) => {
+      const svc = new WorkflowQueueService();
+      svc.setMaxConcurrency(base);
+      svc.setAutoRunConcurrency(auto);
+
+      const state = await svc.getQueueState();
+
+      expect(state.maxConcurrency).toBe(expected);
+      expect(state.totalItems).toBe(0);
+    },
+  );
 });
 
 describe('WorkflowQueueService.enqueue', () => {

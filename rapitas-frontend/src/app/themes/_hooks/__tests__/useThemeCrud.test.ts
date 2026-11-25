@@ -46,6 +46,7 @@ const baseFormData: FormData = {
   defaultBranch: 'develop',
   runtimeConfigJson: '',
   categoryId: 1,
+  autoRunPriority: 0,
 };
 
 type FetchCall = [RequestInfo | URL, RequestInit | undefined];
@@ -189,5 +190,72 @@ describe('useThemeCrud UI source header coverage', () => {
     expect(call[1]?.method).toBe('PATCH');
     expect(headerOf(call, 'x-rapitas-source')).toBe('ui');
     expect(headerOf(call, 'content-type')).toBe('application/json');
+  });
+});
+
+describe('useThemeCrud autoRunPriority (task 1543)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+      text: () => Promise.resolve('{}'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const bodyOf = (call: FetchCall) => JSON.parse(String(call[1]?.body)) as Record<string, unknown>;
+
+  it('PATCH /themes/:id carries the edited autoRunPriority', async () => {
+    const { result } = renderHook(() =>
+      useThemeCrud({
+        getFormData: () => ({ ...baseFormData, autoRunPriority: 7 }),
+        fetchItems: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleUpdate(5, vi.fn());
+    });
+
+    expect(bodyOf(fetchMock.mock.calls[0] as FetchCall).autoRunPriority).toBe(7);
+  });
+
+  it('POST /themes carries autoRunPriority for a new theme', async () => {
+    const { result } = renderHook(() =>
+      useThemeCrud({
+        getFormData: () => ({ ...baseFormData, autoRunPriority: -3 }),
+        fetchItems: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleAdd(vi.fn());
+    });
+
+    expect(bodyOf(fetchMock.mock.calls[0] as FetchCall).autoRunPriority).toBe(-3);
+  });
+
+  it('a new theme starts from priority 0, which is sent on POST', async () => {
+    const { defaultFormData } = await import('../useThemesPage');
+    expect(defaultFormData.autoRunPriority).toBe(0);
+    const { result } = renderHook(() =>
+      useThemeCrud({
+        getFormData: () => ({ ...defaultFormData, name: 'New', categoryId: 1 }),
+        fetchItems: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleAdd(vi.fn());
+    });
+
+    expect(bodyOf(fetchMock.mock.calls[0] as FetchCall).autoRunPriority).toBe(0);
   });
 });

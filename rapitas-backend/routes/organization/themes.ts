@@ -15,6 +15,7 @@ import { writeScaffoldDocs } from './scaffold-docs-writer';
 import type { ScaffoldFile } from './scaffold-project-writer';
 import { isValidEntityId } from '../../utils/common/id-validation';
 import { deleteThemeWithNotes } from '../../services/notes/placement/theme-delete';
+import { persistThemeAutoRunPriority } from './theme-auto-run-priority';
 
 /**
  * Validate a runtimeConfigJson value before it's persisted — a broken value
@@ -111,7 +112,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
 
       validateRuntimeConfigJsonOrThrow(runtimeConfigJson);
 
-      return await prisma.theme.create({
+      const created = await prisma.theme.create({
         data: {
           name,
           categoryId,
@@ -126,6 +127,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         },
         include: { category: true },
       });
+      return persistThemeAutoRunPriority(created.id, body.autoRunPriority, created);
     },
     {
       body: themeSchema.create,
@@ -142,10 +144,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       }
       const id = Number(params.id);
 
-      // Check if theme exists
-      const existingTheme = await prisma.theme.findUnique({
-        where: { id },
-      });
+      const existingTheme = await prisma.theme.findUnique({ where: { id } });
 
       if (!existingTheme) {
         throw new NotFoundError('テーマが見つかりません');
@@ -200,11 +199,12 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         }
       }
 
-      return await prisma.theme.update({
+      const updated = await prisma.theme.update({
         where: { id },
         data: updateData,
         include: { category: true },
       });
+      return persistThemeAutoRunPriority(id, body.autoRunPriority, updated);
     },
     {
       body: themeSchema.update,

@@ -23,6 +23,10 @@ import {
   applyRapiProfile,
   applyUiLocale,
 } from './settings-extra-fields';
+import {
+  applyAutoRunConcurrencyEnvInfo,
+  applyAutoRunMaxConcurrency,
+} from './settings-auto-run-concurrency';
 import { readAutoRestartEnabled } from '../../../services/scheduling/auto-restart-merged-code/settings-store';
 import { readRetroReviewEnabled } from '../../../services/workflow/process-retro/retro-settings-store';
 import { readMergeBarrierEnabled } from '../../../services/scheduling/merge-barrier/merge-barrier';
@@ -44,6 +48,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
 
     const chatgptConfigured = !!settings.chatgptApiKeyEncrypted;
     const geminiConfigured = !!settings.geminiApiKeyEncrypted;
+    applyAutoRunConcurrencyEnvInfo(settings as Record<string, unknown>);
 
     return {
       ...settings,
@@ -200,6 +205,8 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         applyMergeBarrierEnabled(extraBody, settingsRef);
         applyUiLocale(extraBody, settingsRef);
         await applyRapiProfile(extraBody, settingsRef);
+        await applyAutoRunMaxConcurrency(settings.id, extraBody, settingsRef);
+        applyAutoRunConcurrencyEnvInfo(settingsRef);
 
         return settings;
       } catch (error: unknown) {

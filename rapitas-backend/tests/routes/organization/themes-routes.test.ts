@@ -287,3 +287,95 @@ describe('DELETE /themes/:id', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('autoRunPriority (task 1543)', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  /** Data objects of the update calls that wrote autoRunPriority. */
+  function priorityWrites(): unknown[] {
+    return (mockPrisma.theme.update.mock.calls as unknown as Array<[{ data: object }]>)
+      .map((c) => c[0].data as Record<string, unknown>)
+      .filter((d) => 'autoRunPriority' in d)
+      .map((d) => d.autoRunPriority);
+  }
+
+  function send(method: 'PATCH' | 'POST', url: string, body: Record<string, unknown>) {
+    return app.handle(
+      new Request(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  test('PATCH: 250 は 100 に丸めて保存し、応答にも反映する', async () => {
+    mockPrisma.theme.findUnique.mockResolvedValue({ id: 1, name: 'A', categoryId: 1 });
+    mockPrisma.theme.update.mockResolvedValue({ id: 1, name: 'A', autoRunPriority: 0 });
+
+    const res = await send('PATCH', 'http://localhost/themes/1', { autoRunPriority: 250 });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(priorityWrites()).toEqual([100]);
+    expect(body.autoRunPriority).toBe(100);
+    // The main update must not carry the new column (client may predate it).
+    const mainData = (
+      mockPrisma.theme.update.mock.calls as unknown as Array<[{ data: object }]>
+    )[0][0].data;
+    expect('autoRunPriority' in mainData).toBe(false);
+  });
+
+  test('PATCH: -250 は -100 に丸める', async () => {
+    mockPrisma.theme.findUnique.mockResolvedValue({ id: 1, name: 'A', categoryId: 1 });
+    mockPrisma.theme.update.mockResolvedValue({ id: 1, name: 'A' });
+
+    await send('PATCH', 'http://localhost/themes/1', { autoRunPriority: -250 });
+
+    expect(priorityWrites()).toEqual([-100]);
+  });
+
+  test('PATCH: 省略したときは追加の update を呼ばない', async () => {
+    mockPrisma.theme.findUnique.mockResolvedValue({ id: 1, name: 'A', categoryId: 1 });
+    mockPrisma.theme.update.mockResolvedValue({ id: 1, name: 'B' });
+
+    await send('PATCH', 'http://localhost/themes/1', { name: 'B' });
+
+    expect(mockPrisma.theme.update).toHaveBeenCalledTimes(1);
+    expect(priorityWrites()).toEqual([]);
+  });
+
+  test('POST: 作成したテーマに優先度を保存する', async () => {
+    mockPrisma.theme.create.mockResolvedValue({ id: 9, name: 'Vue', categoryId: 1 });
+    mockPrisma.theme.update.mockResolvedValue({ id: 9 });
+
+    const res = await send('POST', 'http://localhost/themes', {
+      name: 'Vue',
+      categoryId: 1,
+      autoRunPriority: 5,
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(priorityWrites()).toEqual([5]);
+    expect(body.autoRunPriority).toBe(5);
+  });
+
+  test('保存が失敗しても本体の更新結果は返し、優先度は応答に反映しない', async () => {
+    mockPrisma.theme.findUnique.mockResolvedValue({ id: 1, name: 'A', categoryId: 1 });
+    mockPrisma.theme.update
+      .mockResolvedValueOnce({ id: 1, name: 'A', autoRunPriority: 0 })
+      .mockRejectedValueOnce(new Error('Unknown argument autoRunPriority'));
+
+    const res = await send('PATCH', 'http://localhost/themes/1', { autoRunPriority: 7 });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.autoRunPriority).toBe(0);
+  });
+});

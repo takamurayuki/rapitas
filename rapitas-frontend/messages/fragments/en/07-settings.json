@@ -241,6 +241,9 @@
     },
     "autoRunSettingsCard": {
       "description": "Settings for how task auto-run behaves.",
+      "maxConcurrencyLabel": "Auto-runs at the same time",
+      "maxConcurrencyDescription": "How many auto-run tasks may run at once across all themes (1-4). When a slot frees up, the theme with the higher auto-run priority picks its next task first.",
+      "maxConcurrencyEnvOverride": "Running with {value} because the AUTO_RUN_GLOBAL_MAX_CONCURRENCY environment variable is set. This setting takes effect once the variable is removed.",
       "backlogLimitLabel": "Auto-create from concerns/ideas (cap)",
       "backlogLimitDescription": "When auto-run runs out of tasks, automatically creates tasks from the concern backlog (or the idea box once resolved). Per-theme cap on simultaneous creation. 0 disables it.",
       "repairLimitLabel": "Verify-failure retry count (self-repair loop cap)",

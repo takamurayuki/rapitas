@@ -75,6 +75,10 @@ model UserSettings {
   // auto-run is stopped (ThemeAutoRun.enabled=false) with a notification.
   // 0 disables the timer. See auto-run-idle-timer.ts / auto-run-lifecycle.ts.
   idleStopMinutes             Int       @default(60)
+  // Global auto-run concurrency (task 1543): how many themes' tasks may run at
+  // once, 1..4. The AUTO_RUN_GLOBAL_MAX_CONCURRENCY env var wins when set, so
+  // existing deployments keep their value. See auto-run-concurrency.ts.
+  autoRunMaxConcurrency       Int       @default(1)
   // Nightly self-refill window (task 784): backlog self-refill (concerns/ideas
   // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
   // string disables self-refill entirely. See backlog-task-promoter.ts.
