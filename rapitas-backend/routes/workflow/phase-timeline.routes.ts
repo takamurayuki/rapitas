@@ -18,6 +18,7 @@ import {
   type RawPhaseTransition,
 } from '../../services/workflow/phase-segmentation';
 import { generateSummary } from '../../services/workflow/phase-summary-metrics';
+import { describePhaseRun, type PhaseRunLabel } from './phase-run-label';
 import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:phase-timeline');
@@ -66,8 +67,12 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
       ]);
 
       const modelByExecutionId = new Map<number, string | null>();
+      const runLabelByExecutionId = new Map<number, PhaseRunLabel>();
       for (const session of config?.agentSessions ?? []) {
-        for (const e of session.agentExecutions) modelByExecutionId.set(e.id, e.modelName);
+        for (const e of session.agentExecutions) {
+          modelByExecutionId.set(e.id, e.modelName);
+          runLabelByExecutionId.set(e.id, describePhaseRun(e));
+        }
       }
 
       const rawExecutions: RawPhaseExecution[] = (config?.agentSessions ?? []).flatMap((session) =>
@@ -126,6 +131,11 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
           return {
             ...iteration,
             modelName,
+            // NOTE: Per-run labels so the pane can say a run was a diff-review
+            // juror (no log lines) instead of an empty 「実行 2/3」 (2026-11-26).
+            runs: iteration.executionIds.map(
+              (id) => runLabelByExecutionId.get(id) ?? { executionId: id },
+            ),
             summary: generateSummary(iteration, phase.phaseType, logText),
           };
         }),
