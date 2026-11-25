@@ -48,6 +48,12 @@ export function splitFollowUp(result: DiffReviewResult): {
   // hold is a human's call and unknown was never judged: neither is relaxed.
   if (result.verdict !== 'fail') return { result, followUp: [] };
   const all = result.findings ?? [];
+  // NOTE: A gating finding the verifier could not decide is an open dispute a
+  // human must settle (settleDispute → hold). Relaxing around it would pass the
+  // work with that dispute unseen, so the panel's fail stands unchanged (R1).
+  if (all.some((f) => f.gating && f.verification === 'undetermined' && !isFollowUp(f))) {
+    return { result, followUp: [] };
+  }
   const followUp = all.filter(isFollowUp);
   if (followUp.length === 0) return { result, followUp };
   const remaining = all.filter((f) => isDecisiveFinding(f) && !followUp.includes(f));

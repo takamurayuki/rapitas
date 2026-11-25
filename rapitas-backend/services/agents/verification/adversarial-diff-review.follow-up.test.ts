@@ -4,25 +4,45 @@
  * Drives the real reviewDiffAdversarially (task 1547): a fail that rests only
  * on impact=follow_up findings passes, the findings are filed as concerns with
  * their same-kind examples, and the event payload records them; a blocking
- * finding still fails. The task-1541 fixture is a reconstructed jury reply
- * (see its `_source`). AI and DB mocked.
+ * finding still fails, and so does a fail that keeps a dispute the verifier
+ * could not decide (R1). The task-1541 fixture replays the finding recorded on
+ * transition 22030 unchanged (`recorded`), plus the hand-added kind / impact /
+ * examples kept apart in `annotations` (see its `_source`). AI and DB mocked.
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
+type Fixture = {
+  _source: { taskId: number; transitionId: number; endpoint: string; selection: string };
+  recorded: { reason: string; findings: Array<Record<string, unknown>> };
+  annotations: { kind: string; impact: string; examples: string[]; _rationale: string[] };
+};
 const FIXTURE = JSON.parse(
   readFileSync(join(import.meta.dir, 'fixtures', 'task-1541-negation-reply.json'), 'utf8'),
-) as { findings: Array<Record<string, unknown>> };
+) as Fixture;
+const RECORDED = FIXTURE.recorded.findings[0];
+/** The juror-written fields of the recorded finding (seat / verifier fields are the panel's). */
+const JUROR_FIELDS = ['severity', 'criterion', 'summary', 'evidence', 'repro'] as const;
+const recordedReply = Object.fromEntries(JUROR_FIELDS.map((k) => [k, RECORDED[k]]));
+const { kind, impact, examples } = FIXTURE.annotations;
+const REPLAYED = { ...recordedReply, kind, impact, examples };
 
 const getDiff = mock(() =>
   Promise.resolve([{ filename: 'a.ts', status: 'M', additions: 1, deletions: 0, patch: '+x' }]),
 );
 let replyFindings: Array<Record<string, unknown>> = [];
-const sendAIMessage = mock(() =>
-  Promise.resolve({ content: JSON.stringify({ verdict: 'fail', findings: replyFindings }) }),
-);
+/** Per-reviewer replies in call order; when empty both reviewers get replyFindings. */
+let reviewerReplies: Array<Record<string, unknown>> = [];
+let verifierReply = '';
+const sendAIMessage = mock((req: { systemPrompt?: string }) => {
+  if (String(req?.systemPrompt ?? '').includes('verifier')) {
+    return Promise.resolve({ content: verifierReply });
+  }
+  const next = reviewerReplies.shift() ?? { verdict: 'fail', findings: replyFindings };
+  return Promise.resolve({ content: JSON.stringify(next) });
+});
 const submitConcern = mock(async (_input: Record<string, unknown>) => ({
   id: 1,
   outcome: 'created',
@@ -78,19 +98,32 @@ const reviewPayload = () =>
     .payload as { followUp?: { count: number; reasons: string[] } };
 
 beforeEach(() => {
+  reviewerReplies = [];
+  verifierReply = '';
   resetJurorHealth();
   submitConcern.mockClear();
   appendEvent.mockClear();
 });
 
 describe('reviewDiffAdversarially — impact=follow_up findings', () => {
+  it('the fixture is transition 22030 of task 1541, its recorded fields replayed unchanged', () => {
+    expect(FIXTURE._source).toMatchObject({ taskId: 1541, transitionId: 22030 });
+    expect(FIXTURE.recorded.reason.startsWith('差分レビュー不合格: 受入基準1: [major]')).toBe(true);
+    expect(FIXTURE.recorded.reason).toContain(String(RECORDED.summary));
+    for (const k of JUROR_FIELDS) expect(REPLAYED[k]).toEqual(RECORDED[k]);
+    expect(RECORDED).not.toHaveProperty('impact');
+    expect(RECORDED).not.toHaveProperty('examples');
+    expect(FIXTURE.annotations._rationale.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('task 1541 negation miss: follow_up, passes, and the same-kind examples come back together', async () => {
-    replyFindings = FIXTURE.findings;
+    replyFindings = [REPLAYED];
     const r = await reviewDiffAdversarially({ taskId: 1541, worktreePath: tmpdir() });
     expect(r.verdict).toBe('pass');
     expect(r.followUp?.count).toBe(1);
     const f = r.findings!.find((x) => x.deferred === 'follow_up')!;
     expect(f).toMatchObject({ kind: 'input_coverage', impact: 'follow_up', gating: false });
+    expect(f.examples).toEqual(examples);
     expect(f.examples!.length).toBeGreaterThanOrEqual(4);
     await settle();
     expect(submitConcern).toHaveBeenCalledTimes(1);
@@ -101,7 +134,8 @@ describe('reviewDiffAdversarially — impact=follow_up findings', () => {
       source: 'adversarial_review_follow_up',
     });
     const detail = String(filed.detail);
-    expect(f.examples!.filter((e) => detail.includes(e)).length).toBeGreaterThanOrEqual(4);
+    for (const e of examples) expect(detail).toContain(e);
+    expect(detail).toContain(String(RECORDED.summary));
     expect(reviewPayload().followUp?.count).toBe(1);
     expect(reviewPayload().followUp?.reasons[0]).toContain('否定');
   });
@@ -115,22 +149,44 @@ describe('reviewDiffAdversarially — impact=follow_up findings', () => {
         evidence: 'a.ts:1',
         impact: 'blocking',
       },
-      FIXTURE.findings[0],
+      REPLAYED,
     ];
     const r = await reviewDiffAdversarially({ taskId: 1541, worktreePath: tmpdir() });
     expect(r.verdict).toBe('fail');
     expect(r.reasons.some((x) => x.includes('データを消す'))).toBe(true);
-    expect(r.reasons.some((x) => x.includes('否定された'))).toBe(false);
+    expect(r.reasons.some((x) => x.includes('否定文でも'))).toBe(false);
     expect(r.findings!.filter((x) => x.summary === 'データを消す').every((x) => x.gating)).toBe(
       true,
     );
   });
 
   it('a finding without impact still fails (blocking by default)', async () => {
-    const { impact: _drop, ...noImpact } = FIXTURE.findings[0];
-    replyFindings = [noImpact];
+    replyFindings = [{ ...recordedReply, kind, examples }];
     const r = await reviewDiffAdversarially({ taskId: 1541, worktreePath: tmpdir() });
     expect(r.verdict).toBe('fail');
+    await settle();
+    expect(submitConcern).not.toHaveBeenCalled();
+  });
+
+  it('R1: an undetermined blocker next to an upheld follow_up keeps the fail and files nothing', async () => {
+    const blocker = {
+      severity: 'blocker',
+      criterion: '2',
+      summary: 'データを消す',
+      evidence: 'a.ts:9',
+      impact: 'blocking',
+    };
+    reviewerReplies = [
+      { verdict: 'fail', findings: [REPLAYED, blocker] },
+      { verdict: 'pass', findings: [] },
+    ];
+    verifierReply = JSON.stringify({ results: [{ index: 1, status: 'holds', note: 'n' }] });
+    const r = await reviewDiffAdversarially({ taskId: 1541, worktreePath: tmpdir() });
+    expect(r.verdict).toBe('fail');
+    expect(r.followUp).toBeUndefined();
+    expect(r.findings!.find((x) => x.summary === 'データを消す')?.verification).toBe(
+      'undetermined',
+    );
     await settle();
     expect(submitConcern).not.toHaveBeenCalled();
   });

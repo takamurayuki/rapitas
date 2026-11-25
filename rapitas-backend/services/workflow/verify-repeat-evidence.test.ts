@@ -11,7 +11,7 @@ import {
   extractRepeatKey,
   detectRepeatedEvidence,
 } from './verify-repeat-evidence';
-import { JURY_REPAIR_APPENDIX_MARKER } from './jury-repair-reason';
+import { JURY_REPAIR_APPENDIX_MARKER, methodReviewText } from './jury-repair-reason';
 
 const ROW_914 = '| §8 POSIX統合テスト・CI実測 | ❌ 未確認 | 該当ファイル不存在 |';
 const REASON_914 =
@@ -133,5 +133,25 @@ describe('detectRepeatedEvidence — jury repair appendix (task 1547)', () => {
     const v = detectRepeatedEvidence(`${REASON_914}${APPENDIX}`, [REASON_914, REASON_914], 3);
     expect(v).toEqual(detectRepeatedEvidence(REASON_914, [REASON_914, REASON_914], 3));
     expect(v.cutoff).toBe(true);
+  });
+});
+
+describe('detectRepeatedEvidence — one grace bounce for the method review (R2)', () => {
+  const METHOD = `${JURY_REPAIR_APPENDIX_MARKER}\n${methodReviewText({ criterion: '受入基準1', kind: 'input_coverage' })}`;
+
+  test('the first reason carrying the method review is not cut off', () => {
+    expect(detectRepeatedEvidence(`${REASON_914}${METHOD}`, [REASON_914, REASON_914], 3)).toEqual({
+      cutoff: false,
+    });
+  });
+
+  test('once a prior reason carried it, the repeat is cut off as before', () => {
+    const withMethod = `${REASON_914}${METHOD}`;
+    expect(detectRepeatedEvidence(withMethod, [REASON_914, withMethod], 3).cutoff).toBe(true);
+  });
+
+  test('the words outside the appendix do not grant the grace', () => {
+    const fake = `${REASON_914} 方式の見直し: x`;
+    expect(detectRepeatedEvidence(fake, [REASON_914, REASON_914], 3).cutoff).toBe(true);
   });
 });

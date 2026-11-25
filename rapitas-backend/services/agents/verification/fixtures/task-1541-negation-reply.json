@@ -1,24 +1,41 @@
 {
-  "_source": "再構成。タスク1541 の元の陪審応答（adversarial_review イベントと verify_repair 遷移の metadata.reason）はこの worktree から取得できないため、タスク1547 の説明（否定の取りこぼしが過去形 → 丁寧形 → 機械語彙の後ろと形を変えて4回続いた）と、コミット 3d770fba3 の rapitas-backend/services/self-improvement/bounce-reason-classifier.ts（git show で確認した行）から作成した。kind・impact・examples はタスク1547 の新プロンプトの基準（分類の精度は follow_up、否定・活用形の取りこぼしは input_coverage）に従って付与した。",
-  "verdict": "fail",
-  "severity": 70,
-  "findings": [
-    {
-      "severity": "major",
-      "criterion": "受入基準1",
-      "summary": "否定された「矛盾」を検証レポートの矛盾判定として数え、ゲート誤判定の候補に入れてしまう文が残っている",
-      "evidence": "rapitas-backend/services/self-improvement/bounce-reason-classifier.ts:48 const NEGATION_TAIL = /(?:な(?:い|かった|く)|ませ?ん(?:でし(?:た)?)?|ません|ず(?:に)?|なし|無(?:い|かった|し))/;",
-      "repro": "classifyBounceReason に「verify.md は矛盾しておらず」を含む reason を渡すと verify_contradiction に分類される",
-      "kind": "input_coverage",
-      "impact": "follow_up",
-      "examples": [
-        "過去形の否定: 「verify.md は矛盾していなかった」",
-        "丁寧形の否定: 「検証レポートに矛盾はありませんでした」",
-        "機械語彙の後ろの否定: 「verify.md is self-contradicting, which is not the case」",
-        "英語の否定: 「the verify report is never self-contradictory」",
-        "別の語の後ろの否定: 「検証結果が矛盾しているとは言えない」",
-        "連用形の否定: 「矛盾しておらず、記録不足である」"
-      ]
-    }
-  ]
+  "_source": {
+    "taskId": 1541,
+    "transitionId": 22030,
+    "endpoint": "GET /workflow/tasks/1541/transitions",
+    "fetchedAt": "2026-11-25",
+    "selection": "recorded.reason は遷移 22030 の metadata.reason の原文。recorded.findings は metadata.findings の 0 始まり 4 番目（受入基準1・major・gating・verification=holds の否定の取りこぼし）だけを原文のまま写し、0〜3 番目と 5 番目（minor 4 件と受入基準3 の major）は除いた。verifyContent などの大きな項目は入れていない。annotations.examples の形は、同じ API の遷移 22030（repro の過去形の文）・22035（reason の「丁寧形の否定」）・22046（reason の「機械語彙を含む文」）で実際に指摘されたもの。例文が原文にあるのは 22030 だけで、残りの文と英語・連用形の 2 件は手で作成した。"
+  },
+  "recorded": {
+    "reason": "差分レビュー不合格: 受入基準1: [major] 否定文でも検証レポートへの肯定的な矛盾判定として分類され、誤判定候補の誤起票につながる。（根拠: bounce-reason-classifier.ts: POSITIVE_CONTRADICTION は「自己矛盾」だけで一致する一方、NEGATED_CONTRADICTION の「矛盾して\\s*(いない|いません|ない)」は過去の否定「矛盾していなかった」を除外しない。）",
+    "findings": [
+      {
+        "severity": "major",
+        "summary": "否定文でも検証レポートへの肯定的な矛盾判定として分類され、誤判定候補の誤起票につながる。",
+        "gating": true,
+        "criterion": "受入基準1",
+        "evidence": "bounce-reason-classifier.ts: POSITIVE_CONTRADICTION は「自己矛盾」だけで一致する一方、NEGATED_CONTRADICTION の「矛盾して\\s*(いない|いません|ない)」は過去の否定「矛盾していなかった」を除外しない。",
+        "repro": "classifyBounceReason('検証レポートは自己矛盾していなかった') は verify_contradiction になる。この文を含む遷移が週に3回あれば、否定文なのに候補が起票される。否定の過去形を含むテストを追加し、肯定判定から除外する必要がある。",
+        "seatId": "reviewer-2",
+        "juror": "gpt-6-astra",
+        "verification": "holds",
+        "verificationNote": "「検証レポートは自己矛盾していなかった」では、NEGATED_CONTRADICTION の「矛盾して\\s*(いない|いません|ない)」が「いなかった」に一致せず、「矛盾\\s*(は|が|…)?\\s*(ない|…)」も「し」で一致しないため否定と判定されない。その一方で POSITIVE_CONTRADICTION の「検証レポート…は…自己矛盾」が一致するので、isVerifyContradiction は true を返し verify_contradiction に分類される。"
+      }
+    ]
+  },
+  "annotations": {
+    "kind": "input_coverage",
+    "impact": "follow_up",
+    "examples": [
+      "過去形の否定（遷移 22030 の repro の文そのもの）: 「検証レポートは自己矛盾していなかった」",
+      "丁寧形の否定（遷移 22035 の reason が「丁寧形の否定2例」と指摘した形。文は手で作成）: 「検証レポートに矛盾はありませんでした」",
+      "機械語彙の後ろの否定（遷移 22046 の reason が「機械語彙を含む文」と指摘した形。文は手で作成）: 「verify.md は self-contradicts ではない」",
+      "英語の否定（手で追加）: 「the verify report does not self-contradict」",
+      "連用形の否定（手で追加）: 「verify.md は矛盾しておらず、記録不足である」"
+    ],
+    "_rationale": [
+      "新しいプロンプトの基準では、推定・分類・ヒューリスティックの精度は follow_up、否定・活用形の取りこぼしは input_coverage に当たる。",
+      "タスク 1547 の説明のとおり、この誤分類で起きるのは週に 1 件余分な懸念が出るか 1 件の起票が漏れることだけで、データの破壊や誤った合否ではない。"
+    ]
+  }
 }

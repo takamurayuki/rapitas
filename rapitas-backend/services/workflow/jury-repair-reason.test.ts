@@ -12,7 +12,9 @@ import type { ReviewFinding } from '../agents/verification/review-findings';
 import {
   JURY_REPAIR_APPENDIX_MARKER,
   buildJuryRepairReason,
+  METHOD_REVIEW_PREFIX,
   detectRepeatedFindingKind,
+  hasMethodReviewDirective,
   stripJuryRepairAppendix,
 } from './jury-repair-reason';
 import { loadPriorJuryFindingRounds } from './jury-repair-history';
@@ -169,5 +171,90 @@ describe('loadPriorJuryFindingRounds', () => {
       workflowTransition: { findMany: async () => Promise.reject(new Error('db')) },
     };
     expect(await loadPriorJuryFindingRounds(1, { db: broken, windowStart: noWindow })).toEqual([]);
+  });
+});
+
+describe('loadPriorJuryFindingRounds — CI bounces break the run (R3)', () => {
+  type Row = { cause: string; createdAt: Date; metadata: string };
+  const at = (min: number) => new Date(Date.UTC(2026, 10, 25, 9, min));
+  const jury = (min: number): Row => ({
+    cause: 'verify_repair',
+    createdAt: at(min),
+    metadata: JSON.stringify({ reason: '差分レビュー不合格: 受入基準1: x', findings: [f()] }),
+  });
+  const ci = (min: number): Row => ({
+    cause: 'ci_repair',
+    createdAt: at(min),
+    metadata: JSON.stringify({ reason: 'CI failed: Lint Code' }),
+  });
+  // A fake that EVALUATES the query (cause, createdAt.gt, newest first, take),
+  // so a query that leaves ci_repair out returns two jury rounds.
+  const evaluating = (rows: Row[]) => ({
+    workflowTransition: {
+      findMany: async (args: {
+        where: Record<string, unknown>;
+        orderBy: { createdAt: 'desc' };
+        take: number;
+      }) => {
+        const cause = args.where.cause as string | { in: string[] };
+        const allowed = typeof cause === 'string' ? [cause] : cause.in;
+        const gt = (args.where.createdAt as { gt?: Date } | undefined)?.gt;
+        return rows
+          .filter((r) => allowed.includes(r.cause) && (!gt || r.createdAt > gt))
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, args.take);
+      },
+    },
+  });
+
+  test('newest first: jury → ci_repair → jury does not repeat', async () => {
+    const rounds = await loadPriorJuryFindingRounds(1, {
+      db: evaluating([jury(1), ci(2), jury(3)]),
+      windowStart: async () => null,
+    });
+    expect(rounds).toHaveLength(2);
+    expect(rounds[1]).toBeNull();
+    expect(detectRepeatedFindingKind([f()], rounds)).toBeNull();
+  });
+
+  test('two jury bounces without a CI bounce in between still repeat', async () => {
+    const rounds = await loadPriorJuryFindingRounds(1, {
+      db: evaluating([ci(0), jury(1), jury(3)]),
+      windowStart: async () => null,
+    });
+    expect(detectRepeatedFindingKind([f()], rounds)).not.toBeNull();
+  });
+
+  test('rows before the repair window are not read', async () => {
+    const rounds = await loadPriorJuryFindingRounds(1, {
+      db: evaluating([jury(1), jury(3)]),
+      windowStart: async () => at(2),
+    });
+    expect(rounds).toHaveLength(1);
+  });
+
+  test('the CI cause matches ci-self-repair', async () => {
+    const { CI_REPAIR_CAUSE } = await import('./jury-repair-history');
+    const ci = await import('./ci-self-repair');
+    expect(CI_REPAIR_CAUSE).toBe(ci.CI_REPAIR_CAUSE);
+  });
+});
+
+describe('hasMethodReviewDirective (R2)', () => {
+  const repeated = buildJuryRepairReason({ reasons: ['x'], findings: [f()] }, [[f()], [f()]]);
+
+  test('true when the appendix carries the method review', () => {
+    expect(repeated).toContain(METHOD_REVIEW_PREFIX);
+    expect(hasMethodReviewDirective(repeated)).toBe(true);
+  });
+
+  test('false when the words are only in the headline or there is no appendix', () => {
+    expect(hasMethodReviewDirective(`差分レビュー不合格: ${METHOD_REVIEW_PREFIX}x`)).toBe(false);
+    const withExamplesOnly = buildJuryRepairReason(
+      { reasons: [`${METHOD_REVIEW_PREFIX}x`], findings: [f({ examples: EXAMPLES })] },
+      [],
+    );
+    expect(hasMethodReviewDirective(withExamplesOnly)).toBe(false);
+    expect(hasMethodReviewDirective('')).toBe(false);
   });
 });

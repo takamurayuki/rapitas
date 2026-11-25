@@ -8,8 +8,9 @@
  * tests/services/verify-convergence.test.ts.
  */
 import { describe, expect, test } from 'bun:test';
-import { identifyIndictedCriteria } from './verify-convergence';
-import { JURY_REPAIR_APPENDIX_MARKER } from './jury-repair-reason';
+import type { ReviewFinding } from '../agents/verification/review-findings';
+import { detectNonConvergence, identifyIndictedCriteria } from './verify-convergence';
+import { JURY_REPAIR_APPENDIX_MARKER, buildJuryRepairReason } from './jury-repair-reason';
 
 const CRITERIA = [
   '否定の文を矛盾判定に数えない',
@@ -32,5 +33,38 @@ describe('identifyIndictedCriteria — jury repair appendix', () => {
 
   test('a reason without an appendix is read as before', () => {
     expect(identifyIndictedCriteria('受入基準2 と 受入基準3 が未達', CRITERIA)).toEqual([2, 3]);
+  });
+});
+
+describe('detectNonConvergence — one grace bounce for the method review (R2)', () => {
+  const finding: ReviewFinding = {
+    severity: 'major',
+    summary: '否定の取りこぼし',
+    criterion: '受入基準1',
+    evidence: 'a.ts:1',
+    gating: true,
+    kind: 'input_coverage',
+  };
+  const withMethod = buildJuryRepairReason({ reasons: [HEADLINE.slice(11)], findings: [finding] }, [
+    [finding],
+    [finding],
+  ]);
+
+  test('the first reason carrying the method review is not cut off', () => {
+    expect(withMethod).toContain('方式の見直し: ');
+    expect(detectNonConvergence(HEADLINE, [HEADLINE, HEADLINE], CRITERIA).cutoff).toBe(true);
+    expect(detectNonConvergence(withMethod, [HEADLINE, HEADLINE], CRITERIA)).toEqual({
+      cutoff: false,
+    });
+  });
+
+  test('once a prior reason carried it, the next one is cut off as before', () => {
+    expect(detectNonConvergence(withMethod, [HEADLINE, withMethod], CRITERIA).cutoff).toBe(true);
+    expect(detectNonConvergence(HEADLINE, [HEADLINE, withMethod], CRITERIA).cutoff).toBe(true);
+  });
+
+  test('the words only in the headline do not grant the grace', () => {
+    const fake = `${HEADLINE} 方式の見直し: x`;
+    expect(detectNonConvergence(fake, [HEADLINE, HEADLINE], CRITERIA).cutoff).toBe(true);
   });
 });

@@ -33,6 +33,13 @@ export interface JuryHistoryDeps {
 
 const JURY_REASON_PREFIX = '差分レビュー不合格';
 
+/**
+ * Cause of a CI repair bounce. NOTE: Same value as CI_REPAIR_CAUSE in
+ * ci-self-repair.ts:28 (a test pins the two); not imported because that module
+ * pulls in the whole CI repair stack.
+ */
+export const CI_REPAIR_CAUSE = 'ci_repair';
+
 function roundOf(metadata: string | null): PriorJuryRound {
   try {
     const meta = JSON.parse(metadata ?? '{}') as { reason?: unknown; findings?: unknown };
@@ -46,9 +53,9 @@ function roundOf(metadata: string | null): PriorJuryRound {
 }
 
 /**
- * Load the findings of the two newest verify_repair bounces in the repair
- * window, newest first. A bounce that was not a jury bounce reads as null
- * (it breaks a run). Never throws: any error reads as no history.
+ * Load the findings of the two newest verify_repair / ci_repair bounces in the
+ * repair window, newest first. A bounce that was not a jury bounce (a CI
+ * repair, a machine gate) reads as null: it breaks a run. Never throws: any error reads as no history.
  *
  * @param taskId - Task / 対象タスク
  * @param deps - Optional DB and window overrides / DB と窓の差し替え
@@ -68,7 +75,12 @@ export async function loadPriorJuryFindingRounds(
     const cause = budget.REPAIR_CAUSE ?? 'verify_repair';
     const windowStart = await (deps.windowStart ?? budget.resolveRepairWindowStart)(taskId);
     const rows = await db.workflowTransition.findMany({
-      where: { taskId, cause, ...(windowStart ? { createdAt: { gt: windowStart } } : {}) },
+      // ci_repair rows are read so a CI bounce in between breaks the run (R3).
+      where: {
+        taskId,
+        cause: { in: [cause, CI_REPAIR_CAUSE] },
+        ...(windowStart ? { createdAt: { gt: windowStart } } : {}),
+      },
       select: { metadata: true },
       orderBy: { createdAt: 'desc' },
       take: 2,

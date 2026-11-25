@@ -86,6 +86,15 @@ asks to fix the whole kind. When the same criterion and kind also failed the two
 previous jury bounces, it asks for a change of method. Background: task 1541
 missed negations in a new form on four bounces in a row.
 
+The follow-up step does nothing when a gating finding the verifier could not
+decide is still in the result. That dispute belongs to a human, so the panel's
+fail stands. A CI repair bounce between two jury bounces breaks the run of
+same-kind findings. The first bounce reason in a repair window that asks for a
+change of method is not cut off by the non-convergence detectors
+(`verify-convergence.ts`, `verify-repeat-evidence.ts`), so it reaches the
+implementer. A later repeat is cut off as before, so the cutoff waits at most
+one bounce.
+
 On FAIL the workflow goes back to the implementer. When no reviewer produced a
 verdict, or the review errored, the outcome depends on risk
 (`jury-unavailable-outcome.ts`): low-risk work proceeds as `'unknown'`, and

@@ -105,11 +105,51 @@ describe('splitFollowUp — blocking findings still stop completion', () => {
     expect(result.findings![0].gating).toBe(true);
   });
 
-  test('a blocker marked follow_up is blocking', () => {
-    const { result } = splitFollowUp(
+  // NOTE: Bypasses parseFindings on purpose, so this guards the post-filter's
+  // own blocker check (D3), not the parser's (D2).
+  test('impact=follow_up の blocker を直接渡しても gating のまま', () => {
+    const { result, followUp: moved } = splitFollowUp(
       failWith([finding({ severity: 'blocker', impact: 'follow_up' })]),
     );
     expect(result.verdict).toBe('fail');
+    expect(result.findings![0].gating).toBe(true);
+    expect(moved).toEqual([]);
+  });
+
+  // R1 (verify of 92d6e24ec): the verifier upheld the follow_up major but could
+  // not decide the blocker. The panel says fail; a human must still see it.
+  test('holds の follow_up と undetermined の blocking が混在するなら結果を変えない', () => {
+    const blocker = finding({
+      severity: 'blocker',
+      summary: 'データを消す',
+      criterion: '受入基準2',
+    });
+    const a = seat('reviewer-1', [{ ...followUp }, blocker]);
+    const b = seat('reviewer-2', []);
+    const verifier: SeatedJuror = {
+      seatId: 'verifier',
+      role: 'verifier',
+      tier: 'premium',
+      provider: 'claude',
+      model: 'claude-opus',
+      verdict: 'unknown',
+      severity: 0,
+      reasons: [],
+    };
+    const review = composeTwoSeatResult({
+      reviewers: [a, b],
+      comparison: compareReviewers([a, b]),
+      verification: { seat: verifier, checks: [{ index: 1, status: 'holds' }] },
+    });
+    expect(review.verdict).toBe('fail');
+    expect(review.findings!.find((f) => f.summary === 'データを消す')!.verification).toBe(
+      'undetermined',
+    );
+    const { result, followUp: moved } = splitFollowUp(review);
+    expect(result).toBe(review);
+    expect(result.verdict).toBe('fail');
+    expect(result.followUp).toBeUndefined();
+    expect(moved).toEqual([]);
   });
 
   test('a follow_up finding that shares its reason with a blocking one keeps that reason', () => {

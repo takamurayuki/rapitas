@@ -63,13 +63,13 @@ describe('parseFindings — impact', () => {
     expect(f.gating).toBe(true);
   });
 
-  test('a missing or unknown impact is blocking', () => {
+  test('impact 欠落は blocking', () => {
     const [a, b] = parseFindings([major({}), major({ impact: 'later' })])!;
     expect(a.impact ?? 'blocking').toBe('blocking');
     expect(b.impact).toBe('blocking');
   });
 
-  test('a blocker is always blocking, even when the juror wrote follow_up', () => {
+  test('blocker+follow_up は blocking として解析される', () => {
     const [f] = parseFindings([major({ severity: 'blocker', impact: 'follow_up' })])!;
     expect(f.impact).toBe('blocking');
     expect(f.gating).toBe(true);
