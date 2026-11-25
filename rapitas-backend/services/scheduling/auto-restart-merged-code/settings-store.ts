@@ -2,11 +2,14 @@
  * AutoRestartMergedCodeSettingsStore
  *
  * File-backed persistence for the autoRestartOnMergedCode toggle and the
- * last-restart rate-limit stamp. Lives in RAPITAS_DATA_DIR (default
+ * last-restart rate-limit stamps. Lives in RAPITAS_DATA_DIR (default
  * ~/.rapitas) because UserSettings gains no new Prisma column for this
- * feature (schema changes are prohibited) — same mechanism as the
- * .dev-restart-last-at stamp, but deliberately separate files so the two
- * restart mechanisms keep independent rate limits.
+ * feature (schema changes are prohibited).
+ * NOTE: Writes stay separate (dev-restart-on-dry writes .dev-restart-last-at,
+ * the merged-code paths and deploy-now write .auto-restart-merged-code-last-at)
+ * but reads are combined via readLatestAutoRestartAt, so the three automatic
+ * restart paths share one floor that survives the relaunch it throttles
+ * (task 1548: ten restarts on 2026-11-25 slipped between independent floors).
  * Not responsible for gate evaluation — see decision.ts.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -24,6 +27,10 @@ function enabledFile(): string {
 
 function lastRestartFile(): string {
   return join(dataDir(), '.auto-restart-merged-code-last-at');
+}
+
+function devRestartFile(): string {
+  return join(dataDir(), '.dev-restart-last-at');
 }
 
 function deferCountFile(): string {
@@ -62,18 +69,50 @@ export function writeAutoRestartEnabled(value: boolean): void {
   writeBestEffort(enabledFile(), value ? 'true' : 'false');
 }
 
-/**
- * Read the last auto-restart timestamp for rate limiting.
- *
- * @returns Epoch ms of the last auto-restart, or 0 when absent/invalid / 前回再起動時刻（不在時0）
- */
-export function readLastRestartAt(): number {
+/** Read an epoch-ms stamp file; absent/invalid = 0. */
+function readStamp(file: string): number {
   try {
-    const ts = Number.parseInt(readFileSync(lastRestartFile(), 'utf8').trim(), 10);
+    const ts = Number.parseInt(readFileSync(file, 'utf8').trim(), 10);
     return Number.isFinite(ts) ? ts : 0;
   } catch {
     return 0;
   }
+}
+
+/**
+ * Read the last merged-code / deploy-now restart timestamp.
+ *
+ * @returns Epoch ms of the last auto-restart, or 0 when absent/invalid / 前回再起動時刻（不在時0）
+ */
+export function readLastRestartAt(): number {
+  return readStamp(lastRestartFile());
+}
+
+/**
+ * Read the last dev-restart-on-dry restart timestamp.
+ *
+ * @returns Epoch ms, or 0 when absent/invalid / 前回の枯渇時再起動の時刻（不在時0）
+ */
+export function readDevRestartLastAt(): number {
+  return readStamp(devRestartFile());
+}
+
+/**
+ * Persist the last dev-restart-on-dry restart timestamp.
+ *
+ * @param ts - Epoch ms of the restart being fired / 発火する再起動の時刻
+ */
+export function writeDevRestartLastAt(ts: number): void {
+  writeBestEffort(devRestartFile(), String(ts));
+}
+
+/**
+ * The most recent restart across every automatic path, for the shared floor.
+ *
+ * @returns Larger of the two stamps, or 0 when neither exists / 2つの記録の新しい方（無ければ0）
+ */
+export function readLatestAutoRestartAt(): number {
+  return Math.max(readLastRestartAt(), readDevRestartLastAt());
 }
 
 /**

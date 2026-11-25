@@ -48,11 +48,7 @@ import {
   createApiTokenGuard,
   createCrossSiteGuard,
 } from './middleware/local-auth';
-import {
-  recordUiRequest,
-  UI_SOURCE_HEADER,
-  UI_SOURCE_VALUE,
-} from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
+import { recordUiRequestFromHeaders } from './services/scheduling/auto-restart-merged-code/ui-activity-tracker';
 import { wrapAppWithWorkspaceScope } from './services/tenancy/workspace-request-wrapper';
 import { initMobileLinkService } from './services/mobile-link';
 import { createAppForwarder } from './services/mobile-link/forward-to-app';
@@ -74,13 +70,9 @@ if (apiTokenGuard) {
 
 // UI-activity recorder: requests the frontend tags with `X-Rapitas-Source: ui`
 // mark the user as active so the task-boundary self-restart defers instead of
-// dropping their connection mid-use. Pure side effect — never blocks a request,
-// and requests without the header change nothing (fail-open).
-app.onRequest(({ request }) => {
-  if (request.headers.get(UI_SOURCE_HEADER) === UI_SOURCE_VALUE) {
-    recordUiRequest(Date.now());
-  }
-});
+// dropping their connection mid-use. `ui-poll` (background polling) is not
+// activity (task 1548). Pure side effect — never blocks a request (fail-open).
+app.onRequest(({ request }) => recordUiRequestFromHeaders(request.headers, Date.now()));
 
 // Apply middleware.
 // NOTE(#1336): the options moved to config/cors-options.ts so the policy can be

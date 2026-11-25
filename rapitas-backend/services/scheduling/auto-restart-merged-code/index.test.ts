@@ -1,11 +1,8 @@
 /**
  * index.test (AutoRestartMergedCodeScheduler)
  *
- * Drives runOnce() with every dependency mocked and asserts the exact call
- * order on the success path (fetch → classify → decide → clean-check →
- * ff-merge → final idle recheck → notification → rate-limit stamp → shutdown
- * sequence), plus every early-exit gate — and the task-boundary path
- * (evaluateBoundaryRestart) with its wait / defer / forced-restart branches.
+ * Drives runOnce() / evaluateBoundaryRestart() with every dependency mocked: call
+ * order, each early-exit gate (incl. the shared 60-min floor), wait/defer/forced.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -71,6 +68,9 @@ mock.module('./settings-store', () => ({
   },
   writeAutoRestartEnabled: () => {},
   readLastRestartAt: () => lastRestartAt,
+  readLatestAutoRestartAt: () => lastRestartAt,
+  readDevRestartLastAt: () => 0,
+  writeDevRestartLastAt: () => {},
   writeLastRestartAt: (_ts: number) => {
     callOrder.push('writeLastRestartAt');
   },
@@ -401,10 +401,10 @@ describe('runOnce — early-exit gates', () => {
     expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
   });
 
-  test('rate-limited: no pull, no restart', async () => {
-    lastRestartAt = Date.now() - 60_000; // 1 min ago < 30 min floor
-    expect(await makeScheduler().runOnce()).toBe(false);
-    expect(callOrder.some((c) => c === 'isWorkingTreeClean')).toBe(false);
+  test.each([45, 61])('60-min floor (was 30): stamp %i min old', async (m) => {
+    lastRestartAt = Date.now() - m * 60_000;
+    expect(await makeScheduler().runOnce()).toBe(m > 60);
+    expect(callOrder.includes('isWorkingTreeClean')).toBe(m > 60);
   });
 
   test('dirty tree: no ff-merge, no notification', async () => {
@@ -493,10 +493,10 @@ describe('evaluateBoundaryRestart — task-boundary path', () => {
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
 
-  test('rate-limited (within the 10-min boundary floor): wait', async () => {
-    lastRestartAt = Date.now() - 60_000;
-    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
-    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  test.each([15, 61])('60-min floor (was 10): stamp %i min old', async (m) => {
+    lastRestartAt = Date.now() - m * 60_000;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(m > 60);
+    expect(callOrder.includes('writeLastRestartAt')).toBe(m > 60);
   });
 
   test('UI active: defer — count persisted, no pull, no shutdown', async () => {

@@ -32,6 +32,7 @@ import {
   listChangedPaths,
 } from './git-io';
 import { dependencyGate } from './dependency-preflight';
+import { writeLastRestartAt } from './settings-store';
 
 const logger = createLogger('deploy-now');
 
@@ -203,6 +204,9 @@ export async function deployNow(startupCommit: string | null): Promise<DeployNow
     logger.warn({ err }, 'notification failed — restarting anyway');
   });
 
+  // NOTE: Written but never read here — the floor does not hold a request. The
+  // stamp keeps an automatic restart from landing right after this one (task 1548).
+  writeLastRestartAt(Date.now());
   logger.info({ aheadCount, branch, startupCommit }, 'deploy requested — restarting to activate');
   scheduleShutdownSequence('[deploy-now]', 75);
   return { deployed: true, reason: 'deployed', aheadCount };
