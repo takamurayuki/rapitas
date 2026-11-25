@@ -174,6 +174,11 @@ export type Task = {
    * other tasks.
    */
   autoRunQueued?: boolean;
+  /**
+   * True when this task is the current pick but other tasks' agents fill
+   * every global slot — it waits its turn instead of starting.
+   */
+  autoRunWaitingForSlot?: boolean;
   // Recurring task fields
   isRecurring?: boolean;
   recurrenceRule?: string | null;
