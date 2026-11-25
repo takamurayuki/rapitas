@@ -1,0 +1,88 @@
+{
+  "_capture": {
+    "reconstruction": {
+      "reconstructed": true,
+      "note": "遷移 22030 の時点の版は残っていないため、3d770fba3 の分類器の否定の判定だけを、22030 の evidence が引用する正規表現に戻した再構成",
+      "sourceTransitionId": 22030,
+      "sourceField": "metadata.reason",
+      "quotedText": ["矛盾して\\s*(いない|いません|ない)", "自己矛盾"],
+      "sourceCommit": "3d770fba3",
+      "file": "rapitas-backend/services/self-improvement/bounce-reason-classifier.ts",
+      "revertedDiff": "diff --git a/rapitas-backend/services/self-improvement/bounce-reason-classifier.ts b/rapitas-backend/services/self-improvement/bounce-reason-classifier.ts\nindex 5808121..8c5fbce 100644\n--- a/rapitas-backend/services/self-improvement/bounce-reason-classifier.ts\n+++ b/rapitas-backend/services/self-improvement/bounce-reason-classifier.ts\n@@ -48,9 +48,10 @@ const POSITIVE_CONTRADICTION =\n const NEGATION_TAIL =\n   /(?:な(?:い|かった|く)|ませ?ん(?:でし(?:た)?)?|ません|ず(?:に)?|なし|無(?:い|かった|し))/;\n \n+const NEGATED_CONTRADICTION = /矛盾して\\s*(いない|いません|ない)/;\n+\n function isNegatedAfterContradiction(sentence: string): boolean {\n-  const at = sentence.indexOf('矛盾');\n-  return at >= 0 && NEGATION_TAIL.test(sentence.slice(at + '矛盾'.length));\n+  return NEGATED_CONTRADICTION.test(sentence);\n }\n \n // English negation before the machine word in the same sentence (\"does not self-contradict\").\n",
+      "reproductionCheck": [
+        {
+          "check": 1,
+          "input": "検証レポートは自己矛盾していなかった",
+          "reconstructed": "verify_contradiction",
+          "expect": "verify_contradiction"
+        },
+        {
+          "check": 2,
+          "input": "検証レポートは自己矛盾していなかった",
+          "original": "other",
+          "expect": "not verify_contradiction"
+        },
+        {
+          "check": 3,
+          "input": "検証レポートは自己矛盾していない",
+          "reconstructed": "other",
+          "expect": "not verify_contradiction"
+        }
+      ]
+    },
+    "input": {
+      "taskId": 1541,
+      "sourceTransitionId": 22030,
+      "transitionCreatedAt": "2026-11-25T09:20:33.112Z",
+      "commit": "3d770fba3",
+      "baseCommit": "4d955358e841f2e89da2ae1b0fded29543164438",
+      "changedFiles": [
+        "rapitas-backend/services/self-improvement/bounce-breakdown.ts",
+        "rapitas-backend/services/self-improvement/bounce-reason-classifier.machine-negation.test.ts",
+        "rapitas-backend/services/self-improvement/bounce-reason-classifier.test.ts",
+        "rapitas-backend/services/self-improvement/bounce-reason-classifier.ts",
+        "rapitas-backend/services/self-improvement/gate-misjudgment-filer.ts",
+        "rapitas-backend/services/self-improvement/loop-metrics.test.ts",
+        "rapitas-backend/services/self-improvement/loop-metrics.ts",
+        "rapitas-backend/services/self-improvement/loop-watcher.test.ts",
+        "rapitas-backend/services/self-improvement/loop-watcher.ts"
+      ],
+      "diffChars": 34487,
+      "diffSha256": "717ab292546bd30e780eddd8032b4b5f4f15c2ee7547021792e15c1386ba18b8",
+      "promptChars": 46190,
+      "promptSha256": "232bbe2dc8e9884fcd161f2442c3ad55506a74b0da98166d21857214b628c278",
+      "criteria": [
+        "分類関数のテストで、差分レビュー不合格は diff_review、self-contradicts は verify_contradiction、ERR_PNPM とポート使用中は environment、計画項目の未実施は plan_gap に分類され、分類できない文は other に入り件数が集計に含まれる（確認方法: bounce-reason-classifier.test.ts）",
+        "loop_review の週次結果（懸念の本文と GET /backlog/loop-metrics の窓）に種類別件数と上位タスクが含まれる（確認方法: loop-watcher.test.ts と loop-metrics.test.ts）"
+      ],
+      "planSource": "GET /workflow/tasks/1541/files/plan の採取時点の版（22030 の時点の版ではない）",
+      "promptRevision": "ae2488042e4a809478750dd326bea9a57de60fe4"
+    },
+    "model": {
+      "provider": "claude",
+      "model": "claude-opus-4-20250514",
+      "modelName": "claude-opus-5-5"
+    },
+    "capturedAt": "2026-11-25T13:47:44.387Z",
+    "script": "scripts/capture-jury-reply-1541.ts",
+    "attempts": [
+      {
+        "attempt": 1,
+        "capturedAt": "2026-11-25T13:45:49.449Z",
+        "result": "follow_up, examples 10 件"
+      },
+      {
+        "attempt": 2,
+        "capturedAt": "2026-11-25T13:46:42.179Z",
+        "result": "blocking, examples 10 件"
+      },
+      {
+        "attempt": 3,
+        "capturedAt": "2026-11-25T13:47:44.387Z",
+        "result": "follow_up, examples 10 件"
+      }
+    ],
+    "rawReplySha256": "8c2a2396ed1fcf79efb0673e0f5c0fa8c265fd355e997b88ac9e30d716a9ddaa"
+  },
+  "rawReply": "{\"verdict\":\"fail\",\"severity\":60,\"findings\":[{\"severity\":\"major\",\"criterion\":\"受入基準1\",\"summary\":\"isAffirmativeContradiction の日本語非機械語彙の経路で、計画手順4の NEGATION_TAIL による否定除外が使われていない。狭い NEGATED_CONTRADICTION（矛盾して(いない|いません|ない)）だけで判定するため、多くの否定文が肯定判定になり、extractContradictionSentences にも混入する。\",\"evidence\":\"bounce-reason-classifier.ts: `const NEGATED_CONTRADICTION = /矛盾して\\\\s*(いない|いません|ない)/;` と `if (isNegatedAfterContradiction(sentence)) return false; return POSITIVE_CONTRADICTION.test(sentence);`。NEGATION_TAIL は機械語彙の分岐（`!NEGATION_TAIL.test(after)`）でしか参照されていない。POSITIVE_CONTRADICTION は `(?:が|は|には|に)?[ \\\\t　]*(...|矛盾と判定|...|自己矛盾)` で、後続の否定語尾を見ない。\",\"repro\":\"extractContradictionSentences('検証レポートが矛盾と判定されていません', '') を呼ぶ。テスト（politeNegations）は [] を期待するが、表示されているコードでは POSITIVE_CONTRADICTION が『矛盾と判定』に一致し、文が採用される。\",\"kind\":\"input_coverage\",\"impact\":\"follow_up\",\"examples\":[\"検証レポートが矛盾と判定されていません\",\"検証レポートが矛盾と判定されていませんでした\",\"検証レポートは自己矛盾とは言えません\",\"検証結果は自己矛盾ではなかった\",\"検証レポートに自己矛盾はなかった\",\"検証レポートに自己矛盾は無かった\",\"検証結果は自己矛盾しなかった\",\"検証レポートは自己矛盾してはいなかった\",\"検証結果は自己矛盾ではありません\",\"検証結果が矛盾と判定されたが、矛盾は見当たらなかった\"]},{\"severity\":\"minor\",\"summary\":\"要確認: classifyBounceReason の本体は省略部分にあり、そこで NEGATION_TAIL を追加適用している可能性がある。その場合でも、toBounceItem と extractContradictionSentences は isAffirmativeContradiction を直接使うため、分類とパターン抽出の結果が食い違う。\",\"evidence\":\"\",\"kind\":\"logic_error\",\"impact\":\"follow_up\",\"examples\":[]},{\"severity\":\"minor\",\"summary\":\"runLoopReview の戻り値が filed + candidates に変わった。型は number のまま。ただし既存の呼び出し側が戻り値を『ルール起票数』として扱っていれば、意味が変わる。\",\"evidence\":\"loop-watcher.ts: `return filed + candidates;`\",\"kind\":\"contract_mismatch\",\"impact\":\"follow_up\",\"examples\":[]}]}"
+}

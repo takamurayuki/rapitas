@@ -11,6 +11,7 @@ import {
   extractRepeatKey,
   detectRepeatedEvidence,
 } from './verify-repeat-evidence';
+import { JURY_REPAIR_APPENDIX_MARKER, methodReviewText } from './jury-repair-reason';
 
 const ROW_914 = '| §8 POSIX統合テスト・CI実測 | ❌ 未確認 | 該当ファイル不存在 |';
 const REASON_914 =
@@ -115,5 +116,42 @@ describe('detectRepeatedEvidence', () => {
       '未達: «ユニットテスト(手動再実行) | ⚠️ 未検証 | 0 / 0 | `pnpm exec vitest` が `vitest not found`(exit 1)。`node_modules` が空»';
 
     expect(detectRepeatedEvidence(b, [a], 2).cutoff).toBe(false);
+  });
+});
+
+describe('detectRepeatedEvidence — jury repair appendix (task 1547)', () => {
+  // Counterexamples in the appendix are the reviewer's, not quoted verify.md
+  // evidence; they must never become the repeat key.
+  const APPENDIX = `${JURY_REPAIR_APPENDIX_MARKER}\n- 受入基準1 [input_coverage] 否定\n  - «verify.md は矛盾していなかった»`;
+
+  test('an appendix with quoted examples does not create a repeat key', () => {
+    const reason = `差分レビュー不合格: 受入基準1: [major] 否定${APPENDIX}`;
+    expect(detectRepeatedEvidence(reason, [reason, reason], 3).cutoff).toBe(false);
+  });
+
+  test('the headline evidence is still found when an appendix follows it', () => {
+    const v = detectRepeatedEvidence(`${REASON_914}${APPENDIX}`, [REASON_914, REASON_914], 3);
+    expect(v).toEqual(detectRepeatedEvidence(REASON_914, [REASON_914, REASON_914], 3));
+    expect(v.cutoff).toBe(true);
+  });
+});
+
+describe('detectRepeatedEvidence — one grace bounce for the method review (R2)', () => {
+  const METHOD = `${JURY_REPAIR_APPENDIX_MARKER}\n${methodReviewText({ criterion: '受入基準1', kind: 'input_coverage' })}`;
+
+  test('the first reason carrying the method review is not cut off', () => {
+    expect(detectRepeatedEvidence(`${REASON_914}${METHOD}`, [REASON_914, REASON_914], 3)).toEqual({
+      cutoff: false,
+    });
+  });
+
+  test('once a prior reason carried it, the repeat is cut off as before', () => {
+    const withMethod = `${REASON_914}${METHOD}`;
+    expect(detectRepeatedEvidence(withMethod, [REASON_914, withMethod], 3).cutoff).toBe(true);
+  });
+
+  test('the words outside the appendix do not grant the grace', () => {
+    const fake = `${REASON_914} 方式の見直し: x`;
+    expect(detectRepeatedEvidence(fake, [REASON_914, REASON_914], 3).cutoff).toBe(true);
   });
 });
