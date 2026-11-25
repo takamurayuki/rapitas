@@ -81,6 +81,41 @@ describe('the due date', () => {
     });
   });
 
+  // 2026-11-25: 「日付と時刻を登録しても登録されないことがある」. A pick saves
+  // the new date, and leaving the field afterwards saved `dueDateInput` — still
+  // the date from before the pick — as a second, unordered PATCH. Whichever
+  // reached the backend last won, so the picked date was sometimes lost.
+  it('does not overwrite a picked date with the old one when the field is left', async () => {
+    const { container, patchTask } = renderSection({ dueDateInput: '2026-01-01T09:00' });
+
+    fireEvent.change(pickerIn(container), { target: { value: '2026-12-24T10:00' } });
+    fireEvent.blur(container.querySelector('input[type="text"]') as HTMLInputElement);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const sent = patchTask.mock.calls.map(([data]) => data.dueDate);
+    expect(sent.at(-1)).toBe(new Date('2026-12-24T10:00').toISOString());
+    expect(sent).not.toContain(new Date('2026-01-01T09:00').toISOString());
+  });
+
+  it('sends a second pick only after the first save finished, in order', async () => {
+    let release: () => void = () => {};
+    const { container, patchTask } = renderSection({});
+    patchTask.mockImplementationOnce(() => new Promise<void>((resolve) => (release = resolve)));
+
+    fireEvent.change(pickerIn(container), { target: { value: '2026-12-24T10:00' } });
+    fireEvent.change(pickerIn(container), { target: { value: '2026-12-25T11:00' } });
+    await Promise.resolve();
+    expect(patchTask).toHaveBeenCalledTimes(1);
+
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(patchTask).toHaveBeenCalledTimes(2);
+    expect(patchTask.mock.calls[1][0]).toEqual({
+      dueDate: new Date('2026-12-25T11:00').toISOString(),
+    });
+  });
+
   it('clears the date when the field is emptied', () => {
     const { container, patchTask } = renderSection({ dueDateInput: '' });
 
