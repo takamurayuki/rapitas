@@ -63,6 +63,47 @@ export interface RawPhaseExecution {
 export interface RawPhaseTransition {
   cause: string | null;
   createdAt: Date | string;
+  /** Status before the move; absent on older callers. / 遷移前のステータス */
+  fromStatus?: string | null;
+  /** Status after the move; absent on older callers. / 遷移後のステータス */
+  toStatus?: string | null;
+}
+
+// Order of the workflow statuses; a move to a lower rank sends the task back.
+const STATUS_RANK: Readonly<Record<string, number>> = {
+  draft: 0,
+  research_done: 1,
+  plan_created: 2,
+  plan_approved: 3,
+  in_progress: 4,
+  verify_done: 5,
+  completed: 6,
+};
+
+/**
+ * The status a phase starts from: a send-back to it or earlier re-runs the phase.
+ * Lightweight tasks implement straight from research_done (no plan phase).
+ */
+function entryRank(phase: PhaseType, hasPlanPhase: boolean): number {
+  if (phase === 'research') return STATUS_RANK.draft;
+  if (phase === 'plan') return STATUS_RANK.research_done;
+  if (phase === 'implement')
+    return hasPlanPhase ? STATUS_RANK.plan_approved : STATUS_RANK.research_done;
+  return STATUS_RANK.in_progress;
+}
+
+/**
+ * The rank a transition sends the task back to, or null when it is not a send-back.
+ * A repair cause with no recorded status keeps its old meaning (implement / verify).
+ */
+function sendBackRank(t: RawPhaseTransition): number | null {
+  const to = t.toStatus != null ? STATUS_RANK[t.toStatus] : undefined;
+  const from = t.fromStatus != null ? STATUS_RANK[t.fromStatus] : undefined;
+  if (to !== undefined && from !== undefined && to < from) return to;
+  // awaiting_question has no rank; a plan revision from it re-runs planning.
+  if (t.cause === 'plan_revision_requested' && to !== undefined) return to;
+  if (t.cause && REPAIR_CAUSES.has(t.cause)) return to ?? STATUS_RANK.plan_approved;
+  return null;
 }
 
 /** One run of a phase (iteration 1 is the first attempt; 2+ follow a verify_repair/ci_repair bounce). */
@@ -126,10 +167,14 @@ export function segmentPhases(
   const workflowMode: WorkflowTimelineMode =
     hasPlanFile || hasPlanningExecution ? 'standard' : 'lightweight';
 
-  const repairTimes = transitions
-    .filter((t) => t.cause && REPAIR_CAUSES.has(t.cause))
-    .map((t) => toTime(t.createdAt))
-    .sort((a, b) => a - b);
+  // NOTE: Rounds were split only on verify_repair / ci_repair, so the send-backs
+  // added since (evidence re-plan, plan / research critics, plan revision after
+  // an answer, retries) folded every round into one and the round tabs vanished
+  // (2026-11-25). Any move back to a phase's start status now opens a round.
+  const sendBacks = transitions
+    .map((t) => ({ rank: sendBackRank(t), time: toTime(t.createdAt) }))
+    .filter((b): b is { rank: number; time: number } => b.rank !== null);
+  const hasPlanPhase = workflowMode !== 'lightweight';
 
   const allTransitionTimes = transitions.map((t) => toTime(t.createdAt));
 
@@ -147,15 +192,12 @@ export function segmentPhases(
     const execs = byPhase.get(phaseType)!;
     if (execs.length === 0) continue;
 
-    // research/plan never repeat via verify_repair/ci_repair — only implement
-    // and verify get sent back around the loop (plan.md 設計判断#6).
-    const repairEligible = phaseType === 'implement' || phaseType === 'verify';
+    const phaseEntry = entryRank(phaseType, hasPlanPhase);
+    const phaseSendBacks = sendBacks.filter((b) => b.rank <= phaseEntry).map((b) => b.time);
 
     const iterationGroups = new Map<number, typeof execs>();
     for (const e of execs) {
-      const iterationNumber = repairEligible
-        ? repairTimes.filter((rt) => rt < e.time).length + 1
-        : 1;
+      const iterationNumber = phaseSendBacks.filter((rt) => rt < e.time).length + 1;
       const group = iterationGroups.get(iterationNumber) ?? [];
       group.push(e);
       iterationGroups.set(iterationNumber, group);

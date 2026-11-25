@@ -50,7 +50,7 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
         }),
         prisma.workflowTransition.findMany({
           where: { taskId },
-          select: { cause: true, createdAt: true },
+          select: { cause: true, createdAt: true, fromStatus: true, toStatus: true },
           orderBy: { createdAt: 'asc' },
         }),
         prisma.workflowFile.findFirst({
@@ -85,6 +85,8 @@ const phaseTimelineRoutes = new Elysia({ prefix: '/workflow' }).get(
       const rawTransitions: RawPhaseTransition[] = transitions.map((t) => ({
         cause: t.cause,
         createdAt: t.createdAt,
+        fromStatus: t.fromStatus,
+        toStatus: t.toStatus,
       }));
 
       const { phases, workflowMode } = segmentPhases(rawExecutions, rawTransitions, !!planFile);
