@@ -49,6 +49,22 @@ describe('TaskCardAutoRunQueueBadge', () => {
     expect(screen.getByText('taskCard.autoRunQueued')).toBeInTheDocument();
   });
 
+  // 2026-11-25: the current pick showed 次に着手 for 30〜65 min while another
+  // task held the only slot, and looked stuck. It is waiting its turn.
+  it('選択済みでも他タスクが枠を埋めている → 「順番待ち」と枠待ちの説明を表示する', () => {
+    render(
+      <TaskCardAutoRunQueueBadge
+        task={createMockTask({ autoRunCurrent: true, autoRunWaitingForSlot: true })}
+        isExecuting={false}
+      />,
+    );
+    expect(screen.getByText('taskCard.autoRunQueued')).toBeInTheDocument();
+    expect(screen.queryByText('taskCard.autoRunNextUp')).toBeNull();
+    expect(
+      screen.getByText('taskCard.autoRunQueued').closest('[title]')?.getAttribute('title'),
+    ).toBe('taskCard.autoRunWaitingForSlotTooltip');
+  });
+
   it('どちらのフラグも false → 何も表示しない', () => {
     const { container } = render(
       <TaskCardAutoRunQueueBadge

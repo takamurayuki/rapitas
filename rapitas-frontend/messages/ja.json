@@ -685,7 +685,8 @@
       "autoRunNextUp": "次に着手",
       "autoRunNextUpTooltip": "自動実行がこのタスクを選択済みですが、まだエージェントは起動していません。表示中の時間は最終更新からの経過時間です",
       "autoRunQueued": "順番待ち",
-      "autoRunQueuedTooltip": "自動実行の対象ですが、他のタスクの処理中のため順番を待っています"
+      "autoRunQueuedTooltip": "自動実行の対象ですが、他のタスクの処理中のため順番を待っています",
+      "autoRunWaitingForSlotTooltip": "次に着手するタスクとして選ばれていますが、同時に動かせる枠を他のタスクが使っているため、終わるのを待っています"
     },
     "suggestionCard": {
       "category": {

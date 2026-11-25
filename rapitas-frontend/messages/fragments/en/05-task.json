@@ -199,7 +199,8 @@
       "autoRunNextUp": "Next up",
       "autoRunNextUpTooltip": "Auto-run has picked this task, but no agent has started yet. The time shown is elapsed since the last update.",
       "autoRunQueued": "Queued",
-      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task"
+      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task",
+      "autoRunWaitingForSlotTooltip": "Picked as the next task, but every run slot is in use by another task; it starts when one finishes"
     },
     "suggestionCard": {
       "category": {
