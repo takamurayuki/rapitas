@@ -96,7 +96,8 @@ describe('useThemeCrud UI source header coverage', () => {
     expect(headerOf(call, 'content-type')).toBe('application/json');
   });
 
-  it('handleAdd (dev) also tags the favorites GET/POST with the UI header', async () => {
+  // Task 1548: the favorites GET is a read (ui-poll); both POSTs stay ui.
+  it('handleAdd (dev) tags the favorites GET ui-poll and both POSTs ui', async () => {
     const { result } = renderCrud({
       ...baseFormData,
       isDevelopment: true,
@@ -116,7 +117,7 @@ describe('useThemeCrud UI source header coverage', () => {
 
     expect(favoritesGet[0]).toBe('http://test:3001/directories/favorites');
     expect(favoritesGet[1]?.method).toBeUndefined();
-    expect(headerOf(favoritesGet, 'x-rapitas-source')).toBe('ui');
+    expect(headerOf(favoritesGet, 'x-rapitas-source')).toBe('ui-poll');
 
     expect(favoritesPost[0]).toBe('http://test:3001/directories/favorites');
     expect(favoritesPost[1]?.method).toBe('POST');

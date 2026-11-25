@@ -35,6 +35,11 @@ mock.module('../../../services/scheduling/auto-restart-merged-code/settings-stor
   },
   readLastRestartAt: () => 0,
   writeLastRestartAt: () => {},
+  readDevRestartLastAt: () => 0,
+  writeDevRestartLastAt: () => {},
+  readLatestAutoRestartAt: () => 0,
+  readDeferCount: () => 0,
+  writeDeferCount: () => {},
 }));
 
 const { applyPendingClientColumns, applyAutoRestartOnMergedCode } =

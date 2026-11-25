@@ -159,10 +159,14 @@ function resolvePositiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-// 10 min — boundary-path flapping guard. Independent from the poller's
-// RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS (30 min) and dev-restart's
-// fixed 10 min; the boundary path is governed by its own explicit env.
-const DEFAULT_MIN_RESTART_INTERVAL_MS = 10 * 60 * 1000;
+/**
+ * Default floor between two automatic restarts, shared by all three paths
+ * (dev-restart-on-dry, boundary restart, poller). 60 min — each restart stops
+ * the backend for 36-63 s, and 2026-11-25 saw ten of them in one day; merges
+ * that land inside the window are picked up together by the next restart.
+ * POST /deploy/now is never held by this floor.
+ */
+export const DEFAULT_AUTO_RESTART_MIN_INTERVAL_MS = 60 * 60 * 1000;
 // 3 min — how recently a UI request must have arrived to count as "in use".
 const DEFAULT_UI_QUIET_MS = 3 * 60 * 1000;
 // 5 — deferral ceiling before the restart fires despite UI activity.
@@ -197,10 +201,37 @@ export function resolveIdleBoundaryPolls(): number {
 /**
  * Resolve the minimum interval between boundary restarts.
  *
- * @returns Interval in ms (RAPITAS_RESTART_MIN_INTERVAL_MS, default 10 min) / 最低再起動間隔（ミリ秒）
+ * @returns Interval in ms (RAPITAS_RESTART_MIN_INTERVAL_MS, default 60 min) / 最低再起動間隔（ミリ秒）
  */
 export function resolveRestartMinIntervalMs(): number {
-  return resolvePositiveIntEnv('RAPITAS_RESTART_MIN_INTERVAL_MS', DEFAULT_MIN_RESTART_INTERVAL_MS);
+  return resolvePositiveIntEnv(
+    'RAPITAS_RESTART_MIN_INTERVAL_MS',
+    DEFAULT_AUTO_RESTART_MIN_INTERVAL_MS,
+  );
+}
+
+/**
+ * Resolve the minimum interval between poller (machinery-merge) restarts.
+ *
+ * @returns Interval in ms (RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS, default 60 min) / 最低再起動間隔（ミリ秒）
+ */
+export function resolvePollerMinRestartIntervalMs(): number {
+  return resolvePositiveIntEnv(
+    'RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS',
+    DEFAULT_AUTO_RESTART_MIN_INTERVAL_MS,
+  );
+}
+
+/**
+ * Resolve the minimum interval between dev-restart-on-dry restarts.
+ *
+ * @returns Interval in ms (RAPITAS_DEV_RESTART_MIN_INTERVAL_MS, default 60 min) / 最低再起動間隔（ミリ秒）
+ */
+export function resolveDevRestartMinIntervalMs(): number {
+  return resolvePositiveIntEnv(
+    'RAPITAS_DEV_RESTART_MIN_INTERVAL_MS',
+    DEFAULT_AUTO_RESTART_MIN_INTERVAL_MS,
+  );
 }
 
 /**

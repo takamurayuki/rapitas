@@ -52,7 +52,7 @@ async function fetchWithSWR<T>(
   if (cached) {
     onData(cached);
     // Background revalidate
-    fetch(url, { headers: mergeUiSourceHeaders() })
+    fetch(url, { headers: mergeUiSourceHeaders(undefined, 'GET') })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) {
@@ -66,7 +66,7 @@ async function fetchWithSWR<T>(
     return { cached: true, data: cached };
   }
 
-  const res = await fetch(url, { headers: mergeUiSourceHeaders() });
+  const res = await fetch(url, { headers: mergeUiSourceHeaders(undefined, 'GET') });
   if (res.ok) {
     const data = await res.json();
     onData(data);
@@ -97,7 +97,8 @@ function pollDownloadProgress(
   const interval = setInterval(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`, {
-        headers: mergeUiSourceHeaders(),
+        // NOTE: Polling — tagged ui-poll so it does not hold the restart gate (task 1548).
+        headers: mergeUiSourceHeaders(undefined, 'GET'),
       });
       if (res.ok) {
         const progress = await res.json();
@@ -223,7 +224,7 @@ export function useSettingsData() {
   const fetchLocalLlmStatus = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/local-llm/status`, {
-        headers: mergeUiSourceHeaders(),
+        headers: mergeUiSourceHeaders(undefined, 'GET'),
       });
       if (res.ok) setLocalLlmStatus(await res.json());
     } catch {

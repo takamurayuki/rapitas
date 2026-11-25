@@ -56,7 +56,9 @@ export async function fetchWithRetry(
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : 'unknown';
   // NOTE: Built once outside the retry loop so every attempt carries the same
   // headers; the X-Rapitas-Source tag feeds the backend's UI-quiet restart gate.
-  const headers = mergeUiSourceHeaders(init);
+  // The method is passed explicitly: here `init` is the whole request, so no
+  // method really is GET, which is tagged `ui-poll` unless the user just acted.
+  const headers = mergeUiSourceHeaders(init, init?.method ?? 'GET');
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {

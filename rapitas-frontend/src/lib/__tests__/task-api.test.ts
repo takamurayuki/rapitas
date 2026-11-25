@@ -102,14 +102,15 @@ describe('searchTasks', () => {
     expect(result).toEqual([]);
   });
 
-  it('calls debouncedFetch with encoded query', async () => {
+  // Task 1548: typing in search is a user operation, so the GET is tagged `ui`.
+  it('calls debouncedFetch with encoded query, marked as a user action', async () => {
     mockDebouncedFetch.mockResolvedValue([{ id: 1, title: 'found' }]);
 
     const result = await searchTasks('test query');
 
     expect(mockDebouncedFetch).toHaveBeenCalledWith(
       '/tasks/search?q=test%20query',
-      { cacheTime: 60000 },
+      { cacheTime: 60000, userAction: true },
       500,
     );
     expect(result).toEqual([{ id: 1, title: 'found' }]);
