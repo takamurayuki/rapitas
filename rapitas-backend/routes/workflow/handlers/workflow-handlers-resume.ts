@@ -87,6 +87,8 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
+  /** True when a paused theme found no free slot: the answer is saved and the task waits queued. / 枠待ち */
+  waitingForSlot?: true;
 }> {
   const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
 
@@ -207,9 +209,14 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   // Errors are logged inside triggerReExecutionAfterAnswer and never thrown —
   // a failed auto re-run must not fail this response (the answer itself is
   // already durably recorded above; the user can still re-run manually).
-  await triggerReExecutionAfterAnswer(taskId);
+  const resume = await triggerReExecutionAfterAnswer(taskId);
 
-  return { taskId, ok: true, toStatus: 'draft' };
+  return {
+    taskId,
+    ok: true,
+    toStatus: 'draft',
+    ...(resume === 'waiting_slot' ? { waitingForSlot: true as const } : {}),
+  };
 }
 
 /**
@@ -237,6 +244,10 @@ export async function handleAnswerWorkflowQuestion({
   toStatus: WorkflowStatus;
   /** Kind resolved for this answer — surfaced for observability; the UI does not parse it. / 解決されたkind */
   resolvedKind: QuestionAnswerKind;
+  /** 枠待ち時の表示文言。 */
+  message?: string;
+  /** True when a paused theme found no free slot: the answer is saved and the task waits queued. / 枠待ち */
+  waitingForSlot?: true;
 }> {
   if (!isValidEntityId(params.taskId)) {
     set.status = 400;
@@ -305,12 +316,21 @@ export async function handleAnswerWorkflowQuestion({
     // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.
     // A person's answer is the new hypothesis a no-progress halt waits for (task 520).
     await releaseHaltOnHumanAnswer(result.taskId, answer, sourceLabel).catch(() => false);
-    if (result.kind === 'plan_revision') await triggerReExecutionAfterAnswer(result.taskId);
+    const resume =
+      result.kind === 'plan_revision'
+        ? await triggerReExecutionAfterAnswer(result.taskId)
+        : 'started';
     return {
       taskId: result.taskId,
       ok: true,
       toStatus: result.toStatus,
       resolvedKind: result.kind,
+      ...(resume === 'waiting_slot' || result.waitingForSlot
+        ? {
+            waitingForSlot: true as const,
+            message: '実行枠の空きを待機中です。回答は保存されています。',
+          }
+        : {}),
     };
   } catch (err) {
     if (err instanceof NotFoundError) set.status = 404;

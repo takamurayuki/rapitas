@@ -311,3 +311,25 @@ describe('tryDequeueCandidate — repair_admission_denied', () => {
     expect(cycleEvents.length).toBe(0);
   });
 });
+
+describe('tryDequeueCandidate — 直接実行が握る枠 (task 1535)', () => {
+  test('直接実行の予約(running 項目)が上限に達していれば dequeue は取得しない', async () => {
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row({ status: 'queued' }));
+    prismaMock.workflowQueueItem.count.mockResolvedValue(1); // direct-slot item counted as running
+
+    expect(await tryDequeueCandidate(row(), 1)).toBeNull();
+    expect(prismaMock.workflowQueueItem.update).not.toHaveBeenCalled();
+  });
+
+  test('予約が解放されて running が 0 になれば、同じ候補を取得できる', async () => {
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row({ status: 'queued' }));
+    prismaMock.workflowQueueItem.count.mockResolvedValue(0);
+    prismaMock.workflowQueueItem.update.mockResolvedValue(row({ status: 'running' }));
+
+    const result = await tryDequeueCandidate(row(), 1);
+    expect(result).not.toBeNull();
+    expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'running' }) }),
+    );
+  });
+});

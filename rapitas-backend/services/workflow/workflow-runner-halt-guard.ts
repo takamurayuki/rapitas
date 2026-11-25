@@ -13,6 +13,7 @@
 // unrelated suites).
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
+import { parkItemIfThemeHalted } from './workflow-runner-theme-pause-guard';
 
 const log = createLogger('workflow-runner');
 
@@ -86,7 +87,7 @@ export function haltParkMessage(taskId: number, phase: string, haltReason: strin
  * @param item - The in-flight queue item. / 実行中のキュー項目
  * @param phase - The task's current workflowStatus. / 現在のワークフローフェーズ
  * @param notify - Broadcast callback (the runner supplies its active-count). / 通知コールバック
- * @returns true when the item was parked and the loop must stop. / parked したら true
+ * @returns true when the item was parked (or requeued by a paused theme) and the loop must stop. / parked したら true
  */
 export async function parkItemIfHalted(
   queue: QueueStatusWriter,
@@ -95,7 +96,13 @@ export async function parkItemIfHalted(
   notify: (event: string, phase: string) => void,
 ): Promise<boolean> {
   const haltReason = await resolveInflightHaltReason(item.taskId, phase);
-  if (!haltReason) return false;
+  // NOTE: a paused theme hands its slot back before the next agent phase (task 1535). Kept here
+  // rather than in workflow-runner.ts, which is over the line limit; same non-dispatch exemption.
+  if (!haltReason) {
+    return NON_DISPATCH_PHASES.has(phase)
+      ? false
+      : parkItemIfThemeHalted(queue, item, phase, notify);
+  }
   await queue.updateStatus(item.id, 'cancelled', {
     errorMessage: haltParkMessage(item.taskId, phase, haltReason),
     currentPhase: phase,
