@@ -1,5 +1,10 @@
 /**
- * adversarial-diff-review.follow-up.test
+ * adversarial-diff-review.follow-up-rules.test
+ *
+ * The post-filter RULES, fed hand-added attributes. NOTE: kind / impact /
+ * examples here are written by hand, so this file is not the evidence for
+ * acceptance criterion 5 of task 1547 — that is the real-model capture replayed
+ * in adversarial-diff-review.capture-1541.test.ts.
  *
  * Drives the real reviewDiffAdversarially (task 1547): a fail that rests only
  * on impact=follow_up findings passes, the findings are filed as concerns with
@@ -20,7 +25,7 @@ type Fixture = {
   annotations: { kind: string; impact: string; examples: string[]; _rationale: string[] };
 };
 const FIXTURE = JSON.parse(
-  readFileSync(join(import.meta.dir, 'fixtures', 'task-1541-negation-reply.json'), 'utf8'),
+  readFileSync(join(import.meta.dir, 'fixtures', 'task-1541-negation-annotated.json'), 'utf8'),
 ) as Fixture;
 const RECORDED = FIXTURE.recorded.findings[0];
 /** The juror-written fields of the recorded finding (seat / verifier fields are the panel's). */
@@ -105,7 +110,7 @@ beforeEach(() => {
   appendEvent.mockClear();
 });
 
-describe('reviewDiffAdversarially — impact=follow_up findings', () => {
+describe('reviewDiffAdversarially — 後処理の規則（手で足した属性）', () => {
   it('the fixture is transition 22030 of task 1541, its recorded fields replayed unchanged', () => {
     expect(FIXTURE._source).toMatchObject({ taskId: 1541, transitionId: 22030 });
     expect(FIXTURE.recorded.reason.startsWith('差分レビュー不合格: 受入基準1: [major]')).toBe(true);
