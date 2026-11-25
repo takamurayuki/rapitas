@@ -12,6 +12,7 @@
  */
 
 import { isSameFinding } from './verify-evidence-similarity';
+import { stripJuryRepairAppendix } from './jury-repair-reason';
 
 /** Delimiters the validator wraps quoted evidence lines in. */
 const EVIDENCE_OPEN = '«';
@@ -92,11 +93,12 @@ export function detectRepeatedEvidence(
   priorReasons: string[],
   threshold: number,
 ): RepeatedEvidenceVerdict {
-  const key = extractRepeatKey(currentReason);
+  // NOTE: Quoted examples in the jury appendix are not verify.md evidence (task 1547).
+  const key = extractRepeatKey(stripJuryRepairAppendix(currentReason));
   if (!key || threshold < 1) return { cutoff: false };
   let count = 1;
   for (const prior of priorReasons) {
-    const priorKey = extractRepeatKey(prior);
+    const priorKey = extractRepeatKey(stripJuryRepairAppendix(prior));
     if (priorKey !== null && isSameFinding(priorKey, key)) count++;
   }
   if (count < threshold) return { cutoff: false };

@@ -106,6 +106,12 @@ export interface DiffReviewResult {
   awaitingHuman?: AwaitingHuman;
   /** The evidence-based risk decision, recorded when the jury was undecided. */
   unavailableRisk?: { high: boolean; reason: string; source: string; files?: string[] };
+  /**
+   * Findings moved to follow-up concerns because their impact was follow_up
+   * (follow-up-findings.ts): how many, their reasons, and whether that turned
+   * the fail into a pass. Recorded on the adversarial_review event.
+   */
+  followUp?: { count: number; reasons: string[]; verdictChanged: boolean };
 }
 
 /** One juror's parsed reply: a juror never answers 'hold'. */

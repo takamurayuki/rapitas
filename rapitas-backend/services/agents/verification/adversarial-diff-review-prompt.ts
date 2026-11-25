@@ -10,6 +10,28 @@
 /** Reason prefixes a juror uses for notes that must NOT drive the verdict. */
 export const NON_VERDICT_REASON_RE = /^\s*(?:要確認|管轄外)\s*[:：]/;
 
+/**
+ * Closed vocabulary for the kind of a finding (task 1547). A closed list keeps
+ * the label stable across review rounds, so the same kind failing the same
+ * criterion again can be detected (jury-repair-reason.ts). Defined here, not in
+ * review-findings.ts, because that module already imports this one.
+ */
+export const FINDING_KINDS = [
+  'input_coverage',
+  'logic_error',
+  'missing_test',
+  'data_integrity',
+  'security',
+  'concurrency',
+  'error_handling',
+  'contract_mismatch',
+  'scope',
+  'other',
+] as const;
+
+/** The kind vocabulary as shown to the judge. */
+const FINDING_KIND_LIST = FINDING_KINDS.join(' | ');
+
 /** Max characters of the task description shown to the judge. */
 const MAX_DESCRIPTION_CHARS = 4000;
 
@@ -92,10 +114,17 @@ ${claim}
 
 ## 出力（厳守）
 **JSONオブジェクトのみ**を出力してください（前置き・コードフェンス不要）:
-{"verdict":"pass"|"fail","severity":0-100,"findings":[{"severity":"blocker"|"major"|"minor","criterion":"受入基準N（該当する場合のみ）","summary":"何が問題か1文で","evidence":"根拠: ファイル:行 または差分の該当箇所の引用","repro":"再現手順（分かる場合のみ）"}]}
+{"verdict":"pass"|"fail","severity":0-100,"findings":[{"severity":"blocker"|"major"|"minor","criterion":"受入基準N（該当する場合のみ）","summary":"何が問題か1文で","evidence":"根拠: ファイル:行 または差分の該当箇所の引用","repro":"再現手順（分かる場合のみ）","kind":"${FINDING_KIND_LIST}","impact":"blocking"|"follow_up","examples":["同じ種類で、差分のコードがまだ誤る具体的な入力・ケース（最大10件）"]}]}
 - 指摘は findings に1件ずつ書く。問題がなければ findings は空配列。
 - severity の基準: blocker＝受入基準を満たさない・明確なバグ・セキュリティ問題で、このまま出せない。major＝要件の一部未達や意味的な欠陥で修正が必要。minor＝軽微な改善・好みの問題（修正を要求しない）。
 - **evidence は必須**。差分の中の具体的な箇所（\`path/to/file.ts:42\` か、差分行の引用）を書く。差分に根拠を示せない疑義は evidence を空にし、summary を「要確認:」で始める（判定には使われず、記録だけ残る）。「管轄外:」の基準も同様に summary の先頭に付けて記録する。
 - verdict は findings と一致させる: evidence 付きの blocker か major が1件でもあれば "fail"、それ以外（minor・要確認・管轄外だけ、または指摘なし）は "pass"。
-- 各 finding の criterion には、対応する受入基準があれば必ず「受入基準N」を書く。summary の文頭に「受入基準N:」を付けてもよい。どの受入基準にも当たらない major は、このタスクの合否には使われず、別タスクとして起票される（blocker は受入基準の外でも不合格になる）。`;
+- 各 finding の criterion には、対応する受入基準があれば必ず「受入基準N」を書く。summary の文頭に「受入基準N:」を付けてもよい。どの受入基準にも当たらない major は、このタスクの合否には使われず、別タスクとして起票される（blocker は受入基準の外でも不合格になる）。
+- **kind**（指摘の種類）は次の語彙から1つ選ぶ: ${FINDING_KIND_LIST}。否定・活用形・言い換え・語順・言語違いの取りこぼしは input_coverage。どれにも当たらなければ other。
+- **examples**（同種の反例）: 1件見つけたら、同じ種類で差分のコードがまだ誤る入力・ケースをできるだけ挙げる（最大10件、1件1行）。例: 否定の取りこぼしなら、過去形・丁寧形・英語・別の語の後ろの否定をそれぞれ1件ずつ。実装者は1回の差し戻しで種類全体を直すため、反例の列挙を惜しまない。
+- **impact**（完了を止めるか）は、その誤りが起きたときの影響で決める。
+  - blocking: データの破壊・消失、誤った合否・完了判定、安全・セキュリティ、取り返しがつかない操作、要件の中核が動かない。
+  - follow_up: 推定・分類・ヒューリスティックの精度のように、誤っても影響が限定的で後から直せるもの（例: 週に1件余分な懸念が出る、1件の起票が漏れる）。follow_up の指摘は完了を止めず、後続の懸念として起票される。
+  - 迷ったら blocking。blocker は常に blocking。
+- follow_up でも、evidence 付きの major なら verdict は "fail" と書く（合否の調整は集計側が行う）。`;
 }

@@ -214,7 +214,7 @@ describe('runFallbackJuryGate', () => {
       verdict: 'fail',
       severity: 70,
       reasons: ['[major] bug（根拠: a.ts:1）'],
-      findings: [{ severity: 'major', summary: 'bug', evidence: 'a.ts:1', gating: true }],
+      findings: [{ summary: 'bug', evidence: 'a.ts:1', gating: true, examples: ['過去形'] }],
       diffFingerprint: 'fp-A',
     });
     const out = await runFallbackJuryGate(params());
@@ -222,7 +222,7 @@ describe('runFallbackJuryGate', () => {
     expect(repair).toHaveBeenCalledWith(
       9,
       'in_progress',
-      expect.stringContaining('差分レビュー不合格'),
+      expect.stringMatching(/^差分レビュー不合格: \[major\] bug[\s\S]*- 過去形/),
       '# verify',
       // routing2a-fix1: the findings ride on the bounce row; a code bug stays with the implementer.
       {

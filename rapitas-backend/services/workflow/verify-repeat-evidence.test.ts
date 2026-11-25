@@ -11,6 +11,7 @@ import {
   extractRepeatKey,
   detectRepeatedEvidence,
 } from './verify-repeat-evidence';
+import { JURY_REPAIR_APPENDIX_MARKER } from './jury-repair-reason';
 
 const ROW_914 = '| §8 POSIX統合テスト・CI実測 | ❌ 未確認 | 該当ファイル不存在 |';
 const REASON_914 =
@@ -115,5 +116,22 @@ describe('detectRepeatedEvidence', () => {
       '未達: «ユニットテスト(手動再実行) | ⚠️ 未検証 | 0 / 0 | `pnpm exec vitest` が `vitest not found`(exit 1)。`node_modules` が空»';
 
     expect(detectRepeatedEvidence(b, [a], 2).cutoff).toBe(false);
+  });
+});
+
+describe('detectRepeatedEvidence — jury repair appendix (task 1547)', () => {
+  // Counterexamples in the appendix are the reviewer's, not quoted verify.md
+  // evidence; they must never become the repeat key.
+  const APPENDIX = `${JURY_REPAIR_APPENDIX_MARKER}\n- 受入基準1 [input_coverage] 否定\n  - «verify.md は矛盾していなかった»`;
+
+  test('an appendix with quoted examples does not create a repeat key', () => {
+    const reason = `差分レビュー不合格: 受入基準1: [major] 否定${APPENDIX}`;
+    expect(detectRepeatedEvidence(reason, [reason, reason], 3).cutoff).toBe(false);
+  });
+
+  test('the headline evidence is still found when an appendix follows it', () => {
+    const v = detectRepeatedEvidence(`${REASON_914}${APPENDIX}`, [REASON_914, REASON_914], 3);
+    expect(v).toEqual(detectRepeatedEvidence(REASON_914, [REASON_914, REASON_914], 3));
+    expect(v.cutoff).toBe(true);
   });
 });

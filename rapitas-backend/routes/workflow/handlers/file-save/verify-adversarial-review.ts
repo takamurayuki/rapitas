@@ -269,9 +269,10 @@ async function reviewAndApply(
       }
     }
 
-    const reason = `差分レビュー不合格: ${
-      activeReview.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
-    }`;
+    // Headline + same-kind examples and, on a third same-kind bounce, a method review (task 1547).
+    const { buildJuryRepairReasonForTask } =
+      await import('../../../../services/workflow/jury-repair-history');
+    const reason = await buildJuryRepairReasonForTask(taskId, activeReview);
 
     if (
       reviewStillFailing &&

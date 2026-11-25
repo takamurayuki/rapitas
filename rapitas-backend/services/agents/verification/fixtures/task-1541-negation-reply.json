@@ -1,0 +1,24 @@
+{
+  "_source": "再構成。タスク1541 の元の陪審応答（adversarial_review イベントと verify_repair 遷移の metadata.reason）はこの worktree から取得できないため、タスク1547 の説明（否定の取りこぼしが過去形 → 丁寧形 → 機械語彙の後ろと形を変えて4回続いた）と、コミット 3d770fba3 の rapitas-backend/services/self-improvement/bounce-reason-classifier.ts（git show で確認した行）から作成した。kind・impact・examples はタスク1547 の新プロンプトの基準（分類の精度は follow_up、否定・活用形の取りこぼしは input_coverage）に従って付与した。",
+  "verdict": "fail",
+  "severity": 70,
+  "findings": [
+    {
+      "severity": "major",
+      "criterion": "受入基準1",
+      "summary": "否定された「矛盾」を検証レポートの矛盾判定として数え、ゲート誤判定の候補に入れてしまう文が残っている",
+      "evidence": "rapitas-backend/services/self-improvement/bounce-reason-classifier.ts:48 const NEGATION_TAIL = /(?:な(?:い|かった|く)|ませ?ん(?:でし(?:た)?)?|ません|ず(?:に)?|なし|無(?:い|かった|し))/;",
+      "repro": "classifyBounceReason に「verify.md は矛盾しておらず」を含む reason を渡すと verify_contradiction に分類される",
+      "kind": "input_coverage",
+      "impact": "follow_up",
+      "examples": [
+        "過去形の否定: 「verify.md は矛盾していなかった」",
+        "丁寧形の否定: 「検証レポートに矛盾はありませんでした」",
+        "機械語彙の後ろの否定: 「verify.md is self-contradicting, which is not the case」",
+        "英語の否定: 「the verify report is never self-contradictory」",
+        "別の語の後ろの否定: 「検証結果が矛盾しているとは言えない」",
+        "連用形の否定: 「矛盾しておらず、記録不足である」"
+      ]
+    }
+  ]
+}

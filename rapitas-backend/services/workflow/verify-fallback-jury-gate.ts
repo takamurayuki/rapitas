@@ -237,9 +237,9 @@ async function reviewAndApplyLocked(
     return { result: { stop: false }, seen: seen('passed') };
   }
 
-  const reason = `差分レビュー不合格: ${
-    review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
-  }`;
+  // Same reason builder as the HTTP path (verify-adversarial-review.ts, task 1547).
+  const { buildJuryRepairReasonForTask } = await import('./jury-repair-history');
+  const reason = await buildJuryRepairReasonForTask(taskId, review);
   const { attemptVerifyRepair } = await import('./verify-self-repair');
   const { juryBounceGrounds } = await import('./repair-cause');
   // Grounds ride on the bounce row (see verify-adversarial-review.ts).

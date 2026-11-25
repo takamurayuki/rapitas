@@ -71,6 +71,21 @@ fails the review wherever it lies. Tasks without criteria keep the old
 behaviour. Background: trendline task 1519 was bounced three times by real
 but out-of-scope races between concurrent launcher instances.
 
+Each finding also names its `kind` (a closed vocabulary such as
+`input_coverage`), lists same-kind counterexamples in `examples` (at most 10),
+and states its `impact`. After the out-of-criteria step, a fail whose only
+decisive findings have `impact: follow_up` becomes a pass, and those findings
+are filed as concerns (`follow-up-findings.ts`, run from
+`review-post-filters.ts`). A missing impact, a `blocker`, and a finding the
+verifier refuted or could not decide are never deferred. Because impact never
+changes a seat's vote, seats that differ only on impact both fail, and the
+blocking copy keeps the review failed. The count and reasons are recorded as
+`followUp` on the `adversarial_review` event. On a bounce, the reason given to
+the implementer (`jury-repair-reason.ts`) appends the kinds and examples and
+asks to fix the whole kind. When the same criterion and kind also failed the two
+previous jury bounces, it asks for a change of method. Background: task 1541
+missed negations in a new form on four bounces in a row.
+
 On FAIL the workflow goes back to the implementer. When no reviewer produced a
 verdict, or the review errored, the outcome depends on risk
 (`jury-unavailable-outcome.ts`): low-risk work proceeds as `'unknown'`, and
