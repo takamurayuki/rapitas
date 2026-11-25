@@ -87,11 +87,15 @@ export interface AcceptanceState {
 
 /** Juror answers in the shape parseReviewVerdict reads. */
 export const PASS = '{"verdict":"pass","severity":0,"findings":[]}';
+// NOTE: The finding names 受入基準1 (the seeded task's only criterion). Since
+// #1662 a major finding that names no criterion is moved out of the verdict as
+// a follow-up concern, so a criterion-less FAIL here turned into a pass and the
+// "(b) 指摘が成り立つ → 差し戻し" cases saw `completed` (red since 2026-11-21).
 export const FAIL = (summary: string) =>
   JSON.stringify({
     verdict: 'fail',
     severity: 90,
-    findings: [{ severity: 'major', summary, evidence: 'src/a.ts:1' }],
+    findings: [{ severity: 'major', criterion: '受入基準1', summary, evidence: 'src/a.ts:1' }],
   });
 /** Verifier answer for the single disputed finding. */
 export const VERIFY = (status: 'holds' | 'refuted' | 'undetermined') =>
