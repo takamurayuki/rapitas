@@ -6586,7 +6586,10 @@
       "wholeWord": "Match whole word",
       "regex": "Use regular expression"
     },
-    "runDivider": "─────── run {n}/{total} ───────"
+    "runDivider": "─────── run {n}/{total} ───────",
+    "reviewRunDivider": "─────── diff review {seat} ({model}) {n}/{total} ───────",
+    "reviewRunResult": "verdict: {verdict}, {findings} findings",
+    "reviewRunUnknown": "unknown"
   },
   "testCorrelation": {
     "pageTitle": "Test Failure Correlation Heatmap",

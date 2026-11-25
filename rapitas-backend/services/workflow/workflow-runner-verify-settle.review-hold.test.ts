@@ -17,6 +17,9 @@ const live: TaskWorkflowState = {
   workflowMode: null,
   parentId: null,
 };
+// The settle wait also asks whether the verifier is still running (task 1547);
+// these cases have no live verifier, and the real lookup would reach the DB.
+mock.module('./verify-settle-live-verifier', () => ({ isVerifierStillRunning: async () => false }));
 mock.module('../task/task-resolver', () => ({ resolveTaskWorkflowState: async () => live }));
 mock.module('./verify-self-repair', () => ({ hasFreshVerifyRejection: async () => false }));
 mock.module('./verify-settle-artifact-recovery', () => ({
