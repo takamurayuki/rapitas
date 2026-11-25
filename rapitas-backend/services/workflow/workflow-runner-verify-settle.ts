@@ -36,6 +36,16 @@ async function recoverFromLandedArtifact(taskId: number): Promise<boolean> {
   }
 }
 
+/** Whether the verifier agent is still alive; false on any lookup failure. */
+async function verifierStillRunning(taskId: number): Promise<boolean> {
+  try {
+    const { isVerifierStillRunning } = await import('./verify-settle-live-verifier');
+    return await isVerifierStillRunning(taskId);
+  } catch {
+    return false;
+  }
+}
+
 // Grace window for a `verify_done` task's async commit/PR/merge completion to
 // settle before the runner judges it failed — prevents a transient "blocked"
 // flash in the UI while the task is actually completing (observed: verify_done →
@@ -135,7 +145,13 @@ export async function waitForVerifyCompletion(
     // task that then created PR #7 — a success parked as blocked. Keep
     // waiting while it is in flight, bounded by a hard cap so a wedged
     // pipeline still fails eventually.
-    const stillWorking = hasVerifyCompletionInFlight(taskId) && Date.now() < hardDeadline;
+    // NOTE: A verifier that saved verify.md but has not exited counts too: the
+    // commit / PR epilogue starts only after it exits, so nothing is in flight
+    // yet. Task 1547's Codex verifier exited 110 s after saving and was blocked
+    // at the 60 s window before its PR existed (2026-11-25).
+    const stillWorking =
+      Date.now() < hardDeadline &&
+      (hasVerifyCompletionInFlight(taskId) || (await verifierStillRunning(taskId)));
     if (!stillWorking && Date.now() >= deadline) {
       const recovery = await import('./verify-settle-artifact-recovery').catch(() => null);
       const pendingMerge = await Promise.resolve(
