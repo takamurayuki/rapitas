@@ -199,3 +199,52 @@ describe('what it reports', () => {
     expect(survey.categories.every((c) => c.total === 0)).toBe(true);
   });
 });
+
+// A question nobody has answered stops the task cold and the app shows no
+// sign of it; 2026-11-23/24 these were found by hand.
+describe('awaiting an answer', () => {
+  test('looks for unfinished tasks whose workflow is waiting on a question', async () => {
+    await surveyBacklog();
+    const where = whereFor('awaitingAnswer');
+    expect(where.workflowStatus).toBe('awaiting_question');
+    expect(where.status).toEqual({ notIn: ['done', 'cancelled'] });
+    expect(where.parentId).toBeNull();
+  });
+
+  test('adds its count to the total', async () => {
+    counts = [0, 0, 0, 0, 0, 3];
+    const survey = await surveyBacklog();
+    const found = survey.categories.find((c) => c.category === 'awaitingAnswer')!;
+    expect(found.total).toBe(3);
+    expect(survey.total).toBe(3);
+  });
+});
+
+// Same criterion as isTaskHaltActive (queue-terminal-task-guard.ts): a
+// haltReason only counts while the task is not terminal, and a task whose
+// workflowStatus is completed is terminal even if status is not.
+describe('halted', () => {
+  test('looks for unfinished tasks that still carry a haltReason', async () => {
+    await surveyBacklog();
+    const where = whereFor('halted');
+    expect(where.haltReason).toEqual({ not: null });
+    expect(where.status).toEqual({ notIn: ['done', 'cancelled'] });
+    expect(where.parentId).toBeNull();
+  });
+
+  test('leaves out tasks whose workflow is completed, but keeps a null workflowStatus', async () => {
+    await surveyBacklog();
+    expect(whereFor('halted').OR).toEqual([
+      { workflowStatus: null },
+      { workflowStatus: { not: 'completed' } },
+    ]);
+  });
+
+  test('adds its count to the total', async () => {
+    counts = [0, 0, 0, 0, 0, 0, 5];
+    const survey = await surveyBacklog();
+    const found = survey.categories.find((c) => c.category === 'halted')!;
+    expect(found.total).toBe(5);
+    expect(survey.total).toBe(5);
+  });
+});
