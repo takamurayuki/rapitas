@@ -11,6 +11,12 @@
  */
 import { prisma } from '../../config/database';
 import { classifyDiffReviewReason } from './diff-review-reason-classifier';
+import {
+  summarizeBounces,
+  toBounceItem,
+  type BounceBreakdown,
+  type BounceItem,
+} from './bounce-breakdown';
 
 /** Buckets a verify_repair reason falls into (mirrors the manual triage). */
 export type RepairCategory =
@@ -46,6 +52,12 @@ export interface LoopMetricsWindow {
     ci_repair: number;
     completed: number;
   };
+  /** Bounces (verify_repair + ci_repair) per kind; absent on windows built by old callers. */
+  bounceKinds?: BounceBreakdown['bounceKinds'];
+  /** Tasks bounced most in the window (count desc, taskId asc). */
+  topBounceTasks?: BounceBreakdown['topBounceTasks'];
+  /** Repeated verify-contradiction sentence patterns (gate-misjudgment candidates). */
+  contradictionPatterns?: BounceBreakdown['contradictionPatterns'];
 }
 
 export interface LoopMetrics {
@@ -82,6 +94,7 @@ export function classifyRepairReason(reason: string | undefined | null): RepairC
 
 /** A transition row as the bucketing core consumes it. */
 export interface TransitionRowLite {
+  taskId?: number | null;
   cause: string | null;
   toStatus: string | null;
   fromStatus: string | null;
@@ -133,6 +146,8 @@ export function bucketTransitions(
     windows.push({ from: from.toISOString(), to: to.toISOString(), counts: emptyCounts() });
   }
 
+  const bounces: BounceItem[][] = windows.map(() => []);
+
   for (const row of rows) {
     const t = row.createdAt.getTime();
     const age = now.getTime() - t;
@@ -163,9 +178,11 @@ export function bucketTransitions(
         break;
       case 'ci_repair':
         counts.ci_repair++;
+        bounces[idx]!.push(toBounceItem(row.metadata, row.taskId));
         break;
       case 'verify_repair': {
         counts.verify_repair_total++;
+        bounces[idx]!.push(toBounceItem(row.metadata, row.taskId));
         let reason: string | undefined;
         try {
           reason = (JSON.parse(row.metadata ?? '{}') as { reason?: string }).reason;
@@ -183,6 +200,7 @@ export function bucketTransitions(
         break;
     }
   }
+  windows.forEach((w, i) => Object.assign(w, summarizeBounces(bounces[i]!)));
   return windows;
 }
 
@@ -207,7 +225,14 @@ export async function computeLoopMetrics(
       createdAt: { gte: since },
       OR: [{ cause: { in: [...BOUNCE_CAUSES] } }, { toStatus: 'completed' }],
     },
-    select: { cause: true, toStatus: true, fromStatus: true, metadata: true, createdAt: true },
+    select: {
+      taskId: true,
+      cause: true,
+      toStatus: true,
+      fromStatus: true,
+      metadata: true,
+      createdAt: true,
+    },
   });
 
   return { windows: bucketTransitions(rows, now, windowDays, windowCount), windowDays };

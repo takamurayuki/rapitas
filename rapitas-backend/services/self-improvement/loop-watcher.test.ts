@@ -7,7 +7,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { LoopMetricsWindow } from './loop-metrics';
 
-const submitConcernMock = mock(async (_input: unknown): Promise<number> => 1);
+const submitConcernMock = mock(async (_input: unknown): Promise<unknown> => 1);
 mock.module('../memory/concern-backlog-service', () => ({
   submitConcern: submitConcernMock,
 }));
@@ -183,6 +183,54 @@ describe('runLoopReview', () => {
     );
   });
 
+  it('puts the per-kind bounce breakdown and top tasks in the concern body', async () => {
+    const withBreakdown = (): LoopMetricsWindow => ({
+      ...windowWith({ ci_repair: 5 }),
+      bounceKinds: {
+        verify_contradiction: 0,
+        diff_review: 1,
+        environment: 3,
+        plan_gap: 0,
+        implementation_gap: 0,
+        other: 1,
+      },
+      topBounceTasks: [{ taskId: 42, count: 3 }],
+    });
+    computeLoopMetricsMock.mockImplementation(async () => ({
+      windows: [withBreakdown(), withBreakdown()],
+      windowDays: 7,
+    }));
+    await runLoopReview();
+    const arg = submitConcernMock.mock.calls[0]![0] as { detail: string };
+    expect(arg.detail).toContain('環境・基盤の問題 3 件');
+    expect(arg.detail).toContain('その他 1 件');
+    expect(arg.detail).toContain('#42(3回)');
+  });
+
+  it('files a gate-misjudgment candidate once per repeated pattern, not below 3', async () => {
+    const win = (count: number): LoopMetricsWindow => ({
+      ...windowWith({}),
+      contradictionPatterns: [{ patternId: 'deadbeef', count, sample: 'self-contradicts' }],
+    });
+    computeLoopMetricsMock.mockImplementation(async () => ({
+      windows: [win(2), windowWith({})],
+      windowDays: 7,
+    }));
+    await runLoopReview();
+    expect(submitConcernMock).not.toHaveBeenCalled();
+
+    computeLoopMetricsMock.mockImplementation(async () => ({
+      windows: [win(3), windowWith({})],
+      windowDays: 7,
+    }));
+    submitConcernMock.mockImplementation(async () => ({ outcome: 'created' }) as never);
+    await runLoopReview();
+    expect(submitConcernMock).toHaveBeenCalledTimes(1);
+    expect(submitConcernMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dedupKey: 'loop-review:gate-misjudgment:deadbeef' }),
+    );
+  });
+
   it('returns 0 with fewer than two windows', async () => {
     computeLoopMetricsMock.mockImplementation(async () => ({
       windows: [windowWith({})],
@@ -190,6 +238,29 @@ describe('runLoopReview', () => {
     }));
     expect(await runLoopReview()).toBe(0);
     expect(submitConcernMock).not.toHaveBeenCalled();
+  });
+
+  it('同一入力の連続実行では同じキーを使い再利用を起票数に含めない', async () => {
+    const current = {
+      ...windowWith({}),
+      contradictionPatterns: [{ patternId: 'deadbeef', count: 3, sample: 'self-contradicts' }],
+    };
+    computeLoopMetricsMock.mockImplementation(async () => ({
+      windows: [current, windowWith({})],
+      windowDays: 7,
+    }));
+    submitConcernMock.mockImplementationOnce(async () => ({ outcome: 'created' }));
+    submitConcernMock.mockImplementationOnce(async () => ({ outcome: 'reused' }));
+    expect(await runLoopReview()).toBe(1);
+    expect(await runLoopReview()).toBe(0);
+    expect(submitConcernMock).toHaveBeenCalledTimes(2);
+    for (const [input] of submitConcernMock.mock.calls) {
+      expect(input).toEqual(
+        expect.objectContaining({
+          dedupKey: 'loop-review:gate-misjudgment:deadbeef',
+        }),
+      );
+    }
   });
 
   it('keeps filing the remaining concerns when one submission throws', async () => {
