@@ -85,6 +85,10 @@ export const SUPERVISION_CATEGORIES = [
   'stalled',
   /** Past its due date and not finished. */
   'overdue',
+  /** The workflow asked a question and is parked until someone answers. */
+  'awaitingAnswer',
+  /** A haltReason is still set, so auto-run will not select it. */
+  'halted',
 ] as const;
 
 export type SupervisionCategory = (typeof SUPERVISION_CATEGORIES)[number];
@@ -156,6 +160,18 @@ function conditionFor(category: SupervisionCategory, now: Date): Record<string, 
       };
     case 'overdue':
       return { ...common(), status: notFinished, dueDate: { lt: now } };
+    case 'awaitingAnswer':
+      return { ...common(), status: notFinished, workflowStatus: 'awaiting_question' };
+    case 'halted':
+      // Mirrors isTaskHaltActive (queue-terminal-task-guard.ts): workflowStatus
+      // 'completed' is terminal too. The explicit null branch is needed because
+      // SQL `<> 'completed'` drops NULL rows.
+      return {
+        ...common(),
+        status: notFinished,
+        haltReason: { not: null },
+        OR: [{ workflowStatus: null }, { workflowStatus: { not: 'completed' } }],
+      };
   }
 }
 
