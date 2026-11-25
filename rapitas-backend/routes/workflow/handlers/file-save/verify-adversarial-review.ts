@@ -43,6 +43,7 @@ export interface AdversarialReviewOutcome {
 
 type ReviewParams = {
   taskId: number;
+  executionId?: number | null;
   fileType: WorkflowFileType;
   newStatus: string | undefined;
   verifyGateBlocked: boolean;
@@ -162,7 +163,7 @@ async function reviewAndApply(
   params: ReviewParams,
   canApply: ApplyGuard,
 ): Promise<{ outcome: AdversarialReviewOutcome; deciding: DecidingReview }> {
-  const { taskId, savedContent, preferredBaseBranchForVerify } = params;
+  const { taskId, executionId, savedContent, preferredBaseBranchForVerify } = params;
   let newStatus = params.newStatus;
   let verifyGateBlocked = params.verifyGateBlocked;
   let staleVerifyRequest = false;
@@ -360,7 +361,21 @@ async function reviewAndApply(
         savedContent,
         juryBounceGrounds(reason, capFindingsForStorage(activeReview.findings)),
       ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
-      if (repair.bounced && repair.newStatus) {
+      if (!repair.stale && repair.bounced && repair.newStatus) {
+        // 再キュー後に新しい実行が始まっても、承認情報が指す実行だけを更新する。
+        if (executionId != null) {
+          try {
+            await prisma.agentExecution.updateMany({
+              where: { id: executionId, status: { in: ['running', 'completed'] } },
+              data: { status: 'failed', errorMessage: reason, completedAt: new Date() },
+            });
+          } catch {
+            log.warn(
+              { taskId, executionId },
+              '[Workflow] 差し戻し対象の実行状態を更新できませんでした',
+            );
+          }
+        }
         return {
           outcome: { newStatus: repair.newStatus, verifyGateBlocked: true, staleVerifyRequest },
           deciding,

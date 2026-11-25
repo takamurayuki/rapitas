@@ -59,9 +59,10 @@ mock.module('../../../../services/workflow/verify-jury-completion', () => ({
   readVerifySha256: async () => null,
   recordJuryGateCompletion: async () => {},
 }));
-// The runner is not under test; the committed receipt is.
+// 再キュー後と HTTP が応答する前の間に、テストから実行状態を変更できるようにする。
+let onResume: (() => Promise<void>) | undefined;
 mock.module('../../../../services/workflow/verify-self-repair-resume', () => ({
-  ensureRunnerResumes: async () => {},
+  ensureRunnerResumes: async () => onResume?.(),
   resolveRepairCaller: () => 'adversarial_review',
 }));
 
@@ -135,9 +136,10 @@ async function openDb(withPlan = true): Promise<PrismaClient> {
   return db;
 }
 
-const review = () =>
+const review = (executionId?: number) =>
   runAdversarialDiffReview({
     taskId: 1,
+    executionId,
     fileType: 'verify',
     newStatus: 'verify_done',
     verifyGateBlocked: false,
@@ -158,6 +160,7 @@ const status = async (db: PrismaClient) =>
 
 beforeEach(() => {
   reviewFindings = [];
+  onResume = undefined;
 });
 afterEach(async () => {
   await holder.db?.$disconnect();
@@ -175,6 +178,79 @@ afterEach(async () => {
 });
 
 describe('HTTP 保存経路の陪審差し戻し', () => {
+  test('再キュー後に同じセッションで新しい実行が始まっても、棄却した実行だけ failed にする', async () => {
+    const db = await openDb();
+    const finding = 'null を返す経路で例外になる';
+    reviewFindings = [grounded(finding)];
+    onResume = async () => {
+      await db.$executeRawUnsafe(
+        "INSERT INTO AgentExecution (id, sessionId, status, startedAt, createdAt) VALUES (2,1,'running',?,?)",
+        new Date(now.getTime() + 1_000),
+        new Date(now.getTime() + 1_000),
+      );
+    };
+
+    expect(await review(1)).toEqual({
+      newStatus: 'plan_approved',
+      verifyGateBlocked: true,
+      staleVerifyRequest: false,
+    });
+    expect(await status(db)).toBe('plan_approved');
+    const repairs = await db.workflowTransition.findMany({
+      where: { taskId: 1, cause: 'verify_repair' },
+    });
+    expect(repairs).toHaveLength(1);
+    expect(repairs[0]).toMatchObject({
+      fromStatus: 'verify_done',
+      toStatus: 'plan_approved',
+      executionId: 1,
+    });
+    const { reason } = JSON.parse(repairs[0].metadata) as { reason: string };
+    expect(reason).toContain(finding);
+    const [oldExecution, newExecution] = await db.agentExecution.findMany({
+      where: { sessionId: 1 },
+      orderBy: { id: 'asc' },
+      select: { id: true, status: true, errorMessage: true, completedAt: true },
+    });
+    expect(newExecution).toEqual({
+      id: 2,
+      status: 'running',
+      errorMessage: null,
+      completedAt: null,
+    });
+    expect(oldExecution).toEqual({
+      id: 1,
+      status: 'failed',
+      errorMessage: reason,
+      completedAt: expect.any(Date),
+    });
+  });
+
+  test.each(['failed', 'canceling', 'cancelled'])(
+    '再キュー境界で旧実行が %s になった場合は既存の状態とエラーを保持する',
+    async (executionStatus) => {
+      const db = await openDb();
+      reviewFindings = [grounded('null を返す経路で例外になる')];
+      onResume = async () => {
+        await db.agentExecution.updateMany({
+          where: { id: 1 },
+          data: { status: executionStatus, errorMessage: '更新済み', completedAt: now },
+        });
+      };
+
+      expect((await review(1)).newStatus).toBe('plan_approved');
+      const execution = await db.agentExecution.findUnique({
+        where: { id: 1 },
+        select: { status: true, errorMessage: true, completedAt: true },
+      });
+      expect(execution).toEqual({
+        status: executionStatus,
+        errorMessage: '更新済み',
+        completedAt: now,
+      });
+    },
+  );
+
   test('項目1: 根拠つきの指摘が差し戻しと同じ行に残り、能力不足として数えられる', async () => {
     const db = await openDb();
     reviewFindings = [grounded('null を返す経路で例外になる')];
