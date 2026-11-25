@@ -10,7 +10,11 @@
  *    transients (task 585) never fire.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
-import { RUNNING_ITEM_STALE_MS, QUEUE_STARVATION_THRESHOLD_MS } from './queue-stall-policy';
+import {
+  RUNNING_ITEM_STALE_MS,
+  QUEUE_STARVATION_THRESHOLD_MS,
+  POST_PHASE_GRACE_MS,
+} from './queue-stall-policy';
 
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
@@ -23,7 +27,10 @@ const findFirstMock = mock(() => Promise.resolve(null as { taskId: number } | nu
 // task 1105: the sweep also asks which tasks cannot run at all (halted /
 // blocked). Default empty keeps every pre-existing case on the age-only path.
 const taskFindManyMock = mock(() => Promise.resolve([] as { id: number }[]));
+// The task's most recently finished execution (post-phase epilogue grace).
+const executionFindFirstMock = mock(() => Promise.resolve(null as { id: number } | null));
 const mockPrisma = {
+  agentExecution: { findFirst: executionFindFirstMock },
   workflowQueueItem: {
     findMany: findManyMock,
     updateMany: updateManyMock,
@@ -96,6 +103,7 @@ const NOW = 1_800_000_000_000;
 beforeEach(() => {
   findManyMock.mockReset().mockResolvedValue([]);
   taskFindManyMock.mockReset().mockResolvedValue([]);
+  executionFindFirstMock.mockReset().mockResolvedValue(null);
   updateManyMock.mockReset().mockResolvedValue({ count: 1 });
   countMock.mockReset().mockResolvedValue(0);
   findFirstMock.mockReset().mockResolvedValue(null);
@@ -261,6 +269,44 @@ describe('sweepStaleRunningItems', () => {
     expect(released).toBe(0);
     expect(updateManyMock).not.toHaveBeenCalled();
     expect(notifyStallReleasedMock).not.toHaveBeenCalled();
+  });
+
+  // 2026-11-25 task 1535: the item ran 41 min (implement + verify). The
+  // verifier exited at 14:50, the epilogue committed at 14:52:26 — and the
+  // sweep cancelled the item in that same second, before the PR was made.
+  // The task then failed the completion gate and went blocked.
+  test('an agent that finished minutes ago is post-phase work (commit / PR), not a stall', async () => {
+    findManyMock.mockResolvedValue([{ id: 4660, taskId: 1535, themeId: 1 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'in-progress',
+      workflowStatus: 'verify_done',
+    });
+    hasLiveExecutionMock.mockResolvedValue(false);
+    executionFindFirstMock.mockResolvedValue({ id: 7450 });
+
+    const released = await sweepStaleRunningItems(NOW);
+
+    expect(released).toBe(0);
+    expect(updateManyMock).not.toHaveBeenCalled();
+    expect(releaseQueueItemMock).not.toHaveBeenCalled();
+  });
+
+  test('the grace only looks back a bounded window, then the item is still swept', async () => {
+    findManyMock.mockResolvedValue([{ id: 24, taskId: 622, themeId: 1 }]);
+    resolveTaskWorkflowStateMock.mockResolvedValue({
+      status: 'in-progress',
+      workflowStatus: 'in_progress',
+    });
+    hasLiveExecutionMock.mockResolvedValue(false);
+    executionFindFirstMock.mockResolvedValue(null);
+
+    const released = await sweepStaleRunningItems(NOW);
+
+    expect(released).toBe(1);
+    const arg = (
+      executionFindFirstMock.mock.calls[0] as unknown as [{ where: { completedAt: { gte: Date } } }]
+    )[0];
+    expect(arg.where.completedAt.gte.getTime()).toBe(NOW - POST_PHASE_GRACE_MS);
   });
 
   test('a lost CAS race (count:0) is not counted and not notified', async () => {
