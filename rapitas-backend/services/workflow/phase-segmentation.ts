@@ -203,9 +203,14 @@ export function segmentPhases(
       iterationGroups.set(iterationNumber, group);
     }
 
+    // NOTE: The group key is "send-backs before this run + 1"; it groups runs
+    // but is not the round number. Send-backs before a phase's first run, or
+    // several with no run between them, made the tabs read 2, 4, 5 (task 1548,
+    // 2026-11-26), so the rounds that ran are numbered 1, 2, 3 in order.
     const iterations: PhaseIteration[] = [...iterationGroups.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([iterationNumber, group]) => {
+      .map(([, group], index) => {
+        const iterationNumber = index + 1;
         const first = group[0];
         const last = group[group.length - 1];
         const completedAt = last.completedAt ? toIso(last.completedAt) : null;
