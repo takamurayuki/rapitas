@@ -33,13 +33,29 @@ export default function TaskCardAutoRunQueueBadge({
   isExecuting,
 }: TaskCardAutoRunQueueBadgeProps) {
   const t = useTranslations('task');
-  const nextUpActive = Boolean(task.autoRunCurrent) && !isExecuting;
+  // NOTE: A current pick that only waits for another task to free the global
+  // slot is "waiting its turn", not "about to start" — showing 次に着手 for
+  // 30〜65 minutes made it look stuck (2026-11-25).
+  const waitingForSlot = Boolean(task.autoRunCurrent && task.autoRunWaitingForSlot);
+  const nextUpActive = Boolean(task.autoRunCurrent) && !isExecuting && !waitingForSlot;
   // task.updatedAt approximates "since the last real progress" — the same
   // timestamp this session's supervisor kept checking by hand to tell a
   // stuck overlap-guard hold apart from normal dispatch latency.
   const waitingElapsed = useElapsedTime(nextUpActive ? task.updatedAt : null, nextUpActive);
 
   if (isExecuting) return null;
+
+  if (waitingForSlot) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 shrink-0 rounded-full border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 text-zinc-500 dark:text-zinc-400"
+        title={t('taskCard.autoRunWaitingForSlotTooltip')}
+      >
+        <Layers3 className="w-3 h-3" aria-hidden="true" />
+        {t('taskCard.autoRunQueued')}
+      </span>
+    );
+  }
 
   if (task.autoRunCurrent) {
     return (

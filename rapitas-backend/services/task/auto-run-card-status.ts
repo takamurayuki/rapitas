@@ -12,6 +12,7 @@
  * disagrees with what auto-run would actually pick is worse than no badge.
  */
 import type { PrismaClient } from '../../generated/prisma-postgres';
+import { resolveAutoRunMaxConcurrency } from '../workflow/auto-run/auto-run-concurrency';
 
 /** Minimal shape this module needs from a task-list row. */
 export interface TaskLikeForAutoRunCardStatus {
@@ -27,6 +28,11 @@ export interface TaskLikeForAutoRunCardStatus {
   autoRunCurrent?: boolean;
   /** True when eligible and waiting for auto-run to reach it. */
   autoRunQueued?: boolean;
+  /**
+   * True when this task is the current pick but other tasks' agents fill every
+   * global slot, so it cannot start until one of them finishes.
+   */
+  autoRunWaitingForSlot?: boolean;
   subtasks?: TaskLikeForAutoRunCardStatus[];
   [key: string]: unknown;
 }
@@ -90,6 +96,37 @@ function collectThemeIds(tasks: TaskLikeForAutoRunCardStatus[]): number[] {
 }
 
 /**
+ * Task ids whose current pick is blocked only because other tasks' agents fill
+ * every global slot. Empty on any lookup failure, so the card falls back to
+ * 次に着手 rather than claiming a wait it cannot prove.
+ *
+ * NOTE: 2026-11-25 the current pick showed 次に着手 for 30〜65 minutes while
+ * another task held the only slot (autoRunMaxConcurrency=1); it looked stuck.
+ */
+async function currentPicksWaitingForSlot(
+  prisma: PrismaClient,
+  currentTaskIds: number[],
+): Promise<Set<number>> {
+  if (currentTaskIds.length === 0) return new Set();
+  try {
+    const running = await prisma.workflowQueueItem.findMany({
+      where: { status: { in: ['running', 'waiting_approval'] }, themeId: { not: null } },
+      select: { taskId: true },
+    });
+    const { limit } = await resolveAutoRunMaxConcurrency(prisma);
+    const holders = new Set(running.map((r) => r.taskId));
+    const waiting = new Set<number>();
+    for (const id of currentTaskIds) {
+      if (holders.has(id)) continue;
+      if (holders.size >= limit) waiting.add(id);
+    }
+    return waiting;
+  } catch {
+    return new Set();
+  }
+}
+
+/**
  * Attach `autoRunCurrent`/`autoRunQueued` to every task in `tasks`, including
  * nested subtasks. Mutates the given objects in place and also returns them
  * for convenient chaining.
@@ -110,6 +147,10 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
     select: { themeId: true, currentTaskId: true },
   });
   const currentTaskIdByTheme = new Map(autoRuns.map((a) => [a.themeId, a.currentTaskId]));
+  const waitingForSlot = await currentPicksWaitingForSlot(
+    prisma,
+    autoRuns.map((a) => a.currentTaskId).filter((id): id is number => id != null),
+  );
 
   const apply = (list: T[]) => {
     for (const task of list) {
@@ -122,9 +163,11 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
         const current = currentTaskIdByTheme.get(task.themeId as number) === task.id;
         task.autoRunCurrent = current;
         task.autoRunQueued = !current && looksAutoRunEligible(task);
+        task.autoRunWaitingForSlot = current && waitingForSlot.has(task.id);
       } else {
         task.autoRunCurrent = false;
         task.autoRunQueued = false;
+        task.autoRunWaitingForSlot = false;
       }
       if (task.subtasks?.length) apply(task.subtasks as T[]);
     }
