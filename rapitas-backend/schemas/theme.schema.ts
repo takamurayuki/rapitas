@@ -14,6 +14,8 @@ export const themeSchema = {
     workingDirectory: t.Optional(t.String()),
     defaultBranch: t.Optional(t.String()),
     runtimeConfigJson: t.Optional(t.String()),
+    // Auto-run priority across themes (task 1543); clamped -100..100 in theme-auto-run-priority.ts.
+    autoRunPriority: t.Optional(t.Number()),
     categoryId: t.Number(),
   }),
 
@@ -29,6 +31,7 @@ export const themeSchema = {
     runtimeConfigJson: t.Optional(t.Nullable(t.String())),
     categoryId: t.Optional(t.Nullable(t.Number())),
     sortOrder: t.Optional(t.Number()),
+    autoRunPriority: t.Optional(t.Number()),
   }),
 
   setupFromClaudeMd: t.Object({

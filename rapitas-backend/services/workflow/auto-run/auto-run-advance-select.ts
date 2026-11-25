@@ -19,11 +19,7 @@ import {
   resolveAutoRunMaxConcurrency,
   shouldYieldToHigherPriorityTheme,
 } from './auto-run-concurrency';
-import {
-  overlappingFiles,
-  selectNextTask,
-  recentThemeSuccessRate,
-} from './auto-run-selection';
+import { overlappingFiles, selectNextTask, recentThemeSuccessRate } from './auto-run-selection';
 import { getOpenAutoPrsForTheme } from './open-pr-files-cache';
 import {
   checkResourceContentionGate,
