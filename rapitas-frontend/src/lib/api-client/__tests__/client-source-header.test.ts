@@ -3,11 +3,11 @@
  *
  * The X-Rapitas-Source tag APIClient puts on each request. Moved out of
  * client.test.ts (over the size limit) when task 1548 changed the values:
- * mutations send `ui`, reads send `ui-poll` unless the user just clicked or
- * pressed a key, and a caller-provided value always wins.
+ * mutations send `ui`, reads send `ui-poll` unless the caller marks them
+ * `userAction: true`, and a caller-provided value always wins. No timing is
+ * involved: a poll that fires right after a click is still `ui-poll`.
  */
 import { APIClient, UI_SOURCE_HEADER, UI_SOURCE_VALUE } from '../client';
-import { noteUserInteraction, resetUserInteractionForTests } from '@/lib/api-headers';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 
@@ -24,7 +24,6 @@ const sentSource = (calls: unknown[][]): string | undefined =>
 
 beforeEach(() => {
   localStorage.clear();
-  resetUserInteractionForTests();
   mockOfflineFetch.mockReset();
 });
 
@@ -35,11 +34,33 @@ describe('APIClient.performFetch - X-Rapitas-Source header', () => {
     expect(sentSource(mockOfflineFetch.mock.calls)).toBe('ui-poll');
   });
 
-  it('クリック直後のGET（画面遷移）には ui を付与すること', async () => {
+  it('userAction: true のGETには ui を付与し、userAction を fetch に渡さないこと', async () => {
     mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
-    noteUserInteraction();
-    await new APIClient().fetch('/tasks/1', { skipCache: true });
+    await new APIClient().fetch('/tasks/1', { skipCache: true, userAction: true });
     expect(sentSource(mockOfflineFetch.mock.calls)).toBe(UI_SOURCE_VALUE);
+    const init = (mockOfflineFetch.mock.calls[0] as [string, RequestInit])[1];
+    expect('userAction' in init).toBe(false);
+  });
+
+  // Regression (Q1): the old 5 s window tagged a poll that fired just after a
+  // click or key press as `ui`, so every interaction reopened the defer window.
+  it.each([
+    ['pointerdown', () => new Event('pointerdown')],
+    ['keydown', () => new KeyboardEvent('keydown', { key: 'Enter' })],
+  ])('%s の直後に発火した setInterval のポーリングは ui-poll のままであること', async (_n, ev) => {
+    vi.useFakeTimers();
+    try {
+      mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
+      const client = new APIClient();
+      const timer = setInterval(() => void client.fetch('/tasks/1', { skipCache: true }), 1000);
+      window.dispatchEvent(ev());
+      await vi.advanceTimersByTimeAsync(1000);
+      clearInterval(timer);
+      expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+      expect(sentSource(mockOfflineFetch.mock.calls)).toBe('ui-poll');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(

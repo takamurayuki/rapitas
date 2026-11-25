@@ -31,7 +31,7 @@ export const REQUEST_TIMEOUT_MS = 30_000;
  * Marks requests from this client as UI-originated so the backend's
  * ui-activity-tracker can defer boundary self-restarts while the user is
  * actively operating the UI. Mutations send `ui`; reads send `ui-poll` unless
- * a click or key press just happened (resolveUiSourceValue, task 1548).
+ * the caller passes `userAction: true` (resolveUiSourceValue, task 1548).
  *
  * NOTE: Values must mirror UI_SOURCE_HEADER / UI_SOURCE_VALUE in
  * rapitas-backend/services/scheduling/auto-restart-merged-code/ui-activity-tracker.ts
@@ -104,13 +104,15 @@ export async function performFetch<T>(
     }
   }
 
+  // `userAction` only picks the header; it is not a RequestInit field.
+  const { userAction, ...init } = options;
   const fetchInit: RequestInit = {
-    ...options,
+    ...init,
     signal,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      [UI_SOURCE_HEADER]: resolveUiSourceValue(method),
+      [UI_SOURCE_HEADER]: resolveUiSourceValue(method, { userAction }),
       ...options.headers,
     },
   };

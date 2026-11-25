@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type * as OfflineQueue from '../offline-queue';
 
 /**
  * Minimal in-memory fake of the subset of IndexedDB that offline-queue.ts
@@ -82,7 +83,7 @@ function createFakeIndexedDB() {
   };
 }
 
-type OfflineQueueModule = typeof import('../offline-queue');
+type OfflineQueueModule = typeof OfflineQueue;
 
 async function freshModule(): Promise<{
   mod: OfflineQueueModule;
@@ -313,29 +314,67 @@ describe('offline-queue', () => {
       expect(await mod.getPendingMutations()).toHaveLength(0);
     });
 
-    it('queues the mutation and returns a synthetic 202 on network failure while offline', async () => {
-      const { mod } = await freshModule();
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
-      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+      '送信前からオフラインの %s は送信せず保存し、復帰時に1回だけ送る',
+      async (method) => {
+        const { mod } = await freshModule();
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', fetchMock);
+        const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
 
-      const res = await mod.offlineFetch(
-        'https://api.test/tasks/1',
-        { method: 'PATCH', body: '{"a":1}' },
-        'update task 1',
-      );
+        const res = await mod.offlineFetch(
+          'https://api.test/tasks/1',
+          { method, body: '{"a":1}' },
+          'update task 1',
+        );
 
-      expect(res.status).toBe(202);
-      const body = await res.json();
-      expect(body.queued).toBe(true);
+        expect(res.status).toBe(202);
+        expect(fetchMock).not.toHaveBeenCalled();
+        const body = await res.json();
+        expect(body.queued).toBe(true);
 
-      const pending = await mod.getPendingMutations();
-      expect(pending).toHaveLength(1);
-      expect(pending[0]).toMatchObject({
-        url: 'https://api.test/tasks/1',
-        method: 'PATCH',
-        description: 'update task 1',
-      });
-    });
+        const pending = await mod.getPendingMutations();
+        expect(pending).toHaveLength(1);
+        expect(pending[0]).toMatchObject({
+          url: 'https://api.test/tasks/1',
+          method,
+          description: 'update task 1',
+        });
+        online.mockReturnValue(true);
+        expect(await mod.syncQueue()).toBe(1);
+        expect(await mod.syncQueue()).toBe(0);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(await mod.getPendingMutations()).toHaveLength(0);
+      },
+    );
+
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+      '送信後にオフラインになった %s は元のエラーを返し、復帰しても再送しない',
+      async (method) => {
+        const { mod } = await freshModule();
+        const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+        const error = new TypeError('Failed to fetch');
+        let rejectFetch!: (error: Error) => void;
+        const fetchMock = vi.fn().mockImplementation(
+          () =>
+            new Promise<Response>((_, reject) => {
+              rejectFetch = reject;
+            }),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const request = mod.offlineFetch('https://api.test/tasks/1', { method, body: '{}' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const rejected = expect(request).rejects.toBe(error);
+        online.mockReturnValue(false);
+        rejectFetch(error);
+        await rejected;
+        expect(await mod.getPendingMutations()).toHaveLength(0);
+        online.mockReturnValue(true);
+        expect(await mod.syncQueue()).toBe(0);
+        expect(await mod.syncQueue()).toBe(0);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it('extracts headers from a Headers instance when queuing', async () => {
       const { mod } = await freshModule();

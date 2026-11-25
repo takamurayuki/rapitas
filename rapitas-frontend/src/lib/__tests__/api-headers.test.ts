@@ -4,21 +4,15 @@
  * Verifies the UI source header constants match the backend's hardcoded
  * values and that mergeUiSourceHeaders preserves all three HeadersInit shapes.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import * as headersModule from '../api-headers';
 import {
   UI_SOURCE_HEADER,
   UI_SOURCE_VALUE,
   UI_POLL_SOURCE_VALUE,
-  USER_INTERACTION_WINDOW_MS,
   mergeUiSourceHeaders,
-  noteUserInteraction,
   resolveUiSourceValue,
-  resetUserInteractionForTests,
 } from '../api-headers';
-
-beforeEach(() => {
-  resetUserInteractionForTests();
-});
 
 describe('UI source header constants', () => {
   // NOTE: These literals mirror rapitas-backend ui-activity-tracker.ts:13,16.
@@ -108,26 +102,31 @@ describe('resolveUiSourceValue (task 1548)', () => {
     }
   });
 
-  it('a read with no recent interaction is ui-poll (undefined method = GET)', () => {
+  it('a read is ui-poll unless the caller marks it as a user action', () => {
     expect(resolveUiSourceValue('GET')).toBe(UI_POLL_SOURCE_VALUE);
     expect(resolveUiSourceValue(undefined)).toBe(UI_POLL_SOURCE_VALUE);
+    expect(resolveUiSourceValue('GET', { userAction: false })).toBe(UI_POLL_SOURCE_VALUE);
+    expect(resolveUiSourceValue('GET', { userAction: true })).toBe(UI_SOURCE_VALUE);
+    expect(resolveUiSourceValue(undefined, { userAction: true })).toBe(UI_SOURCE_VALUE);
   });
 
-  it('a read within the interaction window is ui, and ui-poll just after it', () => {
-    noteUserInteraction(10_000);
-    expect(resolveUiSourceValue('GET', 10_000)).toBe(UI_SOURCE_VALUE);
-    expect(resolveUiSourceValue('GET', 10_000 + USER_INTERACTION_WINDOW_MS)).toBe(UI_SOURCE_VALUE);
-    expect(resolveUiSourceValue('GET', 10_001 + USER_INTERACTION_WINDOW_MS)).toBe(
-      UI_POLL_SOURCE_VALUE,
-    );
-  });
-
-  it('a real click or key press on the window opens the window', () => {
+  // Regression (Q1): a click or key press must not turn the next poll into `ui`.
+  it('a click or key press does not change how a read is tagged', () => {
     window.dispatchEvent(new Event('pointerdown'));
-    expect(resolveUiSourceValue('GET')).toBe(UI_SOURCE_VALUE);
-    resetUserInteractionForTests();
+    expect(resolveUiSourceValue('GET')).toBe(UI_POLL_SOURCE_VALUE);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(resolveUiSourceValue('GET')).toBe(UI_SOURCE_VALUE);
+    expect(resolveUiSourceValue('GET')).toBe(UI_POLL_SOURCE_VALUE);
+  });
+
+  // The old 5 s window's exports (and its window listener) must not come back.
+  it('exports only the timing-free API', () => {
+    expect(Object.keys(headersModule).sort()).toEqual([
+      'UI_POLL_SOURCE_VALUE',
+      'UI_SOURCE_HEADER',
+      'UI_SOURCE_VALUE',
+      'mergeUiSourceHeaders',
+      'resolveUiSourceValue',
+    ]);
   });
 
   it('the poll value matches the backend literal', () => {

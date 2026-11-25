@@ -28,59 +28,34 @@ export const UI_SOURCE_VALUE = 'ui';
  */
 export const UI_POLL_SOURCE_VALUE = 'ui-poll';
 
-/** A read this soon after a click or key press is treated as caused by it (navigation). */
-export const USER_INTERACTION_WINDOW_MS = 5_000;
-
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-let lastUserInteractionAt = Number.NEGATIVE_INFINITY;
-let listenerInstalled = false;
 
-/**
- * Record that the user just clicked or pressed a key.
- *
- * @param now - Epoch ms of the interaction / 操作の時刻（エポックms）
- */
-export function noteUserInteraction(now: number = Date.now()): void {
-  lastUserInteractionAt = now;
+/** How the caller says where a request came from. */
+export interface UiSourceOptions {
+  /** True when a user operation (search, opening a detail) issued this read. / 利用者の操作由来の取得 */
+  userAction?: boolean;
 }
 
 /**
  * Pick the X-Rapitas-Source value for a request.
  *
  * Mutations are always `ui`: eight human-confirmation routes accept only `ui`
- * (or `operator`), so a mutation must never be downgraded. Reads are `ui`
- * only within USER_INTERACTION_WINDOW_MS of a click/key press, else `ui-poll`.
+ * (or `operator`), so a mutation must never be downgraded. A read is `ui`
+ * only when its caller says a user operation issued it; every other read is
+ * `ui-poll`.
+ *
+ * NOTE: No timing is involved (task 1548). A "5 s after a click or key press"
+ * window used to tag reads `ui`, so a poll that fired just after any click was
+ * counted as activity and every interaction reopened the restart defer window.
  *
  * @param method - HTTP method; undefined is treated as GET / HTTPメソッド（未指定はGET）
- * @param now - Current epoch ms / 現在時刻（エポックms）
+ * @param opts - Where the request came from / リクエストの発生元
  * @returns `ui` or `ui-poll` / ヘッダー値
  */
-export function resolveUiSourceValue(method?: string, now: number = Date.now()): string {
+export function resolveUiSourceValue(method?: string, opts: UiSourceOptions = {}): string {
   if (MUTATION_METHODS.has((method || 'GET').toUpperCase())) return UI_SOURCE_VALUE;
-  return now - lastUserInteractionAt <= USER_INTERACTION_WINDOW_MS
-    ? UI_SOURCE_VALUE
-    : UI_POLL_SOURCE_VALUE;
+  return opts.userAction === true ? UI_SOURCE_VALUE : UI_POLL_SOURCE_VALUE;
 }
-
-/**
- * Start recording clicks and key presses (capture phase). Idempotent.
- *
- * @param target - Event target to listen on / 監視対象
- */
-export function installUserInteractionListener(target: EventTarget = window): void {
-  if (listenerInstalled) return;
-  listenerInstalled = true;
-  const note = () => noteUserInteraction();
-  target.addEventListener('pointerdown', note, { capture: true, passive: true });
-  target.addEventListener('keydown', note, { capture: true, passive: true });
-}
-
-/** Forget the last interaction (tests only). */
-export function resetUserInteractionForTests(): void {
-  lastUserInteractionAt = Number.NEGATIVE_INFINITY;
-}
-
-if (typeof window !== 'undefined') installUserInteractionListener(window);
 
 /**
  * Build a Headers object from a RequestInit, tagged with the UI source header.

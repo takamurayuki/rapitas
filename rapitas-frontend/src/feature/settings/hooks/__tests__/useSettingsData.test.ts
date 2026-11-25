@@ -87,7 +87,7 @@ describe('useSettingsData UI source header coverage', () => {
     return rendered;
   };
 
-  it('tags all mount GETs (settings/api-keys/models/local-llm status) with the UI header', async () => {
+  it('tags all mount GETs (settings/api-keys/models/local-llm status) ui-poll', async () => {
     await mount();
 
     for (const urlPart of [
@@ -99,12 +99,13 @@ describe('useSettingsData UI source header coverage', () => {
       const calls = callsFor(fetchMock, urlPart);
       expect(calls.length, `expected a fetch for ${urlPart}`).toBeGreaterThanOrEqual(1);
       for (const call of calls) {
-        expect(headerOf(call, 'x-rapitas-source'), `UI header on ${String(call[0])}`).toBe('ui');
+        // Task 1548: mount-time reads are not user operations, so ui-poll.
+        expect(headerOf(call, 'x-rapitas-source'), `source on ${String(call[0])}`).toBe('ui-poll');
       }
     }
   });
 
-  it('tags the background-revalidate GET (cached settings path) with the UI header', async () => {
+  it('tags the background-revalidate GET (cached settings path) ui-poll', async () => {
     // NOTE: A cache hit for the settings key routes the request through the
     // background-revalidate fetch inside fetchWithSWR instead of the foreground one.
     getCachedDataMock.mockImplementation((key: string) =>
@@ -116,7 +117,7 @@ describe('useSettingsData UI source header coverage', () => {
     const settingsGets = callsFor(fetchMock, '/settings').filter((c) => !c[1]?.method);
     expect(settingsGets.length).toBeGreaterThanOrEqual(1);
     for (const call of settingsGets) {
-      expect(headerOf(call, 'x-rapitas-source')).toBe('ui');
+      expect(headerOf(call, 'x-rapitas-source')).toBe('ui-poll');
     }
   });
 
