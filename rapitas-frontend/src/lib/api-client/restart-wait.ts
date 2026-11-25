@@ -70,56 +70,95 @@ async function probeHealth(baseUrl: string): Promise<boolean> {
   }
 }
 
-async function runRecoveryLoop(baseUrl: string): Promise<boolean> {
-  // Fixed once: the store forgets restartStartedAt when its own 2-minute timer
-  // clears the flag, and re-reading it then would restart the ceiling.
-  const startedAt = getRestartStartedAt() ?? Date.now();
+/**
+ * One shared probe loop. A success counts only within `deadline`: a backend
+ * that answers after the 2-minute ceiling must not trigger a re-send, or the
+ * "past 2 minutes the caller gets the error" promise would break.
+ */
+async function runRecoveryLoop(baseUrl: string, deadline: number): Promise<boolean> {
   let firstProbe = true;
   for (;;) {
-    if (await probeHealth(baseUrl)) {
+    const up = await probeHealth(baseUrl);
+    if (up && Date.now() <= deadline) {
       if (isServerRestarting()) useServerRestartStore.getState().setRestarting(false);
       return true;
     }
     // A single blip that the first probe already sees through shows nothing;
     // a failed probe means the backend is really down, so show the overlay.
-    if (firstProbe) {
-      firstProbe = false;
-      if (!isServerRestarting()) useServerRestartStore.getState().setRestarting(true);
+    if (!up && firstProbe && !isServerRestarting()) {
+      useServerRestartStore.getState().setRestarting(true);
     }
-    if (Date.now() - startedAt >= MAX_RESTART_MS) {
+    firstProbe = false;
+    if (Date.now() >= deadline) {
       if (isServerRestarting()) useServerRestartStore.getState().setRestarting(false);
       return false;
     }
-    await sleep(HEALTH_POLL_INTERVAL_MS);
+    await sleep(Math.min(HEALTH_POLL_INTERVAL_MS, deadline - Date.now()));
   }
 }
 
 /**
- * Wait until the backend answers `/health` again. Concurrent callers share one
- * probe loop so a recovering backend is not flooded.
+ * The deadline for a request that starts waiting now: two minutes from when
+ * the restart window opened (the SSE shutdown or the first failed probe), or
+ * from now when no window is open. Fixed once per request by the caller.
+ *
+ * @returns Epoch ms after which the request stops waiting / 待機をやめる時刻（エポックms）
+ */
+export function restartWaitDeadline(): number {
+  return (getRestartStartedAt() ?? Date.now()) + MAX_RESTART_MS;
+}
+
+/**
+ * Wait until the backend answers `/health` again, but never past `deadline`.
+ * Concurrent callers share one probe loop so a recovering backend is not
+ * flooded; each caller still judges the outcome against its own deadline.
  *
  * @param baseUrl - API base URL / APIのベースURL
- * @returns True when the backend is back, false once the 2-minute ceiling passed / 復帰したら真、上限超過で偽
+ * @param deadline - Epoch ms after which this caller gives up / この呼び出しの期限
+ * @returns True when the backend came back within the deadline / 期限内に復帰したら真
  */
-export function waitForBackendRecovery(baseUrl: string): Promise<boolean> {
-  if (!recovery) {
-    recovery = runRecoveryLoop(baseUrl).finally(() => {
-      recovery = null;
-    });
+export async function waitForBackendRecovery(baseUrl: string, deadline: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now()) + 1);
+  });
+  try {
+    // NOTE: Strict `<`, matching the loop's `>= deadline` exit. With `<=`, at
+    // the exact deadline a loop that just gave up would be restarted forever.
+    while (Date.now() < deadline) {
+      if (!recovery) {
+        recovery = runRecoveryLoop(baseUrl, deadline).finally(() => {
+          recovery = null;
+        });
+      }
+      if (await Promise.race([recovery, expired])) return Date.now() <= deadline;
+      // A loop started by a caller with an earlier deadline gave up; ours may
+      // still have time, so the next pass starts a loop with our deadline.
+    }
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
-  return recovery;
 }
+
+/** Outcome of holding a request: nothing to wait for, recovered, or past the deadline. */
+export type HoldOutcome = 'none' | 'ready' | 'expired';
 
 /**
  * Hold a request while a restart is known to be in progress; return at once
- * otherwise. The outcome is not reported: past the ceiling the request is sent
- * anyway and its real result (or error) goes to the caller.
+ * otherwise. The caller decides what `expired` means (send once and return
+ * the real result), so the outcome is reported rather than swallowed.
  *
  * @param baseUrl - API base URL / APIのベースURL
+ * @param deadline - Epoch ms after which holding stops / 保留をやめる時刻
+ * @returns `none`, `ready` or `expired` / 保留の結果
  */
-export async function holdUntilBackendReady(baseUrl: string): Promise<void> {
-  if (!recovery && !isServerRestarting()) return;
-  await waitForBackendRecovery(baseUrl);
+export async function holdUntilBackendReady(
+  baseUrl: string,
+  deadline: number,
+): Promise<HoldOutcome> {
+  if (!recovery && !isServerRestarting()) return 'none';
+  return (await waitForBackendRecovery(baseUrl, deadline)) ? 'ready' : 'expired';
 }
 
 /**
@@ -130,7 +169,7 @@ export async function holdUntilBackendReady(baseUrl: string): Promise<void> {
  * @param baseUrl - API base URL / APIのベースURL
  */
 export function noteConnectionFailure(baseUrl: string): void {
-  void waitForBackendRecovery(baseUrl);
+  void waitForBackendRecovery(baseUrl, restartWaitDeadline());
 }
 
 /** Drop the shared probe loop (tests only). */

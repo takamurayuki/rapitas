@@ -141,6 +141,89 @@ describe('GET during a backend restart', () => {
   });
 });
 
+/** /health that fails until `upAt` (epoch ms), then answers ready. */
+function healthUpAt(getUpAt: () => number) {
+  healthFetch.mockImplementation(async () => {
+    if (Date.now() >= getUpAt()) return okResponse({ ready: true });
+    throw down();
+  });
+}
+
+// Task 1548 re-verification: one deadline per GET, and no recovery past it.
+describe('GET deadline across a backend restart', () => {
+  it('a recovery 1 s before the deadline re-sends and returns the result', async () => {
+    const startedAt = Date.now();
+    healthUpAt(() => startedAt + 900 + 120_000 - 1_000); // failures end ~0.9 s in
+    mockOfflineFetch
+      .mockRejectedValueOnce(down())
+      .mockRejectedValueOnce(down())
+      .mockRejectedValueOnce(down())
+      .mockResolvedValueOnce(okResponse({ id: 11 }));
+
+    const state = track(new APIClient().fetch('/tasks/11', { skipCache: true }));
+    await vi.advanceTimersByTimeAsync(121_500);
+    expect(state).toMatchObject({ settled: true, value: { id: 11 } });
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it('a recovery after the deadline does not re-send; the original error is returned', async () => {
+    const startedAt = Date.now();
+    // A slow /health (1.5 s per answer) that is up from ~the deadline on: the
+    // probe in flight at the deadline answers "up" just after it (the verifier's case).
+    healthFetch.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 1_500));
+      if (Date.now() >= startedAt + 120_000) return okResponse({ ready: true });
+      throw down();
+    });
+    mockOfflineFetch.mockRejectedValueOnce(down()).mockRejectedValueOnce(down());
+    mockOfflineFetch.mockRejectedValueOnce(down()).mockResolvedValue(okResponse({ late: true }));
+
+    const state = track(new APIClient().fetch('/tasks/12', { skipCache: true }));
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(state.settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(String(state.error)).toContain('Failed to fetch');
+    const sendsAtDeadline = mockOfflineFetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10_000); // /health comes up at 125 s
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(sendsAtDeadline);
+    expect(sendsAtDeadline).toBe(3);
+  });
+
+  it.each([
+    ['its result', () => mockOfflineFetch.mockResolvedValue(okResponse({ once: true }))],
+    ['its real error', () => mockOfflineFetch.mockRejectedValue(down())],
+  ])('a held GET past the deadline is sent once and returns %s', async (_label, arrange) => {
+    useServerRestartStore.getState().setRestarting(true);
+    healthFetch.mockRejectedValue(down());
+    arrange();
+
+    const state = track(new APIClient().fetch('/tasks/13', { skipCache: true }));
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(mockOfflineFetch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(state.settled).toBe(true);
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+    if (state.error) expect(String(state.error)).toContain('Failed to fetch');
+    else expect(state.value).toEqual({ once: true });
+    await vi.advanceTimersByTimeAsync(130_000); // never waits a second 2 minutes
+    expect(mockOfflineFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('after the SSE notice the 2 minutes count from the notice, not from the GET', async () => {
+    useServerRestartStore.getState().setRestarting(true); // t = 0, e.g. SSE shutdown
+    healthFetch.mockRejectedValue(down());
+    mockOfflineFetch.mockRejectedValue(down());
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const state = track(new APIClient().fetch('/tasks/14', { skipCache: true })); // t = 60 s
+    await vi.advanceTimersByTimeAsync(59_000); // t = 119 s
+    expect(state.settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000); // t = 121 s
+    expect(state.settled).toBe(true);
+    expect(String(state.error)).toContain('Failed to fetch');
+  });
+});
+
 describe('mutations during a backend restart', () => {
   it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
     'a %s issued while restarting is held, then sent exactly once',

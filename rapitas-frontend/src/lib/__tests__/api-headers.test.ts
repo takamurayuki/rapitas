@@ -46,6 +46,9 @@ describe('mergeUiSourceHeaders', () => {
   it('uses the method argument over init.method', () => {
     expect(mergeUiSourceHeaders({}, 'GET').get(UI_SOURCE_HEADER)).toBe(UI_POLL_SOURCE_VALUE);
     expect(mergeUiSourceHeaders({}, 'POST').get(UI_SOURCE_HEADER)).toBe(UI_SOURCE_VALUE);
+    // The form the settings poll and the theme favorites GET use.
+    expect(mergeUiSourceHeaders(undefined, 'GET').get(UI_SOURCE_HEADER)).toBe(UI_POLL_SOURCE_VALUE);
+    expect(mergeUiSourceHeaders(undefined, 'POST').get(UI_SOURCE_HEADER)).toBe(UI_SOURCE_VALUE);
   });
 
   // Callers pass only `{ headers }` here and set method on the outer fetch

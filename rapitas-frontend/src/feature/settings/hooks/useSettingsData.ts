@@ -97,7 +97,8 @@ function pollDownloadProgress(
   const interval = setInterval(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`, {
-        headers: mergeUiSourceHeaders(),
+        // NOTE: Polling — tagged ui-poll so it does not hold the restart gate (task 1548).
+        headers: mergeUiSourceHeaders(undefined, 'GET'),
       });
       if (res.ok) {
         const progress = await res.json();

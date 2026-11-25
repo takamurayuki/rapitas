@@ -14,6 +14,7 @@ import {
   holdUntilBackendReady,
   isConnectionError,
   noteConnectionFailure,
+  restartWaitDeadline,
   waitForBackendRecovery,
 } from './restart-wait';
 import type { RequestOptions } from './types';
@@ -163,31 +164,41 @@ export class APIClient {
    * GET that outlives a backend restart: held while a restart is known, and
    * after a connection error it waits for `/health` and is sent again, so the
    * caller gets the result instead of an error (and shows no error toast).
-   * Past the 2-minute ceiling the original error is thrown.
+   *
+   * NOTE: One deadline per GET, fixed the first time it has to wait (task 1548).
+   * Re-deriving it per wait let a held GET wait a second 2 minutes, and past it
+   * the original error must reach the caller.
    */
   private async getWithRecovery<T>(url: string, options: RequestOptions): Promise<T> {
-    const inBrowser = typeof window !== 'undefined';
+    if (typeof window === 'undefined') return this.getWithRetries<T>(url, options);
+    let deadline: number | null = restartWaitDeadline();
     // Sending into a known restart only burns a 15 s attempt, so wait first.
-    if (inBrowser) await holdUntilBackendReady(API_BASE_URL);
+    const held = await holdUntilBackendReady(API_BASE_URL, deadline);
+    if (held === 'none') deadline = null;
+    // Past the deadline: send once and hand over the real outcome, no more waiting.
+    if (held === 'expired') {
+      return performFetch<T>(url, options, options.timeoutMs ?? GET_ATTEMPT_TIMEOUT_MS);
+    }
     for (let wait = 0; ; wait++) {
       try {
         return await this.getWithRetries<T>(url, options);
       } catch (err) {
-        if (!inBrowser || wait >= MAX_RECOVERY_WAITS || !isConnectionError(err)) throw err;
-        if (!(await waitForBackendRecovery(API_BASE_URL))) throw err;
+        if (wait >= MAX_RECOVERY_WAITS || !isConnectionError(err)) throw err;
+        deadline ??= restartWaitDeadline();
+        if (!(await waitForBackendRecovery(API_BASE_URL, deadline))) throw err;
       }
     }
   }
 
   /**
-   * POST/PUT/PATCH/DELETE: held until a known restart is over, then sent
-   * exactly once. A failure after sending is never re-sent (the backend may
-   * have applied it), so it reaches the caller; it only starts the recovery
-   * watch so the overlay shows and the next mutation waits.
+   * POST/PUT/PATCH/DELETE: held until a known restart is over (or its deadline
+   * passed), then sent exactly once. A failure after sending is never re-sent
+   * (the backend may have applied it), so it reaches the caller; it only starts
+   * the recovery watch so the overlay shows and the next mutation waits.
    */
   private async mutateOnce<T>(url: string, options: RequestOptions): Promise<T> {
     const inBrowser = typeof window !== 'undefined';
-    if (inBrowser) await holdUntilBackendReady(API_BASE_URL);
+    if (inBrowser) await holdUntilBackendReady(API_BASE_URL, restartWaitDeadline());
     try {
       return await performFetch<T>(url, options, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
     } catch (err) {

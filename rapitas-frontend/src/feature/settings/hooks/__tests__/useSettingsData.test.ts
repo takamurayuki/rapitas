@@ -211,7 +211,8 @@ describe('useSettingsData UI source header coverage', () => {
     expect(headerOf(call, 'content-type')).toBe('application/json');
   });
 
-  it('handleDownloadModel tags both the POST and the polling progress GET with the UI header', async () => {
+  // Task 1548: the POST stays ui (an operation); the progress poll is ui-poll.
+  it('handleDownloadModel tags the POST ui and the polling progress GET ui-poll', async () => {
     const { result } = await mount();
     fetchMock.mockClear();
     vi.useFakeTimers();
@@ -232,7 +233,7 @@ describe('useSettingsData UI source header coverage', () => {
 
       const [pollCall] = callsFor(fetchMock, '/local-llm/download-progress');
       expect(pollCall, 'polling GET should have fired').toBeDefined();
-      expect(headerOf(pollCall, 'x-rapitas-source')).toBe('ui');
+      expect(headerOf(pollCall, 'x-rapitas-source')).toBe('ui-poll');
     } finally {
       vi.useRealTimers();
     }

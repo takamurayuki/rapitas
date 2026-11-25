@@ -12,7 +12,8 @@ vi.mock('@/lib/offline-queue', () => ({
 // Inert here: the restart wait has its own suite (client-restart-wait.test.ts),
 // and the X-Rapitas-Source tests live in client-source-header.test.ts.
 vi.mock('../restart-wait', () => ({
-  holdUntilBackendReady: async () => {},
+  holdUntilBackendReady: async () => 'none',
+  restartWaitDeadline: () => 0,
   waitForBackendRecovery: async () => false,
   noteConnectionFailure: () => {},
   isConnectionError: () => false,
