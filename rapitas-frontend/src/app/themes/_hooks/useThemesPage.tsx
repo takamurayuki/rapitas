@@ -31,6 +31,8 @@ export type FormData = {
   defaultBranch: string;
   runtimeConfigJson: string;
   categoryId: number | null;
+  /** Auto-run priority across themes (task 1543); higher takes a free slot first. */
+  autoRunPriority: number;
 };
 
 export const defaultFormData: FormData = {
@@ -44,6 +46,7 @@ export const defaultFormData: FormData = {
   defaultBranch: 'develop',
   runtimeConfigJson: '',
   categoryId: null,
+  autoRunPriority: 0,
 };
 
 /**
@@ -157,6 +160,7 @@ export function useThemesPage() {
       defaultBranch: item.defaultBranch || 'develop',
       runtimeConfigJson: item.runtimeConfigJson || '',
       categoryId: item.categoryId ?? null,
+      autoRunPriority: item.autoRunPriority ?? 0,
     });
     setIconSearchQuery('');
 

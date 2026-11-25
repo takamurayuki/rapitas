@@ -1444,6 +1444,9 @@
     },
     "autoRunSettingsCard": {
       "description": "タスク自動実行（auto-run）の挙動に関する設定です。",
+      "maxConcurrencyLabel": "同時に動かす自動実行の数",
+      "maxConcurrencyDescription": "全テーマを合わせて、自動実行のタスクを同時にいくつ動かすかを決めます（1〜4）。枠が空くと、テーマの「自動実行の優先度」が高いテーマから先に次のタスクを選びます。",
+      "maxConcurrencyEnvOverride": "環境変数 AUTO_RUN_GLOBAL_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
       "backlogLimitLabel": "懸念・アイデアから自動起票（上限）",
       "backlogLimitDescription": "自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。",
       "repairLimitLabel": "検証失敗時のリトライ回数（自己改善ループ上限）",
@@ -3366,6 +3369,8 @@
     "readinessTimeoutMs": "画面の準備を待つ時間（秒）"
   },
   "themes": {
+    "autoRunPriorityLabel": "自動実行の優先度",
+    "autoRunPriorityDescription": "自動実行の枠が空いたとき、値が大きいテーマのタスクから先に選びます（-100〜100、既定 0）。同じ値ならテーマ ID の小さい順です。",
     "title": "テーマ一覧",
     "subtitle": "テーマを管理します。開発プロジェクトの設定もここで行えます。",
     "themeName": "テーマ名",

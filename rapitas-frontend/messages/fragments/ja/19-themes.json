@@ -1,5 +1,7 @@
 {
   "themes": {
+    "autoRunPriorityLabel": "自動実行の優先度",
+    "autoRunPriorityDescription": "自動実行の枠が空いたとき、値が大きいテーマのタスクから先に選びます（-100〜100、既定 0）。同じ値ならテーマ ID の小さい順です。",
     "title": "テーマ一覧",
     "subtitle": "テーマを管理します。開発プロジェクトの設定もここで行えます。",
     "themeName": "テーマ名",

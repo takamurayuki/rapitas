@@ -1444,6 +1444,9 @@
     },
     "autoRunSettingsCard": {
       "description": "Settings for how task auto-run behaves.",
+      "maxConcurrencyLabel": "Auto-runs at the same time",
+      "maxConcurrencyDescription": "How many auto-run tasks may run at once across all themes (1-4). When a slot frees up, the theme with the higher auto-run priority picks its next task first.",
+      "maxConcurrencyEnvOverride": "Running with {value} because the AUTO_RUN_GLOBAL_MAX_CONCURRENCY environment variable is set. This setting takes effect once the variable is removed.",
       "backlogLimitLabel": "Auto-create from concerns/ideas (cap)",
       "backlogLimitDescription": "When auto-run runs out of tasks, automatically creates tasks from the concern backlog (or the idea box once resolved). Per-theme cap on simultaneous creation. 0 disables it.",
       "repairLimitLabel": "Verify-failure retry count (self-repair loop cap)",
@@ -3366,6 +3369,8 @@
     "readinessTimeoutMs": "Application readiness timeout (seconds)"
   },
   "themes": {
+    "autoRunPriorityLabel": "Auto-run priority",
+    "autoRunPriorityDescription": "When an auto-run slot frees up, tasks from the theme with the higher value are picked first (-100 to 100, default 0). Equal values go by theme ID, lowest first.",
     "title": "Themes",
     "subtitle": "Manage themes. You can also configure development project settings here.",
     "themeName": "Theme name",
