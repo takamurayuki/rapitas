@@ -1833,14 +1833,18 @@
         "noTheme": "No theme",
         "blocked": "Blocked",
         "stalled": "In progress but stalled",
-        "overdue": "Overdue"
+        "overdue": "Overdue",
+        "awaitingAnswer": "Awaiting an answer",
+        "halted": "Halted"
       },
       "why": {
         "held": "Never selected, so nothing happens until it is released",
         "noTheme": "Invisible to auto-run's selection, so it is never picked",
         "blocked": "Not retried blindly by design — a manual retry is the way out",
         "stalled": "In progress, but nothing has touched it for days",
-        "overdue": "Past its due date and not finished"
+        "overdue": "Past its due date and not finished",
+        "awaitingAnswer": "Stopped until someone answers its question",
+        "halted": "A halt reason is still set, so auto-run will not select it"
       }
     },
     "consult": {
@@ -6586,7 +6590,10 @@
       "wholeWord": "Match whole word",
       "regex": "Use regular expression"
     },
-    "runDivider": "─────── run {n}/{total} ───────"
+    "runDivider": "─────── run {n}/{total} ───────",
+    "reviewRunDivider": "─────── diff review {seat} ({model}) {n}/{total} ───────",
+    "reviewRunResult": "verdict: {verdict}, {findings} findings",
+    "reviewRunUnknown": "unknown"
   },
   "testCorrelation": {
     "pageTitle": "Test Failure Correlation Heatmap",

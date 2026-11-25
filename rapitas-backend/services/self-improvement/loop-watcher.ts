@@ -14,6 +14,8 @@
 import { createLogger } from '../../config/logger';
 import { submitConcern } from '../memory/concern-backlog-service';
 import { computeLoopMetrics, type LoopMetricsWindow } from './loop-metrics';
+import { formatBounceBreakdown } from './bounce-breakdown';
+import { fileGateMisjudgmentCandidates } from './gate-misjudgment-filer';
 
 const log = createLogger('self-improvement:loop-watcher');
 
@@ -66,6 +68,9 @@ const RULES: WatchRule[] = [
     hint: '再生成しても同じ指摘で落ちるケース。buildCriticFeedback の注入内容が指摘に対応可能な形か、ゲート側の期待が過剰でないかを確認する。',
   },
 ];
+
+/** Rules whose concern body carries the per-kind bounce breakdown. */
+const BOUNCE_RULE_KEYS = new Set(['verify-self-contradiction', 'verify-diff-review', 'ci-repair']);
 
 /** Outcome of one rule evaluation (exported for tests via evaluateRules). */
 export interface RuleFinding {
@@ -138,6 +143,9 @@ export function evaluateRules(
         `。悪化要因: ${reasons.join('・')}。\n\n` +
         `調査の起点: ${rule.hint}\n\n` +
         (rule.breakdown ? `${rule.breakdown(current.counts)}\n\n` : '') +
+        (BOUNCE_RULE_KEYS.has(rule.key) && formatBounceBreakdown(current)
+          ? `${formatBounceBreakdown(current)}\n\n`
+          : '') +
         `メトリクスの全体は GET /backlog/loop-metrics で取得できます。`,
     });
   }
@@ -175,9 +183,11 @@ export async function runLoopReview(): Promise<number> {
       log.warn({ err, rule: f.key }, '[loop-watcher] failed to file concern');
     }
   }
+  // Candidate gate misjudgments: same contradiction sentence repeated in the window.
+  const candidates = await fileGateMisjudgmentCandidates(current.contradictionPatterns);
   log.info(
-    { filed, evaluated: RULES.length, window: `${current.from}..${current.to}` },
+    { filed, candidates, evaluated: RULES.length, window: `${current.from}..${current.to}` },
     '[loop-watcher] loop review complete',
   );
-  return filed;
+  return filed + candidates;
 }

@@ -204,24 +204,18 @@ export async function reviewDiffAdversarially(params: {
     );
     const jurors = run.result.jurors ?? [];
     seen.jurors = jurors;
-    // A fail about a plan item that a sibling PR already put on the base ref can
-    // never be fixed by the diff — drop it deterministically (task 1196).
-    const { applyBaseSatisfiedFilter } = await import('./base-satisfied-plan-items');
-    let result = await applyBaseSatisfiedFilter(run.result, {
+    // Base-satisfied, out-of-criteria and follow_up post-filters (review-post-filters.ts).
+    const { applyReviewPostFilters } = await import('./review-post-filters');
+    let result = await applyReviewPostFilters(run.result, {
+      taskId,
+      themeId: task?.themeId ?? null,
       worktreePath,
       preferredBaseBranch,
       planContent,
       changedFiles: seen.changedFiles,
+      criteriaCount: acceptanceCriteria.length,
+      suppressEventLog,
     });
-    // Findings no criterion covers become their own tasks instead of bouncing this one.
-    const ooc = await import('./out-of-criteria-findings');
-    const split = ooc.splitOutOfCriteria(result, acceptanceCriteria.length);
-    result = split.result;
-    if (!suppressEventLog)
-      void ooc.fileOutOfCriteriaFindings(split.outOfCriteria, {
-        taskId,
-        themeId: task?.themeId ?? null,
-      });
     if (result.verdict === 'unknown') result = await decideUnavailableJury(seen, result);
 
     // Durable per-seat record for judge-reliability calibration; skipped for
@@ -254,6 +248,8 @@ export async function reviewDiffAdversarially(params: {
           // only), with the verifier's check on the disputed ones.
           findings: result.findings ?? [],
           dispute: result.dispute,
+          // Findings deferred to follow-up concerns (count, reasons, verdict changed).
+          followUp: result.followUp,
           awaitingHuman: result.awaitingHuman,
           unavailableRisk: result.unavailableRisk,
           // Whether the jury saw a measured verification (independence audit),

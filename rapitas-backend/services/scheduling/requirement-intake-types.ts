@@ -11,6 +11,7 @@ import type { DriftTaskPayload } from '../organization/spec-drift';
 import type { BootstrapTaskPayload } from '../organization/project-bootstrap-task';
 import type { SpecGateTaskPayload } from '../organization/spec-gate-task';
 import type { ScreenTaskPayload } from '../organization/screen-task-payload';
+import type { IntakeOutcome } from './requirement-intake-outcome';
 
 /** A theme eligible for scanning. */
 export interface IntakeTheme {
@@ -61,6 +62,12 @@ export interface RequirementIntakeDeps {
    * / 環境構築タスクが完了済みか
    */
   isBootstrapTaskFinished?: (themeId: number) => Promise<boolean>;
+  /**
+   * Reports a theme's intake outcome (notification and cycle log). Optional so
+   * a test fixture without it never reaches the real notification table.
+   * / テーマごとの結果を通知する
+   */
+  reportOutcome?: (outcome: IntakeOutcome) => Promise<unknown>;
   /** Files one task; a falsy result means nothing was created. */
   createTask: (
     payload:

@@ -60,6 +60,58 @@ export function splitOutOfCriteria(
   return { result: { ...result, reasons, findings }, outOfCriteria };
 }
 
+/** How fileFindingsAsConcerns renders one finding into a concern. */
+export interface ConcernFilingOptions {
+  source: string;
+  severity: 'high' | 'medium' | 'low';
+  /** Stable key so the same finding is filed once across review rounds. */
+  dedupKey: (f: ReviewFinding, digest: string) => string;
+  detail: (f: ReviewFinding) => string;
+  /** Log label, e.g. 'out-of-criteria'. */
+  label: string;
+}
+
+/**
+ * File findings as concerns on the task's theme, so the backlog promoter turns
+ * them into tasks. Best-effort: a failure is logged and never changes the review.
+ * Shared by the out-of-criteria and follow-up paths (task 1547).
+ *
+ * @param findings - Findings to file / 起票する指摘
+ * @param ctx.taskId - Task under review / レビュー対象のタスク
+ * @param ctx.themeId - Its theme, so the new task joins the same auto-run / テーマ
+ * @param opts - Source, severity, dedup key and detail of the concern / 起票の形式
+ */
+export async function fileFindingsAsConcerns(
+  findings: ReviewFinding[],
+  ctx: { taskId: number; themeId: number | null },
+  opts: ConcernFilingOptions,
+): Promise<void> {
+  if (findings.length === 0) return;
+  try {
+    const { submitConcern } = await import('../../memory/concern-backlog-service');
+    for (const f of findings) {
+      const digest = createHash('sha1').update(f.summary).digest('hex').slice(0, 12);
+      await submitConcern({
+        title: f.summary.slice(0, 120),
+        detail: opts.detail(f),
+        type: 'bug',
+        severity: opts.severity,
+        ...(f.evidence ? { location: f.evidence.slice(0, 200) } : {}),
+        originTaskId: ctx.taskId,
+        ...(ctx.themeId != null ? { themeId: ctx.themeId } : {}),
+        source: opts.source,
+        dedupKey: opts.dedupKey(f, digest),
+      });
+    }
+    log.info(
+      { taskId: ctx.taskId, count: findings.length },
+      `[${opts.label}] Review findings filed as concerns`,
+    );
+  } catch (err) {
+    log.warn({ err, taskId: ctx.taskId }, `[${opts.label}] Could not file the findings`);
+  }
+}
+
 /**
  * File each out-of-criteria finding as a concern on the task's theme, so the
  * backlog promoter turns it into a task. Best-effort: a failure is logged and
@@ -73,31 +125,16 @@ export async function fileOutOfCriteriaFindings(
   findings: ReviewFinding[],
   ctx: { taskId: number; themeId: number | null },
 ): Promise<void> {
-  if (findings.length === 0) return;
-  try {
-    const { submitConcern } = await import('../../memory/concern-backlog-service');
-    for (const f of findings) {
-      const digest = createHash('sha1').update(f.summary).digest('hex').slice(0, 12);
-      await submitConcern({
-        title: f.summary.slice(0, 120),
-        detail:
-          `タスク #${ctx.taskId} の独立レビューで見つかったが、そのタスクの完了条件の外にあるため、` +
-          `合否には使わず別タスクとして起票した指摘。\n\n${formatFindingReason(f)}` +
-          (f.repro ? `\n\n再現: ${f.repro}` : ''),
-        type: 'bug',
-        severity: 'high',
-        ...(f.evidence ? { location: f.evidence.slice(0, 200) } : {}),
-        originTaskId: ctx.taskId,
-        ...(ctx.themeId != null ? { themeId: ctx.themeId } : {}),
-        source: 'adversarial_review_out_of_criteria',
-        dedupKey: `out-of-criteria:${ctx.taskId}:${digest}`,
-      });
-    }
-    log.info(
-      { taskId: ctx.taskId, count: findings.length },
-      '[out-of-criteria] Out-of-scope review findings filed as concerns',
-    );
-  } catch (err) {
-    log.warn({ err, taskId: ctx.taskId }, '[out-of-criteria] Could not file the findings');
-  }
+  // NOTE: The filing loop moved to fileFindingsAsConcerns (shared with the
+  // follow-up path); the submitConcern input is unchanged.
+  await fileFindingsAsConcerns(findings, ctx, {
+    source: 'adversarial_review_out_of_criteria',
+    severity: 'high',
+    dedupKey: (_f, digest) => `out-of-criteria:${ctx.taskId}:${digest}`,
+    detail: (f) =>
+      `タスク #${ctx.taskId} の独立レビューで見つかったが、そのタスクの完了条件の外にあるため、` +
+      `合否には使わず別タスクとして起票した指摘。\n\n${formatFindingReason(f)}` +
+      (f.repro ? `\n\n再現: ${f.repro}` : ''),
+    label: 'out-of-criteria',
+  });
 }

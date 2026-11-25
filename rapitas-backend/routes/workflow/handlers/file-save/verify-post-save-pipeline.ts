@@ -61,6 +61,7 @@ export async function runVerifyPostSaveAutomation(params: {
 
     const adversarial = await runAdversarialDiffReview({
       taskId,
+      executionId: params.completionReceipt?.executionId,
       fileType,
       newStatus,
       verifyGateBlocked: completionGate.verifyGateBlocked,
