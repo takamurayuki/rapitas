@@ -88,4 +88,23 @@ describe('a send-back that is not a repair', () => {
     ];
     expect(rounds(segmentPhases(executions, transitions, true), 'plan')).toEqual([[1, 2]]);
   });
+
+  // 2026-11-26: 「タブの回数表示が二回目など途中の数字から始まっている」. The
+  // number was "send-backs before this run + 1", so a send-back before the
+  // phase's first run made it start at 2, and back-to-back send-backs with no
+  // run between them skipped numbers (task 1548's verify read 2, 4, 5).
+  it('numbers the rounds that ran 1, 2, 3 even after earlier send-backs', () => {
+    const executions = [run(1, 'verify', 10), run(2, 'verify', 30), run(3, 'verify', 50)];
+    const transitions = [
+      moved('research_critic_failed', 'research_done', 'draft', 1),
+      moved('verify_repair', 'in_progress', 'plan_approved', 20),
+      moved('requirement_evidence_replan', 'in_progress', 'research_done', 22),
+      moved('verify_repair', 'in_progress', 'plan_approved', 40),
+    ];
+    const verify = segmentPhases(executions, transitions, true).phases.find(
+      (p) => p.phaseType === 'verify',
+    )!;
+    expect(verify.iterations.map((i) => i.iterationNumber)).toEqual([1, 2, 3]);
+    expect(verify.iterations.map((i) => i.executionIds)).toEqual([[1], [2], [3]]);
+  });
 });
