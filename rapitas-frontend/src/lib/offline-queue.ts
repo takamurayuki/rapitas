@@ -298,8 +298,8 @@ export async function offlineFetch(
     const response = await fetch(url, init);
     return response;
   } catch (error) {
-    // Network error — queue the mutation
-    if (!navigator.onLine || (error instanceof TypeError && error.message.includes('fetch'))) {
+    // NOTE: Offline only; an online TypeError (restart) is never replayed — throw (task 1548).
+    if (!navigator.onLine) {
       const headers: Record<string, string> = {};
       if (init?.headers) {
         const h = init.headers;

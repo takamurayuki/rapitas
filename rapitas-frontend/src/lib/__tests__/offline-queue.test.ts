@@ -389,6 +389,23 @@ describe('offline-queue', () => {
       ).rejects.toThrow('boom');
       expect(await mod.getPendingMutations()).toHaveLength(0);
     });
+
+    // Task 1548: a backend restart fails with this TypeError while the browser
+    // stays online. No `online` event would replay it, and the caller must learn
+    // the save may not have landed, so it is thrown, not answered with 202.
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+      'does not queue an online %s that fails with a TypeError (backend restart)',
+      async (method) => {
+        const { mod } = await freshModule();
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+        vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+
+        await expect(
+          mod.offlineFetch('https://api.test/tasks/4', { method, body: '{}' }),
+        ).rejects.toThrow('Failed to fetch');
+        expect(await mod.getPendingMutations()).toHaveLength(0);
+      },
+    );
   });
 
   describe('auto-sync on browser online event', () => {
