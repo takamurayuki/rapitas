@@ -34,6 +34,22 @@ export interface PhaseIteration {
   summary: PhaseIterationSummary;
   /** Model that ran this iteration (last non-null across its executions). */
   modelName?: string | null;
+  /** What each execution of the round was, in executionIds order; absent on older backends. */
+  runs?: PhaseRunLabel[];
+}
+
+/** A diff-review juror's own result for one run; unknown fields are null. */
+export interface PhaseRunReview {
+  seatId: string | null;
+  model: string | null;
+  verdict: string | null;
+  findings: number | null;
+}
+
+/** One run of a round. `review` is set only for a diff-review juror run. */
+export interface PhaseRunLabel {
+  executionId: number;
+  review?: PhaseRunReview;
 }
 
 export interface PhaseSegment {
