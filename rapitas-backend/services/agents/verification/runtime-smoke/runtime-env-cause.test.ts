@@ -8,10 +8,18 @@
 import { describe, expect, test } from 'bun:test';
 import { classifyEnvCause } from './runtime-env-cause';
 
-const classify = (lines: string[], reachedReady = false) =>
-  classifyEnvCause({ text: lines.join('\n'), reachedReady });
+const LOCK_REFUSAL = '別のインスタンスが既に起動しています';
+const classify = (lines: string[], reachedReady = false, exitedBeforeReady?: boolean) =>
+  classifyEnvCause({ text: lines.join('\n'), reachedReady, exitedBeforeReady });
 
 describe('classifyEnvCause — environment causes', () => {
+  // NOTE: 準備完了前の自主終了と単独行の完全一致で、Error: のない起動拒否を確定できる。
+  test('準備完了前に単独行を出して自主終了した場合はロック競合', () => {
+    expect(
+      classify([`  ${LOCK_REFUSAL}\r`, 'ELIFECYCLE Command failed with exit code 1'], false, true),
+    ).toBe('lock_held');
+  });
+
   test.each([
     [['Error: listen EADDRINUSE: address already in use :::8090'], 'port_in_use'],
     [['Error: Port 8090 in use'], 'port_in_use'],
@@ -123,11 +131,29 @@ describe('classifyEnvCause — never an environment cause', () => {
     'Warning: Port 8090 is in use, trying 8091 instead',
     'Port 8090 in use',
     'ポート 8090 は使用中です',
-    '別のインスタンスが既に起動しています',
     'Another next dev server is already running.',
     '    at EADDRINUSE (app.ts:1:1)',
   ])('致命的メッセージがない競合への言及は原因にしない: %s', (line) => {
     expect(classify([line])).toBeNull();
+  });
+
+  test.each([
+    ['準備完了ログ', ['Ready in 1.2s', LOCK_REFUSAL]],
+    ['警告', [`Warning: ${LOCK_REFUSAL}`]],
+    ['部分一致', [`${LOCK_REFUSAL}（再試行します）`]],
+    ['後続の致命行', [LOCK_REFUSAL, 'TypeError: boom']],
+    ['後続の解析エラー', [LOCK_REFUSAL, 'Failed to parse lock file: Unexpected token']],
+    ['ポート競合との混在', ['Error: listen EADDRINUSE', LOCK_REFUSAL]],
+  ])('自主終了時も%sを伴うログには原因を付けない', (_name, lines) => {
+    expect(classify(lines, false, true)).toBeNull();
+  });
+
+  test('自主終了の証拠がない単独行には原因を付けない', () => {
+    expect(classify([LOCK_REFUSAL])).toBeNull();
+  });
+
+  test('準備完了の事実を自主終了の情報より優先する', () => {
+    expect(classify([LOCK_REFUSAL], true, true)).toBeNull();
   });
 
   test.each([

@@ -59,7 +59,8 @@ let allocatedPort = 45999;
 let launchPort = 0;
 const snapshotModule = { ...(await import('./runtime-process-snapshot')) };
 /** A process on a fixed port that the injected OS reports (null = port free). */
-let fixedPortHolder: { pid: number; command: string; port: number } | null = null;
+let fixedPortHolder: { pid: number; command: string; port: number; parentPid?: number } | null =
+  null;
 mock.module('./runtime-process-snapshot', () => ({
   ownsRuntimePort: snapshotModule.ownsRuntimePort,
   readRuntimeProcessSnapshot: async () => {
@@ -75,7 +76,14 @@ mock.module('./runtime-process-snapshot', () => ({
       processes: [
         ...(rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : []),
         ...(holder
-          ? [{ pid: holder.pid, parentPid: 1, birth: '200', command: holder.command }]
+          ? [
+              {
+                pid: holder.pid,
+                parentPid: holder.parentPid ?? 1,
+                birth: '200',
+                command: holder.command,
+              },
+            ]
           : []),
       ],
       protectedPids: new Set(),
@@ -100,24 +108,29 @@ mock.module('./browser-smoke', () => ({
 }));
 
 let launched = 0;
+let rootAppearsOnLaunch = false;
 let stopSpy = 0;
 let exited = false;
 let exitsOnStop = false;
+let logBeforeExit = false;
 let exitLog = 'Error: Cannot find module cross-env';
 mock.module('./app-launcher', () => ({
   allocateFreePort: async () => allocatedPort,
-  launchApp: (_command: string, _workdir: string, port: number) => ({
-    port: (launchPort = _command.includes('--port 8090') ? 8090 : port),
-    pid: (launched++, 999),
-    logs: () => (exited && exitLog ? [exitLog] : []),
-    hasExited: () => exited,
-    exitCode: () => (exited ? 1 : null),
-    markStopRequested: () => {},
-    stop: () => {
-      stopSpy++;
-      if (exitsOnStop) exited = true;
-    },
-  }),
+  launchApp: (_command: string, _workdir: string, port: number) => {
+    if (rootAppearsOnLaunch) rootPresent = true;
+    return {
+      port: (launchPort = _command.includes('--port 8090') ? 8090 : port),
+      pid: (launched++, 999),
+      logs: () => ((exited || logBeforeExit) && exitLog ? [exitLog] : []),
+      hasExited: () => exited,
+      exitCode: () => (exited ? 1 : null),
+      markStopRequested: () => {},
+      stop: () => {
+        stopSpy++;
+        if (exitsOnStop) exited = true;
+      },
+    };
+  },
   waitForHealthy: async (
     _url: string,
     _timeoutMs: number,
@@ -190,10 +203,12 @@ const temporaryWorkdirs: string[] = [];
 beforeEach(() => {
   rows = [];
   rootPresent = false;
+  rootAppearsOnLaunch = false;
   stopSpy = 0;
   launched = 0;
   exited = false;
   exitsOnStop = false;
+  logBeforeExit = false;
   exitLog = 'Error: Cannot find module cross-env';
   snapshotCalls = 0;
   fixedPortHolder = null;
@@ -261,11 +276,11 @@ test.each(['SyntaxError: Unexpected token }', '', 'Failed to parse lock file: Un
   },
 );
 
-test('身元未確定のプロセスを停止した結果の終了は実装失敗の証拠にしない', async () => {
+test('後処理の停止で初めて出た起動拒否ログには原因を付けない', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-stop-exit-'));
   temporaryWorkdirs.push(dir);
   exitsOnStop = true;
-  exitLog = '';
+  exitLog = 'Error: 別のインスタンスが既に起動しています';
   const result = await runRuntimeSmokeCheck(dir);
   expect(result).toMatchObject({ ran: false, ok: false, unverifiable: true, errorCount: 0 });
   expect(result?.cause).toBeUndefined();
@@ -514,21 +529,78 @@ test('a fixed port held by a process the launch history does not know is an envi
   expect(registry.has(dir)).toBe(false);
 });
 
+test('子孫の履歴保存に失敗した場合は停止も起動もせず foreign_process を返す', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-observed-write-failure-'));
+  temporaryWorkdirs.push(dir);
+  await historyModule.recordLaunchProcesses(
+    dir,
+    [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }],
+    'root',
+  );
+  rootPresent = true;
+  fixedPortHolder = { pid: 4242, parentPid: 999, command: 'server --port 8090', port: 8090 };
+  historyWriteFails = true;
+
+  const result = await spawnNewEntry(dir, dir, { ...cfg, url: 'http://127.0.0.1:8090' }, 'fp');
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'foreign_process' });
+  expect(historyWrites).toBe(1);
+  expect(stoppedIdentities).toEqual([]);
+  expect(launched).toBe(0);
+});
+
 test.each([
-  ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
-  ['Error: 別のインスタンスが既に起動しています', 'lock_held'],
-])('a launch that exits on "%s" carries cause %s', async (line, cause) => {
+  [
+    '身元取得前のポート競合',
+    'Error: listen EADDRINUSE: address already in use :::8090',
+    'port_in_use',
+    false,
+  ],
+  [
+    '身元取得前の Error 付きロック競合',
+    'Error: 別のインスタンスが既に起動しています',
+    'lock_held',
+    false,
+  ],
+  ['身元取得前の単独行', '別のインスタンスが既に起動しています', 'lock_held', false],
+  ['準備完了待ち中の単独行', '別のインスタンスが既に起動しています', 'lock_held', true],
+])('%s の原因をサーバー取得から未検証の報告へ渡す', async (_name, line, cause, observedRoot) => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
-  exited = true;
   exitLog = line;
+  const prepareLaunch = () => {
+    rootAppearsOnLaunch = observedRoot;
+    exited = !observedRoot;
+    onReady = async () => {
+      exited = true;
+    };
+  };
 
+  prepareLaunch();
   const result = await spawnNewEntry(dir, dir, cfg, 'fp');
 
   expect(result).toMatchObject({ ok: false, unverifiable: true, cause });
-  const check = await runRuntimeSmokeCheck(dir);
+  const reportDir = await mkdtemp(join(tmpdir(), 'runtime-report-'));
+  temporaryWorkdirs.push(reportDir);
+  prepareLaunch();
+  const check = await runRuntimeSmokeCheck(reportDir);
   expect(check).toMatchObject({ ran: false, ok: false, unverifiable: true, errorCount: 0, cause });
   expect(check?.details).toContain(`cause=${cause}`);
+});
+
+test('生存中に出た単独行には起動拒否の原因を付けない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-lock-timeout-'));
+  temporaryWorkdirs.push(dir);
+  logBeforeExit = true;
+  exitLog = '別のインスタンスが既に起動しています';
+  rootPresent = true;
+  onReady = async () => {
+    registry.get(dir)!.startCancelled = true;
+  };
+
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+  expect(result).toMatchObject({ ok: false, hasExited: false });
+  if (result.ok) throw new Error('起動失敗の結果が必要です');
+  expect(result.cause).toBeUndefined();
 });
 
 test('the spawned root is written to the launch history right after spawn', async () => {
