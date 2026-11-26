@@ -32,8 +32,15 @@ mock.module('child_process', () => ({
   },
 }));
 
-const { lowerProcessPriority, spawnLowPriority, isLowPriorityEnabled, LOW_PRIORITY } =
-  await import('./process-priority');
+const {
+  lowerProcessPriority,
+  spawnLowPriority,
+  spawnLowPriorityUntracked,
+  buildLowPriorityLaunch,
+  countActiveHelperChildren,
+  isLowPriorityEnabled,
+  LOW_PRIORITY,
+} = await import('./process-priority');
 
 beforeEach(() => {
   delete process.env.RAPITAS_AGENT_QUIET;
@@ -90,7 +97,10 @@ describe('countActiveHelperChildren', () => {
 
 describe('spawnLowPriority', () => {
   test('spawn に引数をそのまま渡し、子プロセスを返す', () => {
-    const child = spawnLowPriority('claude', ['--print'], { shell: true });
+    const child = spawnLowPriority('claude', ['--print'], { shell: true }, 'RAPITAS_AGENT_QUIET', {
+      platform: 'win32',
+      getPriority: () => LOW_PRIORITY,
+    });
     expect(spawnCalls).toEqual([{ command: 'claude', args: ['--print'] }]);
     expect(child.pid).toBe(777);
   });
@@ -112,6 +122,8 @@ describe('spawnLowPriority priority (task 1553)', () => {
         return { pid: 4242, once: () => {} };
       }) as never,
       setPriority: (pid, n) => void prio.push([pid, n]),
+      platform: 'win32',
+      getPriority: () => LOW_PRIORITY,
     });
     expect(spawned).toEqual(['tsc']);
     expect(child.pid).toBe(4242);
@@ -124,7 +136,111 @@ describe('spawnLowPriority priority (task 1553)', () => {
     spawnLowPriority('tsc', [], {}, 'RAPITAS_VERIFY_QUIET', {
       spawn: (() => ({ pid: 1, once: () => {} })) as never,
       setPriority: (pid, n) => void prio.push([pid, n]),
+      platform: 'win32',
+      getPriority: () => 0,
     });
     expect(prio).toEqual([]);
+  });
+});
+
+describe('children are born at low priority (task 1553 repair)', () => {
+  const SELF = process.pid;
+
+  /** Records every call in order so the sequence itself can be asserted. */
+  function recorder(opts: { prev?: number; failGet?: boolean; spawnThrows?: boolean } = {}) {
+    const log: string[] = [];
+    const spawned: Array<{ file: string; args: string[]; options: Record<string, unknown> }> = [];
+    return {
+      log,
+      spawned,
+      deps: {
+        platform: 'win32' as NodeJS.Platform,
+        getPriority: () => {
+          if (opts.failGet) throw new Error('EPERM');
+          return opts.prev ?? 0;
+        },
+        setPriority: (pid: number, n: number) =>
+          void log.push(`set:${pid === SELF ? 'self' : pid}:${n}`),
+        spawn: ((file: string, args: string[], options: Record<string, unknown>) => {
+          log.push('spawn');
+          spawned.push({ file, args, options });
+          if (opts.spawnThrows) throw new Error('ENOENT');
+          return { pid: 4242, once: () => {} };
+        }) as never,
+      },
+    };
+  }
+
+  test('win32: the backend is lowered BEFORE spawn and restored right after, so the shell and its children inherit it', () => {
+    const r = recorder({ prev: 0 });
+    spawnLowPriority('claude', ['--print'], { shell: true }, 'RAPITAS_AGENT_QUIET', r.deps);
+    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0', 'set:4242:10']);
+  });
+
+  test('win32: the backend priority is restored even when spawn throws', () => {
+    const r = recorder({ prev: 0, spawnThrows: true });
+    expect(() => spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps)).toThrow(
+      'ENOENT',
+    );
+    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0']);
+  });
+
+  test('win32: nothing to restore when the backend already runs at low priority', () => {
+    const r = recorder({ prev: 10 });
+    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps);
+    expect(r.log).toEqual(['spawn', 'set:4242:10']);
+  });
+
+  test('win32: an unreadable own priority still spawns (best effort)', () => {
+    const r = recorder({ failGet: true });
+    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps);
+    expect(r.log).toEqual(['spawn', 'set:4242:10']);
+  });
+
+  test('flag off: plain spawn, the backend priority is never touched', () => {
+    process.env.RAPITAS_AGENT_QUIET = 'off';
+    const r = recorder();
+    spawnLowPriority('claude', [], { shell: true }, 'RAPITAS_AGENT_QUIET', r.deps);
+    expect(r.log).toEqual(['spawn']);
+    expect(r.spawned[0]).toMatchObject({ file: 'claude', args: [] });
+  });
+
+  test('posix: a shell command is launched as `nice -n 10 /bin/sh -c <command>` with no shell option', () => {
+    const r = recorder();
+    spawnLowPriority('claude --print', [], { shell: true, cwd: '/w' }, 'RAPITAS_AGENT_QUIET', {
+      ...r.deps,
+      platform: 'linux',
+    });
+    expect(r.spawned[0]!.file).toBe('nice');
+    expect(r.spawned[0]!.args).toEqual(['-n', '10', '/bin/sh', '-c', 'claude --print']);
+    expect(r.spawned[0]!.options.shell).toBeUndefined();
+    expect(r.spawned[0]!.options.cwd).toBe('/w');
+    expect(r.log).not.toContain('set:self:10'); // no process-wide nice change (cannot be undone unprivileged)
+  });
+
+  test('posix: a custom shell path is kept; a plain command is wrapped without a shell', () => {
+    const r = recorder();
+    const posix = { ...r.deps, platform: 'darwin' as NodeJS.Platform };
+    spawnLowPriority('x', [], { shell: '/bin/zsh' }, 'RAPITAS_AGENT_QUIET', posix);
+    expect(r.spawned[0]!.args).toEqual(['-n', '10', '/bin/zsh', '-c', 'x']);
+    spawnLowPriority('claude', ['--print', 'a b'], {}, 'RAPITAS_AGENT_QUIET', posix);
+    expect(r.spawned[1]!.file).toBe('nice');
+    expect(r.spawned[1]!.args).toEqual(['-n', '10', 'claude', '--print', 'a b']);
+  });
+
+  test('buildLowPriorityLaunch is the identity on win32', () => {
+    expect(buildLowPriorityLaunch('a', ['b'], { shell: true }, 'win32')).toEqual({
+      file: 'a',
+      args: ['b'],
+      options: { shell: true },
+    });
+  });
+
+  test('spawnLowPriorityUntracked starts low but stays out of the restart gate count', () => {
+    const r = recorder();
+    const before = countActiveHelperChildren();
+    spawnLowPriorityUntracked('app', [], {}, 'RAPITAS_VERIFY_QUIET', r.deps);
+    expect(countActiveHelperChildren()).toBe(before);
+    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0', 'set:4242:10']);
   });
 });

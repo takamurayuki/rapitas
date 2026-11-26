@@ -22,8 +22,44 @@ describe('execFileLowPriority', () => {
     await execFileLowPriority('node', ['-v'], {}, 'RAPITAS_VERIFY_QUIET', {
       execFile: fakeExecFile as never,
       setPriority: (pid, priority) => lowered.push({ pid, priority }),
+      // Pinned: the test runner itself may already run at low priority.
+      getPriority: () => LOW_PRIORITY,
+      platform: 'win32',
     });
     expect(lowered).toEqual([{ pid: 4242, priority: LOW_PRIORITY }]);
+  });
+
+  test('win32: the backend is lowered before execFile and restored right after (children are born low)', async () => {
+    const log: string[] = [];
+    const fakeExecFile = mock((_f: string, _a: string[], _o: unknown, cb: unknown) => {
+      log.push('execFile');
+      (cb as (e: null, o: string, r: string) => void)(null, '', '');
+      return { pid: 4242 };
+    });
+    await execFileLowPriority('bun', ['run', 'x'], { shell: true }, 'RAPITAS_VERIFY_QUIET', {
+      execFile: fakeExecFile as never,
+      setPriority: (pid, priority) =>
+        log.push(`set:${pid === process.pid ? 'self' : pid}:${priority}`),
+      getPriority: () => 0,
+      platform: 'win32',
+    });
+    expect(log).toEqual(['set:self:10', 'execFile', 'set:self:0', 'set:4242:10']);
+  });
+
+  test('posix: runs as nice -n 10 so the kernel applies it at exec time', async () => {
+    const calls: Array<{ file: string; args: string[]; options: Record<string, unknown> }> = [];
+    const fakeExecFile = mock((f: string, a: string[], o: Record<string, unknown>, cb: unknown) => {
+      calls.push({ file: f, args: a, options: o });
+      (cb as (e: null, o: string, r: string) => void)(null, '', '');
+      return { pid: 7 };
+    });
+    await execFileLowPriority('bun', ['run', 'x'], { cwd: '/w' }, 'RAPITAS_VERIFY_QUIET', {
+      execFile: fakeExecFile as never,
+      setPriority: () => {},
+      platform: 'linux',
+    });
+    expect(calls[0]).toMatchObject({ file: 'nice', args: ['-n', '10', 'bun', 'run', 'x'] });
+    expect(calls[0]!.options.cwd).toBe('/w');
   });
 
   test('stdout / stderr をそのまま返す', async () => {
@@ -100,6 +136,9 @@ describe('execFileLowPriority', () => {
       setPriority: () => {
         called = true;
       },
+      // Pinned so the backend's own (temporary) priority change is not counted.
+      getPriority: () => LOW_PRIORITY,
+      platform: 'win32',
     });
     expect(called).toBe(false);
   });

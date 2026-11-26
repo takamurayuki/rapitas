@@ -8,10 +8,10 @@
  * this machine (both the pipe and WebSocket transports hang until timeout
  * under Bun 1.3.13, while succeeding in under a second under plain Node.js).
  */
-import { spawn, type ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
-import { lowerProcessPriority } from '../../process-priority';
+import { spawnLowPriorityUntracked } from '../../process-priority';
 
 const log = createLogger('playwright-worker-client');
 
@@ -97,13 +97,18 @@ interface PendingCall {
  *   to avoid leaking the child process. / ワーカーへのハンドル
  */
 export function spawnPlaywrightWorker(): PlaywrightWorker {
-  const proc: ChildProcess = spawn(process.env.RAPITAS_NODE_BIN || 'node', [WORKER_SCRIPT], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
-  // BELOW_NORMAL (task 1553); the browser it launches inherits it on Windows.
-  // Not spawnLowPriority, so the restart gate's helper count stays unaffected.
-  lowerProcessPriority(proc.pid, 'RAPITAS_VERIFY_QUIET');
+  // NOTE: Born at BELOW_NORMAL / nice 10 (task 1553), so the browser it launches
+  // inherits it from the first instruction. Untracked: spawnLowPriority would
+  // count it as a helper child and hold back restarts while the worker lives.
+  const proc: ChildProcess = spawnLowPriorityUntracked(
+    process.env.RAPITAS_NODE_BIN || 'node',
+    [WORKER_SCRIPT],
+    {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    },
+    'RAPITAS_VERIFY_QUIET',
+  );
 
   let nextId = 1;
   const pending = new Map<number, PendingCall>();

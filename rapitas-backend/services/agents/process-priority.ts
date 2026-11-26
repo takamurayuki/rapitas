@@ -70,16 +70,159 @@ export function lowerProcessPriority(
 interface SpawnDeps {
   spawn: (command: string, args: string[], options: SpawnOptions) => ChildProcess;
   setPriority: (pid: number, priority: number) => void;
+  getPriority: (pid: number) => number;
+  platform: NodeJS.Platform;
+}
+
+/** How a command is actually started: the executable, its argv and options. */
+export interface LowPriorityLaunch<O> {
+  file: string;
+  args: string[];
+  options: O;
 }
 
 /**
- * `spawn()` that drops the child to BELOW_NORMAL right after it starts.
+ * Runs `fn` (a synchronous spawn) with the backend itself at BELOW_NORMAL, then
+ * restores it. Windows hands a new process its creator's priority class, so a
+ * child, and everything its shell starts, is born low. Setting the child's
+ * priority after spawn() left a window in which cmd.exe could already have
+ * started the CLI at normal priority.
+ *
+ * NOTE: Windows only. On POSIX a normal user cannot lower a nice value back, so
+ * the same trick would leave the backend slow for good; see buildLowPriorityLaunch.
+ */
+function withInheritedLowPriority<T>(
+  fn: () => T,
+  d: Pick<SpawnDeps, 'setPriority' | 'getPriority'>,
+): T {
+  let previous: number | null = null;
+  try {
+    const current = d.getPriority(process.pid);
+    if (current !== LOW_PRIORITY) {
+      d.setPriority(process.pid, LOW_PRIORITY);
+      previous = current;
+    }
+  } catch (err) {
+    log.debug({ err }, '[process-priority] could not lower own priority before spawn');
+  }
+  try {
+    return fn();
+  } finally {
+    if (previous !== null) {
+      try {
+        d.setPriority(process.pid, previous);
+      } catch (err) {
+        log.warn(
+          { err, previous },
+          '[process-priority] could not restore own priority after spawn',
+        );
+      }
+    }
+  }
+}
+
+/**
+ * On POSIX, wraps a command as nice -n 10 so the kernel applies the nice value
+ * at exec time and every descendant inherits it. A shell command becomes
+ * nice -n 10 <shell> -c <command> and loses its `shell` option. On win32
+ * nothing changes (see withInheritedLowPriority).
+ *
+ * @param command - Executable or shell command line. / コマンド
+ * @param args - Arguments. / 引数
+ * @param options - spawn / execFile options (only `shell` is rewritten). / オプション
+ * @param platform - Target platform (injectable for tests). / 対象プラットフォーム
+ * @returns What to actually spawn. / 実際に起動する内容
+ */
+export function buildLowPriorityLaunch<O extends { shell?: boolean | string }>(
+  command: string,
+  args: string[],
+  options: O,
+  platform: NodeJS.Platform = process.platform,
+): LowPriorityLaunch<O> {
+  if (platform === 'win32') return { file: command, args, options };
+  const rest: O = { ...options };
+  delete rest.shell;
+  const nice = ['-n', String(LOW_PRIORITY)];
+  if (options.shell) {
+    const sh = typeof options.shell === 'string' ? options.shell : '/bin/sh';
+    return { file: 'nice', args: [...nice, sh, '-c', [command, ...args].join(' ')], options: rest };
+  }
+  return { file: 'nice', args: [...nice, command, ...args], options: rest };
+}
+
+/**
+ * True when the POSIX nice wrapper must be skipped: under `bun test` with no
+ * explicit platform. Dozens of tests mock child_process.spawn and assert the
+ * command/argv a runner passed; on a Linux CI the wrapper would turn every one
+ * of those into `nice ...`. Tests of the wrapper itself pass `platform`, and
+ * production never runs with NODE_ENV=test.
+ */
+function skipPosixWrap(deps: { platform?: NodeJS.Platform }): boolean {
+  return deps.platform === undefined && process.env.NODE_ENV === 'test';
+}
+
+/** Starts the child at low priority, then lowers the pid as a last resort. */
+function startAtLowPriority(
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+  flag: PriorityFlag,
+  deps: Partial<SpawnDeps>,
+): ChildProcess {
+  const d: SpawnDeps = {
+    spawn,
+    setPriority: os.setPriority,
+    getPriority: os.getPriority,
+    platform: process.platform,
+    ...deps,
+  };
+  if (!isLowPriorityEnabled(flag)) return d.spawn(command, args, options);
+  let child: ChildProcess;
+  if (d.platform === 'win32') {
+    child = withInheritedLowPriority(() => d.spawn(command, args, options), d);
+  } else if (skipPosixWrap(deps)) {
+    child = d.spawn(command, args, options);
+  } else {
+    const launch = buildLowPriorityLaunch(command, args, options, d.platform);
+    child = d.spawn(launch.file, launch.args, launch.options);
+  }
+  // Redundant for the child itself (already born low) but harmless; kept so a
+  // platform where inheritance does not apply still ends up lowered.
+  lowerProcessPriority(child.pid, flag, d.setPriority);
+  return child;
+}
+
+/**
+ * `spawn()` that starts the child at BELOW_NORMAL (Windows) / nice 10 (POSIX)
+ * from its first instruction, so shells and CLIs it launches are never briefly
+ * at normal priority.
+ *
+ * @param command - Executable or shell command line. / コマンド
+ * @param args - Arguments, as for `spawn()`. / 引数
+ * @param options - Passed to `spawn()`; `shell` is handled per platform. / spawn オプション
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides. / テスト用差し替え
+ * @returns The child process. / 子プロセス
+ */
+export function spawnLowPriorityUntracked(
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+  flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
+  deps: Partial<SpawnDeps> = {},
+): ChildProcess {
+  return startAtLowPriority(command, args, options, flag, deps);
+}
+
+/**
+ * Like spawnLowPriorityUntracked, and also counts the child as a live helper
+ * for the restart gate (countActiveHelperChildren).
  *
  * @param command - Executable or shell command line. / コマンド
  * @param args - Arguments, as for `spawn()`. / 引数
  * @param options - Passed to `spawn()` unchanged. / spawn オプション
  * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
- * @param deps - Test overrides for spawn / setPriority. / テスト用差し替え
+ * @param deps - Test overrides for spawn / setPriority / platform. / テスト用差し替え
  * @returns The child process. / 子プロセス
  */
 export function spawnLowPriority(
@@ -89,9 +232,7 @@ export function spawnLowPriority(
   flag: PriorityFlag = 'RAPITAS_AGENT_QUIET',
   deps: Partial<SpawnDeps> = {},
 ): ChildProcess {
-  const d: SpawnDeps = { spawn, setPriority: os.setPriority, ...deps };
-  const child = d.spawn(command, args, options);
-  lowerProcessPriority(child.pid, flag, d.setPriority);
+  const child = startAtLowPriority(command, args, options, flag, deps);
   // Track liveness so restart gates can refuse to kill the backend while a
   // helper (verification run, agent CLI) is mid-flight: children spawned via
   // a shell inherit the listen socket, and a restart during a verify run left
@@ -117,6 +258,8 @@ export interface ExecFileResult {
 interface ExecFileDeps {
   execFile: typeof execFile;
   setPriority: (pid: number, priority: number) => void;
+  getPriority: (pid: number) => number;
+  platform: NodeJS.Platform;
 }
 
 /**
@@ -145,22 +288,36 @@ export function execFileLowPriority(
   flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
   deps: Partial<ExecFileDeps> = {},
 ): Promise<ExecFileResult> {
-  const d: ExecFileDeps = { execFile, setPriority: os.setPriority, ...deps };
+  const d: ExecFileDeps = {
+    execFile,
+    setPriority: os.setPriority,
+    getPriority: os.getPriority,
+    platform: process.platform,
+    ...deps,
+  };
+  const enabled = isLowPriorityEnabled(flag);
+  const launch =
+    enabled && !skipPosixWrap(deps)
+      ? buildLowPriorityLaunch(file, args, options, d.platform)
+      : { file, args, options };
   return new Promise((resolve, reject) => {
-    const child = d.execFile(file, args, options, (err, stdout, stderr) => {
-      if (err) {
-        // promisify(execFile) attaches the output to the error; the raw callback
-        // passes it separately. Callers branch on `err.stdout` (the ratchet reads
-        // the violations out of a non-zero exit), so reattach it rather than
-        // handing back an error that looks like "the script could not run".
-        const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
-        if (e.stdout === undefined) e.stdout = String(stdout ?? '');
-        if (e.stderr === undefined) e.stderr = String(stderr ?? '');
-        reject(e);
-        return;
-      }
-      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-    });
+    const start = () =>
+      d.execFile(launch.file, launch.args, launch.options, (err, stdout, stderr) => {
+        if (err) {
+          // promisify(execFile) attaches the output to the error; the raw callback
+          // passes it separately. Callers branch on `err.stdout` (the ratchet reads
+          // the violations out of a non-zero exit), so reattach it rather than
+          // handing back an error that looks like "the script could not run".
+          const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+          if (e.stdout === undefined) e.stdout = String(stdout ?? '');
+          if (e.stderr === undefined) e.stderr = String(stderr ?? '');
+          reject(e);
+          return;
+        }
+        resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+      });
+    // Born low: on win32 the child inherits the backend's temporary BELOW_NORMAL.
+    const child = enabled && d.platform === 'win32' ? withInheritedLowPriority(start, d) : start();
     lowerProcessPriority(child.pid, flag, d.setPriority);
   });
 }
