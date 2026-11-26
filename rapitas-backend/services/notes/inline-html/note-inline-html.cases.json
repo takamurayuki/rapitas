@@ -1,0 +1,230 @@
+{
+  "description": "Shared input/output table for sanitizeNoteInlineHtml (design note-markdown-format.md, allowed inline HTML). Read by rapitas-backend/services/notes/inline-html/note-inline-html.test.ts and rapitas-frontend/src/components/note/markdown-note/inline-html/note-inline-html.test.ts so both sides strip the same way.",
+  "cases": [
+    {
+      "name": "text colour",
+      "input": "<span style=\"color:#E53935\">赤字</span>",
+      "output": "<span style=\"color:#E53935\">赤字</span>"
+    },
+    {
+      "name": "highlight",
+      "input": "<mark style=\"background-color:#FFF59D\">重要</mark>",
+      "output": "<mark style=\"background-color:#FFF59D\">重要</mark>"
+    },
+    {
+      "name": "font size",
+      "input": "<span style=\"font-size:24px\">大</span>",
+      "output": "<span style=\"font-size:24px\">大</span>"
+    },
+    { "name": "underline", "input": "<u>下線</u>", "output": "<u>下線</u>" },
+    {
+      "name": "plain Markdown is unchanged",
+      "input": "# 見出し\n\n- **太字**\n- [ ] 項目",
+      "output": "# 見出し\n\n- **太字**\n- [ ] 項目"
+    },
+    {
+      "name": "upper-case input becomes the canonical form",
+      "input": "<SPAN STYLE=\"COLOR:#e53935\">赤</SPAN>",
+      "output": "<span style=\"color:#E53935\">赤</span>"
+    },
+    {
+      "name": "single quotes, spaces and a trailing semicolon",
+      "input": "<span style='color : #e53935 ;'>赤</span>",
+      "output": "<span style=\"color:#E53935\">赤</span>"
+    },
+    {
+      "name": "spaces around the equals sign",
+      "input": "<mark style = \"background-color: #fff59d\">黄</mark>",
+      "output": "<mark style=\"background-color:#FFF59D\">黄</mark>"
+    },
+    {
+      "name": "script is removed with its content",
+      "input": "前<script>alert(1)</script>後",
+      "output": "前後"
+    },
+    {
+      "name": "upper-case script is removed",
+      "input": "前<SCRIPT type=\"text/javascript\">alert(1)</SCRIPT >後",
+      "output": "前後"
+    },
+    {
+      "name": "style element is removed with its content",
+      "input": "<style>body{display:none}</style>本文",
+      "output": "本文"
+    },
+    {
+      "name": "iframe is removed with its content",
+      "input": "<iframe src=\"https://evil.example\">x</iframe>本文",
+      "output": "本文"
+    },
+    { "name": "unclosed script removes only the start tag", "input": "a<script>b", "output": "ab" },
+    {
+      "name": "onclick span keeps its text",
+      "input": "<span onclick=\"alert(1)\">押す</span>",
+      "output": "押す"
+    },
+    {
+      "name": "allowed style plus onclick is not allowed",
+      "input": "<span style=\"color:#E53935\" onclick=\"x\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "another style property is removed",
+      "input": "<span style=\"font-family:serif\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "two properties are not an allowed form",
+      "input": "<span style=\"color:#E53935;font-size:24px\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "colour from an external URL is removed",
+      "input": "<span style=\"color:url(http://evil.example/x)\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "highlight from an external URL is removed",
+      "input": "<mark style=\"background-color:url(https://evil.example/x.png)\">a</mark>",
+      "output": "a"
+    },
+    {
+      "name": "expression() is removed",
+      "input": "<span style=\"color:expression(alert(1))\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "three-digit hex is removed",
+      "input": "<span style=\"color:#FFF\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "rgb() is removed",
+      "input": "<span style=\"color:rgb(1,2,3)\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "colour name is removed",
+      "input": "<span style=\"color:red\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "font size 7 is below the range",
+      "input": "<span style=\"font-size:7px\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "font size 8 is the lower bound",
+      "input": "<span style=\"font-size:8px\">a</span>",
+      "output": "<span style=\"font-size:8px\">a</span>"
+    },
+    {
+      "name": "font size 72 is the upper bound",
+      "input": "<span style=\"font-size:72px\">a</span>",
+      "output": "<span style=\"font-size:72px\">a</span>"
+    },
+    {
+      "name": "font size 73 is above the range",
+      "input": "<span style=\"font-size:73px\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "font size in em is removed",
+      "input": "<span style=\"font-size:2em\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "mark with a text colour is removed",
+      "input": "<mark style=\"color:#E53935\">a</mark>",
+      "output": "a"
+    },
+    { "name": "mark without a style is removed", "input": "<mark>a</mark>", "output": "a" },
+    {
+      "name": "underline with an attribute is removed",
+      "input": "<u class=\"x\">a</u>",
+      "output": "a"
+    },
+    {
+      "name": "unquoted style value is removed",
+      "input": "<span style=color:#E53935>a</span>",
+      "output": "a"
+    },
+    { "name": "self-closing span is removed", "input": "<span/>a", "output": "a" },
+    {
+      "name": "unclosed start tag is removed",
+      "input": "<span style=\"color:#E53935\">a",
+      "output": "a"
+    },
+    { "name": "end tag without a start tag is removed", "input": "a</span>b", "output": "ab" },
+    { "name": "end tag with spaces is canonical", "input": "<u>a</u >", "output": "<u>a</u>" },
+    {
+      "name": "nested allowed forms stay",
+      "input": "<span style=\"font-size:24px\"><span style=\"color:#E53935\">a</span></span>",
+      "output": "<span style=\"font-size:24px\"><span style=\"color:#E53935\">a</span></span>"
+    },
+    {
+      "name": "Markdown inside an allowed form stays",
+      "input": "<span style=\"color:#E53935\">**太**</span>",
+      "output": "<span style=\"color:#E53935\">**太**</span>"
+    },
+    {
+      "name": "crossed nesting drops the inner unclosed tag",
+      "input": "<span style=\"color:#E53935\"><u>a</span></u>",
+      "output": "<span style=\"color:#E53935\">a</span>"
+    },
+    {
+      "name": "tags do not pair across a blank line",
+      "input": "<u>a\n\nb</u>",
+      "output": "a\n\nb"
+    },
+    { "name": "tags pair across one line break", "input": "<u>a\nb</u>", "output": "<u>a\nb</u>" },
+    {
+      "name": "tags pair across inline code",
+      "input": "<u>a `x` b</u>",
+      "output": "<u>a `x` b</u>"
+    },
+    {
+      "name": "CRLF line breaks are kept",
+      "input": "<u>a</u>\r\nb\r\n",
+      "output": "<u>a</u>\r\nb\r\n"
+    },
+    { "name": "less-than in prose", "input": "a < b > c", "output": "a < b > c" },
+    { "name": "autolink", "input": "<https://x.y>", "output": "<https://x.y>" },
+    { "name": "email autolink", "input": "<a@b.c>", "output": "<a@b.c>" },
+    {
+      "name": "entity references are text",
+      "input": "&lt;script&gt; &amp;",
+      "output": "&lt;script&gt; &amp;"
+    },
+    {
+      "name": "script inside a fence stays",
+      "input": "```html\n<script>x</script>\n```",
+      "output": "```html\n<script>x</script>\n```"
+    },
+    {
+      "name": "script inside inline code stays",
+      "input": "`<script>x</script>` を書く",
+      "output": "`<script>x</script>` を書く"
+    },
+    { "name": "comment is removed", "input": "a<!-- c -->b", "output": "ab" },
+    { "name": "processing instruction is removed", "input": "a<?php x ?>b", "output": "ab" },
+    { "name": "doctype is removed", "input": "<!DOCTYPE html>a", "output": "a" },
+    { "name": "CDATA is removed", "input": "a<![CDATA[x]]>b", "output": "ab" },
+    {
+      "name": "unknown tag is removed and its text kept",
+      "input": "<blink>a</blink>",
+      "output": "a"
+    },
+    { "name": "tag formed by a removal is removed too", "input": "<<b>script>x", "output": "x" },
+    {
+      "name": "allowed and disallowed mixed",
+      "input": "<span style=\"color:#E53935\">赤</span><script>x</script><span onclick=\"y\">z</span>",
+      "output": "<span style=\"color:#E53935\">赤</span>z"
+    },
+    {
+      "name": "attribute value holding a greater-than sign",
+      "input": "<span title=\"a>b\">c</span>",
+      "output": "c"
+    }
+  ]
+}

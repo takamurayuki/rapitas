@@ -40,6 +40,12 @@
     {"name": "code span does not cross a line of spaces and tabs", "content": "`a\n \t\n<div>b</div>`", "legacyHtml": true},
     {"name": "code span does not cross into a heading", "content": "a `\n# <div>本文</div> `", "legacyHtml": true},
     {"name": "code span does not cross out of a heading", "content": "# 見出し `\n<div>本文</div> `", "legacyHtml": true},
-    {"name": "code span inside a heading", "content": "# `<div>` の使い方", "legacyHtml": false}
+    {"name": "code span inside a heading", "content": "# `<div>` の使い方", "legacyHtml": false},
+    {"name": "allowed text colour is Markdown", "content": "<span style=\"color:#E53935\">赤字</span>", "legacyHtml": false},
+    {"name": "allowed highlight is Markdown", "content": "<mark style=\"background-color:#FFF59D\">重要</mark>", "legacyHtml": false},
+    {"name": "allowed font size is Markdown", "content": "<span style=\"font-size:24px\">大</span>", "legacyHtml": false},
+    {"name": "allowed underline is Markdown", "content": "<u>下線</u>", "legacyHtml": false},
+    {"name": "span with another style property is stripped, not refused", "content": "<span style=\"font-family:x\">a</span>", "legacyHtml": false},
+    {"name": "allowed form next to an editor div", "content": "<span style=\"color:#E53935\">a</span><div>b</div>", "legacyHtml": true}
   ]
 }
