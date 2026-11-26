@@ -9,7 +9,7 @@
  */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { createLogger } from '../../../config/logger';
-import { isTaskPlanApproved } from '../plan-approval-queue-sync';
+import { isTaskPlanApproved, syncQueueAfterPlanApproval } from '../plan-approval-queue-sync';
 
 import { logCycleEvent } from '../../observability';
 import {
@@ -22,7 +22,9 @@ import {
 import { liveOrQueuedBehind } from './queue-wait-exemption';
 import { taskNeverExecuted } from './auto-run-execution-presence';
 import { requeueIfNeverExecuted } from './requeue-if-never-executed';
-import { setCurrentTask, onAwaitingPlanApproval } from './theme-auto-run-service';
+import { onAwaitingPlanApproval } from './theme-auto-run-service';
+import { loadThemeActiveSet, releaseThemeSlot } from './parallel/theme-active-set';
+import { notifyCompanionAwaitingApprovalOnce } from './parallel/companion-approval-hold';
 import { notifyAwaitingPlanApproval, notifyAwaitingUserAnswer } from './auto-run-notifications';
 
 import { releaseStaleActiveItems } from './auto-run-stall-guard';
@@ -89,7 +91,8 @@ export async function advanceActiveTaskLocked(
     if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
       await notifyAwaitingUserAnswer(themeId, currentTaskId);
       if (!(await liveOrQueuedBehind(prisma, currentTaskId))) {
-        await setCurrentTask(themeId, null);
+        // Task 1552: frees only this task's slot when companions run alongside.
+        await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
         broadcastAutoRunUpdateImpl(themeId);
       }
       return;
@@ -122,7 +125,7 @@ export async function advanceActiveTaskLocked(
     // 2nd PR would collide with the 1st (task 1258: 16 items / 10.5 h / 0
     // executions, holding theme 1's only slot — see merge-exhausted-handoff).
     if (await handOffExhaustedMerge(prisma, currentTaskId, themeId)) {
-      await setCurrentTask(themeId, null);
+      await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
       broadcastAutoRunUpdateImpl(themeId);
       await selectAndEnqueueNextTask(
         prisma,
@@ -218,7 +221,7 @@ export async function advanceActiveTaskLocked(
       // Past the 3x ceiling without ever running: a stuck queue, not a hung
       // agent. Requeue (bounded) instead of blocking; setCurrentTask resets
       // the tenure clock.
-      await requeueAndResetTenure(themeId, currentTaskId);
+      await requeueAndResetTenure(themeId, currentTaskId, prisma);
       return;
     } else {
       await forceStopOverWallBudget({
@@ -257,10 +260,25 @@ export async function advanceActiveTaskLocked(
     if (releasedStaleCount === 0) {
       // An approved plan can still own a waiting_approval item (in-flight agent
       // keeps it untouched); pausing again here would undo the resume each tick.
+      const awaitingApproval = hasItemAwaitingApproval(currentItems);
+      const approved = awaitingApproval && (await isTaskPlanApproved(currentTaskId, prisma));
+      // Task 1552: with companions in the theme, an approval wait holds only
+      // this task — pausing the theme would stop the others, and the pause's
+      // release CAS assumes the head is the waiting task.
+      const activeSet = awaitingApproval ? await loadThemeActiveSet(prisma, themeId) : null;
+      // 承認照会中に解放された古い同伴がテーマ全体を止めない。
       if (
-        hasItemAwaitingApproval(currentItems) &&
-        !(await isTaskPlanApproved(currentTaskId, prisma))
-      ) {
+        activeSet?.readable &&
+        activeSet.headTaskId !== currentTaskId &&
+        !activeSet.companions.some((c) => c.taskId === currentTaskId)
+      )
+        return;
+      const parallel = !!activeSet && activeSet.companions.length > 0;
+      if (parallel && approved) {
+        await syncQueueAfterPlanApproval(currentTaskId, prisma).catch(() => {});
+      } else if (parallel) {
+        await notifyCompanionAwaitingApprovalOnce(themeId, currentTaskId);
+      } else if (awaitingApproval && !approved) {
         await onAwaitingPlanApproval(themeId);
         await notifyAwaitingPlanApproval(themeId, currentTaskId);
         broadcastAutoRunUpdateImpl(themeId);

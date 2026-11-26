@@ -1433,6 +1433,7 @@ CREATE TABLE "UserSettings" (
     "executionStallThresholdMinutes" INTEGER NOT NULL DEFAULT 5,
     "idleStopMinutes" INTEGER NOT NULL DEFAULT 60,
     "autoRunMaxConcurrency" INTEGER NOT NULL DEFAULT 1,
+    "autoRunMaxConcurrencyPerTheme" INTEGER NOT NULL DEFAULT 1,
     "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1844,6 +1845,7 @@ CREATE TABLE "ThemeAutoRun" (
     "idleSince" DATETIME,
     "idleStoppedAt" DATETIME,
     "lastSelfRefillAt" DATETIME,
+    "companionTasksJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );

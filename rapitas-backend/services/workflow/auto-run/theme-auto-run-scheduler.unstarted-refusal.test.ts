@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import { mock } from 'bun:test';
 /**
  * theme-auto-run-scheduler.unstarted-refusal.test
@@ -61,7 +62,7 @@ beforeEach(() => {
 
 const blocked = () => {
   expect(mockNotifyHangBackstop).toHaveBeenCalled();
-  expect(mockOnTaskFailed).toHaveBeenCalled();
+  expectTaskSlotRelease('failed', 984);
   expect(mockTaskUpdate).toHaveBeenCalledWith(
     expect.objectContaining({ data: expect.objectContaining({ status: 'blocked' }) }),
   );

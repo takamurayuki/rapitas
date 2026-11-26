@@ -26,6 +26,8 @@ export const systemSchemas = {
     idleStopMinutes: t.Optional(t.Number()),
     // Global auto-run concurrency (task 1543): clamped 1..4 in settings-auto-run-concurrency.ts.
     autoRunMaxConcurrency: t.Optional(t.Number()),
+    // Per-theme auto-run concurrency (task 1552): clamped 1..4 in settings-auto-run-concurrency.ts.
+    autoRunMaxConcurrencyPerTheme: t.Optional(t.Number()),
     // Nightly self-refill window start: '' (off) or local "HH:MM"; format
     // validated in settings-extra-fields.ts (invalid values are rejected there).
     selfRefillWindowStart: t.Optional(t.String()),

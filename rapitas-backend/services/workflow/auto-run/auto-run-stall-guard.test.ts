@@ -198,4 +198,23 @@ describe('releaseStaleActiveItems consecutive residue (task 1009)', () => {
     await releaseStaleActiveItems(prismaWithTheme, 8, 2, ITEMS);
     expect(themeUpdateMany).not.toHaveBeenCalled();
   });
+
+  // Task 1552: the head and a companion are both checked every tick. A streak
+  // kept per theme was reset by the other task each time, so a terminal
+  // companion pinned tick after tick never had its slot freed.
+  test('head and companion each keep their own streak within one theme', async () => {
+    await releaseStaleActiveItems(prismaWithTheme, 10, 1101, ITEMS); // tick 1: head
+    await releaseStaleActiveItems(prismaWithTheme, 10, 1102, ITEMS); // tick 1: companion
+    expect(themeUpdateMany).not.toHaveBeenCalled();
+    await releaseStaleActiveItems(prismaWithTheme, 10, 1101, ITEMS); // tick 2: head
+    await releaseStaleActiveItems(prismaWithTheme, 10, 1102, ITEMS); // tick 2: companion
+    expect(themeUpdateMany).toHaveBeenCalledWith({
+      where: { currentTaskId: 1101 },
+      data: { currentTaskId: null },
+    });
+    expect(themeUpdateMany).toHaveBeenCalledWith({
+      where: { currentTaskId: 1102 },
+      data: { currentTaskId: null },
+    });
+  });
 });

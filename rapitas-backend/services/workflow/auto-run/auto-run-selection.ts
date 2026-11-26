@@ -7,8 +7,8 @@
  */
 import type { Prisma, PrismaClient } from '../../../generated/prisma-postgres';
 import { UNMET_DEPENDENCIES_EXCLUDED } from '../../task/task-dependencies';
-import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
 import { resolveAutoRunMaxConcurrency } from './auto-run-concurrency';
+import type { ParallelFilter, ParallelRejection, ParallelVerdict } from './parallel/parallel-types';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -31,7 +31,16 @@ export type NoTaskReason =
   | 'concurrency_limit'
   | 'awaiting_approval'
   /** The whole workflow is switched off; no task in any theme can be advanced. */
-  | 'workflow_disabled_globally';
+  | 'workflow_disabled_globally'
+  /**
+   * Every candidate was refused by the parallel-safety filter (task 1552): work
+   * exists but would collide with a task already running. Never all_done — that
+   * path refills the backlog.
+   */
+  | 'parallel_conflict';
+
+// Types live in parallel/parallel-types.ts so this file stays under the size limit.
+export type { ParallelRejection, ParallelVerdict, ParallelFilter } from './parallel/parallel-types';
 
 export type SelectionResult =
   | {
@@ -43,8 +52,10 @@ export type SelectionResult =
        * selected instead; the all-overlap fallback picks the head without it.
        */
       deferred?: number[];
+      /** Candidates refused by the parallel-safety filter before this one (task 1552). */
+      rejected?: ParallelRejection[];
     }
-  | { found: false; reason: NoTaskReason };
+  | { found: false; reason: NoTaskReason; rejected?: ParallelRejection[] };
 
 /**
  * Scope-overlap context for {@link selectNextTask} (task 573 B). `openPrFiles`
@@ -230,121 +241,14 @@ export function isTaskBlocked(taskStatus: string): boolean {
   return taskStatus === 'blocked';
 }
 
-/**
- * Whether a task is parked WAITING FOR A USER'S ANSWER, which
- * execute-post-handler stores as status 'blocked' — indistinguishable from a
- * real failure by status alone. Covers TWO distinct pause mechanisms:
- *  - a LIVE AskUserQuestion during an active session (most recent
- *    AgentExecution carries an unanswered `question`; once answered, a fresh
- *    execution with no question supersedes it), and
- *  - an intake/spec-clarification question.md saved via the Workflow API,
- *    which has no live session at all — its pause is recorded purely as
- *    `task.workflowStatus === 'awaiting_question'`. Missing this second case
- *    made the scheduler treat such a pause as a genuine failure, permanently
- *    parking the task at status 'blocked' even after the user answered (the
- *    answer only resets workflowStatus, not the stale 'blocked' status).
- * The scheduler uses this to HOLD (not advance) such a task, so it doesn't
- * treat the pause as a failure and spawn a second agent for the next task while
- * the answer-resume continues this one.
- *
- * @param prisma - Prisma client instance
- * @param taskId - Task to check / 確認対象タスク
- * @returns true when a live question or an intake question.md is pending / 未応答の質問（ライブまたはインテイク）があればtrue
- */
-export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number): Promise<boolean> {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { workflowStatus: true },
-  });
-  if (task?.workflowStatus === 'awaiting_question') return true;
-
-  const latest = await prisma.agentExecution.findFirst({
-    where: { ...NOT_REVIEW_COST_ROW, session: { config: { taskId } } },
-    orderBy: { createdAt: 'desc' },
-    select: { question: true },
-  });
-  return latest?.question != null && latest.question !== '';
-}
-
-/** Heartbeat freshness window for the hang backstop's liveness check. */
-export const HANG_BACKSTOP_HEARTBEAT_MS = 5 * 60_000;
-
-/**
- * Newest evidence that the task is still moving: its tenure start, its latest
- * workflow transition, or the latest heartbeat of any of its executions.
- *
- * The hang backstop must measure time SINCE PROGRESS, not tenure. Tenure alone
- * kills healthy multi-phase work — the implementer's own wall-clock cap (56 min)
- * already exceeds the 45-minute task wall, and even the liveness exemption has a
- * hole at the phase seam: task 585 was force-stopped 8 seconds after its
- * implementer committed a full implementation, in the 30-second gap before the
- * verifier's execution row appeared, at 48 minutes of tenure.
- *
- * @param prisma - Prisma client instance
- * @param taskId - Task to inspect. / 対象タスク
- * @param tenureStart - Epoch ms the task became the current task. / 現行タスクになった時刻
- * @returns Epoch ms of the most recent progress signal. / 直近の進捗時刻(ms)
- */
-
-/**
- * Whether the task has a LIVE agent execution — running with a heartbeat fresh
- * within {@link HANG_BACKSTOP_HEARTBEAT_MS}. Used by the hang backstop to tell
- * "slow but progressing" apart from "wedged": task 563's healthy 31-minute
- * implementer (heartbeat updating every minute) was force-stopped at the
- * 45-minute whole-task wall because tenure was the ONLY signal. A stale-
- * heartbeat running row (zombie) still reads as not-live so the backstop
- * keeps catching genuine hangs.
- *
- * @param prisma - Prisma client instance
- * @param taskId - Task to check / 確認対象タスク
- * @returns true when a fresh-heartbeat running execution exists / 生きた実行があればtrue
- */
-export async function resolveLastProgressAt(
-  prisma: PrismaClient,
-  taskId: number,
-  tenureStart: number,
-): Promise<number> {
-  const [lastTransition, lastBeat] = await Promise.all([
-    prisma.workflowTransition
-      .findFirst({ where: { taskId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } })
-      .catch(() => null),
-    prisma.agentExecution
-      .findFirst({
-        where: { session: { config: { taskId } }, heartbeatAt: { not: null } },
-        orderBy: { heartbeatAt: 'desc' },
-        select: { heartbeatAt: true },
-      })
-      .catch(() => null),
-  ]);
-  return Math.max(
-    tenureStart,
-    lastTransition?.createdAt?.getTime() ?? 0,
-    lastBeat?.heartbeatAt?.getTime() ?? 0,
-  );
-}
-
-/**
- * Whether the task has a LIVE agent execution — running with a heartbeat fresh
- * within {@link HANG_BACKSTOP_HEARTBEAT_MS}.
- *
- * @param prisma - Prisma client instance
- * @param taskId - Task to check / 確認対象タスク
- * @returns true when a fresh-heartbeat running execution exists / 生きた実行があればtrue
- */
-export async function hasLiveExecution(prisma: PrismaClient, taskId: number): Promise<boolean> {
-  const fresh = new Date(Date.now() - HANG_BACKSTOP_HEARTBEAT_MS);
-  const live = await prisma.agentExecution
-    .findFirst({
-      where: {
-        session: { config: { taskId } },
-        status: 'running',
-        heartbeatAt: { gte: fresh },
-      },
-      select: { id: true },
-    })
-    .catch(() => null);
-  return live != null;
-}
+// NOTE: moved to auto-run-liveness.ts (task 1552, file-size limit); re-exported
+// here so importers and mock.module mirrors of this module stay unchanged.
+export {
+  isAwaitingUserAnswer,
+  HANG_BACKSTOP_HEARTBEAT_MS,
+  resolveLastProgressAt,
+  hasLiveExecution,
+} from './auto-run-liveness';
 
 /**
  * Select the next task to execute for a given theme.
@@ -361,6 +265,7 @@ export async function hasLiveExecution(prisma: PrismaClient, taskId: number): Pr
  * @param globalActiveCount - current global auto-run active items count / グローバルアクティブ数
  * @param themeSuccessRate - Recent theme success rate for the learnable-band tiebreak (null = legacy ordering). / 直近成功率
  * @param scopeOverlap - Open-PR file context for overlap deferral; omitted = legacy behavior (task 573 B). / スコープ重複コンテキスト
+ * @param parallelFilter - Parallel-safety filter; omitted = legacy behavior (task 1552). / 並列安全フィルタ
  * @returns SelectionResult with taskId or reason why none was found / 選択結果
  */
 export async function selectNextTask(
@@ -371,6 +276,7 @@ export async function selectNextTask(
   globalActiveCount: number,
   themeSuccessRate: number | null = null,
   scopeOverlap?: ScopeOverlapContext,
+  parallelFilter?: ParallelFilter,
 ): Promise<SelectionResult> {
   const { limit } = await resolveAutoRunMaxConcurrency(prisma);
   if (globalActiveCount >= limit) {
@@ -499,6 +405,8 @@ export async function selectNextTask(
   }
   // order === 'created' keeps the DB createdAt-asc order as-is.
 
+  if (parallelFilter) return pickWithParallelFilter(eligible, parallelFilter, scopeOverlap);
+
   // Scope-overlap deferral (task 573 B): first candidate whose plan files avoid
   // open auto-PR files; no plan = never deferred; all overlap = head, no deferral.
   if (scopeOverlap && scopeOverlap.openPrFiles.length > 0) {
@@ -531,4 +439,52 @@ export async function selectNextTask(
  */
 export function hasItemAwaitingApproval(queueItems: Array<{ status: string }>): boolean {
   return queueItems.some((i) => i.status === 'waiting_approval');
+}
+
+/** Run the filter on one candidate; a thrown filter refuses it (safe side). */
+async function judgeCandidate(
+  filter: ParallelFilter,
+  candidate: { id: number; status: string },
+): Promise<ParallelVerdict> {
+  try {
+    return await filter(candidate);
+  } catch (err) {
+    return { ok: false, reason: 'filter_error', detail: String(err).slice(0, 200) };
+  }
+}
+
+/**
+ * Candidate walk used when a parallel-safety filter is given (task 1552). Lazy
+ * on purpose: the filter reads plans and files, so it stops at the first
+ * accepted candidate that also clears the open-PR deferral. A refused candidate
+ * is never the fallback — that is the whole point of the filter.
+ */
+async function pickWithParallelFilter(
+  eligible: Array<{ id: number; status: string }>,
+  filter: ParallelFilter,
+  scopeOverlap?: ScopeOverlapContext,
+): Promise<SelectionResult> {
+  const rejected: ParallelRejection[] = [];
+  const deferred: number[] = [];
+  let fallback: number | null = null;
+  const withLog = <T extends object>(r: T) => (rejected.length > 0 ? { ...r, rejected } : r);
+  for (const candidate of eligible) {
+    const verdict = await judgeCandidate(filter, candidate);
+    if (!verdict.ok) {
+      rejected.push({ taskId: candidate.id, reason: verdict.reason, detail: verdict.detail });
+      continue;
+    }
+    if (scopeOverlap && scopeOverlap.openPrFiles.length > 0 && candidate.status !== 'in-progress') {
+      const planFiles = await scopeOverlap.getPlanFiles(candidate.id).catch(() => []);
+      if (planFiles.length > 0 && hasScopeOverlap(planFiles, scopeOverlap.openPrFiles)) {
+        fallback ??= candidate.id;
+        deferred.push(candidate.id);
+        continue;
+      }
+    }
+    const hit = { found: true as const, taskId: candidate.id };
+    return withLog(deferred.length > 0 ? { ...hit, deferred } : hit);
+  }
+  if (fallback !== null) return withLog({ found: true as const, taskId: fallback });
+  return { found: false, reason: 'parallel_conflict', rejected };
 }

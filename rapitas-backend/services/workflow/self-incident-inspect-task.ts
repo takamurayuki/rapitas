@@ -50,7 +50,7 @@ export async function inspectTask(
   nonDevelopmentThemeIds: Set<number>,
   workflowDisabledGlobally: boolean,
   repairBounceMinCount: number,
-  themeAutoRunRunState: Map<number, { currentTaskId: number | null }>,
+  themeAutoRunRunState: Map<number, { currentTaskId: number | null; companionTaskIds?: number[] }>,
   armedThemeIds: Set<number>,
   pausedUserThemeIds: Set<number> = new Set(),
 ): Promise<number> {
@@ -78,8 +78,14 @@ export async function inspectTask(
   // backlog wait, not stagnation (#969). Does NOT suppress when currentTaskId
   // is this task itself — a live hang on the task's own turn must still fire.
   const runState = task.themeId != null ? themeAutoRunRunState.get(task.themeId) : undefined;
+  // A companion (task 1552) is running on its own turn as well, so it must not
+  // be read as waiting behind the head.
+  const ownTurn = runState?.companionTaskIds?.includes(task.id) ?? false;
   const themeAutoRunBusyWithOtherTask =
-    runState != null && runState.currentTaskId != null && runState.currentTaskId !== task.id;
+    runState != null &&
+    runState.currentTaskId != null &&
+    runState.currentTaskId !== task.id &&
+    !ownTurn;
   const blockedEscalated =
     state.latestTransitionCause != null &&
     BLOCKED_ESCALATION_CAUSES.has(state.latestTransitionCause);

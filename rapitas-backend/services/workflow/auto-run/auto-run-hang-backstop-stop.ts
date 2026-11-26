@@ -18,7 +18,8 @@ import { logCycleEvent } from '../../observability';
 import { stopTaskTreeAgents } from '../../agents/stop-task-agents';
 import { writeBlockedTask } from '../blocked-task-write';
 import { COOLDOWN_MS, MAX_TASK_WALL_MS } from './auto-run-selection';
-import { setCurrentTask, onTaskFailed } from './theme-auto-run-service';
+import { setCurrentTask } from './theme-auto-run-service';
+import { releaseThemeSlot, retrackThemeSlot } from './parallel/theme-active-set';
 import { notifyHangBackstop } from './auto-run-notifications';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
@@ -81,7 +82,15 @@ export async function forceStopOverWallBudget(p: HangBackstopStop): Promise<void
   // Task 793: leave a transition row so retro analysis can tell why it went blocked.
   // Task 1166: flag a never-executed (queue-wait) block so the reconciler skips the draft reset.
   await recordHangBackstopBlock(p.taskId, wallBudgetState, wallMinutes, p.neverExecuted);
-  await onTaskFailed(p.themeId, `Task ${p.taskId} timed out (auto-run hang guard)`);
+  // Task 1552: the stop above is already per task (stopTaskTreeAgents); the
+  // release frees only this task's slot when companions share the theme.
+  await releaseThemeSlot(
+    p.prisma,
+    p.themeId,
+    p.taskId,
+    'failed',
+    `Task ${p.taskId} timed out (auto-run hang guard)`,
+  );
   broadcastAutoRunUpdateImpl(p.themeId);
   await new Promise((r) => setTimeout(r, COOLDOWN_MS));
   // NOTE: was `this.advanceTheme(themeId, null, ...)` — a null currentTaskId always
@@ -95,8 +104,19 @@ export async function forceStopOverWallBudget(p: HangBackstopStop): Promise<void
   );
 }
 
-/** Reset the current task to itself, resetting the tenure clock. / 在任タイマーのリセット */
-export async function requeueAndResetTenure(themeId: number, taskId: number): Promise<void> {
+/**
+ * Reset the task's tenure clock (the head via setCurrentTask, a companion via
+ * its `since`, task 1552). / 在任タイマーのリセット
+ *
+ * @param themeId - Theme / テーマID
+ * @param taskId - Task to re-track / 対象タスク
+ * @param prisma - Prisma client; without it only the head can be re-tracked / Prismaクライアント
+ */
+export async function requeueAndResetTenure(
+  themeId: number,
+  taskId: number,
+  prisma?: PrismaClient,
+): Promise<void> {
   log.warn(
     `[ThemeAutoRunScheduler] Task ${taskId} never executed within the hard ceiling — requeued instead of blocked (theme ${themeId})`,
   );
@@ -106,6 +126,7 @@ export async function requeueAndResetTenure(themeId: number, taskId: number): Pr
     cause: 'backstop_unstarted_requeue',
     msg: 'never-executed task requeued by hang backstop',
   });
-  await setCurrentTask(themeId, taskId);
+  if (prisma) await retrackThemeSlot(prisma, themeId, taskId);
+  else await setCurrentTask(themeId, taskId);
   broadcastAutoRunUpdateImpl(themeId);
 }
