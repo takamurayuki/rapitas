@@ -31,7 +31,8 @@
         "plan": "計画",
         "implement": "実装",
         "verify": "検証"
-      }
+      },
+      "parallel": "並列で {count}件実行中"
     }
   }
 }
