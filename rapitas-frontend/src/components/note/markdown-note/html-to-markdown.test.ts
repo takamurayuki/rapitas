@@ -110,6 +110,12 @@ describe('htmlToMarkdown', () => {
     ).toBe('- [ ] 項目\n- [x] 済み');
   });
 
+  it('writes text that looks like a tag as text, so the result is not refused as HTML', () => {
+    const md = htmlToMarkdown('<p>&lt;div&gt; は区切り、a &lt; b</p>');
+    expect(md).toBe('&lt;div> は区切り、a < b');
+    expect(isLegacyEditorHtml(md)).toBe(false);
+  });
+
   it('removes script and event handlers', () => {
     expect(htmlToMarkdown('<p onclick="x()">安全</p><script>alert(1)</script>')).toBe('安全');
   });

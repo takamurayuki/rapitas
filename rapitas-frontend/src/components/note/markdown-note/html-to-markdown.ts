@@ -89,10 +89,15 @@ function inline(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     // Collapse the editor's layout whitespace; non-breaking spaces become
     // spaces; the editor's zero-width caret anchors are dropped.
-    return (node.textContent ?? '')
-      .replace(/ /g, ' ')
-      .replace(/​/g, '')
-      .replace(/[ \t\r\n]+/g, ' ');
+    const text = (node.textContent ?? '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\u200b/g, '')
+      .replace(/[ \t\r\n]+/g, ' ')
+      // Text that looks like a tag (`<div>` typed as words) stays words: written
+      // raw it would be read as HTML — refused as the old editor's, or stripped.
+      .replace(/<(?=[A-Za-z/!?])/g, '&lt;');
+    // A line break already ends the line: the layout space after it is not text.
+    return node.previousSibling?.nodeName === 'BR' ? text.trimStart() : text;
   }
   if (node.nodeType !== Node.ELEMENT_NODE) return '';
   const el = node as Element;

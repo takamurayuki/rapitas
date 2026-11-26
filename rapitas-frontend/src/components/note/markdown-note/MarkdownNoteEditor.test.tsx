@@ -92,7 +92,7 @@ describe('MarkdownNoteEditor', () => {
 
   it('edits the plain Markdown source and saves it unchanged in form', () => {
     render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
     const source = screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' });
     expect((source as HTMLTextAreaElement).value).toBe(SAMPLE);
 
@@ -106,7 +106,7 @@ describe('MarkdownNoteEditor', () => {
 
   it('shows the edited source rendered when switching back to the view', () => {
     const { container } = render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' }), {
       target: { value: '### 小見出し' },
     });
@@ -124,7 +124,7 @@ describe('MarkdownNoteEditor', () => {
   // be refused.
   it('saves a single plain line and an empty body', () => {
     render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
     const source = screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' });
     fireEvent.change(source, { target: { value: '牛乳を買う' } });
     fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
@@ -136,12 +136,74 @@ describe('MarkdownNoteEditor', () => {
 
   it('refuses to save a body that is the old editor HTML', () => {
     render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' }), {
       target: { value: '<div>本文</div><div><br></div>' },
     });
     fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
     expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe(SAMPLE);
     expect(screen.getByRole('alert').textContent).toBe('notes.sync.legacy_html');
+  });
+
+  it('opens the visual editor without marking the note changed', () => {
+    const updateNote = vi.spyOn(useNoteStore.getState(), 'updateNote');
+    render(<MarkdownNoteEditor note={makeNote('* 星の箇条書き')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    expect(screen.getByRole('textbox', { name: 'notes.markdownNote.surfaceLabel' })).toBeTruthy();
+    // The writer would spell `*` as `-`; the user is told, nothing is saved.
+    expect(screen.getByRole('status').textContent).toBe('notes.markdownNote.roundTripNotice');
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.view' }));
+    expect(updateNote).not.toHaveBeenCalled();
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe(SAMPLE);
+    expect(screen.getByText('星の箇条書き')).toBeTruthy();
+  });
+
+  it('saves a colour picked on the visual surface as the allowed inline form', () => {
+    render(<MarkdownNoteEditor note={makeNote('赤字')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    const surface = screen.getByRole('textbox', { name: 'notes.markdownNote.surfaceLabel' });
+    const text = surface.querySelector('p')?.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, text.length);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.toolbar.textColor' }));
+    fireEvent.click(screen.getByRole('button', { name: '赤' }));
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe(
+      '<span style="color:#DC2626">赤字</span>',
+    );
+  });
+
+  it('carries a visual edit into the source mode', () => {
+    render(<MarkdownNoteEditor note={makeNote('本文')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.edit' }));
+    const surface = screen.getByRole('textbox', { name: 'notes.markdownNote.surfaceLabel' });
+    (surface.querySelector('p') as HTMLElement).textContent = '書き換えた本文';
+    fireEvent.input(surface);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'notes.markdownNote.sourceLabel',
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe('書き換えた本文');
+  });
+
+  it('strips disallowed inline HTML from the source on save', () => {
+    render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'notes.markdownNote.source' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'notes.markdownNote.sourceLabel' }), {
+      target: { value: '<span style="color:#E53935">赤</span><span onclick="x">z</span>' },
+    });
+    fireEvent.click(screen.getByTitle('notes.editorHeader.saveTitle'));
+    expect(useNoteStore.getState().notes.find((n) => n.id === 'n1')?.content).toBe(
+      '<span style="color:#E53935">赤</span>z',
+    );
   });
 });
