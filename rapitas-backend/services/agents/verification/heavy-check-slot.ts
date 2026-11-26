@@ -16,6 +16,11 @@
  * services/workflow inside the backend process; the agent worker never runs it.
  */
 import { createLogger } from '../../../config/logger';
+import {
+  logCycleEvent,
+  type CycleEventFields,
+  type CycleEventName,
+} from '../../observability/cycle-event-logger';
 
 const log = createLogger('agents:heavy-check-slot');
 
@@ -54,6 +59,39 @@ interface Waiter {
 
 let active = 0;
 const queue: Waiter[] = [];
+
+/** Where safety-exception events go; logCycleEvent outside tests. */
+export type HeavySlotEventSink = (evt: CycleEventName, fields: CycleEventFields) => void;
+let sink: HeavySlotEventSink = logCycleEvent;
+
+/** The two cases that may let heavy checks overlap (task 1553 R7). */
+type HeavySlotException = 'verify.heavy_slot_fail_open' | 'verify.heavy_slot_kill_grace_release';
+
+/**
+ * Records a heavy-slot safety exception in the cycle log. Both exceptions keep
+ * one stuck process from stalling every task's verification forever, but they
+ * break the one-at-a-time limit, so each use must leave a trace. Never throws.
+ *
+ * @param evt - Which exception. / 例外の種類
+ * @param fields - Reason, waited time and target command. / 理由・待った時間・対象
+ */
+export function recordHeavySlotException(evt: HeavySlotException, fields: CycleEventFields): void {
+  try {
+    sink(evt, fields);
+  } catch (err) {
+    log.debug({ err, evt }, '[heavy-check-slot] could not record safety exception');
+  }
+}
+
+/**
+ * Replaces the event sink. Tests only — logCycleEvent writes nothing under
+ * NODE_ENV=test, so tests need their own sink to see the events.
+ *
+ * @param s - Sink, or null for the default. / 記録先（null で既定に戻す）
+ */
+export function setHeavySlotEventSinkForTests(s: HeavySlotEventSink | null): void {
+  sink = s ?? logCycleEvent;
+}
 
 const defaultSchedule: SlotScheduler = (fn, ms) => {
   const t = setTimeout(fn, ms);
@@ -148,6 +186,14 @@ export function acquireHeavyCheckSlot(
         { label, waitMs, active },
         '[heavy-check-slot] wait limit exceeded; running without a slot (fail-open)',
       );
+      recordHeavySlotException('verify.heavy_slot_fail_open', {
+        cause: 'wait_limit_exceeded',
+        label,
+        waitedMs: Date.now() - waiter.enqueuedAt,
+        waitLimitMs: waitMs,
+        active,
+        msg: 'heavy slot wait limit exceeded; ran without a slot',
+      });
       resolve(makeRelease(false));
     }, waitMs);
     queue.push(waiter);
@@ -186,6 +232,7 @@ export function heavyCheckSlotStats(): { active: number; waiting: number } {
 
 /** Clears all state. Tests only. */
 export function resetHeavyCheckSlotForTests(): void {
+  sink = logCycleEvent;
   active = 0;
   for (const w of queue) {
     w.settled = true;

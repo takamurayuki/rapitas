@@ -26,6 +26,7 @@ const {
   heavyCheckSlotStats,
   resolveHeavyConcurrency,
   resetHeavyCheckSlotForTests,
+  setHeavySlotEventSinkForTests,
 } = await import('./heavy-check-slot');
 
 /** Manual scheduler so the wait limit fires exactly when a test says so. */
@@ -201,5 +202,46 @@ describe('withHeavyCheckSlot', () => {
       });
     await Promise.all([job(), job(), job()]);
     expect(peak).toBe(1);
+  });
+});
+
+describe('safety exceptions reach the cycle log (task 1553 R7)', () => {
+  test('a fail-open records verify.heavy_slot_fail_open once, with cause, label and waitedMs', async () => {
+    const events: Array<{ evt: string; fields: Record<string, unknown> }> = [];
+    setHeavySlotEventSinkForTests((evt, fields) => events.push({ evt, fields }));
+    const sched = manualScheduler();
+    const holder = await acquireHeavyCheckSlot('holder', { schedule: sched.schedule });
+    const late = acquireHeavyCheckSlot('tsc x', { schedule: sched.schedule, waitMs: 10 });
+    sched.fireAll();
+    (await late)();
+    expect(events.length).toBe(1);
+    expect(events[0]!.evt).toBe('verify.heavy_slot_fail_open');
+    expect(events[0]!.fields).toMatchObject({ cause: 'wait_limit_exceeded', label: 'tsc x' });
+    expect(typeof events[0]!.fields.waitedMs).toBe('number');
+    holder();
+  });
+
+  test('a normal acquire within the wait limit records nothing', async () => {
+    const events: string[] = [];
+    setHeavySlotEventSinkForTests((evt) => events.push(evt));
+    const sched = manualScheduler();
+    const holder = await acquireHeavyCheckSlot('holder', { schedule: sched.schedule });
+    const next = acquireHeavyCheckSlot('tsc y', { schedule: sched.schedule, waitMs: 10 });
+    holder();
+    (await next)();
+    sched.fireAll(); // the cancelled wait timer must not record
+    expect(events).toEqual([]);
+  });
+
+  test('a throwing sink never breaks the fail-open', async () => {
+    setHeavySlotEventSinkForTests(() => {
+      throw new Error('log disk full');
+    });
+    const sched = manualScheduler();
+    const holder = await acquireHeavyCheckSlot('holder', { schedule: sched.schedule });
+    const late = acquireHeavyCheckSlot('tsc z', { schedule: sched.schedule, waitMs: 10 });
+    sched.fireAll();
+    expect(typeof (await late)).toBe('function');
+    holder();
   });
 });

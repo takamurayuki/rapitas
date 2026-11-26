@@ -10,7 +10,11 @@
 import { execFile, type ChildProcess, type SpawnOptions } from 'child_process';
 import { createLogger } from '../../../config/logger';
 import { spawnQuiet } from './quiet-verification';
-import { acquireHeavyCheckSlot, type ReleaseHeavySlot } from './heavy-check-slot';
+import {
+  acquireHeavyCheckSlot,
+  recordHeavySlotException,
+  type ReleaseHeavySlot,
+} from './heavy-check-slot';
 
 const log = createLogger('verification:command-runner');
 
@@ -136,6 +140,17 @@ export async function runCmd(
           { command: command.slice(0, 120), killGraceMs },
           '[verify-command-runner] timed-out command did not close; releasing the heavy slot',
         );
+        // Only a heavy command holds a slot, so only then is this a slot exception.
+        if (heavy) {
+          recordHeavySlotException('verify.heavy_slot_kill_grace_release', {
+            cause: 'kill_grace_elapsed',
+            command: command.slice(0, 120),
+            waitedMs: killGraceMs,
+            timeoutMs,
+            pid: child.pid,
+            msg: 'timed-out command did not close; slot released',
+          });
+        }
         releaseOnce();
       }, killGraceMs);
       // NOTE: Deliberately not unref'd — the slot's next waiter depends on it firing.

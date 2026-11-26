@@ -19,7 +19,8 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { runCmd } = await import('./verify-command-runner');
-const { heavyCheckSlotStats, resetHeavyCheckSlotForTests } = await import('./heavy-check-slot');
+const { heavyCheckSlotStats, resetHeavyCheckSlotForTests, setHeavySlotEventSinkForTests } =
+  await import('./heavy-check-slot');
 
 interface FakeChild extends EventEmitter {
   pid: number;
@@ -141,5 +142,45 @@ describe('runCmd timeout keeps the heavy slot until the child ends (task 1553 R2
     expect(r.code).toBe(124);
     first.emit('close', 1);
     expect(heavyCheckSlotStats()).toEqual({ active: 0, waiting: 0 });
+  });
+});
+
+describe('kill grace release reaches the cycle log (task 1553 R7)', () => {
+  test('releasing after the grace limit records verify.heavy_slot_kill_grace_release once', async () => {
+    const events: Array<{ evt: string; fields: Record<string, unknown> }> = [];
+    setHeavySlotEventSinkForTests((evt, fields) => events.push({ evt, fields }));
+    const first = stubbornChild(777);
+    await runCmd('bun test --isolate "slow.test.ts"', 'C:/a', {
+      heavy: true,
+      timeoutMs: 10,
+      killGraceMs: 100,
+      spawn: () => first as unknown as ChildProcess,
+      killTree: () => {},
+    });
+    await wait(150);
+    expect(events.length).toBe(1);
+    expect(events[0]!.evt).toBe('verify.heavy_slot_kill_grace_release');
+    expect(events[0]!.fields).toMatchObject({
+      cause: 'kill_grace_elapsed',
+      command: 'bun test --isolate "slow.test.ts"',
+      waitedMs: 100,
+      pid: 777,
+    });
+  });
+
+  test('a close before the grace limit records nothing', async () => {
+    const events: string[] = [];
+    setHeavySlotEventSinkForTests((evt) => events.push(evt));
+    const first = stubbornChild(778);
+    await runCmd('tsc', 'C:/a', {
+      heavy: true,
+      timeoutMs: 10,
+      killGraceMs: 100,
+      spawn: () => first as unknown as ChildProcess,
+      killTree: () => {},
+    });
+    first.emit('close', 1);
+    await wait(150);
+    expect(events).toEqual([]);
   });
 });
