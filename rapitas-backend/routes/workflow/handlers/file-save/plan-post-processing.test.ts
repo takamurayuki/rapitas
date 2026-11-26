@@ -115,3 +115,40 @@ describe('runPlanPostProcessing — スキーマ変更を含まないplan（回�
     expect(maybeAutoApprovePlan).toHaveBeenCalledTimes(1);
   });
 });
+
+function sizedPlan(items: number, files: number): string {
+  const rows = Array.from({ length: files }, (_, i) => `- \`pkg/d${i}/f${i}.ts\``).join('\n');
+  const checks = Array.from({ length: items }, (_, i) => `- [ ] 項目 ${i}`).join('\n');
+  return `## 変更予定ファイル\n\n${rows}\n\n## 実装チェックリスト\n\n${checks}\n`;
+}
+
+describe('runPlanPostProcessing — 計画の大きさ警告（task 1540）', () => {
+  const warnings = () => recorded.filter((r) => r.cause === 'plan_oversized_warning');
+
+  test('チェックリスト 11 項目で警告が 1 件記録され、自動承認は止まらない', async () => {
+    await runPlanPostProcessing({ ...baseParams, content: sizedPlan(11, 1) });
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]?.metadata).toMatchObject({ checklistItems: 11, changedFiles: 1 });
+    expect(maybeAutoApprovePlan).toHaveBeenCalledTimes(1);
+  });
+
+  test('変更予定ファイル 16 件で警告が 1 件記録される', async () => {
+    await runPlanPostProcessing({ ...baseParams, content: sizedPlan(1, 16) });
+    expect(warnings()).toHaveLength(1);
+  });
+
+  test('境界値の 10 項目・15 ファイルでは記録されない', async () => {
+    await runPlanPostProcessing({ ...baseParams, content: sizedPlan(10, 15) });
+    expect(warnings()).toHaveLength(0);
+    expect(maybeAutoApprovePlan).toHaveBeenCalledTimes(1);
+  });
+
+  test('plan 以外の保存では記録されない', async () => {
+    await runPlanPostProcessing({
+      ...baseParams,
+      fileType: 'research',
+      content: sizedPlan(30, 30),
+    });
+    expect(warnings()).toHaveLength(0);
+  });
+});
