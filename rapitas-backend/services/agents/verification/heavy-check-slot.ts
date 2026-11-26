@@ -2,7 +2,9 @@
  * HeavyCheckSlot
  *
  * A process-wide FIFO slot shared by every running task's verification, so
- * only N heavy commands (tsc, tests, lint, builds) run at once across tasks.
+ * only N heavy commands (tsc, tests, lint, builds, the runtime check) run at
+ * once across tasks. The runtime check holds one slot for its whole launch +
+ * browser check (runtime-verification-stage.ts).
  * Not responsible for running the commands or for their timeouts; callers
  * acquire one slot per command and start their own timer after it is granted.
  *
