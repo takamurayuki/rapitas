@@ -16,7 +16,7 @@ import { buildFileCommands } from './command-batches';
  * runtime breakage, not just lint/types. Not responsible for committing or
  * the retry loop.
  */
-import { existsSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
 import { coverageCandidates, isCoverageExempt, isCoverageTestFile } from './coverage-test-files';
@@ -26,17 +26,15 @@ import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
 import { resolveForbiddenChangeOverride } from './schema-change-gate';
-import { runProjectChecks, spawnQuiet } from './quiet-verification';
+import { runProjectChecks } from './quiet-verification';
+import { runCmd } from './verify-command-runner';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
 
 /** Code extensions worth linting / typechecking. */
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
-/** Per-command timeout (ms). Lint/typecheck on a large project can be slow. */
-const CMD_TIMEOUT_MS = 180_000;
 /** Test suites routinely run much longer than lint/tsc. */
 const TEST_TIMEOUT_MS = 300_000;
-const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 /** Cap how much raw output we keep in the report. */
 const MAX_DETAIL_CHARS = 2_000;
 
@@ -98,51 +96,6 @@ export interface VerificationResult {
   unverifiable?: boolean;
   /** Three-way verdict (task 1099): 'fail' beats 'unknown'. */
   verdict: 'pass' | 'fail' | 'unknown';
-}
-
-interface CmdResult {
-  code: number;
-  stdout: string;
-  stderr: string;
-}
-
-/**
- * Runs a shell command asynchronously, capturing output. Never rejects — a
- * non-zero exit (lint/tsc found problems) is a normal, expected outcome.
- */
-function runCmd(
-  command: string,
-  cwd: string,
-  timeoutMs: number = CMD_TIMEOUT_MS,
-): Promise<CmdResult> {
-  return new Promise((resolveP) => {
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-    const child = spawnQuiet(command, { cwd, shell: true, windowsHide: true });
-    const finish = (code: number) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolveP({ code, stdout, stderr });
-    };
-    const timer = setTimeout(() => {
-      try {
-        child.kill('SIGKILL');
-      } catch {
-        /* ignore */
-      }
-      finish(124); // timeout
-    }, timeoutMs);
-    child.stdout?.on('data', (d: Buffer) => {
-      if (stdout.length < MAX_OUTPUT_CHARS) stdout += d.toString();
-    });
-    child.stderr?.on('data', (d: Buffer) => {
-      if (stderr.length < MAX_OUTPUT_CHARS) stderr += d.toString();
-    });
-    child.on('error', () => finish(1));
-    child.on('close', (code) => finish(code ?? 0));
-  });
 }
 
 /** Runs a git command in a directory, returning stdout (or '' on failure). */
@@ -423,7 +376,7 @@ export async function lintProject(
   );
   const results = [];
   for (const command of buildFileCommands(`"${bin}" --format json`, files)) {
-    results.push(await runCmd(command, projectRoot));
+    results.push(await runCmd(command, projectRoot, { heavy: true }));
   }
   const counts = results.map((result) => parseEslintErrorCount(result.stdout));
   const parsed = {
@@ -476,7 +429,7 @@ export async function formatProject(
   const args = files.map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`);
   const results = [];
   for (const command of buildFileCommands(`"${bin}" --check --ignore-unknown`, args)) {
-    results.push(await runCmd(command, projectRoot));
+    results.push(await runCmd(command, projectRoot, { heavy: true }));
   }
   const ok = results.every((result) => result.code === 0);
   const res = {
@@ -561,7 +514,9 @@ async function runScopedTypecheck(
   };
   try {
     writeFileSync(cfgPath, JSON.stringify(cfg));
-    const res = await runCmd(`"${bin}" -p "${cfgPath}" --noEmit --pretty false`, projectRoot);
+    const res = await runCmd(`"${bin}" -p "${cfgPath}" --noEmit --pretty false`, projectRoot, {
+      heavy: true,
+    });
     const out = `${res.stdout}\n${res.stderr}`;
     // Invalid scope or abnormal compiler exit requires a full re-run.
     return looksLikeBrokenTypeEnv(out) || incompleteTypecheck(res.code, out) ? null : out;
@@ -574,6 +529,25 @@ async function runScopedTypecheck(
       /* best-effort */
     }
   }
+}
+
+/**
+ * `--incremental` args for the FULL tsc run, with the build info kept inside the
+ * worktree (`.rapitas-verify-cache/`, git-ignored) — never in node_modules, which
+ * is a junction every worktree shares. Scoped runs stay non-incremental: their
+ * include list changes every time. Returns '' when the cache dir can't be made.
+ *
+ * @param projectRoot - Project being typechecked. / 対象プロジェクト
+ * @returns Extra tsc arguments (leading space) or ''. / 追加の tsc 引数
+ */
+function fullTscIncrementalArgs(projectRoot: string): string {
+  const dir = join(projectRoot, '.rapitas-verify-cache');
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    return '';
+  }
+  return ` --incremental --tsBuildInfoFile "${join(dir, 'tsc-full.tsbuildinfo')}"`;
 }
 
 /** Typechecks a project; gates on tsc errors located in the changed files. */
@@ -604,7 +578,13 @@ export async function typecheckProject(
   if (scopedOut !== null) {
     combined = scopedOut;
   } else {
-    const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
+    const res = await runCmd(
+      `"${bin}" --noEmit --pretty false${fullTscIncrementalArgs(projectRoot)}`,
+      projectRoot,
+      {
+        heavy: true,
+      },
+    );
     combined = `${res.stdout}\n${res.stderr}`;
     if (incompleteTypecheck(res.code, combined)) {
       return unverifiableCheck(
@@ -655,7 +635,7 @@ async function testProject(
   // files. Aggregate: any failing command fails the check.
   const failures: string[] = [];
   for (const command of commands) {
-    const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
+    const res = await runCmd(command, projectRoot, { timeoutMs: TEST_TIMEOUT_MS, heavy: true });
     if (res.code === 0) continue;
     const detail =
       res.code === 124

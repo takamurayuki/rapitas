@@ -9,6 +9,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileLowPriority } from '../process-priority';
+import { withHeavyCheckSlot } from './heavy-check-slot';
 import type { VerificationCheck } from './automated-verifier';
 
 // BELOW_NORMAL, like every other gate command: these are the last steps that ran
@@ -113,13 +114,18 @@ async function runDriftScript(
   entry: (typeof DRIFT_SCRIPTS)[number],
 ): Promise<string | null> {
   try {
-    await execFileAsync('bun', ['run', entry.script], {
-      cwd: backendDir,
-      timeout: 180_000,
-      maxBuffer: 4 * 1024 * 1024,
-      windowsHide: true,
-      shell: process.platform === 'win32',
-    });
+    // NOTE: Each script takes the cross-task heavy slot (task 1553), so the
+    // Promise.all in ciParityChecks no longer starts three bun processes at once.
+    // execFile's own timeout starts only once the slot is granted.
+    await withHeavyCheckSlot(`bun run ${entry.script}`, () =>
+      execFileAsync('bun', ['run', entry.script], {
+        cwd: backendDir,
+        timeout: 180_000,
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+        shell: process.platform === 'win32',
+      }),
+    );
     return null;
   } catch (err) {
     const e = err as { code?: unknown; stdout?: string; stderr?: string; killed?: boolean };

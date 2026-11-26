@@ -26,6 +26,7 @@ import { WORKTREE_DIR } from '../orchestrator/git-operations/core/safety';
 import { removeWorktree } from '../orchestrator/git-operations/worktree/worktree-remove';
 import { buildFileScopedCommand, TEST_FILE_RE } from './related-tests';
 import { spawnQuiet } from './quiet-verification';
+import { withHeavyCheckSlot } from './heavy-check-slot';
 import { diffBaseRef, type VerificationCheck } from './automated-verifier';
 
 // BELOW_NORMAL like the rest of the gate: setup-worktree.cjs below links a full
@@ -203,7 +204,10 @@ export async function redStateCheck(
       if (relToProject.length === 0) continue;
       const command = buildFileScopedCommand(projectRoot, relToProject);
       ranAny = true;
-      const code = await runShell(command, projectRoot, TEST_TIMEOUT_MS);
+      // Heavy slot (task 1553): only the test run, not the worktree setup (git).
+      const code = await withHeavyCheckSlot(command, () =>
+        runShell(command, projectRoot, TEST_TIMEOUT_MS),
+      );
       if (code === 124) {
         log.warn(
           { projectRoot },

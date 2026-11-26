@@ -9,6 +9,7 @@
  * Does not modify database state; concern filing is the caller's responsibility.
  */
 import { spawnQuiet } from './quiet-verification';
+import { withHeavyCheckSlot } from './heavy-check-slot';
 import { existsSync } from 'fs';
 import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
@@ -155,10 +156,11 @@ async function isTestFileFailing(file: string, projectRoot: string): Promise<boo
   // NOTE: Delegates runner selection to related-tests.ts's buildFileScopedCommand
   // — this used to hardcode `bun test`, so vitest-only projects (e.g.
   // rapitas-frontend) always failed here and were misclassified pre-existing (#859).
-  const res = await runTriageCmd(
-    buildFileScopedCommand(projectRoot, [file]),
-    projectRoot,
-    TRIAGE_TEST_TIMEOUT_MS,
+  // NOTE: Takes the cross-task heavy slot (task 1553); git calls above do not.
+  // Called only after testProject's own test run released its slot — no nesting.
+  const command = buildFileScopedCommand(projectRoot, [file]);
+  const res = await withHeavyCheckSlot(command, () =>
+    runTriageCmd(command, projectRoot, TRIAGE_TEST_TIMEOUT_MS),
   );
   return res.code !== 0 && res.code !== 124;
 }
