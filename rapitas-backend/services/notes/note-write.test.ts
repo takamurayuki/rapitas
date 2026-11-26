@@ -283,3 +283,43 @@ describe('normal saves take Markdown only (completion condition 4)', () => {
     expect(consistent(stored)).toBe(true);
   });
 });
+
+describe('normal saves strip disallowed inline HTML (allowed forms stay)', () => {
+  test('stores a mixed body with only the disallowed parts removed', async () => {
+    const db = createNoteMemoryDb();
+    const saved = await saveNote(asClient(db.prisma), 'n1', {
+      content: '<span style="color:#E53935">赤</span><script>x</script><span onclick="y">z</span>',
+    });
+    const stored = db.notes.get('n1');
+    expect(stored?.content).toBe('<span style="color:#E53935">赤</span>z');
+    expect(saved.content).toBe('<span style="color:#E53935">赤</span>z');
+    expect(consistent(stored)).toBe(true);
+  });
+
+  test('strips a handler written after a slash and a script holding backticks', async () => {
+    const db = createNoteMemoryDb();
+    await saveNote(asClient(db.prisma), 'n1', {
+      content: '<span/onmouseover=alert(1)>x</span> <script>a`b`c</script>後',
+    });
+    expect(db.notes.get('n1')?.content).toBe('x 後');
+  });
+
+  test('keeps the four allowed forms as they were sent', async () => {
+    const db = createNoteMemoryDb();
+    const body =
+      '<span style="color:#E53935">赤字</span> <mark style="background-color:#FFF59D">重要</mark> ' +
+      '<span style="font-size:24px">大</span> <u>下線</u>';
+    await saveNote(asClient(db.prisma), 'n1', { content: body });
+    expect(db.notes.get('n1')?.content).toBe(body);
+  });
+
+  test('still refuses an allowed form next to an editor div', async () => {
+    const db = createNoteMemoryDb();
+    await expect(
+      saveNote(asClient(db.prisma), 'n1', {
+        content: '<span style="color:#E53935">a</span><div>b</div>',
+      }),
+    ).rejects.toBeInstanceOf(NoteContentRejectedError);
+    expect(db.notes.size).toBe(0);
+  });
+});

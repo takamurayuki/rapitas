@@ -28,7 +28,7 @@ import { createLogger } from '../../../config/logger';
 import { runAcrossAllWorkspaces } from '../../tenancy/workspace-context';
 import type { PrismaInstance, PrismaTx } from '../note-record';
 import { requestWorkspaceId } from '../note-scope';
-import { checkNewMarkdownContent } from '../note-content-kind';
+import { prepareNewMarkdownContent } from '../inline-html';
 import { computeContentSha256 } from '../note-version';
 import { isUniqueViolation } from '../note-write';
 import { resolveEffectiveTheme } from '../placement/effective-theme';
@@ -154,10 +154,13 @@ async function attempt(db: PrismaInstance, taskId: number): Promise<DeliverableO
       logger.warn({ err, taskId, kind }, 'deliverable generation failed; nothing saved');
       return settle(db, record, 'failed');
     }
-    if (checkNewMarkdownContent(draft.content)) {
+    const prepared = prepareNewMarkdownContent(draft.content);
+    if (!prepared.ok) {
       logger.warn({ taskId, kind }, 'generated deliverable is not Markdown; nothing saved');
       return settle(db, record, 'failed');
     }
+    // Disallowed inline HTML in the generated body is stripped before it is stored.
+    const content = prepared.content;
 
     const theme = await resolveEffectiveTheme(db, taskId);
     const meta = new Map([[taskId, await taskLinkMeta(db, task)]]);
@@ -180,7 +183,7 @@ async function attempt(db: PrismaInstance, taskId: number): Promise<DeliverableO
         await createLinkedNoteTx(tx, {
           id,
           title: draft.title,
-          content: draft.content,
+          content,
           source: deliverableSource(kind),
           sourceTaskId: taskId,
           followsTask: true,

@@ -7,6 +7,15 @@
  * down before releasing the workdir — live in one focused module.
  */
 import { inspectRuntimeDirectory } from './runtime-directory-occupancy';
+import {
+  cleanupStaleRuntime,
+  defaultStaleCleanupDeps,
+  extractFixedPorts,
+  fixedPortOf,
+  RuntimeEnvBlockedError,
+} from './runtime-stale-cleanup';
+import { recordLaunchLock, recordLaunchProcesses } from './runtime-launch-history';
+import { classifyEnvCause } from './runtime-env-cause';
 import { readRuntimeBootId } from './runtime-boot-identity';
 import { checkRuntimeStartScript } from './runtime-start-preflight';
 import { withRuntimeLaunchLock } from './runtime-launch-lock';
@@ -88,6 +97,8 @@ export async function stopOwnedAndVerify(
       entry.identities ?? [],
       async (identities) => {
         entry.identities = identities;
+        // 停止層が直前に確認した子孫も、シグナルを送る前に履歴へ残す。
+        await recordLaunchProcesses(entry.workdir, identities, 'observed');
         await persistQuarantine(entry);
       },
       STOP_VERIFY_TIMEOUT_MS,
@@ -162,18 +173,29 @@ export async function spawnNewEntry(
   registry.set(key, entry);
   const myGeneration = entry.generation;
   let launchAttempted = false;
+  let reachedReady = false;
 
   const run = (async (): Promise<AcquireResult> => {
     entry.bootId = await readRuntimeBootId();
     await persistStartingIntent(key, workdir, fp, entry.bootId);
     await checkRuntimeStartScript(cfg.start, workdir);
-    const beforeStart = await readRuntimeProcessSnapshot();
-    const directory = await inspectRuntimeDirectory(workdir, beforeStart.processes);
-    if (!directory.free) throw new Error(directory.reason);
+    // Leftovers of an earlier launch from this worktree are stopped here (inside
+    // the registry's exclusion: no entry exists, so no borrower is disturbed);
+    // a port/lock we cannot clear is an environment cause, not an app failure.
+    const otherOwned = new Set<number>(
+      [...registry.values()]
+        .filter((other) => other.key !== key)
+        .flatMap((other) => other.identities?.map((identity) => identity.pid) ?? []),
+    );
+    const cleanup = await cleanupStaleRuntime(workdir, cfg, {
+      ...defaultStaleCleanupDeps,
+      excludePids: otherOwned,
+    });
+    if (!cleanup.ok) throw new RuntimeEnvBlockedError(cleanup.cause, cleanup.reason);
     if (entry.startCancelled) throw new Error('Startup cancelled before spawn');
     const { app, port, baseUrl } = await withRuntimeLaunchLock(async () => {
       if (entry.startCancelled) throw new Error('Startup cancelled before port allocation');
-      const port = await allocateFreePort();
+      const port = fixedPortOf(cfg.url) ?? (await allocateFreePort());
       if (entry.startCancelled) throw new Error('Startup cancelled during port allocation');
       const parsedUrl = new URL(substitutePort(cfg.url, port));
       if (parsedUrl.hostname === 'localhost') parsedUrl.hostname = '127.0.0.1';
@@ -191,6 +213,9 @@ export async function spawnNewEntry(
       throw new Error('Spawned process identity cannot be confirmed');
     }
     entry.identities = extendOwnedRuntimeTree([root], snapshot.processes);
+    // Proof that THIS launch started the process — written before anything can fail
+    // and kept after the registry entry is gone (it is what a later cleanup trusts).
+    await recordLaunchProcesses(workdir, [root], 'root', { fixedPorts: extractFixedPorts(cfg) });
     await persistActive(entry, app.pid);
 
     log.info({ key, workdir, port, label }, '[registry] spawning new server for workdir');
@@ -247,9 +272,8 @@ export async function spawnNewEntry(
         });
     }, 2500);
     tracker.unref?.();
-    let healthy: boolean;
     try {
-      healthy = await waitForHealthy(
+      reachedReady = await waitForHealthy(
         `${baseUrl}${cfg.healthPath}`,
         cfg.readyTimeoutMs,
         { workdir, label },
@@ -277,10 +301,26 @@ export async function spawnNewEntry(
       });
     }
 
-    if (!healthy || entry.startCancelled) {
+    if (!reachedReady || entry.startCancelled) {
+      // A launch that died on a taken port/lock says so in its log: an environment
+      // cause, not evidence about the app.
+      const logs = app.logs();
+      const exitedBeforeStop = app.hasExited();
+      const logCause =
+        classifyEnvCause({
+          text: logs.join('\n'),
+          reachedReady,
+          exitedBeforeReady: !reachedReady && exitedBeforeStop,
+        }) ?? undefined;
       const result = failure(
         `アプリが ${cfg.readyTimeoutMs / 1_000}s 以内に起動しませんでした (${baseUrl}${cfg.healthPath} 無応答)`,
-        { logs: app.logs(), exitCode: app.exitCode(), hasExited: app.hasExited() },
+        {
+          logs,
+          exitCode: app.exitCode(),
+          hasExited: exitedBeforeStop,
+          unverifiable: logCause ? true : undefined,
+          cause: logCause,
+        },
       );
       await stopOwnedAndVerify(entry, 'startup-failure');
       return result;
@@ -303,6 +343,17 @@ export async function spawnNewEntry(
           port,
         ),
       );
+    // Children (e.g. the real server behind a shell) and the lock holder only exist now.
+    await recordLaunchProcesses(workdir, readyIdentity.alive, 'observed');
+    const lockInfo = await inspectRuntimeDirectory(workdir, readySnapshot.processes);
+    const lockOwner = readyIdentity.alive.find((p) => p.pid === lockInfo.pid);
+    if (lockInfo.path && lockOwner) {
+      await recordLaunchLock(workdir, {
+        path: lockInfo.path,
+        pid: lockOwner.pid,
+        birth: lockOwner.birth,
+      });
+    }
     entry.state = 'active';
     const lease = randomUUID();
     entry.leases.add(lease);
@@ -318,7 +369,10 @@ export async function spawnNewEntry(
       try {
         await persistRemoval(key);
         if (registry.get(key) === entry) registry.delete(key);
-        return failure(String(error), { unverifiable: true });
+        return failure(String(error), {
+          unverifiable: true,
+          cause: error instanceof RuntimeEnvBlockedError ? error.envCause : undefined,
+        });
       } catch (cleanupError) {
         log.error({ err: cleanupError, key }, '[registry] reservation removal failed');
       }
@@ -345,6 +399,15 @@ export async function spawnNewEntry(
       // launched child process itself is still known via entry.app (its real
       // PID from child_process.spawn()), so fall back to killing it directly
       // instead of leaving it as an unreferenced leak.
+      // 停止操作による終了と、アプリ自身の起動失敗を取り違えない。
+      const exitedBeforeStop = entry.app.hasExited();
+      const logs = entry.app.logs();
+      const cause =
+        classifyEnvCause({
+          text: logs.join('\n'),
+          reachedReady,
+          exitedBeforeReady: !reachedReady && exitedBeforeStop,
+        }) ?? undefined;
       entry.app.stop();
       if (entry.app.hasExited()) {
         // The only process this reservation ever launched is gone — it died
@@ -356,8 +419,9 @@ export async function spawnNewEntry(
           await persistRemoval(key);
           if (registry.get(key) === entry) registry.delete(key);
           return failure(`起動に失敗しました: ${String(error)}`, {
-            unverifiable: true,
-            logs: entry.app.logs(),
+            unverifiable: cause || !exitedBeforeStop ? true : undefined,
+            cause,
+            logs,
             exitCode: entry.app.exitCode(),
             hasExited: true,
           });
@@ -368,6 +432,7 @@ export async function spawnNewEntry(
     }
     return failure(entry.quarantineReason, {
       unverifiable: true,
+      cause: 'quarantined',
       logs: entry.app?.logs(),
       exitCode: entry.app?.exitCode(),
       hasExited: entry.app?.hasExited(),

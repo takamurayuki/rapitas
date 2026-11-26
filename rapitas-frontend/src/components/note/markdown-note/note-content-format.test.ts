@@ -113,4 +113,16 @@ describe('noteContentToPlainText', () => {
     expect(noteContentToPlainText('<h2>見出し</h2><p>本文</p>')).toBe('見出し本文');
     expect(noteContentToPlainText('<p><b><i>x</i></b></p>')).toBe('x');
   });
+
+  it('drops the allowed inline HTML tags from a Markdown preview, keeping the text', () => {
+    expect(noteContentToPlainText('# 色\n\n<span style="color:#E53935">赤字</span>です')).toBe(
+      '色 赤字です',
+    );
+    expect(
+      noteContentToPlainText(
+        '- <mark style="background-color:#FFF59D">重要</mark> と <u>下線</u> と <span style="font-size:24px">大</span>',
+      ),
+    ).toBe('重要 と 下線 と 大');
+    expect(noteContentToPlainText('<span style="color:#E53935">赤字</span>です')).toBe('赤字です');
+  });
 });

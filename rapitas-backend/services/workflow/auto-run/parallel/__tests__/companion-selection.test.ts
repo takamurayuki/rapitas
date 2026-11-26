@@ -280,14 +280,27 @@ describe('pairs that must not run together (same theme)', () => {
       },
       reason: 'dependency_text',
     },
+    // NOTE: since 2026-11-27 a pair-scoped kind refuses only when both the
+    // running task and the candidate touch it, so both sides are arranged here.
     {
-      name: 'conflict-prone file (messages/ja.json)',
-      arrange: () => (plans[20] = plan('rapitas-frontend/messages/ja.json')),
+      name: 'both touch messages (pair-scoped kind)',
+      arrange: () => {
+        plans[10] = plan('rapitas-frontend/messages/en.json');
+        plans[20] = plan('rapitas-frontend/messages/ja.json');
+      },
       reason: 'conflict_prone_file',
     },
     {
-      name: 'conflict-prone file (prisma schema)',
-      arrange: () => (plans[20] = plan('rapitas-backend/prisma/schema/system.prisma')),
+      name: 'both touch the prisma schema (pair-scoped kind)',
+      arrange: () => {
+        plans[10] = plan('rapitas-backend/prisma/schema/core.prisma');
+        plans[20] = plan('rapitas-backend/prisma/schema/system.prisma');
+      },
+      reason: 'conflict_prone_file',
+    },
+    {
+      name: 'a lockfile on the candidate (any-scoped kind)',
+      arrange: () => (plans[20] = plan('pnpm-lock.yaml')),
       reason: 'conflict_prone_file',
     },
     {
@@ -305,6 +318,13 @@ describe('pairs that must not run together (same theme)', () => {
       expect(enqueued).toEqual([]);
     });
   }
+
+  // 2026-11-27 user request: a schema task next to one that does not touch the schema.
+  test('a schema task next to a task that does not touch the schema is selected', async () => {
+    plans[20] = plan('rapitas-backend/prisma/schema/core.prisma');
+    expect(await select()).toEqual({ selected: 20 });
+    expect(rejectedReasons()).toEqual([]);
+  });
 });
 
 describe('another theme on the same repository (theme 49)', () => {

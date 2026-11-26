@@ -19,6 +19,7 @@
     "progress": {
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",
+      "selectTask": "表示するタスクを選ぶ",
       "awaitingAnswer": "回答待ち",
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
@@ -30,7 +31,8 @@
         "plan": "計画",
         "implement": "実装",
         "verify": "検証"
-      }
+      },
+      "parallel": "並列で {count}件実行中"
     }
   }
 }

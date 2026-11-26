@@ -282,6 +282,8 @@ export function HomeToolbar({
           remainingCount={autoRunData.remainingCount}
           startedAt={autoRunData.autoRun.startedAt}
           scope={filterScope}
+          activeTasks={autoRunData.activeTasks}
+          themeId={autoRunTheme?.id}
         />
       ) : (
         filterScope && <HomeFilterSummary {...filterScope} />

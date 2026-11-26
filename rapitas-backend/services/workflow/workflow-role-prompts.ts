@@ -20,6 +20,7 @@ import {
   VERDICT_SCOPE_GUIDANCE_EN,
 } from './verify-verdict-scope-guidance';
 import { PLAN_DECLARATION_GUIDANCE } from './plan-deviation/declaration-parser';
+import { PLAN_SIZE_GUIDANCE } from './plan-size-policy';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 import { RESEARCH_CRITERIA_REVIEW_EN, RESEARCH_CRITERIA_REVIEW_JA } from './criteria-review';
 
@@ -139,7 +140,7 @@ export function buildRoleTexts(
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
           '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
-          `${PLAN_DECLARATION_GUIDANCE.ja}\n\n` +
+          `${PLAN_DECLARATION_GUIDANCE.ja}\n\n${PLAN_SIZE_GUIDANCE.ja}\n\n` +
           PRIMARY_CHECKOUT_GUIDANCE.ja +
           '\n' +
           '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
@@ -278,7 +279,7 @@ export function buildRoleTexts(
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
           'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
-          `${PLAN_DECLARATION_GUIDANCE.en}\n\n` +
+          `${PLAN_DECLARATION_GUIDANCE.en}\n\n${PLAN_SIZE_GUIDANCE.en}\n\n` +
           PRIMARY_CHECKOUT_GUIDANCE.en +
           '\n' +
           '## Question-firing criteria (check BEFORE saving question.md)\n' +

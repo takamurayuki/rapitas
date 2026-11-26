@@ -3,21 +3,32 @@
  * MarkdownNoteEditor
  *
  * Shows a Markdown note rendered with the shared MarkdownView (note density,
- * Mermaid drawn as diagrams) and edits it as its plain Markdown source, so a
- * note ラピ or the phone wrote keeps its form when it is saved again here.
+ * Mermaid drawn as diagrams), edits it visually (WYSIWYG: the toolbar's
+ * marks, blocks, tables, diagrams, colour, highlight and size) or as its
+ * plain Markdown source. Whichever way it is edited, it is saved as Markdown
+ * — with colour, highlight, size and underline as the allowed inline HTML —
+ * so a note ラピ or the phone wrote keeps its form.
  * Since stage 0 every new or edited note is saved from here, so the save
- * refuses a body that is the old editor's HTML (the server would answer 400).
+ * refuses a body that is the old editor's HTML (the server would answer 400)
+ * and strips disallowed inline HTML as the server does.
  * Not responsible for notes already in that HTML — see LegacyHtmlNoteView.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { type Note, useNoteStore } from '@/stores/note-store';
 import { MarkdownView } from '@/components/markdown/MarkdownView';
 import NoteEditorHeader from '../editor/NoteEditorHeader';
 import NoteEditorFooter from '../editor/NoteEditorFooter';
-import { checkNewMarkdownContent } from './note-content-kind';
+import { checkNewMarkdownContent, prepareNewMarkdownContent } from './note-content-kind';
+import {
+  WysiwygNoteSurface,
+  markdownToEditableHtml,
+  roundTripChanges,
+  type WysiwygSurfaceHandle,
+} from './wysiwyg';
 
-type Mode = 'view' | 'edit';
+// NOTE: 'edit' is now the visual editor; the plain-text source moved to 'source'.
+type Mode = 'view' | 'edit' | 'source';
 
 interface MarkdownNoteEditorProps {
   /** The Markdown note to show / 表示する Markdown のノート */
@@ -25,7 +36,7 @@ interface MarkdownNoteEditorProps {
 }
 
 /**
- * Rendered view and plain-source editing for one Markdown note.
+ * Rendered view, visual editing and plain-source editing for one Markdown note.
  *
  * @param note - The note to show; remount (key by id) to switch notes / 表示するノート（切り替えは id を key に再マウント）
  */
@@ -39,20 +50,53 @@ export default function MarkdownNoteEditor({ note }: MarkdownNoteEditorProps) {
   const [draftTitle, setDraftTitle] = useState(note.title);
   const [draftContent, setDraftContent] = useState(note.content);
   const [isDirty, setIsDirty] = useState(false);
+  const [editHtml, setEditHtml] = useState('');
+  const [surfaceKey, setSurfaceKey] = useState(0);
+  const [rewriteNotice, setRewriteNotice] = useState(false);
+  const surface = useRef<WysiwygSurfaceHandle | null>(null);
+  // Only a real edit on the surface may replace the draft: opening a note
+  // visually must not rewrite it into the writer's spelling (`*` → `-` …).
+  const surfaceEdited = useRef(false);
   const ts = useTranslations('notes.sync');
   // Only HTML is refused; an empty body or a single plain line saves as is.
   const rejection = checkNewMarkdownContent(draftContent);
 
+  /** The body as it stands now, the surface written back first. */
+  const currentContent = (): string => {
+    if (mode === 'edit' && surfaceEdited.current && surface.current) {
+      return surface.current.flush();
+    }
+    return draftContent;
+  };
+
+  const switchMode = (target: Mode) => {
+    if (target === mode) return;
+    const content = currentContent();
+    if (target === 'edit') {
+      // Built in this click handler: markdownToEditableHtml renders synchronously.
+      const html = markdownToEditableHtml(content);
+      setEditHtml(html);
+      setRewriteNotice(roundTripChanges(content, html));
+      surfaceEdited.current = false;
+      setSurfaceKey((k) => k + 1);
+    }
+    setDraftContent(content);
+    setMode(target);
+  };
+
   const handleSave = () => {
-    if (!isDirty || rejection) return;
-    updateNote(note.id, { title: draftTitle, content: draftContent });
+    const content = currentContent();
+    const prepared = prepareNewMarkdownContent(content);
+    if (!isDirty || !prepared.ok) return;
+    updateNote(note.id, { title: draftTitle, content: prepared.content });
+    setDraftContent(prepared.content);
     setIsDirty(false);
   };
 
   const modeButton = (target: Mode, label: string) => (
     <button
       type="button"
-      onClick={() => setMode(target)}
+      onClick={() => switchMode(target)}
       aria-pressed={mode === target}
       className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
         mode === target
@@ -91,6 +135,7 @@ export default function MarkdownNoteEditor({ note }: MarkdownNoteEditorProps) {
         >
           {modeButton('view', t('markdownNote.view'))}
           {modeButton('edit', t('markdownNote.edit'))}
+          {modeButton('source', t('markdownNote.source'))}
         </div>
         <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
           {t('markdownNote.formatHint')}
@@ -102,8 +147,30 @@ export default function MarkdownNoteEditor({ note }: MarkdownNoteEditorProps) {
         )}
       </div>
 
+      {mode === 'edit' && rewriteNotice && (
+        <p
+          role="status"
+          className="px-4 py-1.5 text-[11px] text-amber-800 bg-amber-50 border-b border-amber-200 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-900"
+        >
+          {t('markdownNote.roundTripNotice')}
+        </p>
+      )}
+
       <div className="relative flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         {mode === 'edit' ? (
+          <WysiwygNoteSurface
+            key={surfaceKey}
+            initialHtml={editHtml}
+            handleRef={surface}
+            onEdit={() => {
+              surfaceEdited.current = true;
+              setIsDirty(true);
+            }}
+            onMarkdown={(markdown) => {
+              if (surfaceEdited.current) setDraftContent(markdown);
+            }}
+          />
+        ) : mode === 'source' ? (
           <textarea
             value={draftContent}
             onChange={(e) => {

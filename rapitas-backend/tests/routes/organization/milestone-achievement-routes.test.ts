@@ -18,6 +18,12 @@ const mockPrisma = {
     ),
     delete: mock(() => Promise.resolve({})),
   },
+  timelineEvent: {
+    create: mock((args: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: 9, ...args.data }),
+    ),
+  },
+  $transaction: mock((ops: Promise<unknown>[]) => Promise.all(ops)),
 };
 
 mock.module('../../../config/database', () => ({
@@ -58,6 +64,7 @@ const stored = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   mockPrisma.milestone.findUnique.mockReset();
   mockPrisma.milestone.update.mockClear();
+  mockPrisma.timelineEvent.create.mockClear();
 });
 
 describe('PATCH /milestones/:id — criteria and status', () => {
@@ -134,5 +141,108 @@ describe('POST /milestones/:id/reopen', () => {
       evidence: null,
       reachedAt: null,
     });
+  });
+
+  test('records the cancellation with the milestone id and the prior reach time', async () => {
+    const reachedAt = new Date('2026-11-01T00:00:00Z');
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'reached', reachedAt }));
+    await json('POST', '/milestones/1/reopen');
+    expect(mockPrisma.timelineEvent.create).toHaveBeenCalledTimes(1);
+    const data = mockPrisma.timelineEvent.create.mock.calls[0][0].data;
+    expect(data.eventType).toBe('milestone_reopened');
+    expect(JSON.parse(data.payload as string)).toEqual({
+      milestoneId: 1,
+      reachedAt: reachedAt.toISOString(),
+    });
+  });
+
+  test('fails the request when the record cannot be written', async () => {
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'reached' }));
+    mockPrisma.$transaction.mockRejectedValueOnce(new Error('write failed'));
+    const res = await json('POST', '/milestones/1/reopen');
+    expect(res.status).toBe(500);
+  });
+
+  test('records nothing when the milestone was not reached', async () => {
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'open' }));
+    await json('POST', '/milestones/1/reopen');
+    expect(mockPrisma.timelineEvent.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /milestones/:id — undoing a reach through status', () => {
+  test('reached → open is recorded like a reopen', async () => {
+    const reachedAt = new Date('2026-11-02T00:00:00Z');
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'reached', reachedAt }));
+    const res = await json('PATCH', '/milestones/1', { status: 'open' });
+    expect(res.status).toBe(200);
+    const data = mockPrisma.timelineEvent.create.mock.calls[0][0].data;
+    expect(data.eventType).toBe('milestone_reopened');
+    expect(JSON.parse(data.payload as string).reachedAt).toBe(reachedAt.toISOString());
+  });
+
+  test('open → open and open → paused record nothing', async () => {
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'open' }));
+    await json('PATCH', '/milestones/1', { status: 'open' });
+    await json('PATCH', '/milestones/1', { status: 'paused' });
+    expect(mockPrisma.timelineEvent.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('atomicity of the undo and its record (lazy ops, snapshot rollback)', () => {
+  // Real Prisma operations are lazy: nothing is written until awaited or handed to
+  // $transaction. These fakes behave the same way and roll the store back on failure.
+  const store = { status: 'reached', events: 0 };
+  const lazy = <T>(run: () => T): PromiseLike<T> => ({
+    then: (ok, fail) => Promise.resolve().then(run).then(ok, fail),
+  });
+
+  beforeEach(() => {
+    store.status = 'reached';
+    store.events = 0;
+    mockPrisma.milestone.update.mockImplementation(((args: { data: Record<string, unknown> }) =>
+      lazy(() => {
+        store.status = String(args.data.status);
+        return { id: 1, status: store.status, acceptanceCriteria: null };
+      })) as never);
+    mockPrisma.timelineEvent.create.mockImplementation((() =>
+      lazy(() => {
+        store.events++;
+        return { id: 9 };
+      })) as never);
+    mockPrisma.$transaction.mockImplementation((async (ops: PromiseLike<unknown>[]) => {
+      const snapshot = { ...store };
+      try {
+        const out: unknown[] = [];
+        for (const op of ops) out.push(await op);
+        return out;
+      } catch (err) {
+        Object.assign(store, snapshot);
+        throw err;
+      }
+    }) as never);
+    mockPrisma.milestone.findUnique.mockResolvedValue(stored({ status: 'reached' }));
+  });
+
+  test.each([
+    ['POST /reopen', 'POST', '/milestones/1/reopen', undefined],
+    ['PATCH status:open', 'PATCH', '/milestones/1', { status: 'open' }],
+  ])('%s: update and record are applied together', async (_n, method, path, body) => {
+    const res = await json(method, path, body);
+    expect(res.status).toBe(200);
+    expect(store).toEqual({ status: 'open', events: 1 });
+  });
+
+  test.each([
+    ['POST /reopen', 'POST', '/milestones/1/reopen', undefined],
+    ['PATCH status:open', 'PATCH', '/milestones/1', { status: 'open' }],
+  ])('%s: a failed record leaves the milestone reached', async (_n, method, path, body) => {
+    mockPrisma.timelineEvent.create.mockImplementation((() =>
+      lazy(() => {
+        throw new Error('write failed');
+      })) as never);
+    const res = await json(method, path, body);
+    expect(res.status).toBe(500);
+    expect(store).toEqual({ status: 'reached', events: 0 });
   });
 });
