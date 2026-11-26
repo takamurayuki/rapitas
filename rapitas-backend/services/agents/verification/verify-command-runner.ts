@@ -26,19 +26,24 @@ export const CMD_TIMEOUT_MS = 180_000;
  * not hold the slot forever.
  */
 export const KILL_GRACE_MS = 30_000;
-const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+type CommandFailure = 'spawn' | 'child-error' | 'signal' | 'timeout' | 'output-limit';
 
 /** Output of one command. code 124 = timed out. */
 export interface CmdResult {
   code: number;
   stdout: string;
   stderr: string;
+  failure?: CommandFailure;
 }
 
 /** Options for runCmd. */
 export interface RunCmdOptions {
   /** Run-time cap, counted from spawn (not from the call). Defaults to CMD_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** 標準出力と標準エラーそれぞれのバイト上限。 */
+  maxOutputBytes?: number;
   /** Take the cross-task heavy-check slot first (tsc / tests / lint / prettier; never git). */
   heavy?: boolean;
   /** spawn override for tests. Defaults to spawnQuiet (BELOW_NORMAL priority). */
@@ -95,6 +100,7 @@ export async function runCmd(
 ): Promise<CmdResult> {
   const {
     timeoutMs = CMD_TIMEOUT_MS,
+    maxOutputBytes = MAX_OUTPUT_BYTES,
     heavy = false,
     spawn = spawnQuiet,
     killGraceMs = KILL_GRACE_MS,
@@ -106,19 +112,25 @@ export async function runCmd(
     ? await acquireHeavyCheckSlot(command.slice(0, 120))
     : () => {};
   return new Promise((resolveP) => {
-    let stdout = '';
-    let stderr = '';
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
     let settled = false;
+    let exited = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
     // Resolving the caller and freeing the slot are separate (task 1553 R2):
     // after a timeout the caller gets 124 at once, but the slot is held until
     // the killed tree really ends, or the next heavy command would overlap it.
-    const finish = (code: number) => {
+    const finish = (code: number, failure?: CommandFailure) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      resolveP({ code, stdout, stderr });
+      resolveP({
+        code,
+        stdout: Buffer.concat(stdout).toString(),
+        stderr: Buffer.concat(stderr).toString(),
+        ...(failure ? { failure } : {}),
+      });
     };
     const releaseOnce = () => {
       if (graceTimer) clearTimeout(graceTimer);
@@ -128,17 +140,18 @@ export async function runCmd(
     try {
       child = spawn(command, { cwd, shell: true, windowsHide: true });
     } catch (err) {
-      stderr = String(err);
-      finish(1);
+      stderr.push(Buffer.from(String(err)));
+      finish(1, 'spawn');
       releaseOnce();
       return;
     }
-    timer = setTimeout(() => {
-      finish(124);
+    const stop = (failure: 'timeout' | 'output-limit' | 'child-error') => {
+      if (settled) return;
+      finish(failure === 'timeout' ? 124 : 1, failure);
       graceTimer = setTimeout(() => {
         log.warn(
-          { command: command.slice(0, 120), killGraceMs },
-          '[verify-command-runner] timed-out command did not close; releasing the heavy slot',
+          { command: command.slice(0, 120), killGraceMs, failure },
+          '終了処理後に子プロセスが閉じなかったため検証枠を解放',
         );
         // Only a heavy command holds a slot, so only then is this a slot exception.
         if (heavy) {
@@ -147,34 +160,52 @@ export async function runCmd(
             command: command.slice(0, 120),
             waitedMs: killGraceMs,
             timeoutMs,
+            failure,
             pid: child.pid,
-            msg: 'timed-out command did not close; slot released',
+            msg: '終了猶予を過ぎたため検証枠を解放',
           });
         }
         releaseOnce();
       }, killGraceMs);
       // NOTE: Deliberately not unref'd — the slot's next waiter depends on it firing.
+      if (exited) return; // Windows では終了済みの PID に taskkill しない。
       try {
         killTree(child);
       } catch (err) {
         log.debug({ err }, '[verify-command-runner] tree kill threw');
       }
-    }, timeoutMs);
-    child.stdout?.on('data', (d: Buffer) => {
-      if (stdout.length < MAX_OUTPUT_CHARS) stdout += d.toString();
+    };
+    const capture = (chunks: Buffer[]) => {
+      let length = 0;
+      return (chunk: Buffer) => {
+        if (settled) return;
+        const remaining = maxOutputBytes - length;
+        chunks.push(chunk.subarray(0, remaining));
+        length += chunk.length;
+        if (length > maxOutputBytes) stop('output-limit');
+      };
+    };
+    child.stdout?.on('data', capture(stdout));
+    child.stderr?.on('data', capture(stderr));
+    child.once('exit', () => {
+      exited = true;
     });
-    child.stderr?.on('data', (d: Buffer) => {
-      if (stderr.length < MAX_OUTPUT_CHARS) stderr += d.toString();
-    });
-    // 'close' fires once every stdio pipe is closed, including the ones the
-    // grandchildren inherited — so it marks the end of the whole tree.
-    child.on('error', () => {
-      finish(1);
-      releaseOnce();
+    // close は runner の子と、その標準入出力が終わったことを示す。
+    child.on('error', (err) => {
+      if (settled) return;
+      if (child.pid) {
+        log.debug({ err, pid: child.pid }, '実行中の検証コマンドでエラー');
+        stop('child-error');
+      } else {
+        stderr.push(Buffer.from(String(err)));
+        finish(1, 'spawn');
+        releaseOnce();
+      }
     });
     child.on('close', (code) => {
-      finish(code ?? 0);
+      finish(code ?? 0, code === null ? 'signal' : undefined);
       releaseOnce();
     });
+    timer = setTimeout(() => stop('timeout'), timeoutMs);
   });
 }

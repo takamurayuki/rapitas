@@ -59,6 +59,54 @@ afterAll(() => {
 });
 
 describe('runCmd timeout keeps the heavy slot until the child ends (task 1553 R2)', () => {
+  test('起動済みの子は error と exit の後も close まで枠を保持する', async () => {
+    const first = stubbornChild(101);
+    const stopped = mock(() => {});
+    const spawnNext = mock(() => quickChild(102, 1) as unknown as ChildProcess);
+    const pendingFirst = runCmd('lint', 'C:/a', {
+      heavy: true,
+      spawn: () => first as unknown as ChildProcess,
+      killTree: stopped,
+    });
+    const next = runCmd('tsc', 'C:/b', { heavy: true, spawn: spawnNext });
+    await Promise.resolve();
+    first.emit('error', new Error('実行中のエラー'));
+    first.emit('exit', 1);
+    expect((await pendingFirst).code).toBe(1);
+    await Promise.resolve();
+    const overlaps = spawnNext.mock.calls.length;
+    first.emit('close', 1);
+    expect((await next).code).toBe(0);
+    expect(overlaps).toBe(0);
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
+
+  test('出力は上限バイトまで保存し、超過時は close まで次の起動を待つ', async () => {
+    const first = stubbornChild(103);
+    const stopped = mock(() => {});
+    const options = {
+      heavy: true,
+      maxOutputBytes: 3,
+      timeoutMs: 40,
+      spawn: () => first as unknown as ChildProcess,
+      killTree: stopped,
+    };
+    const running = runCmd('generate', 'C:/a', options);
+    await Promise.resolve();
+    first.stdout.emit('data', Buffer.from('あ'));
+    expect(stopped).not.toHaveBeenCalled();
+    first.stdout.emit('data', Buffer.from('a'));
+    const result = await running;
+    const spawnNext = mock(() => quickChild(104, 1) as unknown as ChildProcess);
+    const next = runCmd('tsc', 'C:/b', { heavy: true, spawn: spawnNext });
+    await Promise.resolve();
+    const overlaps = spawnNext.mock.calls.length;
+    first.emit('close', 1);
+    await next;
+    expect(result).toMatchObject({ code: 1, failure: 'output-limit', stdout: 'あ' });
+    expect(overlaps).toBe(0);
+    expect(stopped).toHaveBeenCalledTimes(1);
+  });
   test('the next heavy command waits for the timed-out child to close', async () => {
     const first = stubbornChild(111);
     const killed: number[] = [];

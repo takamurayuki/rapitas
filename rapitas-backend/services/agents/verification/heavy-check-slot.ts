@@ -34,6 +34,7 @@ const MAX_HEAVY_CONCURRENCY = 8;
  * unverifiable would create a new kind of bounce instead.
  */
 const DEFAULT_HEAVY_WAIT_MS = 30 * 60_000;
+const MAX_TIMER_MS = 2_147_483_647;
 
 /** Schedules `fn` after `ms`; returns a cancel function. Injectable for tests. */
 export type SlotScheduler = (fn: () => void, ms: number) => () => void;
@@ -94,10 +95,19 @@ export function setHeavySlotEventSinkForTests(s: HeavySlotEventSink | null): voi
 }
 
 const defaultSchedule: SlotScheduler = (fn, ms) => {
-  const t = setTimeout(fn, ms);
-  // Never keep the process alive just for a wait limit.
-  (t as { unref?: () => void }).unref?.();
-  return () => clearTimeout(t);
+  const expiresAt = performance.now() + ms;
+  let timer: ReturnType<typeof setTimeout>;
+  function scheduleNext() {
+    const remaining = Math.ceil(expiresAt - performance.now());
+    timer = setTimeout(
+      remaining <= MAX_TIMER_MS ? fn : scheduleNext,
+      Math.min(remaining, MAX_TIMER_MS),
+    );
+    // 待ち上限のタイマーだけでプロセスを延命しない。
+    timer.unref?.();
+  }
+  scheduleNext();
+  return () => clearTimeout(timer);
 };
 
 /**
@@ -118,7 +128,7 @@ function resolveWaitMs(override?: number): number {
   const raw = (process.env.RAPITAS_VERIFY_HEAVY_WAIT_MS ?? '').trim();
   if (!/^\d+$/.test(raw)) return DEFAULT_HEAVY_WAIT_MS;
   const n = Number(raw);
-  return n > 0 ? n : DEFAULT_HEAVY_WAIT_MS;
+  return Number.isSafeInteger(n) ? Math.max(n, DEFAULT_HEAVY_WAIT_MS) : DEFAULT_HEAVY_WAIT_MS;
 }
 
 function makeRelease(counted: boolean): ReleaseHeavySlot {

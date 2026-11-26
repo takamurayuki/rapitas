@@ -80,6 +80,23 @@ describe('resolveHeavyConcurrency', () => {
   });
 });
 
+test('待ち時間の設定は30分以上、試験用の指定は短い値を許可する', async () => {
+  const holder = await acquireHeavyCheckSlot('holder');
+  const waits: number[] = [];
+  const schedule = (_fn: () => void, ms: number) => {
+    waits.push(ms);
+    return () => {};
+  };
+  const queued = ['1', '1800000', '1800001', '2147483648'].map((value) => {
+    process.env.RAPITAS_VERIFY_HEAVY_WAIT_MS = value;
+    return acquireHeavyCheckSlot(value, { schedule });
+  });
+  queued.push(acquireHeavyCheckSlot('test', { schedule, waitMs: 5 }));
+  holder();
+  for (const grant of queued) (await grant)();
+  expect(waits).toEqual([1_800_000, 1_800_000, 1_800_001, 2_147_483_648, 5]);
+});
+
 describe('acquireHeavyCheckSlot', () => {
   test('with limit 1, the second acquire waits until the first releases', async () => {
     const sched = manualScheduler();
