@@ -20,7 +20,11 @@ import {
   shouldYieldToHigherPriorityTheme,
 } from './auto-run-concurrency';
 import { overlappingFiles, selectNextTask, recentThemeSuccessRate } from './auto-run-selection';
-import { getOpenAutoPrsForTheme } from './open-pr-files-cache';
+// Namespace import: tests mock open-pr-files-cache with only the theme lookup.
+import * as openPrCache from './open-pr-files-cache';
+import { delegateToCompanionSelection } from './parallel/companion-entry';
+import { countGlobalActiveSlots } from './parallel/global-active-slots';
+import { buildHeadParallelFilter } from './parallel/head-parallel-filter';
 import {
   checkResourceContentionGate,
   checkCalendarSlotGate,
@@ -61,6 +65,12 @@ export async function selectAndEnqueueNextTask(
   globalActive: number,
   barrierHoldSince: Map<number, number>,
 ): Promise<void> {
+  // Task 1552: while the theme already runs a task (per-theme limit >= 2), a
+  // free slot is a companion slot. A completion path calls this right after
+  // promoting a companion to head, so selecting a head here would overwrite it.
+  if (await delegateToCompanionSelection(prisma, themeId, order)) return;
+  globalActive = await countGlobalActiveSlots(prisma, globalActive);
+
   // No current task — select and enqueue the next one
   const { limit } = await resolveAutoRunMaxConcurrency(prisma);
   if (globalActive >= limit) {
@@ -82,7 +92,7 @@ export async function selectAndEnqueueNextTask(
   if (await checkResourceContentionGate(prisma, themeId)) return;
   if (await checkCalendarSlotGate(prisma, themeId)) return;
 
-  const openAutoPrs = await getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
+  const openAutoPrs = await openPrCache.getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
   if (checkMergeBarrierGate(themeId, openAutoPrs, barrierHoldSince)) return;
 
   const skipIds: number[] = [];
@@ -150,10 +160,19 @@ export async function selectAndEnqueueNextTask(
   // theme's open auto-PRs, so selection can defer a candidate whose plan
   // touches the same files. Every failure path degrades to "no context"
   // (legacy selection) — a broken gh/DB must never stop the scheduler.
-  const scopeOverlap = await buildScopeOverlapContext(prisma, themeId, openAutoPrs).catch(
+  // Task 1552: compare with the open PRs of every theme on the repository (a
+  // theme split must not hide them); the merge barrier above stays theme-only.
+  const repositoryPrs =
+    typeof openPrCache.getOpenAutoPrsForRepository === 'function'
+      ? await openPrCache.getOpenAutoPrsForRepository(prisma, themeId).catch(() => openAutoPrs)
+      : openAutoPrs;
+  const scopeOverlap = await buildScopeOverlapContext(prisma, themeId, repositoryPrs).catch(
     () => undefined,
   );
-  const result = await selectNextTask(
+  // Task 1552: tasks running in OTHER themes of the same repository (theme 49)
+  // must not collide with the head either; undefined when there are none.
+  const parallelFilter = await buildHeadParallelFilter(prisma, themeId).catch(() => undefined);
+  const selectArgs = [
     prisma,
     themeId,
     order,
@@ -161,7 +180,11 @@ export async function selectAndEnqueueNextTask(
     globalActive,
     successRate,
     scopeOverlap,
-  );
+  ] as const;
+  // Without peers the call keeps its pre-task 7-argument shape exactly.
+  const result = parallelFilter
+    ? await selectNextTask(...selectArgs, parallelFilter)
+    : await selectNextTask(...selectArgs);
 
   // Observability (task 573 B3): record WHY each passed-over candidate was
   // deferred — the involved open PRs and the exact overlapping files.
@@ -172,7 +195,7 @@ export async function selectAndEnqueueNextTask(
         theme: themeId,
         task: deferredId,
         cause: 'scope_overlap',
-        prNumbers: openAutoPrs.map((p) => p.prNumber),
+        prNumbers: repositoryPrs.map((p) => p.prNumber),
         files: overlappingFiles(planFiles, scopeOverlap.openPrFiles).slice(0, 20),
         selected: result.taskId,
         msg: 'candidate deferred — plan files overlap an open auto-PR',
@@ -180,7 +203,13 @@ export async function selectAndEnqueueNextTask(
     }
   }
 
+  if (result.rejected && result.rejected.length > 0) {
+    const { logParallelRejections } = await import('./parallel/companion-selection');
+    logParallelRejections(themeId, result.rejected, 'head');
+  }
   if (!result.found) {
+    // 'parallel_conflict' (task 1552) deliberately skips handleNoWorkFound:
+    // work exists, it only waits for the other theme's task, so no refill/idle.
     if (result.reason === 'all_done' || result.reason === 'all_blocked') {
       await handleNoWorkFound(prisma, themeId, result.reason === 'all_blocked');
     }

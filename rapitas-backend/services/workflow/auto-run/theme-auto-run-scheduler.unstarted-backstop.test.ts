@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import { mock } from 'bun:test';
 import { mockStopTaskTreeAgents } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 /**
@@ -97,7 +98,7 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
 
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
     expect(mockTaskUpdate).toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
     expect(mockRequeue).toHaveBeenCalledTimes(1);
   });
 
@@ -117,7 +118,7 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
 
     expect(mockRequeue).not.toHaveBeenCalled();
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
   });
 
   it('blocks when the guard re-check still reports executed', async () => {
@@ -126,7 +127,7 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
 
     expect(mockRequeue).not.toHaveBeenCalled();
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
   });
 
   it('defers a follow-up task (985) under the same queue-wait conditions', async () => {
@@ -144,7 +145,7 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
     await internal(scheduler).advanceTheme(1, 984, 'priority', 1, overWall(1.6));
 
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
     expect(mockRequeue).not.toHaveBeenCalled();
   });
 
@@ -166,7 +167,7 @@ describe('advanceTheme — hang backstop on never-executed tasks (task 1007)', (
     await internal(scheduler).advanceTheme(1, 984, 'priority', 1, lastRunAt);
 
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
     expect(mockRequeue).not.toHaveBeenCalled();
   });
 

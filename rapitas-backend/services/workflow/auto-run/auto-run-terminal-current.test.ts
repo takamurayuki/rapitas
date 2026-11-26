@@ -39,8 +39,8 @@ describe('releaseCancelledCurrent', () => {
   test('CAS-releases currentTaskId and logs terminal_current_released', async () => {
     await releaseCancelledCurrent(prisma, 1, 1008);
     expect(updateMany).toHaveBeenCalledWith({
-      where: { currentTaskId: 1008 },
-      data: { currentTaskId: null },
+      where: { themeId: 1, currentTaskId: 1008 },
+      data: { currentTaskId: null, lastRunAt: expect.any(Date), lastError: null },
     });
     expect(logCycleEventMock).toHaveBeenCalledWith(
       'task.skipped',

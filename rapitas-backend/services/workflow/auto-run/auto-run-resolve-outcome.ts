@@ -17,7 +17,10 @@ import { logCycleEvent } from '../../observability';
 import { COOLDOWN_MS, isAwaitingUserAnswer } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
 import { requeueIfNeverExecuted } from './requeue-if-never-executed';
-import { setCurrentTask, onTaskCompleted, onTaskFailed } from './theme-auto-run-service';
+// Task 1552: every slot write goes through the running set so a theme running
+// companions frees only this task's slot; alone, these are the same calls as
+// setCurrentTask / onTaskCompleted / onTaskFailed.
+import { releaseThemeSlot, retrackThemeSlot } from './parallel/theme-active-set';
 import {
   notifyAwaitingUserAnswer,
   notifyTaskSkipped,
@@ -78,7 +81,7 @@ export async function resolveCurrentTaskOutcome(
     // Preserve the unanswered task, but release the theme slot so unrelated
     // eligible tasks can run on the next tick. Never stop/revert the task here.
     if (!(await liveOrQueuedBehind(prisma, currentTaskId))) {
-      await setCurrentTask(themeId, null);
+      await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
       broadcastAutoRunUpdateImpl(themeId);
     }
     return;
@@ -141,7 +144,7 @@ export async function resolveCurrentTaskOutcome(
     terminalItem?.status === 'failed' || task?.status === 'failed' || task?.status === 'blocked';
 
   if (isCompleted) {
-    await onTaskCompleted(themeId);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'completed');
     broadcastAutoRunUpdateImpl(themeId);
     logCycleEvent('task.completed', {
       theme: themeId,
@@ -201,7 +204,7 @@ export async function resolveCurrentTaskOutcome(
       await WorkflowQueueService.getInstance()
         .enqueue({ taskId: currentTaskId, themeId, priority: 50 })
         .catch(() => {});
-      await setCurrentTask(themeId, currentTaskId);
+      await retrackThemeSlot(prisma, themeId, currentTaskId);
       broadcastAutoRunUpdateImpl(themeId);
       return;
     }
@@ -222,13 +225,13 @@ export async function resolveCurrentTaskOutcome(
           cause: 'terminal_failure_never_executed',
           msg: 'never-executed task requeued instead of blocked after a terminal queue failure',
         });
-        await setCurrentTask(themeId, currentTaskId);
+        await retrackThemeSlot(prisma, themeId, currentTaskId);
         broadcastAutoRunUpdateImpl(themeId);
         return;
       }
       await writeBlockedTask(prisma, currentTaskId).catch(() => {});
     }
-    await onTaskFailed(themeId, errMsg);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'failed', errMsg);
     await notifyTaskSkipped(themeId, currentTaskId, errMsg);
     broadcastAutoRunUpdateImpl(themeId);
     logCycleEvent('task.blocked', {
@@ -270,7 +273,7 @@ export async function resolveCurrentTaskOutcome(
       cause: 'runaway_cancel_loop',
       msg: 'enqueue-cancel loop detected — task released so the theme can move on',
     });
-    await setCurrentTask(themeId, null);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
     broadcastAutoRunUpdateImpl(themeId);
     return;
   }
@@ -282,7 +285,7 @@ export async function resolveCurrentTaskOutcome(
     if (isCancelledCurrent(latest)) {
       await releaseCancelledCurrent(prisma, themeId, currentTaskId);
     } else {
-      await onTaskCompleted(themeId); // done/completed: same bookkeeping as isCompleted above
+      await releaseThemeSlot(prisma, themeId, currentTaskId, 'completed'); // done/completed: same bookkeeping as isCompleted above
       logCycleEvent('task.completed', {
         theme: themeId,
         task: currentTaskId,
@@ -321,7 +324,7 @@ export async function resolveCurrentTaskOutcome(
       cause: `held_${hold.reason}`,
       msg: 'task is held out of auto-run — released so the theme can move on',
     });
-    await setCurrentTask(themeId, null);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
     broadcastAutoRunUpdateImpl(themeId);
     await selectAndEnqueueNextTask(
       prisma,
@@ -340,7 +343,7 @@ export async function resolveCurrentTaskOutcome(
       themeId,
       priority: 50,
     });
-    await setCurrentTask(themeId, currentTaskId);
+    await retrackThemeSlot(prisma, themeId, currentTaskId);
     broadcastAutoRunUpdateImpl(themeId);
     log.warn(
       `[ThemeAutoRunScheduler] Task ${currentTaskId} had no queue item; re-enqueued to resume (theme ${themeId})`,

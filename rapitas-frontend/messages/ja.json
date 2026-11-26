@@ -1448,6 +1448,9 @@
       "maxConcurrencyLabel": "同時に動かす自動実行の数",
       "maxConcurrencyDescription": "全テーマを合わせて、自動実行のタスクを同時にいくつ動かすかを決めます（1〜4）。枠が空くと、テーマの「自動実行の優先度」が高いテーマから先に次のタスクを選びます。",
       "maxConcurrencyEnvOverride": "環境変数 AUTO_RUN_GLOBAL_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
+      "maxConcurrencyPerThemeLabel": "1つのテーマで同時に動かす自動実行の数",
+      "maxConcurrencyPerThemeDescription": "同じテーマの中で、触るファイルが重ならないタスクを同時にいくつ動かすかを決めます（1〜4、既定 1）。上の「同時に動かす自動実行の数」を超えては動きません。2件目以降は、動いているタスクと計画のファイル・フォルダ・依存が重ならないものだけを選びます。",
+      "maxConcurrencyPerThemeEnvOverride": "環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
       "backlogLimitLabel": "懸念・アイデアから自動起票（上限）",
       "backlogLimitDescription": "自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。",
       "repairLimitLabel": "検証失敗時のリトライ回数（自己改善ループ上限）",
@@ -4621,6 +4624,7 @@
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",
+      "parallel": "並列で {count}件実行中",
       "elapsedMinutes": "{minutes}分",
       "elapsedHours": "{hours}時間{minutes}分",
       "steps": {
