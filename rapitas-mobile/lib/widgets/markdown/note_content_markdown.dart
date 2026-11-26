@@ -2,11 +2,13 @@
 ///
 /// Renders a note body as Markdown with the task-description renderer, but
 /// shows Mermaid fences as plain code with a caption that the diagram is only
-/// drawn on the PC (Mermaid has no renderer in the mobile app).
+/// drawn on the PC (Mermaid has no renderer in the mobile app). The allowed
+/// inline HTML forms (colour, highlight, size, underline) are drawn too.
 /// It does NOT scroll by itself — the parent list owns scrolling.
 library;
 
 import 'package:flutter/material.dart';
+import 'note_inline_html.dart';
 import 'task_description_markdown.dart';
 
 /// Caption shown under a Mermaid block. 図は Web（PC）でだけ描ける。
@@ -95,7 +97,12 @@ class NoteContentMarkdown extends StatelessWidget {
           if (i > 0) const SizedBox(height: 12),
           segments[i].isMermaid
               ? MermaidCodeBlock(source: segments[i].text)
-              : TaskDescriptionMarkdown(data: segments[i].text),
+              : TaskDescriptionMarkdown(
+                  data: segments[i].text,
+                  // 文字色・ハイライト・文字サイズ・下線の許可形だけを描画する。
+                  inlineSyntaxes: noteInlineHtmlSyntaxes(),
+                  builders: noteInlineHtmlBuilders(),
+                ),
         ],
       ],
     );

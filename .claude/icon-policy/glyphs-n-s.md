@@ -37,3 +37,8 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `Play` | 中断・一時停止したものの再開（`ExecutionItem` の中断した実行の再開ボタン、`MilestoneCard` の再開、通知の種別「エージェント実行の再開」agent_execution_resumed — 同一概念「再開」の再利用。`PlayCircle`＝実行中とは別概念。旧・通知での `RotateCw` は「サーバー再起動」「画像の回転」と重なるため移行） |
 | `ShieldCheck` | 通知の種別「承認完了」（approval_completed。`NotificationBell`、#1510。`BadgeCheck`＝承認リクエストとは別概念） |
 | `PanelTopClose` / `PanelTopOpen` | ホームのフィルター全体を隠す／表示する（`HomeCategoryFilter` の「隠す」、`HomeFilterSummary` の「フィルターを表示」。注: `PanelBottom`＝ターミナルの下部パネル表示、`ChevronsUp`＝優先度とは別概念） |
+| `Pilcrow` | ノートの装飾ツールバーの「本文」（見出しを解除、`WysiwygToolbar`、#1551） |
+| `Quote` | ノートの装飾ツールバーの「引用」（`WysiwygToolbar`、#1551） |
+| `Shapes` | ノートの装飾ツールバーの「ダイアグラム挿入（Mermaid）」（`WysiwygToolbar`、#1551。`Workflow`＝実行可視化ダッシュボードとは別概念） |
+| `SquareCheckBig` | ノートの装飾ツールバーの「チェックリスト」（`WysiwygToolbar`、#1551。`CircleCheckBig`＝一括選択の「すべて選択」、`ListTodo`＝サブタスクとは別概念） |
+| `SquareCode` | ノートの装飾ツールバーの「コードブロック挿入」（`WysiwygToolbar`、#1551） |

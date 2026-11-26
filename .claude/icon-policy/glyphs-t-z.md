@@ -17,3 +17,5 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ThumbsUp` | 通知の種別「PR承認」（pr_approved。`NotificationBell`、#1510） |
 | `Timer` | 通知の種別「ポモドーロ完了」（pomodoro_completed。`NotificationBell`、#1510。ポモドーロ全般の既存意味の再利用） |
 | `UserCheck` | 通知の種別「タスクの担当割り当て」（task_assigned。`NotificationBell`、#1510） |
+| `Table` | ノートの装飾ツールバーの「テーブル挿入」（`WysiwygToolbar`、#1551） |
+| `Underline` | ノートの装飾ツールバーの「下線」（`WysiwygToolbar`、#1551） |
