@@ -8,8 +8,7 @@
  *
  * Does not modify database state; concern filing is the caller's responsibility.
  */
-import { spawnQuiet } from './quiet-verification';
-import { withHeavyCheckSlot } from './heavy-check-slot';
+import { runCmd, type CmdResult, type RunCmdOptions } from './verify-command-runner';
 import { existsSync } from 'fs';
 import { join, relative } from 'path';
 import { randomBytes } from 'crypto';
@@ -72,45 +71,14 @@ export function takeSetupFailure(
   return failure;
 }
 
-interface CmdResult {
-  code: number;
-  stdout: string;
-  stderr: string;
-}
-
+// NOTE: The git / setup runner now delegates to runCmd (not heavy) so the spawn,
+// capture and timeout logic lives in one place (task 1553 R6).
 function runTriageCmd(
   command: string,
   cwd: string,
   timeoutMs: number = TRIAGE_CMD_TIMEOUT_MS,
 ): Promise<CmdResult> {
-  return new Promise((resolveP) => {
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-    const child = spawnQuiet(command, { cwd, shell: true, windowsHide: true });
-    const finish = (code: number) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolveP({ code, stdout, stderr });
-    };
-    const timer = setTimeout(() => {
-      try {
-        child.kill('SIGKILL');
-      } catch {
-        /* ignore */
-      }
-      finish(124);
-    }, timeoutMs);
-    child.stdout?.on('data', (d: Buffer) => {
-      stdout += d.toString();
-    });
-    child.stderr?.on('data', (d: Buffer) => {
-      stderr += d.toString();
-    });
-    child.on('error', () => finish(1));
-    child.on('close', (code) => finish(code ?? 0));
-  });
+  return runCmd(command, cwd, { timeoutMs });
 }
 
 /**
@@ -158,11 +126,32 @@ async function isTestFileFailing(file: string, projectRoot: string): Promise<boo
   // rapitas-frontend) always failed here and were misclassified pre-existing (#859).
   // NOTE: Takes the cross-task heavy slot (task 1553); git calls above do not.
   // Called only after testProject's own test run released its slot — no nesting.
+  // The slot is released only after the child closes (runCmd), not at timeout.
   const command = buildFileScopedCommand(projectRoot, [file]);
-  const res = await withHeavyCheckSlot(command, () =>
-    runTriageCmd(command, projectRoot, TRIAGE_TEST_TIMEOUT_MS),
-  );
+  const res = await runTriageTestCommand(command, projectRoot);
   return res.code !== 0 && res.code !== 124;
+}
+
+/**
+ * Runs one triage test command as a heavy check via runCmd, so a timed-out
+ * run keeps the cross-task slot until its child really closes (task 1553 R6).
+ * The caller still gets code 124 at once on a timeout.
+ *
+ * @param command - Test command line. / テストのコマンド
+ * @param projectRoot - Directory to run in. / 実行するディレクトリ
+ * @param overrides - Timeout / spawn / kill overrides, mainly for tests. / テスト用差し替え
+ * @returns Exit code and output (124 = timed out). / 終了コードと出力
+ */
+export function runTriageTestCommand(
+  command: string,
+  projectRoot: string,
+  overrides: Pick<RunCmdOptions, 'timeoutMs' | 'spawn' | 'killTree' | 'killGraceMs'> = {},
+): Promise<CmdResult> {
+  return runCmd(command, projectRoot, {
+    heavy: true,
+    timeoutMs: TRIAGE_TEST_TIMEOUT_MS,
+    ...overrides,
+  });
 }
 
 /** Creates a detached git worktree at the given commit. Returns true on success. */

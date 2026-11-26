@@ -25,8 +25,7 @@ import { execFileLowPriority } from '../process-priority';
 import { WORKTREE_DIR } from '../orchestrator/git-operations/core/safety';
 import { removeWorktree } from '../orchestrator/git-operations/worktree/worktree-remove';
 import { buildFileScopedCommand, TEST_FILE_RE } from './related-tests';
-import { spawnQuiet } from './quiet-verification';
-import { withHeavyCheckSlot } from './heavy-check-slot';
+import { runCmd, type RunCmdOptions } from './verify-command-runner';
 import { diffBaseRef, type VerificationCheck } from './automated-verifier';
 
 // BELOW_NORMAL like the rest of the gate: setup-worktree.cjs below links a full
@@ -69,28 +68,28 @@ async function resolveMainRepoRoot(workdir: string): Promise<string | null> {
   return dirname(commonDir);
 }
 
-/** Runs a shell command, capturing exit code — never rejects. */
-function runShell(command: string, cwd: string, timeoutMs: number): Promise<number> {
-  return new Promise((resolveP) => {
-    let settled = false;
-    const child = spawnQuiet(command, { cwd, shell: true, windowsHide: true });
-    const finish = (code: number) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolveP(code);
-    };
-    const timer = setTimeout(() => {
-      try {
-        child.kill('SIGKILL');
-      } catch {
-        /* ignore */
-      }
-      finish(124);
-    }, timeoutMs);
-    child.on('error', () => finish(1));
-    child.on('close', (code) => finish(code ?? 0));
+// NOTE: runShell was removed (task 1553 R6) — it resolved on timeout so the heavy
+// slot was freed while the killed tree still ran; runCmd holds it until close.
+/**
+ * Runs the scoped red-state test command as a heavy check via runCmd, so a
+ * timed-out run keeps the cross-task slot until its child really closes.
+ *
+ * @param command - Test command line. / テストのコマンド
+ * @param projectRoot - Directory to run in. / 実行するディレクトリ
+ * @param overrides - Timeout / spawn / kill overrides, mainly for tests. / テスト用差し替え
+ * @returns Exit code (124 = timed out). / 終了コード
+ */
+export async function runRedStateTestCommand(
+  command: string,
+  projectRoot: string,
+  overrides: Pick<RunCmdOptions, 'timeoutMs' | 'spawn' | 'killTree' | 'killGraceMs'> = {},
+): Promise<number> {
+  const res = await runCmd(command, projectRoot, {
+    heavy: true,
+    timeoutMs: TEST_TIMEOUT_MS,
+    ...overrides,
   });
+  return res.code;
 }
 
 /**
@@ -205,9 +204,7 @@ export async function redStateCheck(
       const command = buildFileScopedCommand(projectRoot, relToProject);
       ranAny = true;
       // Heavy slot (task 1553): only the test run, not the worktree setup (git).
-      const code = await withHeavyCheckSlot(command, () =>
-        runShell(command, projectRoot, TEST_TIMEOUT_MS),
-      );
+      const code = await runRedStateTestCommand(command, projectRoot);
       if (code === 124) {
         log.warn(
           { projectRoot },
