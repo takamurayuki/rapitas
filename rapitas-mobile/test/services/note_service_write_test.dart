@@ -91,6 +91,15 @@ void main() {
       expect(client.calls.single.data, {'content': '本文だけ'});
     });
 
+    test('許可した装飾の HTML を含む本文は変換せずにそのまま送る', () async {
+      const body = '<span style="color:#E53935">赤字</span> <mark style="background-color:#FFF59D">重要</mark> '
+          '<span style="font-size:24px">大</span> <u>下線</u>';
+      final client = _RecordingClient((c) => _saved('n1', content: body));
+      final note = await NoteService(client).saveNote('n1', content: body);
+      expect(client.calls.single.data, {'content': body});
+      expect(note.content, body);
+    });
+
     test('id はパスに入れる前に符号化する', () async {
       final client = _RecordingClient((c) => _saved('a/b'));
       await NoteService(client).saveNote('a/b', title: 'x');
