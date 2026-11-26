@@ -11,6 +11,7 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join, relative } from 'path';
+import { resolveVerifyTestWorkers } from './test-parallelism';
 
 /** Conventional test-file naming (foo.test.ts / foo.spec.tsx / .mts / .cjs …). */
 export const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
@@ -169,17 +170,28 @@ export function detectFileScopedRunner(projectRoot: string): FileScopedRunner | 
  *
  * @param projectRoot - Nearest package.json dir / プロジェクトルート
  * @param files - Test files relative to projectRoot / 実行対象のテストファイル
+ * @param cores - Logical cores (defaults to this host; tests inject) / 論理コア数
  * @returns Shell command string / 実行コマンド
  */
-export function buildFileScopedCommand(projectRoot: string, files: string[]): string {
+export function buildFileScopedCommand(
+  projectRoot: string,
+  files: string[],
+  cores?: number,
+): string {
   const runner = detectFileScopedRunner(projectRoot);
   const quoted = files.map((f) => `"${f}"`).join(' ');
+  const workers = resolveVerifyTestWorkers(cores);
   if (runner === 'vitest') {
-    return `${execPrefix(projectRoot)} vitest run ${quoted}`;
+    const cap = workers === null ? '' : ` --maxWorkers=${workers}`;
+    return `${execPrefix(projectRoot)} vitest run${cap} ${quoted}`;
   }
   // NOTE: --isolate gives each file its own module registry so mock.module
   // state cannot leak across files — eliminates false failures from contamination.
-  return `bun test --isolate ${quoted}`;
+  // NOTE: Without --parallel, bun runs the files one by one in one process, so
+  // file parallelism is already 1; --max-concurrency caps test.concurrent tests
+  // inside a file (default 20). The heavy-check slot keeps it to one bun at a time.
+  const cap = workers === null ? '' : ` --max-concurrency=${workers}`;
+  return `bun test --isolate${cap} ${quoted}`;
 }
 
 /**
