@@ -153,4 +153,36 @@ describe('rapitas process-tree CPU (task 1553)', () => {
     await sampleResourceTelemetryNow();
     expect(getRapitasCpuBusyPercent()).toBeNull();
   });
+
+  it('a failed snapshot discards the window: null until two successes again (R4)', async () => {
+    let t = 1_000_000;
+    let own = 0;
+    const plan: Array<'ok' | 'fail' | 'empty'> = ['ok', 'ok', 'fail', 'ok', 'ok', 'empty'];
+    startResourceTelemetryIfEnabled(HOUR, {
+      now: () => t,
+      readSnapshot: async () => {
+        const step = plan.shift();
+        if (step === 'fail') throw new Error('CIM unavailable');
+        if (step === 'empty') return { rows: [] }; // own pid missing
+        own += 15_000;
+        return { rows: [{ pid: me, ppid: 1, cpuMs: own }] };
+      },
+    });
+    await sampleResourceTelemetryNow(); // 1st ok (baseline)
+    t += 30_000;
+    await sampleResourceTelemetryNow(); // 2nd ok → a value
+    expect(getRapitasCpuBusyPercent(t)).not.toBeNull();
+    t += 30_000;
+    await sampleResourceTelemetryNow(); // failure → stale window dropped
+    expect(getRapitasCpuBusyPercent(t)).toBeNull();
+    t += 30_000;
+    await sampleResourceTelemetryNow(); // 1st ok after failure: baseline only
+    expect(getRapitasCpuBusyPercent(t)).toBeNull();
+    t += 30_000;
+    await sampleResourceTelemetryNow(); // 2nd ok → value again
+    expect(getRapitasCpuBusyPercent(t)).not.toBeNull();
+    t += 30_000;
+    await sampleResourceTelemetryNow(); // empty tree → also dropped
+    expect(getRapitasCpuBusyPercent(t)).toBeNull();
+  });
 });

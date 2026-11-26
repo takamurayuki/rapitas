@@ -114,6 +114,18 @@ function sampleHost(): void {
   }
 }
 
+/**
+ * Forget the baseline and every recorded interval (task 1553 R4). After a
+ * failed or empty snapshot the old window would keep reporting a stale value;
+ * dropping it makes getRapitasCpuBusyPercent null (the gate fails open) until
+ * two fresh snapshots succeed, and no interval spans the gap.
+ */
+function discardTreeWindow(): void {
+  prevTree = null;
+  prevTreeAt = 0;
+  treeIntervals = [];
+}
+
 /** One process-tree snapshot; skipped while the previous one is still running. */
 function sampleTree(): Promise<void> {
   if (treeInFlight) return treeInFlight; // a slow CIM call must not stack up
@@ -129,7 +141,10 @@ function sampleTree(): Promise<void> {
       const at = opts.now();
       const exclude = new Set<number>(samplerPid === undefined ? [] : [samplerPid]);
       const tree = collectTree(rows, process.pid, exclude);
-      if (tree.length === 0) return; // own pid missing from the snapshot: no data
+      if (tree.length === 0) {
+        discardTreeWindow(); // own pid missing from the snapshot: no data
+        return;
+      }
       if (prevTree && at > prevTreeAt) {
         treeIntervals.push({
           at,
@@ -144,6 +159,7 @@ function sampleTree(): Promise<void> {
     })
     .catch((err) => {
       log.warn({ err }, 'Failed to sample rapitas process CPU usage');
+      discardTreeWindow();
     })
     .finally(() => {
       treeInFlight = null;
