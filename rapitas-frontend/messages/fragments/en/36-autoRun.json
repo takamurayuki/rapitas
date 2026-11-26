@@ -19,6 +19,7 @@
     "progress": {
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
+      "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
       "rework": "Sent back {count}×",
       "reworkRoute": "({from} → {to})",

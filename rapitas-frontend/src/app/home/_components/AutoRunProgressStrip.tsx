@@ -10,18 +10,23 @@
  * Not responsible for controlling the run or for fetching its state.
  */
 import Link from 'next/link';
-import { CheckCircle2, Circle, Hourglass, Repeat } from 'lucide-react';
+import { Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
-import type { AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
+import type { ActiveTask, AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
 import {
   phaseOfStatus,
   phaseSendBackLeft,
   progressFromWorkflowStatus,
-  type ProgressStepState,
+  stepsForMode,
+  type ProgressView,
 } from './auto-run-progress.utils';
 import { FilterScopeLabel, ShowFilterButton, type FilterScope } from './HomeFilterSummary';
 import { HOME_CARD_FRAME } from './home-card-frame';
+import { AutoRunPhaseSteps } from './AutoRunPhaseSteps';
+import { AutoRunTaskSelect } from './AutoRunTaskSelect';
+import { useAutoRunTaskSelection } from './useAutoRunTaskSelection';
+import { useSelectedTaskStatus } from './useSelectedTaskStatus';
 
 interface AutoRunProgressStripProps {
   /** Auto-run status; the strip renders only while running or paused. / 自動実行の状態 */
@@ -37,38 +42,15 @@ interface AutoRunProgressStripProps {
    * second band (2026-11-21); null while the filter is shown. / 隠したフィルターの範囲
    */
   scope?: FilterScope | null;
+  /** Every running task of the theme, head first; 2+ shows the task dropdown (task 1565). / 動作中の全タスク */
+  activeTasks?: ActiveTask[];
+  /** Theme the choice in the dropdown is remembered under. / 選択の記憶先テーマ */
+  themeId?: number | null;
 }
 
 const SEPARATOR = (
   <span aria-hidden="true" className="h-4 w-px shrink-0 bg-zinc-300 dark:bg-zinc-700" />
 );
-
-const STEP_TEXT: Record<ProgressStepState, string> = {
-  done: 'text-emerald-600 dark:text-emerald-400',
-  current: 'font-medium text-zinc-900 dark:text-zinc-50',
-  waiting: 'font-medium text-amber-600 dark:text-amber-400',
-  pending: 'text-zinc-400 dark:text-zinc-500',
-};
-
-function StepIcon({ state }: { state: ProgressStepState }) {
-  const cls = 'h-3.5 w-3.5 shrink-0';
-  if (state === 'done') return <CheckCircle2 className={cls} aria-hidden="true" />;
-  // NOTE: A still green dot, not a spinner (2026-11-21): the task card's
-  // spinning border already says the task runs, and several spinners at
-  // once tired the eyes. Same dot as the toolbar's 「自動実行中」.
-  if (state === 'current')
-    return (
-      <span className={`${cls} inline-flex items-center justify-center`} aria-hidden="true">
-        <span
-          data-current-dot=""
-          className="h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400"
-        />
-      </span>
-    );
-  // Hourglass = 承認待ち／回答待ち (ICON_POLICY).
-  if (state === 'waiting') return <Hourglass className={cls} aria-hidden="true" />;
-  return <Circle className={cls} aria-hidden="true" />;
-}
 
 /**
  * Show what auto-run is doing now, under the toolbar.
@@ -78,6 +60,8 @@ function StepIcon({ state }: { state: ProgressStepState }) {
  * @param props.remainingCount - Remaining backlog / 残りのタスク数
  * @param props.startedAt - Run start time / 開始時刻
  * @param props.scope - Hidden filter's category and theme / 隠したフィルターの範囲
+ * @param props.activeTasks - Running tasks of the theme / 動作中の全タスク
+ * @param props.themeId - Theme for remembering the choice / テーマID
  * @returns The strip, or null while auto-run is idle or stopping / 帯（停止時は null）
  */
 export function AutoRunProgressStrip({
@@ -86,17 +70,44 @@ export function AutoRunProgressStrip({
   remainingCount,
   startedAt,
   scope,
+  activeTasks,
+  themeId,
 }: AutoRunProgressStripProps) {
   const t = useTranslations('autoRun');
+  const showSelect = (activeTasks?.length ?? 0) >= 2;
+  const { selectedId, headId, select } = useAutoRunTaskSelection(themeId, activeTasks);
+  // The head's state is already in currentTask; only others are fetched.
+  const otherId = showSelect && selectedId !== null && selectedId !== headId ? selectedId : null;
+  const otherStatus = useSelectedTaskStatus(otherId);
   const visible = status === 'running' || status === 'paused';
   // Only re-renders the strip while running; the text below is minute-grained.
   useElapsedTime(startedAt, visible && status === 'running');
 
   if (!visible) return null;
 
-  const view = currentTask
-    ? progressFromWorkflowStatus(currentTask.workflowStatus, currentTask.workflowMode)
-    : null;
+  // Another task picked in the dropdown replaces the head's phase and link;
+  // its rework is unknown (activeTasks has none), so it is left out.
+  const other = otherId !== null ? activeTasks?.find((a) => a.id === otherId) : undefined;
+  const shown: CurrentTask | null =
+    currentTask && other
+      ? {
+          id: other.id,
+          title: other.title,
+          status: currentTask.status,
+          workflowStatus: otherStatus?.workflowStatus ?? null,
+          workflowMode: otherStatus?.workflowMode ?? null,
+        }
+      : currentTask;
+  // 未取得は実際の workflowStatus=null（調査中）と区別する。
+  const view: ProgressView | null =
+    other && !otherStatus
+      ? {
+          steps: stepsForMode(null).map((key) => ({ key, state: 'pending' })),
+          waitingFor: null,
+        }
+      : shown
+        ? progressFromWorkflowStatus(shown.workflowStatus, shown.workflowMode)
+        : null;
 
   // "検証 → 実装": the phase the latest send-back left and the one it redoes.
   const rework = currentTask?.rework;
@@ -135,52 +146,25 @@ export function AutoRunProgressStrip({
           {SEPARATOR}
         </>
       )}
-      {currentTask && view ? (
+      {currentTask && shown && view ? (
         <>
+          {showSelect && activeTasks && (
+            <AutoRunTaskSelect tasks={activeTasks} selectedId={selectedId} onSelect={select} />
+          )}
           {/* NOTE: Only the id shows (asked 2026-11-21); the title stays in
               title / aria-label for hover and screen readers. */}
           <Link
-            href={`/tasks/${currentTask.id}?showHeader=true`}
-            title={currentTask.title}
-            aria-label={`#${currentTask.id} ${currentTask.title}`}
+            href={`/tasks/${shown.id}?showHeader=true`}
+            title={shown.title}
+            aria-label={`#${shown.id} ${shown.title}`}
             className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
           >
-            #{currentTask.id}
+            #{shown.id}
           </Link>
 
-          <ol className="flex items-center gap-1.5">
-            {view.steps.map(({ key: step, state }, i) => {
-              return (
-                <li key={step} className="flex items-center gap-1.5">
-                  {i > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="h-px w-[18px] bg-zinc-300 dark:bg-zinc-700"
-                    />
-                  )}
-                  <span
-                    data-step={step}
-                    data-step-state={state}
-                    className={`inline-flex items-center gap-1 text-xs whitespace-nowrap ${STEP_TEXT[state]}`}
-                  >
-                    <StepIcon state={state} />
-                    {state === 'waiting' && view.waitingFor === 'approval'
-                      ? t('awaitingApproval')
-                      : t(`progress.steps.${step}`)}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          <AutoRunPhaseSteps view={view} />
 
-          {view.waitingFor === 'answer' && (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-              <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('progress.awaitingAnswer')}
-            </span>
-          )}
-
-          {currentTask.companions && currentTask.companions.length > 0 && (
+          {!showSelect && currentTask.companions && currentTask.companions.length > 0 && (
             // Task 1552: other tasks of the theme run alongside the head. No new
             // glyph (ICON_POLICY) — the ids link to their detail pages.
             <span
@@ -204,7 +188,7 @@ export function AutoRunProgressStrip({
             </span>
           )}
 
-          {currentTask.rework && (
+          {!other && currentTask.rework && (
             // Repeat = 修復反復 (ICON_POLICY): the same concept, counted per task.
             <span
               data-testid="auto-run-rework"
