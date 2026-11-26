@@ -73,6 +73,7 @@ function world(
   opts: WorldOptions = {},
 ) {
   let rows = [...initial];
+  const history = [...(opts.history ?? [])];
   let time = 0;
   const killed: number[] = [];
   const removed: string[] = [];
@@ -96,7 +97,11 @@ function world(
       }
       return { free: true };
     },
-    readHistory: async () => opts.history ?? [],
+    readHistory: async () => [...history],
+    recordProcesses: async (_dir, identities, role) => {
+      history.push(...identities.map((row) => rec(row, role)));
+      return true;
+    },
     readLockPid: async () =>
       removed.includes(LOCK_PATH) ? null : (opts.lockFilePid ?? opts.lock?.pid ?? null),
     removeLock: async (path, expected) => {
@@ -287,14 +292,145 @@ describe('cleanupStaleRuntime — only what the launch history proves', () => {
     expect(killed).toEqual([]);
   });
 
-  test('a child that only holds the port is stopped through its live recorded root', async () => {
+  test('生存する根の子孫は observed の保存が終わってから停止する', async () => {
     const root = proc(40, `cmd /c "${WORKDIR}/start.bat"`);
     const child = proc(45, 'server.exe', 40);
     const { deps, killed } = world([root, child], [{ port: 8090, pid: 45 }], {
       history: [rec(root, 'root')],
     });
-    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: true });
+    const recordProcesses = deps.recordProcesses;
+    let started!: () => void;
+    let resume!: () => void;
+    const writeStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const writeBarrier = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    deps.recordProcesses = async (dir, identities, role) => {
+      started();
+      await writeBarrier;
+      expect(dir).toBe(WORKDIR);
+      expect(identities).toEqual([child]);
+      expect(role).toBe('observed');
+      return recordProcesses(dir, identities, role);
+    };
+
+    const cleanup = cleanupStaleRuntime(WORKDIR, CFG, deps);
+    try {
+      expect(await Promise.race([writeStarted.then(() => true), cleanup.then(() => false)])).toBe(
+        true,
+      );
+      expect(killed).toEqual([]);
+    } finally {
+      resume();
+    }
+    expect(await cleanup).toMatchObject({ ok: true });
     expect(killed).toContain(45);
+    expect(await deps.readHistory(WORKDIR)).toContainEqual(rec(child, 'observed'));
+  });
+
+  test.each(['書き込み拒否', '書き込み例外', '読み戻し欠落', '保存中の birth 変更'])(
+    '%s では停止もロック削除も行わない',
+    async (interruption) => {
+      const child = proc(45, 'server.exe', SERVER.pid);
+      const { deps, killed, removed } = world([SERVER, child], [{ port: 8090, pid: child.pid }], {
+        history: [rec(SERVER), lockRec(60, '1060')],
+        lockFilePid: 60,
+      });
+      const { recordProcesses, snapshot } = deps;
+      deps.recordProcesses = async (dir, identities, role) => {
+        if (interruption === '書き込み拒否') return false;
+        if (interruption === '書き込み例外') throw new Error('履歴へ書き込めません');
+        if (interruption === '読み戻し欠落') return true;
+        deps.snapshot = async () => {
+          const current = await snapshot();
+          return {
+            ...current,
+            processes: current.processes.map((row) =>
+              row.pid === child.pid ? { ...row, birth: '7777' } : row,
+            ),
+          };
+        };
+        return recordProcesses(dir, identities, role);
+      };
+
+      expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+        ok: false,
+        cause: 'foreign_process',
+      });
+      expect(killed).toEqual([]);
+      expect(removed).toEqual([]);
+    },
+  );
+
+  test('引数を分解できない子孫が固定ポートを使用している場合は停止しない', async () => {
+    const child = proc(45, 'server.exe "未閉じ', SERVER.pid);
+    const { deps, killed } = world([SERVER, child], [{ port: 8090, pid: child.pid }], {
+      history: [rec(SERVER)],
+    });
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([]);
+  });
+
+  test('候補確定後に現れた未記録の子孫は停止集合に加えない', async () => {
+    const child = proc(45, 'server.exe', SERVER.pid);
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: SERVER.pid }], {
+      history: [rec(SERVER)],
+    });
+    const stopDeps = deps.stopDeps!;
+    const snapshot = stopDeps.snapshot;
+    stopDeps.snapshot = async () => {
+      const current = await snapshot();
+      return { ...current, processes: [...current.processes, child] };
+    };
+
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: true });
+    expect(killed).toEqual([SERVER.pid]);
+    expect(await deps.readHistory(WORKDIR)).toEqual([rec(SERVER)]);
+  });
+
+  test.each([
+    ['身元を確認できる', true, 'port_in_use'],
+    ['身元を確認できない', false, 'foreign_process'],
+  ])('停止直前に現れた固定ポートの別所有者を分類する（%s）', async (_name, identified, cause) => {
+    const holder = proc(75, 'other-server');
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: SERVER.pid }], {
+      history: [rec(SERVER)],
+    });
+    const stopDeps = deps.stopDeps!;
+    const snapshot = stopDeps.snapshot;
+    stopDeps.snapshot = async () => {
+      const current = await snapshot();
+      return {
+        ...current,
+        processes: identified ? [...current.processes, holder] : current.processes,
+        listeners: [{ port: 8090, pid: holder.pid }],
+      };
+    };
+
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({ ok: false, cause });
+    expect(killed).toEqual([]);
+  });
+
+  test('停止後に待受一覧を取得できなければ固定ポートの解放を確定しない', async () => {
+    const { deps, killed } = world([SERVER], [{ port: 8090, pid: SERVER.pid }], {
+      history: [rec(SERVER)],
+    });
+    const snapshot = deps.snapshot;
+    deps.snapshot = async () => {
+      const current = await snapshot();
+      return killed.length === 0 ? current : { ...current, listeners: undefined };
+    };
+
+    expect(await cleanupStaleRuntime(WORKDIR, CFG, deps)).toMatchObject({
+      ok: false,
+      cause: 'foreign_process',
+    });
+    expect(killed).toEqual([SERVER.pid]);
   });
 
   test('an observed child is stopped even after its root died', async () => {

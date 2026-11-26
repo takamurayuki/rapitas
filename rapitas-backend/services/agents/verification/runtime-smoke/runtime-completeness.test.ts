@@ -5,8 +5,8 @@ let healthy = true;
 let logs: string[] = [];
 let browserAvailable = true;
 let harnessError = false;
-/** Set to make the mocked registry refuse before launch, as for a taken port/lock. */
-let refusal: { cause: string } | null = null;
+/** 取得側で確定した環境要因を注入する。 */
+let refusal: { cause: string; hasExited?: boolean } | null = null;
 /** Whether the task under verification is the `[UI]` task that owes an entry. */
 let screenTask = false;
 const stop = mock(() => {});
@@ -195,6 +195,22 @@ test.each([
   },
 );
 
+// NOTE: 単独行を出した自主終了は、停止前に取得側が確定した原因で未検証として報告する。
+test('単独の起動拒否に取得側が設定した lock_held を報告する', async () => {
+  healthy = false;
+  logs = ['別のインスタンスが既に起動しています'];
+  refusal = { cause: 'lock_held', hasExited: true };
+  const result = await runRuntimeSmokeCheck('/lock-refusal');
+  expect(result).toMatchObject({
+    ran: false,
+    ok: false,
+    unverifiable: true,
+    errorCount: 0,
+    cause: 'lock_held',
+  });
+  expect(result?.details).toContain('cause=lock_held');
+});
+
 // Task 1539: a log that merely MENTIONS a port or lock must not turn an implementation
 // error into an environment cause (that would let broken code through verification).
 test.each([
@@ -224,7 +240,7 @@ test.each([
     ['TypeError: x is not a function', 'Warning: Port 8090 is in use, trying 8091 instead'],
   ],
   ['致命行のないポート言及', ['Port TCP 8090 is in use']],
-  ['致命行のないロック言及', ['別のインスタンスが既に起動しています']],
+  ['取得側の原因がない単独行', ['別のインスタンスが既に起動しています']],
   [
     'port and lock both named',
     ['Error: listen EADDRINUSE: address already in use', 'Unable to acquire lock'],
