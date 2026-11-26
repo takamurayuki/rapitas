@@ -5,6 +5,12 @@
  * file replaces the logger and child_process.
  */
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { EventEmitter } from 'node:events';
+import type { ChildProcess, SpawnOptions, execFile } from 'child_process';
+import {
+  createWindowsPriorityQueue,
+  type WindowsPriorityRequest,
+} from './windows-process-priority';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -75,172 +81,236 @@ describe('lowerProcessPriority', () => {
   });
 });
 
-describe('countActiveHelperChildren', () => {
-  test('spawn で増え、exit で減る', async () => {
-    const { EventEmitter } = await import('events');
-    const kids: InstanceType<typeof EventEmitter>[] = [];
-    const cp = await import('child_process');
-    const orig = (cp as { spawn: unknown }).spawn;
-    void orig; // mocked module — replaced below per-call via our own emitter
-    const { spawnLowPriority, countActiveHelperChildren } = await import('./process-priority');
-    const before = countActiveHelperChildren();
-    const child = spawnLowPriority('x', [], {}) as unknown as InstanceType<typeof EventEmitter> & {
-      pid?: number;
-    };
-    void kids;
-    expect(countActiveHelperChildren()).toBe(before + 1);
-    // the mocked spawn returns a plain object with once(); emit is unavailable,
-    // so exercise the removal path via the error hook the module registered
-    expect(typeof (child as { once?: unknown }).once === 'function' || true).toBe(true);
-  });
-});
+function fakeChild(pid?: number): ChildProcess {
+  return Object.assign(new EventEmitter(), { pid }) as unknown as ChildProcess;
+}
 
-describe('spawnLowPriority', () => {
-  test('spawn に引数をそのまま渡し、子プロセスを返す', () => {
-    const child = spawnLowPriority('claude', ['--print'], { shell: true }, 'RAPITAS_AGENT_QUIET', {
-      platform: 'win32',
-      getPriority: () => LOW_PRIORITY,
+describe('共通ランチャー', () => {
+  test('Windows の起動引数を保ち、起動後にだけ所有情報を渡す', () => {
+    const calls: string[] = [];
+    const queueWindowsPriority = mock((_request: WindowsPriorityRequest) => calls.push('queue'));
+    const proc = fakeChild(4242);
+    const spawn = mock((_file: string, _args: string[], _options: SpawnOptions) => {
+      calls.push('spawn');
+      return proc;
     });
+    const deps = {
+      platform: 'win32' as const,
+      spawn,
+      setPriority: () => calls.push('set'),
+      getPriority: () => 0,
+      queueWindowsPriority,
+    };
+    const before = Date.now();
+    const options = { shell: true, windowsHide: true, cwd: process.cwd() };
+    expect(
+      spawnLowPriorityUntracked('claude', ['--print'], options, 'RAPITAS_AGENT_QUIET', deps),
+    ).toBe(proc);
+    expect(spawn).toHaveBeenCalledWith('claude', ['--print'], options);
+    expect(calls).toEqual(['spawn', 'queue']);
+    const [request] = queueWindowsPriority.mock.calls[0]!;
+    expect(request).toMatchObject({ pid: 4242, parentPid: process.pid });
+    expect(request.startedAt).toBeGreaterThanOrEqual(before);
+    expect(request.returnedAt).toBeGreaterThanOrEqual(request.startedAt);
+    expect(request.returnedAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  test('デフォルトのランチャーにコマンドと引数を渡す', () => {
+    const child = spawnLowPriorityUntracked(
+      'claude',
+      ['--print'],
+      { shell: true },
+      'RAPITAS_AGENT_QUIET',
+      {
+        platform: 'win32',
+        queueWindowsPriority: () => {},
+      },
+    );
     expect(spawnCalls).toEqual([{ command: 'claude', args: ['--print'] }]);
     expect(child.pid).toBe(777);
   });
-});
 
-describe('spawnLowPriority priority (task 1553)', () => {
-  test('LOW_PRIORITY is PRIORITY_BELOW_NORMAL = 10 (Windows BelowNormal / POSIX nice 10)', async () => {
-    const os = await import('node:os');
-    expect(LOW_PRIORITY).toBe(os.constants.priority.PRIORITY_BELOW_NORMAL);
-    expect(LOW_PRIORITY).toBe(10);
-  });
-
-  test('calls setPriority(pid, 10) on the spawned child', () => {
-    const prio: Array<[number, number]> = [];
-    const spawned: string[] = [];
-    const child = spawnLowPriority('tsc', ['--noEmit'], {}, 'RAPITAS_VERIFY_QUIET', {
-      spawn: ((cmd: string) => {
-        spawned.push(cmd);
-        return { pid: 4242, once: () => {} };
-      }) as never,
-      setPriority: (pid, n) => void prio.push([pid, n]),
-      platform: 'win32',
-      getPriority: () => LOW_PRIORITY,
-    });
-    expect(spawned).toEqual(['tsc']);
-    expect(child.pid).toBe(4242);
-    expect(prio).toEqual([[4242, 10]]);
-  });
-
-  test('RAPITAS_VERIFY_QUIET=off skips setPriority', () => {
-    process.env.RAPITAS_VERIFY_QUIET = 'off';
-    const prio: Array<[number, number]> = [];
-    spawnLowPriority('tsc', [], {}, 'RAPITAS_VERIFY_QUIET', {
-      spawn: (() => ({ pid: 1, once: () => {} })) as never,
-      setPriority: (pid, n) => void prio.push([pid, n]),
-      platform: 'win32',
-      getPriority: () => 0,
-    });
-    expect(prio).toEqual([]);
-  });
-});
-
-describe('children are born at low priority (task 1553 repair)', () => {
-  const SELF = process.pid;
-
-  /** Records every call in order so the sequence itself can be asserted. */
-  function recorder(opts: { prev?: number; failGet?: boolean; spawnThrows?: boolean } = {}) {
-    const log: string[] = [];
-    const spawned: Array<{ file: string; args: string[]; options: Record<string, unknown> }> = [];
-    return {
-      log,
-      spawned,
-      deps: {
-        platform: 'win32' as NodeJS.Platform,
-        getPriority: () => {
-          if (opts.failGet) throw new Error('EPERM');
-          return opts.prev ?? 0;
+  test('起動失敗と PID がない場合は Windows の適用要求を送らない', () => {
+    const queueWindowsPriority = mock(() => {});
+    const deps = { platform: 'win32' as const, queueWindowsPriority };
+    expect(() =>
+      spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', {
+        ...deps,
+        spawn: () => {
+          throw new Error('ENOENT');
         },
-        setPriority: (pid: number, n: number) =>
-          void log.push(`set:${pid === SELF ? 'self' : pid}:${n}`),
-        spawn: ((file: string, args: string[], options: Record<string, unknown>) => {
-          log.push('spawn');
-          spawned.push({ file, args, options });
-          if (opts.spawnThrows) throw new Error('ENOENT');
-          return { pid: 4242, once: () => {} };
-        }) as never,
-      },
-    };
-  }
-
-  test('win32: the backend is lowered BEFORE spawn and restored right after, so the shell and its children inherit it', () => {
-    const r = recorder({ prev: 0 });
-    spawnLowPriority('claude', ['--print'], { shell: true }, 'RAPITAS_AGENT_QUIET', r.deps);
-    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0', 'set:4242:10']);
-  });
-
-  test('win32: the backend priority is restored even when spawn throws', () => {
-    const r = recorder({ prev: 0, spawnThrows: true });
-    expect(() => spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps)).toThrow(
-      'ENOENT',
-    );
-    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0']);
-  });
-
-  test('win32: nothing to restore when the backend already runs at low priority', () => {
-    const r = recorder({ prev: 10 });
-    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps);
-    expect(r.log).toEqual(['spawn', 'set:4242:10']);
-  });
-
-  test('win32: an unreadable own priority still spawns (best effort)', () => {
-    const r = recorder({ failGet: true });
-    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', r.deps);
-    expect(r.log).toEqual(['spawn', 'set:4242:10']);
-  });
-
-  test('flag off: plain spawn, the backend priority is never touched', () => {
-    process.env.RAPITAS_AGENT_QUIET = 'off';
-    const r = recorder();
-    spawnLowPriority('claude', [], { shell: true }, 'RAPITAS_AGENT_QUIET', r.deps);
-    expect(r.log).toEqual(['spawn']);
-    expect(r.spawned[0]).toMatchObject({ file: 'claude', args: [] });
-  });
-
-  test('posix: a shell command is launched as `nice -n 10 /bin/sh -c <command>` with no shell option', () => {
-    const r = recorder();
-    spawnLowPriority('claude --print', [], { shell: true, cwd: '/w' }, 'RAPITAS_AGENT_QUIET', {
-      ...r.deps,
-      platform: 'linux',
+      }),
+    ).toThrow('ENOENT');
+    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', {
+      ...deps,
+      spawn: () => fakeChild(),
     });
-    expect(r.spawned[0]!.file).toBe('nice');
-    expect(r.spawned[0]!.args).toEqual(['-n', '10', '/bin/sh', '-c', 'claude --print']);
-    expect(r.spawned[0]!.options.shell).toBeUndefined();
-    expect(r.spawned[0]!.options.cwd).toBe('/w');
-    expect(r.log).not.toContain('set:self:10'); // no process-wide nice change (cannot be undone unprivileged)
+    expect(queueWindowsPriority).not.toHaveBeenCalled();
   });
 
-  test('posix: a custom shell path is kept; a plain command is wrapped without a shell', () => {
-    const r = recorder();
-    const posix = { ...r.deps, platform: 'darwin' as NodeJS.Platform };
-    spawnLowPriority('x', [], { shell: '/bin/zsh' }, 'RAPITAS_AGENT_QUIET', posix);
-    expect(r.spawned[0]!.args).toEqual(['-n', '10', '/bin/zsh', '-c', 'x']);
-    spawnLowPriority('claude', ['--print', 'a b'], {}, 'RAPITAS_AGENT_QUIET', posix);
-    expect(r.spawned[1]!.file).toBe('nice');
-    expect(r.spawned[1]!.args).toEqual(['-n', '10', 'claude', '--print', 'a b']);
+  test('Windows の設定要求が失敗しても起動結果を返す', () => {
+    const proc = fakeChild(555);
+    expect(
+      spawnLowPriorityUntracked('node', [], {}, 'RAPITAS_VERIFY_QUIET', {
+        platform: 'win32',
+        spawn: () => proc,
+        queueWindowsPriority: () => {
+          throw new Error('EPERM');
+        },
+      }),
+    ).toBe(proc);
   });
 
-  test('buildLowPriorityLaunch is the identity on win32', () => {
+  test('無効値ではシェルと引数を維持し Windows の適用要求を送らない', () => {
+    const queueWindowsPriority = mock(() => {});
+    const spawn = mock(() => fakeChild(4242));
+    const options = { shell: true };
+    for (const value of ['off', '0', 'false']) {
+      process.env.RAPITAS_VERIFY_QUIET = value;
+      spawnLowPriorityUntracked('node', ['-v'], options, 'RAPITAS_VERIFY_QUIET', {
+        platform: 'win32',
+        spawn,
+        queueWindowsPriority,
+      });
+    }
+    expect(spawn).toHaveBeenCalledTimes(3);
+    expect(spawn).toHaveBeenCalledWith('node', ['-v'], options);
+    expect(queueWindowsPriority).not.toHaveBeenCalled();
+  });
+
+  test('追跡は対象の子の exit と error で解除し、非追跡起動を数えない', () => {
+    const first = fakeChild(501);
+    const second = fakeChild(502);
+    const untracked = fakeChild(503);
+    const options = { platform: 'win32' as const, queueWindowsPriority: () => {} };
+    const initial = countActiveHelperChildren();
+    spawnLowPriority('claude', [], {}, 'RAPITAS_AGENT_QUIET', { ...options, spawn: () => first });
+    spawnLowPriority('codex', [], {}, 'RAPITAS_AGENT_QUIET', { ...options, spawn: () => second });
+    spawnLowPriorityUntracked('app', [], {}, 'RAPITAS_VERIFY_QUIET', {
+      ...options,
+      spawn: () => untracked,
+    });
+    expect(countActiveHelperChildren()).toBe(initial + 2);
+    first.emit('exit', 0);
+    expect(countActiveHelperChildren()).toBe(initial + 1);
+    second.emit('error', new Error('エラー'));
+    expect(countActiveHelperChildren()).toBe(initial);
+  });
+
+  test('POSIX の既定シェル、カスタムシェル、直接実行に nice を一度だけ渡す', () => {
+    const spawn = mock((_file: string, _args: string[], _options: SpawnOptions) => fakeChild(4242));
+    const queueWindowsPriority = mock(() => {});
+    const setPriority = mock(() => {});
+    const deps = { platform: 'linux' as const, spawn, setPriority, queueWindowsPriority };
+    spawnLowPriority('claude --print', [], { shell: true, cwd: '/w' }, 'RAPITAS_AGENT_QUIET', deps);
+    spawnLowPriorityUntracked(
+      'bun run dev',
+      [],
+      { shell: '/bin/zsh' },
+      'RAPITAS_VERIFY_QUIET',
+      deps,
+    );
+    spawnLowPriorityUntracked('node', ['a b.js'], {}, 'RAPITAS_VERIFY_QUIET', deps);
+    expect(spawn.mock.calls).toEqual([
+      ['nice', ['-n', '10', '/bin/sh', '-c', 'claude --print'], { cwd: '/w' }],
+      ['nice', ['-n', '10', '/bin/zsh', '-c', 'bun run dev'], {}],
+      ['nice', ['-n', '10', 'node', 'a b.js'], {}],
+    ]);
+    expect(queueWindowsPriority).not.toHaveBeenCalled();
+    expect(setPriority).not.toHaveBeenCalled();
+  });
+
+  test('POSIX のシェルと孫は親の nice 0 または5に10を一度だけ足した値を使う', () => {
+    const actual: number[][] = [];
+    for (const inherited of [0, 5]) {
+      for (const parentRunsFirst of [true, false]) {
+        let childNice = inherited;
+        let grandchildNice = inherited;
+        let runNice: () => void = () => {};
+        const setPriority = mock((_pid: number, value: number) => {
+          childNice = value;
+        });
+        const deps = {
+          platform: 'linux' as const,
+          setPriority,
+          spawn: (_file: string, args: string[]) => {
+            runNice = () => {
+              childNice = Math.min(19, childNice + Number(args[1]));
+              grandchildNice = childNice;
+            };
+            if (!parentRunsFirst) runNice();
+            return fakeChild(4242);
+          },
+        };
+        spawnLowPriorityUntracked('bun run dev', [], { shell: true }, 'RAPITAS_VERIFY_QUIET', deps);
+        if (parentRunsFirst) runNice();
+        actual.push([childNice, grandchildNice, setPriority.mock.calls.length]);
+      }
+    }
+    expect(actual).toEqual([
+      [10, 10, 0],
+      [10, 10, 0],
+      [15, 15, 0],
+      [15, 15, 0],
+    ]);
+  });
+
+  test('Windows は優先度設定用のラッパーを付けずに起動する', () => {
     expect(buildLowPriorityLaunch('a', ['b'], { shell: true }, 'win32')).toEqual({
       file: 'a',
       args: ['b'],
       options: { shell: true },
     });
+    expect(LOW_PRIORITY).toBe(10);
+  });
+});
+
+describe('Windows の非同期適用キュー', () => {
+  test('新規要求をまとめ、処理中の要求を次に回し、親 PID を除く', async () => {
+    const callbacks: Array<(err: Error | null, stdout: string) => void> = [];
+    const run = mock(
+      (_file: string, _args: string[], _opts: unknown, cb: (typeof callbacks)[number]) => {
+        callbacks.push(cb);
+      },
+    );
+    const queue = createWindowsPriorityQueue(run as unknown as typeof execFile, () => 1000);
+    const request = (pid: number) => ({ pid, parentPid: 1, startedAt: 900, returnedAt: 950 });
+    queue(request(1));
+    queue(request(10));
+    queue(request(11));
+    expect(run).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]![0]).toBe('powershell.exe');
+    expect(run.mock.calls[0]![2]).toMatchObject({
+      timeout: 10_000,
+      windowsHide: true,
+      env: { RAPITAS_WINDOWS_PRIORITY_REQUESTS: JSON.stringify([request(10), request(11)]) },
+    });
+    queue(request(12));
+    await Promise.resolve();
+    expect(run).toHaveBeenCalledTimes(1);
+    callbacks[0]!(new Error('時間切れ'), '');
+    await Promise.resolve();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(run.mock.calls[1]![2]).toMatchObject({
+      env: { RAPITAS_WINDOWS_PRIORITY_REQUESTS: JSON.stringify([request(12)]) },
+    });
+    callbacks[1]!(null, 'skip 12');
   });
 
-  test('spawnLowPriorityUntracked starts low but stays out of the restart gate count', () => {
-    const r = recorder();
-    const before = countActiveHelperChildren();
-    spawnLowPriorityUntracked('app', [], {}, 'RAPITAS_VERIFY_QUIET', r.deps);
-    expect(countActiveHelperChildren()).toBe(before);
-    expect(r.log).toEqual(['set:self:10', 'spawn', 'set:self:0', 'set:4242:10']);
+  test('補助プロセスの起動に失敗しても次の要求を処理し、期限切れは実行しない', async () => {
+    const run = mock(() => {
+      throw new Error('ENOENT');
+    });
+    const queue = createWindowsPriorityQueue(run as unknown as typeof execFile, () => 30_000);
+    queue({ pid: 2, parentPid: 1, startedAt: 8_000, returnedAt: 9_000 });
+    await Promise.resolve();
+    expect(run).not.toHaveBeenCalled();
+    queue({ pid: 3, parentPid: 1, startedAt: 28_000, returnedAt: 29_000 });
+    await Promise.resolve();
+    queue({ pid: 4, parentPid: 1, startedAt: 28_000, returnedAt: 29_000 });
+    await Promise.resolve();
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });

@@ -8,58 +8,89 @@
  * full-priority processes on a 4-core host. These cover the execFile equivalent.
  */
 import { describe, test, expect, mock } from 'bun:test';
-import { execFileLowPriority, LOW_PRIORITY } from './process-priority';
+import { execFileLowPriority } from './process-priority';
+import type { WindowsPriorityRequest } from './windows-process-priority';
 
 describe('execFileLowPriority', () => {
-  test('起動した子プロセスの優先度を下げる', async () => {
-    const lowered: Array<{ pid: number; priority: number }> = [];
-    // The callback MUST be invoked: a stub that only returns a handle leaves the
-    // promise pending and hangs the whole file instead of failing.
+  test('Windows では execFile の後で子の所有情報を渡す', async () => {
+    const calls: string[] = [];
+    const queueWindowsPriority = mock((_request: WindowsPriorityRequest) => calls.push('queue'));
     const fakeExecFile = mock((_f: string, _a: string[], _o: unknown, cb: unknown) => {
+      calls.push('execFile');
       (cb as (e: null, o: string, r: string) => void)(null, '', '');
       return { pid: 4242 };
     });
-    await execFileLowPriority('node', ['-v'], {}, 'RAPITAS_VERIFY_QUIET', {
+    const deps = {
       execFile: fakeExecFile as never,
-      setPriority: (pid, priority) => lowered.push({ pid, priority }),
-      // Pinned: the test runner itself may already run at low priority.
-      getPriority: () => LOW_PRIORITY,
-      platform: 'win32',
-    });
-    expect(lowered).toEqual([{ pid: 4242, priority: LOW_PRIORITY }]);
+      queueWindowsPriority,
+      setPriority: () => calls.push('set'),
+      getPriority: () => 0,
+      platform: 'win32' as const,
+    };
+    await execFileLowPriority('bun', ['run', 'x'], { shell: true }, 'RAPITAS_VERIFY_QUIET', deps);
+    expect(calls).toEqual(['execFile', 'queue']);
+    expect(fakeExecFile).toHaveBeenCalledWith(
+      'bun',
+      ['run', 'x'],
+      { shell: true },
+      expect.any(Function),
+    );
+    expect(queueWindowsPriority).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pid: 4242,
+        parentPid: process.pid,
+        startedAt: expect.any(Number),
+        returnedAt: expect.any(Number),
+      }),
+    );
   });
 
-  test('win32: the backend is lowered before execFile and restored right after (children are born low)', async () => {
-    const log: string[] = [];
-    const fakeExecFile = mock((_f: string, _a: string[], _o: unknown, cb: unknown) => {
-      log.push('execFile');
-      (cb as (e: null, o: string, r: string) => void)(null, '', '');
+  test('Windows の優先度フラグが off なら要求を送らない', async () => {
+    const original = process.env.RAPITAS_VERIFY_QUIET;
+    const queueWindowsPriority = mock(() => {});
+    const fn = mock((_f: string, _a: string[], _o: unknown, cb: unknown) => {
+      (cb as (e: null, o: string, r: string) => void)(null, 'out', '');
       return { pid: 4242 };
     });
-    await execFileLowPriority('bun', ['run', 'x'], { shell: true }, 'RAPITAS_VERIFY_QUIET', {
-      execFile: fakeExecFile as never,
-      setPriority: (pid, priority) =>
-        log.push(`set:${pid === process.pid ? 'self' : pid}:${priority}`),
-      getPriority: () => 0,
-      platform: 'win32',
-    });
-    expect(log).toEqual(['set:self:10', 'execFile', 'set:self:0', 'set:4242:10']);
+    process.env.RAPITAS_VERIFY_QUIET = 'off';
+    try {
+      await execFileLowPriority('node', ['-v'], {}, 'RAPITAS_VERIFY_QUIET', {
+        execFile: fn as never,
+        queueWindowsPriority,
+        platform: 'win32',
+      });
+      expect(queueWindowsPriority).not.toHaveBeenCalled();
+    } finally {
+      if (original === undefined) delete process.env.RAPITAS_VERIFY_QUIET;
+      else process.env.RAPITAS_VERIFY_QUIET = original;
+    }
   });
 
   test('posix: runs as nice -n 10 so the kernel applies it at exec time', async () => {
     const calls: Array<{ file: string; args: string[]; options: Record<string, unknown> }> = [];
+    const setPriority = mock(() => {});
     const fakeExecFile = mock((f: string, a: string[], o: Record<string, unknown>, cb: unknown) => {
       calls.push({ file: f, args: a, options: o });
       (cb as (e: null, o: string, r: string) => void)(null, '', '');
       return { pid: 7 };
     });
-    await execFileLowPriority('bun', ['run', 'x'], { cwd: '/w' }, 'RAPITAS_VERIFY_QUIET', {
-      execFile: fakeExecFile as never,
-      setPriority: () => {},
-      platform: 'linux',
-    });
+    const deps = { execFile: fakeExecFile as never, setPriority, platform: 'linux' as const };
+    await execFileLowPriority('bun', ['run', 'x'], { cwd: '/w' }, 'RAPITAS_VERIFY_QUIET', deps);
+    await execFileLowPriority('bun run x', [], { shell: true }, 'RAPITAS_VERIFY_QUIET', deps);
+    await execFileLowPriority('bun run x', [], { shell: '/bin/zsh' }, 'RAPITAS_VERIFY_QUIET', deps);
     expect(calls[0]).toMatchObject({ file: 'nice', args: ['-n', '10', 'bun', 'run', 'x'] });
     expect(calls[0]!.options.cwd).toBe('/w');
+    expect(calls[1]).toEqual({
+      file: 'nice',
+      args: ['-n', '10', '/bin/sh', '-c', 'bun run x'],
+      options: {},
+    });
+    expect(calls[2]).toEqual({
+      file: 'nice',
+      args: ['-n', '10', '/bin/zsh', '-c', 'bun run x'],
+      options: {},
+    });
+    expect(setPriority).not.toHaveBeenCalled();
   });
 
   test('stdout / stderr をそのまま返す', async () => {
@@ -69,7 +100,7 @@ describe('execFileLowPriority', () => {
     });
     const res = await execFileLowPriority('node', ['-v'], {}, 'RAPITAS_VERIFY_QUIET', {
       execFile: fakeExecFile as never,
-      setPriority: () => {},
+      queueWindowsPriority: () => {},
     });
     expect(res.stdout).toBe('OUT');
     expect(res.stderr).toBe('ERR');
@@ -86,7 +117,7 @@ describe('execFileLowPriority', () => {
     await expect(
       execFileLowPriority('bun', ['run', 'x'], {}, 'RAPITAS_VERIFY_QUIET', {
         execFile: fakeExecFile as never,
-        setPriority: () => {},
+        queueWindowsPriority: () => {},
       }),
     ).rejects.toMatchObject({ code: 1, stdout: 'partial' });
   });
@@ -104,7 +135,7 @@ describe('execFileLowPriority', () => {
     await expect(
       execFileLowPriority('node', ['check.cjs'], {}, 'RAPITAS_VERIFY_QUIET', {
         execFile: fakeExecFile as never,
-        setPriority: () => {},
+        queueWindowsPriority: () => {},
       }),
     ).rejects.toMatchObject({ code: 1, stdout: '  120 some/file.ts ← NEW', stderr: 'warn' });
   });
@@ -118,7 +149,8 @@ describe('execFileLowPriority', () => {
     });
     const res = await execFileLowPriority('node', [], {}, 'RAPITAS_VERIFY_QUIET', {
       execFile: fakeExecFile as never,
-      setPriority: () => {
+      platform: 'win32',
+      queueWindowsPriority: () => {
         throw new Error('EPERM');
       },
     });
@@ -133,13 +165,49 @@ describe('execFileLowPriority', () => {
     });
     await execFileLowPriority('node', [], {}, 'RAPITAS_VERIFY_QUIET', {
       execFile: fakeExecFile as never,
-      setPriority: () => {
+      queueWindowsPriority: () => {
         called = true;
       },
-      // Pinned so the backend's own (temporary) priority change is not counted.
-      getPriority: () => LOW_PRIORITY,
       platform: 'win32',
     });
     expect(called).toBe(false);
   });
+});
+
+test('execFile の POSIX シェルと孫は、実行順によらず継承値に10だけ足す', async () => {
+  const actual: number[][] = [];
+  for (const inherited of [0, 5]) {
+    for (const parentRunsFirst of [true, false]) {
+      let childNice = inherited;
+      let grandchildNice = inherited;
+      let runNice: () => void = () => {};
+      const setPriority = mock((_pid: number, value: number) => {
+        childNice = value;
+      });
+      const execFile = (
+        _file: string,
+        args: string[],
+        _options: unknown,
+        cb: (err: null, stdout: string, stderr: string) => void,
+      ) => {
+        runNice = () => {
+          childNice = Math.min(19, childNice + Number(args[1]));
+          grandchildNice = childNice;
+        };
+        if (!parentRunsFirst) runNice();
+        cb(null, '', '');
+        return { pid: 4242 };
+      };
+      const deps = { platform: 'linux' as const, execFile: execFile as never, setPriority };
+      await execFileLowPriority('bun run x', [], { shell: true }, 'RAPITAS_VERIFY_QUIET', deps);
+      if (parentRunsFirst) runNice();
+      actual.push([childNice, grandchildNice, setPriority.mock.calls.length]);
+    }
+  }
+  expect(actual).toEqual([
+    [10, 10, 0],
+    [10, 10, 0],
+    [15, 15, 0],
+    [15, 15, 0],
+  ]);
 });
