@@ -7,12 +7,14 @@
  */
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { mkdtempSync, rmSync } from 'fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { SQLITE_INIT_SQL } from '../../src/generated/sqlite-init-sql';
 import { ensureDesktopSqliteDatabase, dropStaleIndexes } from '../../config/desktop-sqlite';
 import { toIdempotentIndexSql } from '../../config/desktop-sqlite-indexes';
+import { ensureDesktopSqliteDatabase as ensureBeforeTask1560 } from './fixtures/task1560/desktop-sqlite';
+import { SQLITE_INIT_SQL as BEFORE_TASK1560_SQL } from './fixtures/task1560/generated/sqlite-init-sql';
 
 /** Removes a temp dir; Windows may hold the SQLite handle briefly, so retry and never fail the test. */
 function cleanup(dir: string): void {
@@ -99,16 +101,74 @@ describe('startup self-heal on an existing DB', () => {
     expect(again).toEqual(after);
   });
 
-  test('init SQL without the new indexes does not create them (contrast)', () => {
-    const stripped = SQLITE_INIT_SQL.split(/;\s*\n/)
-      .filter((s) => !NEW_INDEXES.some((n) => s.includes(`"${n}"`)))
-      .join(';\n');
-    const db = new Database(':memory:');
-    db.exec(stripped);
-    const names = indexNames(db);
-    db.close();
-    for (const n of NEW_INDEXES) expect(names.has(n)).toBe(false);
-  });
+  // SQL単体では起動時の補修経路を検査できないため、旧版の関数全体を実行する。
+  // 全欠落に加え、各索引だけが欠落した既存DBでも旧版→現行版を比較する。
+  const missingCases = [
+    { name: '4索引すべて欠落', missing: NEW_INDEXES },
+    ...NEW_INDEXES.map((name) => ({ name: `${name}のみ欠落`, missing: [name] })),
+  ];
+  test.each(missingCases)(
+    '修正前後の起動処理を既存ファイルで比較: $name',
+    async ({ missing }) => {
+      const db = new Database(dbPath);
+      try {
+        db.exec('BEGIN');
+        // 現行起動処理で準備せず、履歴に固定した旧SQLから既存DBを作る。
+        db.exec(BEFORE_TASK1560_SQL);
+        db.exec(
+          "INSERT INTO User (id, username, email, updatedAt) VALUES (1560, 'task1560', 'task1560@example.test', 0)",
+        );
+        // 旧版が単に何もしなくても対照が通ることを防ぐ、既存self-healの正対照。
+        db.exec('DROP INDEX "AgentExecution_workspaceId_idx"');
+        for (const name of NEW_INDEXES.filter((name) => !missing.includes(name))) {
+          const statement = SQLITE_INIT_SQL.split(';').find((s) => s.includes(`"${name}" ON`));
+          expect(statement).toBeDefined();
+          db.exec(statement!);
+        }
+        expect(NEW_INDEXES.filter((name) => !indexNames(db).has(name))).toEqual(missing);
+        db.exec('COMMIT');
+      } finally {
+        db.close();
+      }
+
+      const oldPath = join(dir, 'before.db');
+      copyFileSync(dbPath, oldPath);
+      const readState = (path: string) => {
+        const reopened = new Database(path, { readonly: true });
+        try {
+          expect(reopened.query('SELECT email FROM User WHERE id = 1560').get()).toEqual({
+            email: 'task1560@example.test',
+          });
+          return indexNames(reopened);
+        } finally {
+          reopened.close();
+        }
+      };
+
+      // 旧起動処理は別経路も含め2回実行する。旧宣言外の索引は既存の掃除で消える。
+      process.env.DATABASE_URL = `file:${oldPath}`;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await ensureBeforeTask1560();
+        const names = readState(oldPath);
+        expect(NEW_INDEXES.filter((name) => names.has(name))).toEqual([]);
+        expect(names.has('AgentExecution_workspaceId_idx')).toBe(true);
+      }
+
+      // 同じ初期状態のファイルへ現行版を実行。全欠落・一部欠落の両方を補修する。
+      process.env.DATABASE_URL = `file:${dbPath}`;
+      expect(NEW_INDEXES.filter((name) => !readState(dbPath).has(name))).toEqual(missing);
+      let previous: Set<string> | undefined;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await ensureDesktopSqliteDatabase();
+        const names = readState(dbPath);
+        expect(NEW_INDEXES.filter((name) => names.has(name))).toEqual(NEW_INDEXES);
+        expect(names.has('AgentExecution_workspaceId_idx')).toBe(true);
+        if (previous) expect(names).toEqual(previous);
+        previous = names;
+      }
+    },
+    30_000,
+  );
 
   test('stale-index cleanup keeps the new indexes', async () => {
     await ensureDesktopSqliteDatabase();
