@@ -54,7 +54,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('WysiwygNoteSurface', () => {
+// NOTE: each test mounts the surface with its toolbar and table handles and
+// takes 40–850ms on an idle machine. Run on the same host as the backend and
+// the gate's own test run (see vitest.config.ts), single tests went past
+// Vitest's 5000ms default with no assertion failing; this limit gives that
+// room without hiding a real hang.
+const RENDER_TEST_TIMEOUT_MS = 20_000;
+
+describe('WysiwygNoteSurface', { timeout: RENDER_TEST_TIMEOUT_MS }, () => {
   it('starts from the given HTML and reports nothing until the user edits', () => {
     const { surface, onEdit, onMarkdown } = mount('<p>本文</p>');
     expect(surface.innerHTML).toBe('<p>本文</p>');

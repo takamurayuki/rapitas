@@ -66,7 +66,15 @@ beforeEach(() => {
   useNoteStore.setState({ source: 'local', notes: [makeNote(SAMPLE)], currentNoteId: 'n1' });
 });
 
-describe('MarkdownNoteEditor', () => {
+// NOTE: these render the whole editor (header, MarkdownView, and in edit mode
+// the visual surface and toolbar) and take 50–1300ms on an idle machine. The
+// verifier runs the suite on the same host as the backend and its own gate run
+// (see vitest.config.ts); under that load single tests went past Vitest's
+// 5000ms default with no assertion failing. The limit gives that room without
+// hiding a real hang.
+const RENDER_TEST_TIMEOUT_MS = 20_000;
+
+describe('MarkdownNoteEditor', { timeout: RENDER_TEST_TIMEOUT_MS }, () => {
   it('renders the body through MarkdownView with the note density', () => {
     const { container } = render(<MarkdownNoteEditor note={makeNote(SAMPLE)} />);
     const view = container.querySelector('[data-density="note"]');

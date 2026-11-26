@@ -18,7 +18,13 @@ vi.mock('react-syntax-highlighter/dist/esm/prism-async-light', () => ({
   ),
 }));
 
-describe('LazySyntaxHighlighter', () => {
+// NOTE: the first findBy waits for next/dynamic to import and transform the
+// highlighter chunk in a cold worker. On a loaded machine that took 1072ms,
+// past Testing Library's 1000ms default, and the test failed with the chunk
+// still loading (no assertion was wrong). The wait is widened, not removed.
+const RESOLVE_TIMEOUT = { timeout: 10_000 };
+
+describe('LazySyntaxHighlighter', { timeout: 20_000 }, () => {
   // NOTE: Single flow — next/dynamic caches the resolved module, so only the
   // very first render in this file can observe the pre-resolution skeleton.
   it('shows the shared SkeletonBlock first, then the highlighted code after resolution', async () => {
@@ -29,7 +35,7 @@ describe('LazySyntaxHighlighter', () => {
     expect(queryByTestId('mock-highlighter')).toBeNull();
     expect(container.querySelector('.animate-pulse')).not.toBeNull();
     // Post-resolution: highlighted code replaces the skeleton.
-    const highlighted = await findByTestId('mock-highlighter');
+    const highlighted = await findByTestId('mock-highlighter', undefined, RESOLVE_TIMEOUT);
     expect(highlighted.textContent).toBe('const lazy = true;');
     expect(container.querySelector('.animate-pulse')).toBeNull();
   });
@@ -38,7 +44,7 @@ describe('LazySyntaxHighlighter', () => {
     const { findByTestId } = render(
       <LazySyntaxHighlighter code={'second'} language="js" theme="oneDark" />,
     );
-    const highlighted = await findByTestId('mock-highlighter');
+    const highlighted = await findByTestId('mock-highlighter', undefined, RESOLVE_TIMEOUT);
     expect(highlighted.textContent).toBe('second');
   });
 });
