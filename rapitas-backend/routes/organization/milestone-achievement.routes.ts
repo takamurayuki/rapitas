@@ -10,7 +10,12 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { isValidEntityId } from '../../utils/common/id-validation';
-import { checkConfirmation, parseMilestoneCriteria, toMilestoneView } from '../../services/goals';
+import {
+  checkConfirmation,
+  milestoneReopenedEvent,
+  parseMilestoneCriteria,
+  toMilestoneView,
+} from '../../services/goals';
 
 const REFUSAL_MESSAGES: Record<string, string> = {
   milestone_criteria_required: '達成条件が決まっていない節目は、達成を確認できません',
@@ -60,10 +65,17 @@ const milestoneAchievementRoutes = new Elysia({ prefix: '/milestones' })
     '/:id/reopen',
     async ({ params }) => {
       const milestone = await loadMilestone(params.id);
-      const updated = await prisma.milestone.update({
+      const update = prisma.milestone.update({
         where: { id: milestone.id },
         data: { status: 'open', evidence: null, reachedAt: null },
       });
+      // NOTE: Only an undone reach is recorded (outcome quality counts these);
+      // update and record share one transaction so neither exists without the other.
+      if (milestone.status !== 'reached') return toMilestoneView(await update);
+      const [updated] = await prisma.$transaction([
+        update,
+        prisma.timelineEvent.create({ data: milestoneReopenedEvent(milestone) }),
+      ]);
       return toMilestoneView(updated);
     },
     { params: t.Object({ id: t.String() }) },

@@ -10,6 +10,7 @@ import {
   goalProgress,
   parseMilestoneCriteria,
   MILESTONE_STATUSES,
+  reachRateWithDue,
 } from './milestone-achievement';
 
 describe('parseMilestoneCriteria', () => {
@@ -102,5 +103,79 @@ describe('goalProgress', () => {
   test('treats an unknown stored status as open, so it is never silently counted as reached', () => {
     expect(goalProgress([{ status: 'done' }]).open).toBe(1);
     expect(MILESTONE_STATUSES).toEqual(['open', 'reached', 'paused']);
+  });
+});
+
+describe('reachRateWithDue', () => {
+  const now = new Date('2026-11-26T00:00:00Z');
+  const day = (n: number) => new Date(now.getTime() + n * 86_400_000);
+  type Row = { status: string; dueDate: Date | null; reachedAt: Date | null };
+  const m = (status: string, dueDate: Date | null, reachedAt: Date | null = null): Row => ({
+    status,
+    dueDate,
+    reachedAt,
+  });
+
+  // Each row: [name, milestones, numerator, denominator, rate]
+  const table: Array<[string, Row[], number, number, number | null]> = [
+    ['reached + overdue open', [m('reached', day(-5), day(-6)), m('open', day(-1))], 1, 2, 0.5],
+    [
+      'paused is out of the denominator even when overdue',
+      [m('reached', null, day(-1)), m('paused', day(-9))],
+      1,
+      1,
+      1,
+    ],
+    [
+      'open before its due date is not counted',
+      [m('reached', day(-3), day(-4)), m('open', day(3))],
+      1,
+      1,
+      1,
+    ],
+    ['open without a due date is not counted', [m('open', null)], 0, 0, null],
+    [
+      'reached without a due date counts as reached',
+      [m('reached', null, day(-2)), m('open', null)],
+      1,
+      1,
+      1,
+    ],
+    ['nothing at all gives null, not 0', [], 0, 0, null],
+    ['only paused gives null', [m('paused', day(-3))], 0, 0, null],
+    ['overdue and never reached gives 0 of 1', [m('open', day(-1))], 0, 1, 0],
+  ];
+
+  test.each(table)('%s', (_name, milestones, numerator, denominator, rate) => {
+    expect(reachRateWithDue(milestones, now)).toEqual({ numerator, denominator, rate });
+  });
+
+  test('a period start keeps only milestones reached or due since then', () => {
+    const milestones = [
+      m('reached', null, day(-40)),
+      m('reached', null, day(-3)),
+      m('open', day(-50)),
+      m('open', day(-2)),
+    ];
+    expect(reachRateWithDue(milestones, now, day(-28))).toEqual({
+      numerator: 1,
+      denominator: 2,
+      rate: 0.5,
+    });
+  });
+
+  test.each([
+    ['到達が期間開始と一致', m('reached', null, day(-28)), 1, 1],
+    ['到達が期間開始の1ms前', m('reached', null, new Date(day(-28).getTime() - 1)), 0, 0],
+    ['期日が期間開始と一致', m('open', day(-28)), 0, 1],
+    ['期日が期間開始の1ms前', m('open', new Date(day(-28).getTime() - 1)), 0, 0],
+    ['期日が現在と一致', m('open', now), 0, 0],
+    ['期日が現在の1ms前', m('open', new Date(now.getTime() - 1)), 0, 1],
+  ] as const)('%s', (_name, row, numerator, denominator) => {
+    expect(reachRateWithDue([row], now, day(-28))).toEqual({
+      numerator,
+      denominator,
+      rate: denominator === 0 ? null : numerator / denominator,
+    });
   });
 });

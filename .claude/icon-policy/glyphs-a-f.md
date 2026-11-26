@@ -42,3 +42,4 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `ALargeSmall` | ノートの装飾ツールバーの「文字サイズ」（`WysiwygStyleMenus`、#1551） |
 | `Baseline` | ノートの装飾ツールバーの「文字色」（`WysiwygStyleMenus`、#1551） |
 | `Bold` / `Italic` / `Strikethrough` | ノートの装飾ツールバーの太字・斜体・取り消し線（`WysiwygToolbar`、#1551） |
+| `ChartLine` | 製品の目的の指標（`/goals/insights` の見出しと、ゴール一覧からの入口リンク — 節目到達率・再開率・成果の品質・前進感の推移を見るページ。注: `ChartNoAxesCombined`＝自己成長台帳、`BarChart2`＝知識の成長トレンドとは別概念） |

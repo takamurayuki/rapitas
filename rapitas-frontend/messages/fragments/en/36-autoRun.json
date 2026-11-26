@@ -31,7 +31,8 @@
         "plan": "Plan",
         "implement": "Implement",
         "verify": "Verify"
-      }
+      },
+      "parallel": "{count} running in parallel"
     }
   }
 }

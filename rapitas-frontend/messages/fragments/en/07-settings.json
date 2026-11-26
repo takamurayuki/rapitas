@@ -259,7 +259,10 @@
       "selfRefillWindowDescription": "Runs the backlog self-refill (concerns/ideas → tasks) at most once a day, not before this time (high/urgent concerns are filed regardless). Clear it to disable self-refill.",
       "selfRefillWindowDisable": "Disable",
       "selfRefillWindowDisabled": "Disabled (no self-refill)",
-      "savingSuffix": " (saving…)"
+      "savingSuffix": " (saving…)",
+      "maxConcurrencyPerThemeLabel": "Auto-run tasks per theme",
+      "maxConcurrencyPerThemeDescription": "How many tasks one theme may run at once when their planned files do not collide (1–4, default 1). Never more than the limit above. A 2nd or later task is chosen only when its planned files, folders and dependencies do not overlap a running task.",
+      "maxConcurrencyPerThemeEnvOverride": "Running with {value} because the AUTO_RUN_THEME_MAX_CONCURRENCY environment variable is set. This setting takes effect once the variable is removed."
     },
     "executionDashboardSettingsCard": {
       "title": "Execution Dashboard",

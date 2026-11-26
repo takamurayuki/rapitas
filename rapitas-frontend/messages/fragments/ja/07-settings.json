@@ -259,7 +259,10 @@
       "selfRefillWindowDescription": "懸念・アイデアからのバックログ自己補充を、この時刻以降に1日1回だけ実行します（重大度 high 以上の懸念は時刻に関係なく起票）。空にすると自己補充を無効にします。",
       "selfRefillWindowDisable": "無効にする",
       "selfRefillWindowDisabled": "無効（自己補充しない）",
-      "savingSuffix": "（保存中…）"
+      "savingSuffix": "（保存中…）",
+      "maxConcurrencyPerThemeLabel": "1つのテーマで同時に動かす自動実行の数",
+      "maxConcurrencyPerThemeDescription": "同じテーマの中で、触るファイルが重ならないタスクを同時にいくつ動かすかを決めます（1〜4、既定 1）。上の「同時に動かす自動実行の数」を超えては動きません。2件目以降は、動いているタスクと計画のファイル・フォルダ・依存が重ならないものだけを選びます。",
+      "maxConcurrencyPerThemeEnvOverride": "環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。"
     },
     "executionDashboardSettingsCard": {
       "title": "実行可視化ダッシュボード",
