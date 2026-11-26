@@ -30,7 +30,7 @@ import {
 } from '../../../services/task/task-criteria-write';
 import { computeCriteriaRevision } from '../../../services/task/task-criteria-revision';
 import { humanSourceLabel } from '../../../utils/common/human-source';
-import { parseSelections, type AnswerSelection } from './answer-selections';
+import { isMalformedSelections, parseSelections, type AnswerSelection } from './answer-selections';
 import { releaseHaltOnHumanAnswer } from '../../../services/workflow/halt-release';
 
 const log = createLogger('routes:workflow:resume');
@@ -298,7 +298,16 @@ export async function handleAnswerWorkflowQuestion({
     set.status = 400;
     throw new ValidationError('answer is required');
   }
-  const selections = parseSelections((body as { selections?: unknown })?.selections);
+  const rawSelections = (body as { selections?: unknown })?.selections;
+  // NOTE: Refuse an unreadable shape instead of answering without the choice;
+  // see isMalformedSelections for the 2026-11-26 criteria that never changed.
+  if (isMalformedSelections(rawSelections)) {
+    set.status = 400;
+    throw new ValidationError(
+      'selections must be an array of {"questionId": string, "selectedKey": string | null}',
+    );
+  }
+  const selections = parseSelections(rawSelections);
 
   try {
     const result = await applyQuestionAnswerByKind({
