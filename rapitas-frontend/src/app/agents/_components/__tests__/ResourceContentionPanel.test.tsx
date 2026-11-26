@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { ResourceContentionPanel } from '../ResourceContentionPanel';
 
 vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
+  // Values are appended so tests can see what a message was formatted with.
+  useTranslations: () => (key: string, values?: Record<string, unknown>) =>
+    values
+      ? `${key} ${Object.entries(values)
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(',')}`
+      : key,
 }));
 
 vi.mock('@/utils/api', () => ({
@@ -23,6 +31,14 @@ const BASE_DEFERRAL = {
   thresholdPercent: 85,
   createdAt: '2026-08-29T00:00:00.000Z',
 };
+
+type AgentsFragment = { agents: { resourceContention: { rapitasCpuNote: string } } };
+
+/** Reads the real message fragment for a locale. */
+function fragment(locale: 'ja' | 'en'): AgentsFragment {
+  const file = path.join(process.cwd(), 'messages', 'fragments', locale, '14-agents.json');
+  return JSON.parse(fs.readFileSync(file, 'utf8')) as AgentsFragment;
+}
 
 function jsonResponse(body: unknown) {
   return { ok: true, json: async () => body };
@@ -90,6 +106,36 @@ describe('ResourceContentionPanel', () => {
 
     expect(screen.getByText('33%')).toBeInTheDocument();
     expect(screen.getByTestId('resource-gate-host-cpu')).toHaveTextContent('97%');
+  });
+
+  it('explains that the gate uses rapitas processes averaged over the window (task 1553 R5)', async () => {
+    routeFetch(mockFetch, { ...BASE_STATUS, rapitasCpuBusyPercent: 33, windowMs: 300000 }, []);
+
+    render(<ResourceContentionPanel />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText('resourceContention.rapitasCpuNote minutes=5')).toBeInTheDocument();
+  });
+
+  it('falls back to a 5-minute window when the backend sends no windowMs', async () => {
+    routeFetch(mockFetch, { ...BASE_STATUS, rapitasCpuBusyPercent: 33 }, []);
+
+    render(<ResourceContentionPanel />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText('resourceContention.rapitasCpuNote minutes=5')).toBeInTheDocument();
+  });
+
+  it('the ja/en messages describe the rapitas-only basis with the window in minutes', () => {
+    const ja = fragment('ja').agents.resourceContention.rapitasCpuNote;
+    const en = fragment('en').agents.resourceContention.rapitasCpuNote;
+    expect(ja).toContain('{minutes} 分');
+    expect(ja).toContain('rapitas');
+    expect(en).toContain('{minutes}');
   });
 
   it('shows "unsampled" when rapitas CPU is not sampled yet even if the host value exists', async () => {

@@ -19,6 +19,9 @@ import { formatDateTime } from '@/utils/date';
 /** Registered with scripts/generate-agents-panels.mjs — see panel-types.ts. */
 export const panelMeta: PanelMeta = { id: 'resource-contention', order: 40 };
 
+/** Backend default for RAPITAS_RESOURCE_CPU_WINDOW_MS; used when an older backend omits windowMs. */
+const DEFAULT_WINDOW_MS = 300_000;
+
 /** Render 92.4 → "92%" (integer percentage, no decimals). */
 function formatPercent(value: number): string {
   return `${Math.round(value)}%`;
@@ -105,6 +108,13 @@ export function ResourceContentionPanel() {
           {status?.enabled ? t('resourceContention.enabled') : t('resourceContention.disabled')}
         </span>
       </div>
+      {status?.rapitasCpuBusyPercent !== undefined && (
+        <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {t('resourceContention.rapitasCpuNote', {
+            minutes: Math.round((status.windowMs ?? DEFAULT_WINDOW_MS) / 60000),
+          })}
+        </p>
+      )}
       <p className="mb-2 text-xs text-zinc-400 dark:text-zinc-500">
         {t('resourceContention.hostCpuNote')}
         {status?.rapitasCpuBusyPercent !== undefined && hostCpu !== null && (
