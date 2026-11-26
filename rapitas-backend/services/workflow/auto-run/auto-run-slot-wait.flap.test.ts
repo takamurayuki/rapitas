@@ -34,6 +34,7 @@ mock.module('./auto-run-concurrency', () => ({
 
 const selectNextTaskMock = mock(async () => ({ found: false, reason: 'concurrency_limit' }));
 mock.module('./auto-run-selection', () => ({
+  getGlobalAutoRunActiveCount: mock(async () => 0),
   overlappingFiles: mock(() => []),
   selectNextTask: selectNextTaskMock,
   recentThemeSuccessRate: mock(async () => null),

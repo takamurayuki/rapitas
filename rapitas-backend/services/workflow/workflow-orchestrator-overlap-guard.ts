@@ -95,8 +95,13 @@ export function overlapHoldAgeMs(taskId: number, nowMs: number = Date.now()): nu
 
 /** Collaborators, injectable for tests. Defaults resolve lazily to stay out of the scheduler's static import graph. */
 export interface OverlapGuardDeps {
+  /**
+   * Open auto-PRs of every theme on the task's repository (task 1552: a theme
+   * split must not hide the other theme's PR). `cwd` is the task's directory.
+   */
   openPrs: (
     themeId: number,
+    cwd: string,
   ) => Promise<Array<{ prNumber: number; linkedTaskId: number | null; createdAt: Date | null }>>;
   prFiles: (cwd: string, prNumber: number) => Promise<string[]>;
   artifact: (taskId: number, fileType: 'plan' | 'research') => Promise<string | null>;
@@ -112,10 +117,10 @@ export interface OverlapGuardDeps {
 }
 
 const defaultDeps: OverlapGuardDeps = {
-  openPrs: async (themeId) => {
+  openPrs: async (themeId, cwd) => {
     const { prisma } = await import('../../config');
-    const { getOpenAutoPrsForTheme } = await import('./auto-run/open-pr-files-cache');
-    return getOpenAutoPrsForTheme(prisma, themeId);
+    const { getOpenAutoPrsForRepository } = await import('./auto-run/open-pr-files-cache');
+    return getOpenAutoPrsForRepository(prisma, themeId, cwd);
   },
   prFiles: async (cwd, prNumber) => {
     const { getPrChangedFiles } = await import('./auto-run/open-pr-files-cache');
@@ -170,7 +175,7 @@ export type OverlapGuardOutcome = { done: true; result: WorkflowAdvanceResult } 
 
 /**
  * Hold the implementer while the files its research/plan names are still
- * changing in another open auto-PR of the theme.
+ * changing in another open auto-PR of the same repository (any theme, task 1552).
  *
  * Returns `{ done: true, result }` with `skipped: true` — the runner re-queues
  * the item without failing it — while the hold is active. Returns
@@ -206,7 +211,7 @@ export async function guardImplementOverlap(
     // ceiling against PR #813 — the one PR it existed to fix (2026-09-25).
     const freshSince = d.now() - OVERLAP_PR_MAX_AGE_MS;
     const own = await d.ownPr(taskId).catch(() => null);
-    const candidates = (await d.openPrs(themeId)).filter(
+    const candidates = (await d.openPrs(themeId, cwd)).filter(
       (pr) =>
         pr.linkedTaskId !== taskId &&
         pr.prNumber !== own &&

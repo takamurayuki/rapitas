@@ -3,7 +3,8 @@
  *
  * PATCH /settings clamps autoRunMaxConcurrency to 1..4 before persisting it,
  * and GET/PATCH /settings report whether the AUTO_RUN_GLOBAL_MAX_CONCURRENCY
- * env var currently overrides the saved value (task 1543).
+ * env var currently overrides the saved value (task 1543). The per-theme limit
+ * autoRunMaxConcurrencyPerTheme follows the same rules (task 1552).
  */
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { Elysia } from 'elysia';
@@ -119,5 +120,44 @@ describe('GET /settings — autoRunMaxConcurrency', () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.autoRunMaxConcurrency).toBe(3);
     expect(body.autoRunMaxConcurrencyEnvOverride).toBe(2);
+  });
+});
+
+/** Values written to autoRunMaxConcurrencyPerTheme across every update call. */
+function persistedPerTheme(): unknown[] {
+  return mockPrisma.userSettings.update.mock.calls
+    .map((c) => c[0].data)
+    .filter((d) => 'autoRunMaxConcurrencyPerTheme' in d)
+    .map((d) => d.autoRunMaxConcurrencyPerTheme);
+}
+
+describe('PATCH/GET /settings — autoRunMaxConcurrencyPerTheme (task 1552)', () => {
+  afterEach(() => {
+    delete process.env.AUTO_RUN_THEME_MAX_CONCURRENCY;
+  });
+
+  test('9 は 4 に、0 は 1 に丸めて保存し、応答も丸めた値にする', async () => {
+    const high = await patch({ autoRunMaxConcurrencyPerTheme: 9 });
+    expect(high.status).toBe(200);
+    expect(high.body.autoRunMaxConcurrencyPerTheme).toBe(4);
+    const low = await patch({ autoRunMaxConcurrencyPerTheme: 0 });
+    expect(low.body.autoRunMaxConcurrencyPerTheme).toBe(1);
+    expect(persistedPerTheme()).toEqual([4, 1]);
+  });
+
+  test('全体の上限と別の書き込みにする（片方の失敗で他方を落とさない）', async () => {
+    await patch({ autoRunMaxConcurrency: 2, autoRunMaxConcurrencyPerTheme: 2 });
+    const writes = mockPrisma.userSettings.update.mock.calls
+      .map((c) => Object.keys(c[0].data))
+      .filter((keys) => keys.some((k) => k.startsWith('autoRunMaxConcurrency')));
+    expect(writes).toEqual([['autoRunMaxConcurrency'], ['autoRunMaxConcurrencyPerTheme']]);
+  });
+
+  test('列が未反映の行でも 1 を返し、env があれば上書き値を返す', async () => {
+    process.env.AUTO_RUN_THEME_MAX_CONCURRENCY = '2';
+    const res = await app.handle(new Request('http://localhost/settings'));
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.autoRunMaxConcurrencyPerTheme).toBe(1);
+    expect(body.autoRunMaxConcurrencyPerThemeEnvOverride).toBe(2);
   });
 });

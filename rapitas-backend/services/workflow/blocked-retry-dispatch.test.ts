@@ -20,11 +20,22 @@ mock.module('../../config/logger', () => ({
   getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
-type ThemeRow = { status: string; enabled: boolean; currentTaskId: number | null; order: string };
+type ThemeRow = {
+  status: string;
+  enabled: boolean;
+  currentTaskId: number | null;
+  order: string;
+  companionTasksJson?: string | null;
+};
 let themeRows: Record<number, ThemeRow | null> = {};
 let runningWithTask = 0;
+let perThemeLimit: number | undefined;
 
 const fakePrisma = {
+  userSettings: {
+    findFirst: () =>
+      Promise.resolve({ autoRunMaxConcurrency: 4, autoRunMaxConcurrencyPerTheme: perThemeLimit }),
+  },
   themeAutoRun: {
     findFirst: (args: { where: { themeId: number } }) =>
       Promise.resolve(themeRows[args.where.themeId] ?? null),
@@ -43,6 +54,7 @@ describe('ensureRetryDispatch (task 1238)', () => {
   beforeEach(() => {
     themeRows = {};
     runningWithTask = 0;
+    perThemeLimit = undefined;
   });
 
   test('running テーマで枠が空き、セレクタが当該タスクを選べば kicked（セレクタは1回、当該 themeId で呼ばれる）', async () => {
@@ -126,5 +138,44 @@ describe('ensureRetryDispatch (task 1238)', () => {
     expect(
       await ensureRetryDispatch(broken, { id: 1, themeId: 7 }, { select: async () => {} }),
     ).toBe('error');
+  });
+
+  // Task 1552: a theme may run a head plus companions.
+  test('per-theme limit 2 with one task running → the selector may add this task', async () => {
+    perThemeLimit = 2;
+    themeRows[7] = { status: 'running', enabled: true, currentTaskId: 999, order: 'priority' };
+    const select = mock(async (_p: unknown, themeId: number) => {
+      themeRows[themeId]!.companionTasksJson = '[{"taskId":1235,"since":1}]';
+    });
+    expect(await ensureRetryDispatch(db, { id: 1235, themeId: 7 }, { select })).toBe('kicked');
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  test('this task already holds a companion slot → slot_busy, no second selection', async () => {
+    perThemeLimit = 2;
+    themeRows[7] = {
+      status: 'running',
+      enabled: true,
+      currentTaskId: 999,
+      order: 'priority',
+      companionTasksJson: '[{"taskId":1235,"since":1}]',
+    };
+    const select = mock(async () => {});
+    expect(await ensureRetryDispatch(db, { id: 1235, themeId: 7 }, { select })).toBe('slot_busy');
+    expect(select).toHaveBeenCalledTimes(0);
+  });
+
+  test('every per-theme slot is taken (head + companion at limit 2) → slot_busy', async () => {
+    perThemeLimit = 2;
+    themeRows[7] = {
+      status: 'running',
+      enabled: true,
+      currentTaskId: 999,
+      order: 'priority',
+      companionTasksJson: '[{"taskId":500,"since":1}]',
+    };
+    expect(await ensureRetryDispatch(db, { id: 1235, themeId: 7 }, { select: mock() })).toBe(
+      'slot_busy',
+    );
   });
 });

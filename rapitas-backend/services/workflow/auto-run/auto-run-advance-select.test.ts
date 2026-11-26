@@ -40,6 +40,7 @@ mock.module('./auto-run-advance-gates', () => ({
 
 const selectNextTaskMock = mock(async () => ({ found: true, taskId: 42, deferred: [43] }));
 mock.module('./auto-run-selection', () => ({
+  getGlobalAutoRunActiveCount: mock(async () => 0),
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY: 1,
   overlappingFiles: mock(() => ['services/overlap.ts']),
   selectNextTask: selectNextTaskMock,

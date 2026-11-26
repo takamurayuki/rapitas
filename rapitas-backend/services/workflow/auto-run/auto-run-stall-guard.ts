@@ -21,14 +21,26 @@ const log = createLogger('auto-run-stall-guard');
 // Consecutive residue detections per theme. In-memory on purpose: a restart
 // merely delays the release, and the scheduler's cancelled-current handling is
 // the primary defence. Deliberately not a time window (windows reset the guard).
-const residueStreak = new Map<number, { taskId: number; count: number }>();
+// NOTE: Keyed per theme AND task (task 1552) — the head and its companions are
+// all checked every tick, and a per-theme entry was reset by the other task
+// each time, so a terminal companion's slot was never freed.
+const residueStreak = new Map<number, Map<number, number>>();
 const RESIDUE_RELEASE_STREAK = 2;
 
 function noteResidue(themeId: number, taskId: number): number {
-  const prev = residueStreak.get(themeId);
-  const count = prev && prev.taskId === taskId ? prev.count + 1 : 1;
-  residueStreak.set(themeId, { taskId, count });
+  const perTask = residueStreak.get(themeId) ?? new Map<number, number>();
+  // A task that left its slot is no longer checked, so its entry just idles.
+  const count = (perTask.get(taskId) ?? 0) + 1;
+  perTask.set(taskId, count);
+  residueStreak.set(themeId, perTask);
   return count;
+}
+
+function clearResidue(themeId: number, taskId: number): void {
+  const perTask = residueStreak.get(themeId);
+  if (!perTask) return;
+  perTask.delete(taskId);
+  if (perTask.size === 0) residueStreak.delete(themeId);
 }
 
 /**
@@ -53,13 +65,13 @@ export async function releaseStaleActiveItems(
   // Positive terminal evidence only — a null lookup can be a transient DB
   // error and must never cancel a live task's items.
   if (!isTaskTerminalForQueue(task)) {
-    residueStreak.delete(themeId);
+    clearResidue(themeId, currentTaskId);
     return 0;
   }
 
   const ids = currentItems.map((i) => i.id);
   if (ids.length === 0) {
-    residueStreak.delete(themeId); // no residue this tick: the streak is broken
+    clearResidue(themeId, currentTaskId); // no residue this tick: the streak is broken
     return 0;
   }
 
@@ -75,7 +87,7 @@ export async function releaseStaleActiveItems(
     })
     .catch(() => ({ count: 0 }));
   if (updated.count === 0) {
-    residueStreak.delete(themeId); // nothing was released (lost CAS): not a recorded residue
+    clearResidue(themeId, currentTaskId); // nothing was released (lost CAS): not a recorded residue
     return 0;
   }
 
@@ -111,7 +123,7 @@ export async function releaseStaleActiveItems(
   // pinned again on the next tick means the theme slot itself must be freed.
   if (noteResidue(themeId, currentTaskId) >= RESIDUE_RELEASE_STREAK) {
     await releaseCurrentTaskIfMatches(prisma, currentTaskId).catch(() => 0);
-    residueStreak.delete(themeId);
+    clearResidue(themeId, currentTaskId);
   }
   return updated.count;
 }

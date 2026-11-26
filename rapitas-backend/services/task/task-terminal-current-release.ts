@@ -13,6 +13,9 @@ const log = createLogger('task-terminal-current-release');
 /** Minimal Prisma surface needed to release a current task. */
 export interface ThemeAutoRunWriter {
   themeAutoRun: {
+    findMany?: (args: {
+      where?: { currentTaskId?: number };
+    }) => Promise<Array<{ themeId: number }>>;
     updateMany: (args: {
       where: { currentTaskId: number };
       data: { currentTaskId: null };
@@ -32,8 +35,36 @@ export function releaseCurrentArgs(taskId: number) {
 }
 
 /**
- * Null out currentTaskId on every theme whose current task is `taskId`.
- * CAS on the id, so a theme that already moved on to another task is untouched.
+ * Drop `taskId` from every theme's companion tasks (task 1552). Best effort and
+ * never throws: a client without the column (or a test stand-in without
+ * `findMany`) releases nothing, and the scheduler's own release catches up.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param taskId - Task that became terminal / 終端化したタスクID
+ * @returns Themes whose companion slot was freed / 解放したテーマ数
+ */
+export async function releaseCompanionSlotsOf(
+  prisma: ThemeAutoRunWriter,
+  taskId: number,
+): Promise<number> {
+  try {
+    // Lazy: keeps the auto-run module graph out of the task-update path's imports.
+    const { releaseCompanionEverywhere } =
+      await import('../workflow/auto-run/parallel/theme-active-set-cleanup');
+    return await releaseCompanionEverywhere(
+      prisma as unknown as Parameters<typeof releaseCompanionEverywhere>[0],
+      taskId,
+    );
+  } catch (err) {
+    log.warn({ err, taskId }, 'Failed to release companion slot (scheduler will)');
+    return 0;
+  }
+}
+
+/**
+ * Null out currentTaskId on every theme whose current task is `taskId`, and
+ * drop it from every theme's companions (task 1552). CAS on the id, so a theme
+ * that already moved on to another task is untouched.
  *
  * @param prisma - Prisma client / Prismaクライアント
  * @param taskId - Task that became terminal / 終端化したタスクID
@@ -42,9 +73,29 @@ export function releaseCurrentArgs(taskId: number) {
 export async function releaseCurrentTaskIfMatches(
   prisma: ThemeAutoRunWriter,
   taskId: number,
+  kind: 'completed' | 'released' = 'released',
 ): Promise<number> {
+  if (typeof prisma.themeAutoRun.findMany === 'function') {
+    // 新列を条件にせず読み、旧クライアントでも対象ID付きCASへ委ねる。
+    const rows = await prisma.themeAutoRun.findMany({});
+    const { releaseThemeSlot } = await import('../workflow/auto-run/parallel/theme-active-set');
+    let count = 0;
+    for (const row of rows) {
+      const result = await releaseThemeSlot(
+        prisma as unknown as Parameters<typeof releaseThemeSlot>[0],
+        row.themeId,
+        taskId,
+        kind,
+        undefined,
+        true,
+      );
+      if (result !== 'not_member') count++;
+    }
+    return count;
+  }
+  // 読み取りを提供しない書き込み専用クライアントでも対象IDは必須。
   const res = await prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId));
-  return res.count;
+  return res.count + (await releaseCompanionSlotsOf(prisma, taskId));
 }
 
 /**
@@ -63,7 +114,11 @@ export async function releaseThemeCurrentOnTerminal(
 ): Promise<void> {
   if (status !== 'done' && status !== 'cancelled') return;
   try {
-    const count = await releaseCurrentTaskIfMatches(prisma, taskId);
+    const count = await releaseCurrentTaskIfMatches(
+      prisma,
+      taskId,
+      status === 'done' ? 'completed' : 'released',
+    );
     if (count > 0) {
       log.info({ taskId, status, count }, 'Released theme currentTaskId of terminal task');
     }

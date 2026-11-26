@@ -19,8 +19,13 @@ import { MAX_NOTE_CONTENT } from './note-limits';
 
 // NOTE: must match EDITOR_HTML_TAG in the frontend's note-content-format.ts —
 // it is the list of tags the contentEditable editor writes.
+// NOTE: span, u and mark were taken off the list: a Markdown note may now hold
+// them as the allowed inline forms (colour, highlight, size, underline), and
+// any other span / u / mark is stripped at save rather than refused (see
+// inline-html/). The editor always wrote div / br around them, so its HTML is
+// still recognised.
 const EDITOR_HTML_TAG =
-  /<\/?(p|div|br|span|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|u|s|strike|a|img|hr|mark)(\s[^<>]*)?\/?>/i;
+  /<\/?(p|div|br|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|s|strike|a|img|hr)(\s[^<>]*)?\/?>/i;
 
 // CommonMark fences: an opener of 3+ backticks or tildes (indented up to 3
 // spaces), closed only by a line of the SAME character, at least as long,
@@ -32,6 +37,7 @@ const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 // spaces and tabs: NBSP and other Unicode spaces are ordinary characters, so
 // `trim()` (which strips them) must not decide where a paragraph ends.
 const LINE_BREAK = /\r\n|\r|\n/;
+const LINE_BREAK_KEPT = /(\r\n|\r|\n)/;
 const BLANK_LINE = /^[ \t]*$/;
 // An ATX heading is a block of its own; it interrupts a paragraph, so a code
 // span can neither run into it nor out of it.
@@ -137,6 +143,124 @@ export function withoutCode(content: string): string {
   }
   flush();
   return kept.join('\n');
+}
+
+/** One piece of a body: prose, or code that save-time rules must not touch. */
+export interface CodeSegment {
+  /** The exact characters of the piece / 断片の文字列（元のまま） */
+  text: string;
+  /** True for a fenced block or a code span / フェンスかインラインコードなら true */
+  code: boolean;
+  /** Paragraph index; tags pair only within one block / 段落番号（同じ段落内だけで対にする） */
+  block: number;
+}
+
+function splitCodeSpans(paragraph: string, block: number, out: CodeSegment[]): void {
+  let text = '';
+  let i = 0;
+  const pushText = () => {
+    if (text !== '') out.push({ text, code: false, block });
+    text = '';
+  };
+  while (i < paragraph.length) {
+    const ch = paragraph[i];
+    if (ch === '\\') {
+      text += paragraph.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (ch !== '`') {
+      text += ch;
+      i += 1;
+      continue;
+    }
+    const openEnd = backtickRunEnd(paragraph, i);
+    const length = openEnd - i;
+    let closeEnd = -1;
+    for (let k = openEnd; k < paragraph.length; ) {
+      if (paragraph[k] !== '`') {
+        k += 1;
+        continue;
+      }
+      const runEnd = backtickRunEnd(paragraph, k);
+      if (runEnd - k === length) {
+        closeEnd = runEnd;
+        break;
+      }
+      k = runEnd;
+    }
+    if (closeEnd < 0) {
+      text += paragraph.slice(i, openEnd);
+      i = openEnd;
+    } else {
+      pushText();
+      out.push({ text: paragraph.slice(i, closeEnd), code: true, block });
+      i = closeEnd;
+    }
+  }
+  pushText();
+}
+
+/**
+ * The body cut into prose and code pieces that, joined, give the body back
+ * character for character (line breaks included).
+ *
+ * Uses the same code rules as `withoutCode` (the shared table holds the two
+ * equal); kept separate so `withoutCode`, which the save check relies on, is
+ * not rewritten.
+ * NOTE: must match `splitByCode` in the frontend's note-content-format.ts.
+ *
+ * @param content - The note body / ノート本文
+ * @returns The pieces in order / 順に並んだ断片
+ */
+export function splitByCode(content: string): CodeSegment[] {
+  const out: CodeSegment[] = [];
+  // split with a capture group keeps each line's own terminator.
+  const parts = content.split(LINE_BREAK_KEPT);
+  let block = 0;
+  let paragraph = '';
+  let fence: { char: string; length: number } | null = null;
+  const flush = () => {
+    if (paragraph !== '') splitCodeSpans(paragraph, block, out);
+    paragraph = '';
+    block += 1;
+  };
+  for (let i = 0; i < parts.length; i += 2) {
+    const line = parts[i] ?? '';
+    const raw = line + (parts[i + 1] ?? '');
+    if (fence) {
+      out.push({ text: raw, code: true, block });
+      const close = FENCE_CLOSE.exec(line)?.[1];
+      if (close && close[0] === fence.char && close.length >= fence.length) {
+        fence = null;
+        block += 1;
+      }
+      continue;
+    }
+    const open = FENCE_OPEN.exec(line);
+    const marker = open?.[1];
+    if (marker && !(marker[0] === '`' && (open[2] ?? '').includes('`'))) {
+      flush();
+      fence = { char: marker[0] ?? '`', length: marker.length };
+      out.push({ text: raw, code: true, block });
+      continue;
+    }
+    if (BLANK_LINE.test(line)) {
+      flush();
+      if (raw !== '') out.push({ text: raw, code: false, block });
+      block += 1;
+      continue;
+    }
+    if (ATX_HEADING.test(line)) {
+      flush();
+      splitCodeSpans(raw, block, out);
+      block += 1;
+      continue;
+    }
+    paragraph += raw;
+  }
+  flush();
+  return out;
 }
 
 /**

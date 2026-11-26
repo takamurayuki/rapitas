@@ -7,6 +7,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens [uri] outside the app and reports whether it succeeded.
@@ -104,10 +105,18 @@ class TaskDescriptionMarkdown extends StatelessWidget {
   /// Opens a link; replaceable in tests. Defaults to the external browser.
   final MarkdownLinkLauncher launcher;
 
+  /// 追加のインライン構文（ノートの装飾 HTML など）。タスク説明では渡さない。
+  final List<md.InlineSyntax>? inlineSyntaxes;
+
+  /// 追加の要素 builder（[inlineSyntaxes] が作る要素の描画）。
+  final Map<String, MarkdownElementBuilder> builders;
+
   const TaskDescriptionMarkdown({
     super.key,
     required this.data,
     this.launcher = _launchExternally,
+    this.inlineSyntaxes,
+    this.builders = const <String, MarkdownElementBuilder>{},
   });
 
   @override
@@ -123,6 +132,8 @@ class TaskDescriptionMarkdown extends StatelessWidget {
       softLineBreak: true,
       styleSheet: buildTaskDescriptionStyleSheet(Theme.of(context)),
       onTapLink: (text, href, title) => _openLink(context, href),
+      inlineSyntaxes: inlineSyntaxes,
+      builders: builders,
     );
   }
 

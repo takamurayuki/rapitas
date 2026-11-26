@@ -38,6 +38,12 @@ export interface RetryDispatchDeps {
   select?: SelectFn;
 }
 
+/** Head plus companion ids of a theme row (task 1552). */
+function runningIds(head: number | null, companions: Array<{ taskId: number }>): number[] {
+  const ids = companions.map((c) => c.taskId);
+  return head != null ? [head, ...ids] : ids;
+}
+
 /**
  * Attempt to dispatch a just-reset task through the theme's own selector.
  *
@@ -57,19 +63,33 @@ export async function ensureRetryDispatch(
 ): Promise<RetryDispatchOutcome> {
   try {
     if (task.themeId == null) return 'theme_not_running';
-    const theme = await prisma.themeAutoRun.findFirst({
+    // NOTE: no `select` — companionTasksJson (task 1552) is pending client regeneration.
+    const theme = (await prisma.themeAutoRun.findFirst({
       where: { themeId: task.themeId },
-      select: { enabled: true, status: true, currentTaskId: true, order: true },
-    });
+    })) as {
+      enabled: boolean;
+      status: string;
+      currentTaskId: number | null;
+      order: string;
+      companionTasksJson?: unknown;
+    } | null;
     if (!theme || !theme.enabled || theme.status !== 'running') return 'theme_not_running';
-    // The slot is held — by another task (normal wait) or by this task itself,
-    // which the scheduler's own current-task branch resumes. Either way a
-    // second selection would only add concurrency.
-    if (theme.currentTaskId != null) return 'slot_busy';
+    const { parseCompanions } = await import('./auto-run/parallel/companion-json');
+    const { effectivePerThemeLimit } = await import('./auto-run/parallel/companion-entry');
+    const running = runningIds(theme.currentTaskId, parseCompanions(theme.companionTasksJson));
+    // This task already holds a slot (the scheduler's own branch resumes it), or
+    // every per-theme slot is taken (task 1552: the head alone at limit 1).
+    // Either way a second selection would only add concurrency.
+    if (running.includes(task.id)) return 'slot_busy';
+    if (running.length >= (await effectivePerThemeLimit(prisma))) return 'slot_busy';
 
-    const globalActive = await prisma.themeAutoRun.count({
-      where: { enabled: true, status: 'running', currentTaskId: { not: null } },
-    });
+    // The same count the scheduler gates on; the legacy count is the fallback.
+    const { countGlobalActiveSlots } = await import('./auto-run/parallel/global-active-slots');
+    const globalActive = await countGlobalActiveSlots(prisma).catch(() =>
+      prisma.themeAutoRun.count({
+        where: { enabled: true, status: 'running', currentTaskId: { not: null } },
+      }),
+    );
     const select =
       deps.select ?? (await import('./auto-run/auto-run-advance-select')).selectAndEnqueueNextTask;
     await select(
@@ -80,11 +100,15 @@ export async function ensureRetryDispatch(
       new Map(),
     );
 
-    const after = await prisma.themeAutoRun.findFirst({
-      where: { themeId: task.themeId },
-      select: { currentTaskId: true },
-    });
-    return after?.currentTaskId === task.id ? 'kicked' : 'not_selected';
+    const after = (await prisma.themeAutoRun.findFirst({ where: { themeId: task.themeId } })) as {
+      currentTaskId: number | null;
+      companionTasksJson?: unknown;
+    } | null;
+    const afterIds = runningIds(
+      after?.currentTaskId ?? null,
+      parseCompanions(after?.companionTasksJson),
+    );
+    return afterIds.includes(task.id) ? 'kicked' : 'not_selected';
   } catch (err) {
     log.warn({ err, taskId: task.id }, '[blocked-retry] dispatch attempt failed — leaving reset');
     return 'error';

@@ -37,6 +37,19 @@ export interface CurrentTask {
   workflowMode?: string | null;
   /** Send-backs to an earlier phase, or null when none. */
   rework?: ReworkSummary | null;
+  /**
+   * Other tasks of the theme running in parallel with this one (task 1552),
+   * copied from the response's `activeTasks`; absent or empty = one at a time.
+   */
+  companions?: ActiveTask[];
+}
+
+/** One running task of the theme, head first (task 1552). */
+export interface ActiveTask {
+  id: number;
+  title: string;
+  /** `head` = currentTask, `companion` = a 2nd+ task running alongside it. */
+  role: 'head' | 'companion';
 }
 
 /** How often the task was sent back, and the most recent send-back. */
@@ -53,6 +66,25 @@ export interface AutoRunData {
   autoRun: ThemeAutoRunState;
   currentTask: CurrentTask | null;
   remainingCount: number;
+  /** Every running task of the theme (task 1552); absent from older backends. */
+  activeTasks?: ActiveTask[];
+}
+
+/**
+ * Attach the companions to the head so the progress strip, which receives only
+ * the current task, can show parallel work.
+ *
+ * @param currentTask - Head task from the response / 先頭タスク
+ * @param activeTasks - Every running task / 動作中の全タスク
+ * @returns The head with its companions, or null / 同伴タスク付きの先頭
+ */
+export function withCompanions(
+  currentTask: CurrentTask | null,
+  activeTasks: ActiveTask[] | undefined,
+): CurrentTask | null {
+  if (!currentTask) return null;
+  const companions = (activeTasks ?? []).filter((a) => a.role === 'companion');
+  return companions.length > 0 ? { ...currentTask, companions } : currentTask;
 }
 
 /** What the hook returns, so one call can feed several components. */
@@ -152,8 +184,9 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
       if (json.success && json.autoRun) {
         setData({
           autoRun: json.autoRun,
-          currentTask: json.currentTask ?? null,
+          currentTask: withCompanions(json.currentTask ?? null, json.activeTasks),
           remainingCount: json.remainingCount ?? 0,
+          activeTasks: json.activeTasks,
         });
       }
     } catch {
