@@ -98,10 +98,8 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
 
   const turbopackRoot = computeTurbopackRootOverride(cwd);
   log.info({ command, cwd, port, turbopackRoot }, '[runtime-smoke] launching app under test');
-  // NOTE: Started at BELOW_NORMAL / nice 10 from its first instruction (task 1553):
-  // lowering the pid after spawn() let the shell start the dev server at normal
-  // priority first. Untracked: spawnLowPriority's activeChildren set feeds the
-  // restart gate, and a preview server alive for minutes would block restarts.
+  // Windows は起動後にツリーへ BelowNormal を適用し、POSIX は nice で起動する。
+  // プレビューのサーバーを再起動ゲートの追跡対象に含めない。
   const proc: ChildProcess = spawnLowPriorityUntracked(
     command,
     [],
