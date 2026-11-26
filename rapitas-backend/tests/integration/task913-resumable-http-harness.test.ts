@@ -314,11 +314,17 @@ describe('DB-query-failure injection — raw count succeeds, resumable computati
     }));
   });
 
-  test('GET /agents/system-status reports interrupted_executions_unknown, never healthy, with the raw count intact', async () => {
+  // NOTE: Expected interrupted_executions_unknown until 59bdd63ea (2026-09-10)
+  // made agent-system-router check activeExecutionsDegraded first. This fault
+  // fails getCurrentActiveExecutionIds, which degrades BOTH counts, and with the
+  // active count unknown the router cannot say busy or idle either — so
+  // active_executions_unknown is the right answer. The task 913 invariant
+  // (a failed computation never reads as healthy) is what this still pins.
+  test('GET /agents/system-status reports a degraded status, never healthy, with the raw count intact', async () => {
     const { body } = await handle('/agents/system-status');
     expect(body.interruptedExecutionsHistoryCount).toBe(3);
     expect(body.interruptedExecutionsDegraded).toBe(true);
-    expect(body.status).toBe('interrupted_executions_unknown');
+    expect(body.status).toBe('active_executions_unknown');
     expect(body.status).not.toBe('healthy');
   });
 });
