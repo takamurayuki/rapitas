@@ -16,6 +16,10 @@ export interface ResourceGateStatus {
   enabled: boolean;
   thresholdPercent: number;
   hostCpuBusyPercent: number | null;
+  /** rapitas process-tree CPU over windowMs — the gate's decision basis (task 1553). Absent on older backends. */
+  rapitasCpuBusyPercent?: number | null;
+  /** Averaging window of rapitasCpuBusyPercent (ms). */
+  windowMs?: number;
   effectiveMaxConcurrency: number;
 }
 

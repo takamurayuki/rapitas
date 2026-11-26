@@ -3,7 +3,8 @@
  * ResourceContentionPanel
  *
  * Read/act surface for the resource-contention gate (task 725):
- * enabled flag, current host CPU usage vs threshold, effective concurrency,
+ * enabled flag, rapitas's own CPU usage (the gate's basis since task 1553;
+ * host-wide usage shown for reference) vs threshold, effective concurrency,
  * a table of recent selection deferrals, and a per-theme "今すぐ実行" manual
  * override. Not responsible for the gate decision itself (backend-only) — see
  * services/workflow/auto-run/resource-contention-gate.ts.
@@ -71,6 +72,13 @@ export function ResourceContentionPanel() {
   // until the first response settles to avoid a flash of the empty state.
   if (!loaded) return null;
 
+  // The gate decides on rapitas's process-tree CPU; older backends only send the host value.
+  const decisionCpu =
+    status?.rapitasCpuBusyPercent !== undefined
+      ? status.rapitasCpuBusyPercent
+      : (status?.hostCpuBusyPercent ?? null);
+  const hostCpu = status?.hostCpuBusyPercent ?? null;
+
   const handleRunNow = async (themeId: number) => {
     setPendingThemeId(themeId);
     try {
@@ -99,13 +107,14 @@ export function ResourceContentionPanel() {
       </div>
       <p className="mb-2 text-xs text-zinc-400 dark:text-zinc-500">
         {t('resourceContention.hostCpuNote')}
+        {status?.rapitasCpuBusyPercent !== undefined && hostCpu !== null && (
+          <span data-testid="resource-gate-host-cpu"> {formatPercent(hostCpu)}</span>
+        )}
       </p>
       <div className="mb-3 grid grid-cols-3 divide-x divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
         <div className="px-4 py-3">
           <div className="text-lg font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-            {status?.hostCpuBusyPercent === null || status?.hostCpuBusyPercent === undefined
-              ? t('resourceContention.unsampled')
-              : formatPercent(status.hostCpuBusyPercent)}
+            {decisionCpu === null ? t('resourceContention.unsampled') : formatPercent(decisionCpu)}
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {t('resourceContention.currentCpu')}

@@ -17,8 +17,15 @@ mock.module('../workflow-queue', () => ({
 mock.module('./auto-run-notifications', () => ({
   notifyResourceContentionHold: mock(async () => {}),
 }));
+// Mirror every resource-telemetry export (task 1553 added the rapitas CPU ones).
 mock.module('../../system/resource-telemetry', () => ({
   getHostCpuBusyPercent: () => null,
+  getRapitasCpuBusyPercent: () => null,
+  getRapitasCpuWindowMs: () => 300_000,
+  sampleResourceTelemetryNow: async () => {},
+  startResourceTelemetryIfEnabled: () => {},
+  stopResourceTelemetry: () => {},
+  computeBusyPercent: () => null,
 }));
 
 // Busy blocks and the poller status are read through calendar-store

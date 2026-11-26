@@ -76,6 +76,37 @@ describe('ResourceContentionPanel', () => {
     expect(screen.getByText('4')).toBeInTheDocument();
   });
 
+  it('shows rapitas CPU (the gate basis) in the tile and host CPU only as reference (task 1553)', async () => {
+    routeFetch(
+      mockFetch,
+      { ...BASE_STATUS, hostCpuBusyPercent: 97, rapitasCpuBusyPercent: 33, windowMs: 300000 },
+      [],
+    );
+
+    render(<ResourceContentionPanel />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText('33%')).toBeInTheDocument();
+    expect(screen.getByTestId('resource-gate-host-cpu')).toHaveTextContent('97%');
+  });
+
+  it('shows "unsampled" when rapitas CPU is not sampled yet even if the host value exists', async () => {
+    routeFetch(
+      mockFetch,
+      { ...BASE_STATUS, hostCpuBusyPercent: 97, rapitasCpuBusyPercent: null },
+      [],
+    );
+
+    render(<ResourceContentionPanel />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText('resourceContention.unsampled')).toBeInTheDocument();
+  });
+
   it('shows the disabled badge and "unsampled" when CPU has not been sampled', async () => {
     routeFetch(mockFetch, { ...BASE_STATUS, enabled: false, hostCpuBusyPercent: null }, []);
 
