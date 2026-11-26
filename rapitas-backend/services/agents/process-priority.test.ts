@@ -95,3 +95,36 @@ describe('spawnLowPriority', () => {
     expect(child.pid).toBe(777);
   });
 });
+
+describe('spawnLowPriority priority (task 1553)', () => {
+  test('LOW_PRIORITY is PRIORITY_BELOW_NORMAL = 10 (Windows BelowNormal / POSIX nice 10)', async () => {
+    const os = await import('node:os');
+    expect(LOW_PRIORITY).toBe(os.constants.priority.PRIORITY_BELOW_NORMAL);
+    expect(LOW_PRIORITY).toBe(10);
+  });
+
+  test('calls setPriority(pid, 10) on the spawned child', () => {
+    const prio: Array<[number, number]> = [];
+    const spawned: string[] = [];
+    const child = spawnLowPriority('tsc', ['--noEmit'], {}, 'RAPITAS_VERIFY_QUIET', {
+      spawn: ((cmd: string) => {
+        spawned.push(cmd);
+        return { pid: 4242, once: () => {} };
+      }) as never,
+      setPriority: (pid, n) => void prio.push([pid, n]),
+    });
+    expect(spawned).toEqual(['tsc']);
+    expect(child.pid).toBe(4242);
+    expect(prio).toEqual([[4242, 10]]);
+  });
+
+  test('RAPITAS_VERIFY_QUIET=off skips setPriority', () => {
+    process.env.RAPITAS_VERIFY_QUIET = 'off';
+    const prio: Array<[number, number]> = [];
+    spawnLowPriority('tsc', [], {}, 'RAPITAS_VERIFY_QUIET', {
+      spawn: (() => ({ pid: 1, once: () => {} })) as never,
+      setPriority: (pid, n) => void prio.push([pid, n]),
+    });
+    expect(prio).toEqual([]);
+  });
+});

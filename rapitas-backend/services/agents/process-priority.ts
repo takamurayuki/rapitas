@@ -66,6 +66,12 @@ export function lowerProcessPriority(
   }
 }
 
+/** Collaborators of spawnLowPriority, injectable for tests. */
+interface SpawnDeps {
+  spawn: (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+  setPriority: (pid: number, priority: number) => void;
+}
+
 /**
  * `spawn()` that drops the child to BELOW_NORMAL right after it starts.
  *
@@ -73,6 +79,7 @@ export function lowerProcessPriority(
  * @param args - Arguments, as for `spawn()`. / 引数
  * @param options - Passed to `spawn()` unchanged. / spawn オプション
  * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides for spawn / setPriority. / テスト用差し替え
  * @returns The child process. / 子プロセス
  */
 export function spawnLowPriority(
@@ -80,9 +87,11 @@ export function spawnLowPriority(
   args: string[],
   options: SpawnOptions,
   flag: PriorityFlag = 'RAPITAS_AGENT_QUIET',
+  deps: Partial<SpawnDeps> = {},
 ): ChildProcess {
-  const child = spawn(command, args, options);
-  lowerProcessPriority(child.pid, flag);
+  const d: SpawnDeps = { spawn, setPriority: os.setPriority, ...deps };
+  const child = d.spawn(command, args, options);
+  lowerProcessPriority(child.pid, flag, d.setPriority);
   // Track liveness so restart gates can refuse to kill the backend while a
   // helper (verification run, agent CLI) is mid-flight: children spawned via
   // a shell inherit the listen socket, and a restart during a verify run left

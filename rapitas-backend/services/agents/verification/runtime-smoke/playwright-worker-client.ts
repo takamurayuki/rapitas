@@ -11,6 +11,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
+import { lowerProcessPriority } from '../../process-priority';
 
 const log = createLogger('playwright-worker-client');
 
@@ -100,6 +101,9 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  // BELOW_NORMAL (task 1553); the browser it launches inherits it on Windows.
+  // Not spawnLowPriority, so the restart gate's helper count stays unaffected.
+  lowerProcessPriority(proc.pid, 'RAPITAS_VERIFY_QUIET');
 
   let nextId = 1;
   const pending = new Map<number, PendingCall>();

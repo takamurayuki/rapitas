@@ -12,6 +12,7 @@ import { dirname, join } from 'path';
 import { createLogger } from '../../../../config/logger';
 import { killProcessTreeSafely } from '../../agent-process-tracker';
 import { buildSanitizedSpawnEnv } from '../../../../utils/agent/sanitize-cli-env';
+import { lowerProcessPriority } from '../../process-priority';
 
 const log = createLogger('runtime-smoke:launcher');
 
@@ -113,6 +114,10 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
     }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  // NOTE: BELOW_NORMAL like every verification child (task 1553). Not via
+  // spawnLowPriority: its activeChildren set feeds the restart gate, and a
+  // preview server alive for minutes would block restarts the whole time.
+  lowerProcessPriority(proc.pid, 'RAPITAS_VERIFY_QUIET');
   proc.stdout?.on('data', push);
   proc.stderr?.on('data', push);
   proc.on('error', (err) => push(`[spawn error] ${err.message}`));
