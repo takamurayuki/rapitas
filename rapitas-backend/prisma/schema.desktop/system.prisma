@@ -79,6 +79,10 @@ model UserSettings {
   // once, 1..4. The AUTO_RUN_GLOBAL_MAX_CONCURRENCY env var wins when set, so
   // existing deployments keep their value. See auto-run-concurrency.ts.
   autoRunMaxConcurrency       Int       @default(1)
+  // Per-theme auto-run concurrency (task 1552): how many tasks ONE theme may run
+  // at once, 1..4. The effective cap is min(this, autoRunMaxConcurrency). The
+  // AUTO_RUN_THEME_MAX_CONCURRENCY env var wins when set. Default 1 = one at a time.
+  autoRunMaxConcurrencyPerTheme Int     @default(1)
   // Nightly self-refill window (task 784): backlog self-refill (concerns/ideas
   // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
   // string disables self-refill entirely. See backlog-task-promoter.ts.

@@ -40,6 +40,7 @@ import { isTaskPlanApproved } from '../plan-approval-queue-sync';
 import { resolveForbiddenChangePlanHold } from '../forbidden-change-plan-hold';
 import { isManualPlanApprovalHeld } from '../plan-auto-approve';
 import { isAutoResumablePauseStatus, narrowAutoRunStatus } from './theme-auto-run-types';
+import { releaseThemeSlot } from './parallel/theme-active-set';
 
 const log = createLogger('workflow:approval-pause-release');
 
@@ -171,11 +172,16 @@ export async function releaseApprovalPause(
     }
   }
 
-  const freed = await prisma.themeAutoRun.updateMany({
-    where: { themeId, currentTaskId: taskId, status: { in: ['paused_approval'] } },
-    data: { status: 'running', currentTaskId: null },
-  });
-  if (freed.count !== 1) return false;
+  const freed = await releaseThemeSlot(
+    prisma,
+    themeId,
+    taskId,
+    'released',
+    undefined,
+    true,
+    'paused_approval',
+  );
+  if (freed === 'not_member') return false;
 
   await prisma.workflowQueueItem
     .updateMany({

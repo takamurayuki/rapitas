@@ -34,6 +34,8 @@ export interface UserSettingsUpdateBody {
   idleStopMinutes?: number;
   /** Global auto-run concurrency 1..4 (task 1543); the env var wins when set. */
   autoRunMaxConcurrency?: number;
+  /** Per-theme auto-run concurrency 1..4 (task 1552); capped by the global value, the env var wins. */
+  autoRunMaxConcurrencyPerTheme?: number;
   /** Local "HH:MM" the nightly backlog self-refill window opens ('' = self-refill off). */
   selfRefillWindowStart?: string;
   /** Dev: auto-restart when merged-but-inactive commits are detected on origin (file-backed, no DB column). */

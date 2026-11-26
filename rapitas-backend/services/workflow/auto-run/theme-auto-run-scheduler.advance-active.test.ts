@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import {
   mockStopTaskTreeAgents,
   mockResumeTransition,
@@ -86,7 +87,7 @@ describe('advanceTheme — hang backstop', () => {
       expect(mockStopTaskTreeAgents).not.toHaveBeenCalled();
       expect(mockTaskUpdate).not.toHaveBeenCalled();
       expect(mockNotifyAwaitingUserAnswer).toHaveBeenCalledWith(1, 100);
-      expect(mockSetCurrentTask).toHaveBeenCalledWith(1, null);
+      expectTaskSlotRelease('released', 100);
       mockResolveTaskWorkflowState.mockResolvedValue({
         id: 100,
         status: 'in-progress',
@@ -173,7 +174,7 @@ describe('advanceTheme — hang backstop', () => {
       where: { id: 100, updatedAt: new Date(0) },
       data: { status: 'blocked', updatedAt: expect.any(Date) },
     });
-    expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
+    expectTaskSlotRelease('failed', 100, expect.stringContaining('100'));
     // Recurses with currentTaskId=null and globalActive decremented by 1.
     expect(mockBroadcast).toHaveBeenCalled();
     // Task 793: the row must name the backstop as the cause AND record a real
@@ -303,7 +304,7 @@ describe('advanceTheme — hang backstop', () => {
     // 強制停止はしない
     expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
     // かつ、完了として解決され次へ進む
-    expect(mockOnTaskCompleted).toHaveBeenCalledWith(1);
+    expectTaskSlotRelease('completed', 100);
   });
 
   it('does not trigger the backstop for a task still within its wall budget', async () => {
@@ -393,7 +394,7 @@ describe('advanceTheme — stall guard fall-through (task 618)', () => {
     expect(args[1]).toBe(1);
     expect(args[2]).toBe(100);
     expect(args[3]).toEqual([{ id: 1, taskId: 100, status: 'running' }]);
-    expect(mockOnTaskCompleted).toHaveBeenCalledWith(1);
+    expectTaskSlotRelease('completed', 100);
   });
 
   it('解除ゼロ（通常の非終端タスク）なら従来どおり無副作用で待機する', async () => {
@@ -455,7 +456,7 @@ describe('advanceTheme — terminal resolution: completed', () => {
 
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
 
-    expect(mockOnTaskCompleted).toHaveBeenCalledWith(1);
+    expectTaskSlotRelease('completed', 100);
   });
 });
 
@@ -493,7 +494,7 @@ describe('advanceTheme — terminal resolution: failed/blocked', () => {
       where: { id: 100, updatedAt: new Date(0) },
       data: { status: 'blocked', updatedAt: expect.any(Date) },
     });
-    expect(mockOnTaskFailed).toHaveBeenCalledWith(1, 'boom');
+    expectTaskSlotRelease('failed', 100, 'boom');
     expect(mockNotifyTaskSkipped).toHaveBeenCalledWith(1, 100, 'boom');
   });
 
@@ -565,7 +566,7 @@ describe('advanceTheme — terminal resolution: failed/blocked', () => {
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
 
     expect(mockTaskUpdate).not.toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 100);
   });
 
   it('falls back to a generic message when the terminal item has no errorMessage', async () => {
@@ -580,7 +581,7 @@ describe('advanceTheme — terminal resolution: failed/blocked', () => {
 
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, freshLastRunAt());
 
-    expect(mockOnTaskFailed).toHaveBeenCalledWith(1, expect.stringContaining('100'));
+    expectTaskSlotRelease('failed', 100, expect.stringContaining('100'));
   });
 });
 

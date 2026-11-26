@@ -4,7 +4,8 @@
  *
  * Full-width strip under the home toolbar, shown only while auto-run is on:
  * the task being worked on (a link to its detail page), its phase, the
- * remaining backlog and the time since the run started. The toolbar panel
+ * remaining backlog and the time since the run started. With several tasks
+ * running in the theme (task 1552) it also lists the others. The toolbar panel
  * beside the task buttons only had room for "実行中" (2026-11-21).
  * Not responsible for controlling the run or for fetching its state.
  */
@@ -176,6 +177,30 @@ export function AutoRunProgressStrip({
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
               <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
               {t('progress.awaitingAnswer')}
+            </span>
+          )}
+
+          {currentTask.companions && currentTask.companions.length > 0 && (
+            // Task 1552: other tasks of the theme run alongside the head. No new
+            // glyph (ICON_POLICY) — the ids link to their detail pages.
+            <span
+              data-testid="auto-run-parallel"
+              className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-zinc-600 dark:text-zinc-300"
+            >
+              <span className="font-medium">
+                {t('progress.parallel', { count: currentTask.companions.length + 1 })}
+              </span>
+              {currentTask.companions.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/tasks/${c.id}?showHeader=true`}
+                  title={c.title}
+                  aria-label={`#${c.id} ${c.title}`}
+                  className="text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  #{c.id} {c.title}
+                </Link>
+              ))}
             </span>
           )}
 

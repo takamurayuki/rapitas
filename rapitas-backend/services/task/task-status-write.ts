@@ -9,7 +9,12 @@
  * Not responsible for deciding the update's fields — task-mutations builds them.
  */
 import type { PrismaClient } from '../../generated/prisma-postgres';
-import { releaseCurrentArgs, releaseThemeCurrentOnTerminal } from './task-terminal-current-release';
+import {
+  releaseCompanionSlotsOf,
+  releaseCurrentArgs,
+  releaseCurrentTaskIfMatches,
+  releaseThemeCurrentOnTerminal,
+} from './task-terminal-current-release';
 import {
   completionRecordBatchOps,
   onTaskCompleted,
@@ -46,6 +51,27 @@ export async function writeTaskStatusUpdate(
   // NOTE: atomic by design (acceptance 1) — a failed release also fails the status update.
   // Terminal status: release the theme's currentTaskId in the SAME transaction (task 1009).
   if ((status === 'done' || status === 'cancelled') && typeof prisma.$transaction === 'function') {
+    if (typeof prisma.themeAutoRun.findMany === 'function') {
+      const recorded = await prisma.$transaction(async (tx) => {
+        await tx.task.update(updateArgs);
+        await releaseCurrentTaskIfMatches(tx, taskId, status === 'done' ? 'completed' : 'released');
+        const ops =
+          completing && tx.taskDeliverableCompletion
+            ? completionRecordBatchOps(
+                tx as PrismaInstance,
+                taskId,
+                workspaceId,
+                'manual',
+                completionAt,
+              )
+            : [];
+        await Promise.all(ops);
+        return ops.length > 0;
+      });
+      if (completing)
+        onTaskCompleted(taskId, 'manual', { recorded, completedAt: completionAt, db: prisma });
+      return;
+    }
     // Notes stage 1: a client without the record delegate (a stand-in) gets no
     // record ops and falls back to the after-the-fact write below.
     const recordOps =
@@ -58,6 +84,9 @@ export async function writeTaskStatusUpdate(
       prisma.themeAutoRun.updateMany(releaseCurrentArgs(taskId)),
       ...recordOps,
     ]);
+    // Task 1552: a companion slot lives in JSON, which a batch transaction
+    // cannot edit by value; freed right after (best effort, never throws).
+    await releaseCompanionSlotsOf(prisma, taskId);
     if (completing) {
       onTaskCompleted(taskId, 'manual', {
         recorded: recordOps.length > 0,

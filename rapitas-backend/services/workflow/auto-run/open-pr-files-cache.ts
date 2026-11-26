@@ -123,9 +123,41 @@ export async function getOpenAutoPrsForTheme(
   themeId: number,
   deps: PrFilesDeps = defaultDeps,
 ): Promise<OpenAutoPr[]> {
+  return openAutoPrsForThemes(prisma, themeId, [themeId], undefined, deps);
+}
+
+/**
+ * Open auto-created PRs of EVERY theme on the same repository as `themeId`
+ * (task 1552): a theme split (e.g. theme 49 next to theme 1) must not hide the
+ * other theme's PR from the overlap checks. The same closed/merged and
+ * exhausted filtering as {@link getOpenAutoPrsForTheme} applies.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param themeId - Theme being checked / 対象テーマ
+ * @param cwd - Its working directory when already known / 既知の作業ディレクトリ
+ * @returns Open auto-PRs, [] on any DB error (fail-open) / オープン自動PR一覧
+ */
+export async function getOpenAutoPrsForRepository(
+  prisma: PrismaClient,
+  themeId: number,
+  cwd?: string | null,
+  deps: PrFilesDeps = defaultDeps,
+): Promise<OpenAutoPr[]> {
+  const { repositoryThemeIds } = await import('./parallel/repository-peers');
+  const repo = await repositoryThemeIds(prisma, themeId, cwd);
+  return openAutoPrsForThemes(prisma, themeId, repo.themeIds, repo.cwd ?? undefined, deps);
+}
+
+async function openAutoPrsForThemes(
+  prisma: PrismaClient,
+  themeId: number,
+  themeIds: number[],
+  knownCwd: string | undefined,
+  deps: PrFilesDeps,
+): Promise<OpenAutoPr[]> {
   try {
     const tasks = await prisma.task.findMany({
-      where: { themeId },
+      where: themeIds.length === 1 ? { themeId: themeIds[0]! } : { themeId: { in: themeIds } },
       select: { id: true },
     });
     if (tasks.length === 0) return [];
@@ -134,11 +166,14 @@ export async function getOpenAutoPrsForTheme(
       select: { prNumber: true, linkedTaskId: true, createdAt: true },
     });
     if (rows.length === 0) return rows;
-    const theme = await prisma.theme.findUnique({
-      where: { id: themeId },
-      select: { workingDirectory: true },
-    });
-    const cwd = theme?.workingDirectory;
+    const cwd =
+      knownCwd ??
+      (
+        await prisma.theme.findUnique({
+          where: { id: themeId },
+          select: { workingDirectory: true },
+        })
+      )?.workingDirectory;
     if (!cwd) return rows;
     const snapshots = await mapWithConcurrency(rows, MAX_CONCURRENT_GH_CALLS, (row) =>
       getPrSnapshot(cwd, row.prNumber, deps),
