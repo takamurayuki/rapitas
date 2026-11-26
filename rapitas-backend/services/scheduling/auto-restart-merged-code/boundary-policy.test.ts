@@ -11,6 +11,8 @@ import {
   classifyMergeUrgency,
   decideBoundaryRestart,
   resolveRestartMinIntervalMs,
+  resolvePollerMinRestartIntervalMs,
+  resolveDevRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
   type BoundaryRestartInput,
@@ -199,6 +201,8 @@ describe('decideBoundaryRestart — UI activity and deferrals', () => {
 
 const ENV_KEYS = [
   'RAPITAS_RESTART_MIN_INTERVAL_MS',
+  'RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS',
+  'RAPITAS_DEV_RESTART_MIN_INTERVAL_MS',
   'RAPITAS_RESTART_UI_QUIET_MS',
   'RAPITAS_RESTART_MAX_DEFERRALS',
 ] as const;
@@ -217,8 +221,8 @@ describe('env resolvers', () => {
     }
   });
 
-  test('defaults: 10 min interval, 3 min UI quiet, 5 deferrals', () => {
-    expect(resolveRestartMinIntervalMs()).toBe(600_000);
+  test('defaults: 60 min interval, 3 min UI quiet, 5 deferrals', () => {
+    expect(resolveRestartMinIntervalMs()).toBe(3_600_000);
     expect(resolveRestartUiQuietMs()).toBe(180_000);
     expect(resolveRestartMaxDeferrals()).toBe(5);
   });
@@ -236,7 +240,7 @@ describe('env resolvers', () => {
     process.env.RAPITAS_RESTART_MIN_INTERVAL_MS = 'abc';
     process.env.RAPITAS_RESTART_UI_QUIET_MS = '-500';
     process.env.RAPITAS_RESTART_MAX_DEFERRALS = 'many';
-    expect(resolveRestartMinIntervalMs()).toBe(600_000);
+    expect(resolveRestartMinIntervalMs()).toBe(3_600_000);
     expect(resolveRestartUiQuietMs()).toBe(180_000);
     expect(resolveRestartMaxDeferrals()).toBe(5);
   });
@@ -244,12 +248,30 @@ describe('env resolvers', () => {
   test('zero: rejected for intervals, accepted for maxDeferrals', () => {
     process.env.RAPITAS_RESTART_MIN_INTERVAL_MS = '0';
     process.env.RAPITAS_RESTART_MAX_DEFERRALS = '0';
-    expect(resolveRestartMinIntervalMs()).toBe(600_000);
+    expect(resolveRestartMinIntervalMs()).toBe(3_600_000);
     expect(resolveRestartMaxDeferrals()).toBe(0);
   });
 
   test('negative maxDeferrals falls back to 5', () => {
     process.env.RAPITAS_RESTART_MAX_DEFERRALS = '-1';
     expect(resolveRestartMaxDeferrals()).toBe(5);
+  });
+
+  // The three automatic restart paths share one 60-minute default so that,
+  // combined, they cannot restart twice within an hour (task 1548).
+  test('all three restart paths default to 60 min', () => {
+    expect(resolveRestartMinIntervalMs()).toBe(3_600_000);
+    expect(resolvePollerMinRestartIntervalMs()).toBe(3_600_000);
+    expect(resolveDevRestartMinIntervalMs()).toBe(3_600_000);
+  });
+
+  test('each path keeps its own RAPITAS_ env override', () => {
+    process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS = '900000';
+    process.env.RAPITAS_DEV_RESTART_MIN_INTERVAL_MS = '300000';
+    expect(resolvePollerMinRestartIntervalMs()).toBe(900_000);
+    expect(resolveDevRestartMinIntervalMs()).toBe(300_000);
+    expect(resolveRestartMinIntervalMs()).toBe(3_600_000);
+    process.env.RAPITAS_DEV_RESTART_MIN_INTERVAL_MS = '0';
+    expect(resolveDevRestartMinIntervalMs()).toBe(3_600_000);
   });
 });

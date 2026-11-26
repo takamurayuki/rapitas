@@ -184,17 +184,16 @@ export function useTaskDetailData({
           setShowSkeleton(true);
           skeletonStartRef.current = Date.now();
         }
-        // NOTE: The focused task must always reflect current server state — most
-        // importantly subtasks created by background workflow execution after this
-        // task was last cached. The shared /tasks/:id cache is 24h and persisted to
-        // localStorage, so without invalidating here the detail view can render a
-        // stale task whose `subtasks` array predates a server-side split (the list
-        // view uses a different cache key and looked correct). Revalidate fresh.
+        // NOTE: Revalidate fresh: the shared /tasks/:id cache is 24h and persisted,
+        // so the detail could show a stale task whose `subtasks` predate a
+        // server-side split. userAction: opening the detail is a user operation
+        // (task 1548); the 5 s refreshTask poll is not.
         if (resolvedTaskId) {
           clearApiCache(`/tasks/${resolvedTaskId}`);
         }
         const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
           cacheTime: 24 * 60 * 60 * 1000,
+          userAction: true,
         });
         setTask(data);
         taskLoadedRef.current = true;

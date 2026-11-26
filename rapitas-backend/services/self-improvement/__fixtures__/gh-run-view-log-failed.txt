@@ -1,0 +1,18 @@
+# 実際の gh run view 44884364754 --log-failed 出力から、(fail) 行と周辺の15行を抜粋（全文ではない）。
+# 採取元: develop / Test and Lint / 2026-11-21 / SHA 524e7c1d558702e01f282d89187f7dd564e43f69
+# https://github.com/takamurayuki/rapitas/actions/runs/44884364754
+Full Suite (Advisory)	UNKNOWN STEP	﻿2026-11-21T08:19:53.6185452Z Current runner version: '2.338.2'
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:19:53.6202017Z ##[group]Runner Image Provisioner
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:19:53.6202698Z Hosted Compute Agent
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:20:52.4451130Z  0 fail
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:20:52.4451344Z  9 expect() calls
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:20:52.4451635Z Ran 4 tests across 1 file. [4.85s]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:20:52.4511838Z ##[group]Run bun run test:parallel
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:21:59.3946177Z (fail) パターン3 両方 > ケース2 食い違い → 根拠の検証 > (b) 実行役 Codex: 検証席は opus、成り立つ → 差し戻し [98.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:21:59.5955725Z (fail) パターン1 Claude だけ > ケース2 食い違い → 根拠の検証（検証席 opus） > (b) 指摘が成り立つ → 実装役へ差し戻し（完了しない・commit しない） [80.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:00.9033654Z (fail) パターン2 Codex だけ > ケース2 食い違い → 根拠の検証（検証席 astra） > (b) 成り立つ → 実装役へ差し戻し [121.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:55.2896402Z (fail) パターン3 両方 > ケース2 食い違い → 根拠の検証 > (b) 実行役 Codex: 検証席は opus、成り立つ → 差し戻し [98.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:55.2909298Z (fail) パターン1 Claude だけ > ケース2 食い違い → 根拠の検証（検証席 opus） > (b) 指摘が成り立つ → 実装役へ差し戻し（完了しない・commit しない） [80.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:55.2933471Z (fail) パターン2 Codex だけ > ケース2 食い違い → 根拠の検証（検証席 astra） > (b) 成り立つ → 実装役へ差し戻し [121.00ms]
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:55.2938013Z  7 pass
+Full Suite (Advisory)	UNKNOWN STEP	2026-11-21T08:22:55.2938235Z  1 fail

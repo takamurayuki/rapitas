@@ -22,6 +22,7 @@ import {
   decideBoundaryRestart,
   resolveIdleBoundaryPolls,
   resolveIntervalMs,
+  resolvePollerMinRestartIntervalMs,
   resolveRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
@@ -35,7 +36,7 @@ import {
 } from './git-io';
 import {
   readAutoRestartEnabled,
-  readLastRestartAt,
+  readLatestAutoRestartAt,
   writeLastRestartAt,
   readDeferCount,
   writeDeferCount,
@@ -44,20 +45,6 @@ import { getLastUiRequestAt } from './ui-activity-tracker';
 import { dependencyGate } from './dependency-preflight';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
-
-// 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
-const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
-
-/**
- * Resolves the minimum interval between auto-restarts from the environment.
- *
- * @returns Minimum restart interval in milliseconds / 最低再起動間隔（ミリ秒）
- */
-function resolveMinRestartIntervalMs(): number {
-  const raw = process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MIN_RESTART_INTERVAL_MS;
-}
 
 export class AutoRestartMergedCodeScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -253,7 +240,8 @@ export class AutoRestartMergedCodeScheduler {
 
     const snapshot = await getAgentSystemSnapshot();
     if (snapshot.activeExecutionsDegraded) return false;
-    const lastRestartAt = readLastRestartAt();
+    // NOTE: Both stamps — a dev-restart-on-dry restart also holds this path (task 1548).
+    const lastRestartAt = readLatestAutoRestartAt();
     const decision = decideAutoRestart({
       aheadCount,
       activeExecutions: snapshot.activeExecutions,
@@ -262,7 +250,7 @@ export class AutoRestartMergedCodeScheduler {
       isShuttingDown: snapshot.isShuttingDown,
       settingEnabled,
       msSinceLastRestart: lastRestartAt === 0 ? null : Date.now() - lastRestartAt,
-      minRestartIntervalMs: resolveMinRestartIntervalMs(),
+      minRestartIntervalMs: resolvePollerMinRestartIntervalMs(),
     });
     if (!decision.shouldRestart) {
       logger.debug({ reason: decision.reason, aheadCount }, '[AutoRestartMergedCode] gated');
@@ -338,8 +326,8 @@ export class AutoRestartMergedCodeScheduler {
    * gate passes: no executions, no queued work, no live aux CLI children, no
    * merge mid-processing, rate limit satisfied, and the UI quiet — a UI-active
    * boundary defers (bounded by RAPITAS_RESTART_MAX_DEFERRALS, then forced).
-   * Shares the poller's last-restart stamp so the two merged-code paths keep
-   * a single rate limit, but uses its own minimum interval env.
+   * Reads the latest stamp of every automatic path (poller, deploy-now,
+   * dev-restart-on-dry) so they share one floor, but uses its own interval env.
    *
    * @returns True when a restart was triggered (caller must stop its tick) / 再起動を発火したか
    */
@@ -359,7 +347,7 @@ export class AutoRestartMergedCodeScheduler {
 
       const snapshot = await getAgentSystemSnapshot();
       if (snapshot.activeExecutionsDegraded) return false;
-      const lastRestartAt = readLastRestartAt();
+      const lastRestartAt = readLatestAutoRestartAt();
       const lastUiAt = getLastUiRequestAt();
       const deferCount = readDeferCount();
       const now = Date.now();

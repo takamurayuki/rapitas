@@ -23,7 +23,8 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
 
   try {
     const checkRes = await fetch(`${API_BASE_URL}/directories/favorites`, {
-      headers: mergeUiSourceHeaders(),
+      // NOTE: A read, so the method is passed and it is tagged ui-poll (task 1548).
+      headers: mergeUiSourceHeaders(undefined, 'GET'),
     });
     const favorites = await checkRes.json();
 
