@@ -3,6 +3,13 @@ import { mkdir } from 'fs/promises';
 import { createLogger } from './logger';
 import { SQLITE_INIT_SQL } from '../src/generated/sqlite-init-sql';
 import { repairCorruptedDecimals } from '../scripts/repair-corrupted-decimals';
+import {
+  CREATE_INDEX_PATTERN,
+  TASK_1560_INDEXES,
+  findMissingIndexes,
+  toIdempotentIndexSql,
+} from './desktop-sqlite-indexes';
+import { vacuumIfFragmented } from './desktop-sqlite-vacuum';
 
 const log = createLogger('desktop-sqlite');
 
@@ -24,7 +31,15 @@ function sqlitePathFromDatabaseUrl(databaseUrl: string): string {
   return resolve(rawPath);
 }
 
-export async function ensureDesktopSqliteDatabase(): Promise<void> {
+/** Test seam: replaces the startup steps that run after the init/self-heal phase. */
+export interface DesktopSqliteStartupDeps {
+  vacuum?: (databasePath: string) => unknown;
+  repairDecimals?: typeof repairCorruptedDecimals;
+}
+
+export async function ensureDesktopSqliteDatabase(
+  deps: DesktopSqliteStartupDeps = {},
+): Promise<void> {
   if (!isDesktopSqlite()) return;
 
   const databaseUrl = process.env.DATABASE_URL;
@@ -56,9 +71,8 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
     // diff that against `sqlite_master`, and exec ONLY the statements
     // whose target table is missing. Indexes for those tables are picked
     // up automatically because they appear interleaved with the
-    // CREATE TABLE blocks. Running CREATE INDEX twice on an existing
-    // table is benign — sqlite errors with `index already exists`, which
-    // we swallow.
+    // CREATE TABLE blocks. Indexes are also applied to tables that already
+    // exist, as `CREATE INDEX IF NOT EXISTS`, so re-running is a no-op.
     const existingTables = new Set<string>(
       (
         database.query("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{
@@ -105,15 +119,16 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
           }
           continue;
         }
-        const indexMatch = stmt.match(/^CREATE\s+(UNIQUE\s+)?INDEX\s+"([^"]+)"\s+ON\s+"([^"]+)"/i);
+        const indexMatch = stmt.match(CREATE_INDEX_PATTERN);
         if (indexMatch) {
-          // Only create the index when its target table is one we just
-          // created. For tables that already existed, their indexes also
-          // already existed.
+          // Create the index whenever its target table exists — freshly
+          // created or not. Existing tables need it too: indexes added to the
+          // schema later (e.g. task 1560's completedAt index) are absent from
+          // databases created before. IF NOT EXISTS makes re-running a no-op.
           const targetTable = indexMatch[3];
           if (!existingTables.has(targetTable)) continue;
           try {
-            database.exec(stmt);
+            database.exec(toIdempotentIndexSql(stmt));
             createdIndexes++;
           } catch {
             // intentionally ignore - index already exists or other constraint error
@@ -125,6 +140,12 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
       // before its superseded predecessor is taken away, or there would be a
       // window with neither.
       const droppedIndexes = dropStaleIndexes(database, SQLITE_INIT_SQL, databasePath);
+      // A failed CREATE INDEX is swallowed above; surface it so a missing hot
+      // index (CPU cost) does not go unnoticed.
+      const missingIndexes = findMissingIndexes(database, SQLITE_INIT_SQL, TASK_1560_INDEXES);
+      if (missingIndexes.length > 0) {
+        log.warn({ databasePath, missingIndexes }, 'Expected SQLite indexes are still missing');
+      }
       if (createdTables > 0 || createdIndexes > 0 || addedColumns > 0 || droppedIndexes > 0) {
         log.info(
           {
@@ -178,6 +199,17 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
     database.close();
   }
 
+  // Compact the file once all indexes exist, on its own connection after the
+  // one above is closed, and before server-main (Prisma) is imported — closing
+  // bun:sqlite after Prisma started removed the WAL (#1000). Never throws.
+  // vacuumIfFragmented already swallows its own failures; the try/catch also
+  // covers an unexpected throw so no VACUUM problem can stop the steps below.
+  try {
+    (deps.vacuum ?? vacuumIfFragmented)(databasePath);
+  } catch (vacuumErr) {
+    log.warn({ err: vacuumErr, databasePath }, 'Startup VACUUM threw (non-fatal)');
+  }
+
   // Startup auto-repair: scan AgentExecution for double-JSON-encoded
   // costUsd / token values left behind by old IPC bugs. Without this the
   // dashboard's `/agent-metrics/observation` endpoint returns
@@ -186,7 +218,7 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
   // another JSON string). Repairs in-place and is idempotent — runs on
   // every startup, costs ~ms when nothing needs fixing.
   try {
-    const stats = repairCorruptedDecimals(databasePath);
+    const stats = (deps.repairDecimals ?? repairCorruptedDecimals)(databasePath);
     if (stats.costUsdRepaired > 0 || stats.tokenColsRepaired > 0) {
       log.warn(
         { databasePath, ...stats },
@@ -366,7 +398,9 @@ export function dropStaleIndexes(
   databasePath: string,
 ): number {
   const declared = new Set<string>();
-  for (const m of initSql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+"([^"]+)"/gi)) {
+  for (const m of initSql.matchAll(
+    /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"([^"]+)"/gi,
+  )) {
     declared.add(m[1]);
   }
   if (declared.size < MIN_DECLARED_INDEXES) {
