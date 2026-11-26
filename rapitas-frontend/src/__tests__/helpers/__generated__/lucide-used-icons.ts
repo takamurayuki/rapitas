@@ -330,6 +330,7 @@ export const LUCIDE_USED_ICONS = [
   'MessageCircle',
   'MessageCircleQuestion',
   'MessageSquare',
+  'MessageSquareHeart',
   'MessageSquarePlus',
   'MessageSquareWarning',
   'MessagesSquare',

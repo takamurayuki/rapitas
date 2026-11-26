@@ -75,7 +75,26 @@ model Project {
   updatedAt   DateTime    @updatedAt
   tasks       Task[]
   milestones  Milestone[]
+  reflections GoalReflection[]
   @@index([workspaceId])
+}
+
+/// One weekly 前進の振り返り per goal: the person's own 1-5 rating and an optional
+/// note. `weekStart` is the Monday (Asia/Tokyo) as YYYY-MM-DD, so the unique key
+/// holds the one-per-week rule even under concurrent saves. See
+/// services/goals/goal-reflection.ts.
+model GoalReflection {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  weekStart String
+  rating    Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, weekStart])
+  @@index([weekStart])
 }
 
 model Milestone {

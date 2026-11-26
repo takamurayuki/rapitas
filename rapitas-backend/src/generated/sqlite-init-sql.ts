@@ -400,6 +400,18 @@ CREATE TABLE "Project" (
 );
 
 -- CreateTable
+CREATE TABLE "GoalReflection" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "projectId" INTEGER NOT NULL,
+    "weekStart" TEXT NOT NULL,
+    "rating" INTEGER NOT NULL,
+    "note" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "GoalReflection_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Milestone" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "workspaceId" INTEGER,
@@ -1435,6 +1447,9 @@ CREATE TABLE "UserSettings" (
     "autoRunMaxConcurrency" INTEGER NOT NULL DEFAULT 1,
     "autoRunMaxConcurrencyPerTheme" INTEGER NOT NULL DEFAULT 1,
     "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
+    "reflectionPromptDow" INTEGER NOT NULL DEFAULT 0,
+    "reflectionPromptTime" TEXT NOT NULL DEFAULT '20:00',
+    "reflectionPromptLastWeek" TEXT,
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -2012,6 +2027,12 @@ CREATE INDEX "Theme_workspaceId_idx" ON "Theme"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Project_workspaceId_idx" ON "Project"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_weekStart_idx" ON "GoalReflection"("weekStart");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GoalReflection_projectId_weekStart_key" ON "GoalReflection"("projectId", "weekStart");
 
 -- CreateIndex
 CREATE INDEX "Milestone_workspaceId_idx" ON "Milestone"("workspaceId");
