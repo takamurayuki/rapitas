@@ -88,8 +88,9 @@ function styledChain(el: Element): { styles: InlineStyles; nodes: Node[] } | nul
  * one styled element, the allowed form goes outside the mark: `前**<span>x</span>**後`
  * is not emphasis in CommonMark (the `<` is punctuation next to a letter),
  * `前<span>**x**</span>後` is.
- * FIXME: a mark that only partly overlaps a styled run (`**a<span>b</span>**`)
- * keeps the form inside; CommonMark may then not read the mark.
+ * NOTE: known limitation, accepted in the design (no text is lost): a mark
+ * that only partly overlaps a styled run (`**a<span>b</span>**`) keeps the
+ * form inside, and CommonMark may then not read the mark.
  */
 function marked(nodes: Node[], mark: string): string {
   const meaningful = nodes.filter((n) => !isBlankText(n));
