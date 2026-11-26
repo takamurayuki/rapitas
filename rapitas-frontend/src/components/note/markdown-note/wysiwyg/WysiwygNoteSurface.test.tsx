@@ -84,8 +84,17 @@ describe('WysiwygNoteSurface', () => {
     const { surface, onMarkdown, handleRef } = mount('<p>本文</p>');
     (surface.querySelector('p') as HTMLElement).textContent = '**ではない**';
     fireEvent.input(surface);
-    expect(handleRef.current?.flush()).toBe('**ではない**');
-    expect(onMarkdown).toHaveBeenLastCalledWith('**ではない**');
+    // Marks typed as words are escaped, so the saved note is not bold.
+    expect(handleRef.current?.flush()).toBe(String.raw`\*\*ではない\*\*`);
+    expect(onMarkdown).toHaveBeenLastCalledWith(String.raw`\*\*ではない\*\*`);
+  });
+
+  it('keeps the line breaks of pasted text', () => {
+    const { surface, handleRef } = mount('<p>前</p>');
+    caretAtEnd(surface.querySelector('p') as Node);
+    paste(surface, '一行目\n二行目\r\n三行目');
+    expect(surface.querySelectorAll('p br')).toHaveLength(2);
+    expect(handleRef.current?.flush()).toBe('前一行目\n二行目\n三行目');
   });
 
   it('does not lose a pending write when it unmounts', () => {

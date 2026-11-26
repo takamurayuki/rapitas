@@ -296,6 +296,14 @@ describe('normal saves strip disallowed inline HTML (allowed forms stay)', () =>
     expect(consistent(stored)).toBe(true);
   });
 
+  test('strips a handler written after a slash and a script holding backticks', async () => {
+    const db = createNoteMemoryDb();
+    await saveNote(asClient(db.prisma), 'n1', {
+      content: '<span/onmouseover=alert(1)>x</span> <script>a`b`c</script>後',
+    });
+    expect(db.notes.get('n1')?.content).toBe('x 後');
+  });
+
   test('keeps the four allowed forms as they were sent', async () => {
     const db = createNoteMemoryDb();
     const body =

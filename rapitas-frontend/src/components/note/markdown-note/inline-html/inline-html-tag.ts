@@ -74,13 +74,22 @@ function readAttributes(
   const attrs: TagAttribute[] = [];
   let p = from;
   for (;;) {
-    const spaces = matchAt(SPACES, text, p)?.[0].length ?? 0;
-    p += spaces;
+    // NOTE: a browser reads a lone `/` between attributes as a separator, and an
+    // attribute right after a quoted value as a new attribute
+    // (`<span/onmouseover=…>`, `a="x"b="y"`). Reading them the same way keeps
+    // such a tag from passing as text with its handler attached.
+    for (;;) {
+      const spaces = matchAt(SPACES, text, p)?.[0].length ?? 0;
+      p += spaces;
+      if (text[p] === '/' && text[p + 1] !== '>' && p + 1 < text.length) {
+        p += 1;
+        continue;
+      }
+      break;
+    }
     if (p >= text.length) return null;
     if (text[p] === '>') return { attrs, selfClosing: false, end: p + 1 };
     if (text.startsWith('/>', p)) return { attrs, selfClosing: true, end: p + 2 };
-    // HTML needs a space before each attribute.
-    if (spaces === 0) return null;
     const name = matchAt(ATTR_NAME, text, p)?.[0];
     if (!name) return null;
     p += name.length;
@@ -182,6 +191,18 @@ export function scanTagAt(text: string, at: number): ScannedTag | null {
     canonical: canonicalStart(name, read.attrs, read.selfClosing),
     end: read.end,
   };
+}
+
+/**
+ * Whether `<` at `at` begins like a tag (`<name` followed by a space, `/` or
+ * `>`), even when the rest cannot be read as one.
+ *
+ * @param text - The text to read / 読む文字列
+ * @param at - Index of a `<` / `<` の位置
+ * @returns true when it starts like a tag / タグの始まりに見えれば true
+ */
+export function looksLikeTagAt(text: string, at: number): boolean {
+  return matchAt(TAG_START, text, at) !== null;
 }
 
 /**

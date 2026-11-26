@@ -17,7 +17,7 @@ import {
   type CodeSegment,
   type NewMarkdownRejection,
 } from '../note-content-kind';
-import { INLINE_PAIR_TAGS, RAW_TEXT_TAGS, scanTagAt } from './inline-html-tag';
+import { INLINE_PAIR_TAGS, RAW_TEXT_TAGS, looksLikeTagAt, scanTagAt } from './inline-html-tag';
 
 // Removing a tag can join two pieces of text into a new tag (`<<b>script>`),
 // so the strip runs until nothing changes. Past this many passes the input is
@@ -50,11 +50,26 @@ function declarationEnd(text: string, at: number): number {
   return bang ? at + bang[0].length : -1;
 }
 
-function rawTextEnd(text: string, from: number, name: string): number {
-  const close = new RegExp(`</${name}\\s*>`, 'ig');
-  close.lastIndex = from;
-  const found = close.exec(text);
-  return found ? found.index + found[0].length : -1;
+/**
+ * Where a raw-text element (script, style …) ends: the end of its end tag,
+ * searched from `from` in segment `k` and on through the later pieces of the
+ * same paragraph — code spans included, because backticks inside a script
+ * are not Markdown code.
+ */
+function rawTextEnd(
+  segments: CodeSegment[],
+  k: number,
+  from: number,
+  name: string,
+): { seg: number; pos: number } | null {
+  const block = segments[k]?.block;
+  for (let j = k; j < segments.length && segments[j]?.block === block; j += 1) {
+    const close = new RegExp(`</${name}\\s*>`, 'ig');
+    close.lastIndex = j === k ? from : 0;
+    const found = close.exec(segments[j]?.text ?? '');
+    if (found) return { seg: j, pos: found.index + found[0].length };
+  }
+  return null;
 }
 
 /** One pass over the body; `escapeStray` writes every unkept `<` as `&lt;`. */
@@ -67,18 +82,25 @@ function stripOnce(segments: CodeSegment[], escapeStray: boolean): string {
     if (text !== '') parts.push(text);
     text = '';
   };
-  for (const segment of segments) {
+  let k = 0;
+  // Where to start reading segment k (non-zero after a raw-text jump).
+  let startAt = 0;
+  while (k < segments.length) {
+    const segment = segments[k] as CodeSegment;
     if (segment.block !== block) {
       // An unclosed start tag's slot stays empty: it is removed.
       stack = [];
       block = segment.block;
     }
+    const s = segment.text;
+    let i = startAt;
+    startAt = 0;
     if (segment.code) {
-      text += segment.text;
+      text += s.slice(i);
+      k += 1;
       continue;
     }
-    const s = segment.text;
-    let i = 0;
+    let jumped = false;
     while (i < s.length) {
       const ch = s[i] as string;
       if (ch !== '<') {
@@ -93,15 +115,26 @@ function stripOnce(segments: CodeSegment[], escapeStray: boolean): string {
       }
       const tag = scanTagAt(s, i);
       if (!tag) {
+        // Starts like a tag but cannot be read as one (an unterminated quote):
+        // removed up to its `>` rather than kept as text with its attributes.
+        const gt = looksLikeTagAt(s, i) ? s.indexOf('>', i) : -1;
+        if (gt > 0) {
+          i = gt + 1;
+          continue;
+        }
         text += escapeStray ? '&lt;' : ch;
         i += 1;
         continue;
       }
       i = tag.end;
       if (RAW_TEXT_TAGS.has(tag.name)) {
-        if (!tag.closing) {
-          const end = rawTextEnd(s, tag.end, tag.name);
-          if (end > 0) i = end;
+        const end = tag.closing ? null : rawTextEnd(segments, k, tag.end, tag.name);
+        if (end && end.seg === k) i = end.pos;
+        else if (end) {
+          k = end.seg;
+          startAt = end.pos;
+          jumped = true;
+          break;
         }
         continue;
       }
@@ -112,18 +145,19 @@ function stripOnce(segments: CodeSegment[], escapeStray: boolean): string {
         parts.push('');
         continue;
       }
-      let k = stack.length - 1;
-      while (k >= 0 && stack[k]?.name !== tag.name) k -= 1;
+      let top = stack.length - 1;
+      while (top >= 0 && stack[top]?.name !== tag.name) top -= 1;
       // An end tag with no start tag of its name in this block is removed.
-      if (k < 0) continue;
-      const open = stack[k] as OpenTag;
+      if (top < 0) continue;
+      const open = stack[top] as OpenTag;
       // Start tags opened inside it and never closed are removed.
-      stack = stack.slice(0, k);
+      stack = stack.slice(0, top);
       if (open.canonical) {
         parts[open.slot] = open.canonical;
         parts.push(`</${open.name}>`);
       }
     }
+    if (!jumped) k += 1;
   }
   flushText();
   return parts.join('');

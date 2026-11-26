@@ -225,6 +225,37 @@
       "name": "attribute value holding a greater-than sign",
       "input": "<span title=\"a>b\">c</span>",
       "output": "c"
+    },
+    {
+      "name": "slash before an attribute still makes it an attribute",
+      "input": "<span/onmouseover=alert(1)>x</span>",
+      "output": "x"
+    },
+    { "name": "slash before an attribute of an underline", "input": "<u/x>a</u>", "output": "a" },
+    {
+      "name": "slash between an allowed style and a handler",
+      "input": "<span style=\"color:#E53935\"/onclick=\"x\">a</span>",
+      "output": "a"
+    },
+    {
+      "name": "unterminated attribute quote removes the tag up to its greater-than sign",
+      "input": "<span onclick=\"x>a</span>",
+      "output": "a"
+    },
+    {
+      "name": "script holding inline code is removed with its content",
+      "input": "<script>a`b`c</script>after",
+      "output": "after"
+    },
+    {
+      "name": "script across lines of one paragraph is removed with its content",
+      "input": "<script>a\n`b`\nc</script>after",
+      "output": "after"
+    },
+    {
+      "name": "script whose end tag is past a blank line removes only the start tag",
+      "input": "<script>a\n\nb</script>c",
+      "output": "a\n\nbc"
     }
   ]
 }

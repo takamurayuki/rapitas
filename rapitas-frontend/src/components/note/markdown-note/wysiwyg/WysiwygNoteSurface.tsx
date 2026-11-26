@@ -46,9 +46,20 @@ function insertPlainText(root: HTMLElement, text: string): void {
   const url = urlFromPastedText(text);
   if (url && !range.collapsed && linkRange(range, url)) return;
   range.deleteContents();
-  const node = url ? createInlineLink(url, url) : document.createTextNode(text);
+  // Each pasted line break becomes a <br>: a newline inside one text node is
+  // layout whitespace to the writer and would be saved as a space.
+  const node = document.createDocumentFragment();
+  if (url) node.appendChild(createInlineLink(url, url));
+  else {
+    text.split(/\r\n|\r|\n/).forEach((line, index) => {
+      if (index > 0) node.appendChild(document.createElement('br'));
+      if (line !== '') node.appendChild(document.createTextNode(line));
+    });
+  }
+  const last = node.lastChild;
+  if (!last) return;
   range.insertNode(node);
-  range.setStartAfter(node);
+  range.setStartAfter(last);
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);

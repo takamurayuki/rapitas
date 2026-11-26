@@ -154,6 +154,22 @@ describe('guards', () => {
     expect(domToMarkdown(root)).toBe('<span style="color:#E53935">あ**い**う</span>');
   });
 
+  it('makes a checklist from a line typed straight into an empty surface (no paragraph)', () => {
+    const root = surface('');
+    root.appendChild(document.createTextNode('項目'));
+    caretIn(root.firstChild as Node as Element);
+    expect(toggleChecklist(root)).toBe(true);
+    expect(domToMarkdown(root)).toBe('- [ ] 項目');
+  });
+
+  it('inserts a table after a line typed straight into the surface', () => {
+    const root = surface('');
+    root.appendChild(document.createTextNode('前'));
+    caretIn(root.firstChild as Node as Element);
+    expect(insertTable(root, { rows: 1, columns: 1 }, (n) => `列${n}`)).toBe(true);
+    expect(domToMarkdown(root)).toBe(['前', '', '| 列1 |', '| --- |', '|  |'].join('\n'));
+  });
+
   it('turns a checklist item back into a paragraph', () => {
     const root = surface('<ul><li><input type="checkbox">項目</li></ul>');
     caretIn(root.querySelector('li') as Element);

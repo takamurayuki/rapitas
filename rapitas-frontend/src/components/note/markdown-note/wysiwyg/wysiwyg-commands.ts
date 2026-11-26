@@ -13,6 +13,9 @@ import type { HeadingNamer } from '../../editor/table-ops';
 import { linkRange, urlFromPastedText } from '../../editor/inline-link';
 import { applyBlockFormat } from '../../editor/block-format';
 import { NOTE_FONT_SIZE_MAX, NOTE_FONT_SIZE_MIN } from '../inline-html';
+import { insertAfterBlock, rangeIn } from './wysiwyg-blocks';
+
+export { toggleChecklist } from './wysiwyg-blocks';
 
 /** The marks the browser applies itself (Ctrl/Cmd+B, I, U and strike). */
 export type InlineMark = 'bold' | 'italic' | 'underline' | 'strikeThrough';
@@ -30,14 +33,6 @@ const HEX6 = /^#[0-9a-f]{6}$/i;
  */
 export function isNoteHexColour(value: string): boolean {
   return HEX6.test(value.trim());
-}
-
-/** The selection's range when it lies inside the surface, else null. */
-function rangeIn(root: HTMLElement): Range | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return null;
-  const range = selection.getRangeAt(0);
-  return root.contains(range.commonAncestorContainer) ? range : null;
 }
 
 function selectContents(el: Node): void {
@@ -133,67 +128,6 @@ export function applyBlock(root: HTMLDivElement, block: BlockCommand): boolean {
   if (block === 'ul') return document.execCommand('insertUnorderedList', false);
   if (block === 'ol') return document.execCommand('insertOrderedList', false);
   return document.execCommand('formatBlock', false, block);
-}
-
-/** The surface's top-level child holding the selection start, if any. */
-function topBlock(root: HTMLElement, range: Range | null): Element | null {
-  let node: Node | null = range?.startContainer ?? null;
-  while (node && node.parentNode !== root) node = node.parentNode;
-  return node && node.nodeType === Node.ELEMENT_NODE ? (node as Element) : null;
-}
-
-/** Insert `node` after the block holding the selection (or at the end). */
-function insertAfterBlock(root: HTMLElement, node: Node): void {
-  const block = topBlock(root, rangeIn(root));
-  if (block) block.after(node);
-  else root.appendChild(node);
-}
-
-function checkbox(): HTMLInputElement {
-  const box = document.createElement('input');
-  box.type = 'checkbox';
-  return box;
-}
-
-/**
- * Make the current line a checklist item, or a checklist item plain again.
- *
- * @param root - The surface / 編集面
- * @returns true when something changed / 変更したら true
- */
-export function toggleChecklist(root: HTMLElement): boolean {
-  const range = rangeIn(root);
-  if (!range) return false;
-  const start =
-    range.startContainer.nodeType === Node.ELEMENT_NODE
-      ? (range.startContainer as Element)
-      : range.startContainer.parentElement;
-  const li = start?.closest('li');
-  if (li && root.contains(li)) {
-    const box = li.querySelector(':scope > input[type="checkbox"]');
-    if (!box) {
-      li.prepend(checkbox());
-      return true;
-    }
-    box.remove();
-    const list = li.parentElement;
-    // A one-item list becomes a plain paragraph; a longer one keeps its bullet.
-    if (list && list.children.length === 1 && list.parentElement === root) {
-      const p = document.createElement('p');
-      while (li.firstChild) p.appendChild(li.firstChild);
-      list.replaceWith(p);
-    }
-    return true;
-  }
-  const block = topBlock(root, range);
-  if (!block) return false;
-  const ul = document.createElement('ul');
-  const item = document.createElement('li');
-  item.appendChild(checkbox());
-  while (block.firstChild) item.appendChild(block.firstChild);
-  ul.appendChild(item);
-  block.replaceWith(ul);
-  return true;
 }
 
 function emptyParagraph(): HTMLParagraphElement {

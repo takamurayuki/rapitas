@@ -116,6 +116,27 @@ describe('htmlToMarkdown', () => {
     expect(isLegacyEditorHtml(md)).toBe(false);
   });
 
+  it('escapes Markdown marks typed as words, so they stay words after saving', () => {
+    expect(htmlToMarkdown('<p>**literal** と _x_ と `c` と [a]</p>')).toBe(
+      String.raw`\*\*literal\*\* と \_x\_ と \`c\` と \[a\]`,
+    );
+  });
+
+  it('escapes a line that would start a heading, list or quote', () => {
+    expect(
+      htmlToMarkdown(
+        '<p># 見出しではない</p><p>1. 番号ではない</p><p>- 箇条でない</p><p>&gt; 引用でない</p>',
+      ),
+    ).toBe(
+      [
+        String.raw`\# 見出しではない`,
+        String.raw`1\. 番号ではない`,
+        String.raw`\- 箇条でない`,
+        String.raw`\> 引用でない`,
+      ].join('\n\n'),
+    );
+  });
+
   it('removes script and event handlers', () => {
     expect(htmlToMarkdown('<p onclick="x()">安全</p><script>alert(1)</script>')).toBe('安全');
   });

@@ -43,6 +43,22 @@ function isBlock(node: Node): boolean {
   return node.nodeType === Node.ELEMENT_NODE && BLOCK_TAGS.has((node as Element).tagName);
 }
 
+/**
+ * A paragraph's lines with the marks that would start a block escaped
+ * (`# `, `> `, `- `, `+ `, `1. `, and a line of `-` / `=` that would make the
+ * line above a heading), so words typed at a line start stay words.
+ */
+function escapeLineStarts(text: string): string {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^(\s*)(#{1,6}(?=\s|$)|>|[-+](?=\s|$)|[-=](?=[-=\s]*$))/, '$1\\$2')
+        .replace(/^(\s*\d{1,9})([.)])(?=\s|$)/, '$1\\$2'),
+    )
+    .join('\n');
+}
+
 function isBlankText(node: Node): boolean {
   return node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() === '';
 }
@@ -93,6 +109,9 @@ function inline(node: Node): string {
       .replace(/\u00a0/g, ' ')
       .replace(/\u200b/g, '')
       .replace(/[ \t\r\n]+/g, ' ')
+      // Marks typed as words (`**x**`, `_x_`, `` `x` ``, `[x]`) stay words: written
+      // raw they would turn into bold, code or a link once the note is saved.
+      .replace(/[\\*_`~[\]]/g, (mark) => `\\${mark}`)
       // Text that looks like a tag (`<div>` typed as words) stays words: written
       // raw it would be read as HTML — refused as the old editor's, or stripped.
       .replace(/<(?=[A-Za-z/!?])/g, '&lt;');
@@ -219,7 +238,9 @@ function block(el: Element): string {
       return '---';
     default:
       // p / div: a container of inline content, or of further blocks.
-      return Array.from(el.childNodes).some(isBlock) ? blocks(el) : inline(el).trim();
+      return Array.from(el.childNodes).some(isBlock)
+        ? blocks(el)
+        : escapeLineStarts(inline(el).trim());
   }
 }
 
@@ -228,7 +249,7 @@ function blocks(container: Node): string {
   const parts: string[] = [];
   let run = '';
   const flush = () => {
-    const text = run.trim();
+    const text = escapeLineStarts(run.trim());
     if (text) parts.push(text);
     run = '';
   };
