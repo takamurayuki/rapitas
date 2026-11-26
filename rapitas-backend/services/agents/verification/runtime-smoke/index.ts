@@ -14,3 +14,13 @@ export {
 } from './runtime-config';
 export { allocateFreePort, launchApp, waitForHealthy } from './app-launcher';
 export { runBrowserSmoke, type SmokeRunResult, type PathFinding } from './browser-smoke';
+export { tokenizeCommandLine, sameArgv } from './runtime-command-match';
+export {
+  readLaunchHistory,
+  recordLaunchProcesses,
+  recordLaunchLock,
+  type LaunchRecord,
+} from './runtime-launch-history';
+export { classifyEnvCause } from './runtime-env-cause';
+export { cleanupStaleRuntime, type StaleCleanupResult } from './runtime-stale-cleanup';
+export type { RuntimeEnvCause } from './runtime-server-registry-types';

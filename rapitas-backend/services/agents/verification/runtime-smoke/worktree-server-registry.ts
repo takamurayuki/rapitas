@@ -232,7 +232,7 @@ async function acquireRuntimeServerInternal(
       if (registry.get(key) !== entry) continue;
       return failure(
         `worktree ${workdir} は前回の停止確認が取れず隔離中です: ${entry.quarantineReason}`,
-        { unverifiable: true },
+        { unverifiable: true, cause: 'quarantined' },
       );
     }
 
@@ -291,7 +291,7 @@ async function acquireRuntimeServerInternal(
         } else if (entry.leases.size === 0 && entry.state === 'active') {
           scheduleIdleStop(entry);
         }
-        return failure(String(error), { unverifiable: true });
+        return failure(String(error), { unverifiable: true, cause: 'quarantined' });
       } finally {
         if (entry.validationPromise === validation) entry.validationPromise = undefined;
       }
@@ -301,7 +301,7 @@ async function acquireRuntimeServerInternal(
         entry.state === 'active'
           ? `worktree ${workdir} は互換性のない設定で稼働中のサーバーに占有されており、待機がタイムアウトしました`
           : `worktree ${workdir} は他の起動処理により占有されており、待機がタイムアウトしました`;
-      return failure(reason, { unverifiable: true });
+      return failure(reason, { unverifiable: true, cause: 'lock_held' });
     }
 
     await waitForStateChange(key, opts.signal, deadline);
