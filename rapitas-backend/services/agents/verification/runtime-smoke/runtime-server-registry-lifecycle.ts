@@ -173,6 +173,7 @@ export async function spawnNewEntry(
   registry.set(key, entry);
   const myGeneration = entry.generation;
   let launchAttempted = false;
+  let reachedReady = false;
 
   const run = (async (): Promise<AcquireResult> => {
     entry.bootId = await readRuntimeBootId();
@@ -271,9 +272,8 @@ export async function spawnNewEntry(
         });
     }, 2500);
     tracker.unref?.();
-    let healthy: boolean;
     try {
-      healthy = await waitForHealthy(
+      reachedReady = await waitForHealthy(
         `${baseUrl}${cfg.healthPath}`,
         cfg.readyTimeoutMs,
         { workdir, label },
@@ -301,17 +301,23 @@ export async function spawnNewEntry(
       });
     }
 
-    if (!healthy || entry.startCancelled) {
+    if (!reachedReady || entry.startCancelled) {
       // A launch that died on a taken port/lock says so in its log: an environment
       // cause, not evidence about the app.
+      const logs = app.logs();
+      const exitedBeforeStop = app.hasExited();
       const logCause =
-        classifyEnvCause({ text: app.logs().join('\n'), reachedReady: false }) ?? undefined;
+        classifyEnvCause({
+          text: logs.join('\n'),
+          reachedReady,
+          exitedBeforeReady: !reachedReady && exitedBeforeStop,
+        }) ?? undefined;
       const result = failure(
         `アプリが ${cfg.readyTimeoutMs / 1_000}s 以内に起動しませんでした (${baseUrl}${cfg.healthPath} 無応答)`,
         {
-          logs: app.logs(),
+          logs,
           exitCode: app.exitCode(),
-          hasExited: app.hasExited(),
+          hasExited: exitedBeforeStop,
           unverifiable: logCause ? true : undefined,
           cause: logCause,
         },
@@ -395,6 +401,13 @@ export async function spawnNewEntry(
       // instead of leaving it as an unreferenced leak.
       // 停止操作による終了と、アプリ自身の起動失敗を取り違えない。
       const exitedBeforeStop = entry.app.hasExited();
+      const logs = entry.app.logs();
+      const cause =
+        classifyEnvCause({
+          text: logs.join('\n'),
+          reachedReady,
+          exitedBeforeReady: !reachedReady && exitedBeforeStop,
+        }) ?? undefined;
       entry.app.stop();
       if (entry.app.hasExited()) {
         // The only process this reservation ever launched is gone — it died
@@ -405,13 +418,10 @@ export async function spawnNewEntry(
         try {
           await persistRemoval(key);
           if (registry.get(key) === entry) registry.delete(key);
-          const cause =
-            classifyEnvCause({ text: entry.app.logs().join('\n'), reachedReady: false }) ??
-            undefined;
           return failure(`起動に失敗しました: ${String(error)}`, {
             unverifiable: cause || !exitedBeforeStop ? true : undefined,
             cause,
-            logs: entry.app.logs(),
+            logs,
             exitCode: entry.app.exitCode(),
             hasExited: true,
           });

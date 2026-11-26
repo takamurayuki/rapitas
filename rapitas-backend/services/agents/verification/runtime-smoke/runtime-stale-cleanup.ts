@@ -9,12 +9,11 @@
  *
  * Safety model: a process is stopped ONLY when the launch history proves this
  * launch family started it — same PID, same birth, and an argument list that
- * equals the recorded one argument for argument (or it descends from such a
- * recorded root) — and it is not a protected (port 3001) process, this process,
- * an ancestor of it, or owned by another active borrower. The live process list
- * and listening ports are only used to LOOK UP records, never to create
- * candidates. Every decision is made before the first signal: if any holder of
- * the fixed port or the lock is not proven, nothing is stopped.
+ * equals the recorded one argument for argument — and it is not a protected
+ * (port 3001) process, this process, an ancestor of it, or owned by another
+ * active borrower. Descendants of a confirmed root require an observed record
+ * before they become candidates. Every decision is made before the first signal:
+ * if any holder of the fixed port or the lock is not proven, nothing is stopped.
  */
 import {
   inspectRuntimeDirectory,
@@ -23,7 +22,11 @@ import {
   type RuntimeDirectoryOccupancy,
 } from './runtime-directory-occupancy';
 import { normalizeForMatch, sameArgv, tokenizeCommandLine } from './runtime-command-match';
-import { readLaunchHistory, type LaunchRecord } from './runtime-launch-history';
+import {
+  readLaunchHistory,
+  recordLaunchProcesses,
+  type LaunchRecord,
+} from './runtime-launch-history';
 import {
   stopRuntimeProcesses,
   terminateRuntimeIdentities,
@@ -45,6 +48,11 @@ export interface StaleCleanupDeps {
     historyPaths?: readonly string[],
   ): Promise<RuntimeDirectoryOccupancy>;
   readHistory(workdir: string): Promise<LaunchRecord[]>;
+  recordProcesses(
+    workdir: string,
+    identities: RuntimeProcessIdentity[],
+    role: 'observed',
+  ): Promise<boolean>;
   readLockPid(path: string): Promise<number | null>;
   /** Removes the lock only while it still names `expectedPid`. */
   removeLock(path: string, expectedPid: number): Promise<boolean>;
@@ -55,9 +63,10 @@ export interface StaleCleanupDeps {
   stopTimeoutMs?: number;
 }
 
+type StaleCleanupFailure = { ok: false; cause: RuntimeEnvCause; reason: string };
 export type StaleCleanupResult =
   | { ok: true; stoppedPids: number[]; removedLocks: string[] }
-  | { ok: false; cause: RuntimeEnvCause; reason: string };
+  | StaleCleanupFailure;
 
 /** Thrown by the launch path so the registry can attach `cause` to its failure. */
 export class RuntimeEnvBlockedError extends Error {
@@ -74,6 +83,7 @@ export const defaultStaleCleanupDeps: StaleCleanupDeps = {
   snapshot: readRuntimeProcessSnapshot,
   inspectDirectory: inspectRuntimeDirectory,
   readHistory: readLaunchHistory,
+  recordProcesses: recordLaunchProcesses,
   readLockPid: readRuntimeLockPid,
   removeLock: removeRuntimeLockIfOwnedBy,
 };
@@ -158,11 +168,12 @@ export async function cleanupStaleRuntime(
       reason: `ポート ${BACKEND_PORT} は rapitas バックエンドのため起動確認には使えません`,
     };
   }
-  const history = (await deps.readHistory(workdir).catch(() => [])).filter(
-    (record) => normalizeForMatch(record.workdir) === normalizeForMatch(workdir),
-  );
-  const processRecords = history.filter((r) => r.kind === 'process');
-  const lockRecords = history.filter((r) => r.kind === 'lock');
+  const normalizedWorkdir = normalizeForMatch(workdir);
+  const readWorktreeHistory = async () =>
+    (await deps.readHistory(workdir)).filter(
+      (record) => normalizeForMatch(record.workdir) === normalizedWorkdir,
+    );
+  let history = await readWorktreeHistory().catch(() => []);
   let before: RuntimeProcessSnapshot;
   try {
     before = await deps.snapshot();
@@ -171,10 +182,12 @@ export async function cleanupStaleRuntime(
     return { ok: true, stoppedPids: [], removedLocks: [] };
   }
 
-  const isExcluded = (snap: RuntimeProcessSnapshot, pid: number): boolean =>
+  const isBackendOwner = (snap: RuntimeProcessSnapshot, pid: number): boolean =>
     snap.protectedPids.has(pid) ||
     snap.listeners?.some((listener) => listener.port === BACKEND_PORT && listener.pid === pid) ===
-      true ||
+      true;
+  const isExcluded = (snap: RuntimeProcessSnapshot, pid: number): boolean =>
+    isBackendOwner(snap, pid) ||
     pid === process.pid ||
     ancestorsOf(process.pid, snap.processes).has(pid) ||
     deps.excludePids?.has(pid) === true;
@@ -183,42 +196,96 @@ export async function cleanupStaleRuntime(
     rec.birth === row.birth &&
     sameArgv(rec.argv, tokenizeCommandLine(row.command));
 
-  // 候補は履歴から引く。保護対象を先に除くと、混在時の全体拒否を判定できない。
-  const candidatesOf = (snap: RuntimeProcessSnapshot): RuntimeProcessIdentity[] => {
-    const live = processRecords.flatMap((record) => {
-      const row = snap.processes.find((p) => p.pid === record.pid);
-      return row && matchesRecord(row, record) ? [row] : [];
-    });
-    const liveRoots = live.filter((row) =>
-      processRecords.some((rec) => rec.role === 'root' && matchesRecord(row, rec)),
+  const matchingProcesses = (snap: RuntimeProcessSnapshot, records: LaunchRecord[]) =>
+    snap.processes.filter((row) => records.some((rec) => matchesRecord(row, rec)));
+  const liveRootTree = (snap: RuntimeProcessSnapshot, records: LaunchRecord[]) =>
+    extendOwnedRuntimeTree(
+      matchingProcesses(
+        snap,
+        records.filter((rec) => rec.role === 'root'),
+      ),
+      snap.processes,
     );
-    return [
-      ...new Map(
-        [...live, ...extendOwnedRuntimeTree(liveRoots, snap.processes)].map((row) => [
-          row.pid,
-          row,
-        ]),
-      ).values(),
-    ];
-  };
   const holdersOf = (snap: RuntimeProcessSnapshot) =>
     (snap.listeners ?? []).filter((l) => ports.includes(l.port));
+  const hasProtectedHolder = (snap: RuntimeProcessSnapshot) =>
+    holdersOf(snap).some((holder) => isBackendOwner(snap, holder.pid));
+  const failure = (cause: RuntimeEnvCause, reason: string): StaleCleanupFailure => ({
+    ok: false,
+    cause,
+    reason,
+  });
+  const unconfirmedFixedPorts = (snap: RuntimeProcessSnapshot) =>
+    ports.length > 0 && !snap.listeners;
+
+  if (unconfirmedFixedPorts(before))
+    return failure('port_in_use', `ポート ${ports.join(',')} の使用状況を確認できません`);
+  if (hasProtectedHolder(before))
+    return failure('port_in_use', '固定ポートの所有者はバックエンドの保護対象です');
+
+  const initialRecords = history.filter((rec) => rec.kind === 'process');
+  const initiallyMatched = matchingProcesses(before, initialRecords);
+  const discovered = liveRootTree(before, initialRecords).filter(
+    (row) => !initiallyMatched.some((known) => known.pid === row.pid),
+  );
+  if (discovered.length > 0) {
+    if (
+      initiallyMatched.some((row) => isExcluded(before, row.pid)) ||
+      discovered.some(
+        (row) =>
+          !tokenizeCommandLine(row.command)?.length ||
+          isExcluded(before, row.pid) ||
+          initialRecords.some((rec) => rec.pid === row.pid),
+      )
+    )
+      return failure('foreign_process', '新たに観測した子孫の身元または保護状態を確認できません');
+    try {
+      if (!(await deps.recordProcesses(workdir, discovered, 'observed')))
+        return failure('foreign_process', '子孫の起動履歴を保存できません');
+      history = await readWorktreeHistory();
+      before = await deps.snapshot();
+    } catch (error) {
+      return failure('foreign_process', `保存後の子孫の照合に失敗しました: ${String(error)}`);
+    }
+    const currentByPid = new Map(before.processes.map((row) => [row.pid, row]));
+    const confirmed = (row: RuntimeProcessIdentity, requiredRole?: 'observed') => {
+      const current = currentByPid.get(row.pid);
+      return (
+        current &&
+        history.some(
+          (rec) =>
+            rec.kind === 'process' &&
+            (requiredRole === undefined || rec.role === requiredRole) &&
+            matchesRecord(row, rec) &&
+            matchesRecord(current, rec),
+        )
+      );
+    };
+    if (
+      discovered.some((row) => !confirmed(row, 'observed')) ||
+      initiallyMatched.some((row) => currentByPid.has(row.pid) && !confirmed(row))
+    )
+      return failure('foreign_process', '観測した子孫の保存記録または現在の身元が一致しません');
+    if (unconfirmedFixedPorts(before))
+      return failure('foreign_process', '履歴保存後の固定ポートの使用状況を確認できません');
+  }
+
+  const processRecords = history.filter((rec) => rec.kind === 'process');
+  const lockRecords = history.filter((rec) => rec.kind === 'lock');
+  const candidates = matchingProcesses(before, processRecords);
+  const proven = new Set(candidates.map((p) => p.pid));
 
   /** Why a holder is not provably ours. `foreign_process` = it conflicts with a record or cannot be identified. */
   const classifyStranger = (snap: RuntimeProcessSnapshot, pid: number): RuntimeEnvCause => {
-    if (
-      snap.protectedPids.has(pid) ||
-      snap.listeners?.some((l) => l.pid === pid && l.port === BACKEND_PORT)
-    )
-      return 'port_in_use';
+    if (isBackendOwner(snap, pid)) return 'port_in_use';
     const row = snap.processes.find((p) => p.pid === pid);
-    if (!row || !row.command || !row.birth) return 'foreign_process';
+    if (!row?.birth || !tokenizeCommandLine(row.command)?.length) return 'foreign_process';
     return processRecords.some((rec) => rec.pid === pid) ? 'foreign_process' : 'port_in_use';
   };
   const refuseStrangers = (
     snap: RuntimeProcessSnapshot,
     proven: Set<number>,
-  ): StaleCleanupResult | null => {
+  ): StaleCleanupFailure | null => {
     const strangers = holdersOf(snap).filter((h) => !proven.has(h.pid));
     if (strangers.length === 0) return null;
     const causes = strangers.map((h) => classifyStranger(snap, h.pid));
@@ -229,20 +296,6 @@ export async function cleanupStaleRuntime(
     };
   };
 
-  if (ports.length > 0 && !before.listeners) {
-    return {
-      ok: false,
-      cause: 'port_in_use',
-      reason: `ポート ${ports.join(',')} の使用状況を確認できません`,
-    };
-  }
-  const candidates = candidatesOf(before);
-  const proven = new Set(candidates.map((p) => p.pid));
-  const failure = (cause: RuntimeEnvCause, reason: string): StaleCleanupResult => ({
-    ok: false,
-    cause,
-    reason,
-  });
   // 既知ロックに加え、履歴に残ったworktree内のパスだけを照合する。
   const withinWorkdir = (path: string) => {
     const normalized = normalizeForMatch(path);
@@ -293,15 +346,7 @@ export async function cleanupStaleRuntime(
   }
   const refusedPort = refuseStrangers(before, proven);
   if (refusedPort) return refusedPort;
-  if (
-    holdersOf(before).some(
-      (holder) =>
-        before.protectedPids.has(holder.pid) ||
-        before.listeners?.some(
-          (listener) => listener.pid === holder.pid && listener.port === BACKEND_PORT,
-        ),
-    )
-  )
+  if (hasProtectedHolder(before))
     return failure('port_in_use', '固定ポートの所有者はバックエンドの保護対象です');
   if (candidates.some((row) => isExcluded(before, row.pid)))
     return failure('foreign_process', '停止候補に保護対象または別の借り手が含まれています');
@@ -315,6 +360,7 @@ export async function cleanupStaleRuntime(
     return failure('foreign_process', '履歴のプロセス身元が変化しています');
   let after = before;
   if (candidates.length > 0) {
+    let stopPortRefusal: StaleCleanupFailure | undefined;
     const source: RuntimeStopDependencies = deps.stopDeps ?? {
       snapshot: deps.snapshot,
       terminate: (identity) => terminateRuntimeIdentities([identity]),
@@ -324,6 +370,8 @@ export async function cleanupStaleRuntime(
     };
     const checkedSnapshot = async (): Promise<RuntimeProcessSnapshot> => {
       const snap = await source.snapshot();
+      if (unconfirmedFixedPorts(snap))
+        throw new Error('停止直前に固定ポートの使用状況を確認できません');
       for (const target of candidates) {
         const row = snap.processes.find((p) => p.pid === target.pid);
         if (
@@ -334,10 +382,13 @@ export async function cleanupStaleRuntime(
         )
           throw new Error('停止直前にプロセス身元または保護状態が変化しました');
       }
-      if (candidatesOf(snap).some((row) => isExcluded(snap, row.pid)))
+      if (liveRootTree(snap, processRecords).some((row) => isExcluded(snap, row.pid)))
         throw new Error('停止直前のツリーに保護対象が含まれています');
       const refused = refuseStrangers(snap, proven);
-      if (refused) throw new Error(refused.ok ? '' : refused.reason);
+      if (refused) {
+        stopPortRefusal = refused;
+        throw new Error(refused.reason);
+      }
       // 停止層の子孫再展開にも、同じ許可集合を適用する。保護情報と待受は削らない。
       // argv の一致を確認済みの表記差は、停止層の生コマンド比較でも同じ身元に揃える。
       return {
@@ -369,14 +420,20 @@ export async function cleanupStaleRuntime(
       guardedDeps,
     );
     if (!stop.stopped) {
-      return failure('foreign_process', `残存プロセスを停止できませんでした: ${stop.reason}`);
+      return (
+        stopPortRefusal ??
+        failure('foreign_process', `残存プロセスを停止できませんでした: ${stop.reason}`)
+      );
     }
     try {
       after = await deps.snapshot();
     } catch {
       return failure('foreign_process', '停止後の死亡確認に失敗しました');
     }
-    const refusedAfter = refuseStrangers(after, new Set(candidatesOf(after).map((p) => p.pid)));
+    if (unconfirmedFixedPorts(after))
+      return failure('foreign_process', '停止後の固定ポートの解放を確認できません');
+    const stillProven = new Set(matchingProcesses(after, processRecords).map((row) => row.pid));
+    const refusedAfter = refuseStrangers(after, stillProven);
     if (refusedAfter) return refusedAfter;
     const remaining = holdersOf(after);
     if (remaining.length > 0) {
