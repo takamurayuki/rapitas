@@ -71,6 +71,7 @@ model TimelineEvent {
   createdAt       DateTime  @default(now())
 
   @@index([eventType])
+  @@index([eventType, createdAt])
   @@index([correlationId])
   @@index([createdAt])
   @@index([workspaceId])

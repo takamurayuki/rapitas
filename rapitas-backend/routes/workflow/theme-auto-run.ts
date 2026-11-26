@@ -6,7 +6,7 @@
  * POST /themes/:id/auto-run  { action: 'start' | 'pause' | 'stop', order?: 'priority' | 'created' }
  *   A 'pause' response additionally carries `stillRunning` / `heldQueueItems` /
  *   `unknown` / `note` — what the pause did NOT stop (see theme-pause-inflight).
- * GET  /themes/:id/auto-run  → ThemeAutoRunState
+ * GET  /themes/:id/auto-run  → ThemeAutoRunState + currentTask (head) + activeTasks (head and companions, task 1552)
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config';
@@ -21,6 +21,7 @@ import {
 import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-auto-run-scheduler';
 import { describePauseScope } from '../../services/workflow/auto-run/theme-pause-inflight';
 import { loadReworkSummary } from '../../services/workflow/auto-run/auto-run-rework-summary';
+import { parseCompanions } from '../../services/workflow/auto-run/parallel/companion-json';
 import { logCycleEvent } from '../../services/observability';
 import { HTTP_STATUS } from '../../utils/common/http-status';
 import { isValidEntityId } from '../../utils/common/id-validation';
@@ -94,10 +95,30 @@ export const themeAutoRunRoutes = new Elysia()
         },
       });
 
+      // Task 1552: every running task of the theme, head first. `currentTask`
+      // stays the head so existing callers keep working.
+      const companionIds = parseCompanions(state.companionTasksJson).map((c) => c.taskId);
+      const companionRows = companionIds.length
+        ? await prisma.task.findMany({
+            where: { id: { in: companionIds } },
+            select: { id: true, title: true, status: true, workflowStatus: true },
+          })
+        : [];
+      const activeTasks = [
+        ...(currentTask
+          ? [{ id: currentTask.id, title: currentTask.title, role: 'head' as const }]
+          : []),
+        ...companionIds.flatMap((id) => {
+          const row = companionRows.find((r) => r.id === id);
+          return row ? [{ id: row.id, title: row.title, role: 'companion' as const }] : [];
+        }),
+      ];
+
       return {
         success: true,
         autoRun: toPublicAutoRunState(state),
         currentTask,
+        activeTasks,
         remainingCount,
       };
     } catch (err) {

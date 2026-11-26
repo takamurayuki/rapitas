@@ -39,7 +39,6 @@ import {
   getAutoRunState,
   isPausedAutoRunStatus,
   PAUSED_AUTO_RUN_STATUSES,
-  setCurrentTask,
   type ThemeAutoRunState,
 } from './theme-auto-run-service';
 import {
@@ -50,6 +49,9 @@ import {
   broadcastAutoRunUpdateImpl,
 } from './auto-run-lifecycle';
 import { advanceActiveTask } from './auto-run-advance-active';
+import { advanceCompanions } from './parallel/advance-companions';
+import { releaseThemeSlot } from './parallel/theme-active-set';
+import { stopAutoRunTaskOrTheme } from './parallel/per-task-stop';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { resolveIterationBudgetForTask } from '../task-iteration-budget';
 import { recordTransition } from '../transition-recorder';
@@ -258,6 +260,7 @@ export class ThemeAutoRunScheduler {
           state.order,
           globalActive,
           state.lastRunAt,
+          state.companionTasksJson,
         );
       } catch (err) {
         log.error({ err }, `[ThemeAutoRunScheduler] Error advancing theme ${state.themeId}`);
@@ -272,6 +275,8 @@ export class ThemeAutoRunScheduler {
    * @param currentTaskId - Currently tracked task (may be null) / 現在のタスクID
    * @param order - Task selection order / タスク選択順序
    * @param globalActive - Current global auto-run active count / グローバルアクティブ数
+   * @param lastRunAt - When the head became current / 先頭の開始時刻
+   * @param companionTasksJson - Companions read this tick (task 1552) / 同伴タスク
    */
   private async advanceTheme(
     themeId: number,
@@ -279,6 +284,7 @@ export class ThemeAutoRunScheduler {
     order: 'priority' | 'created',
     globalActive: number,
     lastRunAt: string | null,
+    companionTasksJson?: string | null,
   ): Promise<void> {
     const t0 = Date.now();
     // NOTE(task 1040): registers this section so a concurrent event-loop-lag
@@ -287,20 +293,32 @@ export class ThemeAutoRunScheduler {
     const releaseSection = markEventLoopSection('theme-auto-run-scheduler:advanceTheme');
     try {
       if (currentTaskId) {
-        if (await this.haltIfIterationBudgetExceeded(themeId, currentTaskId)) return;
-        await advanceActiveTask(
-          prisma,
-          themeId,
-          currentTaskId,
-          order,
-          globalActive,
-          lastRunAt,
-          this.barrierHoldSince,
-        );
-        return;
+        if (!(await this.haltIfIterationBudgetExceeded(themeId, currentTaskId))) {
+          await advanceActiveTask(
+            prisma,
+            themeId,
+            currentTaskId,
+            order,
+            globalActive,
+            lastRunAt,
+            this.barrierHoldSince,
+          );
+        }
+      } else {
+        await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
       }
-
-      await selectAndEnqueueNextTask(prisma, themeId, order, globalActive, this.barrierHoldSince);
+      // Task 1552: companions get the same per-task step, then a free
+      // per-theme slot is filled. With per-theme limit 1 and no companions
+      // this reads nothing beyond the settings row.
+      await advanceCompanions(
+        prisma,
+        themeId,
+        companionTasksJson,
+        order,
+        globalActive,
+        this.barrierHoldSince,
+        { haltIfExceeded: (id) => this.haltIfIterationBudgetExceeded(themeId, id), select: true },
+      );
     } finally {
       releaseSection();
       const tookMs = Date.now() - t0;
@@ -368,11 +386,13 @@ export class ThemeAutoRunScheduler {
       `[ThemeAutoRunScheduler] Task ${currentTaskId} halted by iteration budget (${state.haltReason})`,
     );
     // NOTE: workflow-reconciler-requeue.ts excludes haltReason tasks (task 1002), so a halted task is not re-queued and re-executed after this stop.
-    await stopThemeExecutionImpl(prisma, themeId, currentTaskId);
+    // Task 1552: a halt is about this task alone — with companions running it
+    // stops only this task's tree (alone it is the pre-task theme stop).
+    await stopAutoRunTaskOrTheme(prisma, themeId, currentTaskId);
     // Release the theme's current task: advanceTheme() re-runs this check on
     // currentTaskId every tick, so leaving it set re-halted the same task every
     // 12s and never reached selection (task 984/985, 2026-09-20).
-    await setCurrentTask(themeId, null);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
     this.broadcastAutoRunUpdate(themeId);
     return true;
   }

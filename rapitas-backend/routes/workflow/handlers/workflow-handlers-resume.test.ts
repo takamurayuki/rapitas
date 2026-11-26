@@ -349,7 +349,11 @@ describe('handleAnswerWorkflowQuestion', () => {
       }),
     );
   });
-  test('ignores a malformed selections payload without throwing (metadata stays empty)', async () => {
+  // NOTE: Replaced "ignores a malformed selections payload" (task 559, when
+  // selections were audit-only). Selections now decide the criteria rewrite and
+  // plan-revision routing, and the silent drop made 1552/1560 answer "adopt"
+  // without adopting (2026-11-26), so an unreadable shape is refused.
+  test('refuses an unreadable selections payload instead of answering without it', async () => {
     mockFindUnique.mockResolvedValue({
       id: 11,
       description: null,
@@ -357,15 +361,19 @@ describe('handleAnswerWorkflowQuestion', () => {
       workflowStatus: 'awaiting_question',
       status: 'todo',
     });
-    await handleAnswerWorkflowQuestion({
-      params: { taskId: '11' },
-      body: { answer: '回答', selections: 'not-an-array' },
-      set: {},
-      headers: { 'x-rapitas-source': 'ui' },
-    });
-    expect(mockRecordTransition).toHaveBeenCalledWith(
-      expect.objectContaining({ taskId: 11, metadata: { kind: 'spec_change' } }),
-    );
+    const set: { status?: number } = {};
+    for (const selections of ['not-an-array', { criteria: 'adopt' }]) {
+      await expect(
+        handleAnswerWorkflowQuestion({
+          params: { taskId: '11' },
+          body: { answer: '回答', selections },
+          set,
+          headers: { 'x-rapitas-source': 'ui' },
+        }),
+      ).rejects.toThrow('selections must be an array');
+      expect(set.status).toBe(400);
+    }
+    expect(mockRecordTransition).not.toHaveBeenCalled();
   });
   test('delegates the post-answer auto re-run to triggerReExecutionAfterAnswer', async () => {
     mockFindUnique.mockResolvedValue({

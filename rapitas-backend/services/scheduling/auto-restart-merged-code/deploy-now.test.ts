@@ -7,8 +7,21 @@
  * deploys no matter how recently it last restarted or how recently the UI
  * was touched.
  */
-import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, afterAll, mock } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// deployNow writes the shared restart stamp; keep it out of the real ~/.rapitas.
+const originalDataDir = process.env.RAPITAS_DATA_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), 'deploy-now-'));
+process.env.RAPITAS_DATA_DIR = dataDir;
+const STAMP = join(dataDir, '.auto-restart-merged-code-last-at');
+afterAll(() => {
+  if (originalDataDir === undefined) delete process.env.RAPITAS_DATA_DIR;
+  else process.env.RAPITAS_DATA_DIR = originalDataDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 /**
  * The module's own source, read so the tests below can assert what it does
@@ -134,7 +147,7 @@ describe('deploying on request', () => {
 
   // The whole reason this path exists: the automatic one waits 15 minutes a
   // poll, then two idle polls, then three minutes of UI silence. A request is
-  // not a poll, so none of that is consulted here — there is no clock in this
+  // not a poll, so none of that is consulted here — no clock is ever READ in this
   // function at all, which is what makes it answerable on demand.
   test('consults no clock: not the last restart, not UI activity', async () => {
     const source = await ownSource();
@@ -225,5 +238,24 @@ describe('deploying on request', () => {
   test('tells the user it is going down before it goes', async () => {
     await deployNow('abc1234');
     expect(notified).toBe(true);
+  });
+
+  // Task 1548: the automatic paths now wait 60 minutes after any restart. A
+  // request must not: a restart 5 minutes ago still deploys at once, and the
+  // stamp is renewed so the next AUTOMATIC restart waits behind this one.
+  test('deploys right after a restart and renews the shared stamp', async () => {
+    const fiveMinutesAgo = Date.now() - 5 * 60_000;
+    writeFileSync(STAMP, String(fiveMinutesAgo));
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: true, reason: 'deployed' });
+    expect(shutdown).toBe('[deploy-now]');
+    expect(Number(readFileSync(STAMP, 'utf8'))).toBeGreaterThan(fiveMinutesAgo);
+  });
+
+  test('a refused request leaves the stamp alone', async () => {
+    writeFileSync(STAMP, '1000');
+    clean = false;
+    await deployNow('abc1234');
+    expect(readFileSync(STAMP, 'utf8')).toBe('1000');
   });
 });

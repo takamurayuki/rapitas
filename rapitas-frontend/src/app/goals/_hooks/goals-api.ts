@@ -12,6 +12,7 @@ import type {
   MilestoneStatus,
   UnassignedTask,
 } from './goals.types';
+import type { InsightPeriod, InsightsResponse } from '../insights/_hooks/insights.types';
 
 const fresh = { skipCache: true } as const;
 const send = (method: string, body?: unknown) => ({
@@ -43,6 +44,8 @@ export function apiErrorMessage(err: unknown): string | null {
 
 export const goalsApi = {
   list: () => apiFetch<GoalSummary[]>('/goals', fresh),
+  insights: (period: InsightPeriod) =>
+    apiFetch<InsightsResponse>(`/goal-insights?period=${period}`, fresh),
   detail: (id: number) => apiFetch<GoalDetail>(`/goals/${id}`, fresh),
   createGoal: (name: string, description: string) =>
     apiFetch<{ id: number }>(

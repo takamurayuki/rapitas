@@ -1433,6 +1433,7 @@ CREATE TABLE "UserSettings" (
     "executionStallThresholdMinutes" INTEGER NOT NULL DEFAULT 5,
     "idleStopMinutes" INTEGER NOT NULL DEFAULT 60,
     "autoRunMaxConcurrency" INTEGER NOT NULL DEFAULT 1,
+    "autoRunMaxConcurrencyPerTheme" INTEGER NOT NULL DEFAULT 1,
     "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1844,6 +1845,7 @@ CREATE TABLE "ThemeAutoRun" (
     "idleSince" DATETIME,
     "idleStoppedAt" DATETIME,
     "lastSelfRefillAt" DATETIME,
+    "companionTasksJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -1877,6 +1879,9 @@ CREATE INDEX "DeveloperModeConfig_workspaceId_idx" ON "DeveloperModeConfig"("wor
 CREATE INDEX "AgentSession_workspaceId_idx" ON "AgentSession"("workspaceId");
 
 -- CreateIndex
+CREATE INDEX "AgentSession_configId_idx" ON "AgentSession"("configId");
+
+-- CreateIndex
 CREATE INDEX "AgentAction_workspaceId_idx" ON "AgentAction"("workspaceId");
 
 -- CreateIndex
@@ -1890,6 +1895,12 @@ CREATE INDEX "AgentExecution_status_heartbeatAt_idx" ON "AgentExecution"("status
 
 -- CreateIndex
 CREATE INDEX "AgentExecution_workspaceId_idx" ON "AgentExecution"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_sessionId_idx" ON "AgentExecution"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_completedAt_idx" ON "AgentExecution"("completedAt");
 
 -- CreateIndex
 CREATE INDEX "AgentExecutionLog_executionId_sequenceNumber_idx" ON "AgentExecutionLog"("executionId", "sequenceNumber");
@@ -2286,6 +2297,9 @@ CREATE INDEX "KnowledgeEntry_workspaceId_idx" ON "KnowledgeEntry"("workspaceId")
 
 -- CreateIndex
 CREATE INDEX "TimelineEvent_eventType_idx" ON "TimelineEvent"("eventType");
+
+-- CreateIndex
+CREATE INDEX "TimelineEvent_eventType_createdAt_idx" ON "TimelineEvent"("eventType", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "TimelineEvent_correlationId_idx" ON "TimelineEvent"("correlationId");

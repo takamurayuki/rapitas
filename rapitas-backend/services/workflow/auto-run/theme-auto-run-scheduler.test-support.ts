@@ -22,6 +22,7 @@ export * from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 export * from './theme-auto-run-scheduler.test-support.decision-mocks';
 
 import type { ThemeAutoRunState } from './theme-auto-run-service';
+import { expect } from 'bun:test';
 
 import {
   mockTaskCount,
@@ -105,6 +106,24 @@ import {
 const { ThemeAutoRunScheduler } = await import('./theme-auto-run-scheduler');
 export { ThemeAutoRunScheduler };
 
+/** 旧サービス呼び出しではなく、対象ID限定のCASと件数更新を検査する。 */
+export function expectTaskSlotRelease(
+  kind: 'completed' | 'failed' | 'released',
+  taskId: number,
+  error?: unknown,
+): void {
+  expect(mockThemeAutoRunUpdateMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ themeId: 1, currentTaskId: taskId }),
+      data: expect.objectContaining({
+        currentTaskId: null,
+        ...(kind === 'released' ? {} : { processedCount: { increment: 1 } }),
+        ...(error !== undefined ? { lastError: error } : {}),
+      }),
+    }),
+  );
+}
+
 /** Shape of the scheduler's private surface used directly by these tests. */
 export interface SchedulerInternal {
   running: boolean;
@@ -119,6 +138,8 @@ export interface SchedulerInternal {
     order: 'priority' | 'created',
     globalActive: number,
     lastRunAt: string | null,
+    /** Companions of the theme row (task 1552); omitted = none. */
+    companionTasksJson?: string | null,
   ): Promise<void>;
   stopThemeExecution(themeId: number, currentTaskId: number | null): Promise<void>;
   broadcastAutoRunUpdate(themeId: number): void;

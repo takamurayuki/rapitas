@@ -13,6 +13,9 @@ import type { TaskWorkflowState } from '../task/task-resolver';
 process.env.RAPITAS_VERIFY_SETTLE_MS = '30';
 process.env.RAPITAS_VERIFY_SETTLE_CAP_MS = '30';
 
+// The settle wait also asks whether the verifier is still running (task 1547);
+// these cases have no live verifier, and the real lookup would reach the DB.
+mock.module('./verify-settle-live-verifier', () => ({ isVerifierStillRunning: async () => false }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));

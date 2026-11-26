@@ -28,6 +28,7 @@ export type ValidationStatus = 'pending' | 'validated' | 'rejected' | 'conflict'
 // --- TimelineEvent ---
 export type TimelineEventType =
   | 'task_created'
+  | 'milestone_reopened'
   | 'task_completed'
   | 'task_updated'
   | 'agent_execution_started'

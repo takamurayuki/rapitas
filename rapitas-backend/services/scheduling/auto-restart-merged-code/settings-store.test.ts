@@ -15,6 +15,9 @@ import {
   writeLastRestartAt,
   readDeferCount,
   writeDeferCount,
+  readDevRestartLastAt,
+  writeDevRestartLastAt,
+  readLatestAutoRestartAt,
 } from './settings-store';
 
 const originalDataDir = process.env.RAPITAS_DATA_DIR;
@@ -94,12 +97,39 @@ describe('last-restart stamp', () => {
   });
 
   test('uses a file separate from the dev-restart-on-dry stamp', () => {
-    // The two restart mechanisms must keep independent rate limits.
+    // Writes stay separate; only reads are combined (readLatestAutoRestartAt).
     writeLastRestartAt(123456789);
     expect(readLastRestartAt()).toBe(123456789);
     // .dev-restart-last-at was never created by this store.
     expect(() => readLastRestartAt()).not.toThrow();
     const devRestartStamp = join(tempDir, '.dev-restart-last-at');
     expect(existsSync(devRestartStamp)).toBe(false);
+  });
+});
+
+describe('shared restart floor (task 1548)', () => {
+  test('dev-restart stamp round-trips through .dev-restart-last-at', () => {
+    expect(readDevRestartLastAt()).toBe(0);
+    writeDevRestartLastAt(1765000000000);
+    expect(readDevRestartLastAt()).toBe(1765000000000);
+    expect(existsSync(join(tempDir, '.dev-restart-last-at'))).toBe(true);
+  });
+
+  test('readLatestAutoRestartAt is 0 when neither stamp exists', () => {
+    expect(readLatestAutoRestartAt()).toBe(0);
+  });
+
+  test('readLatestAutoRestartAt returns the newer of the two stamps', () => {
+    writeLastRestartAt(2_000);
+    writeDevRestartLastAt(1_000);
+    expect(readLatestAutoRestartAt()).toBe(2_000);
+    writeDevRestartLastAt(3_000);
+    expect(readLatestAutoRestartAt()).toBe(3_000);
+  });
+
+  test('a garbage stamp on one side does not hide the other', () => {
+    writeFileSync(join(tempDir, '.auto-restart-merged-code-last-at'), 'junk');
+    writeDevRestartLastAt(4_000);
+    expect(readLatestAutoRestartAt()).toBe(4_000);
   });
 });

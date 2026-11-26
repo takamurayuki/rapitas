@@ -5,6 +5,8 @@ let healthy = true;
 let logs: string[] = [];
 let browserAvailable = true;
 let harnessError = false;
+/** 取得側で確定した環境要因を注入する。 */
+let refusal: { cause: string; hasExited?: boolean } | null = null;
 /** Whether the task under verification is the `[UI]` task that owes an entry. */
 let screenTask = false;
 const stop = mock(() => {});
@@ -17,7 +19,17 @@ const launch = mock(async () =>
         lease: 'test-lease',
         logs: () => logs,
       }
-    : { ok: false, reason: 'startup failed', logs, hasExited: false, exitCode: null },
+    : refusal
+      ? {
+          ok: false,
+          reason: 'refused',
+          logs,
+          hasExited: false,
+          exitCode: null,
+          unverifiable: true,
+          ...refusal,
+        }
+      : { ok: false, reason: 'startup failed', logs, hasExited: false, exitCode: null },
 );
 mock.module('./worktree-server-registry', () => ({
   acquireRuntimeServer: launch,
@@ -65,6 +77,7 @@ beforeEach(() => {
   logs = [];
   browserAvailable = true;
   harnessError = false;
+  refusal = null;
   screenTask = false;
   stop.mockClear();
   launch.mockClear();
@@ -142,4 +155,101 @@ test('harness error retains unavailable evidence and cleans up', async () => {
     unverifiable: true,
   });
   expect(stop).toHaveBeenCalledTimes(1);
+});
+
+// Task 1539: port/lock/quarantine stops are environment causes, never an app failure.
+test.each(['port_in_use', 'lock_held', 'quarantined', 'foreign_process'])(
+  'a pre-launch %s refusal is unverifiable with errorCount 0 and carries the cause',
+  async (cause) => {
+    healthy = false;
+    refusal = { cause };
+    const result = await runRuntimeSmokeCheck(`/refused-${cause}`);
+    expect(result).toMatchObject({
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      cause,
+    });
+    expect(result?.details).toContain(`cause=${cause}`);
+  },
+);
+test.each([
+  ['Error: listen EADDRINUSE: address already in use :::8090', 'port_in_use'],
+  ['Error: Port TCP 8090 is in use', 'port_in_use'],
+  ['Error: 別のインスタンスが既に起動しています', 'lock_held'],
+])(
+  'a launch that died on "%s" is an environment cause, not an app failure',
+  async (line, cause) => {
+    healthy = false;
+    logs = [line];
+    const result = await runRuntimeSmokeCheck(`/log-${cause}`);
+    expect(result).toMatchObject({
+      ran: false,
+      ok: false,
+      unverifiable: true,
+      errorCount: 0,
+      cause,
+    });
+    expect(result?.details).toContain(`cause=${cause}`);
+  },
+);
+
+// NOTE: 単独行を出した自主終了は、停止前に取得側が確定した原因で未検証として報告する。
+test('単独の起動拒否に取得側が設定した lock_held を報告する', async () => {
+  healthy = false;
+  logs = ['別のインスタンスが既に起動しています'];
+  refusal = { cause: 'lock_held', hasExited: true };
+  const result = await runRuntimeSmokeCheck('/lock-refusal');
+  expect(result).toMatchObject({
+    ran: false,
+    ok: false,
+    unverifiable: true,
+    errorCount: 0,
+    cause: 'lock_held',
+  });
+  expect(result?.details).toContain('cause=lock_held');
+});
+
+// Task 1539: a log that merely MENTIONS a port or lock must not turn an implementation
+// error into an environment cause (that would let broken code through verification).
+test.each([
+  [
+    'recovery then TypeError',
+    [
+      'Port 3000 is in use, trying 3001 instead',
+      'Ready in 1.2s',
+      'TypeError: x is not a function',
+      '    at handler (app.ts:1:1)',
+    ],
+  ],
+  [
+    'conflict warning then another fatal error',
+    ['Error: listen EADDRINUSE: address already in use :::3000', 'TypeError: boom'],
+  ],
+  ['lock file parse error', ['Failed to parse lock file: Unexpected token']],
+  [
+    '競合警告の後の別異常終了',
+    [
+      'Warning: Port 8090 is in use, trying 8091 instead',
+      'build-worker terminated with exit code 2',
+    ],
+  ],
+  [
+    'TypeErrorの後の競合警告',
+    ['TypeError: x is not a function', 'Warning: Port 8090 is in use, trying 8091 instead'],
+  ],
+  ['致命行のないポート言及', ['Port TCP 8090 is in use']],
+  ['取得側の原因がない単独行', ['別のインスタンスが既に起動しています']],
+  [
+    'port and lock both named',
+    ['Error: listen EADDRINUSE: address already in use', 'Unable to acquire lock'],
+  ],
+])('an app failure that only mentions a conflict stays a failure: %s', async (_name, lines) => {
+  healthy = false;
+  logs = lines;
+  const result = await runRuntimeSmokeCheck(`/app-failure-${_name}`);
+  expect(result).toMatchObject({ ran: true, ok: false, errorCount: 1 });
+  expect(result?.unverifiable).toBeUndefined();
+  expect(result?.cause).toBeUndefined();
 });

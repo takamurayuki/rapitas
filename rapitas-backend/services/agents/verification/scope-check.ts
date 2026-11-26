@@ -20,6 +20,25 @@ const SCOPE_ALLOWLIST = new Set([
   'yarn.lock',
 ]);
 
+/**
+ * Editor/tool backup and temp file NAMES (`server.exe~`, `a.bak`, `b.orig`,
+ * `.#lock`, `c.swp`, `d.tmp`)。接尾辞・接頭辞だけの名前も同じ規則で扱う。
+ */
+const BACKUP_NAME_RE = /^(?:.*~|.*\.(?:bak|orig|swp|swo|tmp)|\.#.*)$/;
+
+/**
+ * Whether a path is an editor/tool backup or temp file. Judged on the file
+ * name only, never a directory segment.
+ *
+ * @param file - Changed path (either separator) / 変更パス
+ * @returns True for backup or temp files / バックアップ・一時ファイルならtrue
+ */
+export function isBackupOrTempFile(file: string): boolean {
+  // NOTE: Only evaluateScopeCheck uses this. tamperCheck keeps seeing these
+  // files so a `.husky/x.bak` is still caught.
+  return BACKUP_NAME_RE.test(file.replace(/\\/g, '/').split('/').pop() ?? file);
+}
+
 /** File-like token: dotted extension at the end (with or without dir segments). */
 const PATHISH_RE = /^[\w.@-]+(?:[/\\][\w.@[\]-]+)*\.[A-Za-z]{1,6}$/;
 /** Explicit hidden files such as `.gitignore` have no conventional extension. */
@@ -128,7 +147,7 @@ export function evaluateScopeCheck(
   const offending = allChangedFiles.filter((f) => {
     const file = f.replace(/\\/g, '/');
     const base = file.split('/').pop() ?? f;
-    if (exact.has(file) || SCOPE_ALLOWLIST.has(base)) return false;
+    if (exact.has(file) || SCOPE_ALLOWLIST.has(base) || isBackupOrTempFile(f)) return false;
     return !isInPlan(f, planFiles);
   });
 

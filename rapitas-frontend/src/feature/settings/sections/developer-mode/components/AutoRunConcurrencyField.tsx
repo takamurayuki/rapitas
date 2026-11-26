@@ -2,9 +2,9 @@
 /**
  * AutoRunConcurrencyField
  *
- * The auto-run settings row for the global concurrency limit (task 1543):
- * a 1..4 number input saved on blur, disabled with a note while the
- * AUTO_RUN_GLOBAL_MAX_CONCURRENCY env var overrides the saved value.
+ * The auto-run settings rows for the concurrency limits: the global limit
+ * (task 1543) and the per-theme limit (task 1552). Each is a 1..4 number input
+ * saved on blur, disabled with a note while its env var overrides the value.
  */
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -19,21 +19,36 @@ interface AutoRunConcurrencyFieldProps {
   onUpdateSettings: (updates: Partial<UserSettings>) => void;
 }
 
-/**
- * Concurrency limit input for the auto-run settings card.
- *
- * @param settings - Current user settings. / 現在のユーザー設定
- * @param isSaving - Whether a save is in progress. / 保存中かどうか
- * @param onUpdateSettings - Callback to persist a partial update. / 部分更新を保存するコールバック
- */
-export function AutoRunConcurrencyField({
+/** One limit: its setting key, env-override key and message keys. */
+interface LimitRowSpec {
+  field: 'autoRunMaxConcurrency' | 'autoRunMaxConcurrencyPerTheme';
+  envField: 'autoRunMaxConcurrencyEnvOverride' | 'autoRunMaxConcurrencyPerThemeEnvOverride';
+  messagePrefix: 'maxConcurrency' | 'maxConcurrencyPerTheme';
+}
+
+const ROWS: LimitRowSpec[] = [
+  {
+    field: 'autoRunMaxConcurrency',
+    envField: 'autoRunMaxConcurrencyEnvOverride',
+    messagePrefix: 'maxConcurrency',
+  },
+  {
+    field: 'autoRunMaxConcurrencyPerTheme',
+    envField: 'autoRunMaxConcurrencyPerThemeEnvOverride',
+    messagePrefix: 'maxConcurrencyPerTheme',
+  },
+];
+
+function LimitRow({
+  spec,
   settings,
   isSaving,
   onUpdateSettings,
-}: AutoRunConcurrencyFieldProps) {
+}: AutoRunConcurrencyFieldProps & { spec: LimitRowSpec }) {
   const t = useTranslations('settings.autoRunSettingsCard');
-  const serverValue = settings?.autoRunMaxConcurrency ?? 1;
-  const envOverride = settings?.autoRunMaxConcurrencyEnvOverride ?? null;
+  const serverValue = settings?.[spec.field] ?? 1;
+  const envOverride = settings?.[spec.envField] ?? null;
+  const label = t(`${spec.messagePrefix}Label`);
 
   // NOTE: Local state + save on blur, same as the other numeric fields — a
   // per-keystroke PATCH disabled the input mid-save.
@@ -49,20 +64,20 @@ export function AutoRunConcurrencyField({
         : Math.max(MIN_CONCURRENCY, Math.min(MAX_CONCURRENCY, Math.floor(localValue)));
     setLocalValue(clamped);
     if (clamped !== serverValue) {
-      onUpdateSettings({ autoRunMaxConcurrency: clamped });
+      onUpdateSettings({ [spec.field]: clamped });
     }
   };
 
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h3 className="font-medium text-zinc-900 dark:text-zinc-50">{t('maxConcurrencyLabel')}</h3>
+        <h3 className="font-medium text-zinc-900 dark:text-zinc-50">{label}</h3>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          {t('maxConcurrencyDescription')}
+          {t(`${spec.messagePrefix}Description`)}
         </p>
         {envOverride !== null && (
           <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-            {t('maxConcurrencyEnvOverride', { value: envOverride })}
+            {t(`${spec.messagePrefix}EnvOverride`, { value: envOverride })}
           </p>
         )}
       </div>
@@ -71,7 +86,7 @@ export function AutoRunConcurrencyField({
           type="number"
           min={MIN_CONCURRENCY}
           max={MAX_CONCURRENCY}
-          aria-label={t('maxConcurrencyLabel')}
+          aria-label={label}
           value={localValue}
           disabled={envOverride !== null}
           onChange={(e) => {
@@ -92,5 +107,22 @@ export function AutoRunConcurrencyField({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Concurrency limit inputs (global, then per theme) for the auto-run settings card.
+ *
+ * @param settings - Current user settings. / 現在のユーザー設定
+ * @param isSaving - Whether a save is in progress. / 保存中かどうか
+ * @param onUpdateSettings - Callback to persist a partial update. / 部分更新を保存するコールバック
+ */
+export function AutoRunConcurrencyField(props: AutoRunConcurrencyFieldProps) {
+  return (
+    <>
+      {ROWS.map((spec) => (
+        <LimitRow key={spec.field} spec={spec} {...props} />
+      ))}
+    </>
   );
 }

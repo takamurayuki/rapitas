@@ -24,6 +24,9 @@ const resolveTaskWorkflowStateMock = mock((): Promise<TaskWorkflowState | null> 
   return Promise.resolve(idx >= 0 ? resolveWorkflowStateSequence[idx] : null);
 });
 
+// The settle wait also asks whether the verifier is still running (task 1547);
+// these cases have no live verifier, and the real lookup would reach the DB.
+mock.module('./verify-settle-live-verifier', () => ({ isVerifierStillRunning: async () => false }));
 mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
 }));

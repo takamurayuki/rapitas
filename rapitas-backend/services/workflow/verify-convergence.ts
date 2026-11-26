@@ -8,6 +8,7 @@
  * bounced again. Not responsible for DB access, escalation, or transitions —
  * verify-self-repair wires those around these functions.
  */
+import { isFirstMethodReview, stripJuryRepairAppendix } from './jury-repair-reason';
 
 /**
  * Minimum length for a feature token extracted from a criterion body. Shorter
@@ -150,7 +151,10 @@ function extractFeatureTokens(criterion: string): string[] {
  * @param criteria - Acceptance criterion bodies. / 受入基準本文
  * @returns 1-based indices (deduplicated). / 指摘された基準番号
  */
-export function identifyIndictedCriteria(reason: string, criteria: string[]): number[] {
+export function identifyIndictedCriteria(rawReason: string, criteria: string[]): number[] {
+  // NOTE: The jury appendix lists the reviewer's counterexamples, not
+  // indictments; reading it would tie its identifiers to other criteria (task 1547).
+  const reason = rawReason ? stripJuryRepairAppendix(rawReason) : rawReason;
   if (!reason || criteria.length === 0) return [];
   const found = new Set<number>();
 
@@ -249,6 +253,10 @@ export function detectNonConvergence(
   threshold: number = DEFAULT_NONCONVERGENCE_THRESHOLD,
 ): ConvergenceVerdict {
   if (criteria.length === 0) return { cutoff: false };
+  // NOTE: The first reason asking for a method review must reach the
+  // implementer; cutting off here would drop it unread (task 1547 R2). Only the
+  // first one in the window, so the cutoff waits at most one bounce.
+  if (isFirstMethodReview(currentReason, priorReasons)) return { cutoff: false };
 
   const priorSets = priorReasons.map((r) => stripUndeterminableIndictments(r, criteria));
   const currentSet = stripUndeterminableIndictments(currentReason, criteria);

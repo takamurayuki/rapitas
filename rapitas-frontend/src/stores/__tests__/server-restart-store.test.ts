@@ -1,10 +1,15 @@
 import { vi } from 'vitest';
-import { useServerRestartStore, isServerRestarting } from '../server-restart-store';
+import {
+  useServerRestartStore,
+  isServerRestarting,
+  getRestartStartedAt,
+  MAX_RESTART_MS,
+} from '../server-restart-store';
 
 describe('serverRestartStore', () => {
   beforeEach(() => {
     vi.useRealTimers();
-    useServerRestartStore.setState({ isRestarting: false });
+    useServerRestartStore.setState({ isRestarting: false, restartStartedAt: null });
   });
 
   afterEach(() => {
@@ -50,5 +55,40 @@ describe('serverRestartStore', () => {
     // Advancing past the window must NOT resurrect a stale timer.
     vi.advanceTimersByTime(200_000);
     expect(isServerRestarting()).toBe(false);
+  });
+
+  // Task 1548: the API client measures its 2-minute wait from this start time.
+  it('exports the 2-minute ceiling the API client waits for', () => {
+    expect(MAX_RESTART_MS).toBe(120_000);
+  });
+
+  it('records when the restart window opened and forgets it on clear', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    expect(getRestartStartedAt()).toBeNull();
+    useServerRestartStore.getState().setRestarting(true);
+    expect(getRestartStartedAt()).toBe(1_000_000);
+    useServerRestartStore.getState().setRestarting(false);
+    expect(getRestartStartedAt()).toBeNull();
+  });
+
+  it('a second restarting signal keeps the start time and the original timer', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    useServerRestartStore.getState().setRestarting(true);
+    vi.advanceTimersByTime(60_000);
+    useServerRestartStore.getState().setRestarting(true);
+    expect(getRestartStartedAt()).toBe(1_000_000);
+    // 121 s after the FIRST signal the window closes, not 121 s after the second.
+    vi.advanceTimersByTime(61_000);
+    expect(isServerRestarting()).toBe(false);
+    expect(getRestartStartedAt()).toBeNull();
+  });
+
+  it('the auto-clear also forgets the start time', () => {
+    vi.useFakeTimers();
+    useServerRestartStore.getState().setRestarting(true);
+    vi.advanceTimersByTime(MAX_RESTART_MS + 1);
+    expect(getRestartStartedAt()).toBeNull();
   });
 });

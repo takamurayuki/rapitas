@@ -13,6 +13,7 @@
  */
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { resolveAutoRunMaxConcurrency } from '../workflow/auto-run/auto-run-concurrency';
+import { parseCompanions } from '../workflow/auto-run/parallel/companion-json';
 
 /** Minimal shape this module needs from a task-list row. */
 export interface TaskLikeForAutoRunCardStatus {
@@ -126,6 +127,17 @@ async function currentPicksWaitingForSlot(
   }
 }
 
+/** Head + companion task ids of one ThemeAutoRun row (task 1552). */
+function runningTaskIds(row: {
+  currentTaskId: number | null;
+  companionTasksJson?: unknown;
+}): number[] {
+  const ids = parseCompanions(row.companionTasksJson).map((c) => c.taskId);
+  return row.currentTaskId != null
+    ? [row.currentTaskId, ...ids.filter((id) => id !== row.currentTaskId)]
+    : ids;
+}
+
 /**
  * Attach `autoRunCurrent`/`autoRunQueued` to every task in `tasks`, including
  * nested subtasks. Mutates the given objects in place and also returns them
@@ -142,25 +154,33 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
   const themeIds = [...new Set(collectThemeIds(tasks))];
   if (themeIds.length === 0) return tasks;
 
-  const autoRuns = await prisma.themeAutoRun.findMany({
+  // NOTE: no `select` — companionTasksJson (task 1552) is pending client regeneration.
+  const autoRuns = (await prisma.themeAutoRun.findMany({
     where: { themeId: { in: themeIds }, enabled: true, status: 'running' },
-    select: { themeId: true, currentTaskId: true },
-  });
-  const currentTaskIdByTheme = new Map(autoRuns.map((a) => [a.themeId, a.currentTaskId]));
+  })) as unknown as Array<{
+    themeId: number;
+    currentTaskId: number | null;
+    companionTasksJson?: unknown;
+  }>;
+  // Task 1552: a theme may run several tasks — the head and its companions are
+  // all "current" (次に着手 / 順番待ちの判定は全件に当てる).
+  const currentTaskIdsByTheme = new Map<number, Set<number>>(
+    autoRuns.map((a) => [a.themeId, new Set(runningTaskIds(a))]),
+  );
   const waitingForSlot = await currentPicksWaitingForSlot(
     prisma,
-    autoRuns.map((a) => a.currentTaskId).filter((id): id is number => id != null),
+    autoRuns.flatMap((a) => runningTaskIds(a)),
   );
 
   const apply = (list: T[]) => {
     for (const task of list) {
-      const isAutoRunningTheme = task.themeId != null && currentTaskIdByTheme.has(task.themeId);
+      const isAutoRunningTheme = task.themeId != null && currentTaskIdsByTheme.has(task.themeId);
       if (
         isAutoRunningTheme &&
         themeSupportsAutoRun(task.theme) &&
         !isTerminalTaskStatus(task.status)
       ) {
-        const current = currentTaskIdByTheme.get(task.themeId as number) === task.id;
+        const current = currentTaskIdsByTheme.get(task.themeId as number)?.has(task.id) ?? false;
         task.autoRunCurrent = current;
         task.autoRunQueued = !current && looksAutoRunEligible(task);
         task.autoRunWaitingForSlot = current && waitingForSlot.has(task.id);

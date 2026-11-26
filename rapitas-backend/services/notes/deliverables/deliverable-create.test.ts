@@ -123,6 +123,24 @@ describe('creating the deliverable note', () => {
     expect(note('deliverable-task-7')).toBeUndefined();
   });
 
+  it('stores a generated body with its disallowed inline HTML removed', async () => {
+    seed({ verify: LONG });
+    reply =
+      'TITLE: 単元1の成果\nBODY:\n<span style="color:#E53935">赤</span><script>x</script><span onclick="y">z</span>';
+    await complete();
+    expect(await createDeliverableForTask(p(), 7)).toBe('created');
+    // The draft parser ends the body with a newline.
+    expect(note('deliverable-task-7')?.content).toBe('<span style="color:#E53935">赤</span>z\n');
+  });
+
+  it('still fails a generated body holding the old editor div', async () => {
+    seed({ verify: LONG });
+    reply = 'TITLE: 単元1の成果\nBODY:\n<span style="color:#E53935">a</span><div>b</div>';
+    await complete();
+    expect(await createDeliverableForTask(p(), 7)).toBe('failed');
+    expect(note('deliverable-task-7')).toBeUndefined();
+  });
+
   it('never rewrites an existing note on a re-completion', async () => {
     seed({ verify: LONG });
     await complete();

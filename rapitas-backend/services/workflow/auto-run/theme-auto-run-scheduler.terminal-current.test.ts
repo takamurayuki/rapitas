@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import {
   mockStopTaskTreeAgents,
   mockResumeTransition,
@@ -86,7 +87,7 @@ describe('advanceTheme — cancelled current task (task 1009)', () => {
 
     await internal(scheduler).advanceTheme(1, 100, 'priority', 0, new Date().toISOString());
 
-    expect(mockOnTaskCompleted).toHaveBeenCalledTimes(1);
+    expectTaskSlotRelease('completed', 100);
     expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
@@ -126,7 +127,7 @@ describe('advanceTheme — cancelled current task (task 1009)', () => {
     await internal(scheduler).advanceTheme(1, 100, 'priority', 0, new Date().toISOString());
 
     expect(mockEnqueue).not.toHaveBeenCalled();
-    expect(mockOnTaskCompleted).toHaveBeenCalledTimes(1);
+    expectTaskSlotRelease('completed', 100);
     expect(mockSelectNextTask).toHaveBeenCalled();
   });
 });

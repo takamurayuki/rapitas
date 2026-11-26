@@ -69,6 +69,7 @@ export interface VerificationCheck {
    * execute — the gate fails closed instead of silently treating it as passed.
    */
   unverifiable?: boolean;
+  cause?: import('./runtime-smoke/runtime-server-registry-types').RuntimeEnvCause;
   /**
    * Test files that failed before the agent's changes (pre-existing failures).
    * Only set on 'test' checks when triage detected at least one pre-existing failure.
