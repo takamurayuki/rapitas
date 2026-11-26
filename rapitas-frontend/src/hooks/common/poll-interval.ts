@@ -17,8 +17,8 @@ import { getAppHidden, subscribeAppHidden } from './app-visibility-store';
 
 /** Background polls run this many times less often. */
 export const HIDDEN_POLL_MULTIPLIER = 4;
-/** Upper bound for a stretched interval (5 min). */
-export const MAX_HIDDEN_POLL_MS = 300_000;
+/** Upper bound for a stretched interval (60 s, task 1553 answer 8). */
+export const MAX_HIDDEN_POLL_MS = 60_000;
 
 /**
  * Interval to use for a poll given the current visibility.

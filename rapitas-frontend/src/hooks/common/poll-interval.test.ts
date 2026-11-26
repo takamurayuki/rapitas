@@ -2,7 +2,7 @@
  * poll-interval.test
  *
  * Task 1553: while rapitas is in the background, periodic polls stretch to
- * 4× their interval (capped at 5 minutes) and snap back when it returns.
+ * 4× their interval (capped at 60 seconds) and snap back when it returns.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
@@ -32,17 +32,17 @@ describe('resolvePollInterval', () => {
 
   it('stretches 4× while hidden', () => {
     expect(HIDDEN_POLL_MULTIPLIER).toBe(4);
-    expect(resolvePollInterval(30_000, true)).toBe(120_000);
+    expect(resolvePollInterval(10_000, true)).toBe(40_000);
     expect(resolvePollInterval(8_000, true)).toBe(32_000);
   });
 
-  it('caps at 5 minutes while hidden', () => {
-    expect(MAX_HIDDEN_POLL_MS).toBe(300_000);
-    expect(resolvePollInterval(120_000, true)).toBe(300_000);
+  it('caps at 60 seconds while hidden', () => {
+    expect(MAX_HIDDEN_POLL_MS).toBe(60_000);
+    expect(resolvePollInterval(30_000, true)).toBe(60_000);
   });
 
   it('never shortens an interval that is already longer than the cap', () => {
-    expect(resolvePollInterval(600_000, true)).toBe(600_000);
+    expect(resolvePollInterval(120_000, true)).toBe(120_000);
   });
 });
 

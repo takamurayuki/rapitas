@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { resolvePollInterval, usePollHidden } from '@/hooks/common/poll-interval';
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -47,6 +48,7 @@ export function useResourceGate(): {
   const [deferrals, setDeferrals] = useState<ResourceGateDeferral[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const hidden = usePollHidden();
 
   const poll = useCallback(async () => {
     try {
@@ -67,9 +69,13 @@ export function useResourceGate(): {
 
   useEffect(() => {
     poll();
-    const timer = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
   }, [poll]);
+
+  // 10 s while visible, stretched while backgrounded (task 1553); re-armed on change.
+  useEffect(() => {
+    const timer = setInterval(poll, resolvePollInterval(POLL_INTERVAL_MS, hidden));
+    return () => clearInterval(timer);
+  }, [poll, hidden]);
 
   const override = useCallback(
     async (themeId: number) => {
