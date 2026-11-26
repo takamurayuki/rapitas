@@ -46,6 +46,13 @@ const DIRISH_RE = /^[\w.@-]+(?:[/\\][\w.@-]+)*[/\\]$/;
  */
 export function parsePlanFiles(planContent: string): string[] {
   const out = new Set<string>();
+  // 許可ファイルは監査済みの完全一致入力だけで扱う。JSON の文字列を本文として拾わない。
+  if (planContent.includes('json:plan-file-grants')) {
+    planContent = planContent.replace(
+      /^```json:plan-(?:file-grants|declaration)[^\n]*\n[^]*?(?:^```[ \t]*(?=\r?$)|$(?![^]))/gm,
+      '',
+    );
+  }
   const consider = (piece: string, requireSeparator: boolean): void => {
     const token = piece
       .trim()
@@ -107,17 +114,21 @@ function isInPlan(changedFile: string, planFiles: string[]): boolean {
  *
  * @param allChangedFiles - EVERY changed path in the worktree (code or not) / 全変更ファイル
  * @param planFiles - Paths parsed from plan.md / plan.md記載のパス
+ * @param exactFiles - Audited grants, matched by full path / 監査済みの完全一致パス
  * @returns A check result, or null when not applicable (no plan paths) / 判定結果
  */
 export function evaluateScopeCheck(
   allChangedFiles: string[],
   planFiles: string[],
+  exactFiles: readonly string[] = [],
 ): VerificationCheck | null {
-  if (planFiles.length === 0) return null;
+  if (!planFiles.length && !exactFiles.length) return null;
 
+  const exact = new Set(exactFiles);
   const offending = allChangedFiles.filter((f) => {
-    const base = f.replace(/\\/g, '/').split('/').pop() ?? f;
-    if (SCOPE_ALLOWLIST.has(base)) return false;
+    const file = f.replace(/\\/g, '/');
+    const base = file.split('/').pop() ?? f;
+    if (exact.has(file) || SCOPE_ALLOWLIST.has(base)) return false;
     return !isInPlan(f, planFiles);
   });
 

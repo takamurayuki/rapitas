@@ -32,9 +32,11 @@ mock.module('../../../config', () => ({
   createLogger: () => noopLogger,
 }));
 
-const mockReadWorkflowFile = mock(() => Promise.resolve<string | null>(null));
+const mockReadWorkflowFile = mock((..._args: unknown[]) => Promise.resolve<string | null>(null));
+const mockWriteWorkflowFile = mock((..._args: unknown[]) => Promise.resolve(''));
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   readWorkflowFile: mockReadWorkflowFile,
+  writeWorkflowFile: mockWriteWorkflowFile,
 }));
 
 mock.module('../../../middleware/error-handler', () => ({
@@ -107,6 +109,7 @@ beforeEach(() => {
   mockTaskUpdate.mockReset().mockResolvedValue({});
   mockCreateTransition.mockReset().mockResolvedValue(undefined);
   mockReadWorkflowFile.mockReset().mockResolvedValue(null);
+  mockWriteWorkflowFile.mockReset().mockResolvedValue('');
   mockIsLatestExecutionCancelled.mockReset().mockResolvedValue(false);
   mockApplyIntakeQuestionAnswerLocked
     .mockReset()
@@ -512,7 +515,7 @@ describe('applyQuestionAnswerByKind — planRevision routing (task 933)', () => 
     expect(mockCreateTransition).not.toHaveBeenCalled();
   });
 
-  test('no selections provided (legacy resume-from-question shape) never reads question.md for routing', async () => {
+  test('旧来の再開 API はファイル許可のない質問を以前の状態へ戻す', async () => {
     mockFindFirstTransition.mockResolvedValue({
       id: 15,
       cause: 'file_saved:question',
@@ -528,7 +531,7 @@ describe('applyQuestionAnswerByKind — planRevision routing (task 933)', () => 
     expect(mockCreateTransition).not.toHaveBeenCalled();
   });
 
-  test('a CAS failure during persistence falls back to the normal resume routing rather than throwing', async () => {
+  test('旧改訂フラグでも改訂保存の失敗を返して質問待ちを維持する', async () => {
     mockFindFirstTransition.mockResolvedValue({
       id: 16,
       cause: 'file_saved:question',
@@ -538,16 +541,17 @@ describe('applyQuestionAnswerByKind — planRevision routing (task 933)', () => 
     mockReadWorkflowFile.mockResolvedValue(questionMdWithPlanRevisionOption());
     mockTaskUpdate.mockRejectedValueOnce(new Error('CAS 0 rows'));
 
-    const result = await applyQuestionAnswerByKind({
-      taskId: 1,
-      answer: '改訂して',
-      actor: 'user',
-      sourceLabel: 'ユーザー選択',
-      selections: [{ questionId: 'Q1', selectedKey: 'B' }],
-    });
-
-    expect(result.kind).toBe('execution_continuation');
-    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledTimes(1);
+    await expect(
+      applyQuestionAnswerByKind({
+        taskId: 1,
+        answer: '改訂して',
+        actor: 'user',
+        sourceLabel: 'ユーザー選択',
+        selections: [{ questionId: 'Q1', selectedKey: 'B' }],
+      }),
+    ).rejects.toThrow('CAS 0 rows');
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockCreateTransition).not.toHaveBeenCalled();
   });
 });
 
@@ -591,5 +595,252 @@ describe('applyQuestionAnswerByKind — criteria review question', () => {
       selections: [{ questionId: 'criteria', selectedKey: 'adopt' }],
     });
     expect(mockApplyCriteriaReviewSelection).not.toHaveBeenCalled();
+  });
+});
+
+// task 1546: answers that leave the plan alone resume the implementer.
+function questionMd(option: Record<string, unknown>): string {
+  return (
+    '# 質問\n\n```json:options\n' +
+    JSON.stringify({
+      questions: [
+        {
+          id: 'Q1',
+          summary: '実装の進め方',
+          options: [{ key: 'A', label: '選択する', ...option }],
+          freeTextRequired: false,
+          recommended: 'A',
+          recommendedReason: '根拠',
+        },
+      ],
+    }) +
+    '\n```'
+  );
+}
+
+function arrangePause(question: string): void {
+  mockFindFirstTransition.mockResolvedValue({
+    id: 20,
+    cause: 'file_saved:question',
+    fromStatus: 'in_progress',
+    metadata: { previousStatus: 'in_progress' },
+  });
+  mockReadWorkflowFile.mockResolvedValue(question);
+}
+
+const SEL = [{ questionId: 'Q1', selectedKey: 'A' }];
+const HUMAN = {
+  taskId: 1,
+  answer: '許可します',
+  actor: 'user' as const,
+  sourceLabel: 'ユーザー選択',
+  selections: SEL,
+};
+
+function resumeMetadata(): Record<string, unknown> {
+  const call = mockApplyResumeFromQuestionAnswerLocked.mock.calls[0][0] as {
+    extraMetadata: Record<string, unknown>;
+  };
+  return call.extraMetadata;
+}
+
+describe('回答による計画改訂と実装再開 (task 1546)', () => {
+  test('計画内の実装詳細は旧フラグがあっても回答を引き継いで再開する', async () => {
+    arrangePause(questionMd({ planRevision: true, planImpact: 'none' }));
+
+    const result = await applyQuestionAnswerByKind(HUMAN);
+
+    expect(result).toMatchObject({ kind: 'execution_continuation', toStatus: 'in_progress' });
+    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledWith(
+      expect.objectContaining({ answer: HUMAN.answer, actor: 'user' }),
+    );
+    expect(mockCreateTransition).not.toHaveBeenCalled();
+    expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
+    expect(resumeMetadata()).toMatchObject({ routing: 'resume', routingReason: 'no_plan_change' });
+  });
+
+  test.each([
+    ['src/extra.ts', { requiresPlanScopeRevision: true }],
+    ['rapitas-backend/services/workflow/completion-gate.ts', { requiresPlanScopeRevision: true }],
+    ['src/old.ts', { grantsFiles: ['src/old.ts'] }],
+  ])('計画外ファイル %s は署名付きの許可がなければ質問待ちを維持する', async (path, fields) => {
+    const consequence = `${path} に回帰テスト用の変更が必要`;
+    arrangePause(questionMd({ ...fields, planImpact: 'none', consequence }));
+
+    await expect(
+      applyQuestionAnswerByKind({ ...HUMAN, resumeImplementer: true }),
+    ).rejects.toThrow();
+    expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockApplyIntakeQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockCreateTransition).not.toHaveBeenCalled();
+  });
+
+  test.each([{ planImpact: 'criteria' }, { planRevision: true }, { planImpact: 'approach' }])(
+    '改訂必須の選択では遷移の保存が失敗しても再開しない (%j)',
+    async (option) => {
+      arrangePause(questionMd(option));
+      mockCreateTransition.mockRejectedValueOnce(new Error('遷移の保存失敗'));
+
+      await expect(applyQuestionAnswerByKind(HUMAN)).rejects.toThrow('遷移の保存失敗');
+      expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
+      expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+      expect(mockApplyIntakeQuestionAnswerLocked).not.toHaveBeenCalled();
+    },
+  );
+
+  test('改訂必須の選択で更新競合が起きたら既存の競合として扱う', async () => {
+    arrangePause(questionMd({ planImpact: 'approach' }));
+    mockTaskUpdate.mockRejectedValueOnce(Object.assign(new Error('CAS 0 rows'), { code: 'P2025' }));
+
+    await expect(applyQuestionAnswerByKind(HUMAN)).rejects.toMatchObject({
+      code: 'question_already_answered',
+    });
+    expect(mockCreateTransition).not.toHaveBeenCalled();
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+  });
+
+  test('旧フラグでも別の回答が先に確定したら実装を再開しない', async () => {
+    arrangePause(questionMd({ planRevision: true }));
+    mockUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(applyQuestionAnswerByKind(HUMAN)).rejects.toMatchObject({
+      code: 'question_already_answered',
+    });
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockCreateTransition).not.toHaveBeenCalled();
+  });
+
+  test('選択肢の読み取り中に質問が変われば旧回答を確定しない', async () => {
+    arrangePause(questionMd({ requiresPlanScopeRevision: true }));
+    mockReadWorkflowFile.mockImplementationOnce(() => {
+      mockFindFirstTransition.mockResolvedValue({ id: 21 });
+      return Promise.resolve(questionMd({ requiresPlanScopeRevision: true }));
+    });
+
+    await expect(applyQuestionAnswerByKind(HUMAN)).rejects.toMatchObject({
+      code: 'question_outdated',
+    });
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    expect(mockCreateTransition).not.toHaveBeenCalled();
+  });
+
+  test('旧形式の選択肢が先でも、明示的な方針変更があれば保存失敗時に再開しない', async () => {
+    const question =
+      '```json:options\n' +
+      JSON.stringify({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '旧形式',
+            options: [{ key: 'A', label: '改訂', planRevision: true }],
+          },
+          {
+            id: 'Q2',
+            summary: '新形式',
+            options: [{ key: 'A', label: '方針変更', planImpact: 'approach' }],
+          },
+        ],
+      }) +
+      '\n```';
+    arrangePause(question);
+    mockCreateTransition.mockRejectedValueOnce(new Error('遷移の保存失敗'));
+
+    await expect(
+      applyQuestionAnswerByKind({
+        ...HUMAN,
+        selections: [...SEL, { questionId: 'Q2', selectedKey: 'A' }],
+      }),
+    ).rejects.toThrow('遷移の保存失敗');
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+  });
+
+  test('完了条件とファイル範囲を同時に選んだ場合は両方を改訂指示へ渡す', async () => {
+    const question =
+      '```json:options\n' +
+      JSON.stringify({
+        questions: [
+          {
+            id: 'Q1',
+            summary: '完了条件',
+            options: [{ key: 'A', label: '条件を変更', planImpact: 'criteria' }],
+          },
+          {
+            id: 'Q2',
+            summary: '対象範囲',
+            options: [
+              {
+                key: 'A',
+                label: 'ファイルを追加',
+                requiresPlanScopeRevision: true,
+                consequence: 'src/extra.ts に回帰テストを追加',
+              },
+            ],
+          },
+        ],
+      }) +
+      '\n```';
+    arrangePause(question);
+    await applyQuestionAnswerByKind({
+      ...HUMAN,
+      selections: [...SEL, { questionId: 'Q2', selectedKey: 'A' }],
+    });
+
+    const transition = mockCreateTransition.mock.calls[0][0] as { data: { metadata: string } };
+    const metadata = JSON.parse(transition.data.metadata);
+    expect(metadata.routingReason).toBe('criteria_change');
+    expect(metadata.instruction).toContain('条件を変更');
+    expect(metadata.instruction).toContain('src/extra.ts に回帰テストを追加');
+  });
+
+  test('a criteria option still routes to plan revision and records why', async () => {
+    arrangePause(questionMd({ planImpact: 'criteria' }));
+
+    const result = await applyQuestionAnswerByKind(HUMAN);
+
+    expect(result.kind).toBe('plan_revision');
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
+    const t = mockCreateTransition.mock.calls[0][0] as {
+      data: { cause: string; metadata: string };
+    };
+    expect(t.data.cause).toBe('plan_revision_requested');
+    expect(JSON.parse(t.data.metadata)).toMatchObject({
+      routing: 'revision',
+      routingReason: 'criteria_change',
+    });
+  });
+
+  test('resumeImplementer resumes a planRevision option for a human', async () => {
+    arrangePause(questionMd({ planRevision: true }));
+
+    const result = await applyQuestionAnswerByKind({ ...HUMAN, resumeImplementer: true });
+
+    expect(result.kind).not.toBe('plan_revision');
+    expect(resumeMetadata()).toMatchObject({
+      routing: 'resume',
+      routingReason: 'operator_resume_implementer',
+    });
+  });
+
+  test('resumeImplementer cannot override a criteria change, nor be used by a system answer', async () => {
+    arrangePause(questionMd({ planImpact: 'criteria' }));
+    const criteria = await applyQuestionAnswerByKind({ ...HUMAN, resumeImplementer: true });
+    expect(criteria.kind).toBe('plan_revision');
+    expect(
+      JSON.parse(
+        (mockCreateTransition.mock.calls[0][0] as { data: { metadata: string } }).data.metadata,
+      ),
+    ).toMatchObject({ routingReason: 'criteria_not_overridable' });
+
+    mockCreateTransition.mockClear();
+    arrangePause(questionMd({ planRevision: true }));
+    const system = await applyQuestionAnswerByKind({
+      ...HUMAN,
+      actor: 'system',
+      sourceLabel: '推奨案の自動採用（無応答タイムアウト）',
+      resumeImplementer: true,
+    });
+    expect(system.kind).toBe('plan_revision');
   });
 });

@@ -10,6 +10,7 @@ import {
   isQuestionBlockEligibleForAutoAnswer,
   composeAutoAnswerText,
   resolvePlanRevisionSelection,
+  effectivePlanImpact,
 } from './question-options-parser';
 
 function block(json: unknown): string {
@@ -390,5 +391,55 @@ describe('composeAutoAnswerText', () => {
     expect(answerText).toContain('## Q1: 達成すべきゴール');
     expect(answerText).toContain('選択: 品質を優先する（影響: テストを手厚くする）');
     expect(selections).toEqual([{ questionId: 'Q1', selectedKey: 'B' }]);
+  });
+});
+
+describe('質問の計画への影響とファイル範囲 (task 1546)', () => {
+  const block = (option: Record<string, unknown>) =>
+    '```json:options\n' +
+    JSON.stringify({
+      questions: [
+        {
+          id: 'Q1',
+          summary: 's',
+          options: [{ key: 'A', label: 'a', ...option }],
+          recommended: 'A',
+          recommendedReason: 'r',
+        },
+      ],
+    }) +
+    '\n```';
+  const first = (option: Record<string, unknown>) =>
+    parseQuestionOptionsBlock(block(option))!.questions[0].options[0];
+
+  it('計画範囲の申告は真偽値と旧形式の非空配列を認識する', () => {
+    expect(first({ planImpact: 'criteria' }).planImpact).toBe('criteria');
+    expect(first({ planImpact: 'bogus' }).planImpact).toBeUndefined();
+    expect(first({ requiresPlanScopeRevision: true }).requiresPlanScopeRevision).toBe(true);
+    expect(first({ requiresPlanScopeRevision: 'true' }).requiresPlanScopeRevision).toBeUndefined();
+    expect(first({ grantsFiles: [3] })).toMatchObject({ requiresPlanScopeRevision: true });
+    expect(first({ grantsFiles: ['a.ts'] }).grantsFiles).toEqual(['a.ts']);
+    expect(first({ grantsFiles: ['a.ts', 3] }).grantsFiles).toBeUndefined();
+    expect(first({ grantsFiles: [] }).requiresPlanScopeRevision).toBeUndefined();
+    expect(first({ grantsFiles: 'a.ts' }).requiresPlanScopeRevision).toBe(true);
+    expect(
+      parseQuestionOptionsBlock(block({ key: null, requiresPlanScopeRevision: true })),
+    ).toBeNull();
+  });
+
+  it('明示承認が必要な選択肢は自動採用しない', () => {
+    const parsed = parseQuestionOptionsBlock(block({ grantsFiles: ['a.ts'] }))!;
+    parsed.questions[0].recommended = parsed.questions[0].options[0].key;
+    parsed.questions[0].recommendedReason = '追加ファイルが必要';
+    expect(isQuestionBlockEligibleForAutoAnswer(parsed).eligible).toBe(false);
+  });
+
+  it('明示分類を優先し、未知の分類は旧フラグに従う', () => {
+    expect(effectivePlanImpact(first({ planRevision: true, planImpact: 'none' }))).toBe('none');
+    expect(effectivePlanImpact(first({ planRevision: true, planImpact: 'bogus' }))).toBe(
+      'approach',
+    );
+    expect(effectivePlanImpact(first({ planRevision: true }))).toBe('approach');
+    expect(effectivePlanImpact(first({}))).toBe('none');
   });
 });

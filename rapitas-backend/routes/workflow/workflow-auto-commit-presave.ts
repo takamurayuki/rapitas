@@ -19,6 +19,7 @@ import {
   type VerificationCheck,
 } from '../../services/agents/verification/automated-verifier';
 import { evaluateScopeCheck, parsePlanFiles } from '../../services/agents/verification/scope-check';
+import { readPlanScopeGrants } from '../../services/workflow/plan-scope-grant';
 import {
   loadPlanContent,
   protectedTestPathsFromSpec,
@@ -177,6 +178,7 @@ export async function runPreSaveChecks(p: {
   const changedFiles = await getAllChangedFiles(p.gitCwd, p.preferredBaseBranch);
   const planContent = await loadPlanContent(p.taskId);
   const planFiles = planContent ? parsePlanFiles(planContent) : null;
+  const exact = await readPlanScopeGrants(p.taskId, planContent);
   const task = await prisma.task
     .findUnique({
       where: { id: p.taskId },
@@ -202,8 +204,9 @@ export async function runPreSaveChecks(p: {
   const tamper = tamperCheck(
     changedFiles,
     allow.length ? [...(planFiles ?? []), ...allow] : planFiles,
+    exact,
   );
-  const scope = planFiles ? evaluateScopeCheck(changedFiles, planFiles) : null;
+  const scope = planFiles ? evaluateScopeCheck(changedFiles, planFiles, exact) : null;
   // Name/token screen only — a floor against bulk-staging credentials, not a
   // complete secret detector (no entropy analysis, no history scan).
   const secrets = await scanForSecrets(p.gitCwd, changedFiles);

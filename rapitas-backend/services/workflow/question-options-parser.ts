@@ -40,7 +40,22 @@ export interface ParsedQuestionOption {
    * の差し戻し". / 選択に運用者作業が必要か
    */
   requiresOperatorAction?: boolean;
+  /**
+   * What choosing this option does to plan.md (task 1546). `criteria`: changes
+   * the completion criteria; `approach`: swaps the plan's approach for another;
+   * `none`: leaves the completion criteria and approach as is, for example
+   * an implementation detail or operator note. Absent = legacy: a
+   * `planRevision:true` flag means `approach`, otherwise `none`. / 計画への影響
+   */
+  planImpact?: PlanImpact;
+  /** The option requires expanding the approved file scope. / 計画のファイル範囲の改訂が必要 */
+  requiresPlanScopeRevision?: boolean;
+  /** Proposed paths, subject to independent operator approval. / 許可の提案対象 */
+  grantsFiles?: string[];
 }
+
+/** How an option affects plan.md. */
+export type PlanImpact = 'criteria' | 'approach' | 'none';
 
 /** One machine-readable question parsed from a `json:options` block. */
 export interface ParsedQuestion {
@@ -110,6 +125,8 @@ export function parseQuestionOptionsBlock(content: string): ParsedQuestionBlock 
           if (!rawOption || typeof rawOption !== 'object') continue;
           const o = rawOption as Record<string, unknown>;
           if (typeof o.key !== 'string' || !o.key.trim() || typeof o.label !== 'string') continue;
+          const grants = o.grantsFiles;
+          const hasGrant = grants !== undefined && (!Array.isArray(grants) || grants.length > 0);
           options.push({
             key: o.key,
             label: o.label,
@@ -117,6 +134,17 @@ export function parseQuestionOptionsBlock(content: string): ParsedQuestionBlock 
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
             requiresOperatorAction: o.requiresOperatorAction === true,
+            ...(o.planImpact === 'criteria' ||
+            o.planImpact === 'approach' ||
+            o.planImpact === 'none'
+              ? { planImpact: o.planImpact }
+              : {}),
+            ...(o.requiresPlanScopeRevision === true || hasGrant
+              ? { requiresPlanScopeRevision: true }
+              : {}),
+            ...(hasGrant && Array.isArray(grants) && grants.every((p) => typeof p === 'string')
+              ? { grantsFiles: grants }
+              : {}),
           });
         }
       }
@@ -183,6 +211,12 @@ export function isQuestionBlockEligibleForAutoAnswer(
         reason: `question ${q.id} recommended option "${option.key}" mutates a gate`,
       };
     }
+    if (option.requiresPlanScopeRevision) {
+      return {
+        eligible: false,
+        reason: `question ${q.id} recommended option "${option.key}" requires file approval`,
+      };
+    }
     // Adopting this would resume the implementer against work only a human can
     // do, which is a bounce loop rather than progress — the same shape as
     // mutatesGate above, and the measured failure of #1215.
@@ -247,4 +281,16 @@ export function resolvePlanRevisionSelection(
   if (!selectedKey) return undefined;
   const option = options.find((o) => o.key === selectedKey);
   return option?.planRevision === true ? option : undefined;
+}
+
+/**
+ * 明示された `planImpact` を優先する。未指定なら旧 `planRevision: true` を
+ * `approach` とし、それ以外は `none` とする。
+ *
+ * @param option - A parsed option. / 選択肢
+ * @returns The impact used for answer routing. / 振り分けに使う影響
+ */
+export function effectivePlanImpact(option: ParsedQuestionOption): PlanImpact {
+  if (option.planImpact) return option.planImpact;
+  return option.planRevision === true ? 'approach' : 'none';
 }

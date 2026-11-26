@@ -169,6 +169,19 @@ export interface StructuredQuestionOption {
    * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
    */
   requiresOperatorAction?: boolean;
+  /**
+   * What choosing this option does to plan.md (task 1546): `criteria`,
+   * `approach` or `none`. Informational here; the backend routes the answer.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  planImpact?: 'criteria' | 'approach' | 'none';
+  /**
+   * 承認済み計画のファイル範囲を広げる必要がある選択肢。
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  requiresPlanScopeRevision?: boolean;
+  /** 運用者に許可を求めるファイルのパス。 */
+  grantsFiles?: string[];
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -233,6 +246,8 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
           if (!rawOption || typeof rawOption !== 'object') continue;
           const o = rawOption as Record<string, unknown>;
           if (typeof o.key !== 'string' || !o.key.trim() || typeof o.label !== 'string') continue;
+          const grants = o.grantsFiles;
+          const hasGrant = grants !== undefined && (!Array.isArray(grants) || grants.length > 0);
           options.push({
             key: o.key,
             label: o.label,
@@ -240,6 +255,17 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
             requiresOperatorAction: o.requiresOperatorAction === true,
+            ...(o.planImpact === 'criteria' ||
+            o.planImpact === 'approach' ||
+            o.planImpact === 'none'
+              ? { planImpact: o.planImpact }
+              : {}),
+            ...(o.requiresPlanScopeRevision === true || hasGrant
+              ? { requiresPlanScopeRevision: true }
+              : {}),
+            ...(hasGrant && Array.isArray(grants) && grants.every((p) => typeof p === 'string')
+              ? { grantsFiles: grants }
+              : {}),
           });
         }
       }

@@ -10,6 +10,8 @@ export interface PersistPlanRevisionCoreParams {
   expectedWorkflowStatus: string | null;
   instruction: string;
   source: string;
+  /** Extra fields merged into the transition metadata (e.g. routing reason). / 追加メタデータ */
+  extraMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -31,7 +33,8 @@ export async function persistPlanRevisionCore(
   db: PrismaClient,
   params: PersistPlanRevisionCoreParams,
 ): Promise<void> {
-  const { taskId, expectedUpdatedAt, expectedWorkflowStatus, instruction, source } = params;
+  const { taskId, expectedUpdatedAt, expectedWorkflowStatus, instruction, source, extraMetadata } =
+    params;
   // The instruction is execution input, not best-effort telemetry. Persist it
   // with the rollback state, or leave both unchanged. Reject stale requests.
   await db.$transaction(async (tx) => {
@@ -48,7 +51,7 @@ export async function persistPlanRevisionCore(
         actor: 'user',
         cause: PLAN_REVISION_CAUSE,
         phase: 'plan',
-        metadata: JSON.stringify({ instruction, source }),
+        metadata: JSON.stringify({ instruction, source, ...(extraMetadata ?? {}) }),
       },
     });
   });

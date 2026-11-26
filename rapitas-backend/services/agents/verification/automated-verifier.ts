@@ -23,6 +23,7 @@ import { coverageCandidates, isCoverageExempt, isCoverageTestFile } from './cove
 import { triageTestFailures } from './test-triage';
 import { buildTriagedTestCheck } from './test-triage-report';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
+import { readPlanScopeGrants } from '../../workflow/plan-scope-grant';
 import { evaluateAcceptanceSelfCheck } from './acceptance-self-check';
 import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-gate';
 import { resolveForbiddenChangeOverride } from './schema-change-gate';
@@ -802,16 +803,12 @@ export function requiresTestsForTask(text: string | null | undefined): boolean {
 }
 
 /**
- * Deterministic anti-tampering tripwire: fails when the diff touches protected
- * gate/CI/hook paths that the approved plan did not list. Pure and testable.
- *
- * @param allChangedFiles - Every changed file in the diff. / 全変更ファイル
- * @param planFiles - Files the plan declares (null = plan-less mode). / 計画対象
- * @returns A tamper check, or null when no protected file changed. / 判定 or null
+ * Protects gate/CI/hook paths. Audited file grants match the full path. / 保護パスを検査する。
  */
 export function tamperCheck(
   allChangedFiles: string[],
   planFiles: string[] | null,
+  exactFiles: readonly string[] = [],
 ): VerificationCheck | null {
   const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase();
   const flagged = allChangedFiles.filter((f) => PROTECTED_PATH_RE.test(f));
@@ -822,7 +819,8 @@ export function tamperCheck(
     const f = norm(file);
     return plan.some((p) => f === p || f.endsWith(`/${p}`) || p.endsWith(`/${f}`) || f.includes(p));
   };
-  const unplanned = flagged.filter((f) => !planned(f));
+  const exact = new Set(exactFiles);
+  const unplanned = flagged.filter((f) => !exact.has(f.replace(/\\/g, '/')) && !planned(f));
   const ok = unplanned.length === 0;
   return {
     name: 'tamper',
@@ -936,14 +934,14 @@ export async function runAutomatedVerification(
   // Full diff (not just code files): scope violations and tampering can live in docs/config/CI too.
   const allChanged = await getAllChangedFiles(workdir, options.preferredBaseBranch);
   const planFiles = options.planContent ? parsePlanFiles(options.planContent) : null;
-
-  const scopeCheck: VerificationCheck | null =
-    options.planContent && planFiles ? evaluateScopeCheck(allChanged, planFiles) : null;
-  // Anti-tampering + schema-change (task 892) HARD gates — always evaluated,
-  // even with no code file changed (a CI/hook-only diff is exactly the case).
+  const exact = await readPlanScopeGrants(options.taskId, options.planContent);
+  const scopeCheck: VerificationCheck | null = planFiles
+    ? evaluateScopeCheck(allChanged, planFiles, exact)
+    : null;
+  // Always check protected paths, even for CI/hook-only diffs.
   const allow = options.tamperAllowlist ?? [];
   const tamperPlan = allow.length ? [...(planFiles ?? []), ...allow] : planFiles;
-  const tamper = tamperCheck(allChanged, tamperPlan);
+  const tamper = tamperCheck(allChanged, tamperPlan, exact);
   const forbiddenChangeOverride = await resolveForbiddenChangeOverride(options.taskId);
   const schemaGate = schemaChangeGateCheck(allChanged, planFiles, forbiddenChangeOverride);
   const hardGateChecks = collectHardGateChecks(scopeCheck, tamper, schemaGate);

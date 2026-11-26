@@ -109,7 +109,7 @@ beforeEach(() => {
 });
 
 describe('applyResumeFromQuestionAnswerLocked — answer append (task 902)', () => {
-  test('appends the answer to question.md without archiving when answer is provided', async () => {
+  test('回答を追記し、復帰先と振り分け理由を同じ遷移に記録する', async () => {
     mockFindFirstTransition.mockResolvedValue({
       metadata: { previousStatus: 'in_progress' },
       fromStatus: 'in_progress',
@@ -120,6 +120,7 @@ describe('applyResumeFromQuestionAnswerLocked — answer append (task 902)', () 
       taskId: 1,
       actor: 'user',
       answer: '進めてください',
+      extraMetadata: { routing: 'resume', routingReason: 'operator_resume_implementer' },
     });
 
     expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
@@ -130,6 +131,18 @@ describe('applyResumeFromQuestionAnswerLocked — answer append (task 902)', () 
     const written = mockWriteWorkflowFile.mock.calls[0][2] as string;
     expect(written).toContain('# 質問\n進めてよいか');
     expect(written).toContain('## 回答');
+    expect(mockRecordTransition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: 'user',
+        cause: 'question_resolved',
+        toStatus: 'in_progress',
+        metadata: expect.objectContaining({
+          routing: 'resume',
+          routingReason: 'operator_resume_implementer',
+        }),
+      }),
+    );
+    expect(mockTriggerRedispatchAfterResume).toHaveBeenCalledTimes(1);
   });
 
   test('skips the append when question.md content is missing', async () => {

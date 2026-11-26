@@ -23,6 +23,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { diffBaseRef, getAllChangedFiles } from '../agents/verification/automated-verifier';
 import { evaluateScopeCheck, parsePlanFiles } from '../agents/verification/scope-check';
+import { readPlanScopeGrants } from './plan-scope-grant';
 import {
   classifyScopeContamination,
   type FileTouchingCommit,
@@ -383,10 +384,11 @@ export async function tryRecoverFromHistoryContamination(
 
   // Lightweight tasks have no plan.md → scope check is not applicable → this
   // recovery is intentionally inert for them (research.md 既知の制限).
-  const planContent = await readWorkflowFile(taskId, 'plan').catch(() => null);
+  const planContent = await readWorkflowFile(taskId, 'plan');
   if (!planContent) return { recovered: false, reason: 'no_offending_files' };
   const planFiles = parsePlanFiles(planContent);
-  if (planFiles.length === 0) return { recovered: false, reason: 'no_offending_files' };
+  const exact = await readPlanScopeGrants(taskId, planContent);
+  if (!planFiles.length && !exact.length) return { recovered: false, reason: 'no_offending_files' };
 
   let allChanged: string[];
   try {
@@ -396,7 +398,7 @@ export async function tryRecoverFromHistoryContamination(
     return { recovered: false, reason: 'git_operation_failed' };
   }
 
-  const scopeCheck = evaluateScopeCheck(allChanged, planFiles);
+  const scopeCheck = evaluateScopeCheck(allChanged, planFiles, exact);
   if (!scopeCheck?.offendingFiles?.length) {
     return { recovered: false, reason: 'no_offending_files' };
   }

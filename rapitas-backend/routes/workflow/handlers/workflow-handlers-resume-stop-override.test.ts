@@ -36,6 +36,7 @@ mock.module('../../../config', () => ({
 const mockReadWorkflowFile = mock(() => Promise.resolve<string | null>(null));
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   readWorkflowFile: mockReadWorkflowFile,
+  writeWorkflowFile: mock(() => Promise.resolve('')),
 }));
 
 mock.module('../../../middleware/error-handler', () => ({
