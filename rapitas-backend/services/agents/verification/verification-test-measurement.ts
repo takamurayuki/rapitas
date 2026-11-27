@@ -197,9 +197,12 @@ export async function runMeasuredTest(
       const report = readReport(runner, readFileSync(outFile, 'utf8'));
       const args =
         command.replace(/^.*?(?:bun test|vitest run)\b/, '').match(/"[^"]*"|[^\s]+/g) ?? [];
+      // NOTE: Every runner flag (e.g. `--max-concurrency=2`, which the scoped
+      // command always carries) is skipped, not just `--isolate`. Counting a
+      // flag as a selected file voided the count on every real job (2026-11-28).
       const selected = args
-        .filter((arg) => arg !== '--isolate')
-        .map((arg) => arg.replace(/^"|"$/g, ''));
+        .map((arg) => arg.replace(/^"|"$/g, ''))
+        .filter((arg) => !arg.startsWith('-'));
       const canonical = (file: string) => resolve(cwd, file.replace(/\\/g, '/'));
       const files = new Set(report?.files.map(canonical));
       const complete = selected.length > 0 && selected.every((file) => files.has(canonical(file)));
