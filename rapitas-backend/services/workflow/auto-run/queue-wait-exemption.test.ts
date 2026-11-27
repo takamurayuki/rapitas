@@ -104,3 +104,31 @@ describe('liveOrQueuedBehind', () => {
     expect(verdict).toEqual({ waiting: false, reason: 'lookup_error', error: 'db down' });
   });
 });
+
+// Task 1568: the CI-wait release asks without logging and treats an unreadable answer as "waiting".
+describe('liveOrQueuedBehind — quiet / failClosed options', () => {
+  const brokenPrisma = {
+    workflowQueueItem: { findFirst: () => Promise.reject(new Error('db down')) },
+    agentExecution: { findFirst: () => Promise.reject(new Error('db down')) },
+  };
+
+  test('failClosed: a lookup error answers true so the caller keeps its slot', async () => {
+    liveExecution = false;
+    expect(await liveOrQueuedBehind(brokenPrisma, 1, { failClosed: true })).toBe(true);
+  });
+
+  test('default: a lookup error still answers false (the hang backstop keeps its old behaviour)', async () => {
+    liveExecution = false;
+    expect(await liveOrQueuedBehind(brokenPrisma, 1)).toBe(false);
+  });
+
+  test('quiet returns the same verdicts as the logging call', async () => {
+    liveExecution = false;
+    const waiting = prismaWith([
+      { taskId: 784, status: 'queued' },
+      { taskId: 785, status: 'running' },
+    ]);
+    expect(await liveOrQueuedBehind(waiting, 784, { quiet: true })).toBe(true);
+    expect(await liveOrQueuedBehind(prismaWith([]), 784, { quiet: true })).toBe(false);
+  });
+});

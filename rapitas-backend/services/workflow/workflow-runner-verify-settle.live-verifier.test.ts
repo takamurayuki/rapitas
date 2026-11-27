@@ -22,6 +22,12 @@ const live: TaskWorkflowState = {
 
 /** How many more liveness checks report the verifier as still running. */
 let aliveChecks = 0;
+// Task 1568: the landed-artifact recovery asks for the CI wait first and withdraws when it cannot
+// tell, so the lookup must answer here instead of reaching a database.
+mock.module('./awaiting-ci-lookup', () => ({
+  readTaskAwaitingCi: async () => false,
+  isItemStillOwned: async () => true,
+}));
 mock.module('../task/task-resolver', () => ({ resolveTaskWorkflowState: async () => live }));
 mock.module('./verify-self-repair', () => ({ hasFreshVerifyRejection: async () => false }));
 mock.module('./verify-completion-inflight', () => ({ hasVerifyCompletionInFlight: () => false }));

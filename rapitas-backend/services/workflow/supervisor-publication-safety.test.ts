@@ -3,20 +3,24 @@ import { expect, mock, test } from 'bun:test';
 const lookup = mock(async (): Promise<{ id: number; status: string } | null> => null);
 let row = { status: 'in-progress', workflowStatus: 'verify_done' as string | null };
 const transition = mock(async () => {});
-mock.module('../../config/database', () => ({
-  prisma: {
-    agentExecution: { findFirst: lookup },
-    workflowTransition: { findFirst: async () => null },
-    task: {
-      updateMany: async ({ where, data }: any) => {
-        if (!where.status.in.includes(row.status) || where.workflowStatus !== row.workflowStatus)
-          return { count: 0 };
-        row = { ...row, ...data };
-        return { count: 1 };
-      },
+const prismaStub = {
+  agentExecution: { findFirst: lookup },
+  workflowTransition: { findFirst: async () => null },
+  task: {
+    updateMany: async ({ where, data }: any) => {
+      if (!where.status.in.includes(row.status) || where.workflowStatus !== row.workflowStatus)
+        return { count: 0 };
+      row = { ...row, ...data };
+      return { count: 1 };
     },
   },
-}));
+  // Task 1568: the hold writes the task and the running queue item in one transaction.
+  workflowQueueItem: { updateMany: async () => ({ count: 0 }) },
+  $transaction: undefined as unknown,
+};
+prismaStub.$transaction = async (fn: (tx: unknown) => unknown) =>
+  fn({ task: prismaStub.task, workflowQueueItem: prismaStub.workflowQueueItem });
+mock.module('../../config/database', () => ({ prisma: prismaStub }));
 mock.module('./transition-recorder', () => ({ recordTransition: transition }));
 const { publicationAborted } = await import('./publication-cancellation-guard');
 const { holdForRequiredMerge } = await import('./required-merge-hold');

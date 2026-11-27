@@ -69,6 +69,9 @@ const taskUpdateManyCalls: unknown[] = [];
 const recordTransition = mock(() => Promise.resolve());
 
 const fakePrisma = {
+  // Task 1568: the shared hold writes the task and the running queue item in one transaction.
+  workflowQueueItem: { updateMany: () => Promise.resolve({ count: 0 }) },
+  $transaction: async (fn: (tx: unknown) => unknown): Promise<unknown> => fn(fakePrisma),
   task: {
     findMany: () => Promise.resolve([{ id: row.id, workflowStatus: row.workflowStatus }]),
     findUnique: () => Promise.resolve({ ...row }),
