@@ -169,6 +169,12 @@ export interface StructuredQuestionOption {
    * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
    */
   requiresOperatorAction?: boolean;
+  /**
+   * What choosing this option does to plan.md (task 1546): `criteria`,
+   * `approach` or `none`. Informational here; the backend routes the answer.
+   * NOTE: keep in sync with rapitas-backend/services/workflow/question-options-parser.ts
+   */
+  planImpact?: 'criteria' | 'approach' | 'none';
 }
 
 /** One machine-readable question parsed from a `json:options` block. */
@@ -240,6 +246,11 @@ export function parseOptionsBlock(md: string): StructuredQuestionsBlock | null {
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
             requiresOperatorAction: o.requiresOperatorAction === true,
+            ...(o.planImpact === 'criteria' ||
+            o.planImpact === 'approach' ||
+            o.planImpact === 'none'
+              ? { planImpact: o.planImpact }
+              : {}),
           });
         }
       }
