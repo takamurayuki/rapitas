@@ -7,7 +7,7 @@ import { milestoneSchema } from '../../schemas/milestone.schema';
 import { ConflictError, NotFoundError, ValidationError } from '../../middleware/error-handler';
 import { isValidEntityId } from '../../utils/common/id-validation';
 import { normalizeCriteria } from '../../services/assistant/criteria-text';
-import { toMilestoneView } from '../../services/goals';
+import { milestoneReopenedEvent, toMilestoneView } from '../../services/goals';
 
 export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
   // Get all milestones
@@ -83,11 +83,15 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
       const id = Number(params.id);
 
       const { name, description, dueDate, acceptanceCriteria, status, sortOrder } = body;
+      // Needed for the reached-lock below and to notice reached → open.
+      const current =
+        acceptanceCriteria !== undefined || status === 'open'
+          ? await prisma.milestone.findUnique({ where: { id } })
+          : null;
       if (acceptanceCriteria !== undefined) {
         // NOTE: A reached milestone's criteria are what the person confirmed
         // against; editing them would silently change what was agreed. Reopen
         // (POST /milestones/:id/reopen) first.
-        const current = await prisma.milestone.findUnique({ where: { id } });
         if (!current) throw new NotFoundError('節目が見つかりません');
         if (current.status === 'reached') {
           throw new ConflictError(
@@ -96,7 +100,7 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
           );
         }
       }
-      const updated = await prisma.milestone.update({
+      const update = prisma.milestone.update({
         where: { id },
         data: {
           ...(name && { name }),
@@ -111,7 +115,16 @@ export const milestonesRoutes = new Elysia({ prefix: '/milestones' })
           ...(sortOrder !== undefined && { sortOrder }),
         },
       });
-      return toMilestoneView(updated);
+      // NOTE: reached → open through status is the second way to undo a reach
+      // (besides /reopen); record it too or outcome quality undercounts cancellations.
+      if (status === 'open' && current?.status === 'reached') {
+        const [updated] = await prisma.$transaction([
+          update,
+          prisma.timelineEvent.create({ data: milestoneReopenedEvent(current) }),
+        ]);
+        return toMilestoneView(updated);
+      }
+      return toMilestoneView(await update);
     },
     {
       params: t.Object({ id: t.String() }),

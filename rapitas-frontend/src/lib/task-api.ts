@@ -71,7 +71,8 @@ export async function searchTasks(query: string): Promise<Task[]> {
 
   return debouncedFetch<Task[]>(
     `/tasks/search?q=${encodeURIComponent(query)}`,
-    { cacheTime: 60000 }, // 1 minute cache
+    // userAction: the user typed this search, so it counts as activity (task 1548).
+    { cacheTime: 60000, userAction: true }, // 1 minute cache
     500, // 500ms debounce
   );
 }

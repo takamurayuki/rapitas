@@ -32,7 +32,8 @@ import {
 } from './note-record';
 import { computeNoteVersion, type NoteVersionFields } from './note-version';
 import { isInScope, requestWorkspaceId, scopeWhere } from './note-scope';
-import { checkNewMarkdownContent, type NewMarkdownRejection } from './note-content-kind';
+import { type NewMarkdownRejection } from './note-content-kind';
+import { prepareNewMarkdownContent } from './inline-html';
 import {
   guardPlacementWrite,
   placementWriteData,
@@ -135,11 +136,15 @@ export async function saveNote(
 ): Promise<NoteRecord> {
   // A write that sends no body (title, tags, pin only) is accepted even on an
   // HTML note; only a body that is itself legacy HTML is refused (design §5.3).
-  if (input.content !== undefined) {
-    const rejection = checkNewMarkdownContent(input.content);
-    if (rejection) throw new NoteContentRejectedError(rejection);
+  // NOTE: the body is stripped of disallowed inline HTML before the version is
+  // computed, so the stored body and its version describe what is kept.
+  let body = input.content;
+  if (body !== undefined) {
+    const prepared = prepareNewMarkdownContent(body);
+    if (!prepared.ok) throw new NoteContentRejectedError(prepared.reason);
+    body = prepared.content;
   }
-  const data = sanitize(input);
+  const data = sanitize(body === undefined ? input : { ...input, content: body });
   // Stage 1: the placement target is checked in scope before any write.
   const columns = input.placement ? await resolvePlacementTarget(prisma, input.placement) : null;
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {

@@ -39,6 +39,10 @@ export type UserSettings = {
   autoRunMaxConcurrency?: number;
   /** 環境変数 AUTO_RUN_GLOBAL_MAX_CONCURRENCY が効いているときの値（null = 設定値が有効）。応答のみ。 */
   autoRunMaxConcurrencyEnvOverride?: number | null;
+  /** 1つのテーマで同時に動かせる自動実行の数（1〜4、既定 1。全体の数を超えない）。 */
+  autoRunMaxConcurrencyPerTheme?: number;
+  /** 環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が効いているときの値（null = 設定値が有効）。応答のみ。 */
+  autoRunMaxConcurrencyPerThemeEnvOverride?: number | null;
   /** バックログ自己補充を許可する夜間ウィンドウの開始時刻 "HH:MM"（'' = 自己補充無効）。 */
   selfRefillWindowStart?: string;
   /** マージ済みだが未活性のコード検知時、アイドル時に安全に自動再起動する。 */

@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import { mock } from 'bun:test';
 /**
  * theme-auto-run-scheduler.terminal-failure-guard.test
@@ -78,7 +79,7 @@ const blocked = () => {
   expect(mockTaskUpdate).toHaveBeenCalledWith(
     expect.objectContaining({ data: expect.objectContaining({ status: 'blocked' }) }),
   );
-  expect(mockOnTaskFailed).toHaveBeenCalled();
+  expectTaskSlotRelease('failed', 984);
   expect(mockNotifyTaskSkipped).toHaveBeenCalled();
 };
 
@@ -144,6 +145,6 @@ describe('terminal-failure branch — never-executed guard (task 1007)', () => {
 
     expect(mockEnqueue).not.toHaveBeenCalled();
     expect(mockTaskUpdate).not.toHaveBeenCalled();
-    expect(mockOnTaskFailed).toHaveBeenCalled();
+    expectTaskSlotRelease('failed', 984);
   });
 });

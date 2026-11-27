@@ -7,8 +7,21 @@
  * deploys no matter how recently it last restarted or how recently the UI
  * was touched.
  */
-import { describe, expect, test, beforeEach, mock } from 'bun:test';
+import { describe, expect, test, beforeEach, afterAll, mock } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// deployNow writes the shared restart stamp; keep it out of the real ~/.rapitas.
+const originalDataDir = process.env.RAPITAS_DATA_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), 'deploy-now-'));
+process.env.RAPITAS_DATA_DIR = dataDir;
+const STAMP = join(dataDir, '.auto-restart-merged-code-last-at');
+afterAll(() => {
+  if (originalDataDir === undefined) delete process.env.RAPITAS_DATA_DIR;
+  else process.env.RAPITAS_DATA_DIR = originalDataDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 /**
  * The module's own source, read so the tests below can assert what it does
@@ -27,7 +40,14 @@ let ahead: number | null = 3;
 let clean = true;
 let fastForwarded = true;
 /** What the stand-in system looks like. */
-let snapshot = {
+let snapshot: {
+  activeExecutions: number;
+  runningExecutions: number;
+  queueDepth: number;
+  dispatchableQueueDepth?: number;
+  isShuttingDown: boolean;
+  activeExecutionsDegraded: boolean;
+} = {
   activeExecutions: 0,
   runningExecutions: 0,
   queueDepth: 0,
@@ -134,7 +154,7 @@ describe('deploying on request', () => {
 
   // The whole reason this path exists: the automatic one waits 15 minutes a
   // poll, then two idle polls, then three minutes of UI silence. A request is
-  // not a poll, so none of that is consulted here — there is no clock in this
+  // not a poll, so none of that is consulted here — no clock is ever READ in this
   // function at all, which is what makes it answerable on demand.
   test('consults no clock: not the last restart, not UI activity', async () => {
     const source = await ownSource();
@@ -146,6 +166,30 @@ describe('deploying on request', () => {
 
   // The automatic path is governed by a toggle because it acts on its own. A
   // person asking for it is not that, so the toggle does not apply.
+  // Task 1562: an item of a paused theme cannot run on its own, so it must not
+  // refuse the deploy (2026-11-26: item 4713 refused /deploy/now).
+  test('deploys when the only queued items belong to paused themes', async () => {
+    snapshot.queueDepth = 1;
+    snapshot.dispatchableQueueDepth = 0;
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: true, reason: 'deployed' });
+    expect(shutdown).not.toBeNull();
+  });
+
+  test('still refuses when a queued item belongs to a running theme', async () => {
+    snapshot.queueDepth = 1;
+    snapshot.dispatchableQueueDepth = 1;
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: false, reason: 'queue-not-empty' });
+    expect(shutdown).toBeNull();
+  });
+
+  test('inspect reports ready for the paused-theme case too', async () => {
+    snapshot.queueDepth = 2;
+    snapshot.dispatchableQueueDepth = 0;
+    expect(await inspectDeploy('abc1234')).toMatchObject({ ready: true, reason: 'deployed' });
+  });
+
   test('does not consult the auto-restart toggle', async () => {
     const source = await ownSource();
     expect(source).not.toContain('readAutoRestartEnabled');
@@ -225,5 +269,24 @@ describe('deploying on request', () => {
   test('tells the user it is going down before it goes', async () => {
     await deployNow('abc1234');
     expect(notified).toBe(true);
+  });
+
+  // Task 1548: the automatic paths now wait 60 minutes after any restart. A
+  // request must not: a restart 5 minutes ago still deploys at once, and the
+  // stamp is renewed so the next AUTOMATIC restart waits behind this one.
+  test('deploys right after a restart and renews the shared stamp', async () => {
+    const fiveMinutesAgo = Date.now() - 5 * 60_000;
+    writeFileSync(STAMP, String(fiveMinutesAgo));
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: true, reason: 'deployed' });
+    expect(shutdown).toBe('[deploy-now]');
+    expect(Number(readFileSync(STAMP, 'utf8'))).toBeGreaterThan(fiveMinutesAgo);
+  });
+
+  test('a refused request leaves the stamp alone', async () => {
+    writeFileSync(STAMP, '1000');
+    clean = false;
+    await deployNow('abc1234');
+    expect(readFileSync(STAMP, 'utf8')).toBe('1000');
   });
 });

@@ -67,6 +67,50 @@
       "description": "File each task under the milestone it works towards to see each milestone's progress",
       "fileLabel": "Milestone for \"{title}\"",
       "pick": "Choose a milestone"
+    },
+    "openInsights": "View product-purpose metrics",
+    "insights": {
+      "title": "Product-purpose metrics",
+      "subtitle": "Four measures of whether goals are being broken into milestones and reached",
+      "back": "Back to goals",
+      "loading": "Loading",
+      "period": {
+        "label": "Period",
+        "4w": "Last 4 weeks",
+        "all": "All time"
+      },
+      "noMaterial": "No material yet",
+      "noReflection": "No data until the weekly reflection exists",
+      "ratio": "{numerator} / {denominator}",
+      "percent": "{percent}%",
+      "metrics": {
+        "reachRate": {
+          "title": "Milestone reach rate",
+          "help": "Reached ÷ (reached + past due and not reached). Paused milestones are excluded"
+        },
+        "resumeRate": {
+          "title": "Resume rate after a stall",
+          "help": "Of stalls (14+ days without updates), the share followed by a milestone reached or a task completed"
+        },
+        "quality": {
+          "title": "Outcome quality",
+          "help": "Of the milestones reached, the share not undone later"
+        },
+        "feltProgress": {
+          "title": "Felt progress",
+          "help": "Trend of the weekly reflection ratings"
+        }
+      },
+      "goalList": {
+        "title": "By goal",
+        "empty": "No material yet",
+        "counts": "Reached {reached} / Open {open} / Paused {paused}",
+        "updated": "Last updated {date}",
+        "stalled": "Stalled",
+        "active": "Active",
+        "note": "Open includes milestones not yet due. Counts and last updates show the current state regardless of the period."
+      },
+      "limits": "There is no history table, so stalls and resumes are estimated from each row's last update time. Milestones undone before the undo record began are not counted in outcome quality."
     }
   }
 }

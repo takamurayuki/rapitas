@@ -19,6 +19,7 @@ import { taskVanishedMessage } from './queue-vanished-task-policy';
 import type { QueueItem, WorkflowQueueItemRow } from './workflow-queue.types';
 import { isQueueThemeRunning } from './queue-theme-guard';
 import { isOverlapHeld } from './workflow-orchestrator-overlap-guard';
+import { isRestartWaitActive } from '../scheduling/auto-restart-merged-code/restart-wait';
 
 /**
  * Emits `task.dequeue_skipped` only for a candidate currently held by the
@@ -60,6 +61,8 @@ export async function tryDequeueCandidate(
   candidate: WorkflowQueueItemRow & { dependencies: string },
   maxConcurrency: number,
 ): Promise<QueueItem | null> {
+  // A restart wait is draining the running work so merged code can activate; nothing new may start.
+  if (isRestartWaitActive()) return null;
   const deps = JSON.parse(candidate.dependencies || '[]') as number[];
 
   // Check if all dependency tasks are completed (or cancelled)

@@ -30,14 +30,14 @@ import {
 } from '../../../services/task/task-criteria-write';
 import { computeCriteriaRevision } from '../../../services/task/task-criteria-revision';
 import { humanSourceLabel } from '../../../utils/common/human-source';
-import { parseSelections, type AnswerSelection } from './answer-selections';
+import { isMalformedSelections, parseSelections, type AnswerSelection } from './answer-selections';
 import { releaseHaltOnHumanAnswer } from '../../../services/workflow/halt-release';
 
 const log = createLogger('routes:workflow:resume');
 
 interface AnswerContext {
   params: { taskId: string };
-  body?: { answer?: string; selections?: unknown } | unknown;
+  body?: { answer?: string; selections?: unknown; resumeImplementer?: boolean } | unknown;
   set: { status?: number };
   headers?: Record<string, string | undefined>;
 }
@@ -87,6 +87,8 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   taskId: number;
   ok: true;
   toStatus: WorkflowStatus;
+  /** True when a paused theme found no free slot: the answer is saved and the task waits queued. / 枠待ち */
+  waitingForSlot?: true;
 }> {
   const { taskId, answer, actor, sourceLabel, selections, extraMetadata } = params;
 
@@ -207,9 +209,14 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
   // Errors are logged inside triggerReExecutionAfterAnswer and never thrown —
   // a failed auto re-run must not fail this response (the answer itself is
   // already durably recorded above; the user can still re-run manually).
-  await triggerReExecutionAfterAnswer(taskId);
+  const resume = await triggerReExecutionAfterAnswer(taskId);
 
-  return { taskId, ok: true, toStatus: 'draft' };
+  return {
+    taskId,
+    ok: true,
+    toStatus: 'draft',
+    ...(resume === 'waiting_slot' ? { waitingForSlot: true as const } : {}),
+  };
 }
 
 /**
@@ -221,7 +228,7 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
  * answer path (the interactive panel only handled live mid-execution questions),
  * so the user could not actually answer the agent.
  *
- * @param ctx - Elysia handler context with { answer, selections? } body. / 回答ボディ
+ * @param ctx - Handler context with answer, optional selections and resumeImplementer. / 回答ボディ
  * @returns The task id and the status it was reset to. / 反映後の状態
  * @throws {ValidationError} taskId 不正 / answer 未指定
  * @throws {NotFoundError} タスクが見つからない場合
@@ -237,6 +244,10 @@ export async function handleAnswerWorkflowQuestion({
   toStatus: WorkflowStatus;
   /** Kind resolved for this answer — surfaced for observability; the UI does not parse it. / 解決されたkind */
   resolvedKind: QuestionAnswerKind;
+  /** 枠待ち時の表示文言。 */
+  message?: string;
+  /** True when a paused theme found no free slot: the answer is saved and the task waits queued. / 枠待ち */
+  waitingForSlot?: true;
 }> {
   if (!isValidEntityId(params.taskId)) {
     set.status = 400;
@@ -287,7 +298,16 @@ export async function handleAnswerWorkflowQuestion({
     set.status = 400;
     throw new ValidationError('answer is required');
   }
-  const selections = parseSelections((body as { selections?: unknown })?.selections);
+  const rawSelections = (body as { selections?: unknown })?.selections;
+  // NOTE: Refuse an unreadable shape instead of answering without the choice;
+  // see isMalformedSelections for the 2026-11-26 criteria that never changed.
+  if (isMalformedSelections(rawSelections)) {
+    set.status = 400;
+    throw new ValidationError(
+      'selections must be an array of {"questionId": string, "selectedKey": string | null}',
+    );
+  }
+  const selections = parseSelections(rawSelections);
 
   try {
     const result = await applyQuestionAnswerByKind({
@@ -300,21 +320,33 @@ export async function handleAnswerWorkflowQuestion({
       // human decision, which is what entitles it to supersede a stop that
       // sealed the pause shut (task 944). No other caller may pass this.
       stopOverride: true,
+      // Operator's explicit "keep the plan, resume the implementer" (task 1546).
+      resumeImplementer: (body as { resumeImplementer?: unknown })?.resumeImplementer === true,
     });
     // NOTE: plan revision only persists research_done; nothing else starts the planner, so the
     // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.
     // A person's answer is the new hypothesis a no-progress halt waits for (task 520).
     await releaseHaltOnHumanAnswer(result.taskId, answer, sourceLabel).catch(() => false);
-    if (result.kind === 'plan_revision') await triggerReExecutionAfterAnswer(result.taskId);
+    const resume =
+      result.kind === 'plan_revision'
+        ? await triggerReExecutionAfterAnswer(result.taskId)
+        : 'started';
     return {
       taskId: result.taskId,
       ok: true,
       toStatus: result.toStatus,
       resolvedKind: result.kind,
+      ...(resume === 'waiting_slot' || result.waitingForSlot
+        ? {
+            waitingForSlot: true as const,
+            message: '実行枠の空きを待機中です。回答は保存されています。',
+          }
+        : {}),
     };
   } catch (err) {
     if (err instanceof NotFoundError) set.status = 404;
     else if (err instanceof ConflictError) set.status = 409;
+    else if (err instanceof ValidationError) set.status = 400;
     throw err;
   }
 }

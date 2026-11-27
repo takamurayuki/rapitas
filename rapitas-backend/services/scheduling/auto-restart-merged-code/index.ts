@@ -20,8 +20,11 @@ import { hasRestartSupervisor, RESTART_SUPERVISOR_ENV } from './restart-supervis
 import {
   classifyMergeUrgency,
   decideBoundaryRestart,
+  isSnapshotBusy,
+  restartQueueDepth,
   resolveIdleBoundaryPolls,
   resolveIntervalMs,
+  resolvePollerMinRestartIntervalMs,
   resolveRestartMinIntervalMs,
   resolveRestartUiQuietMs,
   resolveRestartMaxDeferrals,
@@ -35,29 +38,16 @@ import {
 } from './git-io';
 import {
   readAutoRestartEnabled,
-  readLastRestartAt,
+  readLatestAutoRestartAt,
   writeLastRestartAt,
   readDeferCount,
   writeDeferCount,
 } from './settings-store';
 import { getLastUiRequestAt } from './ui-activity-tracker';
 import { dependencyGate } from './dependency-preflight';
+import { tickRestartWait } from './restart-wait';
 
 const logger = createLogger('auto-restart-merged-code-scheduler');
-
-// 30 min — flapping guard between two auto-restarts (acceptance criterion 2c).
-const DEFAULT_MIN_RESTART_INTERVAL_MS = 30 * 60 * 1000;
-
-/**
- * Resolves the minimum interval between auto-restarts from the environment.
- *
- * @returns Minimum restart interval in milliseconds / 最低再起動間隔（ミリ秒）
- */
-function resolveMinRestartIntervalMs(): number {
-  const raw = process.env.RAPITAS_AUTO_RESTART_MERGED_CODE_MIN_INTERVAL_MS;
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MIN_RESTART_INTERVAL_MS;
-}
 
 export class AutoRestartMergedCodeScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -190,7 +180,7 @@ export class AutoRestartMergedCodeScheduler {
       snapshot.isShuttingDown ||
       snapshot.activeExecutions > 0 ||
       snapshot.runningExecutions > 0 ||
-      snapshot.queueDepth > 0;
+      restartQueueDepth(snapshot) > 0;
     if (busy) {
       this.idlePollsWithBatchedMerge = 0;
       return false;
@@ -218,6 +208,16 @@ export class AutoRestartMergedCodeScheduler {
     return this.evaluateBoundaryRestart();
   }
 
+  // Feeds the restart wait (restart-wait.ts); one call shape for both entry points.
+  private noteAhead(aheadCount: number, changedPaths: readonly string[]): Promise<void> {
+    return tickRestartWait({
+      aheadCount,
+      changedPaths,
+      lastRestartAt: readLatestAutoRestartAt(),
+      evaluate: () => this.evaluateBoundaryRestart(),
+    });
+  }
+
   /**
    * One detection/decision/execution cycle. Public so tests can drive it
    * directly; the interval calls it on schedule.
@@ -232,7 +232,8 @@ export class AutoRestartMergedCodeScheduler {
 
     const branch = process.env.RAPITAS_PRIMARY_BRANCH || 'develop';
     const aheadCount = await fetchAndCountAhead(this.startupCommit, branch);
-    if (aheadCount === null || aheadCount <= 0) return false;
+    if (aheadCount === null) return false;
+    if (aheadCount <= 0) return this.noteAhead(0, []).then(() => false);
 
     // Restart-timing governance: only merges touching the loop machinery
     // itself may restart from this poller. Everything else (UI-only, feature
@@ -240,6 +241,7 @@ export class AutoRestartMergedCodeScheduler {
     // so per-merge restart churn — and each restart's aux-CLI orphaning
     // exposure — is bounded by task boundaries, not merge frequency.
     const changedPaths = await listChangedPaths(this.startupCommit, branch);
+    await this.noteAhead(aheadCount, changedPaths);
     if (classifyMergeUrgency(changedPaths) !== 'immediate') {
       logger.debug(
         { aheadCount, changedFiles: changedPaths.length },
@@ -253,16 +255,17 @@ export class AutoRestartMergedCodeScheduler {
 
     const snapshot = await getAgentSystemSnapshot();
     if (snapshot.activeExecutionsDegraded) return false;
-    const lastRestartAt = readLastRestartAt();
+    // NOTE: Both stamps — a dev-restart-on-dry restart also holds this path (task 1548).
+    const lastRestartAt = readLatestAutoRestartAt();
     const decision = decideAutoRestart({
       aheadCount,
       activeExecutions: snapshot.activeExecutions,
       runningExecutions: snapshot.runningExecutions,
-      queueDepth: snapshot.queueDepth,
+      queueDepth: restartQueueDepth(snapshot),
       isShuttingDown: snapshot.isShuttingDown,
       settingEnabled,
       msSinceLastRestart: lastRestartAt === 0 ? null : Date.now() - lastRestartAt,
-      minRestartIntervalMs: resolveMinRestartIntervalMs(),
+      minRestartIntervalMs: resolvePollerMinRestartIntervalMs(),
     });
     if (!decision.shouldRestart) {
       logger.debug({ reason: decision.reason, aheadCount }, '[AutoRestartMergedCode] gated');
@@ -287,19 +290,13 @@ export class AutoRestartMergedCodeScheduler {
     // during fetch/pull. aheadCount stays non-zero next tick (startup-commit
     // base), so a skipped restart is retried, not lost.
     const recheck = await getAgentSystemSnapshot();
-    if (
-      recheck.activeExecutionsDegraded ||
-      recheck.isShuttingDown ||
-      recheck.activeExecutions > 0 ||
-      recheck.runningExecutions > 0 ||
-      recheck.queueDepth > 0
-    ) {
+    if (isSnapshotBusy(recheck)) {
       logger.info(
         {
           isShuttingDown: recheck.isShuttingDown,
           activeExecutions: recheck.activeExecutions,
           runningExecutions: recheck.runningExecutions,
-          queueDepth: recheck.queueDepth,
+          queueDepth: restartQueueDepth(recheck),
         },
         '[AutoRestartMergedCode] Busy at final recheck — restart deferred to next tick',
       );
@@ -338,8 +335,8 @@ export class AutoRestartMergedCodeScheduler {
    * gate passes: no executions, no queued work, no live aux CLI children, no
    * merge mid-processing, rate limit satisfied, and the UI quiet — a UI-active
    * boundary defers (bounded by RAPITAS_RESTART_MAX_DEFERRALS, then forced).
-   * Shares the poller's last-restart stamp so the two merged-code paths keep
-   * a single rate limit, but uses its own minimum interval env.
+   * Reads the latest stamp of every automatic path (poller, deploy-now,
+   * dev-restart-on-dry) so they share one floor, but uses its own interval env.
    *
    * @returns True when a restart was triggered (caller must stop its tick) / 再起動を発火したか
    */
@@ -355,11 +352,15 @@ export class AutoRestartMergedCodeScheduler {
 
       const branch = process.env.RAPITAS_PRIMARY_BRANCH || 'develop';
       const aheadCount = await fetchAndCountAhead(this.startupCommit, branch);
-      if (aheadCount === null || aheadCount <= 0) return false;
+      if (aheadCount === null) return false;
+      if (aheadCount <= 0) {
+        await this.noteAhead(0, []);
+        return false;
+      }
 
       const snapshot = await getAgentSystemSnapshot();
       if (snapshot.activeExecutionsDegraded) return false;
-      const lastRestartAt = readLastRestartAt();
+      const lastRestartAt = readLatestAutoRestartAt();
       const lastUiAt = getLastUiRequestAt();
       const deferCount = readDeferCount();
       const now = Date.now();
@@ -368,7 +369,7 @@ export class AutoRestartMergedCodeScheduler {
         isShuttingDown: snapshot.isShuttingDown,
         activeExecutions: snapshot.activeExecutions,
         runningExecutions: snapshot.runningExecutions,
-        queueDepth: snapshot.queueDepth,
+        queueDepth: restartQueueDepth(snapshot),
         auxChildren: countLiveTrackedProcesses('cli-agent'),
         isMerging: AutoMergeWatcher.getInstance().isMerging(),
         msSinceLastRestart: lastRestartAt === 0 ? null : now - lastRestartAt,
@@ -427,11 +428,7 @@ export class AutoRestartMergedCodeScheduler {
       }
       const recheck = await getAgentSystemSnapshot();
       if (
-        recheck.activeExecutionsDegraded ||
-        recheck.isShuttingDown ||
-        recheck.activeExecutions > 0 ||
-        recheck.runningExecutions > 0 ||
-        recheck.queueDepth > 0 ||
+        isSnapshotBusy(recheck) ||
         countLiveTrackedProcesses('cli-agent') > 0 ||
         AutoMergeWatcher.getInstance().isMerging()
       )

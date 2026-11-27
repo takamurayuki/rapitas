@@ -1,9 +1,9 @@
 /**
  * Offline Write Queue
  *
- * Queues failed API mutations (POST/PUT/PATCH/DELETE) in IndexedDB when
- * the network is unavailable. Automatically replays the queue when the
- * connection is restored. Provides hooks for UI feedback.
+ * 送信前からオフラインの更新操作を IndexedDB に保存する。
+ * 送信後の失敗は再送せず呼び出し元へ返す。接続復帰時にキューを再生し、
+ * UI へ状態変更を通知する。
  */
 
 const DB_NAME = 'rapitas-offline';
@@ -289,56 +289,47 @@ export async function offlineFetch(
 ): Promise<Response> {
   const method = (init?.method || 'GET').toUpperCase();
 
-  // GET requests are not queued — they use cache
-  if (method === 'GET') {
+  // NOTE: キュー保存は送信前に決める。送信後の切断は適用済みの可能性があり、
+  // オフラインへ変化していても再送すると二重更新になるため、そのままエラーを返す。
+  if (method === 'GET' || navigator.onLine) {
     return fetch(url, init);
   }
 
-  try {
-    const response = await fetch(url, init);
-    return response;
-  } catch (error) {
-    // Network error — queue the mutation
-    if (!navigator.onLine || (error instanceof TypeError && error.message.includes('fetch'))) {
-      const headers: Record<string, string> = {};
-      if (init?.headers) {
-        const h = init.headers;
-        if (h instanceof Headers) {
-          h.forEach((v, k) => {
-            headers[k] = v;
-          });
-        } else if (Array.isArray(h)) {
-          h.forEach(([k, v]) => {
-            headers[k] = v;
-          });
-        } else {
-          Object.assign(headers, h);
-        }
-      }
-
-      await enqueueMutation(
-        url,
-        method,
-        headers,
-        typeof init?.body === 'string' ? init.body : null,
-        description || `${method} ${new URL(url).pathname}`,
-      );
-
-      // Return synthetic 202 Accepted so the caller knows it was queued
-      return new Response(
-        JSON.stringify({
-          queued: true,
-          message: 'Saved offline. Will sync when online.',
-        }),
-        {
-          status: 202,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    const h = init.headers;
+    if (h instanceof Headers) {
+      h.forEach((v, k) => {
+        headers[k] = v;
+      });
+    } else if (Array.isArray(h)) {
+      h.forEach(([k, v]) => {
+        headers[k] = v;
+      });
+    } else {
+      Object.assign(headers, h);
     }
-
-    throw error;
   }
+
+  await enqueueMutation(
+    url,
+    method,
+    headers,
+    typeof init?.body === 'string' ? init.body : null,
+    description || `${method} ${new URL(url).pathname}`,
+  );
+
+  // Return synthetic 202 Accepted so the caller knows it was queued
+  return new Response(
+    JSON.stringify({
+      queued: true,
+      message: 'Saved offline. Will sync when online.',
+    }),
+    {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  );
 }
 
 // Auto-sync when browser comes online

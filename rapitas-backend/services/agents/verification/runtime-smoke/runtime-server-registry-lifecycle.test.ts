@@ -1,16 +1,34 @@
-/**
- * runtime-smoke/runtime-server-registry-lifecycle.test
- *
- * Covers spawnNewEntry()'s identity-unconfirmed failure path: the spawned
- * child process must be stopped even when the post-spawn OS snapshot never
- * confirms its identity (task 1044 — "Spawned process identity cannot be
- * confirmed" was thrown before entry.identities was ever set, so the
- * existing stopOwnedAndVerify() cleanup silently skipped, leaking the child).
- */
+/** 起動・残存回収・身元未確定時の停止と、並行要求の共有を検査する。 */
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readLaunchHistory } from './runtime-launch-history';
+import type { RuntimeProcessIdentity } from './runtime-process-identity';
+
+const historyModule = { ...(await import('./runtime-launch-history')) };
+let historyBarrier: Promise<void> | undefined;
+let historyWrites = 0;
+let historyWriteFails = false;
+mock.module('./runtime-launch-history', () => ({
+  ...historyModule,
+  recordLaunchProcesses: async (
+    ...args: Parameters<typeof historyModule.recordLaunchProcesses>
+  ) => {
+    historyWrites++;
+    await historyBarrier;
+    if (historyWriteFails)
+      args[3] = {
+        ...args[3],
+        deps: {
+          write: async () => {
+            throw new Error('INJECTED_HISTORY_WRITE_FAILURE');
+          },
+        },
+      };
+    return historyModule.recordLaunchProcesses(...args);
+  },
+}));
 
 mock.module('./runtime-boot-identity', () => ({
   readRuntimeBootId: async () => 'linux:00000000-0000-0000-0000-000000000001',
@@ -36,8 +54,15 @@ let snapshotFailAfterCall: number | null = null;
 /** Snapshot calls that reject before succeeding again (null = keep failing). */
 let snapshotFailCount: number | null = null;
 let snapshotCalls = 0;
+let ownsPort = false;
+let allocatedPort = 45999;
+let launchPort = 0;
+const snapshotModule = { ...(await import('./runtime-process-snapshot')) };
+/** A process on a fixed port that the injected OS reports (null = port free). */
+let fixedPortHolder: { pid: number; command: string; port: number; parentPid?: number } | null =
+  null;
 mock.module('./runtime-process-snapshot', () => ({
-  ownsRuntimePort: () => false,
+  ownsRuntimePort: snapshotModule.ownsRuntimePort,
   readRuntimeProcessSnapshot: async () => {
     snapshotCalls++;
     if (snapshotFailAfterCall !== null && snapshotCalls > snapshotFailAfterCall) {
@@ -46,32 +71,66 @@ mock.module('./runtime-process-snapshot', () => ({
         throw new Error('INJECTED_SNAPSHOT_TIMEOUT');
       }
     }
+    const holder = fixedPortHolder;
     return {
-      processes: rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : [],
+      processes: [
+        ...(rootPresent ? [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }] : []),
+        ...(holder
+          ? [
+              {
+                pid: holder.pid,
+                parentPid: holder.parentPid ?? 1,
+                birth: '200',
+                command: holder.command,
+              },
+            ]
+          : []),
+      ],
       protectedPids: new Set(),
-      listeners: [],
+      listeners: [
+        ...(holder ? [{ port: holder.port, pid: holder.pid }] : []),
+        ...(ownsPort && launched > 0 && rootPresent ? [{ port: launchPort, pid: 999 }] : []),
+      ],
     };
   },
 }));
 
 mock.module('./runtime-config', () => ({
   substitutePort: (s: string, p: number) => s.replaceAll('{port}', String(p)),
+  resolveRuntimeConfig: async () => ({ config: cfg }),
+  resolveThemeWorkingDirectory: async () => null,
+  taskRequiresFeatureEntries: async () => false,
+}));
+mock.module('./browser-smoke', () => ({
+  runBrowserSmoke: async () => {
+    throw new Error('起動失敗時にブラウザ検査へ進んではいけません');
+  },
 }));
 
+let launched = 0;
+let rootAppearsOnLaunch = false;
 let stopSpy = 0;
 let exited = false;
+let exitsOnStop = false;
+let logBeforeExit = false;
+let exitLog = 'Error: Cannot find module cross-env';
 mock.module('./app-launcher', () => ({
-  allocateFreePort: async () => 45999,
-  launchApp: () => ({
-    pid: 999,
-    logs: () => (exited ? ['Error: Cannot find module cross-env'] : []),
-    hasExited: () => exited,
-    exitCode: () => (exited ? 1 : null),
-    markStopRequested: () => {},
-    stop: () => {
-      stopSpy++;
-    },
-  }),
+  allocateFreePort: async () => allocatedPort,
+  launchApp: (_command: string, _workdir: string, port: number) => {
+    if (rootAppearsOnLaunch) rootPresent = true;
+    return {
+      port: (launchPort = _command.includes('--port 8090') ? 8090 : port),
+      pid: (launched++, 999),
+      logs: () => ((exited || logBeforeExit) && exitLog ? [exitLog] : []),
+      hasExited: () => exited,
+      exitCode: () => (exited ? 1 : null),
+      markStopRequested: () => {},
+      stop: () => {
+        stopSpy++;
+        if (exitsOnStop) exited = true;
+      },
+    };
+  },
   waitForHealthy: async (
     _url: string,
     _timeoutMs: number,
@@ -85,18 +144,31 @@ mock.module('./app-launcher', () => ({
       if (shouldAbort?.()) return false;
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
+    await onReady?.();
     return !shouldAbort?.();
   },
 }));
 
 /** How long the mocked health poll stays in its loop (lets the 2.5s tracker tick). */
 let healthyDelayMs = 0;
+let onReady: (() => Promise<void>) | undefined;
+const stoppedIdentities: RuntimeProcessIdentity[][] = [];
 
 // Stub the OS-level stop so quarantine cleanup never shells out to PowerShell
 // against the fake PID 999 used by this harness.
 mock.module('./runtime-process-stop', () => ({
   terminateRuntimeIdentities: async () => ({ stopped: true, reason: '' }),
-  stopRuntimeProcesses: async () => ({ stopped: true, identities: [], reason: '' }),
+  stopRuntimeProcesses: async (
+    identities: RuntimeProcessIdentity[],
+    persist: (identities: RuntimeProcessIdentity[]) => Promise<void>,
+  ) => {
+    stoppedIdentities.push([...identities]);
+    await persist(identities);
+    if (identities.some((identity) => identity.pid === fixedPortHolder?.pid))
+      fixedPortHolder = null;
+    if (identities.some((identity) => identity.pid === 999)) rootPresent = false;
+    return { stopped: true, identities, reason: '' };
+  },
 }));
 
 const loggedErrors: Array<{ fields: Record<string, unknown>; msg: string }> = [];
@@ -111,8 +183,12 @@ mock.module('../../../../config/logger', () => ({
   }),
 }));
 
-const { spawnNewEntry } = await import('./runtime-server-registry-lifecycle');
+const { spawnNewEntry, stopOwnedAndVerify } = await import('./runtime-server-registry-lifecycle');
 const { registry, nextGeneration: _unused } = await import('./runtime-server-registry-types');
+const { acquireRuntimeServer, _resetForTests } = await import('./worktree-server-registry');
+const { runRuntimeSmokeCheck } = await import('./runtime-check');
+const persistence = await import('./runtime-server-registry-persistence');
+const originalFetch = globalThis.fetch;
 
 const cfg = {
   start: 'server {port}',
@@ -127,19 +203,30 @@ const temporaryWorkdirs: string[] = [];
 beforeEach(() => {
   rows = [];
   rootPresent = false;
+  rootAppearsOnLaunch = false;
   stopSpy = 0;
+  launched = 0;
   exited = false;
+  exitsOnStop = false;
+  logBeforeExit = false;
+  exitLog = 'Error: Cannot find module cross-env';
   snapshotCalls = 0;
+  fixedPortHolder = null;
   snapshotFailAfterCall = null;
   snapshotFailCount = null;
   healthyDelayMs = 0;
-  registry.clear();
+  onReady = undefined;
+  ownsPort = false;
+  allocatedPort = 45999;
+  launchPort = 0;
+  historyBarrier = undefined;
+  historyWrites = 0;
+  historyWriteFails = false;
+  stoppedIdentities.length = 0;
+  _resetForTests();
   loggedErrors.length = 0;
 });
 
-// task 1055 (2026-09-24/25): `next dev` exited 1 on a missing module before
-// the identity snapshot; the reservation stayed quarantined ("前回の停止確認が
-// 取れず隔離中") and every later verification of the worktree was unverifiable.
 test('a launch that already exited is released, not quarantined', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
@@ -164,10 +251,42 @@ test('a launch whose process may still be alive stays quarantined', async () => 
   expect(stopSpy).toBe(1);
 });
 
-// 2026-09-27: the ownership tracker's OS snapshot was killed at its 10 s ceiling
-// while a dev server compiled, and that single failure aborted the launch — the
-// reason runtime smoke had not verified once since 09-22. A snapshot that cannot
-// be TAKEN is infrastructure, not evidence that ownership is unsafe.
+test.each(['SyntaxError: Unexpected token }', '', 'Failed to parse lock file: Unexpected token'])(
+  '身元確認前にアプリ自身が終了した場合は実装失敗として伝播する: %s',
+  async (line) => {
+    const dir = await mkdtemp(join(tmpdir(), 'runtime-early-exit-'));
+    temporaryWorkdirs.push(dir);
+    exited = true;
+    exitLog = line;
+
+    const acquired = await spawnNewEntry(dir, dir, cfg, 'fp');
+    expect(acquired).toMatchObject({ ok: false, hasExited: true, exitCode: 1 });
+    if (acquired.ok) throw new Error('起動失敗の結果が必要です');
+    expect(acquired.unverifiable).toBeUndefined();
+    expect(acquired.cause).toBeUndefined();
+    expect(registry.has(dir)).toBe(false);
+
+    // 同じディレクトリの再試行も、実際のregistry/lifecycleを経由して判定する。
+    const result = await runRuntimeSmokeCheck(dir);
+    expect(result).toMatchObject({ ran: true, ok: false, errorCount: 1 });
+    expect(result?.unverifiable).toBeUndefined();
+    expect(result?.cause).toBeUndefined();
+    expect(launched).toBe(2);
+    expect(rows).toEqual([]);
+  },
+);
+
+test('後処理の停止で初めて出た起動拒否ログには原因を付けない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-stop-exit-'));
+  temporaryWorkdirs.push(dir);
+  exitsOnStop = true;
+  exitLog = 'Error: 別のインスタンスが既に起動しています';
+  const result = await runRuntimeSmokeCheck(dir);
+  expect(result).toMatchObject({ ran: false, ok: false, unverifiable: true, errorCount: 0 });
+  expect(result?.cause).toBeUndefined();
+  expect(stopSpy).toBe(1);
+});
+
 test('one failed ownership snapshot does not abort the launch', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
@@ -179,9 +298,6 @@ test('one failed ownership snapshot does not abort the launch', async () => {
 
   const result = await spawnNewEntry(dir, dir, { ...cfg, readyTimeoutMs: 8_000 }, 'fp');
 
-  // This harness cannot carry a launch all the way to success (port ownership is
-  // stubbed false), so assert the thing this change governs: the transient
-  // snapshot failure is NOT what ended the launch.
   expect(JSON.stringify(result)).not.toContain('INJECTED_SNAPSHOT_TIMEOUT');
 }, 20_000);
 
@@ -200,17 +316,175 @@ test('an ownership snapshot that keeps failing still aborts the launch', async (
 }, 25_000);
 
 afterEach(async () => {
-  registry.clear();
+  _resetForTests();
+  globalThis.fetch = originalFetch;
   for (const dir of temporaryWorkdirs.splice(0)) await rm(dir, { recursive: true, force: true });
+});
+
+test('履歴保存中に停止要求が重なっても同じ停止処理を共有する', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-stop-race-'));
+  temporaryWorkdirs.push(dir);
+  const entry = {
+    key: dir,
+    workdir: dir,
+    state: 'active' as const,
+    configFingerprint: 'fp',
+    leases: new Set<string>(),
+    generation: 1,
+    identities: [{ pid: 40, parentPid: 1, birth: '100', command: 'owned' }],
+  };
+  registry.set(dir, entry);
+  let resume!: () => void;
+  historyBarrier = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  const first = stopOwnedAndVerify(entry, 'first');
+  const second = stopOwnedAndVerify(entry, 'second');
+  const shared = registry.get(dir)?.stopPromise;
+  resume();
+  await Promise.all([first, second]);
+  expect(shared).toBeDefined();
+  expect(stoppedIdentities).toHaveLength(1);
+  expect(historyWrites).toBe(1);
+});
+
+test('所有記録を削除しても履歴一致の固定ポートを回収して起動する', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-history-spawn-'));
+  temporaryWorkdirs.push(dir);
+  fixedPortHolder = { pid: 40, command: 'server --port 8090', port: 8090 };
+  await historyModule.recordLaunchProcesses(
+    dir,
+    [
+      {
+        pid: 40,
+        parentPid: 1,
+        birth: '200',
+        command: fixedPortHolder.command,
+      },
+    ],
+    'root',
+  );
+  await persistence.persistStartingIntent(dir, dir, 'old');
+  expect(rows).toHaveLength(1);
+  await persistence.persistRemoval(dir);
+  expect(rows).toEqual([]);
+  rootPresent = true;
+  ownsPort = true;
+  const result = await spawnNewEntry(
+    dir,
+    dir,
+    {
+      ...cfg,
+      start: 'server --port 8090',
+      url: 'http://127.0.0.1:8090',
+    },
+    'fp',
+  );
+  expect(result.ok).toBe(true);
+  expect(result).toMatchObject({ port: 8090, baseUrl: 'http://127.0.0.1:8090' });
+  expect(stoppedIdentities.flat().map((identity) => identity.pid)).toEqual([40]);
+  expect(launched).toBe(1);
+  expect(await readLaunchHistory(dir)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ pid: 40, role: 'root' }),
+      expect.objectContaining({ pid: 999, role: 'root', fixedPorts: [8090] }),
+    ]),
+  );
+});
+
+test('履歴一致の死亡ロックを削除して起動する', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-lock-spawn-'));
+  temporaryWorkdirs.push(dir);
+  const lockPath = join(dir, '.next', 'dev', 'lock');
+  await mkdir(join(dir, '.next', 'dev'), { recursive: true });
+  await writeFile(lockPath, JSON.stringify({ pid: 60 }));
+  await historyModule.recordLaunchLock(dir, { path: lockPath, pid: 60, birth: '100' });
+  rootPresent = true;
+  ownsPort = true;
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+  expect(result.ok).toBe(true);
+  expect(launched).toBe(1);
+  expect(stoppedIdentities).toEqual([]);
+  expect(await readFile(lockPath, 'utf8').catch(() => null)).toBeNull();
+});
+
+test('残存ポートを掃除する並行取得は起動を一度だけ行う', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-concurrent-cleanup-'));
+  temporaryWorkdirs.push(dir);
+  fixedPortHolder = { pid: 40, command: 'server --port 8090', port: 8090 };
+  await historyModule.recordLaunchProcesses(
+    dir,
+    [
+      {
+        pid: 40,
+        parentPid: 1,
+        birth: '200',
+        command: fixedPortHolder.command,
+      },
+    ],
+    'root',
+  );
+  rootPresent = true;
+  ownsPort = true;
+  globalThis.fetch = mock(async () => new Response('ready')) as unknown as typeof fetch;
+  const fixedCfg = { ...cfg, start: 'server --port 8090', url: 'http://127.0.0.1:8090' };
+  const results = await Promise.all([
+    acquireRuntimeServer(dir, fixedCfg),
+    acquireRuntimeServer(dir, fixedCfg),
+  ]);
+  expect(results.every((result) => result.ok)).toBe(true);
+  expect(launched).toBe(1);
+  expect(stoppedIdentities.flat().map((identity) => identity.pid)).toEqual([40]);
+  expect(await readLaunchHistory(dir)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ pid: 40 }),
+      expect.objectContaining({ pid: 999 }),
+    ]),
+  );
+});
+
+test.each([999, 4242])(
+  '待受確認後のロック PID %i は起動所有者の場合だけ履歴に記録する',
+  async (pid) => {
+    const dir = await mkdtemp(join(tmpdir(), 'runtime-ready-lock-'));
+    temporaryWorkdirs.push(dir);
+    const lockPath = join(dir, '.next', 'dev', 'lock');
+    onReady = async () => {
+      await mkdir(join(dir, '.next', 'dev'), { recursive: true });
+      await writeFile(lockPath, JSON.stringify({ pid }));
+    };
+    rootPresent = true;
+    ownsPort = true;
+    if (pid === 4242) fixedPortHolder = { pid, command: 'manual-server', port: 9099 };
+    expect((await spawnNewEntry(dir, dir, cfg, 'fp')).ok).toBe(true);
+    const locks = (await readLaunchHistory(dir)).filter((record) => record.kind === 'lock');
+    expect(locks.map((record) => record.pid)).toEqual(pid === 999 ? [999] : []);
+  },
+);
+
+test('起動履歴の書込失敗後に残った待受プロセスは次回停止しない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-history-failure-'));
+  temporaryWorkdirs.push(dir);
+  historyWriteFails = true;
+  rootPresent = true;
+  ownsPort = true;
+  const fixedCfg = { ...cfg, start: 'server --port 8090', url: 'http://127.0.0.1:8090' };
+  expect((await spawnNewEntry(dir, dir, fixedCfg, 'fp')).ok).toBe(true);
+  expect(await readLaunchHistory(dir)).toEqual([]);
+  _resetForTests();
+  rows = [];
+  rootPresent = false;
+  fixedPortHolder = { pid: 999, command: 'owned', port: 8090 };
+  const result = await spawnNewEntry(dir, dir, fixedCfg, 'fp');
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'port_in_use' });
+  expect(stoppedIdentities).toEqual([]);
+  expect(launched).toBe(1);
 });
 
 test('spawn stops the launched process when its OS identity is never confirmed', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
 
-  // rootPresent stays false: the post-spawn snapshot never contains the
-  // launched PID, so spawnNewEntry() throws 'Spawned process identity
-  // cannot be confirmed' before entry.identities is ever set.
   const result = await spawnNewEntry(dir, dir, cfg, 'fp');
 
   expect(result.ok).toBe(false);
@@ -218,8 +492,6 @@ test('spawn stops the launched process when its OS identity is never confirmed',
   expect(stopSpy).toBe(1);
 });
 
-// 2026-10-12 (task 1235): the ERROR carried no PIDs, so a listener outside the
-// owned tree could not be told apart from a missing/unread listener table.
 test('unconfirmed listener ownership is unverifiable and logs PID diagnostics with a fixed message', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
   temporaryWorkdirs.push(dir);
@@ -238,4 +510,106 @@ test('unconfirmed listener ownership is unverifiable and logs PID diagnostics wi
     ownedPids: [999],
     listenersKnown: true,
   });
+});
+
+test('a fixed port held by a process the launch history does not know is an environment cause', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  fixedPortHolder = { pid: 4242, command: 'C:\elsewhere\server.exe', port: 8090 };
+
+  const result = await spawnNewEntry(
+    dir,
+    dir,
+    { ...cfg, start: 'server', url: 'http://127.0.0.1:8090' },
+    'fp',
+  );
+
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'port_in_use' });
+  expect(launched).toBe(0);
+  expect(registry.has(dir)).toBe(false);
+});
+
+test('子孫の履歴保存に失敗した場合は停止も起動もせず foreign_process を返す', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-observed-write-failure-'));
+  temporaryWorkdirs.push(dir);
+  await historyModule.recordLaunchProcesses(
+    dir,
+    [{ pid: 999, parentPid: 1, birth: '100', command: 'owned' }],
+    'root',
+  );
+  rootPresent = true;
+  fixedPortHolder = { pid: 4242, parentPid: 999, command: 'server --port 8090', port: 8090 };
+  historyWriteFails = true;
+
+  const result = await spawnNewEntry(dir, dir, { ...cfg, url: 'http://127.0.0.1:8090' }, 'fp');
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause: 'foreign_process' });
+  expect(historyWrites).toBe(1);
+  expect(stoppedIdentities).toEqual([]);
+  expect(launched).toBe(0);
+});
+
+test.each([
+  [
+    '身元取得前のポート競合',
+    'Error: listen EADDRINUSE: address already in use :::8090',
+    'port_in_use',
+    false,
+  ],
+  [
+    '身元取得前の Error 付きロック競合',
+    'Error: 別のインスタンスが既に起動しています',
+    'lock_held',
+    false,
+  ],
+  ['身元取得前の単独行', '別のインスタンスが既に起動しています', 'lock_held', false],
+  ['準備完了待ち中の単独行', '別のインスタンスが既に起動しています', 'lock_held', true],
+])('%s の原因をサーバー取得から未検証の報告へ渡す', async (_name, line, cause, observedRoot) => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  exitLog = line;
+  const prepareLaunch = () => {
+    rootAppearsOnLaunch = observedRoot;
+    exited = !observedRoot;
+    onReady = async () => {
+      exited = true;
+    };
+  };
+
+  prepareLaunch();
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  expect(result).toMatchObject({ ok: false, unverifiable: true, cause });
+  const reportDir = await mkdtemp(join(tmpdir(), 'runtime-report-'));
+  temporaryWorkdirs.push(reportDir);
+  prepareLaunch();
+  const check = await runRuntimeSmokeCheck(reportDir);
+  expect(check).toMatchObject({ ran: false, ok: false, unverifiable: true, errorCount: 0, cause });
+  expect(check?.details).toContain(`cause=${cause}`);
+});
+
+test('生存中に出た単独行には起動拒否の原因を付けない', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-lock-timeout-'));
+  temporaryWorkdirs.push(dir);
+  logBeforeExit = true;
+  exitLog = '別のインスタンスが既に起動しています';
+  rootPresent = true;
+  onReady = async () => {
+    registry.get(dir)!.startCancelled = true;
+  };
+
+  const result = await spawnNewEntry(dir, dir, cfg, 'fp');
+  expect(result).toMatchObject({ ok: false, hasExited: false });
+  if (result.ok) throw new Error('起動失敗の結果が必要です');
+  expect(result.cause).toBeUndefined();
+});
+
+test('the spawned root is written to the launch history right after spawn', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'runtime-identity-'));
+  temporaryWorkdirs.push(dir);
+  rootPresent = true;
+
+  await spawnNewEntry(dir, dir, cfg, 'fp');
+
+  const history = await readLaunchHistory(dir);
+  expect(history.find((r) => r.pid === 999)).toMatchObject({ kind: 'process', role: 'root' });
 });

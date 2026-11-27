@@ -22,7 +22,9 @@ let recentNotification: { id: number } | null = null;
 let themeTasks: unknown[] | null = [
   { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: false },
 ];
-const queueCountMock = mock(() => Promise.resolve(queuedCount));
+const queueCountMock = mock((args?: { where?: { themeId?: number } }) =>
+  Promise.resolve(args?.where?.themeId !== undefined ? ownActiveItems : queuedCount),
+);
 const themeFindUniqueMock = mock(() => Promise.resolve({ currentTaskId }));
 const notificationFindFirstMock = mock(() => Promise.resolve(recentNotification));
 const taskFindManyMock = mock(() =>
@@ -72,6 +74,21 @@ mock.module('./queue-starvation-waiters', () => ({
     t.workflowStatus !== 'verify_done',
 }));
 
+let globalActive = 0;
+let slotLimit = 1;
+let ownActiveItems = 0;
+let slotReadThrows = false;
+mock.module('./auto-run/auto-run-global-active-count', () => ({
+  getGlobalAutoRunActiveCount: mock(() =>
+    slotReadThrows ? Promise.reject(new Error('db')) : Promise.resolve(globalActive),
+  ),
+}));
+mock.module('./auto-run/auto-run-concurrency', () => ({
+  resolveAutoRunMaxConcurrency: mock(() =>
+    Promise.resolve({ limit: slotLimit, source: 'settings' }),
+  ),
+}));
+
 const { checkNoSelectionProgress, resetNoSelectionTracker, NO_SELECTION_THRESHOLD_MS } =
   await import('./auto-run-no-selection-watch');
 
@@ -85,6 +102,10 @@ beforeEach(() => {
     { status: 'todo', workflowStatus: 'draft', haltReason: null, autoRunExcluded: false },
   ];
   waiters = { working: false, dispatchable: 0 };
+  globalActive = 0;
+  slotLimit = 1;
+  ownActiveItems = 0;
+  slotReadThrows = false;
   hasLiveExecutionMock.mockReset().mockResolvedValue(false);
   createNotificationMock.mockClear();
   logCycleEventMock.mockClear();
@@ -265,5 +286,58 @@ describe('checkNoSelectionProgress — calendar-slot hold exemption (task 1174)'
 
     expect(await checkNoSelectionProgress(1, NOW)).toBe('armed');
     resetCalendarHoldState();
+  });
+
+  // task 1535: 他テーマが唯一の枠を使っている間の「選定なし」は停滞ではなく枠待ち。
+  describe.each([1, 2])('他テーマが枠を使い切っている(上限 %i)', (limit) => {
+    beforeEach(() => {
+      slotLimit = limit;
+      globalActive = limit;
+    });
+
+    test('しきい値を超えても stall として通知せず、cause を区別して 1 回だけ記録する', async () => {
+      expect(await checkNoSelectionProgress(1, NOW)).toBe('slot-held-by-other-theme');
+      const later = NOW + NO_SELECTION_THRESHOLD_MS + 1_000;
+      expect(await checkNoSelectionProgress(1, later)).toBe('slot-held-by-other-theme');
+      expect(await checkNoSelectionProgress(1, later + 12_000)).toBe('slot-held-by-other-theme');
+      expect(createNotificationMock).not.toHaveBeenCalled();
+      expect(logCycleEventMock).not.toHaveBeenCalledWith(
+        'theme.no_selection_progress',
+        expect.anything(),
+      );
+      expect(logCycleEventMock).toHaveBeenCalledTimes(1);
+      expect(logCycleEventMock).toHaveBeenCalledWith(
+        'theme.waiting_for_slot',
+        expect.objectContaining({ theme: 1, ok: true, cause: 'slot_held_by_other_theme' }),
+      );
+    });
+
+    test('枠が空けば通常の判定に戻り、しきい値超過で reported になる', async () => {
+      await checkNoSelectionProgress(1, NOW);
+      globalActive = limit - 1;
+      expect(await checkNoSelectionProgress(1, NOW + 1_000)).toBe('armed');
+      expect(await checkNoSelectionProgress(1, NOW + NO_SELECTION_THRESHOLD_MS + 2_000)).toBe(
+        'reported',
+      );
+    });
+  });
+
+  test('枠が埋まっていても自テーマの項目が枠を使っているなら枠待ちとは言わない', async () => {
+    globalActive = 1;
+    ownActiveItems = 1;
+    await checkNoSelectionProgress(1, NOW);
+    expect(await checkNoSelectionProgress(1, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'reported',
+    );
+  });
+
+  test('枠の読み取りに失敗したら progressing に倒し、通知も cycle event も出さない', async () => {
+    slotReadThrows = true;
+    await checkNoSelectionProgress(1, NOW);
+    expect(await checkNoSelectionProgress(1, NOW + NO_SELECTION_THRESHOLD_MS + 1_000)).toBe(
+      'progressing',
+    );
+    expect(createNotificationMock).not.toHaveBeenCalled();
+    expect(logCycleEventMock).not.toHaveBeenCalled();
   });
 });

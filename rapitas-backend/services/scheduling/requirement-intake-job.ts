@@ -109,6 +109,7 @@ export type { IntakeTheme, RequirementIntakeDeps } from './requirement-intake-ty
 
 function defaultDeps(): RequirementIntakeDeps {
   return {
+    reportOutcome: reportIntakeOutcome,
     listThemes: async () => {
       const disabled = await getDisabledThemeIds('requirement_intake');
       return prisma.theme.findMany({
@@ -171,7 +172,10 @@ export async function runRequirementIntakeJob(
       total += outcome.filed;
       // A bare count cannot distinguish "nothing left to file" from "this theme
       // can never file again" — reporting that difference is the point (F1).
-      await reportIntakeOutcome(outcome).catch(() => {});
+      // NOTE: Injected, not called directly. The at-cap ("throttled") outcome
+      // reached the real prisma.notification from fixtures that never set up a
+      // DB, and three requirement-intake tests timed out at 5 s on develop.
+      await (deps.reportOutcome?.(outcome) ?? Promise.resolve()).catch(() => {});
     } catch (err) {
       log.warn({ err, themeId: theme.id }, 'Requirement intake failed for theme (non-fatal)');
     }

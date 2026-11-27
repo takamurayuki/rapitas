@@ -13,6 +13,13 @@ export type RequestOptions = RequestInit & {
   timeoutMs?: number;
   /** Disable the transient-error retry for idempotent GETs. / GETの透過リトライを無効化 */
   skipRetry?: boolean;
+  /**
+   * A user operation (search, opening a detail) issued this GET, so it is sent
+   * as `X-Rapitas-Source: ui` and counts as activity. Omit for polling and
+   * background reads, which are sent as `ui-poll`. Mutations are always `ui`.
+   * / 利用者の操作由来のGET（未指定のGETは ui-poll として送る）
+   */
+  userAction?: boolean;
 };
 
 export type BatchRequest = {

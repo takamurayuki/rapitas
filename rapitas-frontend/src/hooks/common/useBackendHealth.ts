@@ -7,6 +7,7 @@ import { useServerRestartStore } from '@/stores/server-restart-store';
 import { sharedEventSource } from '@/lib/sse/shared-event-source';
 import { useOnVisible } from './useOnVisible';
 import { getAppHidden, subscribeAppHidden } from './app-visibility-store';
+import { resolvePollInterval, usePollHidden } from './poll-interval';
 
 const logger = createLogger('useBackendHealth');
 
@@ -48,6 +49,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const consecutiveFailureCountRef = useRef(0);
   const onReconnectRef = useRef(onReconnectAction);
   const onDisconnectRef = useRef(onDisconnectAction);
+  const hidden = usePollHidden();
 
   useEffect(() => {
     onReconnectRef.current = onReconnectAction;
@@ -148,14 +150,19 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     // Run initial check asynchronously
     const initialCheck = setTimeout(() => checkHealth(), 0);
 
-    const currentInterval = status === 'disconnected' ? retryIntervalMs : intervalMs;
+    // Stretched while backgrounded (task 1553): the probe is skipped then
+    // anyway, so the timer only needs to wake rarely; it re-arms on return.
+    const currentInterval = resolvePollInterval(
+      status === 'disconnected' ? retryIntervalMs : intervalMs,
+      hidden,
+    );
     const timer = setInterval(checkHealth, currentInterval);
 
     return () => {
       clearTimeout(initialCheck);
       clearInterval(timer);
     };
-  }, [checkHealth, status, intervalMs, retryIntervalMs]);
+  }, [checkHealth, status, intervalMs, retryIntervalMs, hidden]);
 
   // Re-check immediately when the user returns to rapitas.
   useOnVisible(checkHealth);

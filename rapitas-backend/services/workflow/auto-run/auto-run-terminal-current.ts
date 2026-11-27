@@ -9,7 +9,7 @@
  */
 import { createLogger } from '../../../config/logger';
 import { logCycleEvent } from '../../observability';
-import { releaseCurrentTaskIfMatches } from '../../task/task-terminal-current-release';
+import { releaseThemeSlot } from './parallel/theme-active-set';
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 
 const log = createLogger('theme-auto-run-scheduler');
@@ -38,7 +38,9 @@ export async function releaseCancelledCurrent(
   themeId: number,
   taskId: number,
 ): Promise<void> {
-  await releaseCurrentTaskIfMatches(prisma, taskId);
+  // Task 1552: with companions, free only this task's slot (promoting the
+  // oldest companion when it was the head); alone, the pre-task CAS.
+  await releaseThemeSlot(prisma, themeId, taskId, 'released');
   log.info(
     `[ThemeAutoRunScheduler] Task ${taskId} is cancelled — released as current, advancing (theme ${themeId})`,
   );

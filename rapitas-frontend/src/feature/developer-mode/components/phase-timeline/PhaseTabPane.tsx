@@ -173,9 +173,27 @@ export function PhaseTabPane({
     // concatenated logs stay readable per run.
     const total = fetchedLogs?.length ?? 0;
     // Divider only BETWEEN runs — a leading "実行 1/N" line is just noise.
-    const storedFlat = (fetchedLogs ?? []).flatMap((group, i) =>
-      total > 1 && i > 0 ? [t('runDivider', { n: i + 1, total }), ...group] : group,
-    );
+    // NOTE: A diff-review juror run writes no log lines (its result is one JSON
+    // line in `output`), so its divider names the seat and model and the
+    // verdict follows, instead of an empty 「実行 2/3」 (2026-11-26).
+    const storedFlat = (fetchedLogs ?? []).flatMap((group, i) => {
+      const review = iteration.runs?.[i]?.review;
+      if (!review) {
+        return total > 1 && i > 0 ? [t('runDivider', { n: i + 1, total }), ...group] : group;
+      }
+      const unknown = t('reviewRunUnknown');
+      const header = t('reviewRunDivider', {
+        n: i + 1,
+        total,
+        seat: review.seatId ?? unknown,
+        model: review.model ?? unknown,
+      });
+      const result = t('reviewRunResult', {
+        verdict: review.verdict ?? unknown,
+        findings: review.findings ?? unknown,
+      });
+      return [header, result, ...group];
+    });
     // Live pane renders the SSE stream directly (real time). When the stream
     // contains this execution's start banner it is complete from the top;
     // otherwise (opened mid-run) prepend the stored catch-up base.
@@ -197,7 +215,7 @@ export function PhaseTabPane({
     const startIdx = logs.findIndex((l) => l.includes('Starting execution'));
     const at = startIdx >= 0 ? startIdx + 1 : 0;
     return [...logs.slice(0, at), `Model: ${iteration.modelName}`, ...logs.slice(at)];
-  }, [fetchedLogs, isLive, liveLogLines, iteration.modelName, t]);
+  }, [fetchedLogs, isLive, liveLogLines, iteration.modelName, iteration.runs, t]);
   const entries = useMemo(() => transformLogsToSimple(rawLogs, tLog), [rawLogs, tLog]);
 
   const matcher = useMemo(

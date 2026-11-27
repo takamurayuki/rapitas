@@ -9,7 +9,24 @@ import { describe, expect, test, mock, beforeEach, afterAll } from 'bun:test';
 
 // ---- prisma mock ----
 const mockFindFirstExecution = mock(() => Promise.resolve<Record<string, unknown> | null>(null));
+let reservation: { id: number; taskId: number; status: string } | null = null;
+let occupied = false;
+let releaseObserved: () => void = () => {};
 const mockPrisma = {
+  task: { findUnique: async () => ({ themeId: 35, workflowStatus: 'draft' }) },
+  themeAutoRun: { findFirst: async () => ({ status: 'paused_user' }) },
+  workflowQueueItem: {
+    findFirst: async () => reservation,
+    count: async () => Number(occupied || reservation?.status === 'running'),
+    create: async ({ data }: { data: { taskId: number; status: string } }) =>
+      (reservation = { id: 1, ...data }),
+    updateMany: async ({ data }: { data: { status: string } }) => {
+      if (reservation?.status === 'running') Object.assign(reservation, data);
+      releaseObserved();
+      return { count: 1 };
+    },
+  },
+  $transaction: async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(mockPrisma),
   agentExecution: {
     findFirst: mockFindFirstExecution,
   },
@@ -17,6 +34,9 @@ const mockPrisma = {
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+}));
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({ info() {}, error() {}, warn() {}, debug() {} }),
 }));
 
 // ---- fetch mock (the auto re-run's internal loopback call) ----
@@ -34,7 +54,9 @@ mock.module('../../../services/task/task-resolver', () => ({
 // ---- redispatch-nudge collaborators mock (task 830) ----
 const mockEnqueue = mock(() => Promise.resolve({}));
 mock.module('../../../services/workflow/workflow-queue', () => ({
-  WorkflowQueueService: { getInstance: () => ({ enqueue: mockEnqueue }) },
+  WorkflowQueueService: {
+    getInstance: () => ({ enqueue: mockEnqueue, getMaxConcurrency: () => 1 }),
+  },
 }));
 const mockGetAutoRunState = mock(() =>
   Promise.resolve<{ enabled: boolean; status: string; currentTaskId: number | null } | null>(null),
@@ -54,6 +76,9 @@ const { triggerReExecutionAfterAnswer, triggerRedispatchAfterResume } =
   await import('./workflow-handlers-resume-redispatch');
 
 beforeEach(() => {
+  reservation = null;
+  occupied = false;
+  releaseObserved = () => {};
   mockAdvance.mockReset().mockResolvedValue({ success: true });
   mockFindFirstExecution.mockReset().mockResolvedValue(null);
   mockResolveTaskThemeId.mockReset().mockResolvedValue(null);
@@ -69,6 +94,27 @@ afterAll(() => {
 });
 
 describe('triggerReExecutionAfterAnswer', () => {
+  test.each(['成功', '失敗', '例外'])('回答ハンドラ経由の%sで実予約を解放する', async (outcome) => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      releaseObserved = resolve;
+    });
+    mockAdvance.mockImplementationOnce(async () => {
+      await pending;
+      if (outcome === '例外') throw new Error('実行例外');
+      return { success: outcome === '成功' };
+    });
+    expect(await triggerReExecutionAfterAnswer(512)).toBe('started');
+    expect(reservation).toMatchObject({ taskId: 512, status: 'running' });
+    expect(await triggerReExecutionAfterAnswer(513)).toBe('waiting_slot');
+    expect(mockAdvance).toHaveBeenCalledTimes(1);
+    finish();
+    await released;
+    expect(reservation).toMatchObject({ status: outcome === '成功' ? 'completed' : 'failed' });
+  });
   test('uses workflow role selection instead of generic manual execution', async () => {
     await triggerReExecutionAfterAnswer(512);
     expect(mockAdvance).toHaveBeenCalledWith(512);
@@ -83,9 +129,22 @@ describe('triggerReExecutionAfterAnswer', () => {
     expect(mockSetCurrentTask).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
   });
+  test('task 1535: 一時停止テーマで枠が空いていなければ advance しない', async () => {
+    occupied = true;
+    expect(await triggerReExecutionAfterAnswer(512)).toBe('waiting_slot');
+    expect(mockAdvance).not.toHaveBeenCalled();
+  });
+  test('task 1535: 一時停止テーマでも枠が空いていれば従来どおり advance する', async () => {
+    expect(await triggerReExecutionAfterAnswer(512)).toBe('started');
+    expect(mockAdvance).toHaveBeenCalledWith(512);
+  });
+  test('task 1535: 取得できて advance が例外でも回答は拒否されず started を返す', async () => {
+    mockAdvance.mockRejectedValue(new Error('boom'));
+    await expect(triggerReExecutionAfterAnswer(512)).resolves.toBe('started');
+  });
   test('does not reject the persisted answer on workflow failure', async () => {
     mockAdvance.mockRejectedValue(new Error('workflow failed'));
-    await expect(triggerReExecutionAfterAnswer(512)).resolves.toBeUndefined();
+    await expect(triggerReExecutionAfterAnswer(512)).resolves.toBe('started');
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockFetch).not.toHaveBeenCalled();
   });

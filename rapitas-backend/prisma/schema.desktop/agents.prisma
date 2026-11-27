@@ -51,6 +51,7 @@ model AgentSession {
   agentExecutions   AgentExecution[]
 
   @@index([workspaceId])
+  @@index([configId])
 }
 
 model AgentAction {
@@ -165,6 +166,8 @@ model AgentExecution {
 
   @@index([status, heartbeatAt])
   @@index([workspaceId])
+  @@index([sessionId])
+  @@index([completedAt])
 }
 
 model AgentExecutionLog {

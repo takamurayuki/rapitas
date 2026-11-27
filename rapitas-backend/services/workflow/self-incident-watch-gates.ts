@@ -74,19 +74,31 @@ export async function resolveNonDevelopmentThemeIds(themeIds: number[]): Promise
  * absent from the map — callers must treat that as "not busy" (fail-open).
  *
  * @param themeIds - Distinct, non-null theme ids among this pass's candidates. / 候補のテーマID一覧
- * @returns Map of themeId to its running currentTaskId. / 稼働中テーマIDと現在処理中タスクIDの対応
+ * @returns Map of themeId to its running head and companion ids. / 稼働中テーマIDと動作中タスクIDの対応
  */
 export async function resolveThemeAutoRunRunState(
   themeIds: number[],
-): Promise<Map<number, { currentTaskId: number | null }>> {
+): Promise<Map<number, { currentTaskId: number | null; companionTaskIds?: number[] }>> {
   if (themeIds.length === 0) return new Map();
-  const rows = await prisma.themeAutoRun
-    .findMany({
-      where: { themeId: { in: themeIds }, status: 'running' },
-      select: { themeId: true, currentTaskId: true },
-    })
-    .catch(() => [] as { themeId: number; currentTaskId: number | null }[]);
-  return new Map(rows.map((r) => [r.themeId, { currentTaskId: r.currentTaskId }]));
+  // NOTE: no `select` — companionTasksJson (task 1552) is pending client regeneration.
+  const rows = (await prisma.themeAutoRun
+    .findMany({ where: { themeId: { in: themeIds }, status: 'running' } })
+    .catch(() => [])) as unknown as Array<{
+    themeId: number;
+    currentTaskId: number | null;
+    companionTasksJson?: unknown;
+  }>;
+  const { parseCompanions } = await import('./auto-run/parallel/companion-json');
+  return new Map(
+    rows.map((r) => [
+      r.themeId,
+      {
+        currentTaskId: r.currentTaskId,
+        // Companions are "their own turn" too, not a backlog wait (task 1552).
+        companionTaskIds: parseCompanions(r.companionTasksJson).map((c) => c.taskId),
+      },
+    ]),
+  );
 }
 
 /**

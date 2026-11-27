@@ -149,6 +149,10 @@
         "title": "Knowledge auto-extraction complete",
         "message": "Extracted {count} knowledge entries from task \"{taskTitle}\""
       },
+      "goal_reflection_prompt": {
+        "title": "Reflect on this week's progress",
+        "message": "You can leave a 1-5 rating and a short note for {count} goal(s) in progress (about a minute)."
+      },
       "knowledge_reminder": {
         "title": "Knowledge you might be forgetting ({count})",
         "message": "Time for a review? {lines}"

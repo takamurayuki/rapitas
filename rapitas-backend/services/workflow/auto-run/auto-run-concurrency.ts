@@ -2,7 +2,8 @@
  * auto-run-concurrency
  *
  * Resolves the global auto-run concurrency limit (env override, then the
- * UserSettings.autoRunMaxConcurrency setting) and holds the theme-priority
+ * UserSettings.autoRunMaxConcurrency setting) and the per-theme limit (task
+ * 1552, capped by the global one), and holds the theme-priority
  * helpers used to decide which running theme takes a free slot (task 1543).
  * Not responsible for counting active items (see getGlobalAutoRunActiveCount)
  * or for enqueueing — callers act on what these helpers return.
@@ -86,6 +87,58 @@ export async function resolveAutoRunMaxConcurrency(
   }
   const value = (row as { autoRunMaxConcurrency?: unknown } | null)?.autoRunMaxConcurrency;
   return { limit: normalizeAutoRunMaxConcurrency(value), source: 'settings' };
+}
+
+/**
+ * Read AUTO_RUN_THEME_MAX_CONCURRENCY (task 1552) with the same rule as the
+ * global override: only a positive integer counts.
+ *
+ * @param env - Environment to read / 読み取る環境変数
+ * @returns The override, or null when unset/invalid / 上書き値（未設定・不正なら null）
+ */
+export function parseEnvAutoRunMaxConcurrencyPerTheme(
+  env: Record<string, string | undefined>,
+): number | null {
+  return parseEnvAutoRunMaxConcurrency({
+    AUTO_RUN_GLOBAL_MAX_CONCURRENCY: env.AUTO_RUN_THEME_MAX_CONCURRENCY,
+  });
+}
+
+/**
+ * Resolve how many tasks ONE theme may run at once (task 1552): env override,
+ * then UserSettings.autoRunMaxConcurrencyPerTheme clamped to 1..4, 1 when the
+ * row or column cannot be read. `effective` is capped by the global limit, so
+ * the global cap keeps working.
+ *
+ * @param prisma - Injected Prisma client / 注入された Prisma クライアント
+ * @param env - Environment (injectable for tests) / 環境変数（テスト用に注入可）
+ * @returns Per-theme limit, its source and the effective value / テーマ内上限・由来・実効値
+ */
+export async function resolveAutoRunMaxConcurrencyPerTheme(
+  prisma: PrismaClient,
+  env: Record<string, string | undefined> = process.env,
+): Promise<{ limit: number; source: AutoRunConcurrencySource; effective: number }> {
+  const global = await resolveAutoRunMaxConcurrency(prisma, env);
+  const fromEnv = parseEnvAutoRunMaxConcurrencyPerTheme(env);
+  let limit: number;
+  let source: AutoRunConcurrencySource;
+  if (fromEnv !== null) {
+    limit = fromEnv;
+    source = 'env';
+  } else {
+    // NOTE: no `select` — the column is pending client regeneration (same as above).
+    let row: unknown = null;
+    try {
+      row = await prisma.userSettings.findFirst();
+    } catch {
+      row = null;
+    }
+    const value = (row as { autoRunMaxConcurrencyPerTheme?: unknown } | null)
+      ?.autoRunMaxConcurrencyPerTheme;
+    limit = normalizeAutoRunMaxConcurrency(value);
+    source = 'settings';
+  }
+  return { limit, source, effective: Math.max(1, Math.min(limit, global.limit)) };
 }
 
 /**

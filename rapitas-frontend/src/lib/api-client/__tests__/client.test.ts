@@ -1,4 +1,4 @@
-import { APIClient, isTransientError, UI_SOURCE_HEADER, UI_SOURCE_VALUE } from '../client';
+import { APIClient, isTransientError } from '../client';
 import * as apiUtils from '@/utils/api';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
@@ -8,6 +8,15 @@ vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test:3001' }));
 const mockOfflineFetch = vi.fn();
 vi.mock('@/lib/offline-queue', () => ({
   offlineFetch: (...args: unknown[]) => mockOfflineFetch(...args),
+}));
+// Inert here: the restart wait has its own suite (client-restart-wait.test.ts),
+// and the X-Rapitas-Source tests live in client-source-header.test.ts.
+vi.mock('../restart-wait', () => ({
+  holdUntilBackendReady: async () => 'none',
+  restartWaitDeadline: () => 0,
+  waitForBackendRecovery: async () => false,
+  noteConnectionFailure: () => {},
+  isConnectionError: () => false,
 }));
 
 const okResponse = (body: unknown) =>
@@ -316,75 +325,6 @@ describe('APIClient.clearCache / getCacheStats', () => {
 
     expect(stats.entries.length).toBeGreaterThan(0);
     expect(stats.size).toBeGreaterThan(0);
-  });
-});
-
-describe('APIClient.performFetch - X-Rapitas-Source header', () => {
-  beforeEach(() => {
-    mockOfflineFetch.mockReset();
-  });
-
-  it('GETリクエストに X-Rapitas-Source: ui ヘッダを付与すること', async () => {
-    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
-    const client = new APIClient();
-
-    await client.fetch('/tasks/1', { skipCache: true });
-
-    const [, init] = mockOfflineFetch.mock.calls[0] as [string, RequestInit];
-    expect((init.headers as Record<string, string>)[UI_SOURCE_HEADER]).toBe(UI_SOURCE_VALUE);
-  });
-
-  it('POSTリクエストにも X-Rapitas-Source: ui ヘッダを付与すること', async () => {
-    mockOfflineFetch.mockResolvedValue(okResponse({ ok: true }));
-    const client = new APIClient();
-
-    await client.fetch('/tasks', { method: 'POST', body: '{}', skipCache: true });
-
-    const [, init] = mockOfflineFetch.mock.calls[0] as [string, RequestInit];
-    expect((init.headers as Record<string, string>)[UI_SOURCE_HEADER]).toBe(UI_SOURCE_VALUE);
-  });
-
-  it('呼び出し側が独自ヘッダを指定してもソースヘッダが維持されること', async () => {
-    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
-    const client = new APIClient();
-
-    await client.fetch('/tasks/1', {
-      skipCache: true,
-      headers: { 'X-Custom': 'abc' },
-    });
-
-    const [, init] = mockOfflineFetch.mock.calls[0] as [string, RequestInit];
-    const headers = init.headers as Record<string, string>;
-    expect(headers[UI_SOURCE_HEADER]).toBe(UI_SOURCE_VALUE);
-    expect(headers['X-Custom']).toBe('abc');
-  });
-
-  it('呼び出し側は既存規約どおりソースヘッダを明示上書きできること', async () => {
-    mockOfflineFetch.mockResolvedValue(okResponse({ id: 1 }));
-    const client = new APIClient();
-
-    await client.fetch('/tasks/1', {
-      skipCache: true,
-      headers: { [UI_SOURCE_HEADER]: 'other' },
-    });
-
-    const [, init] = mockOfflineFetch.mock.calls[0] as [string, RequestInit];
-    expect((init.headers as Record<string, string>)[UI_SOURCE_HEADER]).toBe('other');
-  });
-
-  it('SSRフォールバック（native fetch）でもヘッダが付与されること', async () => {
-    const nativeFetch = vi.fn().mockResolvedValue(okResponse({ id: 1 }));
-    vi.stubGlobal('window', undefined);
-    vi.stubGlobal('fetch', nativeFetch);
-    try {
-      const client = new APIClient();
-      await client.fetch('/tasks/1', { skipCache: true });
-
-      const [, init] = nativeFetch.mock.calls[0] as [string, RequestInit];
-      expect((init.headers as Record<string, string>)[UI_SOURCE_HEADER]).toBe(UI_SOURCE_VALUE);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 });
 

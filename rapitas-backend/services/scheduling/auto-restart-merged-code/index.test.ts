@@ -1,13 +1,23 @@
 /**
  * index.test (AutoRestartMergedCodeScheduler)
  *
- * Drives runOnce() with every dependency mocked and asserts the exact call
- * order on the success path (fetch → classify → decide → clean-check →
- * ff-merge → final idle recheck → notification → rate-limit stamp → shutdown
- * sequence), plus every early-exit gate — and the task-boundary path
- * (evaluateBoundaryRestart) with its wait / defer / forced-restart branches.
+ * Drives runOnce() / evaluateBoundaryRestart() with every dependency mocked: call
+ * order, each early-exit gate (incl. the shared 60-min floor), wait/defer/forced.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// The restart wait keeps its state in RAPITAS_DATA_DIR; keep it out of the real ~/.rapitas.
+const originalDataDir = process.env.RAPITAS_DATA_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), 'auto-restart-index-'));
+process.env.RAPITAS_DATA_DIR = dataDir;
+afterAll(() => {
+  if (originalDataDir === undefined) delete process.env.RAPITAS_DATA_DIR;
+  else process.env.RAPITAS_DATA_DIR = originalDataDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 const callOrder: string[] = [];
 
@@ -24,6 +34,7 @@ let snapshots: Array<{
   activeExecutions: number;
   runningExecutions: number;
   queueDepth: number;
+  dispatchableQueueDepth?: number;
 }> = [];
 let snapshotIndex = 0;
 let lastRestartAt = 0;
@@ -71,6 +82,9 @@ mock.module('./settings-store', () => ({
   },
   writeAutoRestartEnabled: () => {},
   readLastRestartAt: () => lastRestartAt,
+  readLatestAutoRestartAt: () => lastRestartAt,
+  readDevRestartLastAt: () => 0,
+  writeDevRestartLastAt: () => {},
   writeLastRestartAt: (_ts: number) => {
     callOrder.push('writeLastRestartAt');
   },
@@ -157,8 +171,15 @@ mock.module('../../observability/cycle-event-logger', () => ({
   _resetForTests: () => {},
 }));
 
+// restart-wait reads the running themes lazily from the database when a wait begins.
+mock.module('../../../config/database', () => ({
+  prisma: { themeAutoRun: { findMany: async () => [{ themeId: 1 }] } },
+}));
+
 const { AutoRestartMergedCodeScheduler } = await import('./index');
 const { resetUiActivity, recordUiRequest } = await import('./ui-activity-tracker');
+const { isRestartWaitActive, resetRestartWaitCache } = await import('./restart-wait');
+const { writeRestartWaitState } = await import('./restart-wait-store');
 
 /** Fresh scheduler with the private startupCommit primed (runOnce is driven directly). */
 function makeScheduler(startupCommit: string | null = 'startup123'): {
@@ -171,6 +192,8 @@ function makeScheduler(startupCommit: string | null = 'startup123'): {
 }
 
 beforeEach(() => {
+  writeRestartWaitState({});
+  resetRestartWaitCache();
   callOrder.length = 0;
   warnings.length = 0;
   cycleEvents.length = 0;
@@ -401,10 +424,10 @@ describe('runOnce — early-exit gates', () => {
     expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
   });
 
-  test('rate-limited: no pull, no restart', async () => {
-    lastRestartAt = Date.now() - 60_000; // 1 min ago < 30 min floor
-    expect(await makeScheduler().runOnce()).toBe(false);
-    expect(callOrder.some((c) => c === 'isWorkingTreeClean')).toBe(false);
+  test.each([45, 61])('60-min floor (was 30): stamp %i min old', async (m) => {
+    lastRestartAt = Date.now() - m * 60_000;
+    expect(await makeScheduler().runOnce()).toBe(m > 60);
+    expect(callOrder.includes('isWorkingTreeClean')).toBe(m > 60);
   });
 
   test('dirty tree: no ff-merge, no notification', async () => {
@@ -493,10 +516,10 @@ describe('evaluateBoundaryRestart — task-boundary path', () => {
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
   });
 
-  test('rate-limited (within the 10-min boundary floor): wait', async () => {
-    lastRestartAt = Date.now() - 60_000;
-    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
-    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  test.each([15, 61])('60-min floor (was 10): stamp %i min old', async (m) => {
+    lastRestartAt = Date.now() - m * 60_000;
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(m > 60);
+    expect(callOrder.includes('writeLastRestartAt')).toBe(m > 60);
   });
 
   test('UI active: defer — count persisted, no pull, no shutdown', async () => {
@@ -630,5 +653,42 @@ describe('dependency gate', () => {
     expect(callOrder).toContain('dependencyGate');
     expect(callOrder.some((c) => c.startsWith('fastForwardToRemote'))).toBe(false);
     expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+});
+
+// Task 1562: queued items of a paused theme must not hold the boundary restart.
+describe('paused-theme queue items', () => {
+  test('the boundary restart fires when the only queued items belong to a paused theme', async () => {
+    const parked = { ...idleSnapshot, queueDepth: 1, dispatchableQueueDepth: 0 };
+    snapshots = [parked, parked];
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(true);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(true);
+  });
+
+  test('a queued item of a running theme still holds it', async () => {
+    const live = { ...idleSnapshot, queueDepth: 1, dispatchableQueueDepth: 1 };
+    snapshots = [live, live];
+    expect(await makeScheduler().evaluateBoundaryRestart()).toBe(false);
+    expect(callOrder.some((c) => c.startsWith('scheduleShutdownSequence'))).toBe(false);
+  });
+});
+
+// Task 1562: the poller feeds the restart wait.
+describe('restart wait wiring', () => {
+  test('a schema merge enters the wait at once and logs it in the cycle log', async () => {
+    changedPaths = ['rapitas-backend/prisma/schema/task.prisma'];
+    // Busy, so the poller itself does not restart: only the wait is under test.
+    snapshots = [{ ...idleSnapshot, activeExecutions: 1 }];
+    await makeScheduler().runOnce();
+    expect(isRestartWaitActive()).toBe(true);
+    expect(cycleEvents.some((e) => e.evt === 'restart.wait_started')).toBe(true);
+    resetRestartWaitCache();
+  });
+
+  test('an ordinary merge does not enter the wait before 30 minutes', async () => {
+    changedPaths = ['rapitas-frontend/src/a.tsx'];
+    await makeScheduler().runOnce();
+    expect(isRestartWaitActive()).toBe(false);
+    expect(cycleEvents.some((e) => e.evt === 'restart.wait_started')).toBe(false);
   });
 });

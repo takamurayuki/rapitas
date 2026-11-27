@@ -7,39 +7,21 @@
  */
 
 import { API_BASE_URL } from '@/utils/api';
-import { offlineFetch } from '@/lib/offline-queue';
-import { createLogger } from '@/lib/logger';
 import { ApiClientCache } from './cache';
 import { ApiClientBatch } from './batch';
+import { performFetch, REQUEST_TIMEOUT_MS } from './perform-fetch';
+import {
+  holdUntilBackendReady,
+  isConnectionError,
+  noteConnectionFailure,
+  restartWaitDeadline,
+  waitForBackendRecovery,
+} from './restart-wait';
 import type { RequestOptions } from './types';
 
-const logger = createLogger('api-client');
-
-/**
- * Hard ceiling on any single API request. Without a cap, a stalled
- * connection (backend deadlock, dropped TCP keep-alive, etc.) leaves the
- * promise hanging forever. The same promise is then returned by the
- * in-flight dedup map, so EVERY subsequent caller for the same path also
- * hangs — which is exactly the "task detail page stays in loading state
- * until server restart" symptom users reported. Restarting the backend
- * forced TCP RST → fetch finally rejected → queue cleared → recovery.
- *
- * 30s is generous enough for legitimately slow workflow endpoints but
- * short enough that a recoverable hang surfaces as an actionable error.
- */
-const REQUEST_TIMEOUT_MS = 30_000;
-
-/**
- * Marks every request from this client as UI-originated so the backend's
- * ui-activity-tracker can defer boundary self-restarts while the user is
- * actively operating the UI (RAPITAS_RESTART_UI_QUIET_MS quiet gate).
- *
- * NOTE: Values must mirror UI_SOURCE_HEADER / UI_SOURCE_VALUE in
- * rapitas-backend/services/scheduling/auto-restart-merged-code/ui-activity-tracker.ts
- * — the backend constants cannot be imported across packages.
- */
-export const UI_SOURCE_HEADER = 'X-Rapitas-Source';
-export const UI_SOURCE_VALUE = 'ui';
+// NOTE: Re-exported so imports from './client' keep working after
+// performFetch moved to perform-fetch.ts (task 1548).
+export { UI_SOURCE_HEADER, UI_SOURCE_VALUE } from './perform-fetch';
 
 /**
  * Per-attempt timeout for idempotent GETs. A healthy backend serves GETs in
@@ -54,6 +36,8 @@ const GET_ATTEMPT_TIMEOUT_MS = 15_000;
 /** Transient-error retries for idempotent GETs (mutations are never retried). */
 const MAX_GET_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 300;
+/** Backend-restart waits per GET; past this the original error is thrown (no endless loop). */
+const MAX_RECOVERY_WAITS = 3;
 
 /** Whether an error from performFetch is transient and safe to retry a GET on. */
 export function isTransientError(err: unknown): boolean {
@@ -127,12 +111,13 @@ export class APIClient {
 
     const isGet = !options.method || options.method.toUpperCase() === 'GET';
     // Retry idempotent GETs on transient errors (timeout / dropped connection /
-    // 5xx). The retry runs INSIDE the deduped promise, so every caller waiting on
-    // this path gets the recovered result instead of a shared timeout failure.
-    const runner =
-      isGet && !options.skipRetry
-        ? () => this.getWithRetries<T>(url, options)
-        : () => this.performFetch<T>(url, options, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
+    // 5xx) and wait out a backend restart. This runs INSIDE the deduped promise,
+    // so every caller waiting on this path gets the recovered result.
+    const runner = !isGet
+      ? () => this.mutateOnce<T>(url, options)
+      : options.skipRetry
+        ? () => performFetch<T>(url, options, options.timeoutMs ?? REQUEST_TIMEOUT_MS)
+        : () => this.getWithRecovery<T>(url, options);
 
     const request = runner()
       .then((data) => {
@@ -165,7 +150,7 @@ export class APIClient {
     let lastError: unknown;
     for (let attempt = 0; attempt <= MAX_GET_RETRIES; attempt++) {
       try {
-        return await this.performFetch<T>(url, options, perAttempt);
+        return await performFetch<T>(url, options, perAttempt);
       } catch (err) {
         lastError = err;
         if (attempt === MAX_GET_RETRIES || !isTransientError(err)) throw err;
@@ -173,6 +158,53 @@ export class APIClient {
       }
     }
     throw lastError;
+  }
+
+  /**
+   * GET that outlives a backend restart: held while a restart is known, and
+   * after a connection error it waits for `/health` and is sent again, so the
+   * caller gets the result instead of an error (and shows no error toast).
+   *
+   * NOTE: One deadline per GET, fixed the first time it has to wait (task 1548).
+   * Re-deriving it per wait let a held GET wait a second 2 minutes, and past it
+   * the original error must reach the caller.
+   */
+  private async getWithRecovery<T>(url: string, options: RequestOptions): Promise<T> {
+    if (typeof window === 'undefined') return this.getWithRetries<T>(url, options);
+    let deadline: number | null = restartWaitDeadline();
+    // Sending into a known restart only burns a 15 s attempt, so wait first.
+    const held = await holdUntilBackendReady(API_BASE_URL, deadline);
+    if (held === 'none') deadline = null;
+    // Past the deadline: send once and hand over the real outcome, no more waiting.
+    if (held === 'expired') {
+      return performFetch<T>(url, options, options.timeoutMs ?? GET_ATTEMPT_TIMEOUT_MS);
+    }
+    for (let wait = 0; ; wait++) {
+      try {
+        return await this.getWithRetries<T>(url, options);
+      } catch (err) {
+        if (wait >= MAX_RECOVERY_WAITS || !isConnectionError(err)) throw err;
+        deadline ??= restartWaitDeadline();
+        if (!(await waitForBackendRecovery(API_BASE_URL, deadline))) throw err;
+      }
+    }
+  }
+
+  /**
+   * POST/PUT/PATCH/DELETE: held until a known restart is over (or its deadline
+   * passed), then sent exactly once. A failure after sending is never re-sent
+   * (the backend may have applied it), so it reaches the caller; it only starts
+   * the recovery watch so the overlay shows and the next mutation waits.
+   */
+  private async mutateOnce<T>(url: string, options: RequestOptions): Promise<T> {
+    const inBrowser = typeof window !== 'undefined';
+    if (inBrowser) await holdUntilBackendReady(API_BASE_URL, restartWaitDeadline());
+    try {
+      return await performFetch<T>(url, options, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
+    } catch (err) {
+      if (inBrowser && isConnectionError(err)) noteConnectionFailure(API_BASE_URL);
+      throw err;
+    }
   }
 
   /**
@@ -301,119 +333,5 @@ export class APIClient {
     entries: Array<{ key: string; size: number; age: number }>;
   } {
     return this.cache.getStats();
-  }
-
-  /**
-   * Low-level fetch with auth credentials and JSON content-type.
-   *
-   * Uses `offlineFetch` from lib/offline-queue so that write requests
-   * (POST/PUT/PATCH/DELETE) are automatically queued in IndexedDB when
-   * the network is unavailable and replayed when it comes back.
-   * GET requests pass through to native fetch — they are not queued.
-   *
-   * When a mutation is queued offline, `offlineFetch` returns a synthetic
-   * `202 Accepted` with body `{ queued: true }`. We detect this case and
-   * return it as `T` (the caller will see a partial response, but the
-   * mutation is durably persisted and will replay on reconnection).
-   *
-   * @param url - Full URL / 完全なURL
-   * @param options - Fetch options / フェッチオプション
-   * @returns Parsed JSON response / パース済みJSONレスポンス
-   * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
-   */
-  private async performFetch<T>(
-    url: string,
-    options: RequestOptions,
-    timeoutMs: number = REQUEST_TIMEOUT_MS,
-  ): Promise<T> {
-    const requestStartedAt = Date.now();
-    const method = (options.method || 'GET').toUpperCase();
-    const requestLabel = `${method} ${(() => {
-      try {
-        return new URL(url).pathname + new URL(url).search;
-      } catch {
-        return url;
-      }
-    })()}`;
-
-    // Compose any caller-provided AbortSignal with our timeout signal so
-    // either source can cancel the request. AbortSignal.any is in modern
-    // browsers; fall back to manual chaining when unavailable.
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      // Surface BOTH the URL and the elapsed time so the user can find
-      // which endpoint stalled without diving into devtools network tab.
-      const elapsed = Date.now() - requestStartedAt;
-      const msg = `Request timeout after ${elapsed}ms — ${requestLabel}`;
-
-      // A timeout is a transient transport failure. Group the warning across
-      // endpoints for one minute; the caller still receives the full error.
-      logger.warnThrottled('[api-client] timeout', requestLabel);
-      timeoutController.abort(new Error(msg));
-    }, timeoutMs);
-
-    let signal: AbortSignal = timeoutController.signal;
-    const callerSignal = (options as RequestOptions & { signal?: AbortSignal }).signal;
-    if (callerSignal) {
-      const anyFn = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal })
-        .any;
-      if (typeof anyFn === 'function') {
-        signal = anyFn([timeoutController.signal, callerSignal]);
-      } else if (callerSignal.aborted) {
-        timeoutController.abort(callerSignal.reason);
-      } else {
-        callerSignal.addEventListener('abort', () => timeoutController.abort(callerSignal.reason));
-      }
-    }
-
-    const fetchInit: RequestInit = {
-      ...options,
-      signal,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        [UI_SOURCE_HEADER]: UI_SOURCE_VALUE,
-        ...options.headers,
-      },
-    };
-
-    try {
-      // NOTE: offlineFetch relies on IndexedDB and navigator.onLine which
-      // only exist in the browser. During SSR (Next.js server components)
-      // fall back to native fetch — offline queuing is a client-only concern.
-      let response: Response;
-      if (typeof window !== 'undefined') {
-        const pathname = (() => {
-          try {
-            return new URL(url).pathname;
-          } catch {
-            return url;
-          }
-        })();
-        response = await offlineFetch(url, fetchInit, `${method} ${pathname}`);
-      } else {
-        response = await fetch(url, fetchInit);
-      }
-
-      if (!response.ok) {
-        const error = await response.text().catch(() => 'Unknown error');
-        throw new Error(`API Error: ${response.status} (${requestLabel}) - ${error}`);
-      }
-
-      return response.json();
-    } catch (err) {
-      // Annotate ANY thrown error (including AbortError from non-timeout
-      // sources) with the request label so it surfaces in the UI toast
-      // / console rather than appearing as a bare "AbortError".
-      if (err instanceof Error && !err.message.includes(requestLabel)) {
-        const annotated = new Error(`${err.message} — ${requestLabel}`);
-        annotated.stack = err.stack;
-        (annotated as Error & { cause?: unknown }).cause = err;
-        throw annotated;
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
-    }
   }
 }

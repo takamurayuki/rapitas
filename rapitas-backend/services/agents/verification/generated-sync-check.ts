@@ -8,12 +8,10 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileLowPriority } from '../process-priority';
+import { execFileLowPriority, spawnLowPriority } from '../process-priority';
+import { CMD_TIMEOUT_MS, runCmd } from './verify-command-runner';
 import type { VerificationCheck } from './automated-verifier';
 
-// BELOW_NORMAL, like every other gate command: these are the last steps that ran
-// at full priority, and runDriftScript's three are fired together by Promise.all
-// below — three normal-priority processes at once on a 4-core host.
 const execFileAsync = execFileLowPriority;
 
 /** Lines the ratchet script prints for a violation THIS diff is responsible for. */
@@ -112,27 +110,26 @@ async function runDriftScript(
   backendDir: string,
   entry: (typeof DRIFT_SCRIPTS)[number],
 ): Promise<string | null> {
-  try {
-    await execFileAsync('bun', ['run', entry.script], {
-      cwd: backendDir,
-      timeout: 180_000,
-      maxBuffer: 4 * 1024 * 1024,
-      windowsHide: true,
-      shell: process.platform === 'win32',
-    });
-    return null;
-  } catch (err) {
-    const e = err as { code?: unknown; stdout?: string; stderr?: string; killed?: boolean };
-    const out = `${e.stdout ?? ''}\n${e.stderr ?? ''}`;
-    // A missing script or a crashed runner is not drift — skip, never fail.
-    if (typeof e.code !== 'number' || e.killed || /Script not found/.test(out)) return null;
-    const lines = out
-      .split(/\r?\n/)
-      .filter((l) => /DRIFT|drift|out of sync|missing|stale/i.test(l) && !/no drift/.test(l))
-      .slice(0, 6)
-      .join(' / ');
-    return `${entry.what}: ${lines || 'generated files differ from source'} → rapitas-backend で \`${entry.regen}\` を実行して生成物をコミット`;
-  }
+  const result = await runCmd(`bun run ${entry.script}`, backendDir, {
+    heavy: true,
+    timeoutMs: CMD_TIMEOUT_MS,
+    maxOutputBytes: 4 * 1024 * 1024,
+    spawn: (_command, options) =>
+      spawnLowPriority(
+        'bun',
+        ['run', entry.script],
+        { ...options, shell: process.platform === 'win32' },
+        'RAPITAS_VERIFY_QUIET',
+      ),
+  });
+  const out = `${result.stdout}\n${result.stderr}`;
+  if (result.code === 0 || result.failure || /Script not found/.test(out)) return null;
+  const lines = out
+    .split(/\r?\n/)
+    .filter((l) => /DRIFT|drift|out of sync|missing|stale/i.test(l) && !/no drift/.test(l))
+    .slice(0, 6)
+    .join(' / ');
+  return `${entry.what}: ${lines || 'generated files differ from source'} → rapitas-backend で \`${entry.regen}\` を実行して生成物をコミット`;
 }
 
 /**

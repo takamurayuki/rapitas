@@ -22,6 +22,8 @@ import {
   resolveApprovalPauseFacts,
 } from './approval-pause-release';
 import { eligibleTopLevelTodoWhere } from './auto-run-eligibility';
+import { clearCompanions } from './parallel/theme-active-set-cleanup';
+import { advancePausedCompanions } from './parallel/companion-entry';
 import {
   resumeAutoRun,
   finalizeStop,
@@ -59,6 +61,8 @@ export async function processStoppingThemesImpl(
         preserveChanges: true,
       });
       await finalizeStop(state.themeId);
+      // Task 1552: the user's stop stops every task, companions included.
+      await clearCompanions(prisma, state.themeId);
       broadcastAutoRunUpdateImpl(state.themeId);
       log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
       logCycleEvent('theme.stopped', {
@@ -296,6 +300,9 @@ export async function processPausedThemesImpl(
   paused: ThemeAutoRunState[],
 ): Promise<void> {
   for (const state of paused) {
+    // Task 1552: a head waiting for approval must not freeze its companions;
+    // a user pause still freezes every task of the theme.
+    if (isAutoResumablePauseStatus(state.status)) await advancePausedCompanions(prisma, state);
     if (!state.currentTaskId) continue;
     if (!isAutoResumablePauseStatus(state.status)) continue;
     try {
@@ -380,6 +387,8 @@ export async function stopThemeExecutionImpl(
   });
   const { settleStoppedTasks } = await import('../../agents/settle-stopped-tasks');
   await settleStoppedTasks(prisma, stopped.executionIds);
+  // Task 1552: every agent of the theme was stopped above, companions included.
+  await clearCompanions(prisma, themeId);
   if (!currentTaskId) return;
 
   // Stop the agent execution(s) if any are running

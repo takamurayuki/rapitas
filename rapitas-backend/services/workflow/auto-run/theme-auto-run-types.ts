@@ -109,6 +109,11 @@ export interface ThemeAutoRunState {
   idleStoppedAt: string | null;
   /** When the nightly backlog self-refill last ran for this theme. */
   lastSelfRefillAt: string | null;
+  /**
+   * Companion tasks running next to currentTaskId (task 1552), as stored;
+   * null/absent = none. Parse with parallel/theme-active-set parseCompanions.
+   */
+  companionTasksJson?: string | null;
   updatedAt: string;
 }
 
@@ -144,6 +149,12 @@ export type IdleTimerColumns = {
   idleStoppedAt?: Date | null;
   lastSelfRefillAt?: Date | null;
 };
+
+/** companionTasksJson read by name (absent on a pre-regeneration client). */
+function readCompanionColumn(r: object): string | null {
+  const v = (r as { companionTasksJson?: unknown }).companionTasksJson;
+  return typeof v === 'string' ? v : null;
+}
 
 /**
  * Map a raw ThemeAutoRun DB row to its serialisable state. Idle-timer columns
@@ -181,6 +192,8 @@ export function mapToState(r: {
     idleSince: idle.idleSince?.toISOString() ?? null,
     idleStoppedAt: idle.idleStoppedAt?.toISOString() ?? null,
     lastSelfRefillAt: idle.lastSelfRefillAt?.toISOString() ?? null,
+    // Cast: the column is pending client regeneration (task 1552).
+    companionTasksJson: readCompanionColumn(r),
     updatedAt: r.updatedAt.toISOString(),
   };
 }

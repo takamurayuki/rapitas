@@ -12,6 +12,7 @@
  */
 
 import { isSameFinding } from './verify-evidence-similarity';
+import { isFirstMethodReview, stripJuryRepairAppendix } from './jury-repair-reason';
 
 /** Delimiters the validator wraps quoted evidence lines in. */
 const EVIDENCE_OPEN = '«';
@@ -92,11 +93,15 @@ export function detectRepeatedEvidence(
   priorReasons: string[],
   threshold: number,
 ): RepeatedEvidenceVerdict {
-  const key = extractRepeatKey(currentReason);
+  // NOTE: Same one-time grace as detectNonConvergence for the first method
+  // review in the window, so it reaches the implementer (task 1547 R2).
+  if (isFirstMethodReview(currentReason, priorReasons)) return { cutoff: false };
+  // NOTE: Quoted examples in the jury appendix are not verify.md evidence (task 1547).
+  const key = extractRepeatKey(stripJuryRepairAppendix(currentReason));
   if (!key || threshold < 1) return { cutoff: false };
   let count = 1;
   for (const prior of priorReasons) {
-    const priorKey = extractRepeatKey(prior);
+    const priorKey = extractRepeatKey(stripJuryRepairAppendix(prior));
     if (priorKey !== null && isSameFinding(priorKey, key)) count++;
   }
   if (count < threshold) return { cutoff: false };
