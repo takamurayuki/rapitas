@@ -40,6 +40,7 @@ import { forceStopOverWallBudget, requeueAndResetTenure } from './auto-run-hang-
 import {
   resolveResumedTenureStart,
   resolveAutoRunRestartTenureStart,
+  resolveProgressTenureStart,
   backendBootAt,
   clampToBackendBoot,
 } from './resume-tenure';
@@ -83,6 +84,8 @@ export async function advanceActiveTaskLocked(
     // longer than the wall fires the backstop 13 s after resuming (task 1116,
     // 2026-10-06). Clamp to when auto-run actually restarted.
     tenureStart = await resolveAutoRunRestartTenureStart(prisma, themeId, tenureStart);
+    // Task 1563: the 3x ceiling counts from the last forward step (repair / answer / new run).
+    tenureStart = await resolveProgressTenureStart(prisma, currentTaskId, tenureStart);
   }
   // Time the backend was down is not time the task was hung — see clampToBackendBoot.
   tenureStart = clampToBackendBoot(tenureStart, backendBootAt());
