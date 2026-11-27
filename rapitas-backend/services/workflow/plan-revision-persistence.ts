@@ -26,8 +26,8 @@ export interface PersistPlanRevisionCoreParams {
  * @param params - CAS snapshot + instruction/source to record. / CAS情報と記録内容
  * @throws Whatever `db.$transaction` throws, including a 0-row CAS update
  *   when `task.id`/`updatedAt`/`workflowStatus` no longer match. Callers
- *   decide how to react — the HTTP handler propagates it, the question-answer
- *   flow falls back to its normal resume routing.
+ *   decide how to report the failure. The question-answer flow turns stale
+ *   updates into conflicts and propagates other errors. / 保存失敗は呼び出し側で処理
  */
 export async function persistPlanRevisionCore(
   db: PrismaClient,

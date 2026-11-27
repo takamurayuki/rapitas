@@ -27,10 +27,6 @@ import {
   type QuestionAnswerKind,
 } from './workflow-handlers-resume-dispatch';
 import { isValidEntityId } from '../../../utils/common/id-validation';
-import {
-  persistPlanScopeGrant,
-  type PreparedPlanGrant,
-} from '../../../services/workflow/plan-scope-grant';
 
 const log = createLogger('routes:workflow:resume');
 
@@ -66,7 +62,6 @@ export interface ApplyResumeAnswerParams {
   recheckCompletionGate?: boolean;
   /** Extra fields merged into the recorded transition's metadata. / 追加メタデータ */
   extraMetadata?: Record<string, unknown>;
-  planGrant?: PreparedPlanGrant;
 }
 
 /**
@@ -95,7 +90,7 @@ export async function applyResumeFromQuestionAnswerLocked(
   toStatus: WorkflowStatus;
   source: 'transition_metadata' | 'fallback';
 }> {
-  const { taskId, actor, answer, recheckCompletionGate, extraMetadata, planGrant } = params;
+  const { taskId, actor, answer, recheckCompletionGate, extraMetadata } = params;
 
   const task = await resolveTaskWorkflowState(taskId);
   if (!task) {
@@ -137,62 +132,45 @@ export async function applyResumeFromQuestionAnswerLocked(
     `[Workflow:Resume] Task ${taskId}: awaiting_question → ${resumeStatus} (source=${source}, actor=${actor})`,
   );
 
-  const metadata = {
-    source,
-    ...(recheckCompletionGate ? { recheckCompletionGate: true } : {}),
-    ...(extraMetadata ?? {}),
-  };
-  if (planGrant) {
-    if (!answer || actor !== 'user') throw new ValidationError('運用者の回答が必要です');
-    if (
-      source !== 'transition_metadata' ||
-      !['plan_approved', 'in_progress', 'verify_done'].includes(resumeStatus)
-    ) {
-      throw new ValidationError('復帰先に対応する承認済み計画を確認できません');
+  // 回答は question.md に追記し、承認済みの計画を維持して復帰する。
+  // 公開 PUT は質問待ちへの遷移を再発火させるため、内部の保存関数を使う。
+  if (answer) {
+    const questionContent = await readWorkflowFile(taskId, 'question');
+    if (questionContent != null) {
+      const answerBlock = `\n\n## 回答\n${answer}`;
+      await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(
+        () => {},
+      );
     }
-    await persistPlanScopeGrant({ taskId, answer, grant: planGrant, resumeStatus, metadata });
-  } else {
-    // Append-only audit trail — mirrors applyIntakeQuestionAnswerLocked's
-    // question.md append, but NEVER archives: execution_continuation /
-    // completion_confirmation answers are not a spec change, so plan.md (and
-    // question.md itself) must survive the resume intact. Uses the internal
-    // writeWorkflowFile choke point directly (not the public PUT route) —
-    // going through the route would re-trigger the awaiting_question
-    // transition and loop.
-    if (answer) {
-      const questionContent = await readWorkflowFile(taskId, 'question');
-      if (questionContent != null) {
-        const answerBlock = `\n\n## 回答\n${answer}`;
-        await writeWorkflowFile(taskId, 'question', `${questionContent}${answerBlock}`).catch(
-          () => {},
-        );
-      }
-    }
-
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { workflowStatus: resumeStatus, updatedAt: new Date() },
-    });
-
-    // Status-desync backstop (task #804; mirrors the executor epilogue's #706
-    // fix): this handler advances workflowStatus but left task.status alone,
-    // so a task whose status had reverted to 'todo' (stale-heartbeat lease
-    // sweep) stayed desynced until the next dispatch. Conditional so a
-    // concurrent 'blocked' set by another actor is never clobbered.
-    await prisma.task.updateMany({
-      where: { id: taskId, status: 'todo' },
-      data: { status: 'in-progress' },
-    });
-
-    await recordTransition({
-      taskId,
-      fromStatus: 'awaiting_question',
-      toStatus: resumeStatus,
-      actor,
-      cause: 'question_resolved',
-      metadata,
-    });
   }
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { workflowStatus: resumeStatus, updatedAt: new Date() },
+  });
+
+  // Status-desync backstop (task #804; mirrors the executor epilogue's #706
+  // fix): this handler advances workflowStatus but left task.status alone,
+  // so a task whose status had reverted to 'todo' (stale-heartbeat lease
+  // sweep) stayed desynced until the next dispatch. Conditional so a
+  // concurrent 'blocked' set by another actor is never clobbered.
+  await prisma.task.updateMany({
+    where: { id: taskId, status: 'todo' },
+    data: { status: 'in-progress' },
+  });
+
+  await recordTransition({
+    taskId,
+    fromStatus: 'awaiting_question',
+    toStatus: resumeStatus,
+    actor,
+    cause: 'question_resolved',
+    metadata: {
+      source,
+      ...(recheckCompletionGate ? { recheckCompletionGate: true } : {}),
+      ...(extraMetadata ?? {}),
+    },
+  });
 
   // Errors are logged inside triggerRedispatchAfterResume and never thrown —
   // a failed nudge must not fail this response (the resume itself is already

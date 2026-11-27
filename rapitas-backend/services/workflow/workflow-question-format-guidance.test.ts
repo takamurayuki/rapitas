@@ -42,37 +42,39 @@ describe('requiresOperatorAction guidance (B6)', () => {
 // task 1546: the over-flagging of planRevision (14 of 15 re-plans on 2026-11-25
 // needed none) is a prompt problem — each language must teach both sides.
 describe('planRevision when-to / when-not-to guidance (task 1546)', () => {
-  test('日本語で改訂する例、再開する例、ファイル範囲の申告を示す', () => {
-    const t = QUESTION_FORMAT_GUIDANCE_JA;
-    expect(t).toContain('付ける例');
-    expect(t).toContain('付けない例');
-    expect(t).toContain('計画外のファイル');
-    expect(t).toContain('保護パス');
-    expect(t).toContain('planImpact');
-    expect(t).toContain('完了条件を静的検証に変更');
-    expect(t).toContain('方式Aの計画を方式B');
-    expect(t).toContain('既存の方針内');
-    expect(t).toContain('別のPRで修正済み');
-    expect(t).toContain('"grantsFiles": ["src/example.ts"]');
-    expect(t).toContain('運用者の署名付き承認');
-    expect(t).toContain('自己承認');
-    expect(t).toContain('旧形式の選択肢');
-  });
-
-  test('英語で改訂する例、再開する例、ファイル範囲の申告を示す', () => {
-    const t = QUESTION_FORMAT_GUIDANCE_EN;
-    expect(t).toContain('Set it for');
-    expect(t).toContain('Do NOT set it for');
-    expect(t).toContain('outside the plan');
-    expect(t).toContain('protected paths');
-    expect(t).toContain('planImpact');
-    expect(t).toContain('changing a completion criterion to static verification');
-    expect(t).toContain('replacing approach A with approach B');
-    expect(t).toContain('within the approved approach');
-    expect(t).toContain('fixed in another PR');
-    expect(t).toContain('"grantsFiles": ["src/example.ts"]');
-    expect(t).toMatch(/signed operator approval/i);
-    expect(t).toContain('self-approval');
-    expect(t).toContain('legacy options');
+  test.each([
+    [
+      'ja',
+      QUESTION_FORMAT_GUIDANCE_JA,
+      [
+        '完了条件を静的検証に変更',
+        '方式Aの計画を方式B',
+        'テストデータの作り方',
+        '別のPRで修正済み',
+      ],
+    ],
+    [
+      'en',
+      QUESTION_FORMAT_GUIDANCE_EN,
+      [
+        'Change a completion criterion to static verification',
+        'Replace approach A with approach B',
+        'Choose how to prepare test data',
+        'fixed in another PR',
+      ],
+    ],
+  ] as const)('%s で改訂と再開の4例に対応するフラグを示す', (_, text, examples) => {
+    const impacts = ['criteria', 'approach', 'none', 'none'];
+    const optionExamples = text.split('\n').filter((line) => line.includes('`{"planImpact":'));
+    expect(optionExamples).toHaveLength(examples.length);
+    for (const [index, example] of examples.entries()) {
+      const line = optionExamples[index];
+      expect(line).toContain(example);
+      const option = line.match(/`(\{[^`]+\})`/)?.[1];
+      expect(JSON.parse(option ?? '{}')).toEqual({
+        planImpact: impacts[index],
+        ...(index < 2 ? { planRevision: true } : {}),
+      });
+    }
   });
 });

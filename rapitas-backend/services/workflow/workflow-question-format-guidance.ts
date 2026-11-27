@@ -25,9 +25,11 @@ export const QUESTION_FORMAT_GUIDANCE_JA =
   '- ゲートの検証条件・しきい値を変える選択肢には `mutatesGate: true` を付与する。この指定がある選択肢は、推奨に指定されていても無応答タイムアウトによる自動採用の対象外になり、人間の回答を待つ。\n' +
   '- **運用者（人間）がワークフローの外で作業しないと進めない選択肢には `requiresOperatorAction: true` を付与する。** 例: プロジェクトルートでの依存追加、他タスクのPRのマージ、認証情報の発行。この指定がある選択肢は推奨に指定されていても自動採用されず（採用しても作業は行われないため）、その質問は「エージェントの質問回数」ではなく「人の作業待ち」として別枠で数えられる。実測 #1215: 「#1214 をマージしてから再開する」が15分のタイムアウトで自動採用されたが誰もマージせず、受入条件0/3で差し戻しになった。\n' +
   '- **`planRevision: true` は、完了条件そのものを変えるか、計画が採用した方針を別案に替える選択肢にだけ付ける。** `planImpact` に `criteria`、`approach`、`none` のいずれかを指定し、影響を明示する。\n' +
-  '  - 付ける例は、完了条件を静的検証に変更する（`"planImpact": "criteria"`）か、方式Aの計画を方式Bへ全面的に替える（`"planImpact": "approach"`）場合。\n' +
-  '  - 付けない例は、既存の方針内でテストデータの作り方を選ぶ場合や、別のPRで修正済みと伝える場合。計画内で続行できる回答には `"planImpact": "none"` を指定し、回答を引き継いで実装を再開する。\n' +
-  '  - 計画外のファイル（保護パスを含む）を許可する場合も付けない。例は回帰試験のために追加変更を求める `"planImpact": "none", "grantsFiles": ["src/example.ts"]`。変更理由は `consequence` に書く。自己承認を防ぐため、ファイル名を確認した運用者の署名付き承認が必要。\n' +
+  '  - 完了条件を静的検証に変更する。`{"planImpact": "criteria", "planRevision": true}`\n' +
+  '  - 方式Aの計画を方式Bへ全面的に替える。`{"planImpact": "approach", "planRevision": true}`\n' +
+  '  - 承認済みの方針内でテストデータの作り方を選ぶ。`{"planImpact": "none"}`\n' +
+  '  - 別のPRで修正済みと伝える。`{"planImpact": "none"}`\n' +
+  '  - `none` では `planRevision` を省き、回答を引き継いで実装を再開する。\n' +
   '- 人の回答で `resumeImplementer: true` を指定できるのは、改訂フラグだけの旧形式の選択肢を計画を維持して処理する場合。明示された完了条件や方針の変更は改訂する。ゲート変更にも上書きは適用されない。\n' +
   '- ブロックは1個のみ保存する（複数あるとUIは最初の1個のみ使用する）。\n' +
   '- `questions` と同じ階層（トップレベル）に任意で `kind` を指定できる。plan フェーズから質問する場合は `"kind": "execution_continuation"`（実装続行のための確認）または `"kind": "completion_confirmation"`（完了直前の最終確認）のいずれかを指定すること。`"kind": "spec_change"` はresearch開始前のintake専用であり、それ以外のフェーズで指定しても無視される。';
@@ -45,9 +47,11 @@ export const QUESTION_FORMAT_GUIDANCE_EN =
   "- Set `mutatesGate: true` on any option that would change a gate's verification condition or threshold. Such an option is excluded from unattended auto-answer on timeout even when recommended, and always waits for a human.\n" +
   '- **Set `requiresOperatorAction: true` on any option that cannot proceed until a HUMAN does something outside the workflow** — adding a dependency at the repo root, merging another task\'s PR, provisioning a credential. Such an option is never auto-adopted even when recommended (adopting it would resume you against work nobody did), and the question is counted on the "waiting on a human" axis instead of against your question budget. Measured on #1215: "merge #1214, then resume" was auto-adopted on the 15-minute timeout, nobody merged it, and the next verify bounced at 0/3 acceptance criteria.\n' +
   '- **Set `planRevision: true` only for options that change a completion criterion or replace the approved approach.** Use `planImpact` with `criteria`, `approach`, or `none` to state the impact.\n' +
-  '  - Set it for changing a completion criterion to static verification (`"planImpact": "criteria"`) or replacing approach A with approach B across the plan (`"planImpact": "approach"`).\n' +
-  '  - Do NOT set it for choosing how to prepare test data within the approved approach or reporting that an issue was fixed in another PR. Use `"planImpact": "none"` when the answer allows implementation to continue within the plan. The implementer resumes with the answer.\n' +
-  '  - Also omit the flag when requesting permission to change files outside the plan, including protected paths. For a regression test that needs a file change, use `"planImpact": "none", "grantsFiles": ["src/example.ts"]` and explain the reason in `consequence`. Signed operator approval of the named files is required to prevent self-approval.\n' +
+  '  - Change a completion criterion to static verification. `{"planImpact": "criteria", "planRevision": true}`\n' +
+  '  - Replace approach A with approach B across the plan. `{"planImpact": "approach", "planRevision": true}`\n' +
+  '  - Choose how to prepare test data within the approved approach. `{"planImpact": "none"}`\n' +
+  '  - Report that an issue was fixed in another PR. `{"planImpact": "none"}`\n' +
+  '  - For `none`, omit `planRevision`. The implementer resumes with the answer.\n' +
   '- A human answer can use `resumeImplementer: true` to continue under the approved plan for legacy options marked only with the old revision flag. Explicit changes to completion criteria or the approved approach require revision. The override does not apply to gate changes.\n' +
   '- Include AT MOST ONE block (if multiple are present, the UI uses only the first).\n' +
   '- An optional `kind` may be set at the SAME level as `questions` (top level). When raising a question from the plan phase, set either `"kind": "execution_continuation"` (a check needed to continue implementation) or `"kind": "completion_confirmation"` (a final check right before completion). `"kind": "spec_change"` is reserved for intake (before research starts) and is ignored outside that phase.';

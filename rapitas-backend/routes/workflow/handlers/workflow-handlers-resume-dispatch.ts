@@ -28,11 +28,9 @@ import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils
 import {
   decideAnswerRouting,
   matchQuestionSelections,
-  requestsFileApproval,
   type AnswerRoutingReason,
   type SelectedOption,
 } from '../../../services/workflow/question-answer-routing';
-import { preparePlanScopeGrant } from '../../../services/workflow/plan-scope-grant';
 import {
   persistPlanRevisionCore,
   mapAnswerSourceLabelToRevisionSource,
@@ -75,9 +73,6 @@ export interface ApplyQuestionAnswerByKindParams {
   stopOverride?: boolean;
   /** 人の回答で旧改訂フラグの上書きを指定する。 */
   resumeImplementer?: boolean;
-  operatorAnswer?: true;
-  fileApproval?: unknown;
-  invalidSelections?: true;
 }
 
 const VALID_KINDS = new Set<QuestionKind>([
@@ -188,29 +183,18 @@ function questionAlreadyAnswered(): ConflictError {
 }
 
 /**
- * 改訂の起点と、合わせて選ばれたファイル範囲の拡張を指示に含める。
+ * 改訂の起点となった選択肢と回答本文を指示に含める。
  *
  * @param match - The matched question/option. / 一致した質問と選択肢
- * @param selected - 選ばれたすべての選択肢
  * @param answer - The raw answer body, if any. / 回答本文
  * @returns The instruction text persisted onto the transition. / 合成した指示文
  */
-function composePlanRevisionInstruction(
-  match: SelectedOption,
-  selected: SelectedOption[],
-  answer: string | undefined,
-): string {
+function composePlanRevisionInstruction(match: SelectedOption, answer: string | undefined): string {
   const consequencePart = match.option.consequence ? `（${match.option.consequence}）` : '';
   const answerBody = answer && answer.trim() ? answer.trim() : 'なし';
-  const additionalScope = selected
-    .filter(({ option }) => option !== match.option && requestsFileApproval(option))
-    .map(
-      ({ question, option }) =>
-        `範囲拡張「${question.summary}」の選択: ${option.label}${option.consequence ? `（${option.consequence}）` : ''}。`,
-    );
   return (
     `質問「${match.question.summary}」への回答により計画改訂が要求されました。` +
-    `選択: ${match.option.label}${consequencePart}。${additionalScope.join('')}回答本文: ${answerBody}`
+    `選択: ${match.option.label}${consequencePart}。回答本文: ${answerBody}`
   );
 }
 
@@ -219,7 +203,6 @@ function composePlanRevisionInstruction(
  *
  * @param taskId - Task being answered. / 対象タスク
  * @param match - The option that forced the revision. / 改訂の契機の選択肢
- * @param selected - 選ばれたすべての選択肢
  * @param reason - Routing reason recorded on the transition. / 振り分け理由
  * @param answer - The raw answer body, if any. / 回答本文
  * @param sourceLabel - Label describing who/what answered. / 回答元ラベル
@@ -228,7 +211,6 @@ function composePlanRevisionInstruction(
 async function tryRoutePlanRevision(
   taskId: number,
   match: SelectedOption,
-  selected: SelectedOption[],
   reason: AnswerRoutingReason,
   answer: string | undefined,
   sourceLabel: string | undefined,
@@ -240,7 +222,7 @@ async function tryRoutePlanRevision(
   if (!task) throw new NotFoundError('Task not found');
   if (task.workflowStatus !== 'awaiting_question') throw questionAlreadyAnswered();
 
-  const instruction = composePlanRevisionInstruction(match, selected, answer);
+  const instruction = composePlanRevisionInstruction(match, answer);
   const source = mapAnswerSourceLabelToRevisionSource(sourceLabel ?? 'ユーザー選択');
 
   try {
@@ -339,11 +321,10 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   }
 
   const dedicated = kind === 'spec_change' || target.cause === 'criteria_review_question';
-  const questionContent = dedicated ? null : await readWorkflowFile(taskId, 'question');
-  const { selected, hasGrantQuestion, invalid } = matchQuestionSelections(
-    questionContent,
-    selections,
-  );
+  const selected =
+    !dedicated && selections?.length
+      ? matchQuestionSelections(await readWorkflowFile(taskId, 'question'), selections)
+      : [];
   await assertQuestionNotOutdated(taskId, target.id);
   // Must take the same override as guard 1. `isLatestExecutionCancelled`
   // cannot tell "the stop guard 1 already saw" from "a stop that landed since"
@@ -351,61 +332,22 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
   // absolute would therefore re-seal the very dead end the override exists to
   // open, for every sealed pause, not just for the mid-answer race.
   stopOverridden = (await assertTaskNotStopping(taskId, params)) || stopOverridden;
+  await claimQuestionAnswerSlot(taskId);
+
   // NOTE: The criteria question's 「推奨の完了条件に書き換える」 writes the
   // rewrite here, before the resume: the planner that runs next must read the
   // new criteria, not the ones the review flagged (asked 2026-11-20).
-  const human = actor === 'user';
-  const decision = decideAnswerRouting(selected, {
-    human,
-    resumeImplementer: params.resumeImplementer,
-  });
-  if (
-    !dedicated &&
-    (hasGrantQuestion || params.fileApproval !== undefined) &&
-    (invalid || params.invalidSelections || decision.route === 'reject')
-  ) {
-    throw new ValidationError('現在の質問の選択肢とファイル許可を確認してください');
-  }
-  let planGrant;
-  if (
-    decision.route === 'grant' ||
-    (decision.route === 'revision' && decision.requiresFileApproval)
-  ) {
-    if (!human || !params.operatorAnswer || !answer || !questionContent) {
-      throw new ValidationError('運用者による署名付きのファイル許可が必要です');
-    }
-    planGrant = await preparePlanScopeGrant({
-      taskId,
-      answer,
-      questionContent,
-      questionTransitionId: target.id,
-      pairs: selected.map(({ question, option }) => [question.id, option.key]),
-      proposal: selected.flatMap(({ option }) => option.grantsFiles ?? []),
-      resumeImplementer: params.resumeImplementer,
-      approval: params.fileApproval,
-    });
-    await assertQuestionNotOutdated(taskId, target.id);
-    stopOverridden = (await assertTaskNotStopping(taskId, params)) || stopOverridden;
-  } else if (!dedicated && params.fileApproval !== undefined && decision.route === 'resume') {
-    throw new ValidationError('ファイル許可を求める選択肢を指定してください');
-  }
-  if (decision.route !== 'grant') {
-    await claimQuestionAnswerSlot(taskId);
-  }
   if (target.cause === 'criteria_review_question') {
     const { applyCriteriaReviewSelection } =
       await import('../../../services/workflow/research-criteria-review');
     await applyCriteriaReviewSelection(taskId, meta, selections);
   }
+  const decision = decideAnswerRouting(selected, {
+    human: actor === 'user',
+    resumeImplementer: params.resumeImplementer,
+  });
   if (decision.route === 'revision') {
-    return tryRoutePlanRevision(
-      taskId,
-      decision.trigger,
-      selected,
-      decision.reason,
-      answer,
-      sourceLabel,
-    );
+    return tryRoutePlanRevision(taskId, decision.trigger, decision.reason, answer, sourceLabel);
   }
 
   // Audit trail: the escape hatch (a stop still on record), and which way the
@@ -440,7 +382,6 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
     taskId,
     actor,
     answer,
-    ...(planGrant ? { planGrant } : {}),
     recheckCompletionGate: strategy === 'resume_previous_no_gate',
     extraMetadata: {
       ...(extraMetadata ?? {}),

@@ -289,8 +289,8 @@ describe('composeStructuredAnswer', () => {
   });
 });
 
-describe('質問の計画への影響とファイル範囲 (task 1546)', () => {
-  it('明示分類と計画範囲の申告をバックエンドと同様に読み取る', () => {
+describe('質問の計画への影響 (task 1546)', () => {
+  it('明示分類と旧フラグをバックエンドと同様に読み取る', () => {
     const content =
       '```json:options\n' +
       JSON.stringify({
@@ -300,11 +300,10 @@ describe('質問の計画への影響とファイル範囲 (task 1546)', () => {
             summary: 's',
             options: [
               { key: 'A', label: 'a', planImpact: 'criteria' },
-              { key: 'B', label: 'b', planImpact: 'bogus', grantsFiles: ['x.ts', 1] },
-              { key: 'C', label: 'c', requiresPlanScopeRevision: true },
-              { key: 'D', label: 'd', requiresPlanScopeRevision: 'true', grantsFiles: [] },
-              { key: 'E', label: 'e', planImpact: 'none', grantsFiles: ['src/extra.ts'] },
-              { key: 'F', requiresPlanScopeRevision: true },
+              { key: 'B', label: 'b', planImpact: 'approach' },
+              { key: 'C', label: 'c', planImpact: 'none', planRevision: true },
+              { key: 'D', label: 'd', planImpact: 'bogus', planRevision: true },
+              { key: 'E', label: 'e' },
             ],
             recommended: 'A',
             recommendedReason: 'r',
@@ -313,17 +312,12 @@ describe('質問の計画への影響とファイル範囲 (task 1546)', () => {
       }) +
       '\n```';
     const options = parseOptionsBlock(content)!.questions[0].options;
-    expect(options[0].planImpact).toBe('criteria');
-    expect(options[1].planImpact).toBeUndefined();
-    expect(options[1].requiresPlanScopeRevision).toBe(true);
-    expect(options[1]).not.toHaveProperty('grantsFiles');
-    expect(options[2].requiresPlanScopeRevision).toBe(true);
-    expect(options[3].requiresPlanScopeRevision).toBeUndefined();
-    expect(options[4]).toMatchObject({
-      planImpact: 'none',
-      requiresPlanScopeRevision: true,
-      grantsFiles: ['src/extra.ts'],
-    });
-    expect(options).toHaveLength(5);
+    expect(options.map((option) => [option.planImpact, option.planRevision])).toEqual([
+      ['criteria', false],
+      ['approach', false],
+      ['none', true],
+      [undefined, true],
+      [undefined, false],
+    ]);
   });
 });

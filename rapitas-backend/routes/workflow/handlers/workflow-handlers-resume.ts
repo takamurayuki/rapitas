@@ -228,7 +228,7 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
  * answer path (the interactive panel only handled live mid-execution questions),
  * so the user could not actually answer the agent.
  *
- * @param ctx - Elysia handler context with { answer, selections? } body. / 回答ボディ
+ * @param ctx - Handler context with answer, optional selections and resumeImplementer. / 回答ボディ
  * @returns The task id and the status it was reset to. / 反映後の状態
  * @throws {ValidationError} taskId 不正 / answer 未指定
  * @throws {NotFoundError} タスクが見つからない場合
@@ -308,7 +308,6 @@ export async function handleAnswerWorkflowQuestion({
     );
   }
   const selections = parseSelections(rawSelections);
-  const fileApproval = (body as { fileApproval?: unknown })?.fileApproval;
 
   try {
     const result = await applyQuestionAnswerByKind({
@@ -323,11 +322,6 @@ export async function handleAnswerWorkflowQuestion({
       stopOverride: true,
       // Operator's explicit "keep the plan, resume the implementer" (task 1546).
       resumeImplementer: (body as { resumeImplementer?: unknown })?.resumeImplementer === true,
-      ...(rawSource?.toLowerCase() === 'operator' ? { operatorAnswer: true } : {}),
-      ...(fileApproval !== undefined ? { fileApproval } : {}),
-      ...(Array.isArray(rawSelections) && rawSelections.length !== selections?.length
-        ? { invalidSelections: true }
-        : {}),
     });
     // NOTE: plan revision only persists research_done; nothing else starts the planner, so the
     // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.

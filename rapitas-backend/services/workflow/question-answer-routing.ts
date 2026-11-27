@@ -3,7 +3,7 @@
  *
  * Decides whether an answer to an implementer's question sends the task back
  * to plan revision or resumes the implementer with the plan untouched
- * (task 1546). 完了条件、ファイル範囲、方針への影響を判定する。
+ * (task 1546). 完了条件と方針への影響を判定する。
  */
 import {
   parseQuestionOptionsBlock,
@@ -23,57 +23,31 @@ export type AnswerRoutingReason =
   | 'operator_resume_implementer'
   | 'criteria_change'
   | 'criteria_not_overridable'
-  | 'file_approval_required'
-  | 'out_of_plan_files_approved'
   | 'legacy_plan_revision'
   | 'approach_change';
 
 /** Result of {@link decideAnswerRouting}. */
 export type AnswerRoutingDecision =
-  | { route: 'resume' | 'grant' | 'reject'; reason: AnswerRoutingReason }
-  | {
-      route: 'revision';
-      reason: AnswerRoutingReason;
-      trigger: SelectedOption;
-      requiresFileApproval?: true;
-    };
+  | { route: 'resume'; reason: AnswerRoutingReason }
+  | { route: 'revision'; reason: AnswerRoutingReason; trigger: SelectedOption };
 
-export function requestsFileApproval(option: ParsedQuestionOption): boolean {
-  return option.requiresPlanScopeRevision === true || !!option.grantsFiles?.length;
-}
-
-/** 選択肢の照合。許可を含む質問では選択キーの省略や重複を許さない。 */
+/** 現在の質問本文にある選択肢を、回答の選択順に照合する。 */
 export function matchQuestionSelections(
   content: string | null,
   selections: { questionId: string; selectedKey: string | null }[] = [],
-) {
+): SelectedOption[] {
   const questions = content ? (parseQuestionOptionsBlock(content)?.questions ?? []) : [];
-  const grantQuestions = questions.filter((q) => q.options.some(requestsFileApproval));
   const selected: SelectedOption[] = [];
-  const seen = new Set<string>();
-  let invalid = false;
   for (const { questionId, selectedKey } of selections) {
-    if (seen.has(questionId)) invalid = true;
-    seen.add(questionId);
-    const questionMatches = questions.filter((q) => q.id === questionId);
-    const question = questionMatches[0];
-    const matches = question?.options.filter((o) => o.key === selectedKey);
-    if (question && matches?.length) selected.push({ question, option: matches[0] });
-    if (
-      questionMatches.length !== 1 ||
-      (selectedKey === null ? !question?.freeTextRequired : matches?.length !== 1)
-    )
-      invalid = true;
+    const question = questions.find((q) => q.id === questionId);
+    const option = question?.options.find((o) => o.key === selectedKey);
+    if (question && option) selected.push({ question, option });
   }
-  return {
-    selected,
-    invalid: invalid || grantQuestions.some((q) => !selected.some((s) => s.question === q)),
-    hasGrantQuestion: grantQuestions.length > 0,
-  };
+  return selected;
 }
 
 /**
- * 完了条件と方針の変更は改訂する。ファイルの追加は運用者の承認を検証する。
+ * 完了条件と方針の変更は改訂する。実装の細部に関する回答は再開に回す。
  *
  * @param selected - Options the answer picked. / 選ばれた選択肢
  * @param opts - `human`: the answer is a human's; `resumeImplementer`: the operator asked to continue unchanged. / 人の回答か・継続指定
@@ -96,30 +70,11 @@ export function decideAnswerRouting(
   if (approach) return { route: 'revision', reason: 'approach_change', trigger: approach };
 
   const legacy = selected.filter(
-    ({ option }) =>
-      !option.planImpact && option.planRevision === true && !requestsFileApproval(option),
+    ({ option }) => !option.planImpact && option.planRevision === true,
   );
   const legacyGate = legacy.find(({ option }) => option.mutatesGate);
   if (legacyGate) return { route: 'revision', reason: 'legacy_plan_revision', trigger: legacyGate };
 
-  const scope = selected.filter(({ option }) => requestsFileApproval(option));
-  if (scope.length > 0) {
-    if (
-      !opts.human ||
-      scope.some(({ option }) => !option.grantsFiles?.length) ||
-      selected.some(({ option }) => option.mutatesGate)
-    ) {
-      return { route: 'reject', reason: 'file_approval_required' };
-    }
-    if (legacy.length && !operatorResume)
-      return {
-        route: 'revision',
-        reason: 'legacy_plan_revision',
-        trigger: legacy[0],
-        requiresFileApproval: true,
-      };
-    return { route: 'grant', reason: 'out_of_plan_files_approved' };
-  }
   if (legacy.length) {
     return operatorResume
       ? { route: 'resume', reason: 'operator_resume_implementer' }

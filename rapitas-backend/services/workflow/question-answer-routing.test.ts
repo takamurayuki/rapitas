@@ -21,17 +21,6 @@ const pick = (o: Partial<ParsedQuestionOption>) => [
 ];
 
 describe('decideAnswerRouting', () => {
-  test.each([
-    { human: true, resumeImplementer: true },
-    { human: true },
-    { human: false, resumeImplementer: true },
-  ])('具体的なパスを持たない旧範囲指定は質問待ちを維持する (%j)', (opts) => {
-    const selected = pick({ planImpact: 'none', requiresPlanScopeRevision: true });
-    expect(decideAnswerRouting(selected, opts)).toEqual({
-      route: 'reject',
-      reason: 'file_approval_required',
-    });
-  });
   test('planImpact none wins over planRevision flag', () => {
     expect(
       decideAnswerRouting(pick({ planRevision: true, planImpact: 'none' }), { human: true }).route,
@@ -72,82 +61,77 @@ describe('decideAnswerRouting', () => {
   test('criteria wins among several selections; no selection resumes', () => {
     const sel = [
       ...pick({ planRevision: true }),
-      ...pick({ requiresPlanScopeRevision: true }),
-      ...pick({ planImpact: 'criteria' }),
-    ];
-    expect(decideAnswerRouting(sel, { human: true }).reason).toBe('criteria_change');
-    expect(decideAnswerRouting([], { human: true }).route).toBe('resume');
-  });
-  test('明示的な方針変更は運用者の再開指定や許可提案より優先する', () => {
-    const selected = [
+      ...pick({ planImpact: 'none' }),
       ...pick({ planImpact: 'approach' }),
-      ...pick({ requiresPlanScopeRevision: true, label: '先頭' }),
-      ...pick({ requiresPlanScopeRevision: true, label: '後続' }),
+      ...pick({ planImpact: 'criteria', label: '先頭' }),
+      ...pick({ planImpact: 'criteria', label: '後続' }),
+    ];
+    expect(decideAnswerRouting(sel, { human: true, resumeImplementer: true })).toEqual({
+      route: 'revision',
+      reason: 'criteria_not_overridable',
+      trigger: sel[3],
+    });
+    expect(decideAnswerRouting([], { human: true })).toEqual({
+      route: 'resume',
+      reason: 'no_plan_change',
+    });
+  });
+  test('明示的な方針変更は運用者の再開指定と実装詳細より優先する', () => {
+    const selected = [
+      ...pick({ planImpact: 'none', planRevision: true }),
+      ...pick({ planImpact: 'approach', label: '先頭' }),
+      ...pick({ planImpact: 'approach', label: '後続' }),
     ];
     expect(decideAnswerRouting(selected, { human: true, resumeImplementer: true })).toEqual({
       route: 'revision',
       reason: 'approach_change',
-      trigger: selected[0],
+      trigger: selected[1],
     });
   });
 
-  test('パスを伴う旧許可は署名の検証へ進み、別の旧改訂選択は再開指定を要する', () => {
-    const grant = pick({ planRevision: true, grantsFiles: ['src/extra.ts'] });
-    const mixed = [...grant, ...pick({ planRevision: true })];
-    expect(decideAnswerRouting(grant, { human: true })).toMatchObject({
-      route: 'grant',
-      reason: 'out_of_plan_files_approved',
-    });
-    expect(decideAnswerRouting(mixed, { human: true })).toMatchObject({
+  test('旧改訂のゲート変更は上書きできない', () => {
+    const selected = [
+      ...pick({ planRevision: true }),
+      ...pick({ planRevision: true, mutatesGate: true }),
+    ];
+    expect(decideAnswerRouting(selected, { human: true, resumeImplementer: true })).toEqual({
       route: 'revision',
       reason: 'legacy_plan_revision',
-      requiresFileApproval: true,
+      trigger: selected[1],
     });
-    expect(decideAnswerRouting(mixed, { human: true, resumeImplementer: true }).route).toBe(
-      'grant',
-    );
-    expect(decideAnswerRouting(grant, { human: false }).route).toBe('reject');
-  });
-
-  test('旧改訂のゲート変更は上書き不可で、許可提案との併用は質問待ちを維持する', () => {
-    const gateChange = pick({ planRevision: true, mutatesGate: true });
-    const opts = { human: true, resumeImplementer: true };
-    expect(decideAnswerRouting(gateChange, opts).route).toBe('revision');
-    expect(
-      decideAnswerRouting(pick({ mutatesGate: true, grantsFiles: ['src/extra.ts'] }), opts).route,
-    ).toBe('reject');
   });
 });
 
-describe('ファイル許可がある質問での選択キーの照合', () => {
+describe('質問IDと選択キーの照合', () => {
   const prompt =
     '```json:options\n' +
     JSON.stringify({
       questions: [
         {
           id: 'Q1',
-          summary: '許可',
+          summary: '実装の細部',
           options: [
-            { key: 'A', label: '追加する', grantsFiles: ['src/extra.ts'] },
-            { key: 'B', label: '計画内で続ける' },
+            { key: 'A', label: '既存フィクスチャ', planImpact: 'none' },
+            { key: 'B', label: '旧形式の改訂', planImpact: 'bogus', planRevision: true },
           ],
         },
-        { id: 'Q2', summary: '補足', freeTextRequired: true },
+        { id: 'Q2', summary: '運用の補足', freeTextRequired: true },
       ],
     }) +
     '\n```';
-  const pickGrant = { questionId: 'Q1', selectedKey: 'A' };
-
-  test.each([
-    [[], true],
-    [[pickGrant, pickGrant], true],
-    [[{ ...pickGrant, selectedKey: null }], true],
-    [[{ ...pickGrant, selectedKey: 'B' }], false],
-    [[pickGrant, { questionId: 'Q2', selectedKey: null }], false],
-  ] as const)('選択の組合せ %j の無効判定は %s', (selections, invalid) => {
-    expect(matchQuestionSelections(prompt, [...selections])).toMatchObject({
-      hasGrantQuestion: true,
-      invalid,
+  test('一致した全ての選択肢を照合順に判定し、未知の分類では旧フラグを使う', () => {
+    const selected = matchQuestionSelections(prompt, [
+      { questionId: 'Q1', selectedKey: 'A' },
+      { questionId: 'Q2', selectedKey: null },
+      { questionId: 'Q3', selectedKey: 'A' },
+      { questionId: 'Q1', selectedKey: 'Z' },
+      { questionId: 'Q1', selectedKey: 'B' },
+    ]);
+    expect(selected.map(({ option }) => option.key)).toEqual(['A', 'B']);
+    expect(decideAnswerRouting(selected, { human: true })).toEqual({
+      route: 'revision',
+      reason: 'legacy_plan_revision',
+      trigger: selected[1],
     });
   });
 });

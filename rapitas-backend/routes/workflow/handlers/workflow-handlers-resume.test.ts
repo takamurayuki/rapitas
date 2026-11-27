@@ -152,11 +152,18 @@ describe('handleAnswerWorkflowQuestion', () => {
         expect(mockTriggerRedispatchAfterResume).toHaveBeenCalledTimes(1);
         expect(mockTriggerReExecutionAfterAnswer).not.toHaveBeenCalled();
         expect(mockPrisma.workflowTransition.create).not.toHaveBeenCalled();
+        expect(mockWriteWorkflowFile).toHaveBeenCalledTimes(1);
+        expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
+          503,
+          'question',
+          expect.stringContaining('## 回答\n選択しました'),
+        );
       } else {
         expect(result).toMatchObject({ resolvedKind: 'plan_revision', toStatus: 'research_done' });
         expect(mockTriggerReExecutionAfterAnswer).toHaveBeenCalledTimes(1);
         expect(mockTriggerRedispatchAfterResume).not.toHaveBeenCalled();
       }
+      expect(mockArchiveWorkflowFile).not.toHaveBeenCalled();
     },
   );
 

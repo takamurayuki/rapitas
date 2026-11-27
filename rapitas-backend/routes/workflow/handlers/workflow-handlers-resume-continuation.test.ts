@@ -62,7 +62,9 @@ mock.module('../../../services/workflow/transition-recorder', () => ({
 }));
 
 const mockReadWorkflowFile = mock(() => Promise.resolve<string | null>(null));
-const mockWriteWorkflowFile = mock(() => Promise.resolve(''));
+const mockWriteWorkflowFile = mock((_taskId: number, _fileType: string, _content: string) =>
+  Promise.resolve(''),
+);
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
   readWorkflowFile: mockReadWorkflowFile,
   writeWorkflowFile: mockWriteWorkflowFile,
@@ -128,7 +130,8 @@ describe('applyResumeFromQuestionAnswerLocked — answer append (task 902)', () 
       'question',
       expect.stringContaining('進めてください'),
     );
-    const written = mockWriteWorkflowFile.mock.calls[0][2] as string;
+    expect(mockWriteWorkflowFile).toHaveBeenCalledTimes(1);
+    const written = mockWriteWorkflowFile.mock.calls[0][2];
     expect(written).toContain('# 質問\n進めてよいか');
     expect(written).toContain('## 回答');
     expect(mockRecordTransition).toHaveBeenCalledWith(
@@ -143,6 +146,18 @@ describe('applyResumeFromQuestionAnswerLocked — answer append (task 902)', () 
       }),
     );
     expect(mockTriggerRedispatchAfterResume).toHaveBeenCalledTimes(1);
+  });
+
+  test('状態の復帰が失敗すると回答追記後の遷移記録と再配車を行わない', async () => {
+    mockReadWorkflowFile.mockResolvedValue('# 質問');
+    mockUpdate.mockRejectedValueOnce(new Error('状態更新の失敗'));
+
+    await expect(
+      applyResumeFromQuestionAnswerLocked({ taskId: 1, actor: 'user', answer: '続けてください' }),
+    ).rejects.toThrow('状態更新の失敗');
+    expect(mockWriteWorkflowFile).toHaveBeenCalledTimes(1);
+    expect(mockRecordTransition).not.toHaveBeenCalled();
+    expect(mockTriggerRedispatchAfterResume).not.toHaveBeenCalled();
   });
 
   test('skips the append when question.md content is missing', async () => {

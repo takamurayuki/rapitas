@@ -645,35 +645,28 @@ function resumeMetadata(): Record<string, unknown> {
 }
 
 describe('回答による計画改訂と実装再開 (task 1546)', () => {
-  test('計画内の実装詳細は旧フラグがあっても回答を引き継いで再開する', async () => {
-    arrangePause(questionMd({ planRevision: true, planImpact: 'none' }));
+  test.each([
+    ['旧フラグ付きの明示分類', { planRevision: true, planImpact: 'none' }, SEL],
+    ['無印の選択肢', {}, SEL],
+    ['自由記述', { planRevision: true }, undefined],
+    ['該当する選択肢なし', { planRevision: true }, [{ questionId: 'Q1', selectedKey: 'Z' }]],
+  ] as const)('計画内の回答（%s）を引き継いで実装を再開する', async (_, option, selections) => {
+    arrangePause(questionMd(option));
 
-    const result = await applyQuestionAnswerByKind(HUMAN);
+    const result = await applyQuestionAnswerByKind({
+      ...HUMAN,
+      selections: selections && [...selections],
+      extraMetadata: { routing: 'revision', routingReason: 'criteria_change' },
+    });
 
     expect(result).toMatchObject({ kind: 'execution_continuation', toStatus: 'in_progress' });
+    expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledTimes(1);
     expect(mockApplyResumeFromQuestionAnswerLocked).toHaveBeenCalledWith(
       expect.objectContaining({ answer: HUMAN.answer, actor: 'user' }),
     );
     expect(mockCreateTransition).not.toHaveBeenCalled();
     expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
     expect(resumeMetadata()).toMatchObject({ routing: 'resume', routingReason: 'no_plan_change' });
-  });
-
-  test.each([
-    ['src/extra.ts', { requiresPlanScopeRevision: true }],
-    ['rapitas-backend/services/workflow/completion-gate.ts', { requiresPlanScopeRevision: true }],
-    ['src/old.ts', { grantsFiles: ['src/old.ts'] }],
-  ])('計画外ファイル %s は署名付きの許可がなければ質問待ちを維持する', async (path, fields) => {
-    const consequence = `${path} に回帰テスト用の変更が必要`;
-    arrangePause(questionMd({ ...fields, planImpact: 'none', consequence }));
-
-    await expect(
-      applyQuestionAnswerByKind({ ...HUMAN, resumeImplementer: true }),
-    ).rejects.toThrow();
-    expect(mockWriteWorkflowFile).not.toHaveBeenCalled();
-    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
-    expect(mockApplyIntakeQuestionAnswerLocked).not.toHaveBeenCalled();
-    expect(mockCreateTransition).not.toHaveBeenCalled();
   });
 
   test.each([{ planImpact: 'criteria' }, { planRevision: true }, { planImpact: 'approach' }])(
@@ -712,10 +705,10 @@ describe('回答による計画改訂と実装再開 (task 1546)', () => {
   });
 
   test('選択肢の読み取り中に質問が変われば旧回答を確定しない', async () => {
-    arrangePause(questionMd({ requiresPlanScopeRevision: true }));
+    arrangePause(questionMd({ planImpact: 'none' }));
     mockReadWorkflowFile.mockImplementationOnce(() => {
       mockFindFirstTransition.mockResolvedValue({ id: 21 });
-      return Promise.resolve(questionMd({ requiresPlanScopeRevision: true }));
+      return Promise.resolve(questionMd({ planImpact: 'none' }));
     });
 
     await expect(applyQuestionAnswerByKind(HUMAN)).rejects.toMatchObject({
@@ -756,7 +749,7 @@ describe('回答による計画改訂と実装再開 (task 1546)', () => {
     expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
   });
 
-  test('完了条件とファイル範囲を同時に選んだ場合は両方を改訂指示へ渡す', async () => {
+  test('完了条件と実装詳細を同時に選ぶと完了条件と回答本文を改訂指示へ渡す', async () => {
     const question =
       '```json:options\n' +
       JSON.stringify({
@@ -768,13 +761,12 @@ describe('回答による計画改訂と実装再開 (task 1546)', () => {
           },
           {
             id: 'Q2',
-            summary: '対象範囲',
+            summary: '実装詳細',
             options: [
               {
                 key: 'A',
-                label: 'ファイルを追加',
-                requiresPlanScopeRevision: true,
-                consequence: 'src/extra.ts に回帰テストを追加',
+                label: '既存のフィクスチャを使う',
+                planImpact: 'none',
               },
             ],
           },
@@ -791,7 +783,8 @@ describe('回答による計画改訂と実装再開 (task 1546)', () => {
     const metadata = JSON.parse(transition.data.metadata);
     expect(metadata.routingReason).toBe('criteria_change');
     expect(metadata.instruction).toContain('条件を変更');
-    expect(metadata.instruction).toContain('src/extra.ts に回帰テストを追加');
+    expect(metadata.instruction).toContain(HUMAN.answer);
+    expect(mockApplyResumeFromQuestionAnswerLocked).not.toHaveBeenCalled();
   });
 
   test('a criteria option still routes to plan revision and records why', async () => {
