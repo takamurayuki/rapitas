@@ -116,6 +116,9 @@ export type CycleEventName =
   // self-deploy; restart.waiting = merged code held back by a boundary or gate
   | 'restart.triggered'
   | 'restart.waiting'
+  // restart wait: auto-run stops starting new work so merged code can activate
+  | 'restart.wait_started'
+  | 'restart.wait_ended'
   // a backlog job that ran longer than 3s (concern #514 instrumentation)
   | 'backlog.slow_job'
   // self-CPU heartbeat (services/system/cpu-usage-monitor.ts), opt-in

@@ -17,6 +17,7 @@ import {
   getLiveTaskIdsForActiveExecutions,
 } from '../../../services/agents/resumable-execution';
 import { buildClaudeProbeSpawn } from './diagnose-command';
+import { countDispatchableQueued } from '../../../services/scheduling/auto-restart-merged-code/dispatchable-queue-depth';
 
 const log = createLogger('routes:agent-system');
 
@@ -58,6 +59,8 @@ export async function getAgentSystemSnapshot(): Promise<{
   interruptedExecutionsHistoryCount: number;
   interruptedExecutionsDegraded: boolean;
   queueDepth: number;
+  /** Queued items that can run (not those of a paused theme); the restart gates read this. */
+  dispatchableQueueDepth: number;
   activePreviewCount: number;
   serverTime: string;
 }> {
@@ -134,6 +137,8 @@ export async function getAgentSystemSnapshot(): Promise<{
   // Auto-run backlog depth — cheap indexed count (@@index([status, priority])
   // on WorkflowQueueItem), not a new tracking mechanism.
   const queueDepth = await prisma.workflowQueueItem.count({ where: { status: 'queued' } });
+  // Restart gates read this one: queued items of a paused theme cannot run on their own.
+  const dispatchableQueueDepth = await countDispatchableQueued().catch(() => queueDepth);
 
   // NOTE: `interruptedExecutionsDegraded` is checked BEFORE the raw count —
   // a failed computation must never be allowed to read as `healthy` just
@@ -155,6 +160,7 @@ export async function getAgentSystemSnapshot(): Promise<{
     interruptedExecutionsHistoryCount,
     interruptedExecutionsDegraded,
     queueDepth,
+    dispatchableQueueDepth,
     activePreviewCount: getActivePreviewCount(),
     serverTime: new Date().toISOString(),
   };

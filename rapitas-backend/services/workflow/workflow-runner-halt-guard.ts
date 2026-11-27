@@ -14,6 +14,11 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { parkItemIfThemeHalted } from './workflow-runner-theme-pause-guard';
+import { isRestartWaitActive } from '../scheduling/auto-restart-merged-code/restart-wait';
+import {
+  guardedStart,
+  withAdmittedAdvance,
+} from '../scheduling/auto-restart-merged-code/guarded-start';
 
 const log = createLogger('workflow-runner');
 
@@ -34,6 +39,30 @@ type QueueStatusWriter = {
     extra?: { currentPhase?: string; errorMessage?: string },
   ): Promise<unknown>;
 };
+
+/**
+ * 次フェーズの判定から実行登録までを区間(b)として直列化する。
+ * startは実行を登録し、完了Promiseをオブジェクトで返す。完了まではロックを保持しない。
+ * この区間内のガードとstartはrestart-gateを取り直してはいけない。
+ */
+export function startPhaseUnlessHalted<T>(
+  queue: QueueStatusWriter,
+  item: { id: number; taskId: number },
+  phase: string,
+  notify: (event: string, phase: string) => void,
+  start: () => Promise<{ completion: Promise<T> } | null>,
+): Promise<{ completion: Promise<T> } | null> {
+  return guardedStart(
+    async () => {
+      if (await parkItemIfHalted(queue, item, phase, notify)) return null;
+      return withAdmittedAdvance(item.taskId, start);
+    },
+    async () => {
+      await requeueForRestartWait(queue, item, phase, notify);
+      return null;
+    },
+  );
+}
 
 /**
  * Resolve the halt reason that must stop this item before the next agent phase.
@@ -75,6 +104,31 @@ export function haltParkMessage(taskId: number, phase: string, haltReason: strin
 }
 
 /**
+ * Restart wait: the finished phase ends and the next one waits as `queued` (not counted by the
+ * restart gate) until merged code has activated and the theme is back.
+ *
+ * @param queue - Queue service used to write the item's status. / キュー項目の状態を書き込むサービス
+ * @param item - The in-flight queue item. / 実行中のキュー項目
+ * @param phase - The phase that was about to be dispatched. / 発行しようとしていたフェーズ
+ * @param notify - Broadcast callback. / 通知コールバック
+ * @returns Always true: the loop must stop. / 常に true
+ */
+export async function requeueForRestartWait(
+  queue: QueueStatusWriter,
+  item: { id: number; taskId: number },
+  phase: string,
+  notify: (event: string, phase: string) => void,
+): Promise<boolean> {
+  await queue.updateStatus(item.id, 'queued', { currentPhase: phase });
+  log.info(
+    { taskId: item.taskId, phase },
+    '[WorkflowRunner] Restart wait — requeued item before next phase',
+  );
+  notify('execution_requeued', phase);
+  return true;
+}
+
+/**
  * Park the item when its task is halted, so the halt actually stops new spend.
  *
  * Before this existed the halt only excluded a task from SELECTION, and an item
@@ -99,9 +153,12 @@ export async function parkItemIfHalted(
   // NOTE: a paused theme hands its slot back before the next agent phase (task 1535). Kept here
   // rather than in workflow-runner.ts, which is over the line limit; same non-dispatch exemption.
   if (!haltReason) {
-    return NON_DISPATCH_PHASES.has(phase)
-      ? false
-      : parkItemIfThemeHalted(queue, item, phase, notify);
+    if (NON_DISPATCH_PHASES.has(phase)) return false;
+    if (isRestartWaitActive()) return requeueForRestartWait(queue, item, phase, notify);
+    if (await parkItemIfThemeHalted(queue, item, phase, notify)) return true;
+    // Read again AFTER the theme lookup: a wait that began while it was awaited must still hold
+    // this phase back (the runner also re-checks synchronously right before dispatching).
+    return isRestartWaitActive() ? requeueForRestartWait(queue, item, phase, notify) : false;
   }
   await queue.updateStatus(item.id, 'cancelled', {
     errorMessage: haltParkMessage(item.taskId, phase, haltReason),

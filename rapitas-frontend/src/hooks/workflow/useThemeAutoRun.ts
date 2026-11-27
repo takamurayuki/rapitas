@@ -69,6 +69,8 @@ export interface AutoRunData {
   remainingCount: number;
   /** Every running task of the theme (task 1552); absent from older backends. */
   activeTasks?: ActiveTask[];
+  /** True while auto-run starts no new work until merged code activates (task 1562). */
+  restartWait?: boolean;
 }
 
 /**
@@ -189,6 +191,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
           currentTask: withCompanions(json.currentTask ?? null, json.activeTasks),
           remainingCount: json.remainingCount ?? 0,
           activeTasks: json.activeTasks,
+          restartWait: json.restartWait === true,
         });
       }
     } catch {
