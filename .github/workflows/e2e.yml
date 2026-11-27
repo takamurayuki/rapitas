@@ -15,8 +15,9 @@ on:
     # the last PR to main — so the fault-injection job added in PR #724 never
     # ran once, and its first execution (PR #919, 2026-10-15) failed.
     branches: [master, main, develop]
-    paths:
-      - 'rapitas-backend/**'
+    # NOTE: No paths filter. Fault Injection E2E is a required check
+    # (2026-11-27), and a required check that a path filter skips never
+    # reports, which leaves a frontend-only PR blocked for ever.
   workflow_dispatch:
 
 # Least privilege by default (zizmor excessive-permissions). This equals the
