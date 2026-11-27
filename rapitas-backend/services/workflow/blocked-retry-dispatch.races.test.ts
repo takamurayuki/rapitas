@@ -100,6 +100,11 @@ const fakePrisma = {
   },
 };
 
+// Task 1568: the shared hold writes the task and the running queue item in one transaction.
+Object.assign(fakePrisma, {
+  $transaction: async (fn: (tx: unknown) => unknown): Promise<unknown> =>
+    fn({ ...fakePrisma, workflowQueueItem: { updateMany: async () => ({ count: 0 }) } }),
+});
 mock.module('../../config/database', () => ({ prisma: fakePrisma }));
 
 const { resetBlockedTaskForRetry } = await import('./blocked-retry-dispatch');

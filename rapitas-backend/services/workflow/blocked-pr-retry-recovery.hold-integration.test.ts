@@ -32,43 +32,54 @@ let themeAutoRunRow: { enabled: boolean; status: string } | null = {
 };
 let latestExecution: { id: number; status: string } | null = { id: 1, status: 'completed' };
 
+const itemUpdates: unknown[] = [];
 const updateManyCalls: Array<{ where: unknown; data: unknown }> = [];
 const findUniqueCalls: Array<{ select?: unknown }> = [];
 
-mock.module('../../config/database', () => ({
-  ensureDatabaseConnection: () => Promise.resolve(),
-  prisma: {
-    task: {
-      findUnique: (args: { select?: unknown }) => {
-        findUniqueCalls.push(args);
-        return Promise.resolve({ ...row });
-      },
-      updateMany: (args: {
-        where: { id: number; workflowStatus?: string; status?: { in: string[] } };
-        data: Record<string, unknown>;
-      }) => {
-        updateManyCalls.push(args);
-        const statusOk = !args.where.status || args.where.status.in.includes(row.status);
-        const wfOk =
-          args.where.workflowStatus === undefined ||
-          args.where.workflowStatus === row.workflowStatus;
-        if (!statusOk || !wfOk) return Promise.resolve({ count: 0 });
-        row = { ...row, ...(args.data as Partial<Row>) } as Row;
-        return Promise.resolve({ count: 1 });
-      },
+const prismaStub = {
+  task: {
+    findUnique: (args: { select?: unknown }) => {
+      findUniqueCalls.push(args);
+      return Promise.resolve({ ...row });
     },
-    themeAutoRun: {
-      findFirst: () => Promise.resolve(themeAutoRunRow),
-    },
-    agentExecution: {
-      findFirst: () => Promise.resolve(latestExecution),
-    },
-    workflowTransition: { findFirst: async () => null },
-    gitHubPullRequest: {
-      // taskHasLinkedPr's primary lookup — null so it falls back to task.githubPrId.
-      findFirst: () => Promise.resolve(null),
+    updateMany: (args: {
+      where: { id: number; workflowStatus?: string; status?: { in: string[] } };
+      data: Record<string, unknown>;
+    }) => {
+      updateManyCalls.push(args);
+      const statusOk = !args.where.status || args.where.status.in.includes(row.status);
+      const wfOk =
+        args.where.workflowStatus === undefined || args.where.workflowStatus === row.workflowStatus;
+      if (!statusOk || !wfOk) return Promise.resolve({ count: 0 });
+      row = { ...row, ...(args.data as Partial<Row>) } as Row;
+      return Promise.resolve({ count: 1 });
     },
   },
+  themeAutoRun: {
+    findFirst: () => Promise.resolve(themeAutoRunRow),
+  },
+  agentExecution: {
+    findFirst: () => Promise.resolve(latestExecution),
+  },
+  workflowTransition: { findFirst: async () => null },
+  gitHubPullRequest: {
+    // taskHasLinkedPr's primary lookup — null so it falls back to task.githubPrId.
+    findFirst: () => Promise.resolve(null),
+  },
+  // Task 1568: the hold now writes the task and the running queue item in one transaction.
+  workflowQueueItem: {
+    updateMany: (args: unknown) => {
+      itemUpdates.push(args);
+      return Promise.resolve({ count: 0 });
+    },
+  },
+  $transaction: undefined as unknown,
+};
+prismaStub.$transaction = async (fn: (tx: unknown) => unknown) =>
+  fn({ task: prismaStub.task, workflowQueueItem: prismaStub.workflowQueueItem });
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: prismaStub,
 }));
 
 const recordTransition = mock(() => Promise.resolve());
@@ -100,6 +111,7 @@ beforeEach(() => {
   latestExecution = { id: 1, status: 'completed' };
   awaitingRequiredMerge = true;
   updateManyCalls.length = 0;
+  itemUpdates.length = 0;
   findUniqueCalls.length = 0;
   recordTransition.mockClear();
 });
@@ -135,6 +147,13 @@ describe('attemptPrOnlyRecovery — 経路5: PR既存リンク済み branch（�
     const result = await attemptPrOnlyRecovery(895);
 
     expect(result).toBe('held');
+    // Task 1568: this REAL caller's hold also asked for the running item to enter the CI-wait phase.
+    expect(itemUpdates).toEqual([
+      {
+        where: { taskId: 895, status: 'running', currentPhase: { not: 'advancing' } },
+        data: { currentPhase: 'ci_wait' },
+      },
+    ]);
     expect(row.status).toBe('in-progress');
     expect(row.workflowStatus).toBe('verify_done');
     expect(updateManyCalls.length).toBe(1);

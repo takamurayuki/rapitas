@@ -129,6 +129,33 @@ describe('selectAndEnqueueNextTask — calendar-slot gate (task 1174)', () => {
   });
 });
 
+describe('selectAndEnqueueNextTask — strict overlap wait (task 1568)', () => {
+  const prisma = {
+    task: {
+      findMany: mock(async () => []),
+      findUnique: mock(async () => ({ workflowStatus: 'todo' })),
+    },
+  } as unknown as import('../../../generated/prisma-postgres').PrismaClient;
+
+  it('all_overlap_deferred is a wait: nothing enqueued, and it is never treated as all_done', async () => {
+    selectNextTaskMock.mockClear();
+    enqueueMock.mockClear();
+    logCycleEventMock.mockClear();
+    selectNextTaskMock.mockResolvedValueOnce({
+      found: false,
+      reason: 'all_overlap_deferred',
+      deferred: [43],
+    } as never);
+
+    await selectAndEnqueueNextTask(prisma, 7, 'priority', 0, new Map());
+
+    expect(enqueueMock).not.toHaveBeenCalled();
+    const events = logCycleEventMock.mock.calls.map(([evt]) => evt);
+    expect(events).not.toContain('task.enqueued');
+    expect(events).not.toContain('theme.all_done');
+  });
+});
+
 describe('selectAndEnqueueNextTask — yields to a higher-priority waiting theme (task 1543)', () => {
   // Theme 35 (priority 10) was refused for want of a slot; theme 1 (priority 0)
   // then reaches the completion path with a free slot and must leave it alone.

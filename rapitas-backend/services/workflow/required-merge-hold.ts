@@ -10,6 +10,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { ADVANCING_PHASE, CI_WAIT_PHASE } from './awaiting-ci';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 
 const log = createLogger('workflow:required-merge-hold');
@@ -95,15 +96,28 @@ export async function holdForRequiredMerge(p: {
     return true;
   }
 
-  const held = await prisma.task
-    .updateMany({
-      where: {
-        id: p.taskId,
-        workflowStatus: p.fromStatus,
-        status: { in: p.fromStatusIn ?? ['todo', 'in-progress', 'in_progress'] },
-        ...(p.requireNotExcluded ? { autoRunExcluded: false } : {}),
-      },
-      data: { status: 'in-progress', workflowStatus: 'verify_done', updatedAt: new Date() },
+  // Task 1568: one transaction — the hold and the queue item's CI-wait phase become visible
+  // together, so the scheduler can only ever see "held and releasable" or "not held".
+  const held = await prisma
+    .$transaction(async (tx) => {
+      const res = await tx.task.updateMany({
+        where: {
+          id: p.taskId,
+          workflowStatus: p.fromStatus,
+          status: { in: p.fromStatusIn ?? ['todo', 'in-progress', 'in_progress'] },
+          ...(p.requireNotExcluded ? { autoRunExcluded: false } : {}),
+        },
+        data: { status: 'in-progress', workflowStatus: 'verify_done', updatedAt: new Date() },
+      });
+      if (res.count > 0) {
+        await tx.workflowQueueItem.updateMany({
+          // A runner that is advancing the item keeps it: the runner moves it to the CI-wait phase
+          // itself when its advance ends (workflow-runner-item-claim.ts).
+          where: { taskId: p.taskId, status: 'running', currentPhase: { not: ADVANCING_PHASE } },
+          data: { currentPhase: CI_WAIT_PHASE },
+        });
+      }
+      return res;
     })
     .catch((err) => {
       log.warn({ err, taskId: p.taskId }, '[required-merge-hold] Hold write failed');

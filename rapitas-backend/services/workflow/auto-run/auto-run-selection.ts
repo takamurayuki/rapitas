@@ -8,7 +8,10 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma-postgres';
 import { UNMET_DEPENDENCIES_EXCLUDED } from '../../task/task-dependencies';
 import { resolveAutoRunMaxConcurrency } from './auto-run-concurrency';
-import type { ParallelFilter, ParallelRejection, ParallelVerdict } from './parallel/parallel-types';
+import type { ParallelFilter } from './parallel/parallel-types';
+import { hasScopeOverlap } from './auto-run-scope-overlap';
+import { priorityRank, valueBandScore } from './auto-run-selection-rank';
+import { pickWithParallelFilter } from './auto-run-selection-parallel';
 
 /** Minimum fields from Task used in selection logic. */
 export interface SelectableTask {
@@ -20,53 +23,15 @@ export interface SelectableTask {
   complexityScore?: number | null;
 }
 
-/**
- * Reason the selection returned no task. `all_blocked` = work EXISTS but every
- * task is stuck at status 'blocked' (a wedged loop, task 615) — distinct from
- * `all_done` (genuinely nothing left to do).
- */
-export type NoTaskReason =
-  | 'all_done'
-  | 'all_blocked'
-  | 'concurrency_limit'
-  | 'awaiting_approval'
-  /** The whole workflow is switched off; no task in any theme can be advanced. */
-  | 'workflow_disabled_globally'
-  /**
-   * Every candidate was refused by the parallel-safety filter (task 1552): work
-   * exists but would collide with a task already running. Never all_done — that
-   * path refills the backlog.
-   */
-  | 'parallel_conflict';
-
-// Types live in parallel/parallel-types.ts so this file stays under the size limit.
+// Types live in auto-run-selection-types.ts / parallel/parallel-types.ts so this file stays under
+// the size limit; re-exported so importers and mock.module mirrors stay unchanged.
+export type {
+  NoTaskReason,
+  SelectionResult,
+  ScopeOverlapContext,
+} from './auto-run-selection-types';
 export type { ParallelRejection, ParallelVerdict, ParallelFilter } from './parallel/parallel-types';
-
-export type SelectionResult =
-  | {
-      found: true;
-      taskId: number;
-      /**
-       * Task ids passed over because their plan files overlap an open auto-PR's
-       * changed files (task 573 B). Present only when a LATER candidate was
-       * selected instead; the all-overlap fallback picks the head without it.
-       */
-      deferred?: number[];
-      /** Candidates refused by the parallel-safety filter before this one (task 1552). */
-      rejected?: ParallelRejection[];
-    }
-  | { found: false; reason: NoTaskReason; rejected?: ParallelRejection[] };
-
-/**
- * Scope-overlap context for {@link selectNextTask} (task 573 B). `openPrFiles`
- * is the union of changed files across the theme's OPEN auto-created PRs;
- * `getPlanFiles` loads a candidate's plan file list (empty = no plan =
- * lightweight task, never deferred per spec).
- */
-export interface ScopeOverlapContext {
-  openPrFiles: string[];
-  getPlanFiles: (taskId: number) => Promise<string[]>;
-}
+import type { SelectionResult, ScopeOverlapContext } from './auto-run-selection-types';
 
 /**
  * Env-only startup value of the global limit. NOTE: kept for backward
@@ -89,80 +54,10 @@ export const MAX_TASK_WALL_MS = Math.max(
   parseInt(process.env.AUTO_RUN_MAX_TASK_WALL_MS ?? '2700000', 10) || 2_700_000, // 45 min
 );
 
-/**
- * Task priority ordering for selection: lower number = runs first.
- * Stored priority is a STRING, so it must be ranked in JS — a SQL `desc` on the
- * string sorts alphabetically (urgent>medium>low>high), which is NOT priority order.
- */
-const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-
-/**
- * Resolve a priority string to its rank (higher priority → lower number).
- *
- * @param priority - Task priority string / タスク優先度
- * @returns Numeric rank; unknown/empty treated as medium / 数値ランク（不明はmedium扱い）
- */
-export function priorityRank(priority: string | null | undefined): number {
-  if (!priority) return PRIORITY_RANK.medium;
-  const r = PRIORITY_RANK[priority.toLowerCase()];
-  return r === undefined ? PRIORITY_RANK.medium : r;
-}
-
-/**
- * Learnable-band value score for priority ties (R6): prefer tasks whose
- * complexity sits in the band the theme can currently LEARN from — neither
- * trivial nor beyond its measured ability. Proposer rewards centered on an
- * intermediate success band drive the strongest self-improvement (AZR,
- * arXiv:2505.03335). The theme's recent success rate moves the target band:
- * succeeding often → reach for harder work; failing often → consolidate on
- * easier work. Pure and unit-testable.
- *
- * @param complexityScore - Task complexity 0-100 (null = not yet assessed). / 複雑度
- * @param themeSuccessRate - Recent completion rate 0-1 (null = no data). / 直近成功率
- * @returns Score in [-1, 0]; higher = closer to the learnable band. / 帯スコア
- */
-export function valueBandScore(
-  complexityScore: number | null | undefined,
-  themeSuccessRate: number | null | undefined,
-): number {
-  if (themeSuccessRate == null) return 0; // no signal — keep legacy ordering
-  const rate = Math.max(0, Math.min(1, themeSuccessRate));
-  const target = 20 + 60 * rate; // 20 (struggling) … 80 (cruising)
-  // Unassessed complexity = a fixed mid-distance penalty, so tasks with REAL
-  // in-band evidence outrank unknowns, but unknowns still beat far-out-of-band.
-  if (complexityScore == null) return -0.3;
-  const c = Math.max(0, Math.min(100, complexityScore));
-  return -Math.abs(c - target) / 100;
-}
-
-/**
- * Recent completion rate for a theme's terminal top-level tasks (done vs
- * blocked), used to position the learnable band. Returns null with fewer than
- * 3 samples so selection keeps its legacy ordering until there is signal.
- *
- * @param prisma - Prisma client instance
- * @param themeId - Theme to measure / 対象テーマ
- * @returns Success rate 0-1, or null when data is insufficient. / 直近成功率
- */
-export async function recentThemeSuccessRate(
-  prisma: PrismaClient,
-  themeId: number,
-): Promise<number | null> {
-  try {
-    const recent = await prisma.task.findMany({
-      where: { themeId, parentId: null, status: { in: ['done', 'completed', 'blocked'] } },
-      orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: 10,
-      select: { status: true },
-    });
-    if (recent.length < 3) return null;
-    const done = recent.filter((t) => t.status === 'done' || t.status === 'completed').length;
-    return done / recent.length;
-  } catch {
-    return null;
-  }
-}
-
+// NOTE: moved out for the file-size limit; re-exported so importers and mock.module mirrors of this
+// module stay unchanged.
+export { priorityRank, valueBandScore, recentThemeSuccessRate } from './auto-run-selection-rank';
+export { overlappingFiles, hasScopeOverlap } from './auto-run-scope-overlap';
 export { getGlobalAutoRunActiveCount } from './auto-run-global-active-count';
 
 /**
@@ -183,51 +78,6 @@ export async function getThemeActiveQueueItems(
     },
     select: { id: true, taskId: true, status: true },
   });
-}
-
-/**
- * Path-boundary-safe file match: equal, or one is the other's `/`-suffix.
- * Suffix matching absorbs repo-relative vs package-relative depth differences
- * (`rapitas-backend/services/a.ts` vs `services/a.ts`) without the false
- * positive of a bare endsWith (`foo/ab.ts` must NOT match `b.ts`).
- */
-function fileMatches(a: string, b: string): boolean {
-  if (a === b) return true;
-  return a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
-}
-
-/**
- * Open-PR files that overlap the plan's file list (task 573 B). Both sides are
- * normalized to `/` separators; plan DIRECTORY tokens (trailing `/`) are
- * excluded on purpose — directory-granularity matching on shared dirs like
- * `services/` would defer every candidate and starve the theme. Pure.
- *
- * @param planFiles - parsePlanFiles output for a candidate's plan / 計画のファイル一覧
- * @param openPrFiles - Union of open auto-PR changed files / オープンPRの変更ファイル
- * @returns The overlapping open-PR file paths (deduped) / 重複ファイル一覧
- */
-export function overlappingFiles(planFiles: string[], openPrFiles: string[]): string[] {
-  const plan = planFiles
-    .map((f) => f.replace(/\\/g, '/'))
-    .filter((f) => f.length > 0 && !f.endsWith('/'));
-  const out = new Set<string>();
-  for (const prFile of openPrFiles) {
-    const pr = prFile.replace(/\\/g, '/');
-    if (plan.some((p) => fileMatches(p, pr))) out.add(pr);
-  }
-  return [...out];
-}
-
-/**
- * Whether a candidate's plan files overlap any open auto-PR's changed files.
- * Pure wrapper over {@link overlappingFiles}.
- *
- * @param planFiles - parsePlanFiles output for a candidate's plan / 計画のファイル一覧
- * @param openPrFiles - Union of open auto-PR changed files / オープンPRの変更ファイル
- * @returns True when at least one file overlaps / 重複があればtrue
- */
-export function hasScopeOverlap(planFiles: string[], openPrFiles: string[]): boolean {
-  return overlappingFiles(planFiles, openPrFiles).length > 0;
 }
 
 /**
@@ -424,6 +274,7 @@ export async function selectNextTask(
       }
       deferred.push(candidate.id);
     }
+    if (scopeOverlap.strict) return { found: false, reason: 'all_overlap_deferred', deferred };
     return { found: true, taskId: eligible[0]!.id };
   }
 
@@ -439,52 +290,4 @@ export async function selectNextTask(
  */
 export function hasItemAwaitingApproval(queueItems: Array<{ status: string }>): boolean {
   return queueItems.some((i) => i.status === 'waiting_approval');
-}
-
-/** Run the filter on one candidate; a thrown filter refuses it (safe side). */
-async function judgeCandidate(
-  filter: ParallelFilter,
-  candidate: { id: number; status: string },
-): Promise<ParallelVerdict> {
-  try {
-    return await filter(candidate);
-  } catch (err) {
-    return { ok: false, reason: 'filter_error', detail: String(err).slice(0, 200) };
-  }
-}
-
-/**
- * Candidate walk used when a parallel-safety filter is given (task 1552). Lazy
- * on purpose: the filter reads plans and files, so it stops at the first
- * accepted candidate that also clears the open-PR deferral. A refused candidate
- * is never the fallback — that is the whole point of the filter.
- */
-async function pickWithParallelFilter(
-  eligible: Array<{ id: number; status: string }>,
-  filter: ParallelFilter,
-  scopeOverlap?: ScopeOverlapContext,
-): Promise<SelectionResult> {
-  const rejected: ParallelRejection[] = [];
-  const deferred: number[] = [];
-  let fallback: number | null = null;
-  const withLog = <T extends object>(r: T) => (rejected.length > 0 ? { ...r, rejected } : r);
-  for (const candidate of eligible) {
-    const verdict = await judgeCandidate(filter, candidate);
-    if (!verdict.ok) {
-      rejected.push({ taskId: candidate.id, reason: verdict.reason, detail: verdict.detail });
-      continue;
-    }
-    if (scopeOverlap && scopeOverlap.openPrFiles.length > 0 && candidate.status !== 'in-progress') {
-      const planFiles = await scopeOverlap.getPlanFiles(candidate.id).catch(() => []);
-      if (planFiles.length > 0 && hasScopeOverlap(planFiles, scopeOverlap.openPrFiles)) {
-        fallback ??= candidate.id;
-        deferred.push(candidate.id);
-        continue;
-      }
-    }
-    const hit = { found: true as const, taskId: candidate.id };
-    return withLog(deferred.length > 0 ? { ...hit, deferred } : hit);
-  }
-  if (fallback !== null) return withLog({ found: true as const, taskId: fallback });
-  return { found: false, reason: 'parallel_conflict', rejected };
 }
