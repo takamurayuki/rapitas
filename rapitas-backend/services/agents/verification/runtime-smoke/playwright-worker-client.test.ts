@@ -12,10 +12,27 @@
  * because the whole point of this module is a cross-runtime IPC boundary
  * that a mock can't meaningfully exercise.
  */
-import { describe, test, expect } from 'bun:test';
+import { afterAll, beforeAll, describe, test, expect } from 'bun:test';
 import { spawnPlaywrightWorker } from './playwright-worker-client';
 
 describe('spawnPlaywrightWorker', () => {
+  let server: ReturnType<typeof Bun.serve>;
+  let url: string;
+  beforeAll(() => {
+    server = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response('<!doctype html><body><input aria-label="入力"></body>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        }),
+    });
+    url = `http://127.0.0.1:${server.port}/`;
+  });
+  afterAll(async () => {
+    await server?.stop(true);
+  });
+
   test('launches a real system browser, navigates, screenshots, and closes cleanly', async () => {
     const worker = spawnPlaywrightWorker();
     try {
@@ -26,7 +43,7 @@ describe('spawnPlaywrightWorker', () => {
       });
       expect(['msedge', 'chrome']).toContain(channel);
 
-      const nav = await worker.openAndNavigate({ url: 'https://example.com', timeoutMs: 15_000 });
+      const nav = await worker.openAndNavigate({ url, timeoutMs: 15_000 });
       expect(nav.ok).toBe(true);
 
       const shot = await worker.screenshot();
@@ -51,7 +68,7 @@ describe('spawnPlaywrightWorker', () => {
     const worker = spawnPlaywrightWorker();
     try {
       await worker.launch({ channels: ['msedge', 'chrome'], timeoutMs: 20_000 });
-      const nav = await worker.openAndNavigate({ url: 'https://example.com', timeoutMs: 15_000 });
+      const nav = await worker.openAndNavigate({ url, timeoutMs: 15_000 });
       expect(nav.ok).toBe(true);
 
       await worker.click({ x: 20, y: 30 });
@@ -68,7 +85,7 @@ describe('spawnPlaywrightWorker', () => {
     try {
       await worker.launch({ channels: ['msedge', 'chrome'], timeoutMs: 20_000 });
       const finding = await worker.checkPath({
-        url: 'https://example.com',
+        url,
         timeoutMs: 15_000,
         settleMs: 200,
       });

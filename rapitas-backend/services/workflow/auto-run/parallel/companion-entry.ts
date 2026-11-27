@@ -51,6 +51,11 @@ export async function delegateToCompanionSelection(
   // 上限の引き下げは新規追加だけを止め、生存中の先頭を保護する。
   if ((await effectivePerThemeLimit(prisma)) < 2) return true;
   try {
+    // Task 1553: a companion is always a 2nd-or-later task, so the resource
+    // gate applies here too (it used to cover only the head path). Lazy import
+    // keeps this module free of the advance modules (see the header).
+    const { checkResourceContentionGate } = await import('../auto-run-advance-gates');
+    if (await checkResourceContentionGate(prisma, themeId, activeTaskIds(set).length)) return true;
     const { selectCompanionTask } = await import('./companion-selection');
     await selectCompanionTask(prisma, themeId, order);
   } catch (err) {

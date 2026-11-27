@@ -5,13 +5,14 @@
  * never collide with rapitas itself or another project squatting a fixed
  * port), polls until it responds, and guarantees process-tree teardown.
  */
-import { spawn, type ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import { createServer } from 'net';
 import { existsSync, realpathSync } from 'fs';
 import { dirname, join } from 'path';
 import { createLogger } from '../../../../config/logger';
 import { killProcessTreeSafely } from '../../agent-process-tracker';
 import { buildSanitizedSpawnEnv } from '../../../../utils/agent/sanitize-cli-env';
+import { spawnLowPriorityUntracked } from '../../process-priority';
 
 const log = createLogger('runtime-smoke:launcher');
 
@@ -97,22 +98,29 @@ export function launchApp(command: string, cwd: string, port: number): LaunchedA
 
   const turbopackRoot = computeTurbopackRootOverride(cwd);
   log.info({ command, cwd, port, turbopackRoot }, '[runtime-smoke] launching app under test');
-  const proc: ChildProcess = spawn(command, {
-    shell: true,
-    cwd,
-    windowsHide: true,
-    // NOTE: Sanitized like agent CLIs. The raw process.env handed rapitas's
-    // own DATABASE_URL (file:...rapitas-dev.db), ENCRYPTION_KEY and tokens to
-    // every project's app; trendline's worker failed to parse that URL and the
-    // runtime gate failed (task 1520, 2026-11-22). The app reads its own .env.
-    env: buildSanitizedSpawnEnv({
-      PORT: String(port),
-      BROWSER: 'none',
-      CI: '1',
-      ...(turbopackRoot ? { RAPITAS_TURBOPACK_ROOT: turbopackRoot } : {}),
-    }),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  // Windows は起動後にツリーへ BelowNormal を適用し、POSIX は nice で起動する。
+  // プレビューのサーバーを再起動ゲートの追跡対象に含めない。
+  const proc: ChildProcess = spawnLowPriorityUntracked(
+    command,
+    [],
+    {
+      shell: true,
+      cwd,
+      windowsHide: true,
+      // NOTE: Sanitized like agent CLIs. The raw process.env handed rapitas's
+      // own DATABASE_URL (file:...rapitas-dev.db), ENCRYPTION_KEY and tokens to
+      // every project's app; trendline's worker failed to parse that URL and the
+      // runtime gate failed (task 1520, 2026-11-22). The app reads its own .env.
+      env: buildSanitizedSpawnEnv({
+        PORT: String(port),
+        BROWSER: 'none',
+        CI: '1',
+        ...(turbopackRoot ? { RAPITAS_TURBOPACK_ROOT: turbopackRoot } : {}),
+      }),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+    'RAPITAS_VERIFY_QUIET',
+  );
   proc.stdout?.on('data', push);
   proc.stderr?.on('data', push);
   proc.on('error', (err) => push(`[spawn error] ${err.message}`));

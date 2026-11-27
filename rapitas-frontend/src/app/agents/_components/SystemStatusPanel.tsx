@@ -24,6 +24,7 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import { resolvePollInterval, usePollHidden } from '@/hooks/common/poll-interval';
 import type { PanelMeta } from './panel-types';
 
 const POLL_INTERVAL_MS = 10000;
@@ -107,6 +108,7 @@ export function SystemStatusPanel() {
   const t = useTranslations('agents');
   const [data, setData] = useState<HealthSnapshot | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const hidden = usePollHidden();
 
   const poll = useCallback(async () => {
     // Skip the probe while rapitas is backgrounded — useOnVisible below
@@ -127,9 +129,15 @@ export function SystemStatusPanel() {
 
   useEffect(() => {
     poll();
-    const timer = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
   }, [poll]);
+
+  // 10 s while visible, stretched while backgrounded (task 1553). Separate from
+  // the first poll so going to / returning from the background only re-arms
+  // the timer; the return itself is refreshed by useOnVisible / subscribeAppHidden.
+  useEffect(() => {
+    const timer = setInterval(poll, resolvePollInterval(POLL_INTERVAL_MS, hidden));
+    return () => clearInterval(timer);
+  }, [poll, hidden]);
 
   useOnVisible(poll);
 

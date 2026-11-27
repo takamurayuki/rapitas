@@ -89,7 +89,7 @@ export async function selectAndEnqueueNextTask(
     return;
   }
 
-  if (await checkResourceContentionGate(prisma, themeId)) return;
+  if (await checkResourceContentionGate(prisma, themeId, globalActive)) return;
   if (await checkCalendarSlotGate(prisma, themeId)) return;
 
   const openAutoPrs = await openPrCache.getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);
