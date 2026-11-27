@@ -23,6 +23,7 @@ import { describePauseScope } from '../../services/workflow/auto-run/theme-pause
 import { loadReworkSummary } from '../../services/workflow/auto-run/auto-run-rework-summary';
 import { parseCompanions } from '../../services/workflow/auto-run/parallel/companion-json';
 import { logCycleEvent } from '../../services/observability';
+import { isRestartWaitActive } from '../../services/scheduling/auto-restart-merged-code/restart-wait';
 import { HTTP_STATUS } from '../../utils/common/http-status';
 import { isValidEntityId } from '../../utils/common/id-validation';
 
@@ -120,6 +121,8 @@ export const themeAutoRunRoutes = new Elysia()
         currentTask,
         activeTasks,
         remainingCount,
+        // Auto-run is holding back new work so merged code can activate (task 1562).
+        restartWait: isRestartWaitActive(),
       };
     } catch (err) {
       log.error({ err, themeId }, '[theme-auto-run] Failed to get state');

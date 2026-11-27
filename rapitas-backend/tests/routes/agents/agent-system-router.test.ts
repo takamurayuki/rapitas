@@ -22,6 +22,7 @@ const mockPrisma = {
   workflowQueueItem: {
     count: mock(() => Promise.resolve(0)),
   },
+  themeAutoRun: { findMany: mock(async () => []) },
   $queryRaw: mock(() => Promise.resolve([1])),
 };
 
@@ -38,6 +39,7 @@ const mockOrchestrator = {
 };
 
 let mainActiveIds: number[] = [];
+let runnerTaskIds: number[] = [];
 
 const mockRealtimeService = {
   broadcast: mock(() => {}),
@@ -70,6 +72,9 @@ mock.module('../../../services/agents/agent-orchestrator', () => ({
       getActiveAgentInfos: () => mainActiveIds.map((executionId) => ({ executionId })),
     }),
   },
+}));
+mock.module('../../../services/workflow/workflow-runner', () => ({
+  WorkflowRunner: { getInstance: () => ({ getActiveTaskIds: () => runnerTaskIds }) },
 }));
 mock.module('../../../utils/common/encryption', () => ({
   isEncryptionKeyConfigured: mock(() => true),
@@ -207,6 +212,7 @@ describe('Agent System Router', () => {
           'activeExecutions',
           'activeExecutionsDegraded',
           'activePreviewCount',
+          'dispatchableQueueDepth',
           'interruptedExecutions',
           'interruptedExecutionsHistoryCount',
           'interruptedExecutionsDegraded',
@@ -225,17 +231,27 @@ describe('Agent System Router', () => {
       expect(typeof data.interruptedExecutionsHistoryCount).toBe('number');
       expect(typeof data.interruptedExecutionsDegraded).toBe('boolean');
       expect(typeof data.queueDepth).toBe('number');
+      expect(typeof data.dispatchableQueueDepth).toBe('number');
       expect(typeof data.activePreviewCount).toBe('number');
       expect(typeof data.serverTime).toBe('string');
       expect(Number.isNaN(Date.parse(data.serverTime as string))).toBe(false);
     });
 
     describe('status derivation', () => {
+      it('DB未登録のrunner実行もbusyとして再起動判定へ渡す', async () => {
+        runnerTaskIds = [1562];
+        const response = await app.handle(new Request('http://localhost/agents/system-status'));
+        const data = await response.json();
+        expect(data.activeExecutions).toBe(1);
+        expect(data.activeExecutionsDegraded).toBe(false);
+        expect(data.status).toBe('busy');
+      });
       // Each test overrides one signal and restores the shared mocks afterward —
       // this file mounts a single module-level mockOrchestrator/mockPrisma shared
       // across every describe block, so leaking an override would corrupt later tests.
       afterEach(() => {
         mainActiveIds = [];
+        runnerTaskIds = [];
         mockOrchestrator.getActiveExecutionIdsAsync = mock(
           (): Promise<number[]> => Promise.resolve([]),
         );

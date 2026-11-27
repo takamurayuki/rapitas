@@ -32,6 +32,8 @@ interface AutoRunProgressStripProps {
   remainingCount: number;
   /** When the run started (ISO), or null. / 開始時刻 */
   startedAt: string | null;
+  /** True while no new work starts until merged code activates (task 1562). / 更新の取り込み待ち */
+  restartWait?: boolean;
   /**
    * The hidden filter's category and theme, merged in rather than drawn as a
    * second band (2026-11-21); null while the filter is shown. / 隠したフィルターの範囲
@@ -85,6 +87,7 @@ export function AutoRunProgressStrip({
   currentTask,
   remainingCount,
   startedAt,
+  restartWait,
   scope,
 }: AutoRunProgressStripProps) {
   const t = useTranslations('autoRun');
@@ -221,6 +224,17 @@ export function AutoRunProgressStrip({
       ) : (
         <span className="text-zinc-500 dark:text-zinc-400">
           {status === 'paused' ? t('statusPaused') : t('progress.choosingNext')}
+        </span>
+      )}
+
+      {restartWait && (
+        // Hourglass = 承認待ち／回答待ち／待機 (ICON_POLICY): the same "waiting" concept.
+        <span
+          data-testid="auto-run-restart-wait"
+          className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400"
+        >
+          <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('progress.restartWait')}
         </span>
       )}
 

@@ -152,6 +152,123 @@ export function decideBoundaryRestart(input: BoundaryRestartInput): BoundaryRest
   return { action: 'restart', reason: 'ok', nextDeferCount: 0 };
 }
 
+/**
+ * How long merged code may sit unactivated before auto-run stops starting new
+ * work so the system can reach a quiet moment. 30 min — about one agent phase:
+ * long enough that ordinary task boundaries (the usual activation point) get
+ * their chance first, short enough that two themes alternating forever cannot
+ * leave merges queued for hours (2026-11-26: five merges over 2h20m).
+ */
+export const RESTART_WAIT_AFTER_MS = 30 * 60 * 1000;
+
+/**
+ * Hard ceiling on one restart wait. 6 h — a backstop so a wait that can never
+ * resolve (restart refused by a dirty tree, say) cannot stop dispatch forever.
+ */
+export const RESTART_WAIT_MAX_MS = 6 * 60 * 60 * 1000;
+
+/** How often a restart wait re-checks whether the running work has drained. */
+export const RESTART_WAIT_POLL_MS = 30 * 1000;
+
+// Trailing slash on purpose: `prisma/schema.prisma` must not match. Matched after a
+// leading "/" because git reports repo-root paths (`rapitas-backend/prisma/schema/...`).
+const SCHEMA_PATH_FRAGMENTS = ['/prisma/schema/', '/prisma/schema.desktop/'] as const;
+
+/**
+ * Whether any changed path is a Prisma schema file (postgres or desktop layout).
+ *
+ * @param changedPaths - Changed file paths of the pending merge / 取り込み待ちの変更パス
+ * @returns True when a schema directory is touched / スキーマ変更を含むか
+ */
+export function touchesPrismaSchema(changedPaths: readonly string[] | null | undefined): boolean {
+  if (!changedPaths) return false;
+  return changedPaths.some((raw) => {
+    const path = `/${normalizePath(raw)}`;
+    return SCHEMA_PATH_FRAGMENTS.some((fragment) => path.includes(fragment));
+  });
+}
+
+/** Inputs for deciding whether to enter a restart wait. */
+export interface RestartWaitStartInput {
+  /** Commits on origin/<branch> not yet running in this process. */
+  aheadCount: number;
+  /** Epoch ms when aheadCount first became >= 1, or null when not yet observed. */
+  aheadSinceAt: number | null;
+  now: number;
+  /** ms since the last automatic restart, or null when none ever fired. */
+  msSinceLastRestart: number | null;
+  /** Floor between automatic restarts (same value the restart gate uses). */
+  minRestartIntervalMs: number;
+  /** Changed paths of the pending merge. */
+  changedPaths: readonly string[];
+}
+
+/** Outcome of the restart-wait start decision. */
+export interface RestartWaitStartDecision {
+  start: boolean;
+  reason: 'nothing-ahead' | 'rate-limited' | 'schema-change' | 'ahead-too-long' | 'not-yet';
+}
+
+/**
+ * Decide whether auto-run should stop starting new work to let a restart through.
+ *
+ * The 60 min restart floor is part of the entry condition: entering a wait the
+ * rate limit would then refuse to end would stop dispatch for nothing.
+ *
+ * @param input - Wait inputs / 判定入力
+ * @returns Whether to start waiting, with the reason / 開始可否と理由
+ */
+export function decideRestartWaitStart(input: RestartWaitStartInput): RestartWaitStartDecision {
+  if (input.aheadCount <= 0) return { start: false, reason: 'nothing-ahead' };
+  if (input.msSinceLastRestart !== null && input.msSinceLastRestart < input.minRestartIntervalMs) {
+    return { start: false, reason: 'rate-limited' };
+  }
+  // A schema/client skew is worse the longer it lasts, so it skips the 30 min.
+  if (touchesPrismaSchema(input.changedPaths)) return { start: true, reason: 'schema-change' };
+  if (input.aheadSinceAt !== null && input.now - input.aheadSinceAt >= RESTART_WAIT_AFTER_MS) {
+    return { start: true, reason: 'ahead-too-long' };
+  }
+  return { start: false, reason: 'not-yet' };
+}
+
+/**
+ * Queue depth the restart gates should read: only items that can actually run.
+ *
+ * Falls back to the raw depth for snapshots that predate the field.
+ *
+ * @param snapshot - Agent system snapshot / システムスナップショット
+ * @returns Depth to compare against 0 / 再起動判定に使う件数
+ */
+export function restartQueueDepth(snapshot: {
+  queueDepth: number;
+  dispatchableQueueDepth?: number;
+}): number {
+  return snapshot.dispatchableQueueDepth ?? snapshot.queueDepth;
+}
+
+/**
+ * Whether the system is too busy (or unreadable) to restart right now.
+ *
+ * @param snapshot - Agent system snapshot / システムスナップショット
+ * @returns True when a restart must not fire / 再起動してはいけない状態か
+ */
+export function isSnapshotBusy(snapshot: {
+  activeExecutionsDegraded: boolean;
+  isShuttingDown: boolean;
+  activeExecutions: number;
+  runningExecutions: number;
+  queueDepth: number;
+  dispatchableQueueDepth?: number;
+}): boolean {
+  return (
+    snapshot.activeExecutionsDegraded ||
+    snapshot.isShuttingDown ||
+    snapshot.activeExecutions > 0 ||
+    snapshot.runningExecutions > 0 ||
+    restartQueueDepth(snapshot) > 0
+  );
+}
+
 /** Parse a positive-integer env var, falling back on absent/invalid values. */
 function resolvePositiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];

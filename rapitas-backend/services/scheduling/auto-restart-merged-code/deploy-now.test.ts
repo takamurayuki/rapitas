@@ -40,7 +40,14 @@ let ahead: number | null = 3;
 let clean = true;
 let fastForwarded = true;
 /** What the stand-in system looks like. */
-let snapshot = {
+let snapshot: {
+  activeExecutions: number;
+  runningExecutions: number;
+  queueDepth: number;
+  dispatchableQueueDepth?: number;
+  isShuttingDown: boolean;
+  activeExecutionsDegraded: boolean;
+} = {
   activeExecutions: 0,
   runningExecutions: 0,
   queueDepth: 0,
@@ -159,6 +166,30 @@ describe('deploying on request', () => {
 
   // The automatic path is governed by a toggle because it acts on its own. A
   // person asking for it is not that, so the toggle does not apply.
+  // Task 1562: an item of a paused theme cannot run on its own, so it must not
+  // refuse the deploy (2026-11-26: item 4713 refused /deploy/now).
+  test('deploys when the only queued items belong to paused themes', async () => {
+    snapshot.queueDepth = 1;
+    snapshot.dispatchableQueueDepth = 0;
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: true, reason: 'deployed' });
+    expect(shutdown).not.toBeNull();
+  });
+
+  test('still refuses when a queued item belongs to a running theme', async () => {
+    snapshot.queueDepth = 1;
+    snapshot.dispatchableQueueDepth = 1;
+    const result = await deployNow('abc1234');
+    expect(result).toMatchObject({ deployed: false, reason: 'queue-not-empty' });
+    expect(shutdown).toBeNull();
+  });
+
+  test('inspect reports ready for the paused-theme case too', async () => {
+    snapshot.queueDepth = 2;
+    snapshot.dispatchableQueueDepth = 0;
+    expect(await inspectDeploy('abc1234')).toMatchObject({ ready: true, reason: 'deployed' });
+  });
+
   test('does not consult the auto-restart toggle', async () => {
     const source = await ownSource();
     expect(source).not.toContain('readAutoRestartEnabled');

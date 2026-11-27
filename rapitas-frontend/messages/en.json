@@ -4621,6 +4621,7 @@
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "awaitingAnswer": "Awaiting answer",
+      "restartWait": "Waiting to apply updates",
       "rework": "Sent back {count}×",
       "reworkRoute": "({from} → {to})",
       "remaining": "{count} left",

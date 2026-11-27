@@ -30,9 +30,10 @@ import {
   slowQueueFields,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
-import { parkItemIfHalted } from './workflow-runner-halt-guard';
+import { startPhaseUnlessHalted } from './workflow-runner-halt-guard';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import * as staleActive from './workflow-runner-stale-active';
+import { dequeueAndStart } from './workflow-runner-dequeue-gate';
 import type { RunnerStatus, ActiveExecution } from './workflow-runner.types';
 
 export type { RunnerStatus } from './workflow-runner.types';
@@ -64,14 +65,8 @@ export class WorkflowRunner {
   }
 
   /**
-   * Whether the polling loop is currently active.
-   *
-   * The queue-stall reconciler needs this to tell two situations apart that
-   * look identical from the queue table: a runner that has stopped (kicking it
-   * helps) and a runner that is alive but not claiming items (kicking it is a
-   * no-op). Without it the reconciler logged "restarted WorkflowRunner" 78
-   * times in one day against a runner that answered "Already running" every
-   * time (measured 2026-08-28).
+   * Whether the polling loop is active: lets the queue-stall reconciler tell a stopped runner
+   * (kick helps) from one that is alive but not claiming items (kick is a no-op; 2026-08-28).
    *
    * @returns true while the poll loop is running. / ポーリング稼働中は true
    */
@@ -99,9 +94,7 @@ export class WorkflowRunner {
     this.pollTimer = setInterval(() => this.processQueue(), this.pollIntervalMs);
   }
 
-  /**
-   * Graceful shutdown.
-   */
+  /** Graceful shutdown. */
   async stopProcessing(): Promise<void> {
     if (!this.running) return;
 
@@ -111,10 +104,7 @@ export class WorkflowRunner {
       this.pollTimer = null;
     }
 
-    // Cancel active executions. Aborting the controller only stops the loop
-    // from starting the NEXT phase — the agent process spawned for the CURRENT
-    // phase keeps running until killed. stopTaskAgents kills every in-flight
-    // agent for the task so shutdown actually halts work in progress.
+    // Aborting only stops the NEXT phase; stopTaskAgents kills the agent of the CURRENT one.
     const { stopTaskAgents } = await import('../agents/stop-task-agents');
     for (const [itemId, exec] of this.activeExecutions) {
       exec.abortController.abort();
@@ -133,6 +123,11 @@ export class WorkflowRunner {
 
     log.info('[WorkflowRunner] Stopped processing');
     this.broadcastStatus('runner_stopped');
+  }
+
+  /** Task ids of the executions this runner has registered (restart observation). */
+  getActiveTaskIds(): number[] {
+    return [...this.activeExecutions.values()].map((e) => e.taskId);
   }
 
   /**
@@ -154,9 +149,7 @@ export class WorkflowRunner {
     return staleActive.releaseActiveExecution(this.activeExecutions, queueItemId);
   }
 
-  /**
-   * Get runner status.
-   */
+  /** Get runner status. */
   getStatus(): RunnerStatus {
     return {
       isRunning: this.running,
@@ -176,10 +169,13 @@ export class WorkflowRunner {
       // task 1165: a sweep-cancelled item leaves a Map entry that would hold the slot forever
       await staleActive.dropStaleActiveExecutions(this.activeExecutions);
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
-        const item = await this.queue.dequeue();
+        let execution!: ActiveExecution;
+        const item = await dequeueAndStart(this.queue, (i) => {
+          execution = this.registerExecution(i);
+        });
         if (!item) break;
+        void this.executeWorkflowItem(item, execution); // 実行ループはdequeueのロック外。
         ids.push(item.taskId);
-        this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
       log.error({ err: error }, '[WorkflowRunner] Error in processQueue');
@@ -190,8 +186,8 @@ export class WorkflowRunner {
     }
   }
 
-  /** Execute the entire workflow for a single task asynchronously. */
-  private async executeWorkflowItem(item: QueueItem): Promise<void> {
+  /** dequeue区間内で同期登録し、再起動判定から直ちに観測できるようにする。 */
+  private registerExecution(item: QueueItem): ActiveExecution {
     const abortController = new AbortController();
     const execution: ActiveExecution = {
       queueItemId: item.id,
@@ -203,6 +199,15 @@ export class WorkflowRunner {
 
     this.activeExecutions.set(item.id, execution);
     this.broadcastItemUpdate(item.id, item.taskId, 'execution_started', item.currentPhase);
+    return execution;
+  }
+
+  /** Execute the entire workflow for a single task asynchronously. */
+  private async executeWorkflowItem(
+    item: QueueItem,
+    execution = this.registerExecution(item),
+  ): Promise<void> {
+    const { abortController } = execution;
 
     try {
       // Progress workflow from current phase to completion (with infinite loop prevention)
@@ -220,13 +225,8 @@ export class WorkflowRunner {
         // Check current workflowStatus
         const task = await resolveTaskWorkflowState(item.taskId);
         if (!task) {
-          // Confirmed-vanished-task guard: the task row was CONFIRMED absent
-          // (not a transient lookup failure), most often because the
-          // dequeue-time guard in queue-dequeue-candidate.ts missed it (the
-          // task was deleted AFTER dispatch). Cancel without consuming a
-          // retry — retrying can never make a deleted row reappear, and doing
-          // so previously wrote a meaningless task.blocked (task 651: task
-          // 648). Not a `throw`: this must not go through retryIfPossible.
+          // Task row CONFIRMED absent (deleted after dispatch): cancel without a retry — it can
+          // never reappear (task 651). Not a `throw`: must not go through retryIfPossible.
           if (await taskRowConfirmedAbsent(item.taskId)) {
             await this.queue.updateStatus(item.id, 'cancelled', {
               errorMessage: taskVanishedMessage(item.taskId),
@@ -332,25 +332,24 @@ export class WorkflowRunner {
           break;
         }
 
-        // An iteration-budget halt must stop new spend, not just selection (task 1107).
-        const parked = await parkItemIfHalted(this.queue, item, currentStatus, (e, p) =>
-          this.broadcastItemUpdate(item.id, item.taskId, e, p),
-        );
-        if (parked) break;
-
-        // Log phase transition
-        await this.logPhaseTransition(item.taskId, currentStatus, 'advancing');
-
-        // Execute next phase (with timeout)
-        this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
-
-        // Resolve the role the phase about to run dispatches as, so the backstop
-        // stays above the implementer's raised wall-clock cap (task 546). Resolved
-        // BEFORE advanceWorkflow so no await sits between the execution promise
-        // and the race below (an early rejection there would surface as an
-        // unhandled rejection).
         const phaseTimeoutMs = await resolvePhaseTimeoutMs(task, currentStatus);
-        const result = await raceWorkflowAdvance(this.orchestrator, item.taskId, phaseTimeoutMs);
+        if (abortController.signal.aborted) break;
+        const dispatch = await startPhaseUnlessHalted(
+          this.queue,
+          item,
+          currentStatus,
+          (e, p) => this.broadcastItemUpdate(item.id, item.taskId, e, p),
+          async () => {
+            await this.logPhaseTransition(item.taskId, currentStatus, 'advancing');
+            if (abortController.signal.aborted) return null;
+            this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
+            return {
+              completion: raceWorkflowAdvance(this.orchestrator, item.taskId, phaseTimeoutMs),
+            };
+          },
+        );
+        if (!dispatch) break;
+        const result = await dispatch.completion;
         // Stop owns the queue item even when the old phase returns a replan/skip result.
         if (abortController.signal.aborted) {
           break;
@@ -479,9 +478,7 @@ export class WorkflowRunner {
     }
   }
 
-  /**
-   * Resume a queue item after approval.
-   */
+  /** Resume a queue item after approval. */
   async resumeAfterApproval(taskId: number): Promise<boolean> {
     const item = await this.queue.findByTaskId(taskId);
     if (!item || item.status !== 'waiting_approval') {

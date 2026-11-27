@@ -4621,6 +4621,7 @@
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",
       "awaitingAnswer": "回答待ち",
+      "restartWait": "更新の取り込み待ち",
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",

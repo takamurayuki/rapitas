@@ -9,6 +9,8 @@
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
+import { removeThemeFromResumeSet } from '../../scheduling/auto-restart-merged-code/restart-wait-store';
+import { withRestartGate } from '../../scheduling/auto-restart-merged-code/restart-gate';
 import {
   mapToState,
   narrowAutoRunStatus,
@@ -18,6 +20,19 @@ import {
 } from './theme-auto-run-types';
 
 const log = createLogger('theme-auto-run-service');
+
+/**
+ * Run a user stop / pause under the restart gate, dropping the theme from the
+ * post-restart restore set first. The gate keeps a restore (or the start of a
+ * restart wait) from reading this theme's state between the removal and the
+ * state write, so a theme the user stopped is never woken (task 1562).
+ */
+function underRestartGate<T>(themeId: number, body: () => Promise<T>): Promise<T> {
+  return withRestartGate(async () => {
+    removeThemeFromResumeSet(themeId);
+    return body();
+  });
+}
 
 type AutoRunCreate = Parameters<typeof prisma.themeAutoRun.create>[0]['data'];
 type AutoRunUpdate = Parameters<typeof prisma.themeAutoRun.update>[0]['data'];
@@ -142,10 +157,8 @@ export async function startAutoRun(
  * @returns updated state / 更新後の状態
  */
 export async function pauseAutoRun(themeId: number): Promise<ThemeAutoRunState> {
-  const updated = await writeAutoRun(
-    themeId,
-    { themeId, status: 'paused_user' },
-    { status: 'paused_user' },
+  const updated = await underRestartGate(themeId, () =>
+    writeAutoRun(themeId, { themeId, status: 'paused_user' }, { status: 'paused_user' }),
   );
   log.info(`[ThemeAutoRunService] Paused auto-run for theme ${themeId}`);
   return mapToState(updated);
@@ -185,7 +198,9 @@ export async function resumeAutoRun(themeId: number): Promise<ThemeAutoRunState 
  * @returns updated state / 更新後の状態
  */
 export async function stopAutoRun(themeId: number): Promise<ThemeAutoRunState> {
-  const updated = await writeAutoRun(themeId, { themeId, status: 'idle' }, { status: 'stopping' });
+  const updated = await underRestartGate(themeId, () =>
+    writeAutoRun(themeId, { themeId, status: 'idle' }, { status: 'stopping' }),
+  );
   log.info(`[ThemeAutoRunService] Stopping auto-run for theme ${themeId}`);
   return mapToState(updated);
 }
@@ -197,10 +212,12 @@ export async function stopAutoRun(themeId: number): Promise<ThemeAutoRunState> {
  * @param themeId - Theme ID / テーマID
  */
 export async function finalizeStop(themeId: number): Promise<void> {
-  await prisma.themeAutoRun.updateMany({
-    where: { themeId },
-    data: { status: 'idle', enabled: false, currentTaskId: null },
-  });
+  await underRestartGate(themeId, () =>
+    prisma.themeAutoRun.updateMany({
+      where: { themeId },
+      data: { status: 'idle', enabled: false, currentTaskId: null },
+    }),
+  );
   log.info(
     { themeId },
     `[ThemeAutoRunService] Finalized USER stop for theme ${themeId} (enabled=false)`,
