@@ -13,6 +13,7 @@ import { resolveNotificationIcon, resolveNotificationText } from './notification
 import { withHeaderVisible } from '@/components/header/task-detail-link';
 import { settingsSectionFromHref } from '@/feature/settings/settings-link';
 import { openSettings } from '@/feature/settings/settings-modal-store';
+import { GoalReflectionModal, openGoalReflection } from '@/components/goal-reflection';
 
 // Re-exported so the existing import path keeps working; the rule itself
 // is shared now that more than notifications need it.
@@ -84,6 +85,7 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={dropdownRef}>
+      <GoalReflectionModal />
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-1.5 sm:p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
@@ -157,7 +159,11 @@ export default function NotificationBell() {
                         // Settings links (e.g. the restart notice's /settings/general)
                         // open the settings modal; those pages no longer exist.
                         const section = settingsSectionFromHref(notification.link ?? '');
-                        if (section) {
+                        // The weekly reflection nudge opens its own short modal.
+                        if (notification.type === 'goal_reflection_prompt') {
+                          e.preventDefault();
+                          openGoalReflection();
+                        } else if (section) {
                           e.preventDefault();
                           openSettings(section);
                         }
