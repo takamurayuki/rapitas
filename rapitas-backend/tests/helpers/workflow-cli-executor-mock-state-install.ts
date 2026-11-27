@@ -239,9 +239,15 @@ const noopLogger = {
   child: () => noopLogger,
 };
 
-const prismaMock = {
+const prismaMock: Record<string, unknown> = {
   // These fixtures execute phases directly, without a WorkflowRunner owner.
-  workflowQueueItem: { findFirst: () => Promise.resolve(null) },
+  workflowQueueItem: {
+    findFirst: () => Promise.resolve(null),
+    updateMany: () => Promise.resolve({ count: 0 }),
+  },
+  // NOTE: holdForRequiredMerge (task 1568) writes the task and its queue item in
+  // one transaction; run the callback against this same mock.
+  $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock),
   // Ordinary phase fixtures have no committed requirement replan.
   workflowTransition: { findFirst: () => Promise.resolve(null) },
   task: {
