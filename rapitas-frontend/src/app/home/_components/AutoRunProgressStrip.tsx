@@ -10,7 +10,7 @@
  * Not responsible for controlling the run or for fetching its state.
  */
 import Link from 'next/link';
-import { Repeat } from 'lucide-react';
+import { Hourglass, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
 import type { ActiveTask, AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
