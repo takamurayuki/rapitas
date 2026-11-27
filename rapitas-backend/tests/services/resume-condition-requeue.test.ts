@@ -77,6 +77,8 @@ const mockPrisma = {
     findFirst: mock(() => Promise.resolve({ enabled: true, status: 'running' })),
   },
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null as unknown)) },
+  // The resume facts also read the session worktree (no session = no work).
+  agentSession: { findFirst: () => Promise.resolve(null) },
   userSettings: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   activityLog: { findFirst: mock(() => Promise.resolve(null as unknown)) },
 };

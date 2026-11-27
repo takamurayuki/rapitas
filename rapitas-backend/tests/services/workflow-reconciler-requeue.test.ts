@@ -17,6 +17,8 @@ const mockPrisma = {
     ),
   },
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null as unknown)) },
+  // The resume facts also read the session worktree (no session = no work).
+  agentSession: { findFirst: () => Promise.resolve(null) },
   agentExecution: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   workflowTransition: {
     count: mock(() => Promise.resolve(0)),

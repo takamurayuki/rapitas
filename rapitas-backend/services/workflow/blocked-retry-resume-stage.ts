@@ -265,6 +265,21 @@ export async function loadResumeFacts(
     // PR state unknown (null); hasPr keeps what the task row proved
     if (!facts.hasPr) facts.workUnknown = true;
   }
+  // NOTE: Task.workingDirectory is often empty; the worktree path lives on the task's
+  // AgentSession (task 1549 lost two commits to a draft reset on 2026-11-27).
+  if (!facts.dirExists) {
+    try {
+      const s = await prisma.agentSession.findFirst({
+        where: { config: { taskId: task.id }, worktreePath: { not: null } },
+        orderBy: { id: 'desc' },
+        select: { worktreePath: true },
+      });
+      const p = s?.worktreePath?.trim();
+      if (p && (deps.dirExists ?? existsSync)(p)) [dir, facts.dirExists] = [p, true];
+    } catch {
+      facts.workUnknown = true; // the session row could not be read: absence is unproven
+    }
+  }
   if (dir && facts.dirExists) {
     facts.unpushedCommits = await (deps.unpushed ?? countUnpushed)(dir).catch(() => null);
   }

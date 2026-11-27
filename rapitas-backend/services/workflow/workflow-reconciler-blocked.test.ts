@@ -52,6 +52,8 @@ const fakePrisma = {
   userSettings: { findFirst: () => Promise.resolve(null) },
   // The resume decision (task 1563) reads the task's PR; absent here = no PR, not unreadable.
   gitHubPullRequest: { findFirst: () => Promise.resolve(null) },
+  // The resume facts also read the session worktree (no session = no work).
+  agentSession: { findFirst: () => Promise.resolve(null) },
   activityLog: { findFirst: () => Promise.resolve(null) },
   agentExecution: { findFirst: () => Promise.resolve(null) },
   workflowTransition: {

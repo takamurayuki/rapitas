@@ -15,6 +15,7 @@ describe('loadResumeFacts', () => {
       workflowTransition: { findFirst: async () => null },
       task: { findUnique: async () => ({ workingDirectory: '/w', githubPrId: 9 }) },
       gitHubPullRequest: { findFirst: async () => ({ state: 'open' }) },
+      agentSession: { findFirst: async () => null },
       ...over,
     }) as unknown as PrismaClient;
 
