@@ -564,3 +564,38 @@ describe('mergeChecks — indeterminate triage (task 659)', () => {
     expect(computeOverallOk([mergeChecks('test', [indeterminatePart])])).toBe(true);
   });
 });
+
+describe('testProject keeps the measured passedCount on the triage path (task 1542, D6)', () => {
+  it('a run whose only failures are pre-existing stays ok and still carries passedCount', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('fs');
+    const { tmpdir } = await import('os');
+    const { join } = await import('path');
+    const { spyOn } = await import('bun:test');
+    const related = await import('./related-tests');
+    const triage = await import('./test-triage');
+    const { testProject } = await import('./automated-verifier');
+    const dir = mkdtempSync(join(tmpdir(), 'rapitas-triage-passed-'));
+    writeFileSync(
+      join(dir, 'a.test.ts'),
+      "import { test, expect } from 'bun:test';\n" +
+        "test('passes', () => expect(1).toBe(1));\n" +
+        "test('already red before this change', () => expect(1).toBe(2));\n",
+    );
+    const spies = [
+      spyOn(related, 'buildScopedTestCommands').mockReturnValue(['bun test --isolate "a.test.ts"']),
+      spyOn(related, 'findRelatedTestFiles').mockReturnValue([]),
+      spyOn(triage, 'triageTestFailures').mockResolvedValue({
+        preExisting: ['a.test.ts'],
+        newFailures: [],
+      }),
+    ];
+    try {
+      const check = await testProject(dir, dir, ['a.test.ts']);
+      expect(check).toMatchObject({ name: 'test', ran: true, ok: true, errorCount: 0 });
+      expect(check?.passedCount).toBe(1);
+    } finally {
+      spies.forEach((s) => s.mockRestore());
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

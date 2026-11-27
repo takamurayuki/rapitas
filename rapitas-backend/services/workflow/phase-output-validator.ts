@@ -24,6 +24,7 @@ import { isRunnerExitFailureLine } from './verify-exit-signal';
 import { validateSections } from './phase-output-validator-sections';
 import { isPastReferenceLine } from './past-reference-line';
 import { isResolvedFailureLine } from './verify-resolved-failure';
+import { checkVerifyClaim, type MeasuredVerification } from './verify-claim';
 import {
   parseOutOfScopeCriteria,
   isDeclaredScopeReductionOnly,
@@ -177,15 +178,38 @@ function quoteNonpassingRows(content: string): string {
  *
  * @param content - verify.md body / verify.md 本文
  * @param planContent - plan.md body; criteria it declares out of scope are not held against the report / plan.md 本文（非対象宣言の基準は不合格にしない）
+ * @param measured - Job the report's `json:verify-claim` cites, looked up by the caller; ignored when the report has no claim block / 主張ブロックが引く自己検証ジョブの実測
  * @returns Validation result with contradiction details when applicable
  */
-export function validateVerify(content: string, planContent?: string): ValidationResult {
+export function validateVerify(
+  content: string,
+  planContent?: string,
+  measured?: MeasuredVerification,
+): ValidationResult {
   if (looksLogPolluted(content)) return pollutedResult('verify.md');
+  // A `json:verify-claim` block moves the honesty judgement from the prose to the
+  // measured self-verification job (task 1542). Reports without one keep the
+  // wording-based detection below (migration period). A claim backed by the job
+  // frees the prose to narrate RED checks, first failures and environment limits.
+  const claimVerdict = checkVerifyClaim(content, measured);
+  if (claimVerdict.kind === 'rejected') {
+    return { ok: false, missingSections: [], severity: 80, summary: claimVerdict.message };
+  }
+  if (claimVerdict.kind === 'failure-claim') {
+    return {
+      ok: false,
+      missingSections: [],
+      severity: 90,
+      summary: `verify.md claims failure and the measured job failed too; repair is required.${quoteNonpassingRows(content) || ` ${claimVerdict.evidence}`}`,
+    };
+  }
+  const trustedClaim = claimVerdict.kind === 'accepted';
   // A `⚠️ 一部失敗` explained only by push/PR/CI/merge still pending is not a
   // failed implementation: those steps run AFTER this report. 94 of 96 such
   // bounces in the week to 2026-09-20 stated the technical checks passed.
   // Likewise when the plan itself declared every remaining criterion out of scope.
   if (
+    !trustedClaim &&
     hasNonpassingVerifyVerdict(content) &&
     !isPublicationOnlyPartial(content) &&
     !isDeclaredScopeReductionOnly(content, parseOutOfScopeCriteria(planContent))
@@ -206,7 +230,7 @@ export function validateVerify(content: string, planContent?: string): Validatio
   // and ```text (deliberate-RED evidence) fences cannot fake a failure signal.
   const scanText = stripNonEvidenceRegions(content);
   const countContradiction = findTestCountContradiction(scanText);
-  if (countContradiction) {
+  if (countContradiction && !trustedClaim) {
     return { ok: false, missingSections: [], severity: 80, summary: countContradiction };
   }
   const claimsAllPass =
@@ -395,7 +419,7 @@ export function validateVerify(content: string, planContent?: string): Validatio
     failureHits.push(`exit 1 ${quoteEvidenceLine(exitFailureLine)}`);
   }
 
-  if (claimsAllPass && failureHits.length > 0) {
+  if (!trustedClaim && claimsAllPass && failureHits.length > 0) {
     const evidence = failureHits.slice(0, 3).join(' | ');
     return {
       ok: false,
@@ -423,7 +447,7 @@ export function validateVerify(content: string, planContent?: string): Validatio
         !CHANGED_FILE_ROW.test(line) &&
         explicitFailureVerdictRegex.test(line),
     );
-  if (hasNonpassingLine) {
+  if (hasNonpassingLine && !trustedClaim) {
     return {
       ok: false,
       missingSections: [],

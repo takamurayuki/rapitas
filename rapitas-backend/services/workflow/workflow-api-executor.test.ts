@@ -110,6 +110,14 @@ mock.module('./phase-output-validator', () => ({
   validateVerify: mockValidateVerify,
 }));
 
+const MEASURED = { job: { status: 'completed', ok: true, revision: 'abc1234' } };
+const mockLoadMeasuredVerification = mock(
+  async (_taskId: number, _content: string): Promise<typeof MEASURED | undefined> => MEASURED,
+);
+mock.module('./verify-claim-loader', () => ({
+  loadMeasuredVerification: mockLoadMeasuredVerification,
+}));
+
 const mockAttemptVerifyRepair = mock(() =>
   Promise.resolve<{ bounced: boolean; newStatus?: string; attempt?: number }>({ bounced: false }),
 );
@@ -453,6 +461,26 @@ describe('executeAPIAgent — output persistence edge cases', () => {
 describe('executeAPIAgent — verify.md honesty gate', () => {
   beforeEach(resetMocks);
 
+  test('実測取得中に停止されたら完了・修復へ進まない（D5）', async () => {
+    let stopped = false;
+    mockLoadMeasuredVerification.mockImplementationOnce(async () => {
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+      stopped = true;
+      return MEASURED;
+    });
+    await expect(
+      run({
+        transition: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
+        assertOwnership: () => {
+          if (stopped) throw new ExecutionCancelledError('ownership revoked');
+        },
+      }),
+    ).rejects.toThrow('ownership revoked');
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockAdvanceWorkflow).not.toHaveBeenCalled();
+  });
+
   function runVerify(context: string = 'context') {
     return run({
       transition: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
@@ -498,7 +526,9 @@ describe('executeAPIAgent — verify.md honesty gate', () => {
 
     mockWriteWorkflowFile.mockResolvedValueOnce('persisted verification');
     const result = await runVerify();
-    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification', undefined);
+    // The measured job the report's claim cites is looked up by task id and handed on as the 3rd argument.
+    expect(mockLoadMeasuredVerification).toHaveBeenCalledWith(1, 'persisted verification');
+    expect(mockValidateVerify).toHaveBeenCalledWith('persisted verification', undefined, MEASURED);
 
     expect(mockAttemptVerifyRepair).toHaveBeenCalledWith(
       1,

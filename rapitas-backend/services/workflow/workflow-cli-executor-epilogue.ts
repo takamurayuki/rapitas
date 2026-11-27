@@ -22,7 +22,7 @@ import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
-import { validateOutput, WF_STATUS_RANK } from './workflow-cli-executor-helpers';
+import { validateOutputWithMeasured, WF_STATUS_RANK } from './workflow-cli-executor-helpers';
 import { resolveVerifyPhaseStatus } from './workflow-cli-executor-verify-gate';
 import { requirementReplannedSince } from './requirement-replan-guard';
 
@@ -240,7 +240,12 @@ export async function runPhaseEpilogue(params: {
         transition.outputFile === 'verify'
           ? await (await import('./plan-for-verify')).loadPlanContentForVerify(taskId)
           : undefined;
-      const validation = validateOutput(transition.outputFile, fileContent, planForVerify);
+      const validation = await validateOutputWithMeasured(
+        taskId,
+        transition.outputFile,
+        fileContent,
+        planForVerify,
+      );
       if (!validation.ok) {
         log.warn(
           {

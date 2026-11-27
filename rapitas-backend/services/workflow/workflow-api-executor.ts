@@ -238,10 +238,13 @@ export async function executeAPIAgent(
       if (transition.outputFile === 'verify') {
         const { validateVerify } = await import('./phase-output-validator');
         const { loadPlanContentForVerify } = await import('./plan-for-verify');
+        const { loadMeasuredVerification } = await import('./verify-claim-loader');
         const verifyValidation = validateVerify(
           persistedOutput,
           await loadPlanContentForVerify(taskId),
+          await loadMeasuredVerification(taskId, persistedOutput),
         );
+        assertOwnership?.();
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
           const { attemptVerifyRepair } = await import('./verify-self-repair');
           // CAS snapshot: the repair's compare-and-swap needs the status the

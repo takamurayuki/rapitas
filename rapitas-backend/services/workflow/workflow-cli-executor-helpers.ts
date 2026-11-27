@@ -14,6 +14,7 @@ import {
   validateVerify,
   type ValidationResult,
 } from './phase-output-validator';
+import type { MeasuredVerification } from './verify-claim';
 
 const execAsync = promisify(exec);
 
@@ -115,12 +116,14 @@ export const WF_STATUS_RANK: Record<string, number> = {
  * @param outputFile - Workflow output file type / 対象の成果物種別
  * @param content - Artifact markdown content / 成果物の本文
  * @param planContent - plan.md body used by the verify gate's scope-reduction check / verify 判定用の plan 本文
+ * @param measured - Job a verify.md's json:verify-claim cites, pre-fetched by the caller / verify.md の主張ブロックが引く実測ジョブ
  * @returns Structural validation result / 構造バリデーション結果
  */
 export function validateOutput(
   outputFile: string,
   content: string,
   planContent?: string,
+  measured?: MeasuredVerification,
 ): ValidationResult {
   switch (outputFile) {
     case 'research':
@@ -128,8 +131,31 @@ export function validateOutput(
     case 'plan':
       return validatePlan(content);
     case 'verify':
-      return validateVerify(content, planContent);
+      return validateVerify(content, planContent, measured);
     default:
       return { ok: true, missingSections: [], severity: 0, summary: 'no validator' };
   }
+}
+
+/**
+ * Look up the measured job a verify.md cites (verify only), then validate.
+ * Shared by the CLI epilogue so the lookup and the hand-off to validateVerify stay together.
+ *
+ * @param taskId - Task the artifact belongs to / 対象タスクID
+ * @param outputFile - Workflow output file type / 対象の成果物種別
+ * @param content - Artifact markdown content / 成果物の本文
+ * @param planContent - plan.md body for the verify gate / verify 判定用の plan 本文
+ * @returns Structural validation result / 構造バリデーション結果
+ */
+export async function validateOutputWithMeasured(
+  taskId: number,
+  outputFile: string,
+  content: string,
+  planContent?: string,
+): Promise<ValidationResult> {
+  const measured =
+    outputFile === 'verify'
+      ? await (await import('./verify-claim-loader')).loadMeasuredVerification(taskId, content)
+      : undefined;
+  return validateOutput(outputFile, content, planContent, measured);
 }

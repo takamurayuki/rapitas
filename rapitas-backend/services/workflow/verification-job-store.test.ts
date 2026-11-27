@@ -140,6 +140,54 @@ describe('getJobByRunId', () => {
     expect(record?.finishedAt).toBeTruthy();
   });
 
+  it('completed: テスト検査の passedCount（0 を含む）が保存・読み出しで落ちない（task 1542）', async () => {
+    for (const [taskId, runId, passedCount] of [
+      [41, 'run-41', 42],
+      [42, 'run-42', 0],
+    ] as const) {
+      await recordJobStart(taskId, runId, 'fp', {
+        operation: `POST /workflow/tasks/${taskId}/run-verification`,
+        worktreePath: '/tmp/worktree',
+        revision: 'h',
+      });
+      await recordJobFinish(taskId, runId, {
+        status: 'completed',
+        ok: true,
+        checks: [
+          { name: 'test', ran: true, ok: true, errorCount: 0, passedCount, details: 'passed' },
+        ],
+      });
+      const record = await getJobByRunId(taskId, runId);
+      expect(record?.checks?.[0]).toMatchObject({ name: 'test', passedCount });
+    }
+  });
+
+  it('別 runId の終了が先に保存されても、各 runId は自分の実測だけを返す（task 1542 の割り込み順序）', async () => {
+    const context = { operation: 'POST', worktreePath: '/tmp/w', revision: 'rev-a' };
+    await recordJobStart(50, 'run-a', 'fp', context);
+    await recordJobStart(50, 'run-b', 'fp', { ...context, revision: 'rev-b' });
+    // run-b finishes FIRST, with a different measurement.
+    await recordJobFinish(50, 'run-b', {
+      status: 'completed',
+      ok: true,
+      checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 9, details: '' }],
+    });
+    const aWhileRunning = await getJobByRunId(50, 'run-a');
+    expect(aWhileRunning).toMatchObject({ runId: 'run-a', status: 'running', revision: 'rev-a' });
+    expect(aWhileRunning?.checks).toBeUndefined();
+    await recordJobFinish(50, 'run-a', {
+      status: 'completed',
+      ok: false,
+      checks: [{ name: 'test', ran: true, ok: false, errorCount: 2, passedCount: 3, details: '' }],
+    });
+    expect((await getJobByRunId(50, 'run-a'))?.checks?.[0]).toMatchObject({
+      errorCount: 2,
+      passedCount: 3,
+    });
+    expect(await getJobByRunId(50, 'run-b')).toMatchObject({ ok: true, revision: 'rev-b' });
+    expect((await getJobByRunId(50, 'run-b'))?.checks?.[0]).toMatchObject({ passedCount: 9 });
+  });
+
   it('failed: 開始＋失敗イベントで error を含めて返す', async () => {
     await recordJobStart(5, 'run-5', 'fp-5', {
       operation: 'POST /workflow/tasks/5/run-verification',
