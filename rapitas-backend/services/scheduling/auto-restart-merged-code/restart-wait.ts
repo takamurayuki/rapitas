@@ -22,7 +22,6 @@ import {
   type RestartWaitState,
 } from './restart-wait-store';
 import { withRestartGate } from './restart-gate';
-import { replayDeferredAdvances } from './deferred-advance';
 
 const log = createLogger('auto-restart-restart-wait');
 
@@ -120,8 +119,12 @@ export function endRestartWait(
   // After a restart the restore replays them once the themes are back (restart-resume.ts).
   if (reason !== 'restarted' && deferred?.length) {
     // 現在の排他区間を抜けてから復元する。完了前に保存集合を消さない。
+    // NOTE: Dynamic import — deferred-advance → guarded-start → restart-wait would
+    // otherwise form an import cycle (check-import-graph).
     setTimeout(() => {
-      void replayDeferredAdvances(deferred, undefined, true);
+      void import('./deferred-advance').then(({ replayDeferredAdvances }) =>
+        replayDeferredAdvances(deferred, undefined, true),
+      );
     }, 0);
   }
   return true;
