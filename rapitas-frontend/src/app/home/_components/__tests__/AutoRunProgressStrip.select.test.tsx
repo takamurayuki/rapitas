@@ -51,7 +51,7 @@ function renderStrip(activeTasks?: ActiveTask[], themeId: number | null = 5) {
 // Open the chevron menu and pick a task by id.
 function pick(id: number) {
   fireEvent.click(screen.getByRole('button', { name: 'autoRun.progress.selectTask' }));
-  fireEvent.click(screen.getByRole('menuitem', { name: `#${id}` }));
+  fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(`^#${id}(?!\d)`) }));
 }
 const shownId = () =>
   screen.getByTestId('auto-run-task-select').querySelector('a')?.textContent ?? null;
@@ -78,16 +78,28 @@ afterEach(() => {
 });
 
 describe('AutoRunProgressStrip — task dropdown', () => {
-  it('shows the shown id as a link and the other tasks as ids in the menu', () => {
+  it('lists every running task as #id and title, with the shown one marked', () => {
     renderStrip(both);
     expect(shownId()).toBe('#10');
     fireEvent.click(screen.getByRole('button', { name: 'autoRun.progress.selectTask' }));
-    const items = screen.getAllByRole('menuitem').map((m) => m.textContent);
-    expect(items).toEqual(['#11']);
-    // Titles are not drawn (2026-11-27); they stay only in title / aria-label.
-    expect(screen.queryByText(/second task/)).toBeNull();
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((m) => m.textContent)).toEqual(['#10head task', '#11second task']);
+    expect(items[0].getAttribute('aria-current')).toBe('true');
+    expect(items[1].getAttribute('aria-current')).toBeNull();
   });
 
+  // 2026-11-27: the chevron comes first, then the id link.
+  it('puts the chevron before the id link', () => {
+    renderStrip(both);
+    const root = screen.getByTestId('auto-run-task-select');
+    const button = root.querySelector('button');
+    const link = root.querySelector('a');
+    expect(
+      button && link && button.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // The frame clips (overflow-hidden); the menu hid under the next card (2026-11-27).
   it('switches phase and link to the second task when picked', async () => {
     renderStrip(both);
     expect(screen.getByRole('link', { name: /#10/ }).getAttribute('href')).toContain('/tasks/10');
@@ -100,7 +112,6 @@ describe('AutoRunProgressStrip — task dropdown', () => {
     expect(String((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain('/tasks/11');
   });
 
-  // The frame clips (overflow-hidden); the menu hid under the next card (2026-11-27).
   it('lets the task menu overflow the strip instead of being clipped', () => {
     renderStrip(both);
     expect(screen.getByTestId('auto-run-progress-strip').className).toContain('!overflow-visible');
