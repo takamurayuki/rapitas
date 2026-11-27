@@ -350,14 +350,11 @@ export async function cleanupStaleRuntime(
     return failure('port_in_use', '固定ポートの所有者はバックエンドの保護対象です');
   if (candidates.some((row) => isExcluded(before, row.pid)))
     return failure('foreign_process', '停止候補に保護対象または別の借り手が含まれています');
-  // 待受の有無に依存せず、履歴のPIDが再利用された場合は停止しない。
-  if (
-    processRecords.some((record) => {
-      const row = before.processes.find((p) => p.pid === record.pid);
-      return row && !matchesRecord(row, record) && !proven.has(row.pid);
-    })
-  )
-    return failure('foreign_process', '履歴のプロセス身元が変化しています');
+  // NOTE: A recorded PID now owned by an unrelated process means the recorded
+  // process has exited; that record is stale. The reused process is never stopped
+  // (it is not in `candidates`), and if it holds our port or lock it was already
+  // refused above (refuseStrangers / the lock check). Failing the whole check here
+  // kept the task's PR from ever being created (2026-11-27, task 1568).
   let after = before;
   if (candidates.length > 0) {
     let stopPortRefusal: StaleCleanupFailure | undefined;
