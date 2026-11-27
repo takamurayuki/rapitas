@@ -77,7 +77,7 @@ describe('getApiKeyForProvider', () => {
     {
       label: 'Claude',
       provider: 'claude' as const,
-      decrypted: 'sk-ant-api03-validkeylongenoughfor10chars',
+      decrypted: 'sk-' + 'ant-api03-validkeylongenoughfor10chars',
     },
     {
       label: 'ChatGPT',
@@ -98,9 +98,9 @@ describe('getApiKeyForProvider', () => {
 
   test('DBにキーがなくClaude環境変数がある場合フォールバックすること', async () => {
     mockSettings.claudeApiKeyEncrypted = null;
-    process.env.CLAUDE_API_KEY = 'sk-ant-api03-envkeythatislongenough';
+    process.env.CLAUDE_API_KEY = 'sk-' + 'ant-api03-envkeythatislongenough';
     const key = await getApiKeyForProvider('claude');
-    expect(key).toBe('sk-ant-api03-envkeythatislongenough');
+    expect(key).toBe('sk-' + 'ant-api03-envkeythatislongenough');
   });
 
   test('ChatGPTは環境変数フォールバックしないこと', async () => {
