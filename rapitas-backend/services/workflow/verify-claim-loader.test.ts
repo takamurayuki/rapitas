@@ -56,7 +56,7 @@ const withClaim = (runId: string) =>
     overall: 'success',
     runId,
     sha: SHA,
-    tests: { ran: true, failed: 0 },
+    tests: { ran: true, failed: 0, passed: 42 },
   }) +
   '\n```';
 
@@ -86,7 +86,7 @@ async function storeJob(taskId: number, runId: string, ok = true, revision = SHA
     status: 'completed',
     ok,
     unverifiable: false,
-    checks: [{ name: 'test', ran: true, ok, errorCount: ok ? 0 : 1, details: '' }],
+    checks: [{ name: 'test', ran: true, ok, errorCount: ok ? 0 : 1, passedCount: 42, details: '' }],
   });
 }
 
@@ -142,7 +142,7 @@ describe('loadMeasuredVerification', () => {
       runId: 'run-claimed',
       revision: SHA,
       ok: true,
-      checks: [{ name: 'test', ran: true, errorCount: 0 }],
+      checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 42 }],
     });
     expect(validateVerify(content, undefined, measured).ok).toBe(true);
   });

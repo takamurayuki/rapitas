@@ -16,16 +16,26 @@ export interface VerifyClaim {
   overall: 'success' | 'failure';
   runId: string;
   sha: string;
-  tests: { ran: boolean; failed: number; passed?: number };
+  /** passed: copied from the job's checks[test].passedCount; null only when no count was measured. */
+  tests: { ran: boolean; failed: number; passed: number | null };
 }
 
 /** The subset of a verification job that the reconciliation reads. / 照合に使う実測の最小形 */
 export interface MeasuredJob {
+  runId?: string;
   status: string;
   ok?: boolean;
   unverifiable?: boolean;
   revision?: string | null;
-  checks?: Array<{ name: string; ran: boolean; errorCount: number }>;
+  checks?: Array<{
+    name: string;
+    ran: boolean;
+    ok?: boolean;
+    errorCount: number;
+    passedCount?: number;
+    unverifiable?: boolean;
+    indeterminate?: boolean;
+  }>;
 }
 
 /** Measured evidence handed to the validator. `job: null` means no job could be found. / 実測の受け渡し形 */
@@ -40,6 +50,8 @@ export type VerifyClaimRejectCode =
   | 'job-missing'
   | 'job-not-completed'
   | 'job-not-ok'
+  | 'run-id-mismatch'
+  | 'tests-not-run'
   | 'sha-mismatch'
   | 'count-mismatch'
   | 'claim-contradicts-job';
@@ -62,7 +74,7 @@ type ParseResult =
   | { kind: 'ok'; claim: VerifyClaim };
 
 function isCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -106,8 +118,8 @@ export function parseVerifyClaim(content: string): ParseResult {
       reason: 'tests.ran (boolean) and tests.failed (integer) are required',
     };
   }
-  if (t.passed !== undefined && !isCount(t.passed)) {
-    return { kind: 'malformed', reason: 'tests.passed must be a non-negative integer' };
+  if (t.passed !== null && !isCount(t.passed)) {
+    return { kind: 'malformed', reason: 'tests.passed must be a non-negative integer (or null)' };
   }
   return {
     kind: 'ok',
@@ -116,11 +128,7 @@ export function parseVerifyClaim(content: string): ParseResult {
       overall: c.overall,
       runId: c.runId.trim(),
       sha: c.sha.trim(),
-      tests: {
-        ran: t.ran,
-        failed: t.failed,
-        ...(t.passed !== undefined ? { passed: t.passed } : {}),
-      },
+      tests: { ran: t.ran, failed: t.failed, passed: t.passed },
     },
   };
 }
@@ -136,10 +144,10 @@ function reject(code: VerifyClaimRejectCode, message: string): VerifyClaimVerdic
 /**
  * Reconcile a verify.md's claim with the measured job.
  *
- * The count source of truth is the structured `checks[name='test']` entry of the
- * job: `ran` and `errorCount` (failures). `tests.passed` is type-checked only —
- * the job records no structured pass count and `details` free text is never parsed.
- * SHA must equal the job's recorded revision exactly (no ancestor logic).
+ * The count source of truth is the structured `checks[name='test']` entry of the job:
+ * `ran`, `errorCount` (failures) and `passedCount` (passed test cases from the runner
+ * report). `details` free text is never parsed. SHA must equal the revision recorded by
+ * the job of the claimed runId exactly (no ancestor logic).
  *
  * @param content - verify.md body. / verify.md 本文
  * @param measured - Job looked up by the claimed runId; undefined when not supplied. / 主張の runId で引いた実測
@@ -158,27 +166,11 @@ export function checkVerifyClaim(
     const why = measured?.fetchError ? ` (lookup failed: ${measured.fetchError})` : '';
     return reject('job-missing', `no verification job found for runId ${claim.runId}${why}`);
   }
-  const jobPassed = job.status === 'completed' && job.ok === true && job.unverifiable !== true;
-  if (claim.overall === 'failure') {
-    if (jobPassed) {
-      return reject('claim-contradicts-job', `report claims failure but job ${claim.runId} passed`);
-    }
-    const test = job.checks?.find((c) => c.name === 'test');
-    return {
-      kind: 'failure-claim',
-      // 本文に未達行がなくても、主張と構造化された実測を反復検知の証拠にする。
-      evidence: quoteEvidenceLine(
-        `overall=failure; test ran=${test?.ran ?? false} failed=${test?.errorCount ?? 0}; job status=${job.status} ok=${String(job.ok)} unverifiable=${job.unverifiable === true}`,
-      ),
-    };
-  }
-  if (job.status !== 'completed') {
-    return reject('job-not-completed', `job ${claim.runId} status is ${job.status}`);
-  }
-  if (job.ok !== true || job.unverifiable === true) {
+  // The job must be the one the claim cites; never fall back to another run.
+  if (job.runId !== undefined && job.runId !== claim.runId) {
     return reject(
-      'job-not-ok',
-      `report claims success but job ${claim.runId} measured ok=${String(job.ok)} unverifiable=${String(job.unverifiable === true)}`,
+      'run-id-mismatch',
+      `claimed runId ${claim.runId} but the job found is ${job.runId}`,
     );
   }
   if (job.revision !== claim.sha) {
@@ -189,18 +181,75 @@ export function checkVerifyClaim(
   }
   const test = job.checks?.find((c) => c.name === 'test');
   const measuredRan = test?.ran ?? false;
+  const measuredFailed = test?.errorCount ?? 0;
+  const measuredPassed = test?.passedCount ?? null;
+  if (
+    test &&
+    (typeof test.ran !== 'boolean' ||
+      !isCount(test.errorCount) ||
+      (test.passedCount !== undefined && !isCount(test.passedCount)))
+  ) {
+    return reject('count-mismatch', 'test check contains invalid measured counts');
+  }
+  if (claim.overall === 'failure') {
+    if (
+      claim.tests.ran !== measuredRan ||
+      claim.tests.failed !== measuredFailed ||
+      claim.tests.passed !== measuredPassed
+    ) {
+      return reject(
+        'count-mismatch',
+        `claimed ${JSON.stringify(claim.tests)}, measured ran=${measuredRan} failed=${measuredFailed} passed=${measuredPassed}`,
+      );
+    }
+    // A failure claim is the report's own failed verdict: it goes to the repair path
+    // whether the job passed (an extra check outside the job failed) or not.
+    const measuredText = `test ran=${test?.ran ?? false} failed=${test?.errorCount ?? 0} passed=${test?.passedCount ?? 'unmeasured'}; job status=${job.status} ok=${String(job.ok)} unverifiable=${job.unverifiable === true}`;
+    // 本文に未達行がなくても、主張と構造化された実測を反復検知の証拠にする。
+    return {
+      kind: 'failure-claim',
+      evidence: quoteEvidenceLine(`overall=failure; ${measuredText}`),
+    };
+  }
+  if (job.status !== 'completed') {
+    return reject('job-not-completed', `job ${claim.runId} status is ${job.status}`);
+  }
+  if (job.ok !== true || job.unverifiable === true) {
+    return reject(
+      'job-not-ok',
+      `report claims success but job ${claim.runId} measured ok=${String(job.ok)} unverifiable=${job.unverifiable === true}`,
+    );
+  }
+  // Success needs evidence that tests really ran and were counted — a job that is ok
+  // because nothing ran (or nothing could be attributed) proves nothing.
   if (claim.tests.ran !== measuredRan) {
     return reject(
       'count-mismatch',
       `tests.ran claimed ${claim.tests.ran}, measured ${measuredRan}`,
     );
   }
-  // Compared even when the test check did not run: a claimed failure count must equal the measured one (0 when absent).
-  const measuredFailed = test?.errorCount ?? 0;
-  if (claim.tests.failed !== measuredFailed) {
+  if (!test || !test.ran || test.ok !== true || test.unverifiable || test.indeterminate) {
+    return reject(
+      'tests-not-run',
+      `job ${claim.runId} has no passing, attributed test run (ran=${measuredRan})`,
+    );
+  }
+  if (test.passedCount === undefined) {
+    return reject(
+      'tests-not-run',
+      `job ${claim.runId} recorded no passed-test count; re-measure on the last commit`,
+    );
+  }
+  if (claim.tests.failed !== test.errorCount) {
     return reject(
       'count-mismatch',
-      `tests.failed claimed ${claim.tests.failed}, measured ${measuredFailed}`,
+      `tests.failed claimed ${claim.tests.failed}, measured ${test.errorCount}`,
+    );
+  }
+  if (claim.tests.passed !== test.passedCount) {
+    return reject(
+      'count-mismatch',
+      `tests.passed claimed ${claim.tests.passed}, measured ${test.passedCount}`,
     );
   }
   return { kind: 'accepted' };

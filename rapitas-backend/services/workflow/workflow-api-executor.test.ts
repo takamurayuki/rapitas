@@ -461,6 +461,26 @@ describe('executeAPIAgent — output persistence edge cases', () => {
 describe('executeAPIAgent — verify.md honesty gate', () => {
   beforeEach(resetMocks);
 
+  test('実測取得中に停止されたら完了・修復へ進まない（D5）', async () => {
+    let stopped = false;
+    mockLoadMeasuredVerification.mockImplementationOnce(async () => {
+      expect(mockTaskUpdate).not.toHaveBeenCalled();
+      stopped = true;
+      return MEASURED;
+    });
+    await expect(
+      run({
+        transition: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
+        assertOwnership: () => {
+          if (stopped) throw new ExecutionCancelledError('ownership revoked');
+        },
+      }),
+    ).rejects.toThrow('ownership revoked');
+    expect(mockTaskUpdate).not.toHaveBeenCalled();
+    expect(mockAttemptVerifyRepair).not.toHaveBeenCalled();
+    expect(mockAdvanceWorkflow).not.toHaveBeenCalled();
+  });
+
   function runVerify(context: string = 'context') {
     return run({
       transition: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },

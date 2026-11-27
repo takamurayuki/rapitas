@@ -244,6 +244,7 @@ export async function executeAPIAgent(
           await loadPlanContentForVerify(taskId),
           await loadMeasuredVerification(taskId, persistedOutput),
         );
+        assertOwnership?.();
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
           const { attemptVerifyRepair } = await import('./verify-self-repair');
           // CAS snapshot: the repair's compare-and-swap needs the status the

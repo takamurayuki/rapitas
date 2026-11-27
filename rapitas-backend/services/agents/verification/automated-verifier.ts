@@ -28,6 +28,7 @@ import { schemaChangeGateCheck, collectHardGateChecks } from './schema-change-ga
 import { resolveForbiddenChangeOverride } from './schema-change-gate';
 import { runProjectChecks, spawnQuiet } from './quiet-verification';
 import { assertSafeGitRef } from '../../../utils/common/branch-name-generator';
+import { runMeasuredTests, sumPassedCounts } from './verification-test-measurement';
 
 /** Code extensions worth linting / typechecking. */
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -68,6 +69,7 @@ export interface VerificationCheck {
    * execute — the gate fails closed instead of silently treating it as passed.
    */
   unverifiable?: boolean;
+  passedCount?: number;
   /**
    * Test files that failed before the agent's changes (pre-existing failures).
    * Only set on 'test' checks when triage detected at least one pre-existing failure.
@@ -643,19 +645,17 @@ export async function typecheckProject(
  * red tests or live-env collisions. Returns null when tests are disabled
  * (RAPITAS_VERIFY_TESTS=0), there's no `test` script, or nothing is in scope.
  */
-async function testProject(
+export async function testProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
 ): Promise<VerificationCheck | null> {
   const commands = buildScopedTestCommands(projectRoot, workdir, relFiles);
   if (!commands || commands.length === 0) return null;
-  // Run each command (bun: one `--isolate` command covering all files) so each
-  // file runs in its own module registry; mock.module state cannot leak across
-  // files. Aggregate: any failing command fails the check.
+  // One `--isolate` run per command gives every file its own module registry (no mock leaks).
   const failures: string[] = [];
-  for (const command of commands) {
-    const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
+  const measured = await runMeasuredTests(commands, projectRoot, TEST_TIMEOUT_MS, runCmd);
+  for (const { command, res } of measured.runs) {
     if (res.code === 0) continue;
     const detail =
       res.code === 124
@@ -678,13 +678,14 @@ async function testProject(
     if (scopedFiles.length > 0) {
       // NOTE: null triage = indeterminate; never fall through to the raw fail-closed return (task 659).
       const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
-      return buildTriagedTestCheck({
+      const triaged = buildTriagedTestCheck({
         triage,
         scopedFiles,
         rawFailures: failures,
         commandCount: commands.length,
         maxDetailChars: MAX_DETAIL_CHARS,
       });
+      return { ...triaged, passedCount: measured.passedCount }; // keep the count (task 1542 D6)
     }
   }
   return {
@@ -692,6 +693,7 @@ async function testProject(
     ran: true,
     ok,
     errorCount: failures.length,
+    passedCount: measured.passedCount,
     details: ok
       ? `${commands.length} test command(s): passed`
       : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
@@ -725,6 +727,7 @@ export function mergeChecks(
     ran: ran.length > 0,
     ok,
     errorCount,
+    passedCount: name === 'test' ? sumPassedCounts(parts) : undefined,
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
     preExistingFailures: allPreExisting.length > 0 ? allPreExisting : undefined,

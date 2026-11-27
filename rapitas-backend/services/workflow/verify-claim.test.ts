@@ -61,12 +61,25 @@ const job = (over: Partial<MeasuredJob> = {}): MeasuredVerification => ({
     ok: true,
     unverifiable: false,
     revision: SHA,
-    checks: [{ name: 'test', ran: true, errorCount: 0 }],
+    checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 42 }],
     ...over,
   },
 });
 
 describe('validateVerify with a verify-claim block', () => {
+  test.each([
+    { ran: false, failed: 0, passed: 42 },
+    { ran: true, failed: 99, passed: 42 },
+    { ran: true, failed: 0, passed: 999 },
+  ])('失敗主張でも各実測値を照合する（D4）: %j', (tests) => {
+    const result = validateVerify(
+      report(claimBlock({ overall: 'failure', tests })),
+      undefined,
+      job(),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.summary).toContain('count-mismatch');
+  });
   test('accepts honest failure history when the measured job backs a success claim', () => {
     const r = validateVerify(report(claimBlock()), undefined, job());
     expect(r.ok).toBe(true);
@@ -101,7 +114,7 @@ describe('validateVerify with a verify-claim block', () => {
     ['no test check', job({ checks: [] }), 'count-mismatch'],
     [
       'failure count',
-      job({ checks: [{ name: 'test', ran: true, errorCount: 2 }] }),
+      job({ checks: [{ name: 'test', ran: true, ok: true, errorCount: 2, passedCount: 42 }] }),
       'count-mismatch',
     ],
   ])('rejects a success claim: %s', (_label, measured, code) => {
@@ -136,9 +149,9 @@ describe('validateVerify with a verify-claim block', () => {
     expect(r.summary).toContain('claim-malformed');
   });
 
-  test('a failure claim against a passing job is a contradiction', () => {
+  test('a failure claim against a passing job is a failure verdict, not a contradiction', () => {
     const verdict = checkVerifyClaim(claimBlock({ overall: 'failure' }), job());
-    expect(verdict).toMatchObject({ kind: 'rejected', code: 'claim-contradicts-job' });
+    expect(verdict.kind).toBe('failure-claim');
   });
 
   test('a failure claim against a failing job is left to the ordinary failure flow', () => {
@@ -146,13 +159,73 @@ describe('validateVerify with a verify-claim block', () => {
     expect(verdict.kind).toBe('failure-claim');
   });
 
-  test('tests.passed is not compared with the measurement', () => {
+  test('tests.passed must equal the measured passedCount', () => {
     const r = validateVerify(
-      report(claimBlock({ tests: { ran: true, failed: 0, passed: 1 } })),
+      report(claimBlock({ tests: { ran: true, failed: 0, passed: 1 } }), 'x'),
       undefined,
       job(),
     );
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('count-mismatch');
+    expect(r.summary).toContain('tests.passed');
+  });
+
+  test('a measured passedCount of 0 matches a claimed 0', () => {
+    const measured = job({
+      checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 0 }],
+    });
+    const r = validateVerify(
+      report(claimBlock({ tests: { ran: true, failed: 0, passed: 0 } }), 'x'),
+      undefined,
+      measured,
+    );
     expect(r.ok).toBe(true);
+  });
+
+  test.each([
+    ['no passedCount recorded', { name: 'test', ran: true, ok: true, errorCount: 0 }],
+    ['test check not ok', { name: 'test', ran: true, ok: false, errorCount: 0, passedCount: 42 }],
+    [
+      'test check indeterminate',
+      { name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 42, indeterminate: true },
+    ],
+  ])('a success claim needs a counted, attributed test run: %s', (_label, check) => {
+    const r = validateVerify(report(claimBlock(), 'x'), undefined, job({ checks: [check] }));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('tests-not-run');
+  });
+
+  test('both sides saying tests did not run is still not a success', () => {
+    const measured = job({ checks: [{ name: 'test', ran: false, ok: true, errorCount: 0 }] });
+    const r = validateVerify(
+      report(claimBlock({ tests: { ran: false, failed: 0, passed: null } }), 'x'),
+      undefined,
+      measured,
+    );
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('tests-not-run');
+  });
+
+  test('the job found must carry the claimed runId', () => {
+    const r = validateVerify(report(claimBlock(), 'x'), undefined, job({ runId: 'other-run' }));
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain('run-id-mismatch');
+  });
+
+  test('a success claim without tests.passed is malformed', () => {
+    const block = claimBlock({ tests: { ran: true, failed: 0 } });
+    const r = validateVerify(report(block, 'x'), undefined, job());
+    expect(r.summary).toContain('claim-malformed');
+  });
+
+  test('a failure claim backed by a passing job still goes to repair (extra check failed)', () => {
+    const r = validateVerify(
+      report(claimBlock({ overall: 'failure' }), '追加検査が失敗'),
+      undefined,
+      job(),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.severity).toBeGreaterThanOrEqual(80);
   });
 
   test('first-failure history in the prose is not judged once the claim matches (F4)', () => {
@@ -170,21 +243,17 @@ describe('validateVerify with a verify-claim block', () => {
     expect(r.severity).toBeGreaterThanOrEqual(80);
   });
 
-  test('a claimed failure count must equal the measured one even when tests did not run (F2)', () => {
+  test('an unrun test check can never back a success claim, whatever count is claimed (F2)', () => {
     const measured = job({ checks: [{ name: 'test', ran: false, errorCount: 0 }] });
-    const bad = validateVerify(
-      report(claimBlock({ tests: { ran: false, failed: 99 } }), 'x'),
-      undefined,
-      measured,
-    );
-    expect(bad.ok).toBe(false);
-    expect(bad.summary).toContain('count-mismatch');
-    const good = validateVerify(
-      report(claimBlock({ tests: { ran: false, failed: 0 } }), 'x'),
-      undefined,
-      measured,
-    );
-    expect(good.ok).toBe(true);
+    for (const failed of [99, 0]) {
+      const r = validateVerify(
+        report(claimBlock({ tests: { ran: false, failed, passed: null } }), 'x'),
+        undefined,
+        measured,
+      );
+      expect(r.ok).toBe(false);
+      expect(r.summary).toContain('tests-not-run');
+    }
   });
 
   test('an unclosed claim fence is malformed, not a legacy report (F3)', () => {
@@ -241,9 +310,12 @@ describe('validateVerify with a verify-claim block', () => {
 
   test('本文に未達行がなくても失敗主張と実測の証拠を引用する（F6）', () => {
     const { summary } = validateVerify(
-      report(claimBlock({ overall: 'failure', tests: { ran: true, failed: 2 } }), '説明のみ'),
+      report(
+        claimBlock({ overall: 'failure', tests: { ran: true, failed: 2, passed: null } }),
+        '説明のみ',
+      ),
       undefined,
-      job({ ok: false, checks: [{ name: 'test', ran: true, errorCount: 2 }] }),
+      job({ ok: false, checks: [{ name: 'test', ran: true, ok: false, errorCount: 2 }] }),
     );
     const key = extractRepeatKey(summary);
     expect(key).toContain('overall=failure');

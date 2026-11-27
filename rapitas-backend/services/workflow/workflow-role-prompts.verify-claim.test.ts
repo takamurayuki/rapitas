@@ -24,6 +24,11 @@ describe.each([
     expect(parseVerifyClaim(text).kind).toBe('ok');
   });
 
+  test('names passedCount as the source of tests.passed', () => {
+    expect(text).toContain('passedCount');
+    expect(text).toContain('errorCount');
+  });
+
   test('says failure history and RED checks may be written honestly', () => {
     expect(text).toContain(honestPhrase);
     expect(text).toContain(redPhrase);

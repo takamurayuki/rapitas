@@ -109,6 +109,23 @@ describe('handleRunVerificationStatus', () => {
     });
   });
 
+  it('completed: checks[test].passedCount をそのまま公開する（検証役の転記元、task 1542）', async () => {
+    getJobByRunIdMock.mockImplementation(async () => ({
+      runId: 'r2p',
+      taskId: 7,
+      status: 'completed',
+      startedAt: '2026-09-08T00:00:00.000Z',
+      finishedAt: '2026-09-08T00:02:00.000Z',
+      ok: true,
+      checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 42, details: '' }],
+      revision: 'abc',
+    }));
+    const res = (await handleRunVerificationStatus(statusCtx('7', 'r2p'))) as {
+      checks: Array<{ passedCount?: number }>;
+    };
+    expect(res.checks[0].passedCount).toBe(42);
+  });
+
   it('completed: 差分レビューの判定（合否と指摘）を含めて返す', async () => {
     const diffReview = {
       status: 'reviewed' as const,

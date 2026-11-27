@@ -222,7 +222,7 @@ export function buildRoleTexts(
           '- その場合は verify.md に必ず明示的な**修正不要の結論**を記載してください（全体判定を `✅ 検証成功（修正不要）` とし、本文に `## 結論: 修正不要` 見出し ＋「既存実装で対応済み」である根拠を1〜2行）。**この justification が無いと完了ゲートが「無言のスキップ」と誤判定し、タスクを不当にブロック**します。\n' +
           '- 逆に、本当にやるべき変更が未実装（実装漏れ）で差分が空の場合は「修正不要」とは書かず、`❌ 検証失敗` とし残課題に未実装項目を明記して実装者へ差し戻してください。\n' +
           '\n### 主張ブロック `json:verify-claim`（機械照合・必須）★重要\n' +
-          '- verify.md に、次の形の機械可読ブロックを**ちょうど1個**書いてください。`runId` は最後の自己検証 GET 応答の `runId`、`sha` は同じ応答の `revision` をそのまま転記します（追加コミットをした場合は最後のコミットで自己検証をやり直し、その runId と revision を書く。祖先判定はしないので完全一致が必要です）。`tests.ran` / `tests.failed` は応答の `checks` のテスト検査の `ran` / `errorCount` と一致させます。\n' +
+          '- verify.md に、次の形の機械可読ブロックを**ちょうど1個**書いてください。`runId` は最後の自己検証 GET 応答の `runId`、`sha` は同じ応答の `revision` をそのまま転記します（追加コミットをした場合は最後のコミットで自己検証をやり直し、その runId と revision を書く。祖先判定はしないので完全一致が必要です）。`tests.ran` / `tests.failed` / `tests.passed` は応答の `checks` のテスト検査（`name` が `test`）の `ran` / `errorCount` / `passedCount` をそのまま転記します（通過件数と失敗件数を足したり、本文の集計行から数え直したりしない。`passedCount` が無い応答では成功を主張せず、最後のコミットで自己検証をやり直す）。追加で行った検査（自己検証の範囲外）が失敗したときは、成功ジョブの値を転記したうえで `overall` を `failure` にします。\n' +
           '```json:verify-claim\n' +
           '{"version":1,"overall":"success","runId":"<GET応答のrunId>","sha":"<GET応答のrevision>","tests":{"ran":true,"failed":0,"passed":42}}\n' +
           '```\n' +
@@ -361,7 +361,7 @@ export function buildRoleTexts(
           '- In that case verify.md MUST state an explicit **no-change conclusion** (set the overall verdict to `✅ Pass (no change needed)` and add a `## 結論: 修正不要` heading with a 1–2 line reason that existing code already covers it). **Without this justification the completion gate misreads it as a silent skip and wrongly BLOCKS the task.**\n' +
           '- Conversely, if the diff is empty because work that SHOULD have been done was not (a real miss), do NOT write “no change needed” — mark `❌ Fail` and list the unimplemented items under outstanding work to bounce it back to the implementer.\n' +
           '\n### Claim block `json:verify-claim` (machine-checked, REQUIRED) ★IMPORTANT\n' +
-          "- Write exactly ONE machine-readable block in verify.md. Copy `runId` from the last self-verification GET response and `sha` from its `revision`. If you made further commits, re-run self-verification on the last commit and cite that runId and revision (no ancestor matching: the SHA must match exactly). `tests.ran` / `tests.failed` must equal the test check's `ran` / `errorCount` in the response `checks`.\n" +
+          "- Write exactly ONE machine-readable block in verify.md. Copy `runId` from the last self-verification GET response and `sha` from its `revision`. If you made further commits, re-run self-verification on the last commit and cite that runId and revision (no ancestor matching: the SHA must match exactly). `tests.ran` / `tests.failed` / `tests.passed` are copied as-is from the test check (`name` is `test`) in the response `checks`: `ran` / `errorCount` / `passedCount` (never add passed and failed together or recount from summary lines in the prose; if the response has no `passedCount`, do not claim success — re-run self-verification on the last commit). If an extra check you ran outside self-verification fails, copy the job's values and set `overall` to `failure`.\n" +
           '```json:verify-claim\n' +
           '{"version":1,"overall":"success","runId":"<runId from the GET response>","sha":"<revision from the GET response>","tests":{"ran":true,"failed":0,"passed":42}}\n' +
           '```\n' +

@@ -286,7 +286,11 @@ describe('report hygiene rules (round 7 audit fixes)', () => {
     expect(ctx).toContain('タスク種別（軽量・マージ・競合解消・サブタスク）を問わず');
     expect(ctx).toContain('言い換えは禁止');
     expect(ctx).toContain('偽陽性検証');
-    expect(ctx).toContain('数値集計行を本文に書かない');
+    // Task 1542: counts and RED history may be written honestly while a matching
+    // json:verify-claim backs them, so the old "do not write summary lines" ban is gone.
+    expect(ctx).not.toContain('数値集計行を本文に書かない');
+    expect(ctx).toContain('json:verify-claim');
+    expect(ctx).toContain('正直に書いてかまいません');
     expect(ctx).toContain('`| +追加 | -削除 |`');
   });
 
@@ -294,6 +298,9 @@ describe('report hygiene rules (round 7 audit fixes)', () => {
     const ctx = await buildRoleContext(1, 'verifier', TASK, 'en');
     expect(ctx).toContain('### Output discipline (machine-gate compatibility — strict)');
     expect(ctx).toContain('deliberate-RED');
+    expect(ctx).toContain('json:verify-claim');
+    expect(ctx).toContain('honestly write');
+    expect(ctx).not.toContain('do NOT write numeric summary lines');
   });
 
   test('lightweight verifier keeps the machine-parsed チェックリスト消化状況 heading', async () => {

@@ -33,7 +33,7 @@ const report = `# 検証レポート
 - ✅ 実装
 
 \`\`\`json:verify-claim
-{"version":1,"overall":"success","runId":"r1","sha":"${SHA}","tests":{"ran":true,"failed":0}}
+{"version":1,"overall":"success","runId":"r1","sha":"${SHA}","tests":{"ran":true,"failed":0,"passed":42}}
 \`\`\`
 `;
 const measured: MeasuredVerification = {
@@ -41,7 +41,7 @@ const measured: MeasuredVerification = {
     status: 'completed',
     ok: true,
     revision: SHA,
-    checks: [{ name: 'test', ran: true, errorCount: 0 }],
+    checks: [{ name: 'test', ran: true, ok: true, errorCount: 0, passedCount: 42 }],
   },
 };
 
