@@ -96,7 +96,13 @@ function vitestReport(raw: string): Report | undefined {
 
 /** Bun のルート集計を完結した testcase 群と照合し、対象ファイルを返す。 */
 function bunReport(raw: string): Report | undefined {
-  const xml = raw.replace(/<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->/g, '');
+  // NOTE: Repeat until stable — one pass can expose a new marker (CodeQL
+  // js/incomplete-multi-character-sanitization).
+  let xml = raw;
+  for (let prev = ''; prev !== xml; ) {
+    prev = xml;
+    xml = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->/g, '');
+  }
   const root = xml.match(
     /^\s*(?:<\?xml[^?]*\?>\s*)?(<testsuites\b[^>]*>)[\s\S]*<\/testsuites>\s*$/,
   )?.[1];

@@ -636,8 +636,11 @@ export async function testProject(
   // One `--isolate` run per command gives every file its own module registry (no mock leaks).
   const failures: string[] = [];
   // NOTE: heavy: true (from develop) keeps the scoped test runs in the heavy-command lane.
-  const measured = await runMeasuredTests(commands, projectRoot, TEST_TIMEOUT_MS, (c, cwd, timeoutMs) =>
-    runCmd(c, cwd, { timeoutMs, heavy: true }),
+  const measured = await runMeasuredTests(
+    commands,
+    projectRoot,
+    TEST_TIMEOUT_MS,
+    (c, cwd, timeoutMs) => runCmd(c, cwd, { timeoutMs, heavy: true }),
   );
   for (const { command, res } of measured.runs) {
     if (res.code === 0) continue;
