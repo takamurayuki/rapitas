@@ -39,6 +39,8 @@ interface AutoRunProgressStripProps {
   startedAt: string | null;
   /** True while no new work starts until merged code activates (task 1562). / 更新の取り込み待ち */
   restartWait?: boolean;
+  /** Updates waiting to activate, when known. / 取り込み待ちの件数 */
+  pendingUpdateCount?: number | null;
   /**
    * The hidden filter's category and theme, merged in rather than drawn as a
    * second band (2026-11-21); null while the filter is shown. / 隠したフィルターの範囲
@@ -72,6 +74,7 @@ export function AutoRunProgressStrip({
   remainingCount,
   startedAt,
   restartWait,
+  pendingUpdateCount,
   scope,
   activeTasks,
   themeId,
@@ -218,7 +221,9 @@ export function AutoRunProgressStrip({
           className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400"
         >
           <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
-          {t('progress.restartWait')}
+          {pendingUpdateCount && pendingUpdateCount > 0
+            ? t('progress.restartWaitCount', { count: pendingUpdateCount })
+            : t('progress.restartWait')}
         </span>
       )}
 

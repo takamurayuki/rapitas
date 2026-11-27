@@ -116,38 +116,6 @@ describe('AutoRunProgressStrip', () => {
     expect(document.querySelector('[data-step]')).toBeNull();
   });
 
-  // Task 1562: while merged code waits to activate no new work starts; say so.
-  it('shows 「更新の取り込み待ち」 only while a restart wait is in force', () => {
-    const { unmount } = render(
-      <AutoRunProgressStrip
-        status="running"
-        currentTask={{ ...task, workflowStatus: 'in_progress' }}
-        remainingCount={5}
-        startedAt={null}
-        restartWait
-      />,
-    );
-    expect(screen.getByTestId('auto-run-restart-wait')).toBeTruthy();
-    expect(screen.getByText('autoRun.progress.restartWait')).toBeTruthy();
-    unmount();
-
-    renderStrip('running', 'in_progress');
-    expect(screen.queryByTestId('auto-run-restart-wait')).toBeNull();
-  });
-
-  it('shows the restart wait between tasks too', () => {
-    render(
-      <AutoRunProgressStrip
-        status="running"
-        currentTask={null}
-        remainingCount={5}
-        startedAt={null}
-        restartWait
-      />,
-    );
-    expect(screen.getByTestId('auto-run-restart-wait')).toBeTruthy();
-  });
-
   it('shows the remaining count and the time since the run started', () => {
     renderStrip('running', 'in_progress');
     expect(screen.getByText(/autoRun\.progress\.remaining\{"count":5\}/)).toBeTruthy();

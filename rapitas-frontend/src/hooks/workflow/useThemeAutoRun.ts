@@ -71,6 +71,8 @@ export interface AutoRunData {
   activeTasks?: ActiveTask[];
   /** True while auto-run starts no new work until merged code activates (task 1562). */
   restartWait?: boolean;
+  /** Updates waiting to activate; null when unknown. / 取り込み待ちの件数 */
+  pendingUpdateCount?: number | null;
 }
 
 /**
@@ -192,6 +194,8 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
           remainingCount: json.remainingCount ?? 0,
           activeTasks: json.activeTasks,
           restartWait: json.restartWait === true,
+          pendingUpdateCount:
+            typeof json.pendingUpdateCount === 'number' ? json.pendingUpdateCount : null,
         });
       }
     } catch {

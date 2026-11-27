@@ -4628,6 +4628,7 @@
       "selectTask": "表示するタスクを選ぶ",
       "awaitingAnswer": "回答待ち",
       "restartWait": "更新の取り込み待ち",
+      "restartWaitCount": "更新の取り込み待ち {count}件",
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",
