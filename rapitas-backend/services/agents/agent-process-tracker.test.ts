@@ -68,6 +68,11 @@ mock.module('child_process', () => ({
   ...realChildProcess,
   execSync: execSyncMock,
 }));
+// Liveness is now checked in-process (utils/common/pid-alive); keep the tasklist script as its source.
+mock.module('../../utils/common/pid-alive', () => ({
+  isPidAlive: (pid: number) =>
+    !(tasklistOutcome instanceof Error) && tasklistOutcome.includes(String(pid)),
+}));
 
 const infoMock = mock((..._args: unknown[]) => {});
 const warnMock = mock((..._args: unknown[]) => {});
@@ -411,8 +416,8 @@ describe('killProcessTreeSafely', () => {
   test('returns false without attempting a kill when the process is already gone', () => {
     makePidDead();
     expect(killProcessTreeSafely(1000)).toBe(false);
-    // tasklist check + snapshot enumeration, but no taskkill
-    expect(execSyncMock).toHaveBeenCalledTimes(2);
+    // Snapshot enumeration only: the liveness check no longer launches tasklist, and no taskkill.
+    expect(execSyncMock).toHaveBeenCalledTimes(1);
     expect(execSyncMock).not.toHaveBeenCalledWith(
       expect.stringContaining('taskkill'),
       expect.anything(),

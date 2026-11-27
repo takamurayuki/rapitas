@@ -6,12 +6,12 @@
  */
 
 import { createLogger } from '../config/logger';
-import { exec } from 'child_process';
 import type { PrismaClient } from '../generated/prisma-postgres';
 import { resolvePrismaClientCtor } from '../config/prisma-client-resolver';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
 import type { AgentTask, AgentExecutionResult } from '../services/agents/base-agent';
+import { isPidAlive } from '../utils/common/pid-alive';
 
 const logger = createLogger('agent-worker');
 
@@ -392,26 +392,8 @@ class AgentWorker {
    * @returns true if the parent is alive / 生存していればtrue
    */
   private isParentAliveAsync(pid: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      if (process.platform === 'win32') {
-        exec(`tasklist /FI "PID eq ${pid}" /NH`, { timeout: 5000 }, (error, stdout) => {
-          if (error) {
-            // NOTE: On command failure, assume alive (safe side) to prevent false shutdown
-            resolve(true);
-            return;
-          }
-          resolve(stdout.includes(String(pid)));
-        });
-      } else {
-        try {
-          process.kill(pid, 0);
-          resolve(true);
-        } catch {
-          // intentionally ignore - process doesn't exist
-          resolve(false);
-        }
-      }
-    });
+    // NOTE: In-process on every OS; the Windows path used to launch cmd + tasklist every 10 s.
+    return Promise.resolve(isPidAlive(pid));
   }
 
   private setupGracefulShutdown(): void {
