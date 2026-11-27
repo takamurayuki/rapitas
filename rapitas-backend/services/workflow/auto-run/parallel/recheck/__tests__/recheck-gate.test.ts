@@ -204,10 +204,12 @@ describe('when the gate applies', () => {
     expect(w.setReads).toBe(reads);
   });
 
-  test('not in the running set any more → proceeds', async () => {
+  test('an unconsumed mark without a slot → held as not_enrolled (G1)', async () => {
     w.sets[1] = runningSet(10);
     w.plans[20] = plan('rapitas-backend/services/alpha/a.ts');
-    expect(await run()).toEqual({ done: false });
+    expect(await run()).toMatchObject({ done: true, result: { skipped: true } });
+    expect(heldMeta()[0]).toMatchObject({ opponentTaskId: null, reason: 'not_enrolled' });
+    expect(getRecheckHold(20)).toMatchObject({ exempt: false });
   });
 
   test('an unreadable running set → held (no exemption)', async () => {

@@ -7,8 +7,8 @@
  *    filter and the mark must not drop the mark, and a candidate admitted with
  *    a plan gets none even if its plan later reads as empty.
  *  - T1: the real writePendingMark failing refuses the slot; a mark written
- *    before a failed addCompanion is left behind but the gate ignores it
- *    because the task holds no slot.
+ *    before a failed addCompanion is left behind, and the gate holds the
+ *    implementer as `not_enrolled` because the task holds no slot (G1).
  *
  * Run on its own: bun's mock.module is process-global.
  */
@@ -210,7 +210,7 @@ describe('T1 — failures around the real mark write', () => {
     expect(rows[0]!.companionTasksJson).toBeNull();
   });
 
-  test('a mark written before a failed addCompanion is ignored by the gate', async () => {
+  test('a mark written before a failed addCompanion holds the implementer (not_enrolled)', async () => {
     casFails = true;
     expect(await select()).toEqual({ selected: null, reason: 'companion_write_failed' });
     expect(marks()).toHaveLength(1);
@@ -223,7 +223,9 @@ describe('T1 — failures around the real mark write', () => {
       'standard',
       { getPrisma: async () => client },
     );
-    expect(r).toEqual({ done: false });
-    expect(transitions.filter((t) => t.cause === 'parallel_recheck_held')).toEqual([]);
+    expect(r).toMatchObject({ done: true, result: { skipped: true } });
+    const held = transitions.filter((t) => t.cause === 'parallel_recheck_held');
+    expect(held).toHaveLength(1);
+    expect(JSON.parse(held[0]!.metadata)).toMatchObject({ reason: 'not_enrolled' });
   });
 });

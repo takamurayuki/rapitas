@@ -128,9 +128,11 @@ export async function guardParallelRecheck(
   }
   const members = [set.headTaskId, ...set.companions.map((c) => c.taskId)];
   if (!members.includes(taskId)) {
-    // Not an auto-run parallel slot any more (stopped / cancelled selection).
-    clearRecheckHold(taskId);
-    return { done: false };
+    // NOTE: G1 — the slot was lost (auto-run stopped, selection undone,
+    // addCompanion failed) while the mark is unconsumed. A self-driven advance
+    // (plan auto-approve, resume-redispatch, post-restart) must not start the
+    // implementer unchecked, so hold until auto-run selects the task again.
+    return hold(ctx, markAt, noOpponent('not_enrolled', 'task holds no slot in its theme'));
   }
 
   const peers = await d.loadPeers(prisma, themeId).catch(() => [] as PeerActiveTask[]);
