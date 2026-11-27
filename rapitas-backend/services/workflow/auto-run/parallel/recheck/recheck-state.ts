@@ -179,30 +179,41 @@ export interface RecheckHold {
   since: number;
   /** Waiting on another task (exempt from the tenure wall). / 時間上限の免除 */
   exempt: boolean;
-  /** Last reason signature logged. / 最後に記録した署名 */
-  signature: string;
+  /** Last reason signature written to the cycle log, or null. / ログ済みの署名 */
+  loggedSignature: string | null;
 }
 
 const holds = new Map<number, RecheckHold>();
 
 /**
- * Record (or refresh) a hold; keeps the original start.
+ * Record (or refresh) a hold; keeps the original start and the logged signature.
+ *
+ * NOTE: the logged signature is updated only by {@link markRecheckHoldLogged},
+ * after the log line is out. Setting it here, before the held row was saved,
+ * made a failed row write look recorded and stopped its retry (F2).
  *
  * @param taskId - Task / タスクID
  * @param exempt - Whether the tenure wall is waived / 免除するか
- * @param signature - Reason signature / 署名
  * @param now - Current time (ms) / 現在時刻
- * @returns The previous entry, if any / 直前の保留
  */
-export function setRecheckHold(
-  taskId: number,
-  exempt: boolean,
-  signature: string,
-  now: number,
-): RecheckHold | undefined {
+export function setRecheckHold(taskId: number, exempt: boolean, now: number): void {
   const prev = holds.get(taskId);
-  holds.set(taskId, { since: prev?.since ?? now, exempt, signature });
-  return prev;
+  holds.set(taskId, {
+    since: prev?.since ?? now,
+    exempt,
+    loggedSignature: prev?.loggedSignature ?? null,
+  });
+}
+
+/**
+ * Remember that the cycle log already carries this reason for the task.
+ *
+ * @param taskId - Task / タスクID
+ * @param signature - Reason signature / 署名
+ */
+export function markRecheckHoldLogged(taskId: number, signature: string): void {
+  const prev = holds.get(taskId);
+  if (prev) prev.loggedSignature = signature;
 }
 
 /** Drop the task's hold. */

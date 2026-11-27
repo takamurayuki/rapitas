@@ -31,6 +31,19 @@ export interface Opponent {
 export interface ParallelFilterDeps {
   readPlan: (taskId: number) => Promise<string | null>;
   importRelated: (cwd: string, a: string[], b: string[]) => Promise<boolean>;
+  /**
+   * Called once for each candidate the filter lets through, with the planless
+   * verdict it judged on (task 1572). Selection writes the re-check mark from
+   * this verdict instead of re-reading, so a plan saved in between cannot
+   * drop the mark. Omitted by every other caller.
+   */
+  onAdmit?: (taskId: number, admission: PlanlessAdmission) => void;
+}
+
+/** The planless verdict a candidate was admitted on. */
+export interface PlanlessAdmission {
+  planless: boolean;
+  workflowStatus: string | null;
 }
 
 const defaultFilterDeps: ParallelFilterDeps = {
@@ -150,6 +163,7 @@ export function buildParallelFilter(
         };
       }
     }
+    d.onAdmit?.(candidate.id, { planless, workflowStatus: cand.workflowStatus });
     return { ok: true };
   };
 }

@@ -34,8 +34,8 @@ import {
 } from './parallel-filter';
 
 import { countGlobalActiveSlots } from './global-active-slots';
-import { collectPlanFiles, isEmptyPlanFileSet } from './parallel-safety-rules';
-import { isPlanlessCandidate, writePendingMark } from './recheck/recheck-state';
+import { writePendingMark } from './recheck/recheck-state';
+import type { PlanlessAdmission } from './parallel-filter';
 
 const log = createLogger('companion-selection');
 
@@ -48,7 +48,7 @@ export {
 } from './parallel-filter';
 
 /** Collaborators for {@link selectCompanionTask}, injectable for tests. */
-export interface CompanionSelectionDeps extends Partial<ParallelFilterDeps> {
+export interface CompanionSelectionDeps extends Partial<Omit<ParallelFilterDeps, 'onAdmit'>> {
   enqueue?: (item: { taskId: number; themeId: number; priority: number }) => Promise<unknown>;
   now?: () => number;
   /** Writes the re-check mark of a planless companion; throws on failure (task 1572). */
@@ -151,7 +151,12 @@ export async function selectCompanionTask(
   const scopeOverlap = await buildScopeOverlapContext(prisma, themeId, openPrs).catch(
     () => undefined,
   );
-  const filter = buildParallelFilter(prisma, opponents, theme?.workingDirectory ?? null, deps);
+  // Per-call verdicts of the candidates the filter admitted (task 1572, F1).
+  const admissions = new Map<number, PlanlessAdmission>();
+  const filter = buildParallelFilter(prisma, opponents, theme?.workingDirectory ?? null, {
+    ...deps,
+    onAdmit: (id, admission) => admissions.set(id, admission),
+  });
   const result = await selectNextTask(
     prisma,
     themeId,
@@ -169,7 +174,7 @@ export async function selectCompanionTask(
   const now = (deps.now ?? Date.now)();
   // Task 1572: the mark goes BEFORE the slot, so no companion ever holds a slot
   // without the implementer re-check it was admitted on.
-  if (!(await markPlanlessCompanion(prisma, themeId, taskId, deps))) {
+  if (!(await markPlanlessCompanion(prisma, themeId, taskId, admissions.get(taskId), deps))) {
     return { selected: null, reason: 'recheck_mark_failed' };
   }
   if (!(await addCompanion(prisma, themeId, taskId, now))) {
@@ -224,11 +229,15 @@ export async function selectCompanionTask(
 }
 
 /**
- * Write the re-check mark when the selected companion has no plan yet.
+ * Write the re-check mark when the selected companion was admitted without a plan.
+ *
+ * NOTE: decided from the filter's verdict, not a re-read — a plan saved or a
+ * status advanced between the filter and here used to drop the mark (F1).
  *
  * @param prisma - Prisma client / Prismaクライアント
  * @param themeId - Theme / テーマID
  * @param taskId - Selected task / 選定したタスク
+ * @param admission - Verdict the filter admitted it on; missing → mark (safe side) / 選定時の判定
  * @param deps - Test overrides / テスト用差し替え
  * @returns False when a needed mark could not be written / 必要な印を書けなければ false
  */
@@ -236,23 +245,12 @@ async function markPlanlessCompanion(
   prisma: PrismaClient,
   themeId: number,
   taskId: number,
+  admission: PlanlessAdmission | undefined,
   deps: CompanionSelectionDeps,
 ): Promise<boolean> {
+  if (admission && !admission.planless) return true;
   try {
-    const readPlan =
-      deps.readPlan ??
-      (async (id: number) => {
-        const { readWorkflowFile } = await import('../../workflow-file-utils');
-        return readWorkflowFile(id, 'plan');
-      });
-    const [row, plan] = await Promise.all([
-      prisma.task.findUnique({ where: { id: taskId }, select: { workflowStatus: true } }),
-      readPlan(taskId).catch(() => null),
-    ]);
-    const workflowStatus = row?.workflowStatus ?? null;
-    if (!isPlanlessCandidate(workflowStatus, !isEmptyPlanFileSet(collectPlanFiles(plan)))) {
-      return true;
-    }
+    const workflowStatus = admission?.workflowStatus ?? null;
     const write = deps.writeRecheckMark ?? ((input) => writePendingMark(prisma, input));
     await write({ taskId, themeId, workflowStatus });
     return true;

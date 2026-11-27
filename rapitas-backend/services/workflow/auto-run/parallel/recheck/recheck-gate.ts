@@ -10,27 +10,18 @@
  * Not responsible for selection or for the open-PR overlap hold.
  */
 import { createLogger } from '../../../../../config/logger';
-import { logCycleEvent } from '../../../../observability';
 import type { WorkflowAdvanceResult } from '../../../workflow-agent-executor';
 import type { RoleTransition, WorkflowStatus } from '../../../workflow-types';
 import type { ParallelVerdict, ThemeActiveSet } from '../parallel-types';
 import type { PeerActiveTask } from '../repository-peers';
-import {
-  RECHECK_HELD_CAUSE,
-  RECHECK_PASSED_CAUSE,
-  clearRecheckHold,
-  getRecheckHold,
-  heldSignature,
-  readLastHeldSignature,
-  readRecheckMark,
-  setRecheckHold,
-} from './recheck-state';
+import { RECHECK_PASSED_CAUSE, clearRecheckHold, readRecheckMark } from './recheck-state';
 import {
   collectRecheckOpponents,
   createModeAwareReader,
   dropNewerMarked,
   type RecheckOpponent,
 } from './recheck-opponents';
+import { holdImplementer as hold, noOpponent } from './recheck-hold';
 
 const log = createLogger('workflow:parallel-recheck');
 
@@ -92,14 +83,6 @@ export interface RecheckGateTask {
 
 export type RecheckGateOutcome = { done: true; result: WorkflowAdvanceResult } | { done: false };
 
-interface HoldInput {
-  opponentTaskId: number | null;
-  reason: string;
-  detail: string;
-  files: string[];
-  exempt: boolean;
-}
-
 /**
  * Re-check a planless-selected companion right before its implementer.
  *
@@ -122,7 +105,7 @@ export async function guardParallelRecheck(
   if (transition.role !== 'implementer') return { done: false };
   const d: RecheckGateDeps = { ...defaultDeps, ...deps };
   const prisma = await d.getPrisma();
-  const ctx = { taskId, themeId: task.themeId, transition, currentStatus, prisma, d };
+  const ctx = { taskId, themeId: task.themeId, transition, currentStatus, prisma, now: d.now };
 
   let mark: Awaited<ReturnType<typeof readRecheckMark>>;
   try {
@@ -216,79 +199,4 @@ export async function guardParallelRecheck(
     '[parallel-recheck] no overlap — implementer proceeds',
   );
   return { done: false };
-}
-
-function noOpponent(reason: string, detail: string): HoldInput {
-  return { opponentTaskId: null, reason, detail, files: [], exempt: false };
-}
-
-async function hold(
-  ctx: {
-    taskId: number;
-    themeId: number | null;
-    transition: RoleTransition;
-    currentStatus: WorkflowStatus;
-    prisma: unknown;
-    d: RecheckGateDeps;
-  },
-  markAt: number | null,
-  h: HoldInput,
-): Promise<RecheckGateOutcome> {
-  const { taskId, prisma } = ctx;
-  const signature = heldSignature(h.opponentTaskId, h.reason, h.files);
-  const prev = getRecheckHold(taskId);
-  setRecheckHold(taskId, h.exempt, signature, ctx.d.now());
-  const stored = await readLastHeldSignature(prisma, taskId, markAt).catch(() => null);
-  if (prev?.signature !== signature && stored !== signature) {
-    const detail = h.detail.slice(0, 300);
-    const model = (prisma as { workflowTransition?: { create?: (a: unknown) => Promise<unknown> } })
-      .workflowTransition;
-    try {
-      if (typeof model?.create !== 'function') throw new Error('workflowTransition.create missing');
-      await model.create({
-        data: {
-          taskId,
-          fromStatus: ctx.currentStatus,
-          toStatus: ctx.currentStatus,
-          actor: 'system',
-          cause: RECHECK_HELD_CAUSE,
-          metadata: JSON.stringify({
-            opponentTaskId: h.opponentTaskId,
-            reason: h.reason,
-            detail,
-            files: h.files.slice(0, 50),
-            signature,
-            exemptFromTenure: h.exempt,
-          }),
-        },
-      });
-    } catch (err) {
-      log.warn({ err, taskId }, '[parallel-recheck] held row write failed — still holding');
-    }
-    logCycleEvent('task.deferred', {
-      cause: 'parallel_recheck_hold',
-      task: taskId,
-      theme: ctx.themeId ?? undefined,
-      opponent: h.opponentTaskId,
-      reason: h.reason,
-      files: h.files.slice(0, 20),
-      msg: 'implementer held — re-check found a collision with a running task',
-    });
-    log.info(
-      { taskId, opponent: h.opponentTaskId, reason: h.reason, files: h.files.slice(0, 5) },
-      '[parallel-recheck] holding implementer',
-    );
-  }
-  const who = h.opponentTaskId != null ? `task ${h.opponentTaskId}` : 'the re-check';
-  const files = h.files.length > 0 ? `: ${h.files.slice(0, 3).join(', ')}` : '';
-  return {
-    done: true,
-    result: {
-      success: true,
-      skipped: true,
-      role: ctx.transition.role,
-      status: ctx.currentStatus,
-      held: `parallel re-check waits on ${who} (${h.reason}${files})`,
-    },
-  };
 }

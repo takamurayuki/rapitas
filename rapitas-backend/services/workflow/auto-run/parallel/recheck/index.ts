@@ -15,6 +15,8 @@ export {
   heldSignature,
   isParallelRecheckHeld,
   getRecheckHold,
+  setRecheckHold,
+  markRecheckHoldLogged,
   resetRecheckHoldState,
   type RecheckMark,
   type RecheckHold,
@@ -31,3 +33,4 @@ export {
   type RecheckGateOutcome,
   type RecheckGateTask,
 } from './recheck-gate';
+export { holdImplementer, noOpponent, type HoldInput, type HoldContext } from './recheck-hold';

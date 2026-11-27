@@ -48,18 +48,13 @@ describe('hang backstop and the parallel re-check hold (task 1572)', () => {
   });
 
   it('does not stop a task waiting on another task at the re-check', async () => {
-    setRecheckHold(100, true, '10|file_overlap|a.ts', Date.now() - TEST_MAX_TASK_WALL_MS * 4);
+    setRecheckHold(100, true, Date.now() - TEST_MAX_TASK_WALL_MS * 4);
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, selectedAt());
     expect(mockNotifyHangBackstop).not.toHaveBeenCalled();
   });
 
   it('still stops a hold with no opponent (candidate files missing)', async () => {
-    setRecheckHold(
-      100,
-      false,
-      '-|candidate_files_missing|',
-      Date.now() - TEST_MAX_TASK_WALL_MS * 4,
-    );
+    setRecheckHold(100, false, Date.now() - TEST_MAX_TASK_WALL_MS * 4);
     await internal(scheduler).advanceTheme(1, 100, 'priority', 1, selectedAt());
     expect(mockNotifyHangBackstop).toHaveBeenCalled();
   });

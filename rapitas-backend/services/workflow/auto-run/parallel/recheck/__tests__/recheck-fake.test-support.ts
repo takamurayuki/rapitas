@@ -30,6 +30,8 @@ export interface World {
   peers: Record<number, PeerActiveTask[]>;
   createFails: boolean;
   markReadFails: boolean;
+  /** Rejects the held-signature read (findFirst). */
+  heldReadFails: boolean;
   setReads: number;
 }
 
@@ -47,6 +49,7 @@ export function newWorld(): World {
     peers: {},
     createFails: false,
     markReadFails: false,
+    heldReadFails: false,
     setReads: 0,
   };
 }
@@ -107,7 +110,10 @@ export function fakePrisma(w: World) {
         if (w.markReadFails) throw new Error('read failed');
         return rowsFor(w, a.where).slice(0, 1);
       },
-      findFirst: async (a: { where: Where }) => rowsFor(w, a.where)[0] ?? null,
+      findFirst: async (a: { where: Where }) => {
+        if (w.heldReadFails) throw new Error('read failed');
+        return rowsFor(w, a.where)[0] ?? null;
+      },
     },
     task: {
       findUnique: async (a: { where: { id: number } }) => {
