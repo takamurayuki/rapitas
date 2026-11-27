@@ -6,7 +6,7 @@
  * Separated from the agent class to keep each file under 300 lines.
  */
 
-import { spawn } from 'child_process';
+import { spawnLowPriority } from '../process-priority';
 import type { AgentExecutionContext, AgentExecutionResult } from '../abstraction/types';
 import type { GeminiCliConfig, GeminiStreamEvent } from './gemini-cli-types';
 import { processStreamEvent } from './gemini-cli-types';
@@ -140,12 +140,13 @@ export async function runGeminiCli(
         hasLocation: !!env.GOOGLE_CLOUD_LOCATION,
       });
 
-      state.process = spawn(finalCommand, finalArgs, {
-        cwd: workDir,
-        shell: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env,
-      });
+      // BELOW_NORMAL like the claude/codex CLI paths (task 1553).
+      state.process = spawnLowPriority(
+        finalCommand,
+        finalArgs,
+        { cwd: workDir, shell: true, stdio: ['pipe', 'pipe', 'pipe'], env },
+        'RAPITAS_AGENT_QUIET',
+      );
 
       if (state.process.stdout) state.process.stdout.setEncoding('utf8');
       if (state.process.stderr) state.process.stderr.setEncoding('utf8');

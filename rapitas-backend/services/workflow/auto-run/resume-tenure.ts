@@ -1,5 +1,6 @@
 /** A durable answer starts a new run budget; heartbeats do not reset its hard ceiling. */
 import type { PrismaClient } from '../../../generated/prisma-postgres';
+import { NOT_REVIEW_COST_ROW } from '../../agents/review-cost-rows';
 
 export async function resolveResumedTenureStart(
   prisma: PrismaClient,
@@ -20,6 +21,62 @@ export async function resolveResumedTenureStart(
   return resumedAt !== undefined && Number.isFinite(resumedAt)
     ? Math.max(original, resumedAt)
     : original;
+}
+
+/** Transition causes that mean the task was sent back to implement or its question answered. */
+const PROGRESS_CAUSES = ['verify_repair', 'question_resolved'];
+
+/**
+ * Move the tenure start to the last time the task actually moved forward.
+ *
+ * The absolute ceiling (3x the wall) used to be measured from when the theme
+ * selected the task, so a large task that bounced through answers and repairs
+ * was stopped at 135 minutes even with a live execution (1562's 13-minute-old
+ * verifier on 2026-11-26; 1542 and 1551 the same way). The signals are fixed to
+ * a `verify_repair` / `question_resolved` transition and the newest
+ * AgentExecution start; nothing else (heartbeats included) moves the start.
+ * Only ever moves it FORWARD, and each lookup fails open independently.
+ *
+ * @param prisma - Client / Prisma クライアント
+ * @param taskId - Task being measured / 対象タスク
+ * @param original - Tenure start resolved so far (ms) / これまでに解決した起点
+ * @returns The latest of `original` and the progress signals (ms) / 最も遅い起点
+ */
+export async function resolveProgressTenureStart(
+  prisma: PrismaClient,
+  taskId: number,
+  original: number,
+): Promise<number> {
+  let latest = original;
+  const take = (at: Date | null | undefined) => {
+    const ms = at?.getTime();
+    if (ms !== undefined && Number.isFinite(ms)) latest = Math.max(latest, ms);
+  };
+  try {
+    const bounce = await prisma.workflowTransition.findFirst({
+      where: { taskId, cause: { in: PROGRESS_CAUSES }, createdAt: { gt: new Date(original) } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    take(bounce?.createdAt);
+  } catch {
+    // an absent model throws synchronously in partial test mocks; keep the other signal
+  }
+  try {
+    const run = await prisma.agentExecution.findFirst({
+      where: {
+        ...NOT_REVIEW_COST_ROW,
+        session: { config: { taskId } },
+        startedAt: { gt: new Date(original) },
+      },
+      orderBy: { startedAt: 'desc' },
+      select: { startedAt: true },
+    });
+    take(run?.startedAt);
+  } catch {
+    // fail open: the original start stands
+  }
+  return latest;
 }
 
 /**

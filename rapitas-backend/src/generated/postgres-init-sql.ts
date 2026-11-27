@@ -430,6 +430,20 @@ CREATE TABLE "Project" (
 );
 
 -- CreateTable
+CREATE TABLE "GoalReflection" (
+    "id" SERIAL NOT NULL,
+    "workspaceId" INTEGER,
+    "projectId" INTEGER NOT NULL,
+    "weekStart" TEXT NOT NULL,
+    "rating" INTEGER NOT NULL,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "GoalReflection_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Milestone" (
     "id" SERIAL NOT NULL,
     "workspaceId" INTEGER,
@@ -1540,6 +1554,9 @@ CREATE TABLE "UserSettings" (
     "autoRunMaxConcurrency" INTEGER NOT NULL DEFAULT 1,
     "autoRunMaxConcurrencyPerTheme" INTEGER NOT NULL DEFAULT 1,
     "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
+    "reflectionPromptDow" INTEGER NOT NULL DEFAULT 0,
+    "reflectionPromptTime" TEXT NOT NULL DEFAULT '20:00',
+    "reflectionPromptLastWeek" TEXT,
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -2160,6 +2177,15 @@ CREATE INDEX "Theme_workspaceId_idx" ON "Theme"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Project_workspaceId_idx" ON "Project"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_weekStart_idx" ON "GoalReflection"("weekStart");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_workspaceId_idx" ON "GoalReflection"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GoalReflection_projectId_weekStart_key" ON "GoalReflection"("projectId", "weekStart");
 
 -- CreateIndex
 CREATE INDEX "Milestone_workspaceId_idx" ON "Milestone"("workspaceId");
@@ -2979,6 +3005,9 @@ ALTER TABLE "TaskAnalysisConfig" ADD CONSTRAINT "TaskAnalysisConfig_agentConfigI
 
 -- AddForeignKey
 ALTER TABLE "Theme" ADD CONSTRAINT "Theme_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GoalReflection" ADD CONSTRAINT "GoalReflection_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Milestone" ADD CONSTRAINT "Milestone_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;

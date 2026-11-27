@@ -87,7 +87,8 @@ export const CONFLICT_PRONE_FILE_RULES: ReadonlyArray<ConflictProneRule> = [
   { pattern: 'bun.lockb', reason: 'lockfile', kind: 'dependencies', scope: 'any' },
   { pattern: 'package-lock.json', reason: 'lockfile', kind: 'dependencies', scope: 'any' },
   { pattern: 'Cargo.lock', reason: 'lockfile', kind: 'dependencies', scope: 'any' },
-  { pattern: '.env.example', reason: 'shared configuration', kind: 'shared-config', scope: 'any' },
+  // NOTE: pair-scoped — it only lists variables, so one side editing it cannot break the other (2026-11-27).
+  { pattern: '.env.example', reason: 'shared configuration', kind: 'env-example', scope: 'pair' },
   {
     pattern: '**/eslint.config.mjs',
     reason: 'shared lint configuration changes every result',

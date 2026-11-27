@@ -10,15 +10,24 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 const logCycleEventMock = mock(() => {});
 mock.module('../../observability', () => ({ logCycleEvent: logCycleEventMock }));
+let maxConcurrency = 1;
 mock.module('../workflow-queue', () => ({
-  WorkflowQueueService: { getInstance: () => ({ getMaxConcurrency: () => 1 }) },
+  WorkflowQueueService: { getInstance: () => ({ getMaxConcurrency: () => maxConcurrency }) },
   isTaskTerminalForQueue: () => false,
 }));
 mock.module('./auto-run-notifications', () => ({
   notifyResourceContentionHold: mock(async () => {}),
 }));
+let rapitasCpu: number | null = null;
+// Mirror every resource-telemetry export (task 1553 added the rapitas CPU ones).
 mock.module('../../system/resource-telemetry', () => ({
   getHostCpuBusyPercent: () => null,
+  getRapitasCpuBusyPercent: () => rapitasCpu,
+  getRapitasCpuWindowMs: () => 300_000,
+  sampleResourceTelemetryNow: async () => {},
+  startResourceTelemetryIfEnabled: () => {},
+  stopResourceTelemetry: () => {},
+  computeBusyPercent: () => null,
 }));
 
 // Busy blocks and the poller status are read through calendar-store
@@ -39,7 +48,8 @@ mock.module('../../scheduling/calendar-slot/calendar-store', () => ({
   recordCalendarActivity: mock(async () => {}),
 }));
 
-const { checkCalendarSlotGate } = await import('./auto-run-advance-gates');
+const { checkCalendarSlotGate, checkResourceContentionGate } =
+  await import('./auto-run-advance-gates');
 const { resetCalendarHoldState, isCalendarHoldActive, requestCalendarGateOverride } =
   await import('../../scheduling/calendar-slot/calendar-hold-state');
 
@@ -144,5 +154,42 @@ describe('checkCalendarSlotGate', () => {
     requestCalendarGateOverride(1);
     expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(false);
     expect(await checkCalendarSlotGate(prisma, 1, at('10:30'))).toBe(true);
+  });
+});
+
+// Task 1553: the resource gate is on by default, judges rapitas's own CPU and
+// never holds the first task. Lives here because this file already mocks the
+// gate module's collaborators.
+describe('checkResourceContentionGate (task 1553)', () => {
+  beforeEach(() => {
+    delete process.env.RAPITAS_RESOURCE_GATE_ENABLED;
+    delete process.env.RAPITAS_RESOURCE_CPU_THRESHOLD_PERCENT;
+    maxConcurrency = 2;
+    rapitasCpu = 75;
+  });
+  afterEach(() => {
+    maxConcurrency = 1;
+    rapitasCpu = null;
+    delete process.env.RAPITAS_RESOURCE_GATE_ENABLED;
+  });
+
+  it('holds a 2nd selection by default when rapitas CPU is over the default threshold 60', async () => {
+    const { prisma, create } = makePrisma();
+    expect(await checkResourceContentionGate(prisma, 5, 1)).toBe(true);
+    expect(actions(create)).toEqual(['auto_run.resource_deferred']);
+  });
+
+  it('never holds the first task (nothing running yet)', async () => {
+    const { prisma } = makePrisma();
+    expect(await checkResourceContentionGate(prisma, 5, 0)).toBe(false);
+  });
+
+  it('does not hold when rapitas CPU is below the threshold, or when disabled', async () => {
+    const { prisma } = makePrisma();
+    rapitasCpu = 40;
+    expect(await checkResourceContentionGate(prisma, 5, 1)).toBe(false);
+    rapitasCpu = 99;
+    process.env.RAPITAS_RESOURCE_GATE_ENABLED = 'false';
+    expect(await checkResourceContentionGate(prisma, 5, 1)).toBe(false);
   });
 });

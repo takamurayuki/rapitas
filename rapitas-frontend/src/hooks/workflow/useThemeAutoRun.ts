@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import { resolvePollInterval, usePollHidden } from '@/hooks/common/poll-interval';
 
 export type AutoRunStatus = 'idle' | 'running' | 'paused' | 'stopping';
 
@@ -68,6 +69,8 @@ export interface AutoRunData {
   remainingCount: number;
   /** Every running task of the theme (task 1552); absent from older backends. */
   activeTasks?: ActiveTask[];
+  /** True while auto-run starts no new work until merged code activates (task 1562). */
+  restartWait?: boolean;
 }
 
 /**
@@ -163,6 +166,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hidden = usePollHidden();
 
   const clearPoll = () => {
     if (pollTimer.current) {
@@ -187,6 +191,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
           currentTask: withCompanions(json.currentTask ?? null, json.activeTasks),
           remainingCount: json.remainingCount ?? 0,
           activeTasks: json.activeTasks,
+          restartWait: json.restartWait === true,
         });
       }
     } catch {
@@ -194,22 +199,25 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
     }
   }, [themeId, isDevelopment]);
 
-  // Initial load and polling setup
+  // Initial load whenever the target theme changes.
   useEffect(() => {
-    clearPoll();
     if (!themeId || !isDevelopment) {
       setData(null);
       return;
     }
-
     setLoading(true);
     fetchState().finally(() => setLoading(false));
-
-    // Start polling; adjust interval based on active status
-    pollTimer.current = setInterval(fetchState, ACTIVE_POLL_MS);
-
-    return () => clearPoll();
   }, [themeId, isDevelopment, fetchState]);
+
+  // Polling: 8 s while visible, stretched while backgrounded (task 1553). Kept
+  // apart from the initial load so going to / returning from the background
+  // only re-arms the timer instead of flashing the loading state.
+  useEffect(() => {
+    clearPoll();
+    if (!themeId || !isDevelopment) return;
+    pollTimer.current = setInterval(fetchState, resolvePollInterval(ACTIVE_POLL_MS, hidden));
+    return () => clearPoll();
+  }, [themeId, isDevelopment, fetchState, hidden]);
 
   // Re-fetch immediately when the user returns from tray/another app.
   useOnVisible(fetchState);

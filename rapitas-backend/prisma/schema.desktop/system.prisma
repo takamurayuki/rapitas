@@ -87,6 +87,12 @@ model UserSettings {
   // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
   // string disables self-refill entirely. See backlog-task-promoter.ts.
   selfRefillWindowStart       String    @default("03:00")
+  // Weekly 前進の振り返り nudge: day (0 = Sunday) and local "HH:MM" (Asia/Tokyo) it becomes
+  // due, and the weekStart it was last sent for (kept apart from the Notification row so
+  // deleting the notification cannot bring it back). See services/goals/reflection-prompt.ts.
+  reflectionPromptDow         Int       @default(0)
+  reflectionPromptTime        String    @default("20:00")
+  reflectionPromptLastWeek    String?
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

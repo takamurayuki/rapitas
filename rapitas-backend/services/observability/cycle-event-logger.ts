@@ -116,11 +116,19 @@ export type CycleEventName =
   // self-deploy; restart.waiting = merged code held back by a boundary or gate
   | 'restart.triggered'
   | 'restart.waiting'
+  // restart wait: auto-run stops starting new work so merged code can activate
+  | 'restart.wait_started'
+  | 'restart.wait_ended'
   // a backlog job that ran longer than 3s (concern #514 instrumentation)
   | 'backlog.slow_job'
   // self-CPU heartbeat (services/system/cpu-usage-monitor.ts), opt-in
   // diagnostic for sustained-high-CPU investigations
-  | 'system.cpu_sample';
+  | 'system.cpu_sample'
+  // heavy-check slot safety exceptions (task 1553): the verification gate ran a
+  // heavy command without the slot (wait limit) or freed it before the timed-out
+  // child closed (kill grace) — the only two cases that may overlap heavy checks
+  | 'verify.heavy_slot_fail_open'
+  | 'verify.heavy_slot_kill_grace_release';
 
 /**
  * Optional structured fields attached to a cycle event. Keep keys short and

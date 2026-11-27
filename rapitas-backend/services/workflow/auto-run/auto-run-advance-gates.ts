@@ -18,8 +18,13 @@ import {
   shouldHoldForBarrier,
 } from '../../scheduling/merge-barrier/merge-barrier';
 import { notifyResourceContentionHold } from './auto-run-notifications';
-import { getHostCpuBusyPercent } from '../../system/resource-telemetry';
-import { evaluateResourceGate, consumeResourceGateOverride } from './resource-contention-gate';
+import { getHostCpuBusyPercent, getRapitasCpuBusyPercent } from '../../system/resource-telemetry';
+import {
+  evaluateResourceGate,
+  consumeResourceGateOverride,
+  isResourceGateEnabled,
+  resolveResourceGateThreshold,
+} from './resource-contention-gate';
 import { decideCalendarHold } from '../../scheduling/calendar-slot/calendar-hold-decision';
 import {
   clearCalendarHold,
@@ -32,39 +37,43 @@ import {
 const log = createLogger('theme-auto-run-scheduler');
 
 /**
- * Resource-contention gate (task 725, default OFF): when a session has
- * intentionally raised concurrency above 1 AND the host CPU is busy, hold
- * next-task selection for one cycle instead of piling on more agents. A
- * pending manual override ("今すぐ実行") bypasses this check entirely for
- * exactly one cycle, so it is consumed before the gate is even evaluated.
+ * Resource-contention gate (task 725; default ON and judged on rapitas's own
+ * process-tree CPU since task 1553): when a session has intentionally raised
+ * concurrency above 1, something is already running, AND rapitas's processes
+ * are busy, hold next-task selection for one cycle instead of piling on more
+ * agents. The first task is never held. A pending manual override ("今すぐ実行")
+ * bypasses this check entirely for exactly one cycle, so it is consumed before
+ * the gate is even evaluated.
  *
  * @param prisma - Prisma client / Prismaクライアント
  * @param themeId - Theme being advanced / 対象テーマ
+ * @param activeCount - Tasks already running on this selection path / 実行中の件数
  * @returns true when selection should be held this cycle. / 保留すべきなら true
  */
 export async function checkResourceContentionGate(
   prisma: PrismaClient,
   themeId: number,
+  activeCount: number,
 ): Promise<boolean> {
-  if (
-    process.env.RAPITAS_RESOURCE_GATE_ENABLED !== 'true' ||
-    consumeResourceGateOverride(themeId)
-  ) {
+  if (!isResourceGateEnabled() || consumeResourceGateOverride(themeId)) {
     return false;
   }
-  const thresholdPercent = Number(process.env.RAPITAS_RESOURCE_CPU_THRESHOLD_PERCENT || 85);
   const gate = evaluateResourceGate({
     enabled: true,
     effectiveMaxConcurrency: WorkflowQueueService.getInstance().getMaxConcurrency(),
+    activeCount,
     hostCpuBusyPercent: getHostCpuBusyPercent(),
-    thresholdPercent,
+    rapitasCpuBusyPercent: getRapitasCpuBusyPercent(),
+    thresholdPercent: resolveResourceGateThreshold(),
     overridden: false,
   });
   if (!gate.hold || gate.cpuBusyPercent === null) return false;
 
   logCycleEvent('task.resource_hold', {
     theme: themeId,
+    // NOTE: cause key kept for log consumers; the basis is rapitas's CPU since task 1553.
     cause: 'host_cpu_busy',
+    hostCpuBusyPercent: gate.hostCpuBusyPercent,
     cpuBusyPercent: gate.cpuBusyPercent,
     thresholdPercent: gate.thresholdPercent,
     effectiveMaxConcurrency: gate.effectiveMaxConcurrency,

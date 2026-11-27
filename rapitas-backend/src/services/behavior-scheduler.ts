@@ -180,6 +180,26 @@ export class BehaviorScheduler {
           });
         }
       }
+
+      // Weekly 前進の振り返り nudge: checked every tick (not on one exact minute) so a
+      // restart or a busy minute cannot skip it; at most one per week is guaranteed by
+      // the stored notification, see reflection-prompt.ts.
+      await Promise.all([
+        import('../../services/goals/reflection-prompt'),
+        import('../../services/goals/reflection-prompt-settings'),
+      ])
+        .then(
+          async ([{ sendWeeklyReflectionPrompt }, { readPromptSettings, createWeekClaimStore }]) =>
+            sendWeeklyReflectionPrompt(
+              prisma as never,
+              new Date(),
+              await readPromptSettings(prisma as never),
+              createWeekClaimStore(prisma as never),
+            ),
+        )
+        .catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Weekly reflection prompt failed');
+        });
     }, 60_000);
 
     this.intervalIds.push(tick);

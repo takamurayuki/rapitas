@@ -7,6 +7,7 @@ import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
 import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
 import { getLinkOpenMode, setLinkOpenMode, type LinkOpenMode } from '@/utils/link-view';
+import GoalReflectionSettingsCard from '../../components/goal-reflection/GoalReflectionSettingsCard';
 import BackupCard from '../../components/BackupCard';
 import RecentErrorsCard from '../../components/RecentErrorsCard';
 import { UserDatabaseCard } from '../../components/user-database';
@@ -207,6 +208,7 @@ export default function GeneralSettingsPage() {
           </div>
         </div>
 
+        <GoalReflectionSettingsCard />
         <BackupCard />
         <UserDatabaseCard />
         <MobileLinkCard />

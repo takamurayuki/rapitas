@@ -33,6 +33,7 @@ import {
 } from './git-io';
 import { dependencyGate } from './dependency-preflight';
 import { writeLastRestartAt } from './settings-store';
+import { restartQueueDepth } from './boundary-policy';
 
 const logger = createLogger('deploy-now');
 
@@ -89,6 +90,7 @@ function findBlocker(
     activeExecutions: number;
     runningExecutions: number;
     queueDepth: number;
+    dispatchableQueueDepth?: number;
     isShuttingDown: boolean;
     activeExecutionsDegraded: boolean;
   },
@@ -99,7 +101,7 @@ function findBlocker(
   if (snapshot.isShuttingDown) return 'shutting-down';
   if (snapshot.activeExecutions > 0) return 'active-executions';
   if (snapshot.runningExecutions > 0) return 'running-executions';
-  if (snapshot.queueDepth > 0) return 'queue-not-empty';
+  if (restartQueueDepth(snapshot) > 0) return 'queue-not-empty';
   if (merging) return 'merge-in-flight';
   if (auxChildren > 0) return 'aux-children';
   return null;

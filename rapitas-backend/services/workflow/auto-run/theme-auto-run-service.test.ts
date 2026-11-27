@@ -303,3 +303,167 @@ describe('finalizeStop', () => {
     });
   });
 });
+
+// Task 1562: a user stop / pause must cancel a pending post-restart restore of that theme.
+describe('stop and pause cancel a pending restart restore', () => {
+  type Store = typeof import('../../scheduling/auto-restart-merged-code/restart-wait-store');
+
+  async function withResumeSet(run: (store: Store) => Promise<void>, rawFile?: string) {
+    const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const store = await import('../../scheduling/auto-restart-merged-code/restart-wait-store');
+    const previous = process.env.RAPITAS_DATA_DIR;
+    const dir = mkdtempSync(join(tmpdir(), 'resume-set-'));
+    process.env.RAPITAS_DATA_DIR = dir;
+    try {
+      if (rawFile === undefined) {
+        store.writeRestartWaitState({ waitStartedAt: 1_800_000_000_000, resumeThemeIds: [42, 7] });
+      } else {
+        writeFileSync(join(dir, '.auto-restart-wait.json'), rawFile);
+      }
+      await run(store);
+    } finally {
+      if (previous === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it.each([
+    ['pauseAutoRun', () => pauseAutoRun(42)],
+    ['stopAutoRun', () => stopAutoRun(42)],
+    ['finalizeStop', () => finalizeStop(42)],
+  ])('%s drops only that theme from the restore set', async (_name, act) => {
+    resetMocks();
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'idle' }));
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await withResumeSet(async (store) => {
+      await act();
+      expect(store.readRestartWaitState().resumeThemeIds).toEqual([7]);
+    });
+  });
+
+  it.each([
+    ['pauseAutoRun', () => pauseAutoRun(42)],
+    ['stopAutoRun', () => stopAutoRun(42)],
+    ['finalizeStop', () => finalizeStop(42)],
+  ])('%sは停止テーマの保留advanceだけを取り消す', async (_name, act) => {
+    resetMocks();
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'idle' }));
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await withResumeSet(async (store) => {
+      store.writeRestartWaitState({
+        phase: 'waiting',
+        resumeThemeIds: [42, 7],
+        deferredAdvance: [
+          { taskId: 51, themeId: 42 },
+          { taskId: 52, themeId: 7 },
+        ],
+      });
+      await act();
+      expect(store.readRestartWaitState().deferredAdvance).toEqual([{ taskId: 52, themeId: 7 }]);
+    });
+  });
+
+  it('does not fail the stop when the saved set is unreadable', async () => {
+    resetMocks();
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    await withResumeSet(async () => {
+      await expect(finalizeStop(42)).resolves.toBeUndefined();
+    }, '{broken');
+  });
+});
+
+// Task 1562: a real stop racing the post-restart restore of the SAME theme.
+describe('stop racing the restore of the same theme', () => {
+  it('a stop requested while the restore starts the theme runs after it and has the last word', async () => {
+    resetMocks();
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'idle' }));
+    mockUpdateMany.mockResolvedValue({ count: 1 });
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const store = await import('../../scheduling/auto-restart-merged-code/restart-wait-store');
+    const { resumeThemesAfterRestart } =
+      await import('../../scheduling/auto-restart-merged-code/restart-resume');
+    const previous = process.env.RAPITAS_DATA_DIR;
+    const dir = mkdtempSync(join(tmpdir(), 'stop-restore-'));
+    process.env.RAPITAS_DATA_DIR = dir;
+    const order: string[] = [];
+    try {
+      store.writeRestartWaitState({
+        phase: 'waiting',
+        waitStartedAt: 1_800_000_000_000,
+        resumeThemeIds: [42],
+      });
+      let releaseStart: () => void = () => {};
+      const startHeld = new Promise<void>((resolve) => {
+        releaseStart = resolve;
+      });
+      const resuming = resumeThemesAfterRestart(
+        {
+          findRun: async () => ({ enabled: false, status: 'idle', order: 'priority' }),
+          start: async () => {
+            order.push('start:begin');
+            await startHeld;
+            order.push('start:end');
+          },
+        },
+        { shouldAdvance: async () => false, advance: async () => {} },
+      );
+      await new Promise((r) => setTimeout(r, 10));
+      // The user stops the theme while the restore is mid-start.
+      const stopping = stopAutoRun(42).then(() => order.push('stop:done'));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(order).toEqual(['start:begin']); // the stop waits for the restore's section
+      releaseStart();
+      await resuming;
+      await stopping;
+      expect(order).toEqual(['start:begin', 'start:end', 'stop:done']);
+      expect(store.readRestartWaitState().resumeThemeIds).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a stop that took the gate first removes the theme: the restore never starts it', async () => {
+    resetMocks();
+    mockUpsert.mockResolvedValue(makeRecord({ status: 'idle' }));
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const store = await import('../../scheduling/auto-restart-merged-code/restart-wait-store');
+    const { resumeThemesAfterRestart } =
+      await import('../../scheduling/auto-restart-merged-code/restart-resume');
+    const previous = process.env.RAPITAS_DATA_DIR;
+    const dir = mkdtempSync(join(tmpdir(), 'stop-restore-'));
+    process.env.RAPITAS_DATA_DIR = dir;
+    const started: number[] = [];
+    try {
+      store.writeRestartWaitState({
+        phase: 'waiting',
+        waitStartedAt: 1_800_000_000_000,
+        resumeThemeIds: [42, 49],
+      });
+      const stopping = stopAutoRun(42); // takes the gate before the restore does
+      const resuming = resumeThemesAfterRestart(
+        {
+          findRun: async () => ({ enabled: false, status: 'idle', order: 'priority' }),
+          start: async (id) => {
+            started.push(id);
+          },
+        },
+        { shouldAdvance: async () => false, advance: async () => {} },
+      );
+      await Promise.all([stopping, resuming]);
+      expect(started).toEqual([49]);
+    } finally {
+      if (previous === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
