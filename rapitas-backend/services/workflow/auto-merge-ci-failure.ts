@@ -18,6 +18,7 @@ import { attemptCiRepair, CI_REPAIR_CAUSE } from './ci-self-repair';
 import { readMergeState, readHeadSha, updatePrBranch } from './auto-merge-checks';
 import type { Candidate } from './auto-merge-candidates';
 import { readBaseFailingJobs, splitInheritedFailures } from './auto-merge-ci-attribution';
+import { handleEnvFailureRerun } from './auto-merge-env-rerun';
 
 const log = createLogger('workflow:auto-merge-ci-failure');
 
@@ -153,7 +154,7 @@ async function isNoDiffSinceLastRepair(c: Candidate): Promise<boolean> {
 
 /**
  * Handle a candidate whose blocking CI checks failed. Ordered: base update
- * (BEHIND), conflict delegation (DIRTY), void-repair park (no diff since the
+ * (BEHIND), conflict delegation (DIRTY), one rerun of known environmental failures, void-repair park (no diff since the
  * last bounce), then a bounded ci_repair bounce with PR context for log
  * excerpts. Side effects: gh calls, WorkflowTransition rows, notifications.
  *
@@ -182,6 +183,12 @@ export async function handleCiFailure(
   // real conflict FIRST — same handling as the no-CI DIRTY branch in the
   // watcher — before falling through to CI self-repair.
   if (await tryHandleConflict(c, 'CI failed and merge state is DIRTY')) return;
+
+  // Known environmental failures (e.g. apt-get timeout on the runner) say
+  // nothing about the diff — re-run the failed jobs once per head SHA rather
+  // than spend an implementer run. After the DIRTY delegation: a conflicting
+  // branch needs its conflict handled first, a re-run cannot clear it.
+  if (await handleEnvFailureRerun(c, failedChecks)) return;
 
   // The previous repair bounce ended with no push — a re-run would be the same
   // no-op. Park honestly instead of burning the remaining repair budget.
