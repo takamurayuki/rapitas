@@ -79,6 +79,11 @@ export function repairCorruptedDecimals(databasePath: string): RepairStats {
     errors: 0,
   };
   const db = new Database(databasePath);
+  // NOTE: An unfinalized prepare() turns close() into a deferred close. The real
+  // close then ran at GC time, after Prisma had opened the same file, and deleted
+  // the WAL under it (SQLite 522, then "database disk image is malformed" on a
+  // fresh CI DB, 2026-11-27). Finalize before closing so the close is immediate.
+  let updateStmt: ReturnType<typeof db.prepare> | undefined;
   try {
     const tableExists = db
       .query("SELECT name FROM sqlite_master WHERE type='table' AND name='AgentExecution'")
@@ -100,7 +105,7 @@ export function repairCorruptedDecimals(databasePath: string): RepairStats {
     }>;
     stats.scanned = rows.length;
 
-    const updateStmt = db.prepare(
+    updateStmt = db.prepare(
       'UPDATE AgentExecution SET costUsd = ?, inputTokens = ?, outputTokens = ?, cacheReadInputTokens = ?, cacheCreationInputTokens = ?, tokensUsed = ? WHERE id = ?',
     );
 
@@ -131,7 +136,7 @@ export function repairCorruptedDecimals(databasePath: string): RepairStats {
         }
 
         if (costChanged || intsChanged) {
-          updateStmt.run(
+          updateStmt?.run(
             newCost,
             fixed.inputTokens,
             fixed.outputTokens,
@@ -148,6 +153,7 @@ export function repairCorruptedDecimals(databasePath: string): RepairStats {
       }
     }
   } finally {
+    updateStmt?.finalize();
     db.close();
   }
   return stats;
