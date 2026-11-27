@@ -9,7 +9,11 @@
  */
 import { describe, test, expect } from 'bun:test';
 import type { PrismaClient } from '../../../generated/prisma-postgres';
-import { resolveResumedTenureStart, resolveAutoRunRestartTenureStart } from './resume-tenure';
+import {
+  resolveResumedTenureStart,
+  resolveAutoRunRestartTenureStart,
+  resolveProgressTenureStart,
+} from './resume-tenure';
 
 const T = (iso: string) => new Date(iso).getTime();
 
@@ -100,5 +104,87 @@ describe('resolveResumedTenureStart', () => {
     expect(await resolveResumedTenureStart(stub({ answeredAt: null }), 1116, original)).toBe(
       original,
     );
+  });
+});
+
+describe('resolveProgressTenureStart (task 1563)', () => {
+  const original = T('2026-11-26T10:00:00.000Z');
+  const mk = (opts: { bounce?: Date | null; run?: Date | null; failBounce?: boolean }) =>
+    ({
+      workflowTransition: {
+        findFirst: () =>
+          opts.failBounce
+            ? Promise.reject(new Error('db down'))
+            : Promise.resolve(opts.bounce ? { createdAt: opts.bounce } : null),
+      },
+      agentExecution: {
+        findFirst: () => Promise.resolve(opts.run ? { startedAt: opts.run } : null),
+      },
+    }) as unknown as PrismaClient;
+
+  test('verify_repair / question_resolved の遷移まで起点が前進する', async () => {
+    const at = new Date(T('2026-11-26T11:00:00.000Z'));
+    expect(await resolveProgressTenureStart(mk({ bounce: at }), 1, original)).toBe(at.getTime());
+  });
+
+  test('最新の実行開始まで前進し、遷移と実行の遅い方を採る', async () => {
+    const bounce = new Date(T('2026-11-26T11:00:00.000Z'));
+    const run = new Date(T('2026-11-26T12:00:00.000Z'));
+    expect(await resolveProgressTenureStart(mk({ bounce, run }), 1, original)).toBe(run.getTime());
+  });
+
+  test('信号が無ければ起点は動かない', async () => {
+    expect(await resolveProgressTenureStart(mk({}), 1, original)).toBe(original);
+  });
+
+  test('片方の照会が失敗しても、もう片方の信号は使う', async () => {
+    const run = new Date(T('2026-11-26T12:00:00.000Z'));
+    expect(await resolveProgressTenureStart(mk({ failBounce: true, run }), 1, original)).toBe(
+      run.getTime(),
+    );
+  });
+
+  test('モデルが無い（同期例外）部分モックでも起点を返す', async () => {
+    expect(await resolveProgressTenureStart({} as unknown as PrismaClient, 1, original)).toBe(
+      original,
+    );
+  });
+
+  test('original より古い信号は起点を後退させない（時刻は前進のみ）', async () => {
+    const stale = new Date(T('2026-11-26T09:00:00.000Z'));
+    expect(await resolveProgressTenureStart(mk({ bounce: stale, run: stale }), 1, original)).toBe(
+      original,
+    );
+  });
+
+  test('同じ時刻の信号でも起点は動かない（境界）', async () => {
+    const same = new Date(original);
+    expect(await resolveProgressTenureStart(mk({ bounce: same, run: same }), 1, original)).toBe(
+      original,
+    );
+  });
+
+  test('照会は固定の cause と task 絞り込み（session.config.taskId）だけを使う', async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const prisma = {
+      workflowTransition: {
+        findFirst: async (a: { where: Record<string, unknown> }) => {
+          seen.push(a.where);
+          return null;
+        },
+      },
+      agentExecution: {
+        findFirst: async (a: { where: Record<string, unknown> }) => {
+          seen.push(a.where);
+          return null;
+        },
+      },
+    } as unknown as PrismaClient;
+    await resolveProgressTenureStart(prisma, 77, original);
+    expect(seen[0]).toMatchObject({
+      taskId: 77,
+      cause: { in: ['verify_repair', 'question_resolved'] },
+    });
+    expect(seen[1]).toMatchObject({ session: { config: { taskId: 77 } } });
   });
 });

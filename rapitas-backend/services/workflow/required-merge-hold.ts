@@ -70,6 +70,9 @@ async function isAlreadyHeld(taskId: number): Promise<boolean> {
  *   `canReviveBlockedPrRetry`, which must be checked before passing a widened
  *   set. Never pass a status here that this function has not been explicitly
  *   asked to trust. / このCASが許容する Task.status の集合（既定は変更しない）
+ * @param p.requireNotExcluded - When true the CAS also requires `autoRunExcluded: false`, so an
+ *   operator exclusion landing after the caller's own read is never overwritten (task 1563).
+ *   Omitted → the where is unchanged. / trueなら対象外タスクを書き換えない（既定は従来どおり）
  * @returns True when the task is parked at the end of this call — including when it was already
  *   parked by an earlier identical hold (no new transition is written). False when the CAS lost.
  *   / 保留状態になった場合 true（保留済みの再呼び出しを含む）。CAS敗北は false
@@ -82,6 +85,7 @@ export async function holdForRequiredMerge(p: {
   source: string;
   metadata?: Record<string, unknown>;
   fromStatusIn?: string[];
+  requireNotExcluded?: boolean;
 }): Promise<boolean> {
   if (await isAlreadyHeld(p.taskId)) {
     log.info(
@@ -97,6 +101,7 @@ export async function holdForRequiredMerge(p: {
         id: p.taskId,
         workflowStatus: p.fromStatus,
         status: { in: p.fromStatusIn ?? ['todo', 'in-progress', 'in_progress'] },
+        ...(p.requireNotExcluded ? { autoRunExcluded: false } : {}),
       },
       data: { status: 'in-progress', workflowStatus: 'verify_done', updatedAt: new Date() },
     })
