@@ -137,6 +137,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
+      "rapitasCpuNote": "The gate uses the total CPU of the processes rapitas started (backend, agents, verification), averaged over the last {minutes} min. The host-wide value is for reference.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
       "effectiveMaxConcurrency": "Effective concurrency",

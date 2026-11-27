@@ -266,17 +266,22 @@ mock.module('./auto-run-notifications', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// resource-telemetry / resource-contention-gate (task 725) — default to the
-// gate's own OFF state so every pre-existing scheduler test is unaffected
-// regardless of RAPITAS_RESOURCE_GATE_ENABLED. Dedicated resource-gate tests
+// resource-telemetry / resource-contention-gate (task 725) — the gate is on by
+// default (task 1553) but evaluateResourceGate is mocked to never hold, so
+// every pre-existing scheduler test is unaffected. Dedicated resource-gate tests
 // override these mocks to exercise the hold path.
 // ---------------------------------------------------------------------------
 export const mockGetHostCpuBusyPercent = mock(() => null as number | null);
 
+export const mockGetRapitasCpuBusyPercent = mock(() => null as number | null);
+
 mock.module('../../system/resource-telemetry', () => ({
   startResourceTelemetryIfEnabled: () => {},
   stopResourceTelemetry: () => {},
+  sampleResourceTelemetryNow: async () => {},
   getHostCpuBusyPercent: mockGetHostCpuBusyPercent,
+  getRapitasCpuBusyPercent: mockGetRapitasCpuBusyPercent,
+  getRapitasCpuWindowMs: () => 300_000,
   computeBusyPercent: () => null,
 }));
 
@@ -290,6 +295,12 @@ export const mockConsumeResourceGateOverride = mock(() => false);
 export const mockRequestResourceGateOverride = mock(() => {});
 
 mock.module('./resource-contention-gate', () => ({
+  // Same rule as the real isResourceGateEnabled (default ON since task 1553).
+  isResourceGateEnabled: () =>
+    !['off', '0', 'false'].includes(
+      (process.env.RAPITAS_RESOURCE_GATE_ENABLED ?? '').trim().toLowerCase(),
+    ),
+  resolveResourceGateThreshold: () => 60,
   evaluateResourceGate: mockEvaluateResourceGate,
   requestResourceGateOverride: mockRequestResourceGateOverride,
   consumeResourceGateOverride: mockConsumeResourceGateOverride,

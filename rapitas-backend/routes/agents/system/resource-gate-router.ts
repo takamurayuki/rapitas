@@ -9,23 +9,31 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { WorkflowQueueService } from '../../../services/workflow/workflow-queue';
-import { getHostCpuBusyPercent } from '../../../services/system/resource-telemetry';
-import { requestResourceGateOverride } from '../../../services/workflow/auto-run/resource-contention-gate';
+import {
+  getHostCpuBusyPercent,
+  getRapitasCpuBusyPercent,
+  getRapitasCpuWindowMs,
+} from '../../../services/system/resource-telemetry';
+import {
+  isResourceGateEnabled,
+  requestResourceGateOverride,
+  resolveResourceGateThreshold,
+} from '../../../services/workflow/auto-run/resource-contention-gate';
 import { parseId } from '../../../middleware/error-handler';
-
-const DEFAULT_THRESHOLD_PERCENT = 85;
 
 export const resourceGateRouter = new Elysia({ prefix: '/agents/resource-gate' })
   /**
-   * Current gate configuration and the latest sampled host CPU usage.
+   * Current gate configuration and CPU usage. The gate decides on
+   * rapitasCpuBusyPercent (rapitas's process tree, windowMs average, task
+   * 1553); hostCpuBusyPercent is kept for reference.
    */
   .get('/status', () => {
     return {
-      enabled: process.env.RAPITAS_RESOURCE_GATE_ENABLED === 'true',
-      thresholdPercent: Number(
-        process.env.RAPITAS_RESOURCE_CPU_THRESHOLD_PERCENT || DEFAULT_THRESHOLD_PERCENT,
-      ),
+      enabled: isResourceGateEnabled(),
+      thresholdPercent: resolveResourceGateThreshold(),
       hostCpuBusyPercent: getHostCpuBusyPercent(),
+      rapitasCpuBusyPercent: getRapitasCpuBusyPercent(),
+      windowMs: getRapitasCpuWindowMs(),
       effectiveMaxConcurrency: WorkflowQueueService.getInstance().getMaxConcurrency(),
     };
   })

@@ -19,8 +19,10 @@ class FakeProc extends EventEmitter {
 }
 
 let lastEnv: NodeJS.ProcessEnv | undefined;
-const spawnMock = mock((_command: string, opts?: { env?: NodeJS.ProcessEnv }) => {
-  lastEnv = opts?.env;
+// The app is now started through spawnLowPriorityUntracked, which calls
+// spawn(file, args, options) (or nice-wrapped on POSIX): options is the LAST argument.
+const spawnMock = mock((_command: string, ...rest: unknown[]) => {
+  lastEnv = (rest[rest.length - 1] as { env?: NodeJS.ProcessEnv } | undefined)?.env;
   return new FakeProc() as unknown as realChildProcess.ChildProcess;
 });
 mock.module('child_process', () => ({ ...realChildProcess, spawn: spawnMock }));

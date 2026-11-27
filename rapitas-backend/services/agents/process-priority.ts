@@ -1,15 +1,8 @@
 /**
  * ProcessPriority
  *
- * Starts helper processes — agent CLIs and verification commands — at
- * BELOW_NORMAL priority so the UI and the backend stay responsive on the
- * 4-core host. Owns only the priority knob; what the processes do stays with
- * their runners.
- *
- * Measured 2026-08-30 (60 s sample): the agent CLI alone used 39% of one
- * core and the UI's WebView2 another third; a verify on top pegged the box.
- * On Windows a child inherits BELOW_NORMAL / IDLE from its parent, so
- * lowering the CLI covers the tests, tsc and git it runs for itself.
+ * エージェントCLIと検証コマンドの優先度を下げ、画面とAPIの応答性を保つ。
+ * Windows では起動後にツリーへ BelowNormal を適用し、POSIX では nice で起動する。
  */
 import os from 'node:os';
 import {
@@ -20,6 +13,7 @@ import {
   type SpawnOptions,
 } from 'child_process';
 import { createLogger } from '../../config/logger';
+import { queueWindowsPriority } from './windows-process-priority';
 
 const log = createLogger('agents:process-priority');
 
@@ -66,13 +60,124 @@ export function lowerProcessPriority(
   }
 }
 
+/** Collaborators of spawnLowPriority, injectable for tests. */
+interface PriorityDeps {
+  platform?: NodeJS.Platform;
+  queueWindowsPriority?: typeof queueWindowsPriority;
+}
+
+interface SpawnDeps extends PriorityDeps {
+  spawn: (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+}
+
+/** How a command is actually started: the executable, its argv and options. */
+export interface LowPriorityLaunch<O> {
+  file: string;
+  args: string[];
+  options: O;
+}
+
 /**
- * `spawn()` that drops the child to BELOW_NORMAL right after it starts.
+ * POSIX では nice -n 10 で起動し、子孫も変更後の優先度を継承する。
+ * シェルを使う場合は nice の引数へ移す。Windows の起動引数はそのまま渡す。
+ *
+ * @param command - Executable or shell command line. / コマンド
+ * @param args - Arguments. / 引数
+ * @param options - spawn / execFile options (only `shell` is rewritten). / オプション
+ * @param platform - Target platform (injectable for tests). / 対象プラットフォーム
+ * @returns What to actually spawn. / 実際に起動する内容
+ */
+export function buildLowPriorityLaunch<O extends { shell?: boolean | string }>(
+  command: string,
+  args: string[],
+  options: O,
+  platform: NodeJS.Platform = process.platform,
+): LowPriorityLaunch<O> {
+  if (platform === 'win32') return { file: command, args, options };
+  const rest: O = { ...options };
+  delete rest.shell;
+  const nice = ['-n', String(LOW_PRIORITY)];
+  if (options.shell) {
+    const sh = typeof options.shell === 'string' ? options.shell : '/bin/sh';
+    return { file: 'nice', args: [...nice, sh, '-c', [command, ...args].join(' ')], options: rest };
+  }
+  return { file: 'nice', args: [...nice, command, ...args], options: rest };
+}
+
+/**
+ * True when the POSIX nice wrapper must be skipped: under `bun test` with no
+ * explicit platform. Dozens of tests mock child_process.spawn and assert the
+ * command/argv a runner passed; on a Linux CI the wrapper would turn every one
+ * of those into `nice ...`. Tests of the wrapper itself pass `platform`, and
+ * production never runs with NODE_ENV=test.
+ */
+function skipPosixWrap(deps: { platform?: NodeJS.Platform }): boolean {
+  return deps.platform === undefined && process.env.NODE_ENV === 'test';
+}
+
+/** 両ランチャーで同じ OS 別の優先度設定を使う。 */
+function startLowPriority<O extends { shell?: boolean | string }>(
+  command: string,
+  args: string[],
+  options: O,
+  flag: PriorityFlag,
+  deps: PriorityDeps,
+  start: (launch: LowPriorityLaunch<O>) => ChildProcess,
+): ChildProcess {
+  const original = { file: command, args, options };
+  if (!isLowPriorityEnabled(flag)) return start(original);
+  const platform = deps.platform ?? process.platform;
+  if (platform !== 'win32') {
+    return start(
+      skipPosixWrap(deps) ? original : buildLowPriorityLaunch(command, args, options, platform),
+    );
+  }
+  const startedAt = Date.now();
+  const child = start(original);
+  const returnedAt = Date.now();
+  if (child.pid !== undefined) {
+    try {
+      const queue = deps.queueWindowsPriority ?? queueWindowsPriority;
+      queue({ pid: child.pid, parentPid: process.pid, startedAt, returnedAt });
+    } catch (err) {
+      log.debug({ err, pid: child.pid }, 'Windows 優先度の適用要求を登録できなかった');
+    }
+  }
+  return child;
+}
+
+/**
+ * Windows では子と子孫を起動後に BelowNormal にし、POSIX では nice を一度加算する。
+ *
+ * @param command - Executable or shell command line. / コマンド
+ * @param args - Arguments, as for `spawn()`. / 引数
+ * @param options - Passed to `spawn()`; `shell` is handled per platform. / spawn オプション
+ * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides. / テスト用差し替え
+ * @returns The child process. / 子プロセス
+ */
+export function spawnLowPriorityUntracked(
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+  flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
+  deps: Partial<SpawnDeps> = {},
+): ChildProcess {
+  const start = deps.spawn ?? spawn;
+  return startLowPriority(command, args, options, flag, deps, (launch) =>
+    start(launch.file, launch.args, launch.options),
+  );
+}
+
+/**
+ * Like spawnLowPriorityUntracked, and also counts the child as a live helper
+ * for the restart gate (countActiveHelperChildren).
  *
  * @param command - Executable or shell command line. / コマンド
  * @param args - Arguments, as for `spawn()`. / 引数
  * @param options - Passed to `spawn()` unchanged. / spawn オプション
  * @param flag - Env switch for this process family. / 対象プロセス群の環境変数名
+ * @param deps - Test overrides for spawn, priority queue and platform. / テスト用差し替え
  * @returns The child process. / 子プロセス
  */
 export function spawnLowPriority(
@@ -80,18 +185,17 @@ export function spawnLowPriority(
   args: string[],
   options: SpawnOptions,
   flag: PriorityFlag = 'RAPITAS_AGENT_QUIET',
+  deps: Partial<SpawnDeps> = {},
 ): ChildProcess {
-  const child = spawn(command, args, options);
-  lowerProcessPriority(child.pid, flag);
+  const child = spawnLowPriorityUntracked(command, args, options, flag, deps);
   // Track liveness so restart gates can refuse to kill the backend while a
   // helper (verification run, agent CLI) is mid-flight: children spawned via
   // a shell inherit the listen socket, and a restart during a verify run left
   // the dead backend's :3001 LISTEN alive three times on 2026-08-30/31.
   if (child.pid !== undefined) {
     activeChildren.add(child.pid);
-    const done = () => {
-      if (child.pid !== undefined) activeChildren.delete(child.pid);
-    };
+    const pid = child.pid;
+    const done = () => activeChildren.delete(pid);
     child.once('exit', done);
     child.once('error', done);
   }
@@ -105,19 +209,12 @@ export interface ExecFileResult {
 }
 
 /** Collaborators, injectable for tests. */
-interface ExecFileDeps {
+interface ExecFileDeps extends PriorityDeps {
   execFile: typeof execFile;
-  setPriority: (pid: number, priority: number) => void;
 }
 
 /**
- * `promisify(execFile)` that drops the child to BELOW_NORMAL right after start.
- *
- * Needed because the verification gate's `spawn` calls already go through
- * spawnLowPriority while three heavy steps did not: the line-limit ratchet, the
- * red-state worktree setup, and the three generated-drift checks that
- * ciParityChecks fires with Promise.all — three NORMAL-priority processes at
- * once on a 4-core host.
+ * spawnLowPriority と同じ優先度を使う execFile の Promise 版。
  *
  * Rejects with the ORIGINAL error object: callers read `err.code` / `err.stdout`
  * to tell a real failure from a missing script, so it must not be wrapped.
@@ -136,23 +233,24 @@ export function execFileLowPriority(
   flag: PriorityFlag = 'RAPITAS_VERIFY_QUIET',
   deps: Partial<ExecFileDeps> = {},
 ): Promise<ExecFileResult> {
-  const d: ExecFileDeps = { execFile, setPriority: os.setPriority, ...deps };
+  const start = deps.execFile ?? execFile;
   return new Promise((resolve, reject) => {
-    const child = d.execFile(file, args, options, (err, stdout, stderr) => {
-      if (err) {
-        // promisify(execFile) attaches the output to the error; the raw callback
-        // passes it separately. Callers branch on `err.stdout` (the ratchet reads
-        // the violations out of a non-zero exit), so reattach it rather than
-        // handing back an error that looks like "the script could not run".
-        const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
-        if (e.stdout === undefined) e.stdout = String(stdout ?? '');
-        if (e.stderr === undefined) e.stderr = String(stderr ?? '');
-        reject(e);
-        return;
-      }
-      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-    });
-    lowerProcessPriority(child.pid, flag, d.setPriority);
+    startLowPriority(file, args, options, flag, deps, (launch) =>
+      start(launch.file, launch.args, launch.options, (err, stdout, stderr) => {
+        if (err) {
+          // promisify(execFile) attaches the output to the error; the raw callback
+          // passes it separately. Callers branch on `err.stdout` (the ratchet reads
+          // the violations out of a non-zero exit), so reattach it rather than
+          // handing back an error that looks like "the script could not run".
+          const e = err as NodeJS.ErrnoException & { stdout?: unknown; stderr?: unknown };
+          if (e.stdout === undefined) e.stdout = String(stdout ?? '');
+          if (e.stderr === undefined) e.stderr = String(stderr ?? '');
+          reject(e);
+          return;
+        }
+        resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+      }),
+    );
   });
 }
 
