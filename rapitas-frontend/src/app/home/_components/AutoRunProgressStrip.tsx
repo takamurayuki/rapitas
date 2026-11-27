@@ -37,7 +37,7 @@ interface AutoRunProgressStripProps {
   remainingCount: number;
   /** When the run started (ISO), or null. / 開始時刻 */
   startedAt: string | null;
-  /** True while no new work starts until merged code activates (task 1562). / 更新の取り込み待ち */
+  /** True while no new work starts until merged code activates (task 1562). / 取り込み待ち */
   restartWait?: boolean;
   /** Updates waiting to activate, when known. / 取り込み待ちの件数 */
   pendingUpdateCount?: number | null;

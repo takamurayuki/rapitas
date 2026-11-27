@@ -20,6 +20,7 @@
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "restartWait": "Waiting to apply updates",
+      "restartWaitCount": "{count, plural, one {# update} other {# updates}} waiting to apply",
       "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
       "rework": "Sent back {count}×",
