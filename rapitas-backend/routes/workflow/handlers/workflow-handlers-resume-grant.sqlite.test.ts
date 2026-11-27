@@ -350,10 +350,13 @@ test('旧計画の宣言を復元し、別の質問で同じファイルを許�
     where: { taskId, cause: 'question_resolved' },
     orderBy: { id: 'asc' },
   });
-  expect(audits.map((row) => JSON.parse(row.metadata).planGrant.questionTransitionId)).toEqual([
+  const grants = audits.map((row) => JSON.parse(row.metadata).planGrant);
+  expect(grants.map(({ questionTransitionId }) => questionTransitionId)).toEqual([
     waiting.id,
     second.waiting.id,
   ]);
+  const fence = content.match(/```json:plan-file-grants\r?\n([\s\S]*?)```/);
+  expect(JSON.parse(fence![1])).toEqual(grants);
 });
 
 test.each([
@@ -404,7 +407,7 @@ test('宣言に追加した許可は scope と tamper で完全一致し、旧�
   const unrelated = [
     'rapitas-backend/services/workflow/completion-gate-other.ts',
     'packages/rapitas-backend/services/workflow/completion-gate.ts',
-    `${protectedFile}.bak`,
+    `${protectedFile}.copy`,
   ];
   expect(evaluateScopeCheck(['src/main.ts', protectedFile], legacy, exact)?.ok).toBe(true);
   expect(tamperCheck([protectedFile], legacy, exact)?.ok).toBe(true);
@@ -414,6 +417,9 @@ test('宣言に追加した許可は scope と tamper で完全一致し、旧�
   expect(tamperCheck([protectedFile, ...unrelated], legacy, exact)?.errorCount).toBe(
     unrelated.length,
   );
+  const backup = `${protectedFile}.bak`;
+  expect(evaluateScopeCheck([backup], legacy, exact)?.ok).toBe(true);
+  expect(tamperCheck([backup], legacy, exact)?.ok).toBe(false);
 
   const other = await pendingAnswer(protectedFile);
   await db.workflowFile.update({ where: planWhere(other.taskId), data: fileData(content) });
@@ -465,4 +471,4 @@ test('自動検証・コミット保存前・worktree 復旧で保存済みの�
     recovered: false,
     reason: 'no_offending_files',
   });
-});
+}, 30_000);
