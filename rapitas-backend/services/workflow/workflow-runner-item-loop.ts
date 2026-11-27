@@ -24,9 +24,9 @@ import {
   propagateSubtaskCompletion,
 } from './workflow-runner-item-helpers';
 import { taskVanishedMessage } from './queue-vanished-task-policy';
-import { parkItemIfHalted } from './workflow-runner-halt-guard';
+import { startPhaseUnlessHalted } from './workflow-runner-halt-guard';
 import { isItemStillOwned } from './awaiting-ci-lookup';
-import { guardQueueWrites, guardAdvance, handOffAfterAdvance } from './workflow-runner-item-claim';
+import { guardQueueWrites, claimAdvance, handOffAfterAdvance } from './workflow-runner-item-claim';
 import type { ActiveExecution } from './workflow-runner.types';
 
 const log = createLogger('workflow-runner');
@@ -194,29 +194,34 @@ export async function runItemPhaseLoop(
       break;
     }
 
-    // An iteration-budget halt must stop new spend, not just selection (task 1107).
-    const parked = await parkItemIfHalted(queue, item, currentStatus, (e, p) =>
-      deps.broadcastItemUpdate(item.id, item.taskId, e, p),
-    );
-    if (parked) break;
-
-    // Log phase transition
-    await deps.logPhaseTransition(item.taskId, currentStatus, 'advancing');
-
-    // Execute next phase (with timeout)
-    deps.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
-
-    // Resolve the role the phase about to run dispatches as, so the backstop
-    // stays above the implementer's raised wall-clock cap (task 546). Resolved
-    // BEFORE advanceWorkflow so no await sits between the execution promise
-    // and the race below (an early rejection there would surface as an
-    // unhandled rejection).
+    // Resolve the role the phase about to run dispatches as, so the backstop stays above the
+    // implementer's raised wall-clock cap (task 546).
     const phaseTimeoutMs = await resolvePhaseTimeoutMs(task, currentStatus);
-    const result = await raceWorkflowAdvance(
-      guardAdvance(deps.orchestrator, item.id, currentStatus),
-      item.taskId,
-      phaseTimeoutMs,
+    if (abortController.signal.aborted) break;
+    // An iteration-budget halt (task 1107), a paused theme or a restart wait (task 1562) must
+    // stop new spend: the check and the start of the advance are one serialised section.
+    const dispatch = await startPhaseUnlessHalted(
+      queue,
+      item,
+      currentStatus,
+      (e, p) => deps.broadcastItemUpdate(item.id, item.taskId, e, p),
+      async () => {
+        await deps.logPhaseTransition(item.taskId, currentStatus, 'advancing');
+        if (abortController.signal.aborted) return null;
+        deps.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
+        // Claimed before the call so advanceWorkflow starts synchronously (see claimAdvance).
+        const orchestrator = await claimAdvance(
+          deps.orchestrator,
+          item.id,
+          item.taskId,
+          currentStatus,
+        );
+        if (abortController.signal.aborted) return null;
+        return { completion: raceWorkflowAdvance(orchestrator, item.taskId, phaseTimeoutMs) };
+      },
     );
+    if (!dispatch) break;
+    const result = await dispatch.completion;
     // Stop owns the queue item even when the old phase returns a replan/skip result.
     if (abortController.signal.aborted) {
       break;

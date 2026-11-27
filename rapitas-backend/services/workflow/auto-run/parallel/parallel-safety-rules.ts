@@ -4,13 +4,14 @@
  * Pure pair rules that decide whether a candidate task may run at the same time
  * as a task already running (task 1552): dependency (table or text), plan
  * presence, conflict-prone files, file overlap, same folder and import relation.
- * Not responsible for reading plans, the database or the file system — callers
- * pass everything in, so the rules are table-testable.
+ * Not responsible for reading plans, the DB or files — callers pass all in.
  */
 import { parsePlanFiles } from '../../../agents/verification/scope-check';
 import { parsePlanDeclaration } from '../../plan-deviation/declaration-parser';
 import { overlappingFiles } from '../auto-run-selection';
 import type { ParallelVerdict } from './parallel-types';
+import { isLikelyFile } from './plan-file-tokens';
+import { sharedDirectories } from './shared-directories';
 import {
   CONFLICT_PRONE_FILE_RULES,
   MIN_PATTERN_PREFIX_SEGMENTS,
@@ -67,10 +68,12 @@ export function collectPlanFiles(plan: string | null | undefined): PlanFileSet {
     // directory is a deliberate scope claim, so the derived ones are dropped.
     else if (p.endsWith('/')) {
       if (fromDeclaration) patterns.add(`${p}**`);
-    } else files.add(p);
+    } else if (fromDeclaration || isLikelyFile(p)) files.add(p);
   };
   for (const f of parsePlanFiles(plan)) add(f, false);
-  for (const f of parsePlanDeclaration(plan).declaration.files) add(f, true);
+  // A fallback declaration is scraped from prose, so it gets the prose filter.
+  const { declaration, source } = parsePlanDeclaration(plan);
+  for (const f of declaration.files) add(f, source !== 'fallback');
   for (const p of patterns) {
     const segments = literalPrefix(p).replace(PACKAGE_DIR_RE, 'pkg/').split('/').filter(Boolean);
     // A filename glob (`dir/name*.ts`) keeps its directory depth; a pure
@@ -160,31 +163,6 @@ export function overlappingEntries(a: PlanFileSet, b: PlanFileSet): string[] {
   return [...out];
 }
 
-function dirOf(file: string): string {
-  const i = file.lastIndexOf('/');
-  return i > 0 ? file.slice(0, i) : '';
-}
-
-/**
- * Folders both sides touch (parent folder only, suffix-matched like files).
- *
- * @param a - One side / 片方
- * @param b - Other side / もう片方
- * @returns Shared folders / 共通フォルダ
- */
-export function sharedDirectories(a: PlanFileSet, b: PlanFileSet): string[] {
-  const out = new Set<string>();
-  for (const fa of a.files) {
-    const da = dirOf(fa);
-    if (!da) continue;
-    for (const fb of b.files) {
-      const db = dirOf(fb);
-      if (db && (da === db || da.endsWith(`/${db}`) || db.endsWith(`/${da}`))) out.add(da);
-    }
-  }
-  return [...out];
-}
-
 const JA_DEP_RE =
   /(?<![\w/.:-])(?:タスク\s*)?#?(\d{2,6})\s*(?:番)?\s*(?:に依存|の完了後|の後|が完了してから|がマージされてから|のマージ後)/g;
 const EN_DEP_RE = /\b(?:depends on|after|blocked by)\s+(?:task\s*)?#(\d{2,6})\b/gi;
@@ -226,6 +204,8 @@ export interface PairContext {
   incompleteTaskIds: ReadonlySet<number>;
   /** Import relation between the two sides' files; undefined = not checked. */
   importRelated?: boolean;
+  /** Folders too broad for sharing them to refuse; undefined = none. / 広すぎるフォルダ */
+  isBroadDirectory?: (dir: string) => boolean;
 }
 
 const reject = (reason: string, detail: string): ParallelVerdict => ({ ok: false, reason, detail });
@@ -286,7 +266,7 @@ export function judgePair(
   }
   const overlap = overlappingEntries(cand, act);
   if (overlap.length > 0) return reject('file_overlap', list(overlap));
-  const dirs = sharedDirectories(cand, act);
+  const dirs = sharedDirectories(cand, act).filter((d) => !ctx.isBroadDirectory?.(d));
   if (dirs.length > 0) return reject('same_directory', list(dirs));
   if (ctx.importRelated) {
     return reject(

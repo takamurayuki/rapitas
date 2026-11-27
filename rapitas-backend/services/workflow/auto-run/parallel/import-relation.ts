@@ -22,7 +22,37 @@ const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '/index.ts'];
 /** File reader, injectable for tests; returns null when unreadable. */
 export type SourceReader = (absPath: string) => Promise<string | null>;
 
-const defaultReader: SourceReader = (absPath) => readFile(absPath, 'utf8').catch(() => null);
+/**
+ * Wrap a reader so each file is read at most once per `ttlMs`. Unreadable
+ * files (null) are remembered too.
+ *
+ * @param base - Underlying reader / 元の読み込み関数
+ * @param ttlMs - How long a result is reused / 結果を使い回す時間
+ * @param now - Clock (tests) / 時計
+ * @returns Cached reader / キャッシュ付きの読み込み関数
+ */
+export function createCachedReader(
+  base: SourceReader,
+  ttlMs: number,
+  now: () => number = Date.now,
+): SourceReader {
+  const cache = new Map<string, { at: number; source: string | null }>();
+  return async (absPath) => {
+    const hit = cache.get(absPath);
+    if (hit && now() - hit.at < ttlMs) return hit.source;
+    const source = await base(absPath);
+    cache.set(absPath, { at: now(), source });
+    return source;
+  };
+}
+
+// NOTE: Cached for 60 s. The check runs for every candidate pair on every 12 s
+// selection tick and re-read up to 50 files per side each time, holding the
+// backend near one core on 2026-11-27. Planned files change only on merges.
+const defaultReader: SourceReader = createCachedReader(
+  (absPath) => readFile(absPath, 'utf8').catch(() => null),
+  60_000,
+);
 
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/^\.\//, '');
 
@@ -49,7 +79,9 @@ async function importsOf(
   for (const file of files.filter((f) => SOURCE_RE.test(f)).slice(0, MAX_IMPORT_SCAN_FILES)) {
     const source = await read(path.join(cwd, file));
     if (source == null) {
-      log.warn({ file }, 'planned file unreadable — treated as no import relation');
+      // A planned NEW file is not in the checkout yet, so this is normal: debug, not warn
+      // (it was 704 warn lines in 10 minutes on 2026-11-27).
+      log.debug({ file }, 'planned file unreadable — treated as no import relation');
       continue;
     }
     const dir = path.posix.dirname(norm(file));

@@ -137,6 +137,7 @@
       "enabled": "有効",
       "disabled": "無効",
       "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "rapitasCpuNote": "判定には rapitas が起動したプロセス（バックエンド・エージェント・検証）の CPU の合計を、直近 {minutes} 分の平均で使います。ホスト全体の値は参考です。",
       "currentCpu": "現在のCPU使用率",
       "threshold": "しきい値",
       "effectiveMaxConcurrency": "実効並列度",

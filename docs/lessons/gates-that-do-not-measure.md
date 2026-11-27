@@ -8,6 +8,25 @@ Nine instances were found in a single session on 2026-10-17. They are listed
 with the measurement that exposed each one, because "we should check more
 carefully" prevents nothing — the specific check does.
 
+## Current status
+
+Re-checked on 2026-11-27 against develop, with the three questions below.
+None of the eleven needs deleting, and none is still measuring nothing.
+
+| # | Gate | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Required checks naming missing jobs | Done | All 17 required contexts on `main` and `develop` are reported on PR #1762 |
+| 2 | Audit of a tree nobody ships | Done | `security-scan.yml` audits the committed `Cargo.lock`, with no `cargo update` |
+| 3 | first-match-wins overrides | Done | `rapitas-frontend/pnpm-workspace.yaml` keeps one entry per major line. The three `postcss` entries are redundant but not dead. The lockfile resolves to 8.5.23 and 8.5.25 |
+| 4 | `mock.module` missing an export | Done | Not a gate. A file that stops on a missing export exits non-zero, and CI goes red. The pass count still has to be watched locally |
+| 5 | The checker nobody called | Done | `checkSpecConsistency` runs in `requirement-intake-job.ts`, the job that files the tasks |
+| 6 | A reader with no writer | Partly done | A screen task must declare `featureEntries` (`requireEntries`). Other tasks without a declaration report 判定不能, by design |
+| 7 | Counting what never happens | Done | `backlog-promoter-eligibility.ts` excludes `autoRunExcluded` tasks |
+| 8 | A trigger that could not fire | Done | The merged-code auto-restart fetches origin each tick (`git-io.ts`) |
+| 9 | A red job concluding success | Done | Every scenario reports pass or fail, and a setup failure counts as a failure. It went green on 2026-11-27 after the startup DB-close fix (`b9fb53ffc`). It is still not a required check |
+| — | CRLF format check (#1315) | Done | `.gitattributes` sets `* text=auto eol=lf` |
+| — | `# 画面一覧` with no consumer | Done | It is read by `requirement-intake-*` and `screen-task-*` |
+
 ---
 
 ## The three questions

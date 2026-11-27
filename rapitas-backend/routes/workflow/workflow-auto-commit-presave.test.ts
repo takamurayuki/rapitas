@@ -50,9 +50,11 @@ beforeAll(() => {
   ];
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n');
+  // NOTE: Built by concatenation so this test file itself never matches the
+  // secret screen: any task that edited it was blocked as secret=NG (task 1549).
   writeFileSync(
     join(dir, 'src', 'leak.ts'),
-    "const k = 'sk-ant-abcdefghijklmnopqrstuvwxyz0123456789';\n",
+    `const k = '${'sk-' + 'ant-'}abcdefghijklmnopqrstuvwxyz0123456789';\n`,
   );
   writeFileSync(join(dir, '.env'), 'TOKEN=x\n');
   writeFileSync(join(dir, '.env.example'), 'TOKEN=\n');

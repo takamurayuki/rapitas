@@ -36,13 +36,25 @@ const mockPrisma = {
       return Promise.resolve(w.cause === 'blocked_auto_retry' ? MAX_RETRY_PLACEHOLDER.value : 0);
     }),
     findFirst: mock((args: unknown) => {
-      const { where } = args as { where: { cause?: string | { notIn: string[] } } };
+      const { where } = args as {
+        where: { toStatus?: string; cause?: string | { notIn?: string[]; in?: string[] } };
+      };
+      // Resume decision (task 1563): the blocked entry carries an allow-listed cause, and no
+      // stop transition (cause: { in: [...] }) exists for the stop guard.
+      if (where.toStatus === 'blocked') {
+        return Promise.resolve({
+          fromStatus: 'draft',
+          createdAt: new Date(0),
+          cause: 'auto_run_hang_backstop',
+        });
+      }
+      if (typeof where.cause === 'object' && where.cause?.in) return Promise.resolve(null);
       const hit = [...rows]
         .reverse()
         .find((r) =>
           typeof where.cause === 'string'
             ? r.cause === where.cause
-            : !where.cause?.notIn.includes(r.cause),
+            : !where.cause?.notIn?.includes(r.cause),
         );
       return Promise.resolve(hit ?? null);
     }),
@@ -60,7 +72,13 @@ const mockPrisma = {
       return Promise.resolve({});
     }),
   },
-  themeAutoRun: { findMany: mock(() => Promise.resolve([{ themeId: 1 }] as unknown[])) },
+  themeAutoRun: {
+    findMany: mock(() => Promise.resolve([{ themeId: 1 }] as unknown[])),
+    findFirst: mock(() => Promise.resolve({ enabled: true, status: 'running' })),
+  },
+  gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null as unknown)) },
+  // The resume facts also read the session worktree (no session = no work).
+  agentSession: { findFirst: () => Promise.resolve(null) },
   userSettings: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   activityLog: { findFirst: mock(() => Promise.resolve(null as unknown)) },
 };

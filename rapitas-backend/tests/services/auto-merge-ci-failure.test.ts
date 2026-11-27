@@ -11,12 +11,16 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockReadMergeState = mock(() => Promise.resolve<string | null>('BLOCKED'));
 const mockReadHeadSha = mock(() => Promise.resolve<string | null>('sha-current'));
 const mockUpdatePrBranch = mock(() => Promise.resolve(true));
+const mockReadPrChecks = mock(() =>
+  Promise.resolve<{ name: string; bucket: string; link?: string }[] | null>([]),
+);
 mock.module('../../services/workflow/auto-merge-checks', () => ({
   // Mirrors the real module: auto-merge-pending-timeout imports readPrState.
   readPrState: async () => 'open',
   readMergeState: mockReadMergeState,
   readHeadSha: mockReadHeadSha,
   updatePrBranch: mockUpdatePrBranch,
+  readPrChecks: mockReadPrChecks,
   ghPath: () => 'gh',
 }));
 
@@ -66,7 +70,6 @@ mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
 }));
-
 const { handleCiFailure, UPDATE_BRANCH_ATTEMPTED_CAUSE, CI_INHERITED_HOLD_CAUSE } =
   await import('../../services/workflow/auto-merge-ci-failure');
 
@@ -93,6 +96,7 @@ beforeEach(() => {
   mockRecordTransition.mockReset().mockResolvedValue(undefined);
   mockPrisma.workflowTransition.findMany.mockReset().mockResolvedValue([]);
   mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
+  mockReadPrChecks.mockReset().mockResolvedValue([]);
   tryHandleConflictFalse.mockClear();
   baseFailing = new Set<string>();
 });

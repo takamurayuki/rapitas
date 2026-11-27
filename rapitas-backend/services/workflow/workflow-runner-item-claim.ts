@@ -13,6 +13,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import type { QueueItem, WorkflowQueueService } from './workflow-queue';
 import type { WorkflowAdvanceResult } from './workflow-types';
+import type { WorkflowOrchestrator } from './workflow-orchestrator';
 import { ADVANCING_PHASE, CI_WAIT_PHASE, isCiWaitTask } from './awaiting-ci';
 import { AWAITING_REQUIRED_MERGE_CAUSE } from './required-merge-hold';
 
@@ -220,33 +221,38 @@ export function guardQueueWrites(
   };
 }
 
+/** The one orchestrator method the loop calls. */
+type Advancer = Pick<WorkflowOrchestrator, 'advanceWorkflow'>;
+
 /**
- * Wrap the orchestrator so a phase is only started for an item that is still ours.
+ * Claim the item for an advance, then hand back the orchestrator to call.
+ *
+ * The claim is awaited HERE, before the caller starts the phase: `advanceWorkflow` must be called
+ * synchronously afterwards, or the restart-gate admission handed over by startPhaseUnlessHalted
+ * (guarded-start.ts) is already closed when the orchestrator asks for it.
  *
  * @param orchestrator - Real orchestrator / オーケストレーター
  * @param itemId - The runner's item / 項目ID
- * @param currentStatus - Phase the loop is on, left on the item and reported when skipped / 現在のフェーズ
- * @returns An orchestrator whose advance reports a skip when the item was handed back / ラッパー
+ * @param taskId - Its task / タスクID
+ * @param currentStatus - Phase the loop is on, reported when skipped / 現在のフェーズ
+ * @returns The real orchestrator, or one that only reports a skip when the item is not ours
  */
-export function guardAdvance(
-  orchestrator: { advanceWorkflow(taskId: number): Promise<WorkflowAdvanceResult> },
+export async function claimAdvance(
+  orchestrator: Advancer,
   itemId: number,
+  taskId: number,
   currentStatus: string,
-): { advanceWorkflow(taskId: number): Promise<WorkflowAdvanceResult> } {
+): Promise<Advancer> {
+  const claim = await runIfOwned(itemId, taskId, ADVANCING_PHASE, async () => null);
+  if (claim.ran) return orchestrator;
+  // Handed back: report "someone else owns it" — the loop's skip branch then only re-queues
+  // through the guarded writer, which is a no-op for a handed-back item.
   return {
-    advanceWorkflow: async (taskId) => {
-      const r = await runIfOwned(itemId, taskId, ADVANCING_PHASE, () =>
-        orchestrator.advanceWorkflow(taskId),
-      );
-      if (r.ran) return r.value;
-      // Handed back: report "someone else owns it" — the loop's skip branch then only re-queues
-      // through the guarded writer, which is a no-op for a handed-back item.
-      return {
-        success: true,
-        skipped: true,
-        role: 'implementer',
-        status: currentStatus as WorkflowAdvanceResult['status'],
-      };
-    },
+    advanceWorkflow: async () => ({
+      success: true,
+      skipped: true,
+      role: 'implementer',
+      status: currentStatus as WorkflowAdvanceResult['status'],
+    }),
   };
 }

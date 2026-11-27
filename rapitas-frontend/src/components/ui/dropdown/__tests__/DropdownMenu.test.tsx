@@ -31,6 +31,33 @@ describe('uncontrolled', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('draws a caller-supplied trigger glyph instead of the default', () => {
+    render(
+      <DropdownMenu
+        items={items}
+        triggerLabel="Pick"
+        triggerIcon={<span data-testid="custom-glyph" />}
+      />,
+    );
+    expect(screen.getByTestId('custom-glyph')).toBeTruthy();
+  });
+
+  it('marks the selected item with aria-current', () => {
+    render(
+      <DropdownMenu
+        items={[
+          { label: 'A', onClick: () => {}, selected: true },
+          { label: 'B', onClick: () => {} },
+        ]}
+        triggerLabel="Pick"
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Pick'));
+    const [a, b] = screen.getAllByRole('menuitem');
+    expect(a.getAttribute('aria-current')).toBe('true');
+    expect(b.getAttribute('aria-current')).toBeNull();
+  });
+
   it('closes on Escape', () => {
     render(<DropdownMenu items={items} triggerLabel="More" />);
     fireEvent.click(screen.getByLabelText('More'));

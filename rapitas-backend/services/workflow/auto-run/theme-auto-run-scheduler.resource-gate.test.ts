@@ -4,9 +4,9 @@
  * Covers the resource-contention gate insertion point in advanceTheme() (task
  * 725): when the gate holds, selectNextTask must not be called and an
  * ActivityLog + a single deduplicated Notification are recorded instead.
- * RAPITAS_RESOURCE_GATE_ENABLED is set/restored around each test since the
- * gate is a no-op whenever the flag is unset (the default for every other
- * scheduler test in this suite).
+ * RAPITAS_RESOURCE_GATE_ENABLED is set/restored around each test. The gate is
+ * on by default since task 1553; other scheduler tests stay unaffected because
+ * the mocked evaluateResourceGate never holds unless a test says so.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
@@ -36,7 +36,7 @@ afterEach(() => {
   else process.env.RAPITAS_RESOURCE_GATE_ENABLED = ORIGINAL_ENABLED;
 });
 
-describe('advanceTheme — resource-contention gate (RAPITAS_RESOURCE_GATE_ENABLED=true)', () => {
+describe('advanceTheme — resource-contention gate', () => {
   it('holds selection, records an ActivityLog entry, and skips selectNextTask when the gate holds', async () => {
     process.env.RAPITAS_RESOURCE_GATE_ENABLED = 'true';
     mockEvaluateResourceGate.mockReturnValue({
@@ -93,14 +93,31 @@ describe('advanceTheme — resource-contention gate (RAPITAS_RESOURCE_GATE_ENABL
     expect(mockActivityLogCreate).not.toHaveBeenCalled();
   });
 
-  it('does not touch the gate at all when the feature flag is unset (default)', async () => {
-    delete process.env.RAPITAS_RESOURCE_GATE_ENABLED;
+  it('does not touch the gate at all when the feature flag is false', async () => {
+    process.env.RAPITAS_RESOURCE_GATE_ENABLED = 'false';
     mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
 
     await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
 
     expect(mockEvaluateResourceGate).not.toHaveBeenCalled();
     expect(mockConsumeResourceGateOverride).not.toHaveBeenCalled();
+    expect(mockSelectNextTask).toHaveBeenCalled();
+  });
+
+  it('consults the gate when the flag is unset — default ON since task 1553', async () => {
+    delete process.env.RAPITAS_RESOURCE_GATE_ENABLED;
+    mockSelectNextTask.mockResolvedValue({ found: false, reason: 'all_done' });
+
+    await internal(scheduler).advanceTheme(1, null, 'priority', 0, null);
+
+    expect(mockEvaluateResourceGate).toHaveBeenCalledTimes(1);
+    const input = (mockEvaluateResourceGate.mock.calls[0] as unknown[])[0] as {
+      activeCount: number;
+      thresholdPercent: number;
+    };
+    // Head path: the global running count; 0 here, so the real gate would never hold the 1st task.
+    expect(input.activeCount).toBe(0);
+    expect(input.thresholdPercent).toBe(60);
     expect(mockSelectNextTask).toHaveBeenCalled();
   });
 });

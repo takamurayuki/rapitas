@@ -280,6 +280,8 @@ export function HomeToolbar({
           status={autoRunData.autoRun.status}
           currentTask={autoRunData.currentTask}
           remainingCount={autoRunData.remainingCount}
+          restartWait={autoRunData.restartWait}
+          pendingUpdateCount={autoRunData.pendingUpdateCount}
           startedAt={autoRunData.autoRun.startedAt}
           scope={filterScope}
           activeTasks={autoRunData.activeTasks}

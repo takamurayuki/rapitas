@@ -26,11 +26,11 @@ import { applyIntakeQuestionAnswerLocked, type AnswerSelection } from './workflo
 import { applyResumeFromQuestionAnswerLocked } from './workflow-handlers-resume-continuation';
 import { readWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import {
-  parseQuestionOptionsBlock,
-  resolvePlanRevisionSelection,
-  type ParsedQuestion,
-  type ParsedQuestionOption,
-} from '../../../services/workflow/question-options-parser';
+  decideAnswerRouting,
+  matchQuestionSelections,
+  type AnswerRoutingReason,
+  type SelectedOption,
+} from '../../../services/workflow/question-answer-routing';
 import {
   persistPlanRevisionCore,
   mapAnswerSourceLabelToRevisionSource,
@@ -71,6 +71,8 @@ export interface ApplyQuestionAnswerByKindParams {
    * with `actor:'user'` on a task still in `awaiting_question`. / 停止の上書きを要求
    */
   stopOverride?: boolean;
+  /** 人の回答で旧改訂フラグの上書きを指定する。 */
+  resumeImplementer?: boolean;
 }
 
 const VALID_KINDS = new Set<QuestionKind>([
@@ -172,65 +174,22 @@ export async function claimQuestionAnswerSlot(taskId: number): Promise<void> {
     data: { updatedAt: new Date() },
   });
   if (cas.count === 0) {
-    throw new ConflictError('この質問は既に回答済みです', 'question_already_answered');
+    throw questionAlreadyAnswered();
   }
 }
 
-/** A selection that resolved to a `planRevision:true` option. */
-interface PlanRevisionMatch {
-  question: ParsedQuestion;
-  option: ParsedQuestionOption;
+function questionAlreadyAnswered(): ConflictError {
+  return new ConflictError('この質問は既に回答済みです', 'question_already_answered');
 }
 
 /**
- * Whether any of the caller's `selections` picked an option flagged
- * `planRevision:true` in the currently-saved question.md. Read/parse
- * failures — and the legacy `resume-from-question` shape, which never passes
- * `selections` — resolve to `undefined` (no plan-revision routing) rather
- * than throwing, so this can never block the normal resume path.
- *
- * @param taskId - Task whose question.md to read. / 対象タスク
- * @param selections - The answer's per-question selection audit, if any. / 選択監査
- * @returns The matched question+option, or undefined. / 一致した質問と選択肢
- */
-async function findPlanRevisionSelection(
-  taskId: number,
-  selections: AnswerSelection[] | undefined,
-): Promise<PlanRevisionMatch | undefined> {
-  if (!selections || selections.length === 0) return undefined;
-  try {
-    const content = await readWorkflowFile(taskId, 'question');
-    if (!content) return undefined;
-    const block = parseQuestionOptionsBlock(content);
-    if (!block) return undefined;
-    for (const sel of selections) {
-      const question = block.questions.find((q) => q.id === sel.questionId);
-      if (!question) continue;
-      const option = resolvePlanRevisionSelection(question.options, sel.selectedKey);
-      if (option) return { question, option };
-    }
-    return undefined;
-  } catch (err) {
-    log.warn(
-      { err, taskId },
-      '[resume-dispatch] failed to evaluate planRevision selection; falling back to resume',
-    );
-    return undefined;
-  }
-}
-
-/**
- * Compose the plan-revision instruction from the selected option's label +
- * consequence, plus the raw answer body.
+ * 改訂の起点となった選択肢と回答本文を指示に含める。
  *
  * @param match - The matched question/option. / 一致した質問と選択肢
  * @param answer - The raw answer body, if any. / 回答本文
  * @returns The instruction text persisted onto the transition. / 合成した指示文
  */
-function composePlanRevisionInstruction(
-  match: PlanRevisionMatch,
-  answer: string | undefined,
-): string {
+function composePlanRevisionInstruction(match: SelectedOption, answer: string | undefined): string {
   const consequencePart = match.option.consequence ? `（${match.option.consequence}）` : '';
   const answerBody = answer && answer.trim() ? answer.trim() : 'なし';
   return (
@@ -240,35 +199,28 @@ function composePlanRevisionInstruction(
 }
 
 /**
- * Attempt the plan-revision early-exit routing (task 933): when the answer
- * picked a `planRevision:true` option, persist a `plan_revision_requested`
- * transition and route to `research_done` instead of resuming the
- * implementer. Never throws — a CAS failure or missing task falls back to
- * `undefined` so the caller proceeds with its normal resume/reset strategy
- * (a plan-revision failure must never block the underlying answer).
+ * 質問待ちを確認し、改訂を既存の状態更新と同じトランザクションで記録する。
  *
  * @param taskId - Task being answered. / 対象タスク
- * @param selections - The answer's per-question selection audit, if any. / 選択監査
+ * @param match - The option that forced the revision. / 改訂の契機の選択肢
+ * @param reason - Routing reason recorded on the transition. / 振り分け理由
  * @param answer - The raw answer body, if any. / 回答本文
  * @param sourceLabel - Label describing who/what answered. / 回答元ラベル
- * @returns The routed result, or undefined when no routing applies. / 適用結果
+ * @returns 改訂への遷移結果。
  */
 async function tryRoutePlanRevision(
   taskId: number,
-  selections: AnswerSelection[] | undefined,
+  match: SelectedOption,
+  reason: AnswerRoutingReason,
   answer: string | undefined,
   sourceLabel: string | undefined,
-): Promise<
-  { taskId: number; ok: true; toStatus: WorkflowStatus; kind: QuestionAnswerKind } | undefined
-> {
-  const match = await findPlanRevisionSelection(taskId, selections);
-  if (!match) return undefined;
-
+): Promise<{ taskId: number; ok: true; toStatus: WorkflowStatus; kind: QuestionAnswerKind }> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: { updatedAt: true, workflowStatus: true },
   });
-  if (!task) return undefined;
+  if (!task) throw new NotFoundError('Task not found');
+  if (task.workflowStatus !== 'awaiting_question') throw questionAlreadyAnswered();
 
   const instruction = composePlanRevisionInstruction(match, answer);
   const source = mapAnswerSourceLabelToRevisionSource(sourceLabel ?? 'ユーザー選択');
@@ -280,13 +232,12 @@ async function tryRoutePlanRevision(
       expectedWorkflowStatus: task.workflowStatus,
       instruction,
       source,
+      extraMetadata: { routing: 'revision', routingReason: reason },
     });
   } catch (err) {
-    log.warn(
-      { err, taskId },
-      '[resume-dispatch] planRevision persistence failed (stale CAS?); falling back to resume',
-    );
-    return undefined;
+    if (err instanceof Error && 'code' in err && err.code === 'P2025')
+      throw questionAlreadyAnswered();
+    throw err;
   }
 
   return { taskId, ok: true, toStatus: 'research_done', kind: 'plan_revision' };
@@ -303,16 +254,12 @@ async function tryRoutePlanRevision(
  *  3. `kind==='spec_change'` with no `answer` — 400 `ValidationError` (a
  *     resume-from-question caller must never silently treat an unconfirmed
  *     spec change as answered).
- *  4. {@link assertQuestionNotOutdated} — 409 `question_outdated`.
+ *  4. 選択肢を読んだ後に {@link assertQuestionNotOutdated} — 409 `question_outdated`。
  *  5. {@link assertTaskNotStopping} again (a stop may land while the above
  *     reads were in flight) — 409 `task_stopping`.
  *  6. {@link claimQuestionAnswerSlot} — 409 `question_already_answered`.
  *
- * After the guards pass, {@link tryRoutePlanRevision} (task 933) checks
- * whether the answer picked a `planRevision:true` option; if so this returns
- * `kind:'plan_revision'` WITHOUT calling either resume/reset applier below
- * (the implementer is never re-dispatched). Any non-match falls through to
- * the normal kind-based strategy unchanged.
+ * 改訂を要する回答は `kind:'plan_revision'` を返し、それ以外は質問種別に従う。
  *
  * @param params - Answer to apply. / 適用する回答
  * @returns The task id, resulting status, and the kind that was resolved. / 適用結果
@@ -373,6 +320,11 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
     );
   }
 
+  const dedicated = kind === 'spec_change' || target.cause === 'criteria_review_question';
+  const selected =
+    !dedicated && selections?.length
+      ? matchQuestionSelections(await readWorkflowFile(taskId, 'question'), selections)
+      : [];
   await assertQuestionNotOutdated(taskId, target.id);
   // Must take the same override as guard 1. `isLatestExecutionCancelled`
   // cannot tell "the stop guard 1 already saw" from "a stop that landed since"
@@ -390,13 +342,21 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
       await import('../../../services/workflow/research-criteria-review');
     await applyCriteriaReviewSelection(taskId, meta, selections);
   }
+  const decision = decideAnswerRouting(selected, {
+    human: actor === 'user',
+    resumeImplementer: params.resumeImplementer,
+  });
+  if (decision.route === 'revision') {
+    return tryRoutePlanRevision(taskId, decision.trigger, decision.reason, answer, sourceLabel);
+  }
 
-  const planRevisionResult = await tryRoutePlanRevision(taskId, selections, answer, sourceLabel);
-  if (planRevisionResult) return planRevisionResult;
-
-  // Audit trail for the escape hatch — a reader of the transition history must
-  // be able to see that this answer ran despite a stop still on record.
-  const overrideMetadata = stopOverridden ? { stopOverridden: true } : {};
+  // Audit trail: the escape hatch (a stop still on record), and which way the
+  // answer was routed and why (task 1546).
+  const overrideMetadata = {
+    ...(stopOverridden ? { stopOverridden: true } : {}),
+    routing: 'resume',
+    routingReason: decision.reason,
+  };
 
   const strategy = resolveQuestionAnswerStrategy(kind);
   if (strategy === 'reset_draft') {
@@ -408,7 +368,12 @@ async function applyQuestionAnswerByKindLocked(params: ApplyQuestionAnswerByKind
       actor,
       sourceLabel: sourceLabel ?? 'answer-question',
       selections,
-      extraMetadata: { ...(extraMetadata ?? {}), kind, ...overrideMetadata },
+      // Intake answers reset to draft; the plan-routing audit does not apply.
+      extraMetadata: {
+        ...(extraMetadata ?? {}),
+        kind,
+        ...(stopOverridden ? { stopOverridden: true } : {}),
+      },
     });
     return { ...result, kind };
   }

@@ -45,6 +45,7 @@ import { countEscalatedBlocked } from '../blocked-task-escalation';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { WorkflowQueueService } from '../workflow-queue';
 import { recordTransition } from '../transition-recorder';
+import { isRestartWaitActive } from '../../scheduling/auto-restart-merged-code/restart-wait';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -65,6 +66,8 @@ export async function selectAndEnqueueNextTask(
   globalActive: number,
   barrierHoldSince: Map<number, number>,
 ): Promise<void> {
+  // Restart wait: no new task (head or companion) until merged code has activated.
+  if (isRestartWaitActive()) return;
   // Task 1552: while the theme already runs a task (per-theme limit >= 2), a
   // free slot is a companion slot. A completion path calls this right after
   // promoting a companion to head, so selecting a head here would overwrite it.
@@ -89,7 +92,7 @@ export async function selectAndEnqueueNextTask(
     return;
   }
 
-  if (await checkResourceContentionGate(prisma, themeId)) return;
+  if (await checkResourceContentionGate(prisma, themeId, globalActive)) return;
   if (await checkCalendarSlotGate(prisma, themeId)) return;
 
   const openAutoPrs = await openPrCache.getOpenAutoPrsForTheme(prisma, themeId).catch(() => []);

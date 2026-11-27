@@ -40,7 +40,18 @@ export interface ParsedQuestionOption {
    * の差し戻し". / 選択に運用者作業が必要か
    */
   requiresOperatorAction?: boolean;
+  /**
+   * What choosing this option does to plan.md (task 1546). `criteria`: changes
+   * the completion criteria; `approach`: swaps the plan's approach for another;
+   * `none`: leaves the completion criteria and approach as is, for example
+   * an implementation detail or operator note. Absent uses legacy routing
+   * based on `planRevision`. / 計画への影響
+   */
+  planImpact?: PlanImpact;
 }
+
+/** How an option affects plan.md. */
+export type PlanImpact = 'criteria' | 'approach' | 'none';
 
 /** One machine-readable question parsed from a `json:options` block. */
 export interface ParsedQuestion {
@@ -117,6 +128,11 @@ export function parseQuestionOptionsBlock(content: string): ParsedQuestionBlock 
             mutatesGate: o.mutatesGate === true,
             planRevision: o.planRevision === true,
             requiresOperatorAction: o.requiresOperatorAction === true,
+            ...(o.planImpact === 'criteria' ||
+            o.planImpact === 'approach' ||
+            o.planImpact === 'none'
+              ? { planImpact: o.planImpact }
+              : {}),
           });
         }
       }

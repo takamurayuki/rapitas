@@ -8,15 +8,19 @@
  * this machine (both the pipe and WebSocket transports hang until timeout
  * under Bun 1.3.13, while succeeding in under a second under plain Node.js).
  */
-import { spawn, type ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
+import { spawnLowPriorityUntracked } from '../../process-priority';
+import { recordHeavySlotException } from '../heavy-check-slot';
+import { KILL_GRACE_MS, killProcessTree } from '../verify-command-runner';
 
 const log = createLogger('playwright-worker-client');
 
 const WORKER_SCRIPT = join(import.meta.dir, 'playwright-worker.mjs');
 /** Default per-call timeout — bounds any single worker command, not just launch. */
 const DEFAULT_CALL_TIMEOUT_MS = 30_000;
+const CLOSE_RPC_TIMEOUT_MS = 10_000;
 
 /** Result of a checkPath call — mirrors browser-smoke.ts's PathFinding minus the `path` field (the caller already knows it). */
 export interface WorkerCheckPathResult {
@@ -95,17 +99,50 @@ interface PendingCall {
  * @returns A worker handle — call `.close()` when done, even on failure paths,
  *   to avoid leaking the child process. / ワーカーへのハンドル
  */
-export function spawnPlaywrightWorker(): PlaywrightWorker {
-  const proc: ChildProcess = spawn(process.env.RAPITAS_NODE_BIN || 'node', [WORKER_SCRIPT], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
+export function spawnPlaywrightWorker({
+  closeRpcTimeoutMs = CLOSE_RPC_TIMEOUT_MS,
+  killGraceMs = KILL_GRACE_MS,
+  killTree = killProcessTree,
+}: {
+  closeRpcTimeoutMs?: number;
+  killGraceMs?: number;
+  killTree?: typeof killProcessTree;
+} = {}): PlaywrightWorker {
+  // Windows では起動後にツリーを降格する。プレビューにも使うため再起動ゲートでは追跡しない。
+  const proc: ChildProcess = spawnLowPriorityUntracked(
+    process.env.RAPITAS_NODE_BIN || 'node',
+    [WORKER_SCRIPT],
+    {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    },
+    'RAPITAS_VERIFY_QUIET',
+  );
 
   let nextId = 1;
   const pending = new Map<number, PendingCall>();
   let stdoutBuffer = '';
   let exited = false;
   let spawnError: string | null = null;
+  let didClose = false;
+  let stopRequested = false;
+  let closing: Promise<void> | undefined;
+  const closed = new Promise<void>((resolve) => {
+    proc.once('close', () => {
+      didClose = true;
+      resolve();
+    });
+  });
+
+  function stopTree(): void {
+    if (stopRequested || exited || didClose || !proc.pid) return;
+    stopRequested = true;
+    try {
+      killTree(proc);
+    } catch (err) {
+      log.debug({ err, pid: proc.pid }, 'Playwright worker の終了処理に失敗');
+    }
+  }
 
   proc.on('error', (err) => {
     // ENOENT (no system `node` on PATH) lands here — reject anything already
@@ -163,18 +200,14 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
     args: Record<string, unknown> = {},
     timeoutMs = DEFAULT_CALL_TIMEOUT_MS,
   ): Promise<T> {
-    if (exited) {
+    if (spawnError || exited || didClose || (closing && cmd !== 'close')) {
       return Promise.reject(new Error(spawnError || 'playwright worker already exited'));
     }
     const id = nextId++;
     return new Promise<T>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         pending.delete(id);
-        // A stuck command likely means the worker itself (or the browser it
-        // launched) is wedged — kill the whole tree rather than leaving it
-        // to accumulate as an orphan (same class of leak this replaces the
-        // regex-PID-parsing workaround for).
-        proc.kill();
+        if (cmd !== 'close') stopTree();
         reject(new Error(`playwright worker command "${cmd}" timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       pending.set(id, { resolve: resolve as (r: unknown) => void, reject, timeoutId });
@@ -185,6 +218,44 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
           reject(err);
         }
       });
+    });
+  }
+
+  async function waitForClose(ms: number): Promise<boolean> {
+    if (didClose) return true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        closed.then(() => true),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), ms);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function closeWorker(): Promise<void> {
+    if (didClose) return;
+    if (!exited && !spawnError && !stopRequested) {
+      const startedAt = performance.now();
+      try {
+        await call('close', {}, closeRpcTimeoutMs);
+        const remaining = Math.max(0, closeRpcTimeoutMs - (performance.now() - startedAt));
+        if (await waitForClose(remaining)) return;
+      } catch {
+        // RPC の応答がなければツリーの終了を試す。
+      }
+    }
+    if (!proc.pid || didClose) return;
+    stopTree();
+    if (await waitForClose(killGraceMs)) return;
+    recordHeavySlotException('verify.heavy_slot_kill_grace_release', {
+      cause: 'kill_grace_elapsed',
+      command: 'playwright-worker',
+      waitedMs: killGraceMs,
+      pid: proc.pid,
     });
   }
 
@@ -243,14 +314,8 @@ export function spawnPlaywrightWorker(): PlaywrightWorker {
           5_000,
       );
     },
-    async close() {
-      if (exited) return;
-      try {
-        await call('close', {}, 10_000);
-      } catch {
-        // Already gone, or didn't respond in time — kill() below covers both.
-      }
-      proc.kill();
+    close() {
+      return (closing ??= closeWorker());
     },
   };
 }

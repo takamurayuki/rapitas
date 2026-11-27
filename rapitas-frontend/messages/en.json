@@ -2219,6 +2219,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
+      "rapitasCpuNote": "The gate uses the total CPU of the processes rapitas started (backend, agents, verification), averaged over the last {minutes} min. The host-wide value is for reference.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
       "effectiveMaxConcurrency": "Effective concurrency",
@@ -3881,6 +3882,10 @@
         "title": "Knowledge auto-extraction complete",
         "message": "Extracted {count} knowledge entries from task \"{taskTitle}\""
       },
+      "goal_reflection_prompt": {
+        "title": "Reflect on this week's progress",
+        "message": "You can leave a 1-5 rating and a short note for {count} goal(s) in progress (about a minute)."
+      },
       "knowledge_reminder": {
         "title": "Knowledge you might be forgetting ({count})",
         "message": "Time for a review? {lines}"
@@ -4620,6 +4625,8 @@
     "progress": {
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
+      "restartWait": "Waiting to apply updates",
+      "restartWaitCount": "{count, plural, one {# update} other {# updates}} waiting to apply",
       "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
       "rework": "Sent back {count}×",
@@ -6835,6 +6842,43 @@
     "submitting": "Recording…",
     "saved": "Saved to the audit record",
     "saveError": "Failed to save the audit record"
+  },
+  "goalReflection": {
+    "title": "Reflect on this week's progress",
+    "intro": "For each goal, pick how much progress it felt like this week and leave a short note.",
+    "ratingLabel": "This week's progress on {name}",
+    "ratingOption": "{value}",
+    "ratingScale": "1 = barely moved / 5 = moved a lot",
+    "notePlaceholder": "A note (optional)",
+    "noteCount": "{count} / {max}",
+    "saved": "Recorded",
+    "save": "Save",
+    "saving": "Saving...",
+    "close": "Close",
+    "loading": "Loading...",
+    "noGoals": "No goals in progress. Goals with a milestone can be reflected on here.",
+    "loadFailed": "Could not load your reflections.",
+    "saveFailed": "Could not save.",
+    "savedAll": "Saved. You can edit it again during the same week.",
+    "nothingToSave": "Pick a rating to save.",
+    "settings": {
+      "title": "Weekly reflection reminder",
+      "description": "The day and time (Japan time) to be reminded to reflect on goals in progress. Defaults to Sunday 20:00.",
+      "dayLabel": "Day",
+      "timeLabel": "Time",
+      "save": "Save",
+      "saved": "Saved",
+      "failed": "Could not save",
+      "days": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      }
+    }
   },
   "triage": {
     "title": "Decision Triage",

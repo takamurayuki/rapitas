@@ -195,6 +195,8 @@ export async function requeueBlockedTasks(nowMs: number): Promise<number> {
         themeId: { in: armedThemeIds },
         // halted tasks stay excluded until explicitly resumed (mirrors auto-run-advance-select).
         haltReason: null,
+        // An operator-excluded task stays blocked for their decision (task 1554 was retried after exclusion).
+        autoRunExcluded: false,
         updatedAt: { lt: settleBefore, gt: notOlderThan },
       },
       select: { id: true, workflowStatus: true, themeId: true },

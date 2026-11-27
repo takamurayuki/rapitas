@@ -37,7 +37,7 @@ const log = createLogger('routes:workflow:resume');
 
 interface AnswerContext {
   params: { taskId: string };
-  body?: { answer?: string; selections?: unknown } | unknown;
+  body?: { answer?: string; selections?: unknown; resumeImplementer?: boolean } | unknown;
   set: { status?: number };
   headers?: Record<string, string | undefined>;
 }
@@ -228,7 +228,7 @@ export async function applyIntakeQuestionAnswerLocked(params: ApplyIntakeAnswerP
  * answer path (the interactive panel only handled live mid-execution questions),
  * so the user could not actually answer the agent.
  *
- * @param ctx - Elysia handler context with { answer, selections? } body. / 回答ボディ
+ * @param ctx - Handler context with answer, optional selections and resumeImplementer. / 回答ボディ
  * @returns The task id and the status it was reset to. / 反映後の状態
  * @throws {ValidationError} taskId 不正 / answer 未指定
  * @throws {NotFoundError} タスクが見つからない場合
@@ -320,6 +320,8 @@ export async function handleAnswerWorkflowQuestion({
       // human decision, which is what entitles it to supersede a stop that
       // sealed the pause shut (task 944). No other caller may pass this.
       stopOverride: true,
+      // Operator's explicit "keep the plan, resume the implementer" (task 1546).
+      resumeImplementer: (body as { resumeImplementer?: unknown })?.resumeImplementer === true,
     });
     // NOTE: plan revision only persists research_done; nothing else starts the planner, so the
     // task would sit with no agent and no queue item (task 1310). Runs outside the task lock.
@@ -344,6 +346,7 @@ export async function handleAnswerWorkflowQuestion({
   } catch (err) {
     if (err instanceof NotFoundError) set.status = 404;
     else if (err instanceof ConflictError) set.status = 409;
+    else if (err instanceof ValidationError) set.status = 400;
     throw err;
   }
 }

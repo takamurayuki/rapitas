@@ -1,8 +1,10 @@
 /**
  * AutoRunProgressStrip.select.test
  *
- * Task 1565: with 2+ running tasks in a theme the strip offers a dropdown to
+ * Task 1565: with 2+ running tasks in a theme the strip offers a way to
  * switch which task's phase and link it shows; with one it looks as before.
+ * 2026-11-27: the wide <select> became the id link plus a chevron menu of the
+ * other tasks' ids (no titles), so the strip keeps its height.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -46,6 +48,15 @@ function renderStrip(activeTasks?: ActiveTask[], themeId: number | null = 5) {
   return { ...r, rerenderWith: (tasks?: ActiveTask[]) => r.rerender(ui(tasks)) };
 }
 
+// Open the chevron menu and pick a task by id.
+function pick(id: number) {
+  fireEvent.click(screen.getByRole('button', { name: 'autoRun.progress.selectTask' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(`^#${id}(?!\d)`) }));
+}
+const shownId = () =>
+  screen.getByTestId('auto-run-task-select').querySelector('a')?.textContent ?? null;
+const switcher = () => screen.queryByTestId('auto-run-task-select');
+
 const stateOf = (step: string) =>
   document.querySelector('[data-step="' + step + '"]')?.getAttribute('data-step-state');
 
@@ -67,18 +78,33 @@ afterEach(() => {
 });
 
 describe('AutoRunProgressStrip — task dropdown', () => {
-  it('shows a dropdown with #ID title options, head first, for 2 tasks', () => {
+  it('lists every running task as #id and title, with the shown one marked', () => {
     renderStrip(both);
-    const select = screen.getByRole('combobox');
-    const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
-    expect(options).toEqual(['#10 head task', '#11 second task']);
+    expect(shownId()).toBe('#10');
+    fireEvent.click(screen.getByRole('button', { name: 'autoRun.progress.selectTask' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((m) => m.textContent)).toEqual(['#10head task', '#11second task']);
+    expect(items[0].getAttribute('aria-current')).toBe('true');
+    expect(items[1].getAttribute('aria-current')).toBeNull();
   });
 
+  // 2026-11-27: the chevron comes first, then the id link.
+  it('puts the chevron before the id link', () => {
+    renderStrip(both);
+    const root = screen.getByTestId('auto-run-task-select');
+    const button = root.querySelector('button');
+    const link = root.querySelector('a');
+    expect(
+      button && link && button.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // The frame clips (overflow-hidden); the menu hid under the next card (2026-11-27).
   it('switches phase and link to the second task when picked', async () => {
     renderStrip(both);
     expect(screen.getByRole('link', { name: /#10/ }).getAttribute('href')).toContain('/tasks/10');
     expect(stateOf('research')).toBe('done');
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } });
+    pick(11);
     await waitFor(() => expect(stateOf('implement')).toBe('current'));
     const links = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
     expect(links.some((h) => h?.includes('/tasks/11'))).toBe(true);
@@ -86,33 +112,38 @@ describe('AutoRunProgressStrip — task dropdown', () => {
     expect(String((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain('/tasks/11');
   });
 
-  it.each([[undefined], [[]], [[both[0]]]])('shows no dropdown for %j', (tasks) => {
+  it('lets the task menu overflow the strip instead of being clipped', () => {
+    renderStrip(both);
+    expect(screen.getByTestId('auto-run-progress-strip').className).toContain('!overflow-visible');
+  });
+
+  it.each([[undefined], [[]], [[both[0]]]])('shows no task menu for %j', (tasks) => {
     renderStrip(tasks as ActiveTask[] | undefined);
-    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(switcher()).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
     expect(stateOf('research')).toBe('done');
   });
 
   it('falls back to the head when the picked task leaves the list', async () => {
     const { rerenderWith } = renderStrip(both);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } });
+    pick(11);
     await waitFor(() => expect(stateOf('implement')).toBe('current'));
     rerenderWith([both[0]]);
-    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(switcher()).toBeNull();
     expect(screen.getByRole('link', { name: /#10/ }).getAttribute('href')).toContain('/tasks/10');
     expect(stateOf('research')).toBe('done');
   });
 
   it('remembers the choice per theme', async () => {
     const first = renderStrip(both, 5);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } });
+    pick(11);
     await waitFor(() => expect(localStorage.getItem('rapitas:autoRun:selectedTask:5')).toBe('11'));
     first.unmount();
     renderStrip(both, 5);
-    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('11');
+    expect(shownId()).toBe('#11');
     cleanup();
     renderStrip(both, 6);
-    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('10');
+    expect(shownId()).toBe('#10');
   });
 
   it('uses the head when localStorage throws', () => {
@@ -120,20 +151,19 @@ describe('AutoRunProgressStrip — task dropdown', () => {
       throw new Error('denied');
     });
     renderStrip(both);
-    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('10');
+    expect(shownId()).toBe('#10');
   });
 
   it('3件から2件に減っても選択対象の消失直後に先頭へ戻り、取得を止める', async () => {
     vi.useFakeTimers();
     const third: ActiveTask = { id: 12, title: '並列2', role: 'companion' };
     const { rerenderWith } = renderStrip([...both, third]);
-    await act(async () =>
-      fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } }),
-    );
+    pick(11);
+    await act(async () => {});
     expect(stateOf('implement')).toBe('current');
     const signal = vi.mocked(fetch).mock.calls[0][1]?.signal;
     rerenderWith([both[0], third]);
-    expect(screen.getByRole('combobox')).toHaveValue('10');
+    expect(shownId()).toBe('#10');
     expect(screen.getByRole('link', { name: /#10/ })).toHaveAttribute(
       'href',
       '/tasks/10?showHeader=true',
@@ -154,7 +184,7 @@ describe('AutoRunProgressStrip — task dropdown', () => {
         }),
     );
     renderStrip(both);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } });
+    pick(11);
     const states = () => ['research', 'plan', 'implement', 'verify'].map(stateOf);
     expect(states()).toEqual(['pending', 'pending', 'pending', 'pending']);
     await act(async () => finish({ ok: false, status: 503 } as Response));
@@ -171,9 +201,8 @@ describe('AutoRunProgressStrip — task dropdown', () => {
       json: async () => ({ workflowStatus: null }),
     } as Response);
     renderStrip(both);
-    await act(async () =>
-      fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } }),
-    );
+    pick(11);
+    await act(async () => {});
     expect(stateOf('research')).toBe('current');
   });
 
@@ -181,9 +210,8 @@ describe('AutoRunProgressStrip — task dropdown', () => {
     vi.useFakeTimers();
     const { unmount } = renderStrip(both);
     expect(fetch).not.toHaveBeenCalled();
-    await act(async () =>
-      fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } }),
-    );
+    pick(11);
+    await act(async () => {});
     expect(stateOf('implement')).toBe('current');
     vi.mocked(fetch).mockRejectedValueOnce(new Error('通信失敗'));
     await act(async () => vi.advanceTimersByTime(8000));
@@ -211,17 +239,16 @@ describe('AutoRunProgressStrip — task dropdown', () => {
         }),
     );
     renderStrip([...both, { id: 12, title: '並列2', role: 'companion' }]);
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '11' } });
+    pick(11);
     const signal = vi.mocked(fetch).mock.calls[0][1]?.signal;
-    await act(async () =>
-      fireEvent.change(screen.getByRole('combobox'), { target: { value: '12' } }),
-    );
+    pick(12);
+    await act(async () => {});
     expect(stateOf('implement')).toBe('current');
     expect(signal?.aborted).toBe(true);
     await act(async () =>
       finish({ ok: true, json: async () => ({ workflowStatus: 'draft' }) } as Response),
     );
-    expect(screen.getByRole('combobox')).toHaveValue('12');
+    expect(shownId()).toBe('#12');
     expect(stateOf('implement')).toBe('current');
   });
 });

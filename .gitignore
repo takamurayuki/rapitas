@@ -65,6 +65,8 @@ rapitas-desktop/.data/
 
 # Scoped tsconfig the verification gate writes next to the checked project (automated-verifier.ts); pid-named scratch, never source
 .rapitas-verify-scoped-*.tsconfig.json
+# Incremental tsc build info for the gate's full typecheck (task 1553); per-worktree cache
+.rapitas-verify-cache/
 
 # Agent scratch dumps that escaped the rules above under other spellings and
 # were committed (task 1041 `.wftmp.json`, 1043 `.tmp_wf*.json`, 1049

@@ -15,6 +15,7 @@ import {
 import { slowQueueFields } from './workflow-runner-item-helpers';
 import { markEventLoopSection } from '../system/event-loop-lag-watchdog';
 import * as staleActive from './workflow-runner-stale-active';
+import { dequeueAndStart } from './workflow-runner-dequeue-gate';
 import { runItemPhaseLoop, type ItemLoopDeps } from './workflow-runner-item-loop';
 import { guardQueueWrites } from './workflow-runner-item-claim';
 import { settleItemError } from './workflow-runner-item-errors';
@@ -127,6 +128,11 @@ export class WorkflowRunner {
     this.broadcastStatus('runner_stopped');
   }
 
+  /** Task ids of the executions this runner has registered (restart observation). */
+  getActiveTaskIds(): number[] {
+    return [...this.activeExecutions.values()].map((e) => e.taskId);
+  }
+
   /**
    * Abort the in-flight phase loop(s) for a task. Used by stop paths (auto-run
    * stop / manual stop) so the runner does NOT advance to or retry another
@@ -168,10 +174,13 @@ export class WorkflowRunner {
       // task 1165: a sweep-cancelled item leaves a Map entry that would hold the slot forever
       await staleActive.dropStaleActiveExecutions(this.activeExecutions);
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
-        const item = await this.queue.dequeue();
+        let execution!: ActiveExecution;
+        const item = await dequeueAndStart(this.queue, (i) => {
+          execution = this.registerExecution(i);
+        });
         if (!item) break;
+        void this.executeWorkflowItem(item, execution); // 実行ループはdequeueのロック外。
         ids.push(item.taskId);
-        this.executeWorkflowItem(item); // fire-and-forget
       }
     } catch (error) {
       log.error({ err: error }, '[WorkflowRunner] Error in processQueue');
@@ -182,8 +191,8 @@ export class WorkflowRunner {
     }
   }
 
-  /** Execute the entire workflow for a single task asynchronously. */
-  private async executeWorkflowItem(item: QueueItem): Promise<void> {
+  /** dequeue区間内で同期登録し、再起動判定から直ちに観測できるようにする。 */
+  private registerExecution(item: QueueItem): ActiveExecution {
     const abortController = new AbortController();
     const execution: ActiveExecution = {
       queueItemId: item.id,
@@ -195,6 +204,15 @@ export class WorkflowRunner {
 
     this.activeExecutions.set(item.id, execution);
     this.broadcastItemUpdate(item.id, item.taskId, 'execution_started', item.currentPhase);
+    return execution;
+  }
+
+  /** Execute the entire workflow for a single task asynchronously. */
+  private async executeWorkflowItem(
+    item: QueueItem,
+    execution = this.registerExecution(item),
+  ): Promise<void> {
+    const { abortController } = execution;
 
     try {
       await runItemPhaseLoop(this.loopDeps(), item, execution, abortController);

@@ -23,7 +23,19 @@ import { describePauseScope } from '../../services/workflow/auto-run/theme-pause
 import { loadReworkSummary } from '../../services/workflow/auto-run/auto-run-rework-summary';
 import { parseCompanions } from '../../services/workflow/auto-run/parallel/companion-json';
 import { logCycleEvent } from '../../services/observability';
+import { isRestartWaitActive } from '../../services/scheduling/auto-restart-merged-code/restart-wait';
 import { HTTP_STATUS } from '../../utils/common/http-status';
+
+// Dynamic import so route tests that never load the scheduler stay unaffected.
+async function readPendingUpdateCount(): Promise<number | null> {
+  try {
+    const mod =
+      await import('../../services/scheduling/auto-restart-merged-code/pending-update-count');
+    return await mod.getPendingUpdateCount();
+  } catch {
+    return null;
+  }
+}
 import { isValidEntityId } from '../../utils/common/id-validation';
 
 const log = createLogger('routes:theme-auto-run');
@@ -114,12 +126,17 @@ export const themeAutoRunRoutes = new Elysia()
         }),
       ];
 
+      // Auto-run is holding back new work so merged code can activate (task 1562).
+      const restartWait = isRestartWaitActive();
       return {
         success: true,
         autoRun: toPublicAutoRunState(state),
         currentTask,
         activeTasks,
         remainingCount,
+        restartWait,
+        // For 「更新の取り込み待ち N件」; null when the count is unknown.
+        pendingUpdateCount: restartWait ? await readPendingUpdateCount() : null,
       };
     } catch (err) {
       log.error({ err, themeId }, '[theme-auto-run] Failed to get state');

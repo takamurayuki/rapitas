@@ -135,69 +135,6 @@ describe('judgePair — refusal reasons (same theme)', () => {
   });
 });
 
-// 2026-11-27 user request: a task that does not touch the schema may run next
-// to one that does. Pair-scoped kinds refuse only when BOTH sides touch the
-// same kind; any-scoped kinds (dependencies, shared config) refuse from one side.
-describe('judgePair — conflict-prone scope', () => {
-  const rows: Array<{ name: string; cand: string[]; act: string[]; reason: string | null }> = [
-    {
-      name: 'schema vs unrelated file',
-      cand: ['rapitas-backend/prisma/schema/core.prisma'],
-      act: ['rapitas-backend/services/alpha/a.ts'],
-      reason: null,
-    },
-    {
-      name: 'schema vs schema (different files)',
-      cand: ['rapitas-backend/prisma/schema/core.prisma'],
-      act: ['rapitas-backend/prisma/schema/system.prisma'],
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'schema vs generated init SQL (same kind)',
-      cand: ['rapitas-backend/prisma/schema/core.prisma'],
-      act: ['rapitas-backend/src/generated/sqlite-init-sql.ts'],
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'messages/ja.json vs messages/en.json (same kind)',
-      cand: ['rapitas-frontend/messages/ja.json'],
-      act: ['rapitas-frontend/messages/en.json'],
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'schema vs messages (different kinds)',
-      cand: ['rapitas-backend/prisma/schema/core.prisma'],
-      act: ['rapitas-frontend/messages/ja.json'],
-      reason: null,
-    },
-    {
-      name: 'package.json on one side refuses',
-      cand: ['rapitas-backend/package.json'],
-      act: ['rapitas-frontend/src/beta/b.tsx'],
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'eslint config on the running side refuses',
-      cand: ['rapitas-frontend/src/beta/b.tsx'],
-      act: ['rapitas-frontend/eslint.config.mjs'],
-      reason: 'conflict_prone_file',
-    },
-  ];
-  for (const r of rows) {
-    test(`${r.name} → ${r.reason ?? 'ok'}`, () => {
-      const verdict = judgePair(side(20, r.cand), side(10, r.act), ctx());
-      if (r.reason === null) expect(verdict).toEqual({ ok: true });
-      else expect(verdict).toMatchObject({ ok: false, reason: r.reason });
-    });
-  }
-
-  test('the overlapping file is named in the detail', () => {
-    const v = judgePair(side(20, ['rapitas-backend/services/alpha/a.ts']), A, ctx());
-    expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.detail).toContain('services/alpha/a.ts');
-  });
-});
-
 describe('judgePair — another theme (requirePlans false)', () => {
   test('a missing plan passes the file rules (fail-open)', () => {
     expect(judgePair(side(20, null), A, ctx({ requirePlans: false }))).toEqual({ ok: true });

@@ -204,3 +204,43 @@ describe('selectAndEnqueueNextTask — yields to a higher-priority waiting theme
     expect(enqueueMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// Task 1562: during a restart wait no new task is selected or enqueued.
+describe('selectAndEnqueueNextTask — restart wait', () => {
+  it('neither selects nor enqueues while the wait is in force, and resumes after it', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const previous = process.env.RAPITAS_DATA_DIR;
+    const dir = mkdtempSync(join(tmpdir(), 'advance-select-wait-'));
+    process.env.RAPITAS_DATA_DIR = dir;
+    const wait = await import('../../scheduling/auto-restart-merged-code/restart-wait');
+    const store = await import('../../scheduling/auto-restart-merged-code/restart-wait-store');
+    const prisma = {
+      task: {
+        findMany: mock(async () => []),
+        findUnique: mock(async () => ({ workflowStatus: 'todo' })),
+      },
+    } as unknown as import('../../../generated/prisma-postgres').PrismaClient;
+    try {
+      store.writeRestartWaitState({ waitStartedAt: Date.now(), phase: 'waiting' });
+      wait.resetRestartWaitCache();
+      selectNextTaskMock.mockClear();
+      enqueueMock.mockClear();
+
+      await selectAndEnqueueNextTask(prisma, 7, 'priority', 0, new Map());
+      expect(selectNextTaskMock).not.toHaveBeenCalled();
+      expect(enqueueMock).not.toHaveBeenCalled();
+
+      store.writeRestartWaitState({});
+      wait.resetRestartWaitCache();
+      await selectAndEnqueueNextTask(prisma, 7, 'priority', 0, new Map());
+      expect(enqueueMock).toHaveBeenCalledTimes(1);
+    } finally {
+      wait.resetRestartWaitCache();
+      if (previous === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -2219,6 +2219,7 @@
       "enabled": "有効",
       "disabled": "無効",
       "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "rapitasCpuNote": "判定には rapitas が起動したプロセス（バックエンド・エージェント・検証）の CPU の合計を、直近 {minutes} 分の平均で使います。ホスト全体の値は参考です。",
       "currentCpu": "現在のCPU使用率",
       "threshold": "しきい値",
       "effectiveMaxConcurrency": "実効並列度",
@@ -3881,6 +3882,10 @@
         "title": "ナレッジ自動抽出完了",
         "message": "タスク「{taskTitle}」から{count}件のナレッジを抽出しました"
       },
+      "goal_reflection_prompt": {
+        "title": "今週の前進を振り返りませんか",
+        "message": "進行中のゴール {count} 件について、1〜5 の評価と一言を残せます（1分ほどです）。"
+      },
       "knowledge_reminder": {
         "title": "忘れかけているナレッジ（{count}件）",
         "message": "復習しませんか？ {lines}"
@@ -4622,6 +4627,8 @@
       "choosingNext": "次のタスクを選んでいます",
       "selectTask": "表示するタスクを選ぶ",
       "awaitingAnswer": "回答待ち",
+      "restartWait": "取り込み待ち",
+      "restartWaitCount": "取り込み待ち {count}件",
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",
@@ -6835,6 +6842,43 @@
     "submitting": "記録中…",
     "saved": "監査記録に保存しました",
     "saveError": "監査記録の保存に失敗しました"
+  },
+  "goalReflection": {
+    "title": "今週の前進を振り返る",
+    "intro": "ゴールごとに、今週どれだけ進んだと感じるかを選んで、一言を残します。",
+    "ratingLabel": "{name} の今週の前進",
+    "ratingOption": "{value}",
+    "ratingScale": "1 = ほとんど進まなかった / 5 = 大きく進んだ",
+    "notePlaceholder": "一言（任意）",
+    "noteCount": "{count} / {max}",
+    "saved": "記録済み",
+    "save": "保存する",
+    "saving": "保存中...",
+    "close": "閉じる",
+    "loading": "読み込み中...",
+    "noGoals": "進行中のゴールがありません。節目を持つゴールがあると、ここで振り返りを残せます。",
+    "loadFailed": "振り返りを読み込めませんでした。",
+    "saveFailed": "保存できませんでした。",
+    "savedAll": "保存しました。同じ週のうちは、あとから直せます。",
+    "nothingToSave": "評価を選ぶと保存できます。",
+    "settings": {
+      "title": "週1回の振り返りの通知",
+      "description": "進行中のゴールの振り返りをうながす曜日と時刻（日本時間）。初期値は日曜 20:00 です。",
+      "dayLabel": "曜日",
+      "timeLabel": "時刻",
+      "save": "保存",
+      "saved": "保存しました",
+      "failed": "保存できませんでした",
+      "days": {
+        "0": "日曜日",
+        "1": "月曜日",
+        "2": "火曜日",
+        "3": "水曜日",
+        "4": "木曜日",
+        "5": "金曜日",
+        "6": "土曜日"
+      }
+    }
   },
   "triage": {
     "title": "判断トリアージ",

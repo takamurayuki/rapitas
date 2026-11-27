@@ -76,6 +76,7 @@ mock.module('../../../middleware/error-handler', () => ({
 const { handleAnswerWorkflowQuestion } = await import('./workflow-handlers-resume');
 beforeEach(() => {
   mockFindUnique.mockReset();
+  mockPrisma.workflowTransition.create.mockClear();
   mockUpdate.mockReset().mockResolvedValue({});
   mockUpdateMany.mockReset().mockResolvedValue({ count: 1 });
   mockFindFirstTransition
@@ -91,9 +92,90 @@ beforeEach(() => {
   mockIsLatestExecutionCancelled.mockReset().mockResolvedValue(false);
 });
 describe('handleAnswerWorkflowQuestion', () => {
+  test.each([
+    { source: 'operator', body: { resumeImplementer: true }, resume: true },
+    { source: 'ui', body: { resumeImplementer: true }, resume: true },
+    { source: 'operator', body: { resumeImplementer: 'true' }, resume: false },
+    { source: 'ui', body: {}, resume: false },
+  ])(
+    'HTTP 回答元と再開指定に応じて実際の振り分けを適用する (%j)',
+    async ({ source, body, resume }) => {
+      const task = { id: 503, workflowStatus: 'awaiting_question', updatedAt: new Date() };
+      mockFindUnique.mockResolvedValue(task);
+      mockResolveTaskWorkflowState.mockResolvedValue(task);
+      mockFindFirstTransition.mockResolvedValue({
+        id: 1,
+        cause: 'file_saved:question',
+        fromStatus: 'in_progress',
+        metadata: { previousStatus: 'in_progress' },
+      });
+      mockReadWorkflowFile.mockResolvedValue(
+        '```json:options\n' +
+          JSON.stringify({
+            questions: [
+              {
+                id: 'Q1',
+                summary: '実装方針の確認',
+                options: [{ key: 'A', label: '旧形式の改訂指定', planRevision: true }],
+              },
+            ],
+          }) +
+          '\n```',
+      );
+      const result = await handleAnswerWorkflowQuestion({
+        params: { taskId: '503' },
+        body: {
+          answer: '選択しました',
+          selections: [{ questionId: 'Q1', selectedKey: 'A' }],
+          ...body,
+        },
+        set: {},
+        headers: { 'x-rapitas-source': source },
+      });
+
+      if (resume) {
+        expect(result).toMatchObject({
+          resolvedKind: 'execution_continuation',
+          toStatus: 'in_progress',
+        });
+        expect(mockRecordTransition).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cause: 'question_resolved',
+            actor: 'user',
+            metadata: expect.objectContaining({
+              routing: 'resume',
+              routingReason: 'operator_resume_implementer',
+              sourceLabel: source === 'operator' ? 'オペレーター代理回答' : 'ユーザー選択',
+            }),
+          }),
+        );
+        expect(mockTriggerRedispatchAfterResume).toHaveBeenCalledTimes(1);
+        expect(mockTriggerReExecutionAfterAnswer).not.toHaveBeenCalled();
+        expect(mockPrisma.workflowTransition.create).not.toHaveBeenCalled();
+        expect(mockWriteWorkflowFile).toHaveBeenCalledTimes(1);
+        expect(mockWriteWorkflowFile).toHaveBeenCalledWith(
+          503,
+          'question',
+          expect.stringContaining('## 回答\n選択しました'),
+        );
+      } else {
+        expect(result).toMatchObject({ resolvedKind: 'plan_revision', toStatus: 'research_done' });
+        expect(mockTriggerReExecutionAfterAnswer).toHaveBeenCalledTimes(1);
+        expect(mockTriggerRedispatchAfterResume).not.toHaveBeenCalled();
+      }
+      expect(mockArchiveWorkflowFile).not.toHaveBeenCalled();
+    },
+  );
+
   test.each(['started', 'waiting_slot'] as const)(
     '計画修正回答の %s を保存後の応答へ反映する',
     async (result) => {
+      mockFindFirstTransition.mockResolvedValue({
+        id: 1,
+        cause: 'file_saved:question',
+        fromStatus: 'in_progress',
+        metadata: { previousStatus: 'in_progress' },
+      });
       mockFindUnique.mockResolvedValue({
         id: 503,
         workflowStatus: 'awaiting_question',
@@ -414,12 +496,14 @@ describe('handleAnswerWorkflowQuestion', () => {
       await expect(
         handleAnswerWorkflowQuestion({
           params: { taskId: '662' },
-          body: { answer: 'x' },
+          body: { answer: 'x', resumeImplementer: true },
           set,
           headers: { 'x-rapitas-source': 'agent' },
         }),
       ).rejects.toThrow('X-Rapitas-Source');
       expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockTriggerRedispatchAfterResume).not.toHaveBeenCalled();
+      expect(mockTriggerReExecutionAfterAnswer).not.toHaveBeenCalled();
     });
     test('オペレーター代理回答はその旨が記録される', async () => {
       mockFindUnique.mockResolvedValue({

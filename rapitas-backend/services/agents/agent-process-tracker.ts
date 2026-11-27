@@ -18,6 +18,7 @@ import {
   type ProcessSnapshotEntry,
 } from './process-tree-kill';
 import { ancestorPids, parseListenerPids } from './backend-process-identity';
+import { isPidAlive } from '../../utils/common/pid-alive';
 
 // Re-exported so agent runners get the capture + kill pair from one module. The
 // capture includes descendants recorded during the run (descendant-tracker.ts).
@@ -53,21 +54,8 @@ function ensurePidDir(): void {
  * @returns true if the process is alive / 生存していれば true
  */
 function isProcessAlive(pid: number): boolean {
-  try {
-    if (process.platform === 'win32') {
-      const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
-        stdio: 'pipe',
-        timeout: 5000,
-      }).toString();
-      // NOTE: tasklist returns a Japanese message when no matching process is found
-      return result.includes(String(pid));
-    }
-    // Unix: signal 0 checks if process is alive without sending a real signal
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+  // NOTE: In-process; this used to run a blocking execSync tasklist per PID file.
+  return isPidAlive(pid);
 }
 
 /**

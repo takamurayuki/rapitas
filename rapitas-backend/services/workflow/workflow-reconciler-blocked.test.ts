@@ -50,14 +50,27 @@ const fakePrisma = {
     count: () => Promise.resolve(0),
   },
   userSettings: { findFirst: () => Promise.resolve(null) },
+  // The resume decision (task 1563) reads the task's PR; absent here = no PR, not unreadable.
+  gitHubPullRequest: { findFirst: () => Promise.resolve(null) },
+  // The resume facts also read the session worktree (no session = no work).
+  agentSession: { findFirst: () => Promise.resolve(null) },
   activityLog: { findFirst: () => Promise.resolve(null) },
   agentExecution: { findFirst: () => Promise.resolve(null) },
   workflowTransition: {
     count: (args: { where: { cause: string } }) =>
       Promise.resolve(args.where.cause === 'blocked_auto_retry' ? retriesRecorded : 0),
-    findFirst: (args: { where: { cause: string } }) =>
+    findFirst: (args: { where: { cause?: string; toStatus?: string } }) =>
       Promise.resolve(
-        args.where.cause === 'blocked_auto_retry' && retriesRecorded ? { id: 9 } : null,
+        // The blocked entry carries an allow-listed cause (resume decision, task 1563).
+        args.where.toStatus === 'blocked'
+          ? {
+              fromStatus: row.workflowStatus,
+              createdAt: new Date(0),
+              cause: 'auto_run_hang_backstop',
+            }
+          : args.where.cause === 'blocked_auto_retry' && retriesRecorded
+            ? { id: 9 }
+            : null,
       ),
     update: (args: { where: { id: number }; data: { metadata: string } }) => {
       transitionUpdates.push({ id: args.where.id, metadata: args.data.metadata });
@@ -144,15 +157,19 @@ describe('requeueBlockedTasks re-dispatch after draft reset (task 1238)', () => 
     expect(selectCalls.length).toBe(0);
   });
 
-  test('テーマが paused_approval ならセレクタは起動せず theme_not_running を記録する', async () => {
+  test('テーマが paused_approval なら停止ガードが再開を止め、blocked のまま何も書かず起動もしない', async () => {
     theme.status = 'paused_approval';
 
-    // NOTE: the scan-time gate (running themes only) is mocked open here to
-    // exercise the re-read race: the theme paused between scan and reset.
+    // NOTE: the scan-time gate (running themes only) is mocked open here to exercise the
+    // re-read race: the theme paused between scan and reset. The stop guard (task 1563) now
+    // declines before any write; ensureRetryDispatch's theme_not_running is covered in
+    // blocked-retry-dispatch.test.ts.
     await requeueBlockedTasks(NOW);
 
     expect(selectCalls.length).toBe(0);
-    expect(JSON.parse(transitionUpdates[0].metadata).dispatch).toBe('theme_not_running');
+    expect(row.status).toBe('blocked');
+    expect(retriesRecorded).toBe(0);
+    expect(transitionUpdates).toHaveLength(0);
   });
 
   test('workflowStatus が completed の blocked は既存どおり draft リセットも起動もしない', async () => {

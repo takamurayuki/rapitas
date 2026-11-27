@@ -10,7 +10,7 @@
  * Not responsible for controlling the run or for fetching its state.
  */
 import Link from 'next/link';
-import { Repeat } from 'lucide-react';
+import { Hourglass, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
 import type { ActiveTask, AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
@@ -37,6 +37,10 @@ interface AutoRunProgressStripProps {
   remainingCount: number;
   /** When the run started (ISO), or null. / 開始時刻 */
   startedAt: string | null;
+  /** True while no new work starts until merged code activates (task 1562). / 取り込み待ち */
+  restartWait?: boolean;
+  /** Updates waiting to activate, when known. / 取り込み待ちの件数 */
+  pendingUpdateCount?: number | null;
   /**
    * The hidden filter's category and theme, merged in rather than drawn as a
    * second band (2026-11-21); null while the filter is shown. / 隠したフィルターの範囲
@@ -69,6 +73,8 @@ export function AutoRunProgressStrip({
   currentTask,
   remainingCount,
   startedAt,
+  restartWait,
+  pendingUpdateCount,
   scope,
   activeTasks,
   themeId,
@@ -138,7 +144,9 @@ export function AutoRunProgressStrip({
     <div
       data-testid="auto-run-progress-strip"
       aria-label={t('progress.label')}
-      className={`${HOME_CARD_FRAME} mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 px-3.5 py-2 text-[13px]`}
+      // NOTE: overflow-visible overrides the frame's overflow-hidden so the task menu
+      // can drop below the strip instead of being clipped (2026-11-27).
+      className={`${HOME_CARD_FRAME} !overflow-visible mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 px-3.5 py-2 text-[13px]`}
     >
       {scope && (
         <>
@@ -148,19 +156,20 @@ export function AutoRunProgressStrip({
       )}
       {currentTask && shown && view ? (
         <>
-          {showSelect && activeTasks && (
-            <AutoRunTaskSelect tasks={activeTasks} selectedId={selectedId} onSelect={select} />
+          {showSelect && activeTasks ? (
+            <AutoRunTaskSelect tasks={activeTasks} shown={shown} onSelect={select} />
+          ) : (
+            // NOTE: Only the id shows (asked 2026-11-21); the title stays in
+            // title / aria-label for hover and screen readers.
+            <Link
+              href={`/tasks/${shown.id}?showHeader=true`}
+              title={shown.title}
+              aria-label={`#${shown.id} ${shown.title}`}
+              className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              #{shown.id}
+            </Link>
           )}
-          {/* NOTE: Only the id shows (asked 2026-11-21); the title stays in
-              title / aria-label for hover and screen readers. */}
-          <Link
-            href={`/tasks/${shown.id}?showHeader=true`}
-            title={shown.title}
-            aria-label={`#${shown.id} ${shown.title}`}
-            className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
-          >
-            #{shown.id}
-          </Link>
 
           <AutoRunPhaseSteps view={view} />
 
@@ -205,6 +214,19 @@ export function AutoRunProgressStrip({
       ) : (
         <span className="text-zinc-500 dark:text-zinc-400">
           {status === 'paused' ? t('statusPaused') : t('progress.choosingNext')}
+        </span>
+      )}
+
+      {restartWait && (
+        // Hourglass = 承認待ち／回答待ち／待機 (ICON_POLICY): the same "waiting" concept.
+        <span
+          data-testid="auto-run-restart-wait"
+          className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400"
+        >
+          <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
+          {pendingUpdateCount && pendingUpdateCount > 0
+            ? t('progress.restartWaitCount', { count: pendingUpdateCount })
+            : t('progress.restartWait')}
         </span>
       )}
 
