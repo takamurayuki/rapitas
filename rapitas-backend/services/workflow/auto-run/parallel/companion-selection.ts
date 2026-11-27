@@ -34,6 +34,8 @@ import {
 } from './parallel-filter';
 
 import { countGlobalActiveSlots } from './global-active-slots';
+import { collectPlanFiles, isEmptyPlanFileSet } from './parallel-safety-rules';
+import { isPlanlessCandidate, writePendingMark } from './recheck/recheck-state';
 
 const log = createLogger('companion-selection');
 
@@ -49,6 +51,12 @@ export {
 export interface CompanionSelectionDeps extends Partial<ParallelFilterDeps> {
   enqueue?: (item: { taskId: number; themeId: number; priority: number }) => Promise<unknown>;
   now?: () => number;
+  /** Writes the re-check mark of a planless companion; throws on failure (task 1572). */
+  writeRecheckMark?: (input: {
+    taskId: number;
+    themeId: number;
+    workflowStatus: string | null;
+  }) => Promise<void>;
 }
 
 /** Why no companion was added (or the task that was). */
@@ -63,6 +71,7 @@ export type CompanionSelectionResult =
         | 'concurrency_limit'
         | 'companion_write_failed'
         | 'enqueue_failed'
+        | 'recheck_mark_failed'
         | string;
       rejected?: ParallelRejection[];
     };
@@ -158,6 +167,11 @@ export async function selectCompanionTask(
 
   const taskId = result.taskId;
   const now = (deps.now ?? Date.now)();
+  // Task 1572: the mark goes BEFORE the slot, so no companion ever holds a slot
+  // without the implementer re-check it was admitted on.
+  if (!(await markPlanlessCompanion(prisma, themeId, taskId, deps))) {
+    return { selected: null, reason: 'recheck_mark_failed' };
+  }
   if (!(await addCompanion(prisma, themeId, taskId, now))) {
     return { selected: null, reason: 'companion_write_failed' };
   }
@@ -207,4 +221,43 @@ export async function selectCompanionTask(
     msg: 'companion task selected and enqueued (parallel within the theme)',
   });
   return { selected: taskId };
+}
+
+/**
+ * Write the re-check mark when the selected companion has no plan yet.
+ *
+ * @param prisma - Prisma client / Prismaクライアント
+ * @param themeId - Theme / テーマID
+ * @param taskId - Selected task / 選定したタスク
+ * @param deps - Test overrides / テスト用差し替え
+ * @returns False when a needed mark could not be written / 必要な印を書けなければ false
+ */
+async function markPlanlessCompanion(
+  prisma: PrismaClient,
+  themeId: number,
+  taskId: number,
+  deps: CompanionSelectionDeps,
+): Promise<boolean> {
+  try {
+    const readPlan =
+      deps.readPlan ??
+      (async (id: number) => {
+        const { readWorkflowFile } = await import('../../workflow-file-utils');
+        return readWorkflowFile(id, 'plan');
+      });
+    const [row, plan] = await Promise.all([
+      prisma.task.findUnique({ where: { id: taskId }, select: { workflowStatus: true } }),
+      readPlan(taskId).catch(() => null),
+    ]);
+    const workflowStatus = row?.workflowStatus ?? null;
+    if (!isPlanlessCandidate(workflowStatus, !isEmptyPlanFileSet(collectPlanFiles(plan)))) {
+      return true;
+    }
+    const write = deps.writeRecheckMark ?? ((input) => writePendingMark(prisma, input));
+    await write({ taskId, themeId, workflowStatus });
+    return true;
+  } catch (err) {
+    log.error({ err, themeId, taskId }, 're-check mark write failed — companion not added');
+    return false;
+  }
 }

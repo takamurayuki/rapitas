@@ -26,6 +26,7 @@ import { prepareAgentAndPrompt } from './workflow-orchestrator-agent-prep';
 import { runPreflightProbe } from './workflow-orchestrator-preflight-probe';
 import { guardPlanValidity } from './workflow-orchestrator-plan-guard';
 import { guardProtectedPathMode } from './workflow-orchestrator-protected-path-guard';
+import { guardParallelRecheck } from './auto-run/parallel/recheck/recheck-gate';
 import {
   buildExecutionContext,
   resolveEffectiveModel,
@@ -218,6 +219,13 @@ export class WorkflowOrchestrator {
       guardProtectedPathMode(taskId, transition, workflowMode, language),
     );
     if (modeGuard.done) return modeGuard.result;
+
+    // Task 1572: a companion selected without a plan re-checks its planned files
+    // against the running tasks before the implementer; held → the runner re-queues.
+    const recheck = await observeWorkflowStage(taskId, 'parallel-recheck', () =>
+      guardParallelRecheck(taskId, transition, task, currentStatus, workflowMode),
+    );
+    if (recheck.done) return recheck.result;
 
     // Before any agent/prompt work: hold the implementer while its files are
     // still changing in another open auto-PR (skipped → the runner re-queues).

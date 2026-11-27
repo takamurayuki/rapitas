@@ -24,7 +24,9 @@ export async function resolveResumedTenureStart(
 }
 
 /** Transition causes that mean the task was sent back to implement or its question answered. */
-const PROGRESS_CAUSES = ['verify_repair', 'question_resolved'];
+// NOTE: task 1572 adds `parallel_recheck_passed` — a companion that waited at
+// the implementer re-check starts its implementer then, not at selection.
+const PROGRESS_CAUSES = ['verify_repair', 'question_resolved', 'parallel_recheck_passed'];
 
 /**
  * Move the tenure start to the last time the task actually moved forward.

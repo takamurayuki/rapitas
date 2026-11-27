@@ -183,7 +183,8 @@ describe('resolveProgressTenureStart (task 1563)', () => {
     await resolveProgressTenureStart(prisma, 77, original);
     expect(seen[0]).toMatchObject({
       taskId: 77,
-      cause: { in: ['verify_repair', 'question_resolved'] },
+      // NOTE: task 1572 adds the parallel re-check pass as a forward step.
+      cause: { in: ['verify_repair', 'question_resolved', 'parallel_recheck_passed'] },
     });
     expect(seen[1]).toMatchObject({ session: { config: { taskId: 77 } } });
   });
