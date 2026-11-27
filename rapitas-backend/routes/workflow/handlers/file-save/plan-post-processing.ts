@@ -17,6 +17,12 @@ import { isSubtaskSplitEnabled } from '../../../../services/workflow/subtask-spl
 import { parsePlanFiles } from '../../../../services/agents/verification/scope-check';
 import { isSchemaFilePath } from '../../../../services/agents/verification/schema-change-gate';
 import { recordTransition } from '../../../../services/workflow/transition-recorder';
+import {
+  PLAN_MAX_CHANGED_FILES,
+  PLAN_MAX_CHECKLIST_ITEMS,
+  isPlanOversized,
+  measurePlanSize,
+} from '../../../../services/workflow/plan-size-policy';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -84,6 +90,29 @@ export async function runPlanPostProcessing(params: {
   // silently carries over to a differently-scoped schema change.
   let autoApproved = false;
   if (fileType === 'plan' && newStatus === 'plan_created') {
+    // Warn-only (never bounces): oversized plans are recorded under one cause so
+    // the count can be aggregated later. Placed before the schema branch so it is
+    // recorded regardless of the auto-approval outcome.
+    try {
+      const size = measurePlanSize(content);
+      if (isPlanOversized(size)) {
+        await recordTransition({
+          taskId,
+          fromStatus: 'plan_created',
+          toStatus: 'plan_created',
+          actor: 'system',
+          cause: 'plan_oversized_warning',
+          phase: 'plan',
+          metadata: {
+            ...size,
+            maxChecklistItems: PLAN_MAX_CHECKLIST_ITEMS,
+            maxChangedFiles: PLAN_MAX_CHANGED_FILES,
+          },
+        });
+      }
+    } catch (warnErr) {
+      log.warn({ err: warnErr }, `[Workflow] Plan size warning failed for task ${taskId}`);
+    }
     const declaredSchemaFiles = parsePlanFiles(content).filter(isSchemaFilePath);
     if (declaredSchemaFiles.length > 0) {
       await prisma.task.update({

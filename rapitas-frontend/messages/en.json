@@ -685,7 +685,8 @@
       "autoRunNextUp": "Next up",
       "autoRunNextUpTooltip": "Auto-run has picked this task, but no agent has started yet. The time shown is elapsed since the last update.",
       "autoRunQueued": "Queued",
-      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task"
+      "autoRunQueuedTooltip": "Eligible for auto-run, but waiting its turn behind another task",
+      "autoRunWaitingForSlotTooltip": "Picked as the next task, but every run slot is in use by another task; it starts when one finishes"
     },
     "suggestionCard": {
       "category": {
@@ -1444,6 +1445,9 @@
     },
     "autoRunSettingsCard": {
       "description": "Settings for how task auto-run behaves.",
+      "maxConcurrencyLabel": "Auto-runs at the same time",
+      "maxConcurrencyDescription": "How many auto-run tasks may run at once across all themes (1-4). When a slot frees up, the theme with the higher auto-run priority picks its next task first.",
+      "maxConcurrencyEnvOverride": "Running with {value} because the AUTO_RUN_GLOBAL_MAX_CONCURRENCY environment variable is set. This setting takes effect once the variable is removed.",
       "backlogLimitLabel": "Auto-create from concerns/ideas (cap)",
       "backlogLimitDescription": "When auto-run runs out of tasks, automatically creates tasks from the concern backlog (or the idea box once resolved). Per-theme cap on simultaneous creation. 0 disables it.",
       "repairLimitLabel": "Verify-failure retry count (self-repair loop cap)",
@@ -1459,7 +1463,10 @@
       "selfRefillWindowDescription": "Runs the backlog self-refill (concerns/ideas → tasks) at most once a day, not before this time (high/urgent concerns are filed regardless). Clear it to disable self-refill.",
       "selfRefillWindowDisable": "Disable",
       "selfRefillWindowDisabled": "Disabled (no self-refill)",
-      "savingSuffix": " (saving…)"
+      "savingSuffix": " (saving…)",
+      "maxConcurrencyPerThemeLabel": "Auto-run tasks per theme",
+      "maxConcurrencyPerThemeDescription": "How many tasks one theme may run at once when their planned files do not collide (1–4, default 1). Never more than the limit above. A 2nd or later task is chosen only when its planned files, folders and dependencies do not overlap a running task.",
+      "maxConcurrencyPerThemeEnvOverride": "Running with {value} because the AUTO_RUN_THEME_MAX_CONCURRENCY environment variable is set. This setting takes effect once the variable is removed."
     },
     "executionDashboardSettingsCard": {
       "title": "Execution Dashboard",
@@ -1829,14 +1836,18 @@
         "noTheme": "No theme",
         "blocked": "Blocked",
         "stalled": "In progress but stalled",
-        "overdue": "Overdue"
+        "overdue": "Overdue",
+        "awaitingAnswer": "Awaiting an answer",
+        "halted": "Halted"
       },
       "why": {
         "held": "Never selected, so nothing happens until it is released",
         "noTheme": "Invisible to auto-run's selection, so it is never picked",
         "blocked": "Not retried blindly by design — a manual retry is the way out",
         "stalled": "In progress, but nothing has touched it for days",
-        "overdue": "Past its due date and not finished"
+        "overdue": "Past its due date and not finished",
+        "awaitingAnswer": "Stopped until someone answers its question",
+        "halted": "A halt reason is still set, so auto-run will not select it"
       }
     },
     "consult": {
@@ -2208,6 +2219,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "hostCpuNote": "Host-wide CPU usage. Not attributed to any specific theme.",
+      "rapitasCpuNote": "The gate uses the total CPU of the processes rapitas started (backend, agents, verification), averaged over the last {minutes} min. The host-wide value is for reference.",
       "currentCpu": "Current CPU usage",
       "threshold": "Threshold",
       "effectiveMaxConcurrency": "Effective concurrency",
@@ -3366,6 +3378,8 @@
     "readinessTimeoutMs": "Application readiness timeout (seconds)"
   },
   "themes": {
+    "autoRunPriorityLabel": "Auto-run priority",
+    "autoRunPriorityDescription": "When an auto-run slot frees up, tasks from the theme with the higher value are picked first (-100 to 100, default 0). Equal values go by theme ID, lowest first.",
     "title": "Themes",
     "subtitle": "Manage themes. You can also configure development project settings here.",
     "themeName": "Theme name",
@@ -3867,6 +3881,10 @@
       "knowledge_extracted": {
         "title": "Knowledge auto-extraction complete",
         "message": "Extracted {count} knowledge entries from task \"{taskTitle}\""
+      },
+      "goal_reflection_prompt": {
+        "title": "Reflect on this week's progress",
+        "message": "You can leave a 1-5 rating and a short note for {count} goal(s) in progress (about a minute)."
       },
       "knowledge_reminder": {
         "title": "Knowledge you might be forgetting ({count})",
@@ -4607,6 +4625,9 @@
     "progress": {
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
+      "restartWait": "Waiting to apply updates",
+      "restartWaitCount": "{count, plural, one {# update} other {# updates}} waiting to apply",
+      "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
       "rework": "Sent back {count}×",
       "reworkRoute": "({from} → {to})",
@@ -4618,7 +4639,8 @@
         "plan": "Plan",
         "implement": "Implement",
         "verify": "Verify"
-      }
+      },
+      "parallel": "{count} running in parallel"
     }
   },
   "quickCapture": {
@@ -6426,11 +6448,50 @@
     "linkPanelLabel": "Link actions",
     "markdownNote": {
       "view": "View",
-      "edit": "Edit Markdown",
-      "modeLabel": "Switch between view and edit",
+      "edit": "Edit",
+      "modeLabel": "Switch between view, edit and source",
       "sourceLabel": "Note body (Markdown)",
       "empty": "No content.",
-      "formatHint": "This note is written in Markdown (headings, lists, tables, code, Mermaid diagrams)"
+      "formatHint": "Saved as Markdown (headings, lists, tables, code, Mermaid diagrams, text colour, highlight, font size, underline)",
+      "source": "Source",
+      "surfaceLabel": "Note body (visual editing)",
+      "roundTripNotice": "Visual editing tidies some of the writing. To keep it exactly as written, edit the source.",
+      "toolbar": {
+        "label": "Formatting",
+        "bold": "Bold (Ctrl+B)",
+        "italic": "Italic (Ctrl+I)",
+        "underline": "Underline (Ctrl+U)",
+        "strike": "Strikethrough",
+        "paragraph": "Body text",
+        "h1": "Heading 1",
+        "h2": "Heading 2",
+        "h3": "Heading 3",
+        "bulletList": "Bulleted list",
+        "numberedList": "Numbered list",
+        "checklist": "Checklist",
+        "quote": "Quote",
+        "codeBlock": "Insert code block",
+        "noLanguage": "No language",
+        "diagram": "Insert diagram (Mermaid)",
+        "table": "Insert table",
+        "link": "Insert link",
+        "linkPlaceholder": "https://...",
+        "insert": "Insert",
+        "textColor": "Text colour",
+        "highlight": "Highlight",
+        "fontSize": "Font size",
+        "customColor": "Colour code (#RRGGBB)",
+        "apply": "Apply",
+        "columnHeading": "Column {n}",
+        "highlightColors": {
+          "yellow": "Yellow",
+          "green": "Green",
+          "blue": "Blue",
+          "pink": "Pink",
+          "orange": "Orange",
+          "purple": "Purple"
+        }
+      }
     },
     "migration": {
       "notStartedTitle": "Move this PC's notes to the server",
@@ -6480,7 +6541,7 @@
       "readOnly": "This note was written in the old rich editor as HTML, so it is shown read-only.",
       "convert": "Convert to Markdown to edit",
       "previewTitle": "Check the conversion",
-      "previewHint": "Formatting Markdown cannot express (colours, font sizes, fonts) is lost. Check the result before saving.",
+      "previewHint": "Fonts and borders are lost; text colour, highlight, font size and underline are kept. Check the result before saving.",
       "save": "Save this",
       "cancel": "Cancel",
       "sourceLabel": "Converted Markdown"
@@ -6580,7 +6641,10 @@
       "wholeWord": "Match whole word",
       "regex": "Use regular expression"
     },
-    "runDivider": "─────── run {n}/{total} ───────"
+    "runDivider": "─────── run {n}/{total} ───────",
+    "reviewRunDivider": "─────── diff review {seat} ({model}) {n}/{total} ───────",
+    "reviewRunResult": "verdict: {verdict}, {findings} findings",
+    "reviewRunUnknown": "unknown"
   },
   "testCorrelation": {
     "pageTitle": "Test Failure Correlation Heatmap",
@@ -6779,6 +6843,43 @@
     "saved": "Saved to the audit record",
     "saveError": "Failed to save the audit record"
   },
+  "goalReflection": {
+    "title": "Reflect on this week's progress",
+    "intro": "For each goal, pick how much progress it felt like this week and leave a short note.",
+    "ratingLabel": "This week's progress on {name}",
+    "ratingOption": "{value}",
+    "ratingScale": "1 = barely moved / 5 = moved a lot",
+    "notePlaceholder": "A note (optional)",
+    "noteCount": "{count} / {max}",
+    "saved": "Recorded",
+    "save": "Save",
+    "saving": "Saving...",
+    "close": "Close",
+    "loading": "Loading...",
+    "noGoals": "No goals in progress. Goals with a milestone can be reflected on here.",
+    "loadFailed": "Could not load your reflections.",
+    "saveFailed": "Could not save.",
+    "savedAll": "Saved. You can edit it again during the same week.",
+    "nothingToSave": "Pick a rating to save.",
+    "settings": {
+      "title": "Weekly reflection reminder",
+      "description": "The day and time (Japan time) to be reminded to reflect on goals in progress. Defaults to Sunday 20:00.",
+      "dayLabel": "Day",
+      "timeLabel": "Time",
+      "save": "Save",
+      "saved": "Saved",
+      "failed": "Could not save",
+      "days": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      }
+    }
+  },
   "triage": {
     "title": "Decision Triage",
     "empty": "No decisions waiting",
@@ -6937,6 +7038,50 @@
       "description": "File each task under the milestone it works towards to see each milestone's progress",
       "fileLabel": "Milestone for \"{title}\"",
       "pick": "Choose a milestone"
+    },
+    "openInsights": "View product-purpose metrics",
+    "insights": {
+      "title": "Product-purpose metrics",
+      "subtitle": "Four measures of whether goals are being broken into milestones and reached",
+      "back": "Back to goals",
+      "loading": "Loading",
+      "period": {
+        "label": "Period",
+        "4w": "Last 4 weeks",
+        "all": "All time"
+      },
+      "noMaterial": "No material yet",
+      "noReflection": "No data until the weekly reflection exists",
+      "ratio": "{numerator} / {denominator}",
+      "percent": "{percent}%",
+      "metrics": {
+        "reachRate": {
+          "title": "Milestone reach rate",
+          "help": "Reached ÷ (reached + past due and not reached). Paused milestones are excluded"
+        },
+        "resumeRate": {
+          "title": "Resume rate after a stall",
+          "help": "Of stalls (14+ days without updates), the share followed by a milestone reached or a task completed"
+        },
+        "quality": {
+          "title": "Outcome quality",
+          "help": "Of the milestones reached, the share not undone later"
+        },
+        "feltProgress": {
+          "title": "Felt progress",
+          "help": "Trend of the weekly reflection ratings"
+        }
+      },
+      "goalList": {
+        "title": "By goal",
+        "empty": "No material yet",
+        "counts": "Reached {reached} / Open {open} / Paused {paused}",
+        "updated": "Last updated {date}",
+        "stalled": "Stalled",
+        "active": "Active",
+        "note": "Open includes milestones not yet due. Counts and last updates show the current state regardless of the period."
+      },
+      "limits": "There is no history table, so stalls and resumes are estimated from each row's last update time. Milestones undone before the undo record began are not counted in outcome quality."
     }
   }
 }

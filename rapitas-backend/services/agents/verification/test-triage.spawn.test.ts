@@ -23,6 +23,8 @@ interface SpawnRule {
 
 let rules: SpawnRule[] = [];
 const calls: string[] = [];
+/** Heavy-slot holders seen at the moment each test command started (task 1553). */
+const slotAtTestSpawn: number[] = [];
 
 function resolveRule(command: string): SpawnRule {
   return rules.find((r) => r.match(command)) ?? { code: 0, stdout: '' };
@@ -30,6 +32,8 @@ function resolveRule(command: string): SpawnRule {
 
 const spawnMock = mock((command: string) => {
   calls.push(command);
+  if (/^(bun test|pnpm exec vitest)/.test(command))
+    slotAtTestSpawn.push(heavyCheckSlotStats().active);
   const child = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter;
     stderr: EventEmitter;
@@ -71,10 +75,12 @@ mock.module('node:child_process', () => ({
 }));
 
 const { triageTestFailures } = await import('./test-triage');
+const { heavyCheckSlotStats } = await import('./heavy-check-slot');
 
 beforeEach(() => {
   rules = [];
   calls.length = 0;
+  slotAtTestSpawn.length = 0;
   spawnMock.mockClear();
 });
 
@@ -142,7 +148,9 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
       },
       { match: (c) => c.includes('git worktree add --detach'), code: 0 },
       {
-        match: (c) => c.includes('bun test --isolate "automated-verifier.test.ts"'),
+        // The worker cap (task 1553) may sit between --isolate and the file on small hosts.
+        match: (c) =>
+          /^bun test --isolate( --max-concurrency=\d+)? "automated-verifier\.test\.ts"$/.test(c),
         code: 1, // fails both in the current worktree and in the baseline
       },
     ];
@@ -154,6 +162,10 @@ describe('test-triage internal defaults (spawn mocked, fs real)', () => {
     });
     expect(result).toEqual({ preExisting: ['automated-verifier.test.ts'], newFailures: [] });
     expect(removeWorktreeFn).toHaveBeenCalledTimes(1);
+    // Each triage test run holds the cross-task heavy slot, and only one at a time (task 1553).
+    expect(slotAtTestSpawn.length).toBeGreaterThan(0);
+    expect(slotAtTestSpawn.every((n) => n === 1)).toBe(true);
+    expect(heavyCheckSlotStats().active).toBe(0);
     // Sanity-check the relative-path trick actually landed on a real directory.
     expect(relative(workdir, projectRoot)).toBe(
       join('..', '..', 'services', 'agents', 'verification'),

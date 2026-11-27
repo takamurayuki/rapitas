@@ -176,7 +176,6 @@ describe('readReviewHold', () => {
       detail: 'd',
       findings: [FINDING],
       severity: 90,
-      heldStatus: 'verify_done',
     });
   });
 

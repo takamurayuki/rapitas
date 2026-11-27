@@ -2,9 +2,8 @@
  * ThemeForm
  *
  * Renders the create/edit form for a single theme: name, description, color,
- * icon picker, category selector, and development-project fields.
- * The dev-project section is delegated to DevProjectFields.
- * Does not own any async logic.
+ * icon picker, auto-run priority, category selector, and development-project
+ * fields (delegated to DevProjectFields). Does not own any async logic.
  */
 import { Save, X, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -12,6 +11,7 @@ import { IconGrid } from '@/components/category/IconGrid';
 import type { Category } from '@/types';
 import type { FormData } from '../_hooks/useThemesPage';
 import { DevProjectFields } from './dev-project-fields';
+import { ThemeAutoRunPriorityField } from './ThemeAutoRunPriorityField';
 
 type DirStatus = {
   checking: boolean;
@@ -90,7 +90,6 @@ export function ThemeForm({
 }: Props) {
   const t = useTranslations('themes');
   const tc = useTranslations('common');
-
   return (
     <div className="space-y-4">
       <div className="space-y-3">
@@ -200,6 +199,10 @@ export function ThemeForm({
             </div>
           </div>
         </div>
+        <ThemeAutoRunPriorityField
+          value={formData.autoRunPriority}
+          onChange={(autoRunPriority) => setFormData({ ...formData, autoRunPriority })}
+        />
       </div>
 
       {/* Category selector — hidden while editing: the active category tab already shows it. */}

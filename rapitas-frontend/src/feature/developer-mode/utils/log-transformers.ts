@@ -17,6 +17,7 @@ import {
   isNarrativeProse,
   stripMarkdownDecorations,
 } from './log-display-utils';
+import { mergeSuccessResults } from './log-result-merge';
 
 // Narrative preview cap — roughly three wrapped lines in the viewer; the full
 // passage stays available via `detail` (click-to-expand).
@@ -209,7 +210,9 @@ export function transformLogsToSimple(
   logs: string[],
   t: LogTranslate = defaultT,
 ): UserFriendlyLogEntry[] {
-  const tokens = collapseMarkdownBlocks(splitLogsIntoLines(logs));
+  // NOTE: One run woken again by task notifications ends with several result
+  // lines; mergeSuccessResults leaves one 「実行完了」 with the summed duration.
+  const tokens = collapseMarkdownBlocks(mergeSuccessResults(splitLogsIntoLines(logs)));
   const entries: UserFriendlyLogEntry[] = [];
   for (const token of tokens) {
     // NOTE: A markdown dump (research.md / plan.md / verify.md being written)

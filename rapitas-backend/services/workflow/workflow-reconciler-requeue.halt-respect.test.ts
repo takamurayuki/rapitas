@@ -74,3 +74,11 @@ describe('requeueBlockedTasks は完了済みワークフローを draft に戻�
     expect(updates.some((d) => d.status === 'done')).toBe(true);
   });
 });
+
+describe('requeueBlockedTasks は自動実行の対象外タスクを再試行しない (task 1563)', () => {
+  test('findMany は autoRunExcluded: false で絞る（blocked のまま残す）', async () => {
+    await requeueBlockedTasks(NOW);
+    const arg = mockPrisma.task.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+    expect(arg.where.autoRunExcluded).toBe(false);
+  });
+});

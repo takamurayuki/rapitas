@@ -32,6 +32,8 @@ import {
   listChangedPaths,
 } from './git-io';
 import { dependencyGate } from './dependency-preflight';
+import { writeLastRestartAt } from './settings-store';
+import { restartQueueDepth } from './boundary-policy';
 
 const logger = createLogger('deploy-now');
 
@@ -88,6 +90,7 @@ function findBlocker(
     activeExecutions: number;
     runningExecutions: number;
     queueDepth: number;
+    dispatchableQueueDepth?: number;
     isShuttingDown: boolean;
     activeExecutionsDegraded: boolean;
   },
@@ -98,7 +101,7 @@ function findBlocker(
   if (snapshot.isShuttingDown) return 'shutting-down';
   if (snapshot.activeExecutions > 0) return 'active-executions';
   if (snapshot.runningExecutions > 0) return 'running-executions';
-  if (snapshot.queueDepth > 0) return 'queue-not-empty';
+  if (restartQueueDepth(snapshot) > 0) return 'queue-not-empty';
   if (merging) return 'merge-in-flight';
   if (auxChildren > 0) return 'aux-children';
   return null;
@@ -203,6 +206,9 @@ export async function deployNow(startupCommit: string | null): Promise<DeployNow
     logger.warn({ err }, 'notification failed — restarting anyway');
   });
 
+  // NOTE: Written but never read here — the floor does not hold a request. The
+  // stamp keeps an automatic restart from landing right after this one (task 1548).
+  writeLastRestartAt(Date.now());
   logger.info({ aheadCount, branch, startupCommit }, 'deploy requested — restarting to activate');
   scheduleShutdownSequence('[deploy-now]', 75);
   return { deployed: true, reason: 'deployed', aheadCount };

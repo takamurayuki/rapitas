@@ -10,6 +10,7 @@
 import type { PrismaClient } from '../../../generated/prisma-postgres';
 import { getPrChangedFiles } from './open-pr-files-cache';
 import { type ScopeOverlapContext } from './auto-run-selection';
+import { listAwaitingCi } from '../awaiting-ci-lookup';
 
 /**
  * Build the scope-overlap selection context (task 573 B): the union of
@@ -38,8 +39,13 @@ export async function buildScopeOverlapContext(
   const openPrFiles = [...new Set(fileSets.flat())];
   if (openPrFiles.length === 0) return undefined; // gh failed for all → fail-open
 
+  // Task 1568: a CI-waiting task of this theme keeps its PR open until the merge or the repair, so
+  // a candidate that overlaps must wait for that outcome instead of taking the starvation fallback.
+  const strict = (await listAwaitingCi(themeId)).length > 0;
+
   return {
     openPrFiles,
+    strict,
     getPlanFiles: async (taskId: number) => {
       // Lazy import keeps the workflow-file module graph out of this
       // scheduler's static test surface.

@@ -97,6 +97,30 @@ describe('useTaskDetailData', () => {
     expect(callsAfterOnePoll).toBeGreaterThan(callsAfterInitialLoad);
   });
 
+  // Task 1548: opening the detail is a user operation (`ui`); the 5 s poll is not.
+  it('marks only the opening fetch of /tasks/1 as a user action, not the poll', async () => {
+    mockApiFetch.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.match(/^\/tasks\/\d+$/) ? makeTask({ workflowStatus: 'research_done' }) : [],
+      ),
+    );
+
+    renderHook(() => useTaskDetailData({ resolvedTaskId: '1' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const opening = mockApiFetch.mock.calls.filter((c) => c[0] === '/tasks/1');
+    expect(opening).toHaveLength(1);
+    expect(opening[0][1]).toMatchObject({ userAction: true });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    const polls = mockApiFetch.mock.calls.filter((c) => c[0] === '/tasks/1').slice(1);
+    expect(polls.length).toBeGreaterThanOrEqual(1);
+    for (const call of polls) expect(call[1]?.userAction).toBeUndefined();
+  });
+
   it('does not poll the task once workflowStatus is terminal (completed)', async () => {
     mockApiFetch.mockImplementation((path: string) =>
       Promise.resolve(

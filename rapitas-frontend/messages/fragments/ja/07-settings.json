@@ -241,6 +241,9 @@
     },
     "autoRunSettingsCard": {
       "description": "タスク自動実行（auto-run）の挙動に関する設定です。",
+      "maxConcurrencyLabel": "同時に動かす自動実行の数",
+      "maxConcurrencyDescription": "全テーマを合わせて、自動実行のタスクを同時にいくつ動かすかを決めます（1〜4）。枠が空くと、テーマの「自動実行の優先度」が高いテーマから先に次のタスクを選びます。",
+      "maxConcurrencyEnvOverride": "環境変数 AUTO_RUN_GLOBAL_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
       "backlogLimitLabel": "懸念・アイデアから自動起票（上限）",
       "backlogLimitDescription": "自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。",
       "repairLimitLabel": "検証失敗時のリトライ回数（自己改善ループ上限）",
@@ -256,7 +259,10 @@
       "selfRefillWindowDescription": "懸念・アイデアからのバックログ自己補充を、この時刻以降に1日1回だけ実行します（重大度 high 以上の懸念は時刻に関係なく起票）。空にすると自己補充を無効にします。",
       "selfRefillWindowDisable": "無効にする",
       "selfRefillWindowDisabled": "無効（自己補充しない）",
-      "savingSuffix": "（保存中…）"
+      "savingSuffix": "（保存中…）",
+      "maxConcurrencyPerThemeLabel": "1つのテーマで同時に動かす自動実行の数",
+      "maxConcurrencyPerThemeDescription": "同じテーマの中で、触るファイルが重ならないタスクを同時にいくつ動かすかを決めます（1〜4、既定 1）。上の「同時に動かす自動実行の数」を超えては動きません。2件目以降は、動いているタスクと計画のファイル・フォルダ・依存が重ならないものだけを選びます。",
+      "maxConcurrencyPerThemeEnvOverride": "環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。"
     },
     "executionDashboardSettingsCard": {
       "title": "実行可視化ダッシュボード",
@@ -626,14 +632,18 @@
         "noTheme": "テーマ未設定",
         "blocked": "ブロック中",
         "stalled": "進行中のまま停滞",
-        "overdue": "期限切れ"
+        "overdue": "期限切れ",
+        "awaitingAnswer": "回答待ち",
+        "halted": "停止中"
       },
       "why": {
         "held": "選定されないので、解除するまで動きません",
         "noTheme": "自動実行から見えないため、永久に選ばれません",
         "blocked": "設計上ブラインド再試行されず、手動の再試行が脱出口です",
         "stalled": "進行中ですが、しばらく何も動いていません",
-        "overdue": "期限を過ぎていて、まだ終わっていません"
+        "overdue": "期限を過ぎていて、まだ終わっていません",
+        "awaitingAnswer": "質問に答えるまで止まっているタスクです",
+        "halted": "停止の理由が残っていて、自動実行に選ばれないタスクです"
       }
     },
     "consult": {

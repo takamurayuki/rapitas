@@ -1,3 +1,4 @@
+import { expectTaskSlotRelease } from './theme-auto-run-scheduler.test-support';
 import {
   mockStopTaskTreeAgents,
   mockResumeTransition,
@@ -46,7 +47,7 @@ describe('advanceTheme — iteration budget halt releases the theme (task 995)',
 
     await internal(scheduler).advanceTheme(1, 984, 'priority', 0, new Date().toISOString());
 
-    expect(mockSetCurrentTask).toHaveBeenCalledWith(1, null);
+    expectTaskSlotRelease('released', 984);
     expect(mockBroadcast.mock.calls.some((c) => c[1] === 'auto_run_update')).toBe(true);
     const haltRecords = mockRecordTransition.mock.calls.filter(
       (c) => (c[0] as { cause?: string }).cause === 'iteration_budget_halted',
@@ -107,6 +108,6 @@ describe('advanceTheme — iteration budget halt diagnostics', () => {
       }),
       expect.stringContaining('halted by iteration budget'),
     );
-    expect(mockSetCurrentTask).toHaveBeenCalledWith(1, null);
+    expectTaskSlotRelease('released', 100);
   });
 });

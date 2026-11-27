@@ -9,12 +9,26 @@ import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 const taskFindUnique = mock(() =>
-  Promise.resolve<{ id: number; workflowStatus: string } | null>(null),
+  Promise.resolve<{ id: number; workflowStatus: string; themeId?: number } | null>(null),
 );
 const taskUpdate = mock(() => Promise.resolve({}));
 const createTransition = mock(() => Promise.resolve(undefined));
 const readWorkflowFile = mock(() => Promise.resolve<string | null>(null));
 const advanceWorkflow = mock(() => Promise.resolve({ success: true }));
+let reservation: { id: number; taskId: number; status: string } | null = null;
+let occupied = false;
+let releaseObserved: () => void = () => {};
+const queue = {
+  findFirst: async () => reservation,
+  count: async () => Number(occupied || reservation?.status === 'running'),
+  create: async ({ data }: { data: { taskId: number; status: string } }) =>
+    (reservation = { id: 1, ...data }),
+  updateMany: async ({ data }: { data: { status: string } }) => {
+    if (reservation?.status === 'running') Object.assign(reservation, data);
+    releaseObserved();
+    return { count: 1 };
+  },
+};
 mock.module('../../../services/workflow/workflow-orchestrator', () => ({
   WorkflowOrchestrator: { getInstance: () => ({ advanceWorkflow }) },
 }));
@@ -22,9 +36,12 @@ mock.module('../../../services/workflow/workflow-orchestrator', () => ({
 mock.module('../../../config', () => ({
   prisma: {
     task: { findUnique: taskFindUnique },
+    themeAutoRun: { findFirst: async () => ({ status: 'paused_user' }) },
+    workflowQueueItem: queue,
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
-        task: { update: taskUpdate },
+        task: { update: taskUpdate, findUnique: taskFindUnique },
+        workflowQueueItem: queue,
         workflowTransition: { create: createTransition },
       }),
   },
@@ -34,6 +51,10 @@ mock.module('../../../config', () => ({
 mock.module('../../../config/logger', () => ({ createLogger: () => noopLogger }));
 mock.module('../../../services/workflow/workflow-file-utils', () => ({ readWorkflowFile }));
 
+mock.module('../../../services/workflow/workflow-queue', () => ({
+  WorkflowQueueService: { getInstance: () => ({ getMaxConcurrency: () => 1 }) },
+}));
+
 const { handleRevisePlan } = await import('./workflow-handlers-plan-revision');
 
 const UI = { 'x-rapitas-source': 'ui' };
@@ -41,8 +62,13 @@ const UI = { 'x-rapitas-source': 'ui' };
 let originalFetch: typeof fetch;
 
 beforeEach(() => {
-  advanceWorkflow.mockClear();
-  taskFindUnique.mockReset().mockResolvedValue({ id: 1, workflowStatus: 'plan_created' });
+  reservation = null;
+  occupied = false;
+  releaseObserved = () => {};
+  advanceWorkflow.mockReset().mockResolvedValue({ success: true });
+  taskFindUnique
+    .mockReset()
+    .mockResolvedValue({ id: 1, workflowStatus: 'plan_created', themeId: 35 });
   taskUpdate.mockReset().mockResolvedValue({});
   createTransition.mockReset().mockResolvedValue(undefined);
   readWorkflowFile.mockReset().mockResolvedValue('# 実装計画');
@@ -57,6 +83,39 @@ afterEach(() => {
 });
 
 describe('handleRevisePlan', () => {
+  test.each(['成功', '失敗', '例外'])(
+    '計画修正ハンドラ経由の%sで実予約を解放する',
+    async (outcome) => {
+      let finish!: () => void;
+      let entered!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        releaseObserved = resolve;
+      });
+      advanceWorkflow.mockImplementationOnce(async () => {
+        entered();
+        await pending;
+        if (outcome === '例外') throw new Error('実行例外');
+        return { success: outcome === '成功' };
+      });
+      await handleRevisePlan({
+        params: { taskId: '1' },
+        body: { instruction: '修正' },
+        set: {},
+        headers: UI,
+      });
+      await started;
+      expect(reservation).toMatchObject({ taskId: 1, status: 'running' });
+      finish();
+      await released;
+      expect(reservation).toMatchObject({ status: outcome === '成功' ? 'completed' : 'failed' });
+    },
+  );
   test('does not dispatch without a durable revision instruction', async () => {
     createTransition.mockRejectedValueOnce(new Error('audit unavailable'));
     await expect(
@@ -81,6 +140,19 @@ describe('handleRevisePlan', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(advanceWorkflow).toHaveBeenCalledWith(1);
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  test('task 1535: 一時停止テーマで枠が空いていなければ指示は記録するが planner を起動しない', async () => {
+    occupied = true;
+    const result = await handleRevisePlan({
+      params: { taskId: '1' },
+      body: { instruction: '取得不能時の判定を修正' },
+      set: {},
+      headers: UI,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.toStatus).toBe('research_done');
+    expect(advanceWorkflow).not.toHaveBeenCalled();
   });
 
   test('rolls back to research_done and records the instruction', async () => {

@@ -106,7 +106,7 @@ export async function applyResumeFromQuestionAnswerLocked(
   // 直近の awaiting_question 遷移ログから previousStatus を読み出す
   const lastWaitingTransition = await prisma.workflowTransition.findFirst({
     where: { taskId, toStatus: 'awaiting_question' },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { metadata: true, fromStatus: true },
   });
 
@@ -132,13 +132,8 @@ export async function applyResumeFromQuestionAnswerLocked(
     `[Workflow:Resume] Task ${taskId}: awaiting_question → ${resumeStatus} (source=${source}, actor=${actor})`,
   );
 
-  // Append-only audit trail — mirrors applyIntakeQuestionAnswerLocked's
-  // question.md append, but NEVER archives: execution_continuation /
-  // completion_confirmation answers are not a spec change, so plan.md (and
-  // question.md itself) must survive the resume intact. Uses the internal
-  // writeWorkflowFile choke point directly (not the public PUT route) —
-  // going through the route would re-trigger the awaiting_question
-  // transition and loop.
+  // 回答は question.md に追記し、承認済みの計画を維持して復帰する。
+  // 公開 PUT は質問待ちへの遷移を再発火させるため、内部の保存関数を使う。
   if (answer) {
     const questionContent = await readWorkflowFile(taskId, 'question');
     if (questionContent != null) {

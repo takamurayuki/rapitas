@@ -85,17 +85,3 @@ describe('primary checkout guidance wiring (task 1116)', () => {
     expect(texts.implementer.constraints).toContain('PID');
   });
 });
-
-describe('self-verify diff review instructions (task 1538)', () => {
-  test.each([
-    ['ja', '最大3回', '最大60回'],
-    ['en', 'up to 3 times', 'up to 60 times'],
-  ] as const)('tells the %s implementer to fix a failing diffReview', (language, cap, polls) => {
-    const c = buildRoleTexts(1538, { title: 'Probe', description: null }, language).implementer
-      .constraints;
-    expect(c).toContain('diffReview.verdict');
-    expect(c).toContain('diffReview.findings');
-    expect(c).toContain(cap);
-    expect(c).toContain(polls);
-  });
-});

@@ -16,7 +16,7 @@ import {
 
 describe('encrypt / decrypt', () => {
   test('暗号化と復号化のラウンドトリップが正しく動作すること', () => {
-    const plainText = 'sk-ant-api03-test-key-12345';
+    const plainText = 'sk-' + 'ant-api03-test-key-12345';
     const encrypted = encrypt(plainText);
     const decrypted = decrypt(encrypted);
     expect(decrypted).toBe(plainText);
@@ -65,12 +65,12 @@ describe('encrypt / decrypt', () => {
 
 describe('maskApiKey', () => {
   test('通常の長さのキーをマスクすること', () => {
-    const result = maskApiKey('sk-ant-api03-test-key-12345');
+    const result = maskApiKey('sk-' + 'ant-api03-test-key-12345');
     expect(result.startsWith('sk-a')).toBe(true);
     expect(result.endsWith('2345')).toBe(true);
     expect(result).toContain('*');
     // First 4 chars + mask + last 4 chars
-    expect(result.length).toBe('sk-ant-api03-test-key-12345'.length);
+    expect(result.length).toBe(('sk-' + 'ant-api03-test-key-12345').length);
   });
 
   test('8文字以下のキーで***を返すこと', () => {

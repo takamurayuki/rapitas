@@ -22,12 +22,14 @@ export * from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 export * from './theme-auto-run-scheduler.test-support.decision-mocks';
 
 import type { ThemeAutoRunState } from './theme-auto-run-service';
+import { expect } from 'bun:test';
 
 import {
   mockTaskCount,
   mockTaskFindMany,
   mockTaskUpdate,
   mockTransitionCount,
+  mockWorkflowFileFindFirst,
   mockTaskFindUnique,
   mockThemeAutoRunUpdateMany,
   mockThemeAutoRunCount,
@@ -56,6 +58,8 @@ import {
   mockReleaseEventLoopSection,
   mockMarkEventLoopSectionCalls,
   mockBackendBootAt,
+  mockThemeFindMany,
+  mockSetAutoRunConcurrency,
 } from './theme-auto-run-scheduler.test-support.collaborator-mocks';
 import {
   mockGetGlobalAutoRunActiveCount,
@@ -102,6 +106,24 @@ import {
 const { ThemeAutoRunScheduler } = await import('./theme-auto-run-scheduler');
 export { ThemeAutoRunScheduler };
 
+/** 旧サービス呼び出しではなく、対象ID限定のCASと件数更新を検査する。 */
+export function expectTaskSlotRelease(
+  kind: 'completed' | 'failed' | 'released',
+  taskId: number,
+  error?: unknown,
+): void {
+  expect(mockThemeAutoRunUpdateMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ themeId: 1, currentTaskId: taskId }),
+      data: expect.objectContaining({
+        currentTaskId: null,
+        ...(kind === 'released' ? {} : { processedCount: { increment: 1 } }),
+        ...(error !== undefined ? { lastError: error } : {}),
+      }),
+    }),
+  );
+}
+
 /** Shape of the scheduler's private surface used directly by these tests. */
 export interface SchedulerInternal {
   running: boolean;
@@ -116,6 +138,8 @@ export interface SchedulerInternal {
     order: 'priority' | 'created',
     globalActive: number,
     lastRunAt: string | null,
+    /** Companions of the theme row (task 1552); omitted = none. */
+    companionTasksJson?: string | null,
   ): Promise<void>;
   stopThemeExecution(themeId: number, currentTaskId: number | null): Promise<void>;
   broadcastAutoRunUpdate(themeId: number): void;
@@ -158,6 +182,7 @@ const ALL_MOCKS = [
   mockTaskFindMany,
   mockTaskUpdate,
   mockTransitionCount,
+  mockWorkflowFileFindFirst,
   mockTaskFindUnique,
   mockThemeAutoRunUpdateMany,
   mockThemeAutoRunCount,
@@ -219,6 +244,8 @@ const ALL_MOCKS = [
   mockResolveIterationBudgetForTask,
   mockMarkEventLoopSection,
   mockReleaseEventLoopSection,
+  mockThemeFindMany,
+  mockSetAutoRunConcurrency,
 ];
 
 /** Clear call history AND restore each mock's default resolved value/behaviour. */
@@ -227,8 +254,10 @@ export function resetAllMocks(): void {
   mockBackendBootAt.mockReset().mockReturnValue(0);
   mockTaskCount.mockResolvedValue(0);
   mockTaskFindMany.mockResolvedValue([]);
+  mockThemeFindMany.mockReset().mockResolvedValue([]);
   mockTaskUpdate.mockResolvedValue({});
   mockTransitionCount.mockResolvedValue(0);
+  mockWorkflowFileFindFirst.mockReset().mockResolvedValue(null);
   mockTaskFindUnique.mockResolvedValue(null);
   mockThemeAutoRunUpdateMany.mockResolvedValue({ count: 0 });
   mockThemeAutoRunCount.mockResolvedValue(0);

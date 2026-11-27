@@ -32,7 +32,7 @@ type Row = Record<string, unknown>;
 
 beforeEach(() => {
   db = createStage1Db({
-    task: [{ id: 5, status: 'in-progress', title: 'PR' }],
+    task: [{ id: 5, status: 'in-progress', workflowStatus: 'verify_done', title: 'PR' }],
     workflowFile: [{ taskId: 5, fileType: 'verify', content: '確認した。'.repeat(60) }],
   });
 });

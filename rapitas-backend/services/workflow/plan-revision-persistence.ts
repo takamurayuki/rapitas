@@ -10,6 +10,8 @@ export interface PersistPlanRevisionCoreParams {
   expectedWorkflowStatus: string | null;
   instruction: string;
   source: string;
+  /** Extra fields merged into the transition metadata (e.g. routing reason). / 追加メタデータ */
+  extraMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -24,14 +26,15 @@ export interface PersistPlanRevisionCoreParams {
  * @param params - CAS snapshot + instruction/source to record. / CAS情報と記録内容
  * @throws Whatever `db.$transaction` throws, including a 0-row CAS update
  *   when `task.id`/`updatedAt`/`workflowStatus` no longer match. Callers
- *   decide how to react — the HTTP handler propagates it, the question-answer
- *   flow falls back to its normal resume routing.
+ *   decide how to report the failure. The question-answer flow turns stale
+ *   updates into conflicts and propagates other errors. / 保存失敗は呼び出し側で処理
  */
 export async function persistPlanRevisionCore(
   db: PrismaClient,
   params: PersistPlanRevisionCoreParams,
 ): Promise<void> {
-  const { taskId, expectedUpdatedAt, expectedWorkflowStatus, instruction, source } = params;
+  const { taskId, expectedUpdatedAt, expectedWorkflowStatus, instruction, source, extraMetadata } =
+    params;
   // The instruction is execution input, not best-effort telemetry. Persist it
   // with the rollback state, or leave both unchanged. Reject stale requests.
   await db.$transaction(async (tx) => {
@@ -48,7 +51,7 @@ export async function persistPlanRevisionCore(
         actor: 'user',
         cause: PLAN_REVISION_CAUSE,
         phase: 'plan',
-        metadata: JSON.stringify({ instruction, source }),
+        metadata: JSON.stringify({ instruction, source, ...(extraMetadata ?? {}) }),
       },
     });
   });

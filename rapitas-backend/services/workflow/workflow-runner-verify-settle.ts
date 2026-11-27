@@ -22,15 +22,62 @@ import { hasVerifyCompletionInFlight } from './verify-completion-inflight';
  * already used by the HTTP/CLI epilogue (workflow-cli-executor-verify-gate.ts).
  *
  * @param taskId - Task about to be judged stuck. / stuck 判定直前のタスクID
- * @returns True when the task was completed from landed evidence. / 実在確認で完了した場合 true
+ * @returns `completed` when the task was completed from landed evidence, `none` when there is
+ *   nothing to recover from, `withdraw` when the task waits for its required merge OR that cannot
+ *   be determined: the merge watcher is the only completion writer, so the runner leaves the task
+ *   and its item alone. / 復旧結果（CI待ちまたは不明なら withdraw）
  */
-async function recoverFromLandedArtifact(taskId: number): Promise<boolean> {
+async function recoverFromLandedArtifact(
+  taskId: number,
+): Promise<'completed' | 'none' | 'withdraw'> {
+  // Task 1568: checked first and fail-closed — a failed import, task read or transition read
+  // must never fall through to a second completion writer.
+  try {
+    const { readTaskAwaitingCi } = await import('./awaiting-ci-lookup');
+    if (await readTaskAwaitingCi(taskId)) return 'withdraw';
+  } catch {
+    return 'withdraw';
+  }
   try {
     const { hasFreshVerifyRejection } = await import('./verify-self-repair');
-    if (await hasFreshVerifyRejection(taskId).catch(() => false)) return false;
+    if (await hasFreshVerifyRejection(taskId).catch(() => false)) return 'none';
     const { recoverFromLandedArtifact: recover } =
       await import('./verify-settle-artifact-recovery');
-    return await recover(taskId);
+    return (await recover(taskId)) ? 'completed' : 'none';
+  } catch {
+    return 'none';
+  }
+}
+
+/** The wait's verdict for a recovery attempt: a withdrawal is reported like a CI hand-back. */
+async function settleByRecovery(taskId: number): Promise<'completed' | 'stuck' | 'awaiting_ci'> {
+  const outcome = await recoverFromLandedArtifact(taskId);
+  if (outcome === 'completed') return 'completed';
+  return outcome === 'withdraw' ? 'awaiting_ci' : 'stuck';
+}
+
+/**
+ * Whether THIS queue item is no longer the runner's own (handed back for a CI wait, completed,
+ * cancelled, missing or unreadable). Lazy and fail-closed: when ownership cannot be asked at all
+ * (the import or the lookup throws) the runner withdraws too.
+ */
+async function itemHandedBack(itemId: number | undefined): Promise<boolean> {
+  if (itemId === undefined) return false;
+  try {
+    // Task 1568: ownership, not just "handed back" — a missing row or an unreadable item is not
+    // ours either, so the runner stops waiting and leaves the task to the watcher.
+    const { isItemStillOwned } = await import('./awaiting-ci-lookup');
+    return !(await isItemStillOwned(itemId));
+  } catch {
+    return true;
+  }
+}
+
+/** Whether the verifier agent is still alive; false on any lookup failure. */
+async function verifierStillRunning(taskId: number): Promise<boolean> {
+  try {
+    const { isVerifierStillRunning } = await import('./verify-settle-live-verifier');
+    return await isVerifierStillRunning(taskId);
   } catch {
     return false;
   }
@@ -115,14 +162,20 @@ async function isUnderReviewHold(taskId: number): Promise<boolean> {
 export async function waitForVerifyCompletion(
   taskId: number,
   signal: AbortSignal,
-): Promise<'completed' | 'moved' | 'stuck' | 'deferred' | 'held'> {
+  itemId?: number,
+): Promise<'completed' | 'moved' | 'stuck' | 'deferred' | 'held' | 'awaiting_ci'> {
   const deadline = Date.now() + VERIFY_SETTLE_TIMEOUT_MS;
   const hardDeadline = Date.now() + VERIFY_SETTLE_HARD_CAP_MS;
   const mergeDeadline = Date.now() + 90 * 60_000;
   // First check immediately — the automation often completes before this runs.
   for (;;) {
+    // Task 1568: ownership BEFORE the task's state. Once the scheduler handed this item back for
+    // the CI wait, the item (and the theme's slot) are no longer ours: whatever the task did next
+    // — merged by the watcher, sent to repair by ci-self-repair, row gone — completing, advancing
+    // or failing it from here would rewrite someone else's item. The runner only stops.
+    if (await itemHandedBack(itemId)) return 'awaiting_ci';
     const t = await resolveTaskWorkflowState(taskId);
-    if (!t) return (await recoverFromLandedArtifact(taskId)) ? 'completed' : 'stuck';
+    if (!t) return settleByRecovery(taskId);
     if (t.workflowStatus === 'completed' || t.status === 'done') return 'completed';
     if (t.workflowStatus !== 'verify_done') return 'moved';
     if (['blocked', 'failed', 'canceling', 'canceled', 'cancelled'].includes(t.status))
@@ -135,7 +188,13 @@ export async function waitForVerifyCompletion(
     // task that then created PR #7 — a success parked as blocked. Keep
     // waiting while it is in flight, bounded by a hard cap so a wedged
     // pipeline still fails eventually.
-    const stillWorking = hasVerifyCompletionInFlight(taskId) && Date.now() < hardDeadline;
+    // NOTE: A verifier that saved verify.md but has not exited counts too: the
+    // commit / PR epilogue starts only after it exits, so nothing is in flight
+    // yet. Task 1547's Codex verifier exited 110 s after saving and was blocked
+    // at the 60 s window before its PR existed (2026-11-25).
+    const stillWorking =
+      Date.now() < hardDeadline &&
+      (hasVerifyCompletionInFlight(taskId) || (await verifierStillRunning(taskId)));
     if (!stillWorking && Date.now() >= deadline) {
       const recovery = await import('./verify-settle-artifact-recovery').catch(() => null);
       const pendingMerge = await Promise.resolve(
@@ -164,7 +223,7 @@ export async function waitForVerifyCompletion(
         // landed — if the evidence of success is already on record, complete
         // the task from it instead of parking a success as blocked. A task
         // with no PR on record still fails here exactly as before.
-        return (await recoverFromLandedArtifact(taskId)) ? 'completed' : 'stuck';
+        return settleByRecovery(taskId);
       }
     }
     await new Promise<void>((resolve) => {

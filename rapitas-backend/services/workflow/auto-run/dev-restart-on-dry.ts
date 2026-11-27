@@ -11,9 +11,6 @@
  * exit code 75). Not responsible for selecting/creating tasks.
  */
 import { execFile } from 'child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
-import { dirname, join } from 'path';
 import { promisify } from 'util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
@@ -24,14 +21,20 @@ import { realtimeService } from '../../communication/realtime-service';
 import { fastForwardPrimary } from './primary-fast-forward';
 import { notifyOncePerWindow } from '../../communication/notify-once-per-window';
 import { hasRestartSupervisor } from '../../scheduling/auto-restart-merged-code/restart-supervisor';
+import { resolveDevRestartMinIntervalMs } from '../../scheduling/auto-restart-merged-code/boundary-policy';
+import {
+  readLatestAutoRestartAt,
+  writeDevRestartLastAt,
+} from '../../scheduling/auto-restart-merged-code/settings-store';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('auto-run:dev-restart');
 
 /** dev.js relaunches the backend when it exits with this code. */
 const RESTART_EXIT_CODE = 75;
-/** Never auto-restart more often than this (avoid restart loops). */
-const MIN_RESTART_INTERVAL_MS = 10 * 60 * 1000;
+// NOTE: The fixed 10-min floor moved to resolveDevRestartMinIntervalMs
+// (RAPITAS_DEV_RESTART_MIN_INTERVAL_MS, default 60 min) — this path caused the
+// ten restarts of 2026-11-25 (task 1548).
 /**
  * Hard ceiling on graceful shutdown before we exit anyway. A restart must NEVER
  * leave the backend wedged (not serving, not relaunching) just because shutdown
@@ -67,37 +70,10 @@ async function headCommit(): Promise<string | null> {
   }
 }
 
-/**
- * Rate-limit persistence. `lastRestartAt` lives in memory, so it resets to 0 on
- * the very relaunch it is meant to throttle — without this the 10-min floor never
- * spans two restarts (observed: 2 self-deploys 5 min apart). Persist the last
- * restart time to a file in the data dir so the floor survives a relaunch.
- */
-function rateLimitStampFile(): string {
-  const base = process.env.RAPITAS_DATA_DIR?.trim() || join(homedir(), '.rapitas');
-  return join(base, '.dev-restart-last-at');
-}
-
-/** Last restart epoch-ms read from disk, or 0 if absent/unreadable. */
-function readLastRestartAt(): number {
-  try {
-    const ts = Number.parseInt(readFileSync(rateLimitStampFile(), 'utf8').trim(), 10);
-    return Number.isFinite(ts) ? ts : 0;
-  } catch {
-    return 0;
-  }
-}
-
-/** Persist the last restart time. Best-effort; a missing stamp only weakens the rate limit. */
-function persistLastRestartAt(ts: number): void {
-  try {
-    const file = rateLimitStampFile();
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, String(ts));
-  } catch {
-    // Never let a stamp write failure crash the restart path.
-  }
-}
+// NOTE: Rate-limit stamp I/O moved to settings-store (writeDevRestartLastAt /
+// readLatestAutoRestartAt). `lastRestartAt` lives in memory and resets on the
+// very relaunch it throttles, so the floor must come from the persisted stamps —
+// and from the merged-code paths' stamp too, or this path fires right after one.
 
 /**
  * Capture the commit the backend booted on. Call once at scheduler start so a
@@ -219,10 +195,10 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   }
 
   const now = Date.now();
-  // Use the persisted stamp (not just the in-memory one) so the floor survives
-  // the relaunch it throttles.
-  const lastAt = Math.max(lastRestartAt, readLastRestartAt());
-  if (lastAt && now - lastAt < MIN_RESTART_INTERVAL_MS) {
+  // Persisted stamps of every automatic path (not just the in-memory one), so
+  // the shared floor survives the relaunch it throttles.
+  const lastAt = Math.max(lastRestartAt, readLatestAutoRestartAt());
+  if (lastAt && now - lastAt < resolveDevRestartMinIntervalMs()) {
     diag('rate-limited', { msSinceLast: now - lastAt });
     return false;
   }
@@ -271,7 +247,7 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   if (!(await persistedWorkIsIdle())) return false;
   restarting = true;
   lastRestartAt = now;
-  persistLastRestartAt(now);
+  writeDevRestartLastAt(now);
   log.warn(
     { themeId, startupCommit, current },
     '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',

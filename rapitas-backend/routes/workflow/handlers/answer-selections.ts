@@ -13,6 +13,23 @@ export interface AnswerSelection {
 }
 
 /**
+ * Whether a `selections` field was sent but cannot be read.
+ *
+ * NOTE: Selections now drive behaviour, not just the audit — the criteria
+ * question's adopt rewrites the criteria and plan-revision routing reads the
+ * key. A wrong shape (2026-11-26: `{"criteria":"adopt"}`) used to be dropped
+ * silently while the answer returned ok, so the caller must be told instead.
+ *
+ * @param raw - The `selections` field from the request body / リクエストの selections
+ * @returns True when present but unreadable / 送られたが読めない場合 true
+ */
+export function isMalformedSelections(raw: unknown): boolean {
+  if (raw === undefined || raw === null) return false;
+  if (Array.isArray(raw) && raw.length === 0) return false;
+  return parseSelections(raw) === undefined;
+}
+
+/**
  * Defensively parse the optional `selections` audit payload from a
  * structured (`json:options`) answer. Malformed/absent input yields
  * `undefined` rather than throwing — `selections` is an audit nicety, never

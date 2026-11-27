@@ -65,6 +65,7 @@ type Review = {
   reasons: string[];
   findings?: unknown[];
   diffFingerprint?: string | null;
+  followUp?: unknown;
 };
 const review = mock(
   async (_p: unknown): Promise<Review> => ({
@@ -104,8 +105,8 @@ mock.module('./publish/mark-latest-execution-failed', () => ({
 const holdForHumanReview = mock(async (_p: Record<string, unknown>): Promise<string> => 'held');
 mock.module('./review-hold', () => ({ holdFromReview: holdForHumanReview }));
 
-// DB jury lock (4.5.1): real SQLite in jury-review-run.test.ts; here granted, nothing drifts.
-mock.module('./self-verify-diff-review', () => ({ findReusableSelfVerifyReview: () => null }));
+// The DB jury lock (design 4.5.1) is covered on real SQLite in
+// jury-review-run.test.ts; here it is granted and nothing drifts.
 const { fakeJuryRunModule, fakeJuryRunState, EMPTY_CRITERIA_REVISION } =
   await import('./jury-review-run.test-helpers');
 const juryRun = fakeJuryRunState(() => verifySha);
@@ -214,7 +215,7 @@ describe('runFallbackJuryGate', () => {
       verdict: 'fail',
       severity: 70,
       reasons: ['[major] bug（根拠: a.ts:1）'],
-      findings: [{ severity: 'major', summary: 'bug', evidence: 'a.ts:1', gating: true }],
+      findings: [{ summary: 'bug', evidence: 'a.ts:1', gating: true, examples: ['過去形'] }],
       diffFingerprint: 'fp-A',
     });
     const out = await runFallbackJuryGate(params());
@@ -222,7 +223,7 @@ describe('runFallbackJuryGate', () => {
     expect(repair).toHaveBeenCalledWith(
       9,
       'in_progress',
-      expect.stringContaining('差分レビュー不合格'),
+      expect.stringMatching(/^差分レビュー不合格: \[major\] bug[\s\S]*- 過去形/),
       '# verify',
       // routing2a-fix1: the findings ride on the bounce row; a code bug stays with the implementer.
       {
@@ -511,5 +512,52 @@ describe('runFallbackJuryGate — DB jury lock (design 4.5.1)', () => {
     const out = await runFallbackJuryGate(params());
     expect(out.stop).toBe(true);
     expect(completions()).toEqual([]);
+  });
+});
+
+describe('runFallbackJuryGate — follow_up record per jury run (task 1547)', () => {
+  const FU = { count: 1, reasons: ['受入基準1: [major] 否定'], verdictChanged: true };
+  const rows = () =>
+    recordTransition.mock.calls
+      .map((c) => c[0] as { cause: string; metadata: Record<string, unknown> })
+      .filter((t) => t.cause === 'adversarial_review_follow_up');
+  // The in-memory timeline is newest first.
+  const runId = () => completions()[0]?.juryRunId;
+  beforeEach(() => {
+    juryRun.acquire = true;
+    juryRun.stillBound = true;
+  });
+
+  test('pass, bounced fail and cut-off fail each record the run id once', async () => {
+    const fail = { verdict: 'fail', severity: 70, reasons: ['x'], diffFingerprint: 'fp-A' };
+    const cases = [
+      { review: { verdict: 'pass', severity: 0, reasons: [], diffFingerprint: 'fp-A' } },
+      { review: fail },
+      { review: fail, repair: { bounced: false, cutoffRecorded: true } },
+    ];
+    for (const [i, c] of cases.entries()) {
+      verifySha = `sha-fu-${i}`; // a new verify.md each round, so no round reuses the last
+      recordTransition.mockClear();
+      review.mockResolvedValueOnce({ ...c.review, followUp: FU } as Review);
+      if (c.repair) repair.mockResolvedValueOnce(c.repair);
+      await runFallbackJuryGate(params());
+      expect(rows()).toHaveLength(1);
+      expect(rows()[0].metadata).toMatchObject({ juryRunId: runId(), source: 'cli_epilogue' });
+      expect(completions()[0]?.followUp).toEqual(FU);
+    }
+  });
+
+  test('a stale verdict, or one that deferred nothing, records nothing', async () => {
+    review.mockResolvedValueOnce({
+      verdict: 'fail',
+      severity: 90,
+      reasons: ['x'],
+      followUp: FU,
+    } as Review);
+    repair.mockResolvedValueOnce({ bounced: false, stale: true });
+    await runFallbackJuryGate(params());
+    expect(rows()).toHaveLength(0);
+    await runFallbackJuryGate(params({ verifyContent: '# verify v2' }));
+    expect(rows()).toHaveLength(0);
   });
 });

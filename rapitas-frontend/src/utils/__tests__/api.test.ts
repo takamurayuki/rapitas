@@ -191,14 +191,14 @@ describe('fetchWithRetry', () => {
       return new Headers(init?.headers);
     }
 
-    it('adds x-rapitas-source: ui when no headers are given', async () => {
+    it('tags a GET with x-rapitas-source: ui-poll when no headers are given', async () => {
       vi.useRealTimers();
       const fetchSpy = vi.spyOn(globalThis, 'fetch');
       fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
       await fetchWithRetry('http://test.com/api');
 
-      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui');
+      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui-poll');
     });
 
     it('preserves caller headers given as a plain object', async () => {
@@ -212,7 +212,7 @@ describe('fetchWithRetry', () => {
 
       const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
       expect(headers.get('content-type')).toBe('application/json');
-      expect(headers.get('x-rapitas-source')).toBe('ui');
+      expect(headers.get('x-rapitas-source')).toBe('ui-poll');
     });
 
     it('preserves caller headers given as a Headers instance', async () => {
@@ -226,7 +226,7 @@ describe('fetchWithRetry', () => {
 
       const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
       expect(headers.get('authorization')).toBe('Bearer token');
-      expect(headers.get('x-rapitas-source')).toBe('ui');
+      expect(headers.get('x-rapitas-source')).toBe('ui-poll');
     });
 
     it('preserves caller headers given as a [key, value][] array', async () => {
@@ -240,7 +240,7 @@ describe('fetchWithRetry', () => {
 
       const headers = headersOf(fetchSpy.mock.calls[0]?.[1]);
       expect(headers.get('x-custom')).toBe('abc');
-      expect(headers.get('x-rapitas-source')).toBe('ui');
+      expect(headers.get('x-rapitas-source')).toBe('ui-poll');
     });
 
     it('does not overwrite a caller-provided x-rapitas-source value', async () => {
@@ -264,8 +264,19 @@ describe('fetchWithRetry', () => {
       await fetchWithRetry('http://test.com/api', undefined, 3, 10);
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui-poll');
+      expect(headersOf(fetchSpy.mock.calls[1]?.[1]).get('x-rapitas-source')).toBe('ui-poll');
+    });
+
+    // Task 1548: mutations stay `ui` (human-confirmation routes require it).
+    it('tags a POST with x-rapitas-source: ui', async () => {
+      vi.useRealTimers();
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      await fetchWithRetry('http://test.com/api', { method: 'POST', body: '{}' });
+
       expect(headersOf(fetchSpy.mock.calls[0]?.[1]).get('x-rapitas-source')).toBe('ui');
-      expect(headersOf(fetchSpy.mock.calls[1]?.[1]).get('x-rapitas-source')).toBe('ui');
     });
   });
 });

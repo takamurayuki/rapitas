@@ -10,8 +10,10 @@
 // Tags the rich editor (contentEditable + execCommand) writes. Checked after
 // code is removed, so a fence or `inline code` that mentions a tag stays Markdown.
 // NOTE: the backend's note-content-kind.ts holds the same list; keep them equal.
+// NOTE: span, u and mark were taken off the list — a Markdown note may hold them
+// as the allowed inline forms (inline-html/); the editor always wrote div / br too.
 export const EDITOR_HTML_TAG =
-  /<\/?(p|div|br|span|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|u|s|strike|a|img|hr|mark)(\s[^<>]*)?\/?>/i;
+  /<\/?(p|div|br|font|h[1-6]|ul|ol|li|table|thead|tbody|tr|td|th|pre|code|blockquote|strong|b|em|i|s|strike|a|img|hr)(\s[^<>]*)?\/?>/i;
 const HTML_ENTITY = /&(nbsp|amp|lt|gt|quot|#\d+|#x[0-9a-f]+);/i;
 
 // Not preceded by an odd run of backslashes: `\*` is a literal, `\\*` is a mark.
@@ -46,18 +48,25 @@ const MARKDOWN_SIGNALS = [
 // spaces), closed only by a line of the SAME character, at least as long,
 // with nothing but spaces after it. A backtick opener's info string may not
 // contain a backtick — such a line is not a fence at all.
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+export const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+export const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 // CommonMark line endings are LF, CRLF or a lone CR. A blank line holds only
 // spaces and tabs: NBSP and other Unicode spaces are ordinary characters, so
 // `trim()` (which strips them) must not decide where a paragraph ends.
 const LINE_BREAK = /\r\n|\r|\n/;
-const BLANK_LINE = /^[ \t]*$/;
+export const BLANK_LINE = /^[ \t]*$/;
 // An ATX heading is a block of its own; it interrupts a paragraph, so a code
 // span can neither run into it nor out of it.
-const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
+export const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
 
-function backtickRunEnd(text: string, from: number): number {
+/**
+ * Index just past the run of backticks that starts at `from`.
+ *
+ * @param text - The text / 文字列
+ * @param from - Start of the run / バッククォート列の開始位置
+ * @returns End of the run / 列の直後の位置
+ */
+export function backtickRunEnd(text: string, from: number): number {
   let end = from;
   while (text[end] === '`') end += 1;
   return end;
@@ -215,6 +224,8 @@ function stripMarkdown(markdown: string): string {
       .replace(/^\s*([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/gm, '')
       .replace(/(\*\*|__|~~)(.+?)\1/g, '$2')
       .replace(/`([^`\n]+)`/g, '$1')
+      // The allowed inline forms' tags (colour, highlight, size, underline).
+      .replace(/<\/?(span|mark|u)(\s[^<>]*)?>/gi, '')
       .replace(/\|/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()

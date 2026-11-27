@@ -75,10 +75,24 @@ model UserSettings {
   // auto-run is stopped (ThemeAutoRun.enabled=false) with a notification.
   // 0 disables the timer. See auto-run-idle-timer.ts / auto-run-lifecycle.ts.
   idleStopMinutes             Int       @default(60)
+  // Global auto-run concurrency (task 1543): how many themes' tasks may run at
+  // once, 1..4. The AUTO_RUN_GLOBAL_MAX_CONCURRENCY env var wins when set, so
+  // existing deployments keep their value. See auto-run-concurrency.ts.
+  autoRunMaxConcurrency       Int       @default(1)
+  // Per-theme auto-run concurrency (task 1552): how many tasks ONE theme may run
+  // at once, 1..4. The effective cap is min(this, autoRunMaxConcurrency). The
+  // AUTO_RUN_THEME_MAX_CONCURRENCY env var wins when set. Default 1 = one at a time.
+  autoRunMaxConcurrencyPerTheme Int     @default(1)
   // Nightly self-refill window (task 784): backlog self-refill (concerns/ideas
   // -> tasks) runs at most once per day, not before this local "HH:MM". Empty
   // string disables self-refill entirely. See backlog-task-promoter.ts.
   selfRefillWindowStart       String    @default("03:00")
+  // Weekly 前進の振り返り nudge: day (0 = Sunday) and local "HH:MM" (Asia/Tokyo) it becomes
+  // due, and the weekStart it was last sent for (kept apart from the Notification row so
+  // deleting the notification cannot bring it back). See services/goals/reflection-prompt.ts.
+  reflectionPromptDow         Int       @default(0)
+  reflectionPromptTime        String    @default("20:00")
+  reflectionPromptLastWeek    String?
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

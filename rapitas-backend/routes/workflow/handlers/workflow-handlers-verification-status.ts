@@ -57,8 +57,6 @@ function toResponse(record: VerificationJobRecord) {
         checks: record.checks,
         summary: record.summary,
         markdown: record.markdown,
-        // The adversarial diff review run after the gates (task 1538).
-        diffReview: record.diffReview,
         finishedAt: record.finishedAt,
         durationMs: record.durationMs,
       };

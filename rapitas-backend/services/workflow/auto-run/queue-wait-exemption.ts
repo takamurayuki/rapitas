@@ -102,8 +102,14 @@ export async function explainQueueWait(
  * @param taskId - The wall-guard's current task. / 対象タスク
  * @returns true when the task must not be treated as wedged. / ハング扱い禁止なら true
  */
-export async function liveOrQueuedBehind(prisma: unknown, taskId: number): Promise<boolean> {
+export async function liveOrQueuedBehind(
+  prisma: unknown,
+  taskId: number,
+  options: { quiet?: boolean; failClosed?: boolean } = {},
+): Promise<boolean> {
   const verdict = await explainQueueWait(prisma, taskId);
+  if (options.failClosed && verdict.reason === 'lookup_error') return true;
+  if (options.quiet) return verdict.waiting;
   try {
     const line = `[ThemeAutoRunScheduler] liveOrQueuedBehind(task ${taskId}) = ${verdict.waiting} (reason: ${verdict.reason}${
       verdict.error ? `, error: ${verdict.error}` : ''

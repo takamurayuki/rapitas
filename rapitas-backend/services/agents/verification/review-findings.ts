@@ -7,11 +7,25 @@
  * strings the repair loop still consumes. Pure; no I/O and no vote counting
  * (that stays in adversarial-diff-review-verdict.ts).
  */
-import { NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
+import { FINDING_KINDS, NON_VERDICT_REASON_RE } from './adversarial-diff-review-prompt';
 import type { FindingVerification } from './jury-seat-types';
 
 /** How bad one finding is. Only blocker/major can fail the review. */
 export type FindingSeverity = 'blocker' | 'major' | 'minor';
+
+/** Kind of defect (closed vocabulary, see FINDING_KINDS in the prompt module). */
+export type FindingKind = (typeof FINDING_KINDS)[number];
+export { FINDING_KINDS };
+
+/**
+ * Whether a finding must stop completion (blocking) or may be deferred to a
+ * follow-up concern. Absent means blocking; only follow-up-findings.ts acts on it.
+ */
+export type FindingImpact = 'blocking' | 'follow_up';
+
+/** Most same-kind counterexamples kept per finding. */
+export const MAX_FINDING_EXAMPLES = 10;
+const MAX_EXAMPLE_CHARS = 200;
 
 /** One concrete problem a juror reported. */
 export interface ReviewFinding {
@@ -43,6 +57,14 @@ export interface ReviewFinding {
   verification?: FindingVerification;
   /** The verifier's one-line reason for `verification`. */
   verificationNote?: string;
+  /** Kind of defect, when the juror named one (unknown values read as 'other'). */
+  kind?: FindingKind;
+  /** Whether it must stop completion. Absent = blocking. A blocker is always blocking. */
+  impact?: FindingImpact;
+  /** Other inputs/cases of the same kind the diff still gets wrong (≤ 10, one line each). */
+  examples?: string[];
+  /** Set by splitFollowUp when the finding was moved to a follow-up concern. */
+  deferred?: 'follow_up';
 }
 
 /**
@@ -97,6 +119,31 @@ function normaliseCriterion(raw: unknown): string | undefined {
   return m ? `受入基準${m[1]}` : t;
 }
 
+function normaliseKind(raw: unknown): FindingKind | undefined {
+  if (raw == null) return undefined;
+  // NOTE: Compared after lowercasing and trimming only (owner decision for task 1547).
+  const k = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return (FINDING_KINDS as readonly string[]).includes(k) ? (k as FindingKind) : 'other';
+}
+
+// Feedback markers are stripped so a juror-written example can never close
+// the repair-feedback block early (examples end up in the implementer's verify.md).
+const FEEDBACK_MARKER_RE = /<!--\s*repair-feedback:(?:start|end)\s*-->/gi;
+
+function normaliseExamples(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const t = item.replace(FEEDBACK_MARKER_RE, '').replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    const clipped = t.slice(0, MAX_EXAMPLE_CHARS);
+    if (!out.includes(clipped)) out.push(clipped);
+    if (out.length >= MAX_FINDING_EXAMPLES) break;
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 /**
  * Parse a juror's `findings` field. Returns null when the field is not an
  * array, so callers can tell "no findings reported" from "old reply shape".
@@ -132,6 +179,17 @@ export function parseFindings(raw: unknown): ReviewFinding[] | null {
     const repro = text(o.repro, 400);
     if (repro) finding.repro = repro;
     if (serious && !evidence && !nonVerdictNote) finding.needsCheck = true;
+    const kind = normaliseKind(o.kind);
+    if (kind) finding.kind = kind;
+    // NOTE: impact never touches `gating` here — the juror's vote must not
+    // change with it, or an impact difference would read as a seat split.
+    if (o.impact != null) {
+      const followUp =
+        typeof o.impact === 'string' && o.impact.trim().toLowerCase() === 'follow_up';
+      finding.impact = followUp && severity !== 'blocker' ? 'follow_up' : 'blocking';
+    }
+    const examples = normaliseExamples(o.examples);
+    if (examples) finding.examples = examples;
     out.push(finding);
     if (out.length >= MAX_PARSED_FINDINGS) break;
   }

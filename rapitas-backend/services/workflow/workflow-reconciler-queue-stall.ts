@@ -30,7 +30,11 @@ import {
   notifyQueueStalledRunnerAlive,
 } from './auto-run/auto-run-notifications';
 import { logCycleEvent } from '../observability';
-import { RUNNING_ITEM_STALE_MS, QUEUE_STARVATION_THRESHOLD_MS } from './queue-stall-policy';
+import {
+  RUNNING_ITEM_STALE_MS,
+  QUEUE_STARVATION_THRESHOLD_MS,
+  POST_PHASE_GRACE_MS,
+} from './queue-stall-policy';
 
 const log = createLogger('workflow-reconciler-queue-stall');
 
@@ -91,6 +95,30 @@ async function collectSweepCandidates(nowMs: number): Promise<SweepCandidate[]> 
 }
 
 /**
+ * Whether one of the task's agents finished within {@link POST_PHASE_GRACE_MS}:
+ * the item is then running the agent-less epilogue (commit, push, PR), not
+ * stalled. A failed lookup answers false, keeping the sweep's old behaviour.
+ *
+ * @param taskId - Task of the candidate item / 対象タスクID
+ * @param nowMs - Current time (ms) / 現在時刻
+ * @returns true when an agent of the task finished recently / 直近に終了した実行があれば true
+ */
+async function finishedPhaseRecently(taskId: number, nowMs: number): Promise<boolean> {
+  try {
+    const recent = await prisma.agentExecution.findFirst({
+      where: {
+        session: { config: { taskId } },
+        completedAt: { gte: new Date(nowMs - POST_PHASE_GRACE_MS) },
+      },
+      select: { id: true },
+    });
+    return recent != null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Cancel 'running' queue items that are either stale beyond
  * RUNNING_ITEM_STALE_MS or residue of a task that cannot run at all (see
  * {@link collectSweepCandidates}), and that either belong to a terminal task or
@@ -112,6 +140,11 @@ export async function sweepStaleRunningItems(nowMs: number): Promise<number> {
     // Only consult liveness for non-terminal tasks — a terminal task's residue
     // is stale by definition, live agent or not (its work is already resolved).
     if (!terminal && (await hasLiveExecution(prisma, item.taskId))) continue;
+    // NOTE: An item whose agent just exited is creating the commit / PR, which
+    // runs with no agent. Cancelling it there lost task 1535's PR (2026-11-25).
+    if (!terminal && !item.unrunnable && (await finishedPhaseRecently(item.taskId, nowMs))) {
+      continue;
+    }
 
     const cause = terminal
       ? 'terminal_task_running_residue'

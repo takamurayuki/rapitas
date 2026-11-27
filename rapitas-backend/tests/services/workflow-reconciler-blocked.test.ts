@@ -8,6 +8,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { resolve as resolvePath } from 'node:path';
+import { installResumeFixtures } from '../helpers/blocked-retry-fixtures';
 
 /** A real, existing directory distinct from process.cwd() (the repo root, one level up). */
 const REAL_OTHER_DIR = resolvePath(process.cwd(), '..');
@@ -87,6 +88,7 @@ mock.module('../../services/workflow/blocked-task-escalation', () => ({
 }));
 mock.module('../../services/workflow/blocked-pr-retry-recovery', () => ({
   attemptPrOnlyRecovery,
+  canReviveBlockedPrRetry: async () => true,
 }));
 
 const { correctBlockedByEvidence, escalateAbandonedBlocked, healBlockedStatusDesync } =
@@ -122,7 +124,7 @@ beforeEach(() => {
   mockPrisma.task.update.mockReset().mockResolvedValue({});
   mockPrisma.agentExecution.findFirst.mockReset().mockResolvedValue(null);
   mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
-  mockPrisma.workflowTransition.findFirst.mockReset().mockResolvedValue(null);
+  installResumeFixtures(mockPrisma);
   mockPrisma.themeAutoRun.findMany.mockReset().mockResolvedValue([{ themeId: 1 }]);
   mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
   mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);

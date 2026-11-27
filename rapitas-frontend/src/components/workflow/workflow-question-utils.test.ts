@@ -288,3 +288,36 @@ describe('composeStructuredAnswer', () => {
     ]);
   });
 });
+
+describe('質問の計画への影響 (task 1546)', () => {
+  it('明示分類と旧フラグをバックエンドと同様に読み取る', () => {
+    const content =
+      '```json:options\n' +
+      JSON.stringify({
+        questions: [
+          {
+            id: 'Q1',
+            summary: 's',
+            options: [
+              { key: 'A', label: 'a', planImpact: 'criteria' },
+              { key: 'B', label: 'b', planImpact: 'approach' },
+              { key: 'C', label: 'c', planImpact: 'none', planRevision: true },
+              { key: 'D', label: 'd', planImpact: 'bogus', planRevision: true },
+              { key: 'E', label: 'e' },
+            ],
+            recommended: 'A',
+            recommendedReason: 'r',
+          },
+        ],
+      }) +
+      '\n```';
+    const options = parseOptionsBlock(content)!.questions[0].options;
+    expect(options.map((option) => [option.planImpact, option.planRevision])).toEqual([
+      ['criteria', false],
+      ['approach', false],
+      ['none', true],
+      [undefined, true],
+      [undefined, false],
+    ]);
+  });
+});

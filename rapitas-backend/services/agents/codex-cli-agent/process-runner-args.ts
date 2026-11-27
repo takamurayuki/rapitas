@@ -154,6 +154,11 @@ export function buildCodexArgs(
     args.push('-m', model);
   }
 
+  // NOTE: The effort is always passed. Without it every run inherited the
+  // user's interactive `~/.codex/config.toml` effort (`ultra`), and the 748
+  // rapitas sessions of 2026-11-20〜25 used up the weekly plan limit.
+  args.push('-c', `model_reasoning_effort=${resolveCodexReasoningEffort()}`);
+
   // Prompt handling
   let promptForStdin: string | null = null;
   const resumeId = config.resumeSessionId;
@@ -177,6 +182,24 @@ export function buildCodexArgs(
   }
 
   return { args, promptForStdin };
+}
+
+/** Levels every Codex model in models_cache.json offers (ultra is not one rapitas uses). */
+const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
+const DEFAULT_CODEX_REASONING_EFFORT = 'high';
+
+/**
+ * The reasoning effort rapitas runs Codex at: `RAPITAS_CODEX_REASONING_EFFORT`
+ * when it names a supported level, otherwise `high`.
+ *
+ * @returns One of low / medium / high / xhigh / 推論の強さ
+ */
+export function resolveCodexReasoningEffort(): string {
+  const raw = process.env.RAPITAS_CODEX_REASONING_EFFORT?.trim().toLowerCase();
+  if (!raw) return DEFAULT_CODEX_REASONING_EFFORT;
+  if (CODEX_REASONING_EFFORTS.has(raw)) return raw;
+  logger.warn({ value: raw }, 'unsupported RAPITAS_CODEX_REASONING_EFFORT — using high');
+  return DEFAULT_CODEX_REASONING_EFFORT;
 }
 
 export function normalizeCodexModel(model: string, hasApiKey: boolean): string {

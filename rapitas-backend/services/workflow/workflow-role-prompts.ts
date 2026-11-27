@@ -20,6 +20,7 @@ import {
   VERDICT_SCOPE_GUIDANCE_EN,
 } from './verify-verdict-scope-guidance';
 import { PLAN_DECLARATION_GUIDANCE } from './plan-deviation/declaration-parser';
+import { PLAN_SIZE_GUIDANCE } from './plan-size-policy';
 import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
 import { RESEARCH_CRITERIA_REVIEW_EN, RESEARCH_CRITERIA_REVIEW_JA } from './criteria-review';
 
@@ -139,7 +140,7 @@ export function buildRoleTexts(
         instruction:
           '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。\n\n' +
           '完了条件は implementer/verifier が許可されたツール操作（テスト実行・lint・型検査・自己検証API）だけで検証できるものに限定してください。稼働中バックエンドへの書き込み操作や本番相当環境での実測を完了条件として必須にしないでください。\n\n' +
-          `${PLAN_DECLARATION_GUIDANCE.ja}\n\n` +
+          `${PLAN_DECLARATION_GUIDANCE.ja}\n\n${PLAN_SIZE_GUIDANCE.ja}\n\n` +
           PRIMARY_CHECKOUT_GUIDANCE.ja +
           '\n' +
           '## 質問発火基準（question.md を保存する前に必ず確認）\n' +
@@ -181,7 +182,7 @@ export function buildRoleTexts(
           '- 同様に `PUT /tasks/:id/status` などタスクステータスを変更する API も呼ばないでください。状態遷移は Rapitas 側が自動で行います。\n' +
           '- ワークフロー API の保存系を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
           `- **完了前の自己検証（必須・ジョブ起動＋GETポーリング）**: コード変更が完了したと判断したら、終了する前に \`curl -s --max-time 30 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` を実行してください。このAPIは即座に \`{"runId":"...","status":"running","pollUrl":"..."}\` を返し、実際のlint/型/テストゲートはサーバー側で非同期に実行されます。\n` +
-          '- **結果の取得（GETポーリング、POSTの再送は禁止）**: 応答の `pollUrl`（`GET http://127.0.0.1:3001<pollUrl>`）を20秒間隔・最大60回（合計最大1200秒。差分レビューの陪審を待つ時間を含む）ポーリングしてください。`status:"completed"` になったら `ok`/`unverifiable`/`checks`/`markdown`/`diffReview` を確認し、`"ok":false` なら内容を修正して再度POSTから実行（最大3回）。`diffReview.verdict` が `"fail"` なら、`diffReview.reasons` と `diffReview.findings` の指摘を直してから再度POSTから実行してください（`ok:false` と同じ最大3回の中で数える）。`diffReview.verdict` が `"hold"`/`"unknown"`、または `diffReview.status` が `"skipped"` のときは修正対象にせず、その内容を最終サマリに記録してください。`status:"failed"` ならエラー内容を確認して修正してください。60回経過しても `running` のまま、または `status:"interrupted"`（前回ジョブがサーバー再起動等で中断）の場合は、検証を「未確定」として最終サマリに記録し終了してください。**同一taskIdへ`run-verification`をPOSTで繰り返し送る行為・接続断のたびに新しい検証を起動する行為は禁止**です（実行中のジョブがあれば同じ `runId` を返すだけで新規ジョブは起動されません）。最初のPOSTの応答自体を受け取れなかった場合は `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` で直近のジョブを取得してください（これも新規検証は起動しません）。検証状態を記録するためにローカルファイルを作る場合、`status` が `completed`/`failed`/`interrupted` のいずれかに確定するまではそのファイルを削除しないでください。最終サマリには使用した `runId` を必ず記載してください。\n'.replace(
+          '- **結果の取得（GETポーリング、POSTの再送は禁止）**: 応答の `pollUrl`（`GET http://127.0.0.1:3001<pollUrl>`）を20秒間隔・最大45回（合計最大900秒）ポーリングしてください。`status:"completed"` になったら `ok`/`unverifiable`/`checks`/`markdown` を確認し、`"ok":false` なら内容を修正して再度POSTから実行（最大3回）。`status:"failed"` ならエラー内容を確認して修正してください。45回経過しても `running` のまま、または `status:"interrupted"`（前回ジョブがサーバー再起動等で中断）の場合は、検証を「未確定」として最終サマリに記録し終了してください。**同一taskIdへ`run-verification`をPOSTで繰り返し送る行為・接続断のたびに新しい検証を起動する行為は禁止**です（実行中のジョブがあれば同じ `runId` を返すだけで新規ジョブは起動されません）。最初のPOSTの応答自体を受け取れなかった場合は `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` で直近のジョブを取得してください（これも新規検証は起動しません）。検証状態を記録するためにローカルファイルを作る場合、`status` が `completed`/`failed`/`interrupted` のいずれかに確定するまではそのファイルを削除しないでください。最終サマリには使用した `runId` を必ず記載してください。\n'.replace(
             '${taskId}',
             String(taskId),
           ) +
@@ -285,7 +286,7 @@ export function buildRoleTexts(
         instruction:
           'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.\n\n' +
           'Completion criteria must be verifiable using only tool operations the implementer/verifier are permitted to run (tests, lint, type-check, self-verification APIs). Do not require write operations against a live backend or measurements in a production-equivalent environment as a completion criterion.\n\n' +
-          `${PLAN_DECLARATION_GUIDANCE.en}\n\n` +
+          `${PLAN_DECLARATION_GUIDANCE.en}\n\n${PLAN_SIZE_GUIDANCE.en}\n\n` +
           PRIMARY_CHECKOUT_GUIDANCE.en +
           '\n' +
           '## Question-firing criteria (check BEFORE saving question.md)\n' +
@@ -325,7 +326,7 @@ export function buildRoleTexts(
           '- DO NOT call `PUT /tasks/:id/status` or any task-status mutation API. State transitions are managed by Rapitas.\n' +
           '- Save-type workflow API calls will return 400 if you try (status guard). Do not search for workarounds — finish when code changes are done.\n' +
           `- **Self-verification before finishing (REQUIRED — job launch + GET polling)**: once you judge the code changes complete, run \`curl -s --max-time 30 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` before exiting. This API returns immediately with \`{"runId":"...","status":"running","pollUrl":"..."}\`; the actual lint/type/test gate runs asynchronously on the server.\n` +
-          '- **Retrieving the result (GET polling — do NOT re-send the POST)**: poll the response\'s `pollUrl` (`GET http://127.0.0.1:3001<pollUrl>`) every 20 seconds, up to 60 times (1200 seconds total, which includes waiting for the diff-review jury). Once `status:"completed"`, check `ok`/`unverifiable`/`checks`/`markdown`/`diffReview`; if `"ok":false`, fix the issues and re-run from POST (up to 3 times). If `diffReview.verdict` is `"fail"`, fix the findings in `diffReview.reasons` and `diffReview.findings`, then re-run from POST (counted within the same up to 3 times as `ok:false`). If `diffReview.verdict` is `"hold"`/`"unknown"`, or `diffReview.status` is `"skipped"`, do not treat it as something to fix — record it in your final summary. If `status:"failed"`, inspect the error and fix it. If it is still `running` after 60 polls, or `status:"interrupted"` (the previous job was interrupted by e.g. a server restart), record verification as unconfirmed in your final summary and exit. **Repeatedly POSTing `run-verification` for the same taskId, or starting a new verification on every disconnect, is FORBIDDEN** — a running job returns the SAME `runId` and no new job is started. If the initial POST response itself was never received, use `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` to fetch the most recent job (this also never starts a new one). If you keep a local file to track verification state, do NOT delete it until `status` resolves to one of `completed`/`failed`/`interrupted`. Always record the `runId` you used in your final summary.\n'.replace(
+          '- **Retrieving the result (GET polling — do NOT re-send the POST)**: poll the response\'s `pollUrl` (`GET http://127.0.0.1:3001<pollUrl>`) every 20 seconds, up to 45 times (900 seconds total). Once `status:"completed"`, check `ok`/`unverifiable`/`checks`/`markdown`; if `"ok":false`, fix the issues and re-run from POST (up to 3 times). If `status:"failed"`, inspect the error and fix it. If it is still `running` after 45 polls, or `status:"interrupted"` (the previous job was interrupted by e.g. a server restart), record verification as unconfirmed in your final summary and exit. **Repeatedly POSTing `run-verification` for the same taskId, or starting a new verification on every disconnect, is FORBIDDEN** — a running job returns the SAME `runId` and no new job is started. If the initial POST response itself was never received, use `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` to fetch the most recent job (this also never starts a new one). If you keep a local file to track verification state, do NOT delete it until `status` resolves to one of `completed`/`failed`/`interrupted`. Always record the `runId` you used in your final summary.\n'.replace(
             '${taskId}',
             String(taskId),
           ) +

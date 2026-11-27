@@ -311,3 +311,58 @@ describe('tryDequeueCandidate — repair_admission_denied', () => {
     expect(cycleEvents.length).toBe(0);
   });
 });
+
+describe('tryDequeueCandidate — 直接実行が握る枠 (task 1535)', () => {
+  test('直接実行の予約(running 項目)が上限に達していれば dequeue は取得しない', async () => {
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row({ status: 'queued' }));
+    prismaMock.workflowQueueItem.count.mockResolvedValue(1); // direct-slot item counted as running
+
+    expect(await tryDequeueCandidate(row(), 1)).toBeNull();
+    expect(prismaMock.workflowQueueItem.update).not.toHaveBeenCalled();
+  });
+
+  test('予約が解放されて running が 0 になれば、同じ候補を取得できる', async () => {
+    prismaMock.workflowQueueItem.findUnique.mockResolvedValueOnce(row({ status: 'queued' }));
+    prismaMock.workflowQueueItem.count.mockResolvedValue(0);
+    prismaMock.workflowQueueItem.update.mockResolvedValue(row({ status: 'running' }));
+
+    const result = await tryDequeueCandidate(row(), 1);
+    expect(result).not.toBeNull();
+    expect(prismaMock.workflowQueueItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'running' }) }),
+    );
+  });
+});
+
+// Task 1562: a restart wait lets running work drain, so nothing new may be acquired.
+describe('tryDequeueCandidate — restart wait', () => {
+  test('returns null without touching the queue while a restart wait is in force', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const previous = process.env.RAPITAS_DATA_DIR;
+    const dir = mkdtempSync(join(tmpdir(), 'dequeue-wait-'));
+    process.env.RAPITAS_DATA_DIR = dir;
+    const wait = await import('../scheduling/auto-restart-merged-code/restart-wait');
+    const store = await import('../scheduling/auto-restart-merged-code/restart-wait-store');
+    try {
+      store.writeRestartWaitState({ waitStartedAt: Date.now(), phase: 'waiting' });
+      wait.resetRestartWaitCache();
+      const result = await tryDequeueCandidate(row(), 5);
+      expect(result).toBeNull();
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(themeRunning).not.toHaveBeenCalled();
+
+      // Once the wait is over the same candidate is evaluated again.
+      store.writeRestartWaitState({});
+      wait.resetRestartWaitCache();
+      await tryDequeueCandidate(row(), 5);
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+    } finally {
+      wait.resetRestartWaitCache();
+      if (previous === undefined) delete process.env.RAPITAS_DATA_DIR;
+      else process.env.RAPITAS_DATA_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

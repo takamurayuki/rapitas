@@ -392,3 +392,38 @@ describe('composeAutoAnswerText', () => {
     expect(selections).toEqual([{ questionId: 'Q1', selectedKey: 'B' }]);
   });
 });
+
+describe('質問の計画への影響 (task 1546)', () => {
+  const block = (option: Record<string, unknown>) =>
+    '```json:options\n' +
+    JSON.stringify({
+      questions: [
+        {
+          id: 'Q1',
+          summary: 's',
+          options: [{ key: 'A', label: 'a', ...option }],
+          recommended: 'A',
+          recommendedReason: 'r',
+        },
+      ],
+    }) +
+    '\n```';
+  const first = (option: Record<string, unknown>) =>
+    parseQuestionOptionsBlock(block(option))!.questions[0].options[0];
+
+  it.each(['criteria', 'approach', 'none'])('明示分類 %s と旧フラグを読み取る', (planImpact) => {
+    expect(first({ planImpact, planRevision: true })).toMatchObject({
+      planImpact,
+      planRevision: true,
+    });
+  });
+
+  it.each(['bogus', null, undefined])(
+    '無効または未指定の分類 %s では旧フラグを保持する',
+    (planImpact) => {
+      const option = first({ planImpact, planRevision: true });
+      expect(option.planImpact).toBeUndefined();
+      expect(option.planRevision).toBe(true);
+    },
+  );
+});

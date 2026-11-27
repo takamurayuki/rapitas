@@ -28,6 +28,7 @@ const mockFindUnique = mock(() => Promise.resolve(null));
 const mockFindMany = mock(() => Promise.resolve([]));
 const mockUpdate = mock((_args?: unknown) => Promise.resolve({}));
 const mockUpdateMany = mock(() => Promise.resolve({ count: 1 }));
+const mockExecutionUpdateMany = mock((_args: unknown) => Promise.resolve({ count: 1 }));
 const mockFindFirst = mock(() => Promise.resolve(null));
 const mockCreate = mock(() => Promise.resolve({}));
 const mockWorkflowTransitionFindFirst = mock(() => Promise.resolve(null));
@@ -42,7 +43,7 @@ const mockPrisma = {
     updateMany: mockUpdateMany,
   },
   agentSession: { findFirst: mockFindFirst, update: mockUpdate },
-  agentExecution: { update: mockUpdate },
+  agentExecution: { update: mockUpdate, updateMany: mockExecutionUpdateMany },
   activityLog: { create: mockCreate },
   // Used by the verify→complete PR gate to detect an already-existing PR.
   gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
@@ -70,11 +71,12 @@ mock.module('../../../config/database', () => ({
 
 // Handler tests exercise downstream gates after a successful review. Atomic
 // receipt/version/stop checks are exercised against SQLite in replan-commit tests.
+let completionExecutionId: number | null = null;
 mock.module('../../../services/workflow/requirement-replan-service', () => ({
   attemptRequirementReplan: async (_db: unknown, taskId: number) => ({
     committed: false,
     reason: 'no_mismatch',
-    completionReceipt: { taskId },
+    completionReceipt: { taskId, executionId: completionExecutionId },
   }),
 }));
 // Set to a reason string by a test to make assertReviewedTaskCurrent throw a
@@ -214,26 +216,6 @@ mock.module('../../../services/agents/verification/adversarial-diff-review', () 
   reviewDiffAdversarially: mockReviewDiffAdversarially,
 }));
 
-// NOTE: These suites pin the immediate path (verify_done on save, review after)
-// and queue prisma mock values in that call order. The review-pending path of
-// task 1538 has its own suites (file-save/verify-review-admission.test.ts,
-// file-save/verify-post-save-pipeline.review-pending.test.ts).
-mock.module('./file-save/verify-review-admission', () => ({
-  admitVerifyForReview: async (p: { completionReceipt?: { taskId: number } }) => {
-    if (!p.completionReceipt) throw new Error('Missing server completion review receipt');
-    const { advanceReviewedVerify } =
-      await import('../../../services/workflow/requirement-replan-commit');
-    return {
-      completionReceipt: await advanceReviewedVerify(
-        mockPrisma as never,
-        p.completionReceipt as never,
-      ),
-      reviewPending: false,
-    };
-  },
-  recordVerifyReviewPending: async () => {},
-}));
-
 // ---- completion-gate mock ----
 mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),
@@ -315,6 +297,8 @@ beforeEach(() => {
   mockApplyPhaseCriticGate.mockReset();
   mockReviewDiffAdversarially.mockReset();
   mockUpdateMany.mockReset();
+  mockExecutionUpdateMany.mockClear();
+  completionExecutionId = null;
   warnCalls.length = 0;
   errorCalls.length = 0;
   assertReviewedTaskCurrentHeldReason = null;
@@ -971,7 +955,7 @@ describe('handleSaveFile — validateVerify 失敗によるバウンスは冗長
 
 // -------------------------------------------------------------------------
 describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了済みタスクを巻き戻さないこと', () => {
-  test('レビュー実行中にタスクが verify_done から動いていなければ通常通り差し戻すこと', async () => {
+  beforeEach(() => {
     mockResolveWorkflowDir.mockResolvedValueOnce({
       task: { workflowStatus: 'in_progress', id: 1 },
       dir: '/fake/dir/1',
@@ -980,136 +964,86 @@ describe('handleSaveFile — 敵対的差分レビューの遅延判定が完了
     });
     mockFindMany.mockResolvedValueOnce([]);
     mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st findUnique = conflict-task check (not a conflict task); 2nd =
-    // resolvePreferredBaseBranch's theme lookup (no defaultBranch here, falls
-    // through to the agentExecutionConfig mock); 3rd = the CAS live-status
-    // check inside the adversarial-review block (still verify_done).
     mockFindUnique.mockResolvedValueOnce(null);
     mockFindUnique.mockResolvedValueOnce({ theme: null });
-    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
     mockReviewDiffAdversarially.mockResolvedValueOnce({
       verdict: 'fail',
       severity: 80,
       reasons: ['受入基準を満たしていません'],
     });
-    mockAttemptVerifyRepair.mockResolvedValueOnce({
-      bounced: true,
-      newStatus: 'plan_approved',
-      attempt: 1,
-    });
-
-    const result = await handleSaveFile({
-      params: { taskId: '1', fileType: 'verify' },
-      body: 'verify content',
-      set: makeSet(),
-    });
-
-    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
-    expect(mockUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 1, workflowStatus: 'verify_done' },
-        data: { workflowStatus: 'plan_approved' },
-      }),
-    );
   });
 
-  // Regression: a successful bounce (repair budget remaining) rolled the task
-  // back to plan_approved for a retry, but left the just-finished
-  // AgentExecution row untouched — the execution log kept showing 完了/success
-  // even though the diff it produced had just been rejected. Only the
-  // repairs-EXHAUSTED branch called markLatestExecutionFailed; the bounce
-  // branch (this one) must too, since a new AgentExecution is created for the
-  // retry and this row is done being "successful".
-  test('レビュー不合格でバウンスした場合も直前の実行を failed としてマークすること', async () => {
-    mockResolveWorkflowDir.mockResolvedValueOnce({
-      task: { workflowStatus: 'in_progress', id: 1 },
-      dir: '/fake/dir/1',
-      categoryId: null,
-      themeId: null,
-    });
-    mockFindMany.mockResolvedValueOnce([]);
-    mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st = conflict-task check; 2nd = resolvePreferredBaseBranch's theme
-    // lookup; 3rd = the CAS live-status check.
-    mockFindUnique.mockResolvedValueOnce(null);
-    mockFindUnique.mockResolvedValueOnce({ theme: null });
-    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'verify_done' });
-    mockReviewDiffAdversarially.mockResolvedValueOnce({
-      verdict: 'fail',
-      severity: 80,
-      reasons: ['範囲外の変更が含まれる'],
-    });
-    mockAttemptVerifyRepair.mockResolvedValueOnce({
-      bounced: true,
-      newStatus: 'plan_approved',
-      attempt: 1,
-    });
-    // agentSession.findFirst is called 3x before markLatestExecutionFailed's own
-    // lookup, all through the same mock — queue them in call order: 1st the
-    // completion-gate's gateSession, 2nd the adversarial-review's reviewSession,
-    // 3rd markLatestExecutionFailed's session (the one that matters here).
-    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
-    mockFindFirst.mockResolvedValueOnce({ worktreePath: '/fake/worktree' });
-    mockFindFirst.mockResolvedValueOnce({
-      id: 10,
-      status: 'running',
-      agentExecutions: [{ id: 99, status: 'running' }],
-    });
-
-    await handleSaveFile({
-      params: { taskId: '1', fileType: 'verify' },
-      body: 'verify content',
-      set: makeSet(),
-    });
-
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 99 },
-        data: expect.objectContaining({ status: 'failed' }),
-      }),
-    );
-  });
-
-  test('レビュー完了時点でタスクが既に verify_done から進んでいれば巻き戻さず、実際の状態を返すこと', async () => {
-    mockResolveWorkflowDir.mockResolvedValueOnce({
-      task: { workflowStatus: 'in_progress', id: 1 },
-      dir: '/fake/dir/1',
-      categoryId: null,
-      themeId: null,
-    });
-    mockFindMany.mockResolvedValueOnce([]);
-    mockCheckInvariants.mockResolvedValueOnce([]);
-    // 1st findUnique = conflict-task check; 2nd = resolvePreferredBaseBranch's
-    // theme lookup; 3rd = the CAS live-status check — a second, faster
-    // verify/repair round already completed (and merged) the task while this
-    // review was still running (task 503's actual incident).
-    mockFindUnique.mockResolvedValueOnce(null);
-    mockFindUnique.mockResolvedValueOnce({ theme: null });
-    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'completed' });
-    mockReviewDiffAdversarially.mockResolvedValueOnce({
-      verdict: 'fail',
-      severity: 75,
-      reasons: ['受入基準を満たしていません'],
-    });
-    mockAttemptVerifyRepair.mockResolvedValueOnce({
-      bounced: true,
-      newStatus: 'plan_approved',
-      attempt: 1,
-    });
-
-    const result = (await handleSaveFile({
+  const saveVerify = async () =>
+    (await handleSaveFile({
       params: { taskId: '1', fileType: 'verify' },
       body: 'verify content',
       set: makeSet(),
     })) as { workflowStatus?: string };
 
-    // Must report the task's ACTUAL current status, never the stale
-    // 'plan_approved' rollback target this late verdict wanted to apply.
-    expect(result.workflowStatus).toBe('completed');
-    // The rollback update must never have been attempted with stale data.
-    expect(mockUpdateMany).not.toHaveBeenCalledWith(
-      expect.objectContaining({ data: { workflowStatus: 'plan_approved' } }),
+  test('修復が確定した戻り先を返し、HTTP は巻き戻しを再発行しない', async () => {
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: true, newStatus: 'research_done' });
+
+    expect((await saveVerify()).workflowStatus).toBe('research_done');
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledWith(
+      1,
+      'verify_done',
+      expect.stringContaining('受入基準を満たしていません'),
+      'verify content',
+      expect.anything(),
     );
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ workflowStatus: 'research_done' }),
+      }),
+    );
+    expect(mockRecordTransition).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cause: 'verify_repair' }),
+    );
+    expect(mockExecutionUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('レビュー不合格でバウンスした場合も直前の実行を failed としてマークすること', async () => {
+    completionExecutionId = 99;
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: true, newStatus: 'plan_approved' });
+
+    expect((await saveVerify()).workflowStatus).toBe('plan_approved');
+    expect(mockExecutionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mockExecutionUpdateMany).toHaveBeenCalledWith({
+      where: { id: 99, status: { in: ['running', 'completed'] } },
+      data: {
+        status: 'failed',
+        errorMessage: expect.stringContaining('受入基準を満たしていません'),
+        completedAt: expect.any(Date),
+      },
+    });
+  });
+
+  test('実行状態の書き込みが失敗しても確定した戻り先を返す', async () => {
+    completionExecutionId = 99;
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: true, newStatus: 'plan_approved' });
+    mockExecutionUpdateMany.mockRejectedValueOnce(new Error('DB 書き込み失敗'));
+
+    expect((await saveVerify()).workflowStatus).toBe('plan_approved');
+    expect(mockExecutionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    expect(mockPerformAutoCommitAndPR).not.toHaveBeenCalled();
+  });
+
+  test('レビュー完了時点でタスクが既に verify_done から進んでいれば巻き戻さず、実際の状態を返すこと', async () => {
+    completionExecutionId = 99;
+    mockFindUnique.mockResolvedValueOnce({ workflowStatus: 'completed' });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false, stale: true });
+
+    expect((await saveVerify()).workflowStatus).toBe('completed');
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'blocked' }) }),
+    );
+    expect(mockExecutionUpdateMany).not.toHaveBeenCalled();
+    expect(mockPerformAutoCommitAndPR).not.toHaveBeenCalled();
   });
 });
 

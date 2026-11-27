@@ -36,11 +36,39 @@ test('live external owner blocks startup without changing its lock', async () =>
 test('stale unlocked metadata for an absent process does not permanently hold workdir', async () => {
   const { dir, lock } = await fixture('{"pid":123}');
   expect((await inspectRuntimeDirectory(dir, [])).free).toBe(true);
+  expect(await inspectRuntimeDirectory(dir, [])).toMatchObject({
+    pid: 123,
+    path: lock,
+    locks: [{ pid: 123, path: lock }],
+  });
   expect(await readFile(lock, 'utf8')).toBe('{"pid":123}');
+});
+
+test('占有判定は死亡したロックを含めて全件の身元を返す', async () => {
+  const { dir, lock } = await fixture('{"pid":123}');
+  const output = join(dir, '.next');
+  await mkdir(output, { recursive: true });
+  const liveLock = join(output, 'lock');
+  await writeFile(liveLock, '{"pid":456}');
+  const result = await inspectRuntimeDirectory(dir, [
+    { pid: 456, parentPid: 1, birth: '4560', command: 'server' },
+  ]);
+  expect(result.free).toBe(false);
+  expect(result.locks).toEqual([
+    { path: liveLock, pid: 456 },
+    { path: lock, pid: 123 },
+  ]);
 });
 test('invalid lock metadata remains an unknown occupant', async () => {
   for (const content of ['{', '{}', '{"pid":0}', '{"pid":"123"}']) {
     const { dir } = await fixture(content);
     expect((await inspectRuntimeDirectory(dir, [])).free).toBe(false);
   }
+});
+
+test('履歴の追加パスでも形式不明のロックを見落とさない', async () => {
+  const { dir } = await fixture();
+  const lock = join(dir, 'custom.lock');
+  await writeFile(lock, 'unknown owner');
+  expect(await inspectRuntimeDirectory(dir, [], [lock])).toMatchObject({ free: false, path: lock });
 });

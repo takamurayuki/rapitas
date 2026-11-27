@@ -12,23 +12,26 @@ import { createLogger } from '../../../config/logger';
 import { writeBlockedTask } from '../blocked-task-write';
 import { resolveTaskWorkflowState } from '../../task/task-resolver';
 import { WorkflowQueueService } from '../workflow-queue';
-import { readAutoRunHold } from './auto-run-hold-check';
 import { logCycleEvent } from '../../observability';
 import { COOLDOWN_MS, isAwaitingUserAnswer } from './auto-run-selection';
 import { liveOrQueuedBehind } from './queue-wait-exemption';
 import { requeueIfNeverExecuted } from './requeue-if-never-executed';
-import { setCurrentTask, onTaskCompleted, onTaskFailed } from './theme-auto-run-service';
+// Task 1552: every slot write goes through the running set so a theme running
+// companions frees only this task's slot; alone, these are the same calls as
+// setCurrentTask / onTaskCompleted / onTaskFailed.
+import { releaseThemeSlot, retrackThemeSlot } from './parallel/theme-active-set';
 import {
   notifyAwaitingUserAnswer,
   notifyTaskSkipped,
   notifyTaskVanished,
 } from './auto-run-notifications';
 import { isTaskVanishedMessage } from '../queue-vanished-task-policy';
-import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { isCancelledCurrent, releaseCancelledCurrent } from './auto-run-terminal-current';
 import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
-import { hasRunawayCancelLoop, userActedAfter } from './auto-run-recovery-history';
+import { userActedAfter } from './auto-run-recovery-history';
+import { resumeOrReleaseVanishedItem } from './auto-run-resolve-reenqueue';
+import { isAwaitingCiItem } from '../awaiting-ci';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -63,7 +66,7 @@ export async function resolveCurrentTaskOutcome(
       status: { in: ['completed', 'failed', 'cancelled'] },
     },
     orderBy: { completedAt: 'desc' },
-    select: { id: true, status: true, errorMessage: true, completedAt: true },
+    select: { id: true, status: true, currentPhase: true, errorMessage: true, completedAt: true },
   });
 
   const task = await resolveTaskWorkflowState(currentTaskId);
@@ -78,9 +81,33 @@ export async function resolveCurrentTaskOutcome(
     // Preserve the unanswered task, but release the theme slot so unrelated
     // eligible tasks can run on the next tick. Never stop/revert the task here.
     if (!(await liveOrQueuedBehind(prisma, currentTaskId))) {
-      await setCurrentTask(themeId, null);
+      await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
       broadcastAutoRunUpdateImpl(themeId);
     }
+    return;
+  }
+
+  // Task 1568: the runner handed this task's item back for a CI wait (`awaiting_ci`) and the task
+  // is not finished. Its slot is freed WITHOUT counting a completed task, and the stale item must
+  // not stand in for the task's completion — that also covers the window where ci-self-repair has
+  // already moved the task out of verify_done but has not queued its repair item yet. Never
+  // re-enqueue it below: that would take the slot straight back.
+  if (isAwaitingCiItem(terminalItem) && task?.status === 'in-progress') {
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'released');
+    broadcastAutoRunUpdateImpl(themeId);
+    logCycleEvent('task.skipped', {
+      theme: themeId,
+      task: currentTaskId,
+      cause: 'awaiting_ci_slot_released',
+      msg: 'task waits for CI / merge — slot released so the theme can start the next task',
+    });
+    await selectAndEnqueueNextTask(
+      prisma,
+      themeId,
+      order,
+      Math.max(0, globalActive - 1),
+      barrierHoldSince,
+    );
     return;
   }
 
@@ -141,7 +168,7 @@ export async function resolveCurrentTaskOutcome(
     terminalItem?.status === 'failed' || task?.status === 'failed' || task?.status === 'blocked';
 
   if (isCompleted) {
-    await onTaskCompleted(themeId);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'completed');
     broadcastAutoRunUpdateImpl(themeId);
     logCycleEvent('task.completed', {
       theme: themeId,
@@ -201,7 +228,7 @@ export async function resolveCurrentTaskOutcome(
       await WorkflowQueueService.getInstance()
         .enqueue({ taskId: currentTaskId, themeId, priority: 50 })
         .catch(() => {});
-      await setCurrentTask(themeId, currentTaskId);
+      await retrackThemeSlot(prisma, themeId, currentTaskId);
       broadcastAutoRunUpdateImpl(themeId);
       return;
     }
@@ -222,13 +249,13 @@ export async function resolveCurrentTaskOutcome(
           cause: 'terminal_failure_never_executed',
           msg: 'never-executed task requeued instead of blocked after a terminal queue failure',
         });
-        await setCurrentTask(themeId, currentTaskId);
+        await retrackThemeSlot(prisma, themeId, currentTaskId);
         broadcastAutoRunUpdateImpl(themeId);
         return;
       }
       await writeBlockedTask(prisma, currentTaskId).catch(() => {});
     }
-    await onTaskFailed(themeId, errMsg);
+    await releaseThemeSlot(prisma, themeId, currentTaskId, 'failed', errMsg);
     await notifyTaskSkipped(themeId, currentTaskId, errMsg);
     broadcastAutoRunUpdateImpl(themeId);
     logCycleEvent('task.blocked', {
@@ -249,108 +276,12 @@ export async function resolveCurrentTaskOutcome(
     return;
   }
 
-  // No active AND no terminal queue item, and the task is not terminal:
-  // the item vanished (e.g. cleared) while the task is still mid-workflow.
-  // Re-enqueue the SAME task so it resumes — never silently stall. The
-  // WorkflowRunner picks up from the task's current workflowStatus.
-  //
-  // Bounded, though: if the same task keeps coming straight back as a cancelled
-  // item, re-enqueueing spins. Measured 2026-08-24 on task 635 (todo +
-  // awaiting_question, which the orchestrator refuses to dispatch): 106 queue
-  // items in 21 minutes while auto-run reported itself as running. The selector
-  // no longer picks that state, but any future "enqueued then immediately
-  // abandoned" cause would loop the same way, so release the task instead.
-  if (await hasRunawayCancelLoop(prisma, currentTaskId)) {
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${currentTaskId} keeps being cancelled without running — releasing it (theme ${themeId})`,
-    );
-    logCycleEvent('task.skipped', {
-      theme: themeId,
-      task: currentTaskId,
-      cause: 'runaway_cancel_loop',
-      msg: 'enqueue-cancel loop detected — task released so the theme can move on',
-    });
-    await setCurrentTask(themeId, null);
-    broadcastAutoRunUpdateImpl(themeId);
-    return;
-  }
-
-  // Re-check right before re-enqueueing: the task may have turned terminal since the
-  // snapshot above. Never log "re-enqueued" for a terminal task (task 1009).
-  const latest = await resolveTaskWorkflowState(currentTaskId);
-  if (isTaskTerminalForQueue(latest)) {
-    if (isCancelledCurrent(latest)) {
-      await releaseCancelledCurrent(prisma, themeId, currentTaskId);
-    } else {
-      await onTaskCompleted(themeId); // done/completed: same bookkeeping as isCompleted above
-      logCycleEvent('task.completed', {
-        theme: themeId,
-        task: currentTaskId,
-        ok: true,
-        via: 'task_status_recheck',
-        msg: 'task completed before re-enqueue — advancing to next',
-      });
-    }
-    broadcastAutoRunUpdateImpl(themeId);
-    await selectAndEnqueueNextTask(
-      prisma,
-      themeId,
-      order,
-      Math.max(0, globalActive - 1),
-      barrierHoldSince,
-    );
-    return;
-  }
-
-  // A task the operator parked must not be resumed. The selection side already
-  // refuses one (eligibleTopLevelTodoWhere), but this resume branch did not,
-  // so a hold stopped nothing: measured 2026-10-13, setting autoRunExcluded on
-  // #1214 was followed within seconds by a fresh queue item and a $8.86
-  // execution, and cancelling that item produced another. Release the theme's
-  // current task and move on, exactly as the runaway-cancel-loop branch above
-  // does — leaving currentTaskId pointing at a held task would retry every
-  // tick forever.
-  const hold = await readAutoRunHold(prisma, currentTaskId);
-  if (hold.held) {
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${currentTaskId} is held out of auto-run (${hold.reason}) — not resuming it (theme ${themeId})`,
-    );
-    logCycleEvent('task.skipped', {
-      theme: themeId,
-      task: currentTaskId,
-      cause: `held_${hold.reason}`,
-      msg: 'task is held out of auto-run — released so the theme can move on',
-    });
-    await setCurrentTask(themeId, null);
-    broadcastAutoRunUpdateImpl(themeId);
-    await selectAndEnqueueNextTask(
-      prisma,
-      themeId,
-      order,
-      Math.max(0, globalActive - 1),
-      barrierHoldSince,
-    );
-    return;
-  }
-
-  try {
-    // NOTE: getInstance() replaces the former scheduler `queue` field — same singleton (task 628).
-    await WorkflowQueueService.getInstance().enqueue({
-      taskId: currentTaskId,
-      themeId,
-      priority: 50,
-    });
-    await setCurrentTask(themeId, currentTaskId);
-    broadcastAutoRunUpdateImpl(themeId);
-    log.warn(
-      `[ThemeAutoRunScheduler] Task ${currentTaskId} had no queue item; re-enqueued to resume (theme ${themeId})`,
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // 'already in the queue' means a race re-created it — fine, just wait.
-    if (!msg.includes('already in the queue')) {
-      log.error({ err }, `[ThemeAutoRunScheduler] Failed to re-enqueue task ${currentTaskId}`);
-    }
-  }
-  return;
+  await resumeOrReleaseVanishedItem(
+    prisma,
+    themeId,
+    currentTaskId,
+    order,
+    globalActive,
+    barrierHoldSince,
+  );
 }

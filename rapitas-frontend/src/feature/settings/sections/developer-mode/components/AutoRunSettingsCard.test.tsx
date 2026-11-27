@@ -121,3 +121,45 @@ describe('AutoRunSettingsCard — nightly self-refill window', () => {
     expect(onUpdateSettings).toHaveBeenCalledWith({ selfRefillWindowStart: '02:15' });
   });
 });
+
+describe('AutoRunSettingsCard — auto-run concurrency (task 1543)', () => {
+  it('shows the saved value and commits a changed value on blur', () => {
+    const onUpdateSettings = renderCard({ autoRunMaxConcurrency: 1 });
+    const input = screen.getByLabelText('maxConcurrencyLabel') as HTMLInputElement;
+    expect(input.value).toBe('1');
+    fireEvent.change(input, { target: { value: '3' } });
+    fireEvent.blur(input);
+    expect(onUpdateSettings).toHaveBeenCalledWith({ autoRunMaxConcurrency: 3 });
+  });
+
+  it('clamps out-of-range values to 1..4 and treats empty as 1', () => {
+    const onUpdateSettings = renderCard({ autoRunMaxConcurrency: 2 });
+    const input = screen.getByLabelText('maxConcurrencyLabel');
+    fireEvent.change(input, { target: { value: '9' } });
+    fireEvent.blur(input);
+    expect(onUpdateSettings).toHaveBeenLastCalledWith({ autoRunMaxConcurrency: 4 });
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(onUpdateSettings).toHaveBeenLastCalledWith({ autoRunMaxConcurrency: 1 });
+  });
+
+  it('does not re-send an unchanged value', () => {
+    const onUpdateSettings = renderCard({ autoRunMaxConcurrency: 2 });
+    const input = screen.getByLabelText('maxConcurrencyLabel');
+    fireEvent.change(input, { target: { value: '2' } });
+    fireEvent.blur(input);
+    expect(onUpdateSettings).not.toHaveBeenCalled();
+  });
+
+  it('shows the env override note and disables the input while the env var wins', () => {
+    renderCard({ autoRunMaxConcurrency: 1, autoRunMaxConcurrencyEnvOverride: 2 });
+    expect(screen.getByText('maxConcurrencyEnvOverride')).toBeTruthy();
+    expect((screen.getByLabelText('maxConcurrencyLabel') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('keeps the input enabled without an env override', () => {
+    renderCard({ autoRunMaxConcurrency: 1, autoRunMaxConcurrencyEnvOverride: null });
+    expect(screen.queryByText('maxConcurrencyEnvOverride')).toBeNull();
+    expect((screen.getByLabelText('maxConcurrencyLabel') as HTMLInputElement).disabled).toBe(false);
+  });
+});

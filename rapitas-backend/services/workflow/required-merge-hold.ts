@@ -10,6 +10,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { ADVANCING_PHASE, CI_WAIT_PHASE } from './awaiting-ci';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 
 const log = createLogger('workflow:required-merge-hold');
@@ -70,6 +71,9 @@ async function isAlreadyHeld(taskId: number): Promise<boolean> {
  *   `canReviveBlockedPrRetry`, which must be checked before passing a widened
  *   set. Never pass a status here that this function has not been explicitly
  *   asked to trust. / このCASが許容する Task.status の集合（既定は変更しない）
+ * @param p.requireNotExcluded - When true the CAS also requires `autoRunExcluded: false`, so an
+ *   operator exclusion landing after the caller's own read is never overwritten (task 1563).
+ *   Omitted → the where is unchanged. / trueなら対象外タスクを書き換えない（既定は従来どおり）
  * @returns True when the task is parked at the end of this call — including when it was already
  *   parked by an earlier identical hold (no new transition is written). False when the CAS lost.
  *   / 保留状態になった場合 true（保留済みの再呼び出しを含む）。CAS敗北は false
@@ -82,6 +86,7 @@ export async function holdForRequiredMerge(p: {
   source: string;
   metadata?: Record<string, unknown>;
   fromStatusIn?: string[];
+  requireNotExcluded?: boolean;
 }): Promise<boolean> {
   if (await isAlreadyHeld(p.taskId)) {
     log.info(
@@ -91,14 +96,28 @@ export async function holdForRequiredMerge(p: {
     return true;
   }
 
-  const held = await prisma.task
-    .updateMany({
-      where: {
-        id: p.taskId,
-        workflowStatus: p.fromStatus,
-        status: { in: p.fromStatusIn ?? ['todo', 'in-progress', 'in_progress'] },
-      },
-      data: { status: 'in-progress', workflowStatus: 'verify_done', updatedAt: new Date() },
+  // Task 1568: one transaction — the hold and the queue item's CI-wait phase become visible
+  // together, so the scheduler can only ever see "held and releasable" or "not held".
+  const held = await prisma
+    .$transaction(async (tx) => {
+      const res = await tx.task.updateMany({
+        where: {
+          id: p.taskId,
+          workflowStatus: p.fromStatus,
+          status: { in: p.fromStatusIn ?? ['todo', 'in-progress', 'in_progress'] },
+          ...(p.requireNotExcluded ? { autoRunExcluded: false } : {}),
+        },
+        data: { status: 'in-progress', workflowStatus: 'verify_done', updatedAt: new Date() },
+      });
+      if (res.count > 0) {
+        await tx.workflowQueueItem.updateMany({
+          // A runner that is advancing the item keeps it: the runner moves it to the CI-wait phase
+          // itself when its advance ends (workflow-runner-item-claim.ts).
+          where: { taskId: p.taskId, status: 'running', currentPhase: { not: ADVANCING_PHASE } },
+          data: { currentPhase: CI_WAIT_PHASE },
+        });
+      }
+      return res;
     })
     .catch((err) => {
       log.warn({ err, taskId: p.taskId }, '[required-merge-hold] Hold write failed');

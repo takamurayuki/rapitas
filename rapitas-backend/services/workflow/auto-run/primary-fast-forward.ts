@@ -121,10 +121,28 @@ const defaultRun: GitRun = async (args) => {
  * @param deps - Injected git runner (tests) / テスト用の git 実行関数
  * @returns Whether HEAD moved, and why / HEAD が進んだかと理由
  */
-export async function fastForwardPrimary(deps: { run?: GitRun } = {}): Promise<FastForwardResult> {
+export async function fastForwardPrimary(
+  deps: { run?: GitRun; now?: () => number; quietMs?: number } = {},
+): Promise<FastForwardResult> {
   const run = deps.run ?? defaultRun;
   const branch = targetBranch();
+  // NOTE: This runs on every idle scheduler tick (12 s) once a restart is allowed,
+  // and each call launched up to 6 git processes plus a network fetch. An
+  // up-to-date answer is reused for QUIET_MS (5 min; injected runners default to 0).
+  const now = (deps.now ?? Date.now)();
+  const quietMs = deps.quietMs ?? (deps.run ? 0 : QUIET_MS);
+  if (lastUpToDate && lastUpToDate.branch === branch && now - lastUpToDate.at < quietMs) {
+    return { moved: false, reason: 'up-to-date', branch, restoredGenerated: [] };
+  }
+  const result = await fastForwardOnce(run, branch);
+  lastUpToDate = result.reason === 'up-to-date' ? { at: now, branch } : null;
+  return result;
+}
 
+const QUIET_MS = 5 * 60_000;
+let lastUpToDate: { at: number; branch: string } | null = null;
+
+async function fastForwardOnce(run: GitRun, branch: string): Promise<FastForwardResult> {
   // Every result is coerced before use. This runs inside the scheduler tick,
   // so a runner that resolves with an unexpected shape must produce a reason,
   // never a thrown TypeError that takes the tick down with it.

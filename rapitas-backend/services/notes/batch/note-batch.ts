@@ -27,7 +27,7 @@ import { createLogger } from '../../../config/logger';
 import type { NoteTaskMeta, PrismaInstance, PrismaTx } from '../note-record';
 import { MAX_NOTE_CONTENT, MAX_NOTE_TAGS, MAX_NOTE_TITLE } from '../note-limits';
 import { requestWorkspaceId } from '../note-scope';
-import { checkNewMarkdownContent } from '../note-content-kind';
+import { prepareNewMarkdownContent } from '../inline-html';
 import { isUniqueViolation } from '../note-write';
 import { resolveEffectiveTheme } from '../placement/effective-theme';
 import { findTasksInScope, type ScopedTask } from '../placement/placement-scope';
@@ -115,8 +115,10 @@ async function runOne(db: PrismaInstance, item: BatchItem): Promise<BatchResult>
   if (item.taskIds.length === 0) return reject(item.id, 400, 'task_required');
   const idError = idRefusal(item);
   if (idError) return reject(item.id, 400, idError);
-  const content = (item.content ?? '').slice(0, MAX_NOTE_CONTENT);
-  if (checkNewMarkdownContent(content)) return reject(item.id, 400, 'legacy_html_content');
+  const prepared = prepareNewMarkdownContent((item.content ?? '').slice(0, MAX_NOTE_CONTENT));
+  if (!prepared.ok) return reject(item.id, 400, 'legacy_html_content');
+  // Disallowed inline HTML is stripped; the allowed forms are kept.
+  const content = prepared.content;
 
   const found = await findTasksInScope(db, item.taskIds);
   if (item.taskIds.some((id) => !found.has(id))) return reject(item.id, 404, 'task_not_found');

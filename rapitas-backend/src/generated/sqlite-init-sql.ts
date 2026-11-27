@@ -380,6 +380,7 @@ CREATE TABLE "Theme" (
     "defaultBranch" TEXT DEFAULT 'develop',
     "runtimeConfigJson" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "autoRunPriority" INTEGER NOT NULL DEFAULT 0,
     "categoryId" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
@@ -396,6 +397,19 @@ CREATE TABLE "Project" (
     "icon" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "GoalReflection" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
+    "projectId" INTEGER NOT NULL,
+    "weekStart" TEXT NOT NULL,
+    "rating" INTEGER NOT NULL,
+    "note" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "GoalReflection_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -1431,7 +1445,12 @@ CREATE TABLE "UserSettings" (
     "verifyRepairLimit" INTEGER NOT NULL DEFAULT 2,
     "executionStallThresholdMinutes" INTEGER NOT NULL DEFAULT 5,
     "idleStopMinutes" INTEGER NOT NULL DEFAULT 60,
+    "autoRunMaxConcurrency" INTEGER NOT NULL DEFAULT 1,
+    "autoRunMaxConcurrencyPerTheme" INTEGER NOT NULL DEFAULT 1,
     "selfRefillWindowStart" TEXT NOT NULL DEFAULT '03:00',
+    "reflectionPromptDow" INTEGER NOT NULL DEFAULT 0,
+    "reflectionPromptTime" TEXT NOT NULL DEFAULT '20:00',
+    "reflectionPromptLastWeek" TEXT,
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,
@@ -1842,6 +1861,7 @@ CREATE TABLE "ThemeAutoRun" (
     "idleSince" DATETIME,
     "idleStoppedAt" DATETIME,
     "lastSelfRefillAt" DATETIME,
+    "companionTasksJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -1875,6 +1895,9 @@ CREATE INDEX "DeveloperModeConfig_workspaceId_idx" ON "DeveloperModeConfig"("wor
 CREATE INDEX "AgentSession_workspaceId_idx" ON "AgentSession"("workspaceId");
 
 -- CreateIndex
+CREATE INDEX "AgentSession_configId_idx" ON "AgentSession"("configId");
+
+-- CreateIndex
 CREATE INDEX "AgentAction_workspaceId_idx" ON "AgentAction"("workspaceId");
 
 -- CreateIndex
@@ -1888,6 +1911,12 @@ CREATE INDEX "AgentExecution_status_heartbeatAt_idx" ON "AgentExecution"("status
 
 -- CreateIndex
 CREATE INDEX "AgentExecution_workspaceId_idx" ON "AgentExecution"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_sessionId_idx" ON "AgentExecution"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "AgentExecution_completedAt_idx" ON "AgentExecution"("completedAt");
 
 -- CreateIndex
 CREATE INDEX "AgentExecutionLog_executionId_sequenceNumber_idx" ON "AgentExecutionLog"("executionId", "sequenceNumber");
@@ -1999,6 +2028,15 @@ CREATE INDEX "Theme_workspaceId_idx" ON "Theme"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "Project_workspaceId_idx" ON "Project"("workspaceId");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_weekStart_idx" ON "GoalReflection"("weekStart");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_workspaceId_idx" ON "GoalReflection"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GoalReflection_projectId_weekStart_key" ON "GoalReflection"("projectId", "weekStart");
 
 -- CreateIndex
 CREATE INDEX "Milestone_workspaceId_idx" ON "Milestone"("workspaceId");
@@ -2284,6 +2322,9 @@ CREATE INDEX "KnowledgeEntry_workspaceId_idx" ON "KnowledgeEntry"("workspaceId")
 
 -- CreateIndex
 CREATE INDEX "TimelineEvent_eventType_idx" ON "TimelineEvent"("eventType");
+
+-- CreateIndex
+CREATE INDEX "TimelineEvent_eventType_createdAt_idx" ON "TimelineEvent"("eventType", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "TimelineEvent_correlationId_idx" ON "TimelineEvent"("correlationId");

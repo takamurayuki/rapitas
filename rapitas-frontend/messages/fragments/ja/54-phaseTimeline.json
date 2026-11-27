@@ -49,6 +49,9 @@
       "wholeWord": "単語単位で検索する",
       "regex": "正規表現を使用する"
     },
-    "runDivider": "─────── 実行 {n}/{total} ───────"
+    "runDivider": "─────── 実行 {n}/{total} ───────",
+    "reviewRunDivider": "─────── 差分レビュー {seat}（{model}） {n}/{total} ───────",
+    "reviewRunResult": "判定: {verdict}・指摘 {findings} 件",
+    "reviewRunUnknown": "不明"
   }
 }

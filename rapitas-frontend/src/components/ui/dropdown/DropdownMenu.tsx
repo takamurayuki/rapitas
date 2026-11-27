@@ -5,7 +5,9 @@ import { useOccludesWebview } from '@/stores/webview-occlusion-store';
 import { MoreVertical } from 'lucide-react';
 
 export interface DropdownMenuItem {
-  label: string;
+  label: React.ReactNode;
+  /** Marks the current choice: drawn highlighted and exposed as aria-current. */
+  selected?: boolean;
   icon?: React.ReactNode;
   onClick: () => void;
   variant?: 'default' | 'danger';
@@ -32,6 +34,8 @@ interface DropdownMenuProps {
   hideTrigger?: boolean;
   /** Which edge the menu is pinned to. Default 'right'. */
   align?: 'left' | 'right';
+  /** Glyph inside the trigger. Default the "more" glyph (MoreVertical). */
+  triggerIcon?: React.ReactNode;
 }
 
 export default function DropdownMenu({
@@ -45,6 +49,7 @@ export default function DropdownMenu({
   onOpenChange,
   hideTrigger = false,
   align = 'right',
+  triggerIcon,
 }: DropdownMenuProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   // Controlled whenever `open` is supplied. The owner then holds the state
@@ -121,7 +126,7 @@ export default function DropdownMenu({
           aria-expanded={isOpen}
           aria-label={triggerLabel}
         >
-          <MoreVertical className="w-4 h-4" aria-hidden="true" />
+          {triggerIcon ?? <MoreVertical className="w-4 h-4" aria-hidden="true" />}
         </button>
       )}
 
@@ -139,10 +144,13 @@ export default function DropdownMenu({
               onClick={() => handleItemClick(item)}
               disabled={item.disabled}
               aria-disabled={item.disabled || undefined}
+              aria-current={item.selected || undefined}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors text-left ${
                 item.variant === 'danger'
                   ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  : item.selected
+                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               } ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {item.icon && (

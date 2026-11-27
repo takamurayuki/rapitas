@@ -194,7 +194,7 @@ describe('AutoMergeWatcher — post-merge local mirror sync', () => {
     await getProcess()(candidate, new Set(['Lint Code']));
     expect(mockNotify).not.toHaveBeenCalled();
     expect(mockTaskComplete.mock.calls[0][0]).toMatchObject({
-      where: { status: { in: ['in-progress', 'in_progress', 'done', 'completed'] } },
+      where: { status: 'in-progress', workflowStatus: 'verify_done' },
     });
   });
   test("scopes the updateMany to the candidate repo's integrationId", async () => {

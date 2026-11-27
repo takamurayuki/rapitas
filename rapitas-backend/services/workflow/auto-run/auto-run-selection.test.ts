@@ -4,7 +4,7 @@
  * Unit tests for the pure selection logic in auto-run-selection.ts.
  * Uses an in-memory mock of the PrismaClient — no live DB required.
  */
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   HANG_BACKSTOP_HEARTBEAT_MS,
@@ -421,6 +421,46 @@ describe('selectNextTask', () => {
       where: { AND?: Array<{ OR?: unknown[] }> };
     };
     expect(arg.where.AND?.[0]?.OR).toEqual(expect.arrayContaining([{ workflowStatus: null }]));
+  });
+});
+
+describe('selectNextTask — 同時実行数の設定 (task 1543)', () => {
+  const ELIGIBLE = [
+    { id: 10, status: 'todo', workflowStatus: 'draft', priority: 'high', createdAt: new Date() },
+  ];
+  function prismaWithLimit(autoRunMaxConcurrency: number): PrismaClient {
+    return makePrisma({
+      task: { findMany: mock().mockResolvedValue(ELIGIBLE) },
+      userSettings: {
+        findFirst: mock().mockResolvedValue({
+          workflowDisabledGlobally: false,
+          autoRunMaxConcurrency,
+        }),
+      },
+    });
+  }
+  const savedEnv = process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY;
+  beforeEach(() => {
+    delete process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY;
+  });
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY;
+    else process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY = savedEnv;
+  });
+
+  it('設定が 2 なら、1 件実行中でも 2 つ目のテーマのタスクを選定する', async () => {
+    const result = await selectNextTask(prismaWithLimit(2), 1, 'priority', [], 1);
+    expect(result).toEqual({ found: true, taskId: 10 });
+  });
+
+  it('設定が 1 なら、1 件実行中のとき従来どおり concurrency_limit を返す', async () => {
+    const result = await selectNextTask(prismaWithLimit(1), 1, 'priority', [], 1);
+    expect(result).toEqual({ found: false, reason: 'concurrency_limit' });
+  });
+
+  it('設定が 2 でも、2 件実行中なら concurrency_limit を返す', async () => {
+    const result = await selectNextTask(prismaWithLimit(2), 1, 'priority', [], 2);
+    expect(result).toEqual({ found: false, reason: 'concurrency_limit' });
   });
 });
 

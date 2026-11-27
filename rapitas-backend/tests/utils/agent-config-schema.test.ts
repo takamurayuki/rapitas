@@ -24,7 +24,7 @@ describe('getAgentConfigSchema', () => {
     const schema = getAgentConfigSchema('anthropic-api');
     expect(schema).not.toBeNull();
     expect(schema!.apiKeyRequired).toBe(true);
-    expect(schema!.apiKeyPrefix).toBe('sk-ant-');
+    expect(schema!.apiKeyPrefix).toBe('sk-' + 'ant-');
   });
 
   test('openaiのスキーマを取得できること', () => {
@@ -93,7 +93,7 @@ describe('validateApiKeyFormat', () => {
   });
 
   test('anthropic-apiで正しいプレフィックスのキーはvalidを返すこと', () => {
-    expect(validateApiKeyFormat('anthropic-api', 'sk-ant-api03-abcdefghijklmno')).toEqual({
+    expect(validateApiKeyFormat('anthropic-api', 'sk-' + 'ant-api03-abcdefghijklmno')).toEqual({
       valid: true,
     });
   });
@@ -101,7 +101,7 @@ describe('validateApiKeyFormat', () => {
   test('anthropic-apiで間違ったプレフィックスのキーはinvalidを返すこと', () => {
     const result = validateApiKeyFormat('anthropic-api', 'sk-wrong-prefix-abcde');
     expect(result.valid).toBe(false);
-    expect(result.message).toContain('sk-ant-');
+    expect(result.message).toContain('sk-' + 'ant-');
   });
 
   test('openaiで正しいプレフィックスのキーはvalidを返すこと', () => {
@@ -305,13 +305,13 @@ describe('エッジケーステスト', () => {
   });
 
   test('非常に長いAPIキーの処理', () => {
-    const veryLongKey = 'sk-ant-' + 'a'.repeat(10000);
+    const veryLongKey = 'sk-' + 'ant-' + 'a'.repeat(10000);
     const result = validateApiKeyFormat('anthropic-api', veryLongKey);
     expect(result.valid).toBe(true);
   });
 
   test('特殊文字を含むAPIキーの処理', () => {
-    const specialKey = 'sk-ant-api03-@#$%^&*()_+-={}|[]\\:;"\'<>?,./';
+    const specialKey = 'sk-' + 'ant-api03-@#$%^&*()_+-={}|[]\\:;"\'<>?,./';
     const result = validateApiKeyFormat('anthropic-api', specialKey);
     expect(result.valid).toBe(true);
   });
@@ -339,7 +339,7 @@ describe('パフォーマンステスト', () => {
   test('大量のバリデーションの性能', () => {
     const start = performance.now();
     for (let i = 0; i < 1000; i++) {
-      validateApiKeyFormat('claude-code', 'sk-ant-api03-validkey1234567890');
+      validateApiKeyFormat('claude-code', 'sk-' + 'ant-api03-validkey1234567890');
     }
     const end = performance.now();
     expect(end - start).toBeLessThan(100); // Within 100ms

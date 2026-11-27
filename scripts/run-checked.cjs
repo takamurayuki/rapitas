@@ -16,10 +16,11 @@
  * Usage:
  *   node scripts/run-checked.cjs -- <command...>
  *   node scripts/run-checked.cjs --tail-lines 80 --heartbeat-ms 30000 --timeout-ms 180000 -- <command...>
+ *   --idle-timeout-ms N  stop the command after N ms with no output (default 10 min, 0 = off)
  *
  * Exit codes:
  *   <child's own code>  the command ran to completion
- *   124                 timed out (child killed)
+ *   124                 timed out, or silent past the idle limit (child killed)
  *   127                 failed to spawn the command
  *   2                   rejected: command contains a pipe/compound operator
  */
@@ -33,6 +34,10 @@ const { StringDecoder } = require('node:string_decoder');
 const DEFAULT_TAIL_LINES = 80;
 const DEFAULT_HEARTBEAT_MS = 30_000;
 const DEFAULT_TIMEOUT_MS = 0; // 0 = no timeout
+// NOTE: A verifier's `bun test` runs printed a header and then nothing for 12
+// minutes (2026-11-28); with no timeout run-checked waited forever and the
+// verify phase stalled. Ten silent minutes is far past any healthy test file.
+const DEFAULT_IDLE_TIMEOUT_MS = 600_000;
 const KILL_GRACE_MS = 5_000;
 const MAX_TAIL_CHARS = 64 * 1024;
 /** Operators that would let a later stage in the pipeline mask the real exit code. */
@@ -50,6 +55,7 @@ function parseArgs(argv) {
     tailLines: DEFAULT_TAIL_LINES,
     heartbeatMs: DEFAULT_HEARTBEAT_MS,
     timeoutMs: DEFAULT_TIMEOUT_MS,
+    idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
   };
   for (let i = 0; i < optArgs.length; i += 1) {
     const arg = optArgs[i];
@@ -57,6 +63,7 @@ function parseArgs(argv) {
       '--tail-lines': 'tailLines',
       '--heartbeat-ms': 'heartbeatMs',
       '--timeout-ms': 'timeoutMs',
+      '--idle-timeout-ms': 'idleTimeoutMs',
     }[arg];
     if (!key) return { error: `Unknown option: ${arg}` };
     const value = Number(optArgs[++i]);
@@ -137,6 +144,7 @@ function main() {
   const logFd = fs.openSync(logPath, 'a');
   const startedAt = Date.now();
   let childOutputBytes = 0;
+  let lastOutputAt = startedAt;
   const write = (text) => {
     fs.writeSync(logFd, text);
   };
@@ -166,6 +174,7 @@ function main() {
     const decoder = new StringDecoder('utf8');
     stream?.on('data', (buf) => {
       childOutputBytes += buf.length;
+      lastOutputAt = Date.now();
       write(buf);
       appendTail(decoder.write(buf));
     });
@@ -187,25 +196,45 @@ function main() {
       : null;
 
   let timedOut = false;
+  let idledOut = false;
   let graceTimer = null;
+  const stopChild = () => {
+    killTree(child.pid, 'SIGTERM');
+    if (process.platform !== 'win32') {
+      // The shell can exit before descendants which ignore SIGTERM.
+      // Keep the escalation alive even after the shell's close event.
+      graceTimer = setTimeout(() => killTree(child.pid), KILL_GRACE_MS);
+    }
+  };
+  const idleTimer =
+    opts.idleTimeoutMs > 0
+      ? setInterval(
+          () => {
+            if (timedOut || idledOut || Date.now() - lastOutputAt < opts.idleTimeoutMs) return;
+            idledOut = true;
+            const line = `[RUN-CHECKED] no output for ${opts.idleTimeoutMs}ms — stopping the command
+`;
+            write(line);
+            process.stdout.write(line);
+            stopChild();
+          },
+          Math.min(1000, Math.max(50, Math.floor(opts.idleTimeoutMs / 4))),
+        )
+      : null;
   const timeoutTimer =
     opts.timeoutMs > 0
       ? setTimeout(() => {
           timedOut = true;
-          killTree(child.pid, 'SIGTERM');
-          if (process.platform !== 'win32') {
-            // The shell can exit before descendants which ignore SIGTERM.
-            // Keep the escalation alive even after the shell's close event.
-            graceTimer = setTimeout(() => killTree(child.pid), KILL_GRACE_MS);
-          }
+          stopChild();
         }, opts.timeoutMs)
       : null;
 
   child.on('close', (code) => {
     if (heartbeat) clearInterval(heartbeat);
     if (timeoutTimer) clearTimeout(timeoutTimer);
-    if (graceTimer && !timedOut) clearTimeout(graceTimer);
-    const finalCode = spawnFailed ? 127 : timedOut ? 124 : (code ?? 1);
+    if (idleTimer) clearInterval(idleTimer);
+    if (graceTimer && !timedOut && !idledOut) clearTimeout(graceTimer);
+    const finalCode = spawnFailed ? 127 : timedOut || idledOut ? 124 : (code ?? 1);
     const truncated = childOutputBytes > Buffer.byteLength(consoleTail);
     if (truncated) {
       const notice = `[RUN-CHECKED] output truncated: full log at ${logPath}\n`;
@@ -213,7 +242,8 @@ function main() {
       process.stdout.write(notice);
     }
     process.stdout.write(consoleTail);
-    const summary = `[RUN-CHECKED] exitCode=${finalCode}${timedOut ? ' (timeout)' : ''}\n`;
+    const reason = timedOut ? ' (timeout)' : idledOut ? ' (idle)' : '';
+    const summary = `[RUN-CHECKED] exitCode=${finalCode}${reason}\n`;
     write(summary);
     process.stdout.write(summary);
     fs.closeSync(logFd);

@@ -55,3 +55,34 @@ it('retries a failed read after a new timeline snapshot', async () => {
   await screen.findByText(/Recovered planning log/);
   expect(screen.queryByText('loadFailed')).not.toBeInTheDocument();
 });
+
+// 2026-11-26: a verify round read "Model: gpt-6-astra" then two empty
+// 「実行 2/3」「実行 3/3」. Those runs are diff-review jurors with no log lines;
+// the divider now names them and shows the juror's verdict instead.
+it('labels a diff-review juror run and shows its verdict instead of an empty run', async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(response(['verify log line']))
+    .mockResolvedValueOnce(response([]));
+  vi.stubGlobal('fetch', fetch);
+  render(
+    <PhaseTabPane
+      {...props}
+      iteration={{
+        ...iteration,
+        status: 'completed',
+        executionIds: [1, 2],
+        runs: [
+          { executionId: 1 },
+          {
+            executionId: 2,
+            review: { seatId: 'reviewer-1', model: 'gpt-6-astra', verdict: 'pass', findings: 1 },
+          },
+        ],
+      }}
+    />,
+  );
+  expect(await screen.findByText('reviewRunDivider')).toBeTruthy();
+  expect(screen.getByText('reviewRunResult')).toBeTruthy();
+  expect(screen.queryByText('runDivider')).toBeNull();
+});

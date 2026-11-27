@@ -44,6 +44,9 @@ model Theme {
   // without the file) is simply not opted into runtime verification/preview.
   runtimeConfigJson String?
   sortOrder        Int            @default(0)
+  // Auto-run priority across themes (task 1543): when one slot frees up, the
+  // running theme with the HIGHER value takes it first; ties keep themeId order.
+  autoRunPriority  Int            @default(0)
   categoryId       Int?
   category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())
@@ -72,6 +75,30 @@ model Project {
   updatedAt   DateTime    @updatedAt
   tasks       Task[]
   milestones  Milestone[]
+  reflections GoalReflection[]
+  @@index([workspaceId])
+}
+
+/// One weekly 前進の振り返り per goal: the person's own 1-5 rating and an optional
+/// note. `weekStart` is the Monday (Asia/Tokyo) as YYYY-MM-DD, so the unique key
+/// holds the one-per-week rule even under concurrent saves. See
+/// services/goals/goal-reflection.ts.
+model GoalReflection {
+  id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  weekStart String
+  rating    Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NOTE: Unique over a foreign key to an owned model (Project), so a second workspace
+  // cannot collide; workspaceId therefore stays out of the key.
+  @@unique([projectId, weekStart])
+  @@index([weekStart])
   @@index([workspaceId])
 }
 

@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
+import { resolvePollInterval, usePollHidden } from '@/hooks/common/poll-interval';
 
 export type AutoRunStatus = 'idle' | 'running' | 'paused' | 'stopping';
 
@@ -37,6 +38,19 @@ export interface CurrentTask {
   workflowMode?: string | null;
   /** Send-backs to an earlier phase, or null when none. */
   rework?: ReworkSummary | null;
+  /**
+   * Other tasks of the theme running in parallel with this one (task 1552),
+   * copied from the response's `activeTasks`; absent or empty = one at a time.
+   */
+  companions?: ActiveTask[];
+}
+
+/** One running task of the theme, head first (task 1552). */
+export interface ActiveTask {
+  id: number;
+  title: string;
+  /** `head` = currentTask, `companion` = a 2nd+ task running alongside it. */
+  role: 'head' | 'companion';
 }
 
 /** How often the task was sent back, and the most recent send-back. */
@@ -53,6 +67,29 @@ export interface AutoRunData {
   autoRun: ThemeAutoRunState;
   currentTask: CurrentTask | null;
   remainingCount: number;
+  /** Every running task of the theme (task 1552); absent from older backends. */
+  activeTasks?: ActiveTask[];
+  /** True while auto-run starts no new work until merged code activates (task 1562). */
+  restartWait?: boolean;
+  /** Updates waiting to activate; null when unknown. / 取り込み待ちの件数 */
+  pendingUpdateCount?: number | null;
+}
+
+/**
+ * Attach the companions to the head so the progress strip, which receives only
+ * the current task, can show parallel work.
+ *
+ * @param currentTask - Head task from the response / 先頭タスク
+ * @param activeTasks - Every running task / 動作中の全タスク
+ * @returns The head with its companions, or null / 同伴タスク付きの先頭
+ */
+export function withCompanions(
+  currentTask: CurrentTask | null,
+  activeTasks: ActiveTask[] | undefined,
+): CurrentTask | null {
+  if (!currentTask) return null;
+  const companions = (activeTasks ?? []).filter((a) => a.role === 'companion');
+  return companions.length > 0 ? { ...currentTask, companions } : currentTask;
 }
 
 /** What the hook returns, so one call can feed several components. */
@@ -131,6 +168,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
   const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hidden = usePollHidden();
 
   const clearPoll = () => {
     if (pollTimer.current) {
@@ -152,8 +190,12 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
       if (json.success && json.autoRun) {
         setData({
           autoRun: json.autoRun,
-          currentTask: json.currentTask ?? null,
+          currentTask: withCompanions(json.currentTask ?? null, json.activeTasks),
           remainingCount: json.remainingCount ?? 0,
+          activeTasks: json.activeTasks,
+          restartWait: json.restartWait === true,
+          pendingUpdateCount:
+            typeof json.pendingUpdateCount === 'number' ? json.pendingUpdateCount : null,
         });
       }
     } catch {
@@ -161,22 +203,25 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
     }
   }, [themeId, isDevelopment]);
 
-  // Initial load and polling setup
+  // Initial load whenever the target theme changes.
   useEffect(() => {
-    clearPoll();
     if (!themeId || !isDevelopment) {
       setData(null);
       return;
     }
-
     setLoading(true);
     fetchState().finally(() => setLoading(false));
-
-    // Start polling; adjust interval based on active status
-    pollTimer.current = setInterval(fetchState, ACTIVE_POLL_MS);
-
-    return () => clearPoll();
   }, [themeId, isDevelopment, fetchState]);
+
+  // Polling: 8 s while visible, stretched while backgrounded (task 1553). Kept
+  // apart from the initial load so going to / returning from the background
+  // only re-arms the timer instead of flashing the loading state.
+  useEffect(() => {
+    clearPoll();
+    if (!themeId || !isDevelopment) return;
+    pollTimer.current = setInterval(fetchState, resolvePollInterval(ACTIVE_POLL_MS, hidden));
+    return () => clearPoll();
+  }, [themeId, isDevelopment, fetchState, hidden]);
 
   // Re-fetch immediately when the user returns from tray/another app.
   useOnVisible(fetchState);

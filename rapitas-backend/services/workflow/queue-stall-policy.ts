@@ -37,3 +37,15 @@ export const QUEUE_STARVATION_THRESHOLD_MS = 3 * 60 * 1000;
  * / 空回り（running報告なのに実行実績ゼロ）の通知閾値。自己修復(10分)より緩く設定。
  */
 export const ZERO_PROGRESS_THRESHOLD_MS = 12 * 60 * 1000;
+
+/**
+ * A running item whose task had an agent finish this recently is doing the
+ * post-phase work that runs without an agent (auto-commit, push, PR creation),
+ * not stalling. The sweep leaves it alone for this window.
+ *
+ * NOTE: Task 1535 (2026-11-25) ran implement + verify in one item for 41 min.
+ * The verifier exited at 14:50 and the epilogue committed at 14:52:26; the
+ * sweep cancelled the item in that same second, so no PR was made and the
+ * task went blocked. / フェーズ後処理（コミット・PR作成）の猶予。
+ */
+export const POST_PHASE_GRACE_MS = 15 * 60 * 1000;

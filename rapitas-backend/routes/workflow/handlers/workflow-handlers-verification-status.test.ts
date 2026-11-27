@@ -126,29 +126,6 @@ describe('handleRunVerificationStatus', () => {
     expect(res.checks[0].passedCount).toBe(42);
   });
 
-  it('completed: 差分レビューの判定（合否と指摘）を含めて返す', async () => {
-    const diffReview = {
-      status: 'reviewed' as const,
-      verdict: 'fail' as const,
-      severity: 60,
-      reasons: ['空文字の入力を拒否していない'],
-      diffFingerprint: 'fp-1',
-      headSha: 'abc',
-      criteriaRevision: 'crit',
-    };
-    getJobByRunIdMock.mockImplementation(async () => ({
-      runId: 'r2b',
-      taskId: 7,
-      status: 'completed',
-      startedAt: '2026-09-08T00:00:00.000Z',
-      ok: true,
-      unverifiable: false,
-      diffReview,
-    }));
-    const res = await handleRunVerificationStatus(statusCtx('7', 'r2b'));
-    expect(res).toMatchObject({ status: 'completed', ok: true, diffReview });
-  });
-
   it('failed: error を含めて返す', async () => {
     getJobByRunIdMock.mockImplementation(async () => ({
       runId: 'r3',

@@ -7,7 +7,8 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mountain, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { ChartLine, Mountain, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -34,6 +35,13 @@ export default function GoalsClient() {
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
+        <Link
+          href="/goals/insights"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:border-indigo-400 dark:border-zinc-700 dark:text-zinc-200"
+        >
+          <ChartLine className="h-4 w-4" />
+          {t('openInsights')}
+        </Link>
         {!isCreating && (
           <button
             type="button"

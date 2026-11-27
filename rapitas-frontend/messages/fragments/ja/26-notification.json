@@ -149,6 +149,10 @@
         "title": "ナレッジ自動抽出完了",
         "message": "タスク「{taskTitle}」から{count}件のナレッジを抽出しました"
       },
+      "goal_reflection_prompt": {
+        "title": "今週の前進を振り返りませんか",
+        "message": "進行中のゴール {count} 件について、1〜5 の評価と一言を残せます（1分ほどです）。"
+      },
       "knowledge_reminder": {
         "title": "忘れかけているナレッジ（{count}件）",
         "message": "復習しませんか？ {lines}"

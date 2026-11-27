@@ -265,13 +265,14 @@ describe('buildFileScopedCommand', () => {
   test('builds a pnpm exec vitest run command when vitest is detected', () => {
     writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
     writeFileSync(join(root, 'pnpm-lock.yaml'), '');
-    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts']);
-    expect(cmd).toBe('pnpm exec vitest run "src/foo.test.ts"');
+    // 4 logical cores → worker cap 2 (task 1553); the 8-core case is in test-parallelism.test.ts.
+    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts'], 4);
+    expect(cmd).toBe('pnpm exec vitest run --maxWorkers=2 "src/foo.test.ts"');
   });
 
   test('falls back to bun test --isolate when no runner is detected', () => {
-    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts']);
-    expect(cmd).toBe('bun test --isolate "src/foo.test.ts"');
+    const cmd = buildFileScopedCommand(root, ['src/foo.test.ts'], 4);
+    expect(cmd).toBe('bun test --isolate --max-concurrency=2 "src/foo.test.ts"');
   });
 });
 

@@ -282,6 +282,11 @@ model ThemeAutoRun {
   idleSince        DateTime?
   idleStoppedAt    DateTime?
   lastSelfRefillAt DateTime?
+  // Companion tasks (task 1552): the 2nd+ tasks running in this theme next to
+  // currentTaskId (the head). JSON `[{"taskId":n,"since":epochMs}]`, NULL = none.
+  // A column rather than a derivation from WorkflowQueueItem: the head has no
+  // queue item between phases, and a companion would drop out of the set there.
+  companionTasksJson String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
