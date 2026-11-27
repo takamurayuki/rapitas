@@ -31,6 +31,17 @@ describe('uncontrolled', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('draws a caller-supplied trigger glyph instead of the default', () => {
+    render(
+      <DropdownMenu
+        items={items}
+        triggerLabel="Pick"
+        triggerIcon={<span data-testid="custom-glyph" />}
+      />,
+    );
+    expect(screen.getByTestId('custom-glyph')).toBeTruthy();
+  });
+
   it('closes on Escape', () => {
     render(<DropdownMenu items={items} triggerLabel="More" />);
     fireEvent.click(screen.getByLabelText('More'));

@@ -32,6 +32,8 @@ interface DropdownMenuProps {
   hideTrigger?: boolean;
   /** Which edge the menu is pinned to. Default 'right'. */
   align?: 'left' | 'right';
+  /** Glyph inside the trigger. Default the "more" glyph (MoreVertical). */
+  triggerIcon?: React.ReactNode;
 }
 
 export default function DropdownMenu({
@@ -45,6 +47,7 @@ export default function DropdownMenu({
   onOpenChange,
   hideTrigger = false,
   align = 'right',
+  triggerIcon,
 }: DropdownMenuProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   // Controlled whenever `open` is supplied. The owner then holds the state
@@ -121,7 +124,7 @@ export default function DropdownMenu({
           aria-expanded={isOpen}
           aria-label={triggerLabel}
         >
-          <MoreVertical className="w-4 h-4" aria-hidden="true" />
+          {triggerIcon ?? <MoreVertical className="w-4 h-4" aria-hidden="true" />}
         </button>
       )}
 

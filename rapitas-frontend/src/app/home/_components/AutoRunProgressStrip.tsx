@@ -144,7 +144,9 @@ export function AutoRunProgressStrip({
     <div
       data-testid="auto-run-progress-strip"
       aria-label={t('progress.label')}
-      className={`${HOME_CARD_FRAME} mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 px-3.5 py-2 text-[13px]`}
+      // NOTE: overflow-visible overrides the frame's overflow-hidden so the task menu
+      // can drop below the strip instead of being clipped (2026-11-27).
+      className={`${HOME_CARD_FRAME} !overflow-visible mb-3 flex flex-wrap items-center gap-x-3.5 gap-y-2 px-3.5 py-2 text-[13px]`}
     >
       {scope && (
         <>
@@ -154,19 +156,20 @@ export function AutoRunProgressStrip({
       )}
       {currentTask && shown && view ? (
         <>
-          {showSelect && activeTasks && (
-            <AutoRunTaskSelect tasks={activeTasks} selectedId={selectedId} onSelect={select} />
+          {showSelect && activeTasks ? (
+            <AutoRunTaskSelect tasks={activeTasks} shown={shown} onSelect={select} />
+          ) : (
+            // NOTE: Only the id shows (asked 2026-11-21); the title stays in
+            // title / aria-label for hover and screen readers.
+            <Link
+              href={`/tasks/${shown.id}?showHeader=true`}
+              title={shown.title}
+              aria-label={`#${shown.id} ${shown.title}`}
+              className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              #{shown.id}
+            </Link>
           )}
-          {/* NOTE: Only the id shows (asked 2026-11-21); the title stays in
-              title / aria-label for hover and screen readers. */}
-          <Link
-            href={`/tasks/${shown.id}?showHeader=true`}
-            title={shown.title}
-            aria-label={`#${shown.id} ${shown.title}`}
-            className="shrink-0 text-indigo-600 hover:underline dark:text-indigo-400"
-          >
-            #{shown.id}
-          </Link>
 
           <AutoRunPhaseSteps view={view} />
 
