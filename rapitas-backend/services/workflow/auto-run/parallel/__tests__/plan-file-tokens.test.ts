@@ -28,6 +28,14 @@ describe('plan file tokens', () => {
     expect(isLikelyFile('process.env')).toBe(false);
   });
 
+  // Every plan quotes the test command `node ../scripts/run-checked.cjs ...`;
+  // as a file it made every pair of plans overlap (2026-11-27).
+  test('the test runner a plan only executes is not a planned file', () => {
+    expect(isLikelyFile('../scripts/run-checked.cjs')).toBe(false);
+    expect(isLikelyFile('scripts/run-checked.cjs')).toBe(false);
+    expect(isLikelyFile('scripts/docs/check-docs-drift.cjs')).toBe(true);
+  });
+
   test('collectPlanFiles drops dotted words that are not file names', () => {
     const set = collectPlanFiles(
       plan('rapitas-backend/services/alpha/a.ts', 'mock.module', 'process.env', 'package.json'),

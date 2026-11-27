@@ -12,6 +12,10 @@
 const FILE_EXTENSION_RE =
   /\.(?:[cm]?[jt]sx?|json|jsonc|md|mdx|prisma|sql|ya?ml|toml|css|scss|html|rs|sh|ps1|lock|txt|svg|png|example)$/i;
 
+// Tools a plan runs but never edits. Every plan quotes the test command
+// `node ../scripts/run-checked.cjs ...`, so as a file it made every pair overlap.
+const EXECUTED_ONLY_RE = /(?:^|\/)scripts\/run-checked\.cjs$/;
+
 /**
  * Whether a normalised plan token is likely a real file path.
  *
@@ -19,5 +23,6 @@ const FILE_EXTENSION_RE =
  * @returns true for a path with a folder or a known file extension / ファイルらしいか
  */
 export function isLikelyFile(path: string): boolean {
+  if (EXECUTED_ONLY_RE.test(path)) return false;
   return path.includes('/') || FILE_EXTENSION_RE.test(path);
 }
