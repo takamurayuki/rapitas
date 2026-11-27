@@ -402,6 +402,7 @@ CREATE TABLE "Project" (
 -- CreateTable
 CREATE TABLE "GoalReflection" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "workspaceId" INTEGER,
     "projectId" INTEGER NOT NULL,
     "weekStart" TEXT NOT NULL,
     "rating" INTEGER NOT NULL,
@@ -2030,6 +2031,9 @@ CREATE INDEX "Project_workspaceId_idx" ON "Project"("workspaceId");
 
 -- CreateIndex
 CREATE INDEX "GoalReflection_weekStart_idx" ON "GoalReflection"("weekStart");
+
+-- CreateIndex
+CREATE INDEX "GoalReflection_workspaceId_idx" ON "GoalReflection"("workspaceId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GoalReflection_projectId_weekStart_key" ON "GoalReflection"("projectId", "weekStart");

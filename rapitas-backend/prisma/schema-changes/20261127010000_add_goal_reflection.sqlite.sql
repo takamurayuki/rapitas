@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS "GoalReflection" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "workspaceId" INTEGER,
   "projectId" INTEGER NOT NULL,
   "weekStart" TEXT NOT NULL,
   "rating" INTEGER NOT NULL,
@@ -18,3 +19,6 @@ CREATE INDEX IF NOT EXISTS "GoalReflection_weekStart_idx"
 ALTER TABLE "UserSettings" ADD COLUMN "reflectionPromptDow" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "UserSettings" ADD COLUMN "reflectionPromptTime" TEXT NOT NULL DEFAULT '20:00';
 ALTER TABLE "UserSettings" ADD COLUMN "reflectionPromptLastWeek" TEXT;
+
+CREATE INDEX IF NOT EXISTS "GoalReflection_workspaceId_idx"
+  ON "GoalReflection"("workspaceId");

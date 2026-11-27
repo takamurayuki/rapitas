@@ -85,6 +85,8 @@ model Project {
 /// services/goals/goal-reflection.ts.
 model GoalReflection {
   id        Int      @id @default(autoincrement())
+  /// Owning workspace; NULL = the default one until stage 4 makes this required.
+  workspaceId Int?
   projectId Int
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   weekStart String
@@ -93,8 +95,11 @@ model GoalReflection {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // NOTE: Unique over a foreign key to an owned model (Project), so a second workspace
+  // cannot collide; workspaceId therefore stays out of the key.
   @@unique([projectId, weekStart])
   @@index([weekStart])
+  @@index([workspaceId])
 }
 
 model Milestone {
