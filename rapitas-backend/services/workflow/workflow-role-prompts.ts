@@ -14,6 +14,7 @@ import {
   QUESTION_FORMAT_GUIDANCE_JA,
   QUESTION_FORMAT_GUIDANCE_EN,
 } from './workflow-question-format-guidance';
+import * as testScope from './workflow-test-scope-rule';
 import { PRIMARY_CHECKOUT_GUIDANCE } from './primary-checkout-guidance';
 import {
   VERDICT_SCOPE_GUIDANCE_JA,
@@ -192,7 +193,7 @@ export function buildRoleTexts(
           '- **受入基準の自己照合（完了宣言の条件）**: 自己検証の応答に `acceptance=NG` が含まれる場合、差分が受入基準に対応していない（または受入基準・タスク本文と無関係な差分である）可能性が高い。各受入基準に「この差分のどのファイル/変更が満たすか」を対応付けて確認し、対応付けられない基準が1つでも残る間は完了を宣言せず、差分を修正して自己検証を再実行してください。機械照合の誤検出（対応済みなのに NG）と判断した場合のみ、どの変更がどの基準を満たすかを最終サマリで明示した上で終了してよい。同様に `coverage=NG`（ソース変更にテスト非同伴）も、テストを追加してから完了してください。\n' +
           '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
           '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
-          '- **テスト検証はファイル単位** (`bun test <1ファイル>`) で行ってください。bun の `mock.module` は**プロセスグローバル**なので、同じモジュールを mock する複数のテストファイルを**同時実行すると mock が衝突して偽の失敗**になります。これは bun の制約でありコードのバグではありません。**各ファイルが単体で通れば十分**です。複数テストファイルを「同時に通す」ためにモックの順序変更や beforeAll 化を延々と試みないでください（解決不能であり、時間を浪費します）。\n' +
+          testScope.TEST_SCOPE_RULE_IMPLEMENTER_JA +
           '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。\n' +
           PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
       },
@@ -217,7 +218,7 @@ export function buildRoleTexts(
           '  - スタックトレースまたは expected/received の差分\n' +
           '  - 推測される原因 (実装が plan と乖離した点)\n' +
           '- テスト実行が **環境エラー** (依存欠落、ネットワーク不通等) で完走しなかった場合は、その旨を `## テスト未完走` セクションに明記してください。「成功」とは決して書かないでください。\n' +
-          '- bun のテストは **ファイル単位で実行・判定** してください (`bun test <1ファイル>`)。`mock.module` はプロセスグローバルのため、同じモジュールを mock する複数ファイルを**同時実行すると偽の失敗**が出ます。**各ファイルが単体で通れば「通過」と判定**してください（同時実行の失敗は bun の制約であり実装の不具合ではありません。検証ゲートも個別ファイルで実行します）。\n' +
+          testScope.TEST_SCOPE_RULE_VERIFIER_JA +
           '\n### 変更が無い場合（既に実装済み・修正不要）の扱い ★重要\n' +
           '- まず `git diff` で実装者の変更を確認してください。**差分が空**（実装者がコードを変更していない）の場合、多くは「タスクの要件が既存コードで**既に満たされていた**」ことを意味します。\n' +
           '- その場合は verify.md に必ず明示的な**修正不要の結論**を記載してください（全体判定を `✅ 検証成功（修正不要）` とし、本文に `## 結論: 修正不要` 見出し ＋「既存実装で対応済み」である根拠を1〜2行）。**この justification が無いと完了ゲートが「無言のスキップ」と誤判定し、タスクを不当にブロック**します。\n' +
@@ -328,7 +329,7 @@ export function buildRoleTexts(
           implementerSelfCheckPrompt(language) +
           '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
           '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
-          "- **Verify tests PER FILE** (`bun test <one-file>`). Bun's `mock.module` is PROCESS-GLOBAL, so two test files that mock the same module conflict and produce FALSE failures when run together. That is a bun limitation, not a code bug. **Each file passing in isolation is sufficient.** Do NOT keep reordering mocks or moving imports into beforeAll trying to make multiple test files pass together — it is unsolvable and wastes time.\n" +
+          testScope.TEST_SCOPE_RULE_IMPLEMENTER_EN +
           '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.\n' +
           PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
       },
@@ -349,7 +350,7 @@ export function buildRoleTexts(
           '- If the test command exits non-zero, you are **forbidden from writing "all tests pass"**. List failing tests by name with their reason.\n' +
           '- If tests fail, mark verify.md with `**❌ Verification Failed**` at the top and add a `## Test Failure Summary` section listing per-test failures, stack traces / expected-vs-received, and the suspected root cause (plan deviation).\n' +
           '- If tests could not run due to environment errors (missing deps, network, …), say so explicitly under `## Tests Did Not Complete`. Never claim success.\n' +
-          '- Run and judge bun tests **PER FILE** (`bun test <one-file>`). `mock.module` is process-global, so running multiple files that mock the same module together yields FALSE failures. **Treat each file passing in isolation as a pass** (the failure-when-combined is a bun limitation, not an implementation defect; the verification gate also runs files individually).\n' +
+          testScope.TEST_SCOPE_RULE_VERIFIER_EN +
           '\n### When there are NO changes (already implemented / no fix needed) ★IMPORTANT\n' +
           '- First check the implementer’s changes with `git diff`. An **EMPTY diff** (the implementer changed no code) usually means the task’s requirement was **already satisfied** by existing code.\n' +
           '- In that case verify.md MUST state an explicit **no-change conclusion** (set the overall verdict to `✅ Pass (no change needed)` and add a `## 結論: 修正不要` heading with a 1–2 line reason that existing code already covers it). **Without this justification the completion gate misreads it as a silent skip and wrongly BLOCKS the task.**\n' +
