@@ -10,10 +10,29 @@ const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([] as unknown[])),
     update: mock(() => Promise.resolve({})),
+    // The resume decision (task 1563) reads the task row, its history and its PR; empty = nothing to keep.
+    // Also feeds the stop guard (status / themeId); nothing to keep (no worktree, no PR).
+    findUnique: mock(() =>
+      Promise.resolve({ status: 'blocked', themeId: 1, workingDirectory: null, githubPrId: null }),
+    ),
   },
+  gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   agentExecution: { findFirst: mock(() => Promise.resolve(null as unknown)) },
-  workflowTransition: { count: mock(() => Promise.resolve(0)) },
-  themeAutoRun: { findMany: mock(() => Promise.resolve([] as unknown[])) },
+  workflowTransition: {
+    count: mock(() => Promise.resolve(0)),
+    // The blocked entry carries an allow-listed cause; no stop transition exists.
+    findFirst: mock((a?: { where?: { toStatus?: unknown } }) =>
+      Promise.resolve(
+        a?.where?.toStatus === 'blocked'
+          ? { fromStatus: 'draft', createdAt: new Date(0), cause: 'auto_run_hang_backstop' }
+          : (null as unknown),
+      ),
+    ),
+  },
+  themeAutoRun: {
+    findMany: mock(() => Promise.resolve([] as unknown[])),
+    findFirst: mock(() => Promise.resolve({ enabled: true, status: 'running' })),
+  },
   userSettings: { findFirst: mock(() => Promise.resolve(null as unknown)) },
   activityLog: { findFirst: mock(() => Promise.resolve(null as unknown)) },
 };
@@ -141,5 +160,91 @@ describe('requeueBlockedTasks — 未着地PRの手動是正保留 (task873/948)
     expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
     const rt = recordTransition.mock.calls[0][0] as { cause: string };
     expect(rt.cause).toBe('blocked_auto_retry');
+  });
+});
+
+describe('requeueBlockedTasks — 停止保護と cause 許可（呼び出し元経由, task 1563）', () => {
+  const blockedEntry = (cause: string | null) => (a?: { where?: { toStatus?: unknown } }) =>
+    Promise.resolve(
+      a?.where?.toStatus === 'blocked' && cause
+        ? { fromStatus: 'draft', createdAt: new Date(0), cause }
+        : null,
+    );
+
+  beforeEach(() => {
+    mockPrisma.task.findMany.mockReset().mockResolvedValue([{ id: 873, workflowStatus: 'draft' }]);
+    mockPrisma.task.update.mockReset().mockResolvedValue({});
+    mockPrisma.agentExecution.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.workflowTransition.count.mockReset().mockResolvedValue(0);
+    mockPrisma.workflowTransition.findFirst
+      .mockReset()
+      .mockImplementation(blockedEntry('auto_run_hang_backstop') as never);
+    mockPrisma.themeAutoRun.findMany.mockReset().mockResolvedValue([{ themeId: 1 }]);
+    mockPrisma.themeAutoRun.findFirst
+      .mockReset()
+      .mockResolvedValue({ enabled: true, status: 'running' });
+    mockPrisma.userSettings.findFirst.mockReset().mockResolvedValue(null);
+    mockPrisma.activityLog.findFirst.mockReset().mockResolvedValue(null);
+    recordTransition.mockReset().mockResolvedValue(undefined);
+  });
+
+  const expectNothingWritten = () => {
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+    expect(recordTransition).not.toHaveBeenCalled();
+  };
+
+  test('許可 cause（auto_run_hang_backstop）で停止されていなければ再開される', async () => {
+    await requeueBlockedTasks(NOW);
+
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    const rt = recordTransition.mock.calls[0][0] as { cause: string };
+    expect(rt.cause).toBe('blocked_auto_retry');
+  });
+
+  test('テーマが停止中（running でない）なら何も書かない', async () => {
+    mockPrisma.themeAutoRun.findFirst.mockResolvedValue({ enabled: true, status: 'paused_user' });
+
+    await requeueBlockedTasks(NOW);
+
+    expectNothingWritten();
+  });
+
+  test('最新の実行が取消されていれば何も書かない', async () => {
+    mockPrisma.agentExecution.findFirst.mockResolvedValue({
+      id: 1,
+      status: 'cancelled',
+      startedAt: new Date(NOW),
+    });
+
+    await requeueBlockedTasks(NOW);
+
+    expectNothingWritten();
+  });
+
+  test.each(['verify_no_convergence', 'auto_run_stop_revert', 'some_future_unknown_cause'])(
+    '不許可・未知の cause（%s）なら何も書かない',
+    async (cause) => {
+      mockPrisma.workflowTransition.findFirst.mockImplementation(blockedEntry(cause) as never);
+
+      await requeueBlockedTasks(NOW);
+
+      expectNothingWritten();
+    },
+  );
+
+  test('blocked に入った遷移を読めない（cause 不明）なら何も書かない', async () => {
+    mockPrisma.workflowTransition.findFirst.mockImplementation(blockedEntry(null) as never);
+
+    await requeueBlockedTasks(NOW);
+
+    expectNothingWritten();
+  });
+
+  test('停止ガードの読取が失敗しても何も書かない（fail closed）', async () => {
+    mockPrisma.themeAutoRun.findFirst.mockRejectedValue(new Error('db unavailable'));
+
+    await requeueBlockedTasks(NOW);
+
+    expectNothingWritten();
   });
 });

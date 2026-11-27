@@ -109,6 +109,61 @@ describe('holdForRequiredMerge', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
+  describe('requireNotExcluded (task 1563)', () => {
+    const whereOf = () =>
+      (updateMany.mock.calls[0]![0] as { where: Record<string, unknown> }).where;
+
+    test('既定では where に autoRunExcluded を含めない（既存の呼び出しは不変）', async () => {
+      await holdForRequiredMerge({ taskId: 1563, fromStatus: 'verify_done', source: 'test' });
+      expect(whereOf()).not.toHaveProperty('autoRunExcluded');
+    });
+
+    test('true なら where に autoRunExcluded: false を加える', async () => {
+      await holdForRequiredMerge({
+        taskId: 1563,
+        fromStatus: 'verify_done',
+        source: 'test',
+        fromStatusIn: ['blocked'],
+        requireNotExcluded: true,
+      });
+      expect(whereOf()).toMatchObject({
+        id: 1563,
+        workflowStatus: 'verify_done',
+        status: { in: ['blocked'] },
+        autoRunExcluded: false,
+      });
+    });
+
+    test('読み取りの後に対象外へ変わったタスクは保留せず、遷移も記録しない（状態付きの DB）', async () => {
+      // A row that matches only while NOT excluded: the CAS where is honoured like a real DB.
+      const row = { status: 'blocked', workflowStatus: 'verify_done', autoRunExcluded: false };
+      updateMany.mockImplementation((async (args: {
+        where: { autoRunExcluded?: boolean; status: { in: string[] } };
+        data: Record<string, unknown>;
+      }) => {
+        const matches =
+          args.where.status.in.includes(row.status) &&
+          (args.where.autoRunExcluded === undefined ||
+            args.where.autoRunExcluded === row.autoRunExcluded);
+        if (matches) Object.assign(row, args.data);
+        return { count: matches ? 1 : 0 };
+      }) as never);
+      row.autoRunExcluded = true; // the operator excludes it after the caller's own read
+
+      const held = await holdForRequiredMerge({
+        taskId: 1563,
+        fromStatus: 'verify_done',
+        source: 'test',
+        fromStatusIn: ['blocked'],
+        requireNotExcluded: true,
+      });
+
+      expect(held).toBe(false);
+      expect(row.status).toBe('blocked');
+      expect(recordTransition).not.toHaveBeenCalled();
+    });
+  });
+
   describe('idempotency (task 1001)', () => {
     const heldTask = { status: 'in-progress', workflowStatus: 'verify_done' };
 
