@@ -79,7 +79,9 @@ async function importsOf(
   for (const file of files.filter((f) => SOURCE_RE.test(f)).slice(0, MAX_IMPORT_SCAN_FILES)) {
     const source = await read(path.join(cwd, file));
     if (source == null) {
-      log.warn({ file }, 'planned file unreadable — treated as no import relation');
+      // A planned NEW file is not in the checkout yet, so this is normal: debug, not warn
+      // (it was 704 warn lines in 10 minutes on 2026-11-27).
+      log.debug({ file }, 'planned file unreadable — treated as no import relation');
       continue;
     }
     const dir = path.posix.dirname(norm(file));
