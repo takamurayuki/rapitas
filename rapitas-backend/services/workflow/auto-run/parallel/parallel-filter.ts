@@ -14,6 +14,7 @@ import {
   extractDependencyRefs,
   type PairSide,
 } from './parallel-safety-rules';
+import { createBroadDirectoryCheck } from './shared-directories';
 import { findImportRelation } from './import-relation';
 import type { ParallelFilter, ParallelRejection } from './parallel-types';
 
@@ -58,6 +59,7 @@ export function buildParallelFilter(
   deps: Partial<ParallelFilterDeps> = {},
 ): ParallelFilter {
   const d: ParallelFilterDeps = { ...defaultFilterDeps, ...deps };
+  const isBroadDirectory = cwd ? createBroadDirectoryCheck(cwd) : undefined;
   const sides = new Map<number, Promise<PairSide>>();
   const side = (taskId: number) => {
     if (!sides.has(taskId)) {
@@ -112,6 +114,7 @@ export function buildParallelFilter(
         requirePlans: o.sameTheme,
         tableLinked: link != null,
         incompleteTaskIds: incomplete,
+        isBroadDirectory,
       };
       const verdict = judgePair(cand, act, ctx);
       if (!verdict.ok) return { ...verdict, detail: `vs task ${o.taskId}: ${verdict.detail}` };
