@@ -20,6 +20,7 @@
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",
       "restartWait": "Waiting to apply updates",
+      "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
       "rework": "Sent back {count}×",
       "reworkRoute": "({from} → {to})",
@@ -31,7 +32,8 @@
         "plan": "Plan",
         "implement": "Implement",
         "verify": "Verify"
-      }
+      },
+      "parallel": "{count} running in parallel"
     }
   }
 }

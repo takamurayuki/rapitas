@@ -1448,9 +1448,6 @@
       "maxConcurrencyLabel": "同時に動かす自動実行の数",
       "maxConcurrencyDescription": "全テーマを合わせて、自動実行のタスクを同時にいくつ動かすかを決めます（1〜4）。枠が空くと、テーマの「自動実行の優先度」が高いテーマから先に次のタスクを選びます。",
       "maxConcurrencyEnvOverride": "環境変数 AUTO_RUN_GLOBAL_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
-      "maxConcurrencyPerThemeLabel": "1つのテーマで同時に動かす自動実行の数",
-      "maxConcurrencyPerThemeDescription": "同じテーマの中で、触るファイルが重ならないタスクを同時にいくつ動かすかを決めます（1〜4、既定 1）。上の「同時に動かす自動実行の数」を超えては動きません。2件目以降は、動いているタスクと計画のファイル・フォルダ・依存が重ならないものだけを選びます。",
-      "maxConcurrencyPerThemeEnvOverride": "環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。",
       "backlogLimitLabel": "懸念・アイデアから自動起票（上限）",
       "backlogLimitDescription": "自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。",
       "repairLimitLabel": "検証失敗時のリトライ回数（自己改善ループ上限）",
@@ -1466,7 +1463,10 @@
       "selfRefillWindowDescription": "懸念・アイデアからのバックログ自己補充を、この時刻以降に1日1回だけ実行します（重大度 high 以上の懸念は時刻に関係なく起票）。空にすると自己補充を無効にします。",
       "selfRefillWindowDisable": "無効にする",
       "selfRefillWindowDisabled": "無効（自己補充しない）",
-      "savingSuffix": "（保存中…）"
+      "savingSuffix": "（保存中…）",
+      "maxConcurrencyPerThemeLabel": "1つのテーマで同時に動かす自動実行の数",
+      "maxConcurrencyPerThemeDescription": "同じテーマの中で、触るファイルが重ならないタスクを同時にいくつ動かすかを決めます（1〜4、既定 1）。上の「同時に動かす自動実行の数」を超えては動きません。2件目以降は、動いているタスクと計画のファイル・フォルダ・依存が重ならないものだけを選びます。",
+      "maxConcurrencyPerThemeEnvOverride": "環境変数 AUTO_RUN_THEME_MAX_CONCURRENCY が設定されているため、{value} で動いています。この設定は環境変数を外すと有効になります。"
     },
     "executionDashboardSettingsCard": {
       "title": "実行可視化ダッシュボード",
@@ -2219,6 +2219,7 @@
       "enabled": "有効",
       "disabled": "無効",
       "hostCpuNote": "ホスト全体のCPU使用率です。特定テーマへの帰属は行いません。",
+      "rapitasCpuNote": "判定には rapitas が起動したプロセス（バックエンド・エージェント・検証）の CPU の合計を、直近 {minutes} 分の平均で使います。ホスト全体の値は参考です。",
       "currentCpu": "現在のCPU使用率",
       "threshold": "しきい値",
       "effectiveMaxConcurrency": "実効並列度",
@@ -3881,6 +3882,10 @@
         "title": "ナレッジ自動抽出完了",
         "message": "タスク「{taskTitle}」から{count}件のナレッジを抽出しました"
       },
+      "goal_reflection_prompt": {
+        "title": "今週の前進を振り返りませんか",
+        "message": "進行中のゴール {count} 件について、1〜5 の評価と一言を残せます（1分ほどです）。"
+      },
       "knowledge_reminder": {
         "title": "忘れかけているナレッジ（{count}件）",
         "message": "復習しませんか？ {lines}"
@@ -4620,12 +4625,12 @@
     "progress": {
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",
+      "selectTask": "表示するタスクを選ぶ",
       "awaitingAnswer": "回答待ち",
       "restartWait": "更新の取り込み待ち",
       "rework": "差し戻し {count}回",
       "reworkRoute": "（{from} → {to}）",
       "remaining": "残り {count}件",
-      "parallel": "並列で {count}件実行中",
       "elapsedMinutes": "{minutes}分",
       "elapsedHours": "{hours}時間{minutes}分",
       "steps": {
@@ -4633,7 +4638,8 @@
         "plan": "計画",
         "implement": "実装",
         "verify": "検証"
-      }
+      },
+      "parallel": "並列で {count}件実行中"
     }
   },
   "quickCapture": {
@@ -6441,11 +6447,50 @@
     "linkPanelLabel": "リンクの操作",
     "markdownNote": {
       "view": "表示",
-      "edit": "Markdown を編集",
-      "modeLabel": "表示と編集の切り替え",
+      "edit": "編集",
+      "modeLabel": "表示・編集・ソースの切り替え",
       "sourceLabel": "ノート本文（Markdown）",
       "empty": "本文はありません。",
-      "formatHint": "Markdown で書かれたノートです（見出し・箇条書き・表・コード・Mermaid の図）"
+      "formatHint": "Markdown で保存します（見出し・箇条書き・表・コード・Mermaid の図、文字色・ハイライト・文字サイズ・下線）",
+      "source": "ソース",
+      "surfaceLabel": "ノート本文（見た目で編集）",
+      "roundTripNotice": "ビジュアル編集で一部の書き方が整えられます。元の書き方を保つにはソースで編集してください。",
+      "toolbar": {
+        "label": "書式",
+        "bold": "太字 (Ctrl+B)",
+        "italic": "斜体 (Ctrl+I)",
+        "underline": "下線 (Ctrl+U)",
+        "strike": "取り消し線",
+        "paragraph": "本文",
+        "h1": "見出し1",
+        "h2": "見出し2",
+        "h3": "見出し3",
+        "bulletList": "箇条書き",
+        "numberedList": "番号付きリスト",
+        "checklist": "チェックリスト",
+        "quote": "引用",
+        "codeBlock": "コードブロック挿入",
+        "noLanguage": "言語の指定なし",
+        "diagram": "ダイアグラム挿入（Mermaid）",
+        "table": "テーブル挿入",
+        "link": "リンク挿入",
+        "linkPlaceholder": "https://...",
+        "insert": "挿入",
+        "textColor": "文字色",
+        "highlight": "ハイライト",
+        "fontSize": "文字サイズ",
+        "customColor": "カラーコード（#RRGGBB）",
+        "apply": "適用",
+        "columnHeading": "列{n}",
+        "highlightColors": {
+          "yellow": "黄",
+          "green": "緑",
+          "blue": "青",
+          "pink": "ピンク",
+          "orange": "オレンジ",
+          "purple": "紫"
+        }
+      }
     },
     "migration": {
       "notStartedTitle": "このPCのノートをサーバーに移します",
@@ -6495,7 +6540,7 @@
       "readOnly": "このノートは以前のリッチエディタで書かれた HTML のため、読み取り専用で表示しています。",
       "convert": "Markdown に変換して編集",
       "previewTitle": "変換結果の確認",
-      "previewHint": "色・文字の大きさ・フォントなど、Markdown で表せない書式は失われます。内容を確かめてから保存してください。",
+      "previewHint": "フォントと枠線は失われます。文字色・ハイライト・文字サイズ・下線は残ります。内容を確かめてから保存してください。",
       "save": "この内容で保存する",
       "cancel": "やめる",
       "sourceLabel": "変換後の Markdown"
@@ -6797,6 +6842,43 @@
     "saved": "監査記録に保存しました",
     "saveError": "監査記録の保存に失敗しました"
   },
+  "goalReflection": {
+    "title": "今週の前進を振り返る",
+    "intro": "ゴールごとに、今週どれだけ進んだと感じるかを選んで、一言を残します。",
+    "ratingLabel": "{name} の今週の前進",
+    "ratingOption": "{value}",
+    "ratingScale": "1 = ほとんど進まなかった / 5 = 大きく進んだ",
+    "notePlaceholder": "一言（任意）",
+    "noteCount": "{count} / {max}",
+    "saved": "記録済み",
+    "save": "保存する",
+    "saving": "保存中...",
+    "close": "閉じる",
+    "loading": "読み込み中...",
+    "noGoals": "進行中のゴールがありません。節目を持つゴールがあると、ここで振り返りを残せます。",
+    "loadFailed": "振り返りを読み込めませんでした。",
+    "saveFailed": "保存できませんでした。",
+    "savedAll": "保存しました。同じ週のうちは、あとから直せます。",
+    "nothingToSave": "評価を選ぶと保存できます。",
+    "settings": {
+      "title": "週1回の振り返りの通知",
+      "description": "進行中のゴールの振り返りをうながす曜日と時刻（日本時間）。初期値は日曜 20:00 です。",
+      "dayLabel": "曜日",
+      "timeLabel": "時刻",
+      "save": "保存",
+      "saved": "保存しました",
+      "failed": "保存できませんでした",
+      "days": {
+        "0": "日曜日",
+        "1": "月曜日",
+        "2": "火曜日",
+        "3": "水曜日",
+        "4": "木曜日",
+        "5": "金曜日",
+        "6": "土曜日"
+      }
+    }
+  },
   "triage": {
     "title": "判断トリアージ",
     "empty": "判断待ちはありません",
@@ -6955,6 +7037,50 @@
       "description": "どの節目に向けたタスクかを選ぶと、節目ごとの進み具合が分かります",
       "fileLabel": "「{title}」を入れる節目",
       "pick": "節目を選ぶ"
+    },
+    "openInsights": "製品の目的の指標を見る",
+    "insights": {
+      "title": "製品の目的の指標",
+      "subtitle": "ゴールを節目に分けて達成まで進めているかを、4つの指標で確かめます",
+      "back": "ゴール一覧へ",
+      "loading": "読み込み中",
+      "period": {
+        "label": "期間",
+        "4w": "直近4週",
+        "all": "全期間"
+      },
+      "noMaterial": "まだ材料がありません",
+      "noReflection": "週1回の振り返りがまだ無いため、データなしです",
+      "ratio": "{numerator} / {denominator}",
+      "percent": "{percent}%",
+      "metrics": {
+        "reachRate": {
+          "title": "節目への到達率",
+          "help": "到達 ÷（到達 ＋ 期日を過ぎて未到達）。一時停止は含めません"
+        },
+        "resumeRate": {
+          "title": "停滞からの再開率",
+          "help": "更新が14日以上なかった停滞のうち、その後に節目の到達かタスクの完了があった割合"
+        },
+        "quality": {
+          "title": "成果の品質",
+          "help": "到達した節目のうち、後で取り消されていないものの割合"
+        },
+        "feltProgress": {
+          "title": "本人が感じる前進",
+          "help": "週1回の振り返りの評価の推移"
+        }
+      },
+      "goalList": {
+        "title": "ゴール別",
+        "empty": "まだ材料がありません",
+        "counts": "到達 {reached} / 未到達 {open} / 休止 {paused}",
+        "updated": "最終更新 {date}",
+        "stalled": "停滞中",
+        "active": "進行中",
+        "note": "未到達は期日前の節目を含みます。件数と最終更新日は期間にかかわらず現在の状態です。"
+      },
+      "limits": "履歴の記録が無いため、停滞と再開は各行の最終更新時刻から推定しています。取り消しの記録が始まる前に取り消された節目は、成果の品質に含まれません。"
     }
   }
 }

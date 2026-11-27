@@ -19,6 +19,7 @@ import { detectRuntimeHarnessDrift } from './runtime-start-preflight';
 import { applyFeatureReachability, readDeclaredFeatures } from './feature-reachability';
 import { runBrowserSmoke, type SmokeRunResult } from './browser-smoke';
 import { acquireRuntimeServer, releaseRuntimeServer } from './worktree-server-registry';
+import { classifyEnvCause } from './runtime-env-cause';
 
 const log = createLogger('runtime-smoke');
 
@@ -245,15 +246,39 @@ export async function runRuntimeSmokeCheck(
         ran: false,
         ok: false,
         unverifiable: true,
+        cause: acquired.cause,
         errorCount: 0,
         details:
-          `runtime検証はスキップしました: ${acquired.reason}${exitNote}` +
+          `runtime検証はスキップしました（環境要因${acquired.cause ? `: cause=${acquired.cause}` : ''} — 実装の失敗ではありません）: ${acquired.reason}${exitNote}` +
           (tail ? `\n--- 起動ログ末尾 ---\n${tail}` : ''),
       };
     }
     // Environment failures (broken worktree symlinks, missing tooling) are
     // not fixable by the implementer — hold as unverifiable with evidence instead
     // of bouncing the phase into an unfixable repair loop.
+    // A port or lock taken by a leftover process shows up only in the launch
+    // log (a fixed-port start command, or a dev server exiting with "already
+    // running"). Not an app defect: the same code starts fine once it is freed.
+    // The acquisition failed, so the launch never became ready.
+    const logCause =
+      classifyEnvCause({ text: acquired.logs.join('\n'), reachedReady: false }) ?? undefined;
+    if (logCause) {
+      log.warn(
+        { workdir, label, cause: logCause },
+        '[runtime-smoke] launch stopped on a taken port/lock — unverifiable; completion withheld',
+      );
+      return {
+        name: 'runtime',
+        ran: false,
+        ok: false,
+        unverifiable: true,
+        cause: logCause,
+        errorCount: 0,
+        details:
+          `runtime検証は環境要因（cause=${logCause}）で起動できずスキップしました — 実装の欠陥ではありません${exitNote}。` +
+          `\n--- 起動ログ末尾 ---\n${tail}`,
+      };
+    }
     if (looksLikeEnvironmentFailure(acquired.logs)) {
       recentEnvFailures.set(workdir, Date.now());
       log.warn(

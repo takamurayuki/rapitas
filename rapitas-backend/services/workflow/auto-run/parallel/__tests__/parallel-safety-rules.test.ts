@@ -61,23 +61,26 @@ describe('judgePair — refusal reasons (same theme)', () => {
       cand: side(20, ['rapitas-backend/services/alpha/other.ts']),
       reason: 'same_directory',
     },
+    // NOTE: 2026-11-27 — a pair-scoped conflict-prone file (schema, messages,
+    // route barrel, baselines) on ONE side no longer refuses: only two tasks
+    // that both touch the same kind collide. See the pair-scope table below.
     {
-      name: 'conflict-prone: messages/ja.json',
+      name: 'pair-scoped file on one side only: messages/ja.json',
       cand: side(20, ['rapitas-frontend/messages/ja.json']),
-      reason: 'conflict_prone_file',
+      reason: null,
     },
     {
-      name: 'conflict-prone: generated route barrel',
+      name: 'pair-scoped file on one side only: generated route barrel',
       cand: side(20, ['rapitas-backend/routes/agents/index.ts']),
-      reason: 'conflict_prone_file',
+      reason: null,
     },
     {
-      name: 'conflict-prone: prisma schema',
+      name: 'pair-scoped file on one side only: prisma schema',
       cand: side(20, ['rapitas-backend/prisma/schema/workflow.prisma']),
-      reason: 'conflict_prone_file',
+      reason: null,
     },
     {
-      name: 'conflict-prone: lockfile',
+      name: 'conflict-prone (any side): lockfile',
       cand: side(20, ['pnpm-lock.yaml']),
       reason: 'conflict_prone_file',
     },
@@ -124,12 +127,69 @@ describe('judgePair — refusal reasons (same theme)', () => {
     });
   });
 
-  test('a conflict-prone file on the RUNNING side also refuses', () => {
-    const running = side(10, ['rapitas-frontend/messages/en.json']);
+  test('an any-scoped conflict-prone file on the RUNNING side also refuses', () => {
+    const running = side(10, ['rapitas-frontend/tsconfig.json']);
     expect(judgePair(side(20, ['a/b/c.ts']), running, ctx())).toMatchObject({
       reason: 'conflict_prone_file',
     });
   });
+});
+
+// 2026-11-27 user request: a task that does not touch the schema may run next
+// to one that does. Pair-scoped kinds refuse only when BOTH sides touch the
+// same kind; any-scoped kinds (dependencies, shared config) refuse from one side.
+describe('judgePair — conflict-prone scope', () => {
+  const rows: Array<{ name: string; cand: string[]; act: string[]; reason: string | null }> = [
+    {
+      name: 'schema vs unrelated file',
+      cand: ['rapitas-backend/prisma/schema/core.prisma'],
+      act: ['rapitas-backend/services/alpha/a.ts'],
+      reason: null,
+    },
+    {
+      name: 'schema vs schema (different files)',
+      cand: ['rapitas-backend/prisma/schema/core.prisma'],
+      act: ['rapitas-backend/prisma/schema/system.prisma'],
+      reason: 'conflict_prone_file',
+    },
+    {
+      name: 'schema vs generated init SQL (same kind)',
+      cand: ['rapitas-backend/prisma/schema/core.prisma'],
+      act: ['rapitas-backend/src/generated/sqlite-init-sql.ts'],
+      reason: 'conflict_prone_file',
+    },
+    {
+      name: 'messages/ja.json vs messages/en.json (same kind)',
+      cand: ['rapitas-frontend/messages/ja.json'],
+      act: ['rapitas-frontend/messages/en.json'],
+      reason: 'conflict_prone_file',
+    },
+    {
+      name: 'schema vs messages (different kinds)',
+      cand: ['rapitas-backend/prisma/schema/core.prisma'],
+      act: ['rapitas-frontend/messages/ja.json'],
+      reason: null,
+    },
+    {
+      name: 'package.json on one side refuses',
+      cand: ['rapitas-backend/package.json'],
+      act: ['rapitas-frontend/src/beta/b.tsx'],
+      reason: 'conflict_prone_file',
+    },
+    {
+      name: 'eslint config on the running side refuses',
+      cand: ['rapitas-frontend/src/beta/b.tsx'],
+      act: ['rapitas-frontend/eslint.config.mjs'],
+      reason: 'conflict_prone_file',
+    },
+  ];
+  for (const r of rows) {
+    test(`${r.name} → ${r.reason ?? 'ok'}`, () => {
+      const verdict = judgePair(side(20, r.cand), side(10, r.act), ctx());
+      if (r.reason === null) expect(verdict).toEqual({ ok: true });
+      else expect(verdict).toMatchObject({ ok: false, reason: r.reason });
+    });
+  }
 
   test('the overlapping file is named in the detail', () => {
     const v = judgePair(side(20, ['rapitas-backend/services/alpha/a.ts']), A, ctx());

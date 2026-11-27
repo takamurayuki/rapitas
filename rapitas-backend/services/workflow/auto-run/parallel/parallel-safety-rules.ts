@@ -18,7 +18,16 @@ import {
   globHits,
   globToSuffixRegex,
   normPath as norm,
+  type ConflictProneScope,
 } from './conflict-prone-files';
+
+/** A plan entry that matched a conflict-prone rule. */
+export interface ConflictProneHit {
+  file: string;
+  reason: string;
+  kind: string;
+  scope: ConflictProneScope;
+}
 
 // Re-exported so callers and tests keep one import site for the pair rules.
 export { CONFLICT_PRONE_FILE_RULES, globToSuffixRegex };
@@ -85,8 +94,8 @@ export function isEmptyPlanFileSet(set: PlanFileSet): boolean {
  * @param set - File set / ファイル集合
  * @returns Matching entries with the rule reason / 該当と理由
  */
-export function conflictProneHits(set: PlanFileSet): Array<{ file: string; reason: string }> {
-  const hits: Array<{ file: string; reason: string }> = [];
+export function conflictProneHits(set: PlanFileSet): ConflictProneHit[] {
+  const hits: ConflictProneHit[] = [];
   const probes = [
     ...set.files,
     // A directory glob claims every file below it: probe one synthetic child.
@@ -94,9 +103,34 @@ export function conflictProneHits(set: PlanFileSet): Array<{ file: string; reaso
   ];
   for (const file of probes) {
     const rule = CONFLICT_PRONE_FILE_RULES.find((r) => globHits(r.pattern, file));
-    if (rule) hits.push({ file: file.replace(/__any__$/, '**'), reason: rule.reason });
+    if (rule) {
+      hits.push({
+        file: file.replace(/__any__$/, '**'),
+        reason: rule.reason,
+        kind: rule.kind,
+        scope: rule.scope,
+      });
+    }
   }
   return hits;
+}
+
+/**
+ * The conflict-prone hits that make a pair unsafe: every any-scoped hit on
+ * either side, plus pair-scoped hits whose kind both sides touch.
+ *
+ * @param a - One side / 片方
+ * @param b - Other side / もう片方
+ * @returns Hits that refuse the pair / 並列を拒む該当
+ */
+export function blockingConflictProneHits(a: PlanFileSet, b: PlanFileSet): ConflictProneHit[] {
+  const ha = conflictProneHits(a);
+  const hb = conflictProneHits(b);
+  const pairKinds = (hits: ConflictProneHit[]) =>
+    new Set(hits.filter((h) => h.scope === 'pair').map((h) => h.kind));
+  const ka = pairKinds(ha);
+  const kb = pairKinds(hb);
+  return [...ha, ...hb].filter((h) => h.scope === 'any' || (ka.has(h.kind) && kb.has(h.kind)));
 }
 
 /**
@@ -246,7 +280,7 @@ export function judgePair(
       : reject('active_plan_missing', `running task ${active.taskId} has no plan files`);
   }
 
-  const prone = [...conflictProneHits(cand), ...conflictProneHits(act)];
+  const prone = blockingConflictProneHits(cand, act);
   if (prone.length > 0) {
     return reject('conflict_prone_file', list(prone.map((h) => `${h.file} (${h.reason})`)));
   }

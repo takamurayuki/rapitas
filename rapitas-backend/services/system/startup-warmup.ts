@@ -28,6 +28,7 @@ import { startBackupScheduler } from './backup-scheduler';
 import { startCpuUsageMonitorIfEnabled } from './cpu-usage-monitor';
 import { startEventLoopLagWatchdog } from './event-loop-lag-watchdog';
 import { startResourceTelemetryIfEnabled } from './resource-telemetry';
+import { WorkflowQueueService } from '../workflow/workflow-queue';
 
 const log = createLogger('server');
 
@@ -94,7 +95,15 @@ const runStartupWarmup = async (): Promise<void> => {
     ['worker-health-alert-scheduler', () => startWorkerHealthAlertScheduler()],
     ['auto-merge-watcher', () => AutoMergeWatcher.getInstance().start()],
     ['workflow-reconciler', () => startWorkflowReconciler()],
-    ['resource-telemetry', () => startResourceTelemetryIfEnabled()],
+    // The process-tree snapshot (one CIM call) only runs while the gate could
+    // hold at all: at parallelism 1 it never does (task 1553).
+    [
+      'resource-telemetry',
+      () =>
+        startResourceTelemetryIfEnabled(undefined, {
+          shouldSample: () => WorkflowQueueService.getInstance().getMaxConcurrency() > 1,
+        }),
+    ],
     ['cpu-usage-monitor', () => startCpuUsageMonitorIfEnabled()],
     ['supervision-heartbeat-scheduler', () => startSupervisionHeartbeatScheduler()],
     ['i18n-integrity-scheduler', () => startI18nIntegrityScheduler()],

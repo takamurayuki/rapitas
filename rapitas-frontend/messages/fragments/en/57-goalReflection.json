@@ -1,0 +1,39 @@
+{
+  "goalReflection": {
+    "title": "Reflect on this week's progress",
+    "intro": "For each goal, pick how much progress it felt like this week and leave a short note.",
+    "ratingLabel": "This week's progress on {name}",
+    "ratingOption": "{value}",
+    "ratingScale": "1 = barely moved / 5 = moved a lot",
+    "notePlaceholder": "A note (optional)",
+    "noteCount": "{count} / {max}",
+    "saved": "Recorded",
+    "save": "Save",
+    "saving": "Saving...",
+    "close": "Close",
+    "loading": "Loading...",
+    "noGoals": "No goals in progress. Goals with a milestone can be reflected on here.",
+    "loadFailed": "Could not load your reflections.",
+    "saveFailed": "Could not save.",
+    "savedAll": "Saved. You can edit it again during the same week.",
+    "nothingToSave": "Pick a rating to save.",
+    "settings": {
+      "title": "Weekly reflection reminder",
+      "description": "The day and time (Japan time) to be reminded to reflect on goals in progress. Defaults to Sunday 20:00.",
+      "dayLabel": "Day",
+      "timeLabel": "Time",
+      "save": "Save",
+      "saved": "Saved",
+      "failed": "Could not save",
+      "days": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@
  */
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
+import remarkNoteInlineHtml from '@/components/note/markdown-note/inline-html/remark-note-inline-html';
 
 /** The densities `MarkdownView` accepts. / 体裁の密度 */
 export type MarkdownDensity = 'document' | 'chat' | 'note';
@@ -58,6 +59,8 @@ const NOTE_DENSITY_CLASS = [
   '[&_div:has(>table)]:!my-3 [&_div:has(>table)]:!rounded-none [&_div:has(>table)]:!border-0',
   '[&_table]:!text-sm',
   '[&_th]:!border [&_td]:!border [&_th]:!border-zinc-300 [&_td]:!border-zinc-300 dark:[&_th]:!border-zinc-600 dark:[&_td]:!border-zinc-600',
+  // A highlight keeps dark text on its light ground in dark mode too.
+  '[&_mark]:!text-zinc-900 [&_mark]:rounded-sm [&_mark]:px-0.5',
   '[&_th]:!px-2 [&_th]:!py-1.5 [&_td]:!px-2 [&_td]:!py-1.5 [&_th]:!font-semibold [&_th]:!text-zinc-900 dark:[&_th]:!text-zinc-100',
 ].join(' ');
 
@@ -76,7 +79,9 @@ export function densityClass(density: MarkdownDensity): string {
 const DEFAULT_REMARK_PLUGINS = [remarkGfm];
 // The phone renders notes with softLineBreak, so a single newline breaks the
 // line there; without remark-breaks the same note would run lines together here.
-const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+// remarkNoteInlineHtml draws the allowed inline forms (colour, highlight, size,
+// underline); other html nodes stay unrendered.
+const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkNoteInlineHtml];
 
 /**
  * The remark plugins a density parses with. Stable arrays, so a re-render

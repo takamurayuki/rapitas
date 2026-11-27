@@ -67,6 +67,13 @@ export interface AcquireSuccess {
   lease: string;
   logs: () => string[];
 }
+/**
+ * Machine-readable reason a launch stopped for ENVIRONMENT reasons (not an
+ * app defect): a fixed port is taken, a runtime lock is held, the worktree is
+ * quarantined, or the occupant is a process we cannot prove is ours.
+ */
+export type RuntimeEnvCause = 'port_in_use' | 'lock_held' | 'quarantined' | 'foreign_process';
+
 export interface AcquireFailure {
   ok: false;
   reason: string;
@@ -80,6 +87,8 @@ export interface AcquireFailure {
    * treat it as a hard verification failure.
    */
   unverifiable?: boolean;
+  /** Environment cause when known; always accompanies `unverifiable`. */
+  cause?: RuntimeEnvCause;
 }
 export type AcquireResult = AcquireSuccess | AcquireFailure;
 
@@ -148,6 +157,7 @@ export function failure(
     logs?: string[];
     exitCode?: number | null;
     hasExited?: boolean;
+    cause?: RuntimeEnvCause;
   } = {},
 ): AcquireFailure {
   return {
@@ -157,6 +167,7 @@ export function failure(
     exitCode: opts.exitCode ?? null,
     hasExited: opts.hasExited ?? false,
     unverifiable: opts.unverifiable,
+    cause: opts.cause,
   };
 }
 

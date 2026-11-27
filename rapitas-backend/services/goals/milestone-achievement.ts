@@ -112,3 +112,52 @@ export function goalProgress(milestones: ReadonlyArray<{ status: string }>): Goa
     reachRate: pursued > 0 ? reached / pursued : null,
   };
 }
+
+/** A rate with the counts behind it, so the page can show numerator and denominator. */
+export interface RateCount {
+  numerator: number;
+  denominator: number;
+  /** numerator ÷ denominator; null when the denominator is 0 (no material, not 0%). */
+  rate: number | null;
+}
+
+/**
+ * Build a RateCount; a zero denominator yields a null rate rather than 0.
+ *
+ * @param numerator - Matching items / 分子
+ * @param denominator - All items considered / 分母
+ */
+export function toRateCount(numerator: number, denominator: number): RateCount {
+  return { numerator, denominator, rate: denominator > 0 ? numerator / denominator : null };
+}
+
+/**
+ * Reach rate over milestones that have had their chance: reached ÷ (reached +
+ * overdue and not reached). Unlike `goalProgress`, an open milestone whose due
+ * date has not passed (or has none) is not a miss yet and stays out.
+ *
+ * @param milestones - Milestones with status, due date and reach time / 節目
+ * @param now - Current time, passed in so boundaries are testable / 現在時刻
+ * @param from - Only count milestones reached or due at/after this time; null = all time / 期間の開始
+ * @returns Counts and the rate (null when nothing qualifies) / 到達率
+ */
+export function reachRateWithDue(
+  milestones: ReadonlyArray<{ status: string; dueDate: Date | null; reachedAt: Date | null }>,
+  now: Date,
+  from: Date | null = null,
+): RateCount {
+  let reached = 0;
+  let overdue = 0;
+  for (const m of milestones) {
+    // Paused is the person's decision, not a miss — out of both sides.
+    if (m.status === 'paused') continue;
+    if (m.status === 'reached') {
+      if (from && (!m.reachedAt || m.reachedAt < from)) continue;
+      reached++;
+    } else if (m.dueDate && m.dueDate < now) {
+      if (from && m.dueDate < from) continue;
+      overdue++;
+    }
+  }
+  return toRateCount(reached, reached + overdue);
+}

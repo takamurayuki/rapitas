@@ -283,6 +283,8 @@ export function HomeToolbar({
           restartWait={autoRunData.restartWait}
           startedAt={autoRunData.autoRun.startedAt}
           scope={filterScope}
+          activeTasks={autoRunData.activeTasks}
+          themeId={autoRunTheme?.id}
         />
       ) : (
         filterScope && <HomeFilterSummary {...filterScope} />

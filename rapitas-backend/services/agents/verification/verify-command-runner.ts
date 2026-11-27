@@ -1,0 +1,211 @@
+/**
+ * VerifyCommandRunner
+ *
+ * Runs one verification shell command asynchronously and captures its output.
+ * Heavy commands (tsc, tests, lint, prettier) first take the cross-task slot
+ * from heavy-check-slot.ts; the timeout timer starts only after the slot is
+ * granted, so time spent waiting behind another task never trips the cap.
+ * Not responsible for interpreting the output.
+ */
+import { execFile, type ChildProcess, type SpawnOptions } from 'child_process';
+import { createLogger } from '../../../config/logger';
+import { spawnQuiet } from './quiet-verification';
+import {
+  acquireHeavyCheckSlot,
+  recordHeavySlotException,
+  type ReleaseHeavySlot,
+} from './heavy-check-slot';
+
+const log = createLogger('verification:command-runner');
+
+/** Per-command timeout (ms). Lint/typecheck on a large project can be slow. */
+export const CMD_TIMEOUT_MS = 180_000;
+/**
+ * After a timeout, how long to keep the heavy slot while waiting for the
+ * killed tree to close. A safety valve: a kill that does not take effect must
+ * not hold the slot forever.
+ */
+export const KILL_GRACE_MS = 30_000;
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+type CommandFailure = 'spawn' | 'child-error' | 'signal' | 'timeout' | 'output-limit';
+
+/** Output of one command. code 124 = timed out. */
+export interface CmdResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+  failure?: CommandFailure;
+}
+
+/** Options for runCmd. */
+export interface RunCmdOptions {
+  /** Run-time cap, counted from spawn (not from the call). Defaults to CMD_TIMEOUT_MS. */
+  timeoutMs?: number;
+  /** 標準出力と標準エラーそれぞれのバイト上限。 */
+  maxOutputBytes?: number;
+  /** Take the cross-task heavy-check slot first (tsc / tests / lint / prettier; never git). */
+  heavy?: boolean;
+  /** spawn override for tests. Defaults to spawnQuiet (BELOW_NORMAL priority). */
+  spawn?: (command: string, options: SpawnOptions) => ChildProcess;
+  /** Grace after a timeout before the slot is released without a close. Defaults to KILL_GRACE_MS. */
+  killGraceMs?: number;
+  /** Tree kill override for tests. Defaults to killProcessTree. */
+  killTree?: (child: ChildProcess) => void;
+}
+
+/**
+ * Stops a timed-out command and everything it started. With `shell: true` the
+ * child is cmd.exe, so SIGKILL alone would leave the tsc/bun grandchildren
+ * running; on Windows `taskkill /T` takes the whole tree. Async and
+ * best-effort: errors are logged at debug level.
+ *
+ * NOTE: Not killProcessTreeSafely (agent-process-tracker.ts) — it calls
+ * execSync for up to 15 s, which would stall the backend event loop.
+ *
+ * @param child - The timed-out child. / タイムアウトした子プロセス
+ */
+export function killProcessTree(child: ChildProcess): void {
+  try {
+    if (process.platform === 'win32' && child.pid) {
+      execFile(
+        'taskkill',
+        ['/PID', String(child.pid), '/T', '/F'],
+        { windowsHide: true },
+        (err) => {
+          if (err) log.debug({ err, pid: child.pid }, '[verify-command-runner] taskkill failed');
+        },
+      );
+    } else {
+      child.kill('SIGKILL');
+    }
+  } catch (err) {
+    log.debug({ err, pid: child.pid }, '[verify-command-runner] tree kill failed');
+  }
+}
+
+/**
+ * Runs a shell command, capturing output. Never rejects — a non-zero exit
+ * (lint/tsc found problems) is a normal, expected outcome.
+ *
+ * @param command - Shell command line. / 実行するコマンド
+ * @param cwd - Working directory. / 作業ディレクトリ
+ * @param options - Timeout, heavy flag, spawn/kill overrides. / タイムアウト・重い検査指定・差し替え
+ * @returns Exit code and captured output. / 終了コードと出力
+ */
+export async function runCmd(
+  command: string,
+  cwd: string,
+  options: RunCmdOptions = {},
+): Promise<CmdResult> {
+  const {
+    timeoutMs = CMD_TIMEOUT_MS,
+    maxOutputBytes = MAX_OUTPUT_BYTES,
+    heavy = false,
+    spawn = spawnQuiet,
+    killGraceMs = KILL_GRACE_MS,
+    killTree = killProcessTree,
+  } = options;
+  // NOTE: The slot is taken BEFORE the timer starts (task 1553): waiting behind
+  // another task's tsc must not count toward this command's 180 s / 300 s cap.
+  const release: ReleaseHeavySlot = heavy
+    ? await acquireHeavyCheckSlot(command.slice(0, 120))
+    : () => {};
+  return new Promise((resolveP) => {
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let settled = false;
+    let exited = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    // Resolving the caller and freeing the slot are separate (task 1553 R2):
+    // after a timeout the caller gets 124 at once, but the slot is held until
+    // the killed tree really ends, or the next heavy command would overlap it.
+    const finish = (code: number, failure?: CommandFailure) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolveP({
+        code,
+        stdout: Buffer.concat(stdout).toString(),
+        stderr: Buffer.concat(stderr).toString(),
+        ...(failure ? { failure } : {}),
+      });
+    };
+    const releaseOnce = () => {
+      if (graceTimer) clearTimeout(graceTimer);
+      release(); // idempotent
+    };
+    let child: ChildProcess;
+    try {
+      child = spawn(command, { cwd, shell: true, windowsHide: true });
+    } catch (err) {
+      stderr.push(Buffer.from(String(err)));
+      finish(1, 'spawn');
+      releaseOnce();
+      return;
+    }
+    const stop = (failure: 'timeout' | 'output-limit' | 'child-error') => {
+      if (settled) return;
+      finish(failure === 'timeout' ? 124 : 1, failure);
+      graceTimer = setTimeout(() => {
+        log.warn(
+          { command: command.slice(0, 120), killGraceMs, failure },
+          '終了処理後に子プロセスが閉じなかったため検証枠を解放',
+        );
+        // Only a heavy command holds a slot, so only then is this a slot exception.
+        if (heavy) {
+          recordHeavySlotException('verify.heavy_slot_kill_grace_release', {
+            cause: 'kill_grace_elapsed',
+            command: command.slice(0, 120),
+            waitedMs: killGraceMs,
+            timeoutMs,
+            failure,
+            pid: child.pid,
+            msg: '終了猶予を過ぎたため検証枠を解放',
+          });
+        }
+        releaseOnce();
+      }, killGraceMs);
+      // NOTE: Deliberately not unref'd — the slot's next waiter depends on it firing.
+      if (exited) return; // Windows では終了済みの PID に taskkill しない。
+      try {
+        killTree(child);
+      } catch (err) {
+        log.debug({ err }, '[verify-command-runner] tree kill threw');
+      }
+    };
+    const capture = (chunks: Buffer[]) => {
+      let length = 0;
+      return (chunk: Buffer) => {
+        if (settled) return;
+        const remaining = maxOutputBytes - length;
+        chunks.push(chunk.subarray(0, remaining));
+        length += chunk.length;
+        if (length > maxOutputBytes) stop('output-limit');
+      };
+    };
+    child.stdout?.on('data', capture(stdout));
+    child.stderr?.on('data', capture(stderr));
+    child.once('exit', () => {
+      exited = true;
+    });
+    // close は runner の子と、その標準入出力が終わったことを示す。
+    child.on('error', (err) => {
+      if (settled) return;
+      if (child.pid) {
+        log.debug({ err, pid: child.pid }, '実行中の検証コマンドでエラー');
+        stop('child-error');
+      } else {
+        stderr.push(Buffer.from(String(err)));
+        finish(1, 'spawn');
+        releaseOnce();
+      }
+    });
+    child.on('close', (code) => {
+      finish(code ?? 0, code === null ? 'signal' : undefined);
+      releaseOnce();
+    });
+    timer = setTimeout(() => stop('timeout'), timeoutMs);
+  });
+}

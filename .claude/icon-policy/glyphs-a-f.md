@@ -39,3 +39,7 @@ Part of `.claude/ICON_POLICY.md` §3 (ESTABLISHED MEANINGS), split alphabeticall
 | `CalendarClock` | 通知の種別「予定のリマインダー」（schedule_reminder。`NotificationBell`、#1510。ヘッダ nav の予定導線と同じ「予定・時刻」概念の再利用） |
 | `FileWarning` | 通知の種別「矛盾の検出」（contradiction_detected。`NotificationBell`、#1510） |
 | `CalendarCheck` | 本日期限のタスクなし（ホームの `TodayTaskProgressBar` compact の空状態チップ。注: `Calendar`＝期限・日付の入力/表示、`CalendarClock`＝予定のリマインダー通知とは別概念） |
+| `ALargeSmall` | ノートの装飾ツールバーの「文字サイズ」（`WysiwygStyleMenus`、#1551） |
+| `Baseline` | ノートの装飾ツールバーの「文字色」（`WysiwygStyleMenus`、#1551） |
+| `Bold` / `Italic` / `Strikethrough` | ノートの装飾ツールバーの太字・斜体・取り消し線（`WysiwygToolbar`、#1551） |
+| `ChartLine` | 製品の目的の指標（`/goals/insights` の見出しと、ゴール一覧からの入口リンク — 節目到達率・再開率・成果の品質・前進感の推移を見るページ。注: `ChartNoAxesCombined`＝自己成長台帳、`BarChart2`＝知識の成長トレンドとは別概念） |

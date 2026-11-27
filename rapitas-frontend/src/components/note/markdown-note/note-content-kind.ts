@@ -12,6 +12,7 @@
  * (`rapitas-backend/services/notes/note-content-kind.cases.json`).
  */
 import { EDITOR_HTML_TAG, withoutCode } from './note-content-format';
+import { sanitizeNoteInlineHtml } from './inline-html';
 
 /** Same cap as the server's MAX_NOTE_CONTENT. */
 export const MAX_NOTE_CONTENT = 200_000;
@@ -43,4 +44,24 @@ export function checkNewMarkdownContent(content: string): NewMarkdownRejection |
   if (content.length > MAX_NOTE_CONTENT) return 'too_long';
   if (isLegacyEditorHtml(content)) return 'legacy_html';
   return null;
+}
+
+/** The outcome of preparing a body for a normal create or edit. */
+export type PreparedMarkdown =
+  | { ok: true; content: string }
+  | { ok: false; reason: NewMarkdownRejection };
+
+/**
+ * Check a new Markdown body and strip its disallowed inline HTML in one step,
+ * as the server does on save (so a local note matches a server one).
+ *
+ * The old editor's HTML (div, p, br …) is refused before anything is stripped.
+ *
+ * @param content - The body to save / 保存する本文
+ * @returns The body to store, or the refusal reason / 保存する本文、または拒否理由
+ */
+export function prepareNewMarkdownContent(content: string): PreparedMarkdown {
+  const rejection = checkNewMarkdownContent(content);
+  if (rejection) return { ok: false, reason: rejection };
+  return { ok: true, content: sanitizeNoteInlineHtml(content) };
 }
