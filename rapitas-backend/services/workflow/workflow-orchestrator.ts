@@ -18,6 +18,7 @@ import {
   WORKFLOW_LOCK_TTL_MS,
 } from '../agents/task-execution-lock';
 import { narrowWorkflowStatus } from './workflow-types.guards.generated';
+import { admitAdvance } from '../scheduling/auto-restart-merged-code/guarded-start';
 import { runPreflight } from './workflow-orchestrator-preflight';
 import { guardImplementOverlap } from './workflow-orchestrator-overlap-guard';
 import { guardCalendarPhaseBoundary } from './workflow-orchestrator-calendar-guard';
@@ -93,6 +94,34 @@ export class WorkflowOrchestrator {
     taskId: number,
     // Follows the UI locale unless a caller pins it (route bodies may).
     language: 'ja' | 'en' = readPromptLanguage(),
+  ): Promise<WorkflowAdvanceResult> {
+    // Every new phase start — the runner's, a delayed re-dispatch, an auto-approve, an HTTP
+    // handler, the continuation after a phase — enters here. A restart wait refuses it (and
+    // saves the task for replay); a granted start is registered for the restart check.
+    const admission = await admitAdvance(taskId);
+    if (!admission) {
+      const current = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+        .catch(() => null);
+      return {
+        success: true,
+        skipped: true,
+        role: 'researcher',
+        status: narrowWorkflowStatus(current?.workflowStatus),
+        output: 'skipped: a restart wait is holding new work; the advance is replayed afterwards',
+      };
+    }
+    try {
+      return await this.advanceAdmitted(taskId, language);
+    } finally {
+      admission.release();
+    }
+  }
+
+  /** The advance proper, once the restart gate has admitted it. */
+  private async advanceAdmitted(
+    taskId: number,
+    language: 'ja' | 'en',
   ): Promise<WorkflowAdvanceResult> {
     // WORKFLOW_LOCK_TTL_MS intentionally exceeds the WorkflowRunner's per-phase
     // timeout (both derive from execution-timeouts) so a long phase cannot have

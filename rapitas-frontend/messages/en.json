@@ -4627,6 +4627,7 @@
       "choosingNext": "Choosing the next task",
       "selectTask": "Choose a task to show",
       "awaitingAnswer": "Awaiting answer",
+      "restartWait": "Waiting to apply updates",
       "rework": "Sent back {count}×",
       "reworkRoute": "({from} → {to})",
       "remaining": "{count} left",

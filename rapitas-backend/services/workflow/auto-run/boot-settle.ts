@@ -85,9 +85,20 @@ export function deferAutoRunRecovery(
 ): number {
   const settleMs = deps.settleMs ?? resolveBootSettleMs();
   const run = () => {
-    resume().catch((err) => {
-      log.warn({ err }, '[bootSettle] Deferred auto-run recovery failed');
-    });
+    resume()
+      .catch((err) => {
+        log.warn({ err }, '[bootSettle] Deferred auto-run recovery failed');
+      })
+      // Themes parked by a restart wait come back after normal recovery — and even when it
+      // failed: skipping the restore would leave the saved wait holding dispatch for hours.
+      .then(async () => {
+        const { resumeThemesAfterRestart } =
+          await import('../../scheduling/auto-restart-merged-code/restart-resume');
+        await resumeThemesAfterRestart();
+      })
+      .catch((err) => {
+        log.warn({ err }, '[bootSettle] Restoring themes after a restart wait failed');
+      });
   };
 
   if (settleMs === 0) {

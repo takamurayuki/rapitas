@@ -4,13 +4,13 @@
  * Pure pair rules that decide whether a candidate task may run at the same time
  * as a task already running (task 1552): dependency (table or text), plan
  * presence, conflict-prone files, file overlap, same folder and import relation.
- * Not responsible for reading plans, the database or the file system — callers
- * pass everything in, so the rules are table-testable.
+ * Not responsible for reading plans, the DB or files — callers pass all in.
  */
 import { parsePlanFiles } from '../../../agents/verification/scope-check';
 import { parsePlanDeclaration } from '../../plan-deviation/declaration-parser';
 import { overlappingFiles } from '../auto-run-selection';
 import type { ParallelVerdict } from './parallel-types';
+import { isLikelyFile } from './plan-file-tokens';
 import {
   CONFLICT_PRONE_FILE_RULES,
   MIN_PATTERN_PREFIX_SEGMENTS,
@@ -67,10 +67,12 @@ export function collectPlanFiles(plan: string | null | undefined): PlanFileSet {
     // directory is a deliberate scope claim, so the derived ones are dropped.
     else if (p.endsWith('/')) {
       if (fromDeclaration) patterns.add(`${p}**`);
-    } else files.add(p);
+    } else if (fromDeclaration || isLikelyFile(p)) files.add(p);
   };
   for (const f of parsePlanFiles(plan)) add(f, false);
-  for (const f of parsePlanDeclaration(plan).declaration.files) add(f, true);
+  // A fallback declaration is scraped from prose, so it gets the prose filter.
+  const { declaration, source } = parsePlanDeclaration(plan);
+  for (const f of declaration.files) add(f, source !== 'fallback');
   for (const p of patterns) {
     const segments = literalPrefix(p).replace(PACKAGE_DIR_RE, 'pkg/').split('/').filter(Boolean);
     // A filename glob (`dir/name*.ts`) keeps its directory depth; a pure
