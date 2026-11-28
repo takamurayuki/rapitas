@@ -13,6 +13,7 @@ import type { ChildProcess } from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { orderSelfVerificationResults } from '../../../../rapitas-frontend/src/feature/developer-mode/utils/log-self-verification-order';
 import { createInitialWaitingState } from '../question-detection';
 import {
   attachStreamHandlers,
@@ -197,6 +198,31 @@ describe('attachStreamHandlers — self-verification hold (task 1582)', () => {
 });
 
 describe('attachStreamHandlers — close waits for the verdict (task 1582)', () => {
+  test.each([true, false])('次の監視周期前の完了出力を検証結果まで保留する（合否=%p）', (ok) => {
+    const h = attach({ store: fakeStore });
+    h.fc.advance(5000);
+    records = [{ ...running, startedAt: h.fc.now() }];
+    const event = JSON.stringify({ type: 'result', subtype: 'success', result: '待機中' });
+    try {
+      h.proc.stdout!.emit('data', Buffer.from(event + '\n'));
+      const visible = () => orderSelfVerificationResults(output.join('').split('\n'));
+      expect(visible().some((line) => line.startsWith('[Result:'))).toBe(false);
+      expect(visible()).toContain('[SelfVerification] waiting runId=r1');
+      records = [{ ...records[0], state: 'finished', ok, passed: 3, failed: ok ? 0 : 1 }];
+      h.fc.advance(5000);
+      const lines = visible();
+      const verdict = lines.findIndex((line) => line.startsWith('[SelfVerification] result'));
+      expect(lines[verdict]).toContain(`ok=${ok} unverifiable=false passed=3 failed=${ok ? 0 : 1}`);
+      expect(lines.findIndex((line) => line.startsWith('[Result:'))).toBeGreaterThan(verdict);
+      expect(output.filter((line) => line.startsWith('[SelfVerification] waiting'))).toHaveLength(
+        1,
+      );
+    } finally {
+      h.handles.cleanupIdleCheck();
+      h.handles.cleanupTimeoutCheck();
+    }
+  });
+
   test('onClose runs only after the result line', async () => {
     records = [running];
     let sleeps = 0;

@@ -206,7 +206,12 @@ export async function spawnCodexProcess(
       const timers = createProcessTimers(state, callbacks, startTime, timeout, resolve, {
         selfVerification,
       });
-      const handleStdoutLine = createStdoutLineHandler(config, state, callbacks);
+      const parseStdoutLine = createStdoutLineHandler(config, state, callbacks);
+      const handleStdoutLine = (line: string) => {
+        // close時の残り行も含め、完了出力より先に自己検証の状態を通知する。
+        selfVerification.tick();
+        parseStdoutLine(line);
+      };
 
       // Handle stdout
       state.process.stdout?.on('data', (data: Buffer) => {

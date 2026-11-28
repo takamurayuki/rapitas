@@ -6,7 +6,8 @@
  * stop counting as running after the limit or once the owner is gone, and
  * must match a worktree regardless of how its path is spelled.
  */
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import * as fs from 'fs';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -54,12 +55,62 @@ describe('normalizeWorktreeKey', () => {
 });
 
 describe('createActivityStore', () => {
+  test('終了記録の書き込み途中とrename直前でも読者には完全な開始記録だけが見える', () => {
+    const writer = store();
+    const reader = store(222);
+    const ref = { runId: 'r1', taskId: 7, worktreePath: 'C:/x' };
+    writer.markStarted(ref);
+    const write = fs.writeFileSync;
+    const observed: unknown[] = [];
+    const spy = spyOn(fs, 'writeFileSync').mockImplementation((file, data, options) => {
+      write(file, '{');
+      observed.push(reader.listForTask(7));
+      write(file, data, options);
+      observed.push(reader.listForTask(7));
+    });
+    try {
+      writer.markFinished({ ...ref, ok: false, unverifiable: false, passed: 3, failed: 1 });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(observed).toHaveLength(2);
+    for (const snapshot of observed) {
+      expect(snapshot).toEqual([expect.objectContaining({ runId: 'r1', state: 'running' })]);
+    }
+    expect(reader.listForTask(7)).toEqual([
+      expect.objectContaining({ state: 'finished', ok: false, passed: 3, failed: 1 }),
+    ]);
+    expect(readdirSync(dir)).toEqual(['r1.json']);
+  });
+
   test('a second store sharing only the directory sees the run as running', () => {
     store().markStarted({ runId: 'r1', taskId: 7, worktreePath: 'C:\\X\\.worktrees\\t-7\\' });
     const reader = store(222);
     expect(reader.isActiveForWorktree('c:/x/.worktrees/t-7')).toBe(true);
     expect(reader.listForTask(7).map((r) => r.runId)).toEqual(['r1']);
     expect(reader.isActiveForWorktree('c:/x/.worktrees/t-8')).toBe(false);
+  });
+
+  test('終了記録の書き込みに失敗しても開始記録を保持し、一時ファイルを片付ける', () => {
+    const writer = store();
+    const ref = { runId: 'r1', taskId: 7, worktreePath: 'C:/x' };
+    writer.markStarted(ref);
+    const write = fs.writeFileSync;
+    const spy = spyOn(fs, 'writeFileSync').mockImplementation((file) => {
+      write(file, '{');
+      throw new Error('書き込み途中の失敗を注入');
+    });
+    try {
+      expect(() =>
+        writer.markFinished({ ...ref, ok: true, unverifiable: false, passed: 1, failed: 0 }),
+      ).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(store(222).listForTask(7)).toEqual([
+      expect.objectContaining({ runId: 'r1', state: 'running' }),
+    ]);
+    expect(readdirSync(dir)).toEqual(['r1.json']);
   });
 
   test('no marker means nothing is running', () => {

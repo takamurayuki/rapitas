@@ -200,6 +200,8 @@ export async function runClaudeExecution(
     } satisfies WorkerInputMessage);
 
     agent.parserWorker.onmessage = (event: MessageEvent<WorkerOutputMessage>) => {
+      // 周期通知より先に完了イベントが届いても、待機状態を表示へ先に渡す。
+      selfVerification.tick();
       agent.handleWorkerMessageInternal(event.data);
     };
 

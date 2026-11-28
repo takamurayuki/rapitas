@@ -171,6 +171,8 @@ export function attachStreamHandlers(
     lineBuffer = lines.pop() || '';
 
     for (const line of lines) {
+      // 監視周期の合間に自己検証が始まっていても、完了出力を先行させない。
+      reporter?.tick();
       handleGeminiStreamLine(line, {
         config,
         logPrefix,
