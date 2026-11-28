@@ -24,8 +24,22 @@ export const HANDOFF_CRITERION =
 export const UNCHANGED_ROUTE_CRITERION =
   '直す必要がないと分かった場合は、verify.md に「## 結論: 修正不要」とその根拠を書いて完了とする';
 
+// NOTE: The old clause said "every test that passed before still passes",
+// which 1542's verifier read as "run the whole suite before and after" — a
+// thousand files four at a time, with hung runs piling up (2026-11-28).
 const BASELINE_CLAUSE =
-  '（変更前に通っていたテストが変更後もすべて通り、新しく足したテストがすべて通ればよい。変更前から落ちているテストは、件数と原因を verify.md に書く）';
+  '（変更したファイルのテストと、変更したファイルを直接 import しているテストファイルが通ればよい。比較は、そのうち変更前からあるテストファイルを変更前のコードで1回だけ実行して行い、ディレクトリ全体やスイート全体は実行しない。変更前から落ちているテストは、件数と原因を verify.md に書く）';
+
+/**
+ * A criterion that names a test as its check is reachable, whatever it says
+ * about CI, push or merge.
+ *
+ * NOTE: Without this, the unreachable rule moved the core criteria of 1599
+ * and 1600 to the handoff because they described CI and merge behaviour —
+ * each was checked by a test (2026-11-28).
+ */
+const NAMES_A_TEST =
+  /テストで(示|確か|確認)|ユニットテスト|差し替えたテスト|\.test\.(ts|tsx|cjs|mjs|js)/;
 
 /** One rewrite, for the record and the person. */
 export interface CriteriaFix {
@@ -62,7 +76,7 @@ export function autoFixCriteria(spec: AutoFixInput): AutoFixResult {
 
   for (const text of spec.acceptanceCriteria) {
     const codes = findCriterionIssues(text, 'jury').map((i) => i.code);
-    if (codes.includes('unreachable')) {
+    if (codes.includes('unreachable') && !NAMES_A_TEST.test(text)) {
       handoffs.push(text);
       changes.push({ rule: 'unreachable', before: text, after: null });
       continue;

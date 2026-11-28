@@ -32,7 +32,7 @@ describe('a criterion the agent cannot reach (#1280, #1283)', () => {
 describe('a criterion that asks a whole suite to pass (#1498)', () => {
   it('is rewritten to compare with the state before the change', () => {
     const out = autoFixCriteria(spec(['`node --test dev-pull.test.cjs` がすべて成功する']));
-    expect(out.acceptanceCriteria[0]).toContain('変更前に通っていたテストが変更後もすべて通り');
+    expect(out.acceptanceCriteria[0]).toContain('変更したファイルを直接 import しているテスト');
     expect(out.changes[0]).toMatchObject({ rule: 'whole_suite' });
   });
 });
