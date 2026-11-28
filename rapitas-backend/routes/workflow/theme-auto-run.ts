@@ -7,6 +7,7 @@
  *   A 'pause' response additionally carries `stillRunning` / `heldQueueItems` /
  *   `unknown` / `note` — what the pause did NOT stop (see theme-pause-inflight).
  * GET  /themes/:id/auto-run  → ThemeAutoRunState + currentTask (head) + activeTasks (head and companions, task 1552)
+ *   + awaitingCi (tasks waiting for CI without holding a slot, task 1570; also while idle)
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config';
@@ -22,6 +23,7 @@ import { ThemeAutoRunScheduler } from '../../services/workflow/auto-run/theme-au
 import { describePauseScope } from '../../services/workflow/auto-run/theme-pause-inflight';
 import { loadReworkSummary } from '../../services/workflow/auto-run/auto-run-rework-summary';
 import { parseCompanions } from '../../services/workflow/auto-run/parallel/companion-json';
+import { listAwaitingCi } from '../../services/workflow/awaiting-ci-lookup';
 import { logCycleEvent } from '../../services/observability';
 import { isRestartWaitActive } from '../../services/scheduling/auto-restart-merged-code/restart-wait';
 import { HTTP_STATUS } from '../../utils/common/http-status';
@@ -126,6 +128,13 @@ export const themeAutoRunRoutes = new Elysia()
         }),
       ];
 
+      // Task 1570: CI waits that hold no slot. An idle theme holds none, so a
+      // currentTaskId left over from before must not hide its task.
+      const heldIds = new Set(
+        state.status === 'idle' ? [] : [state.currentTaskId, ...companionIds],
+      );
+      const awaitingCi = (await listAwaitingCi(themeId)).filter((e) => !heldIds.has(e.taskId));
+
       // Auto-run is holding back new work so merged code can activate (task 1562).
       const restartWait = isRestartWaitActive();
       return {
@@ -133,6 +142,7 @@ export const themeAutoRunRoutes = new Elysia()
         autoRun: toPublicAutoRunState(state),
         currentTask,
         activeTasks,
+        awaitingCi,
         remainingCount,
         restartWait,
         // For 「更新の取り込み待ち N件」; null when the count is unknown.

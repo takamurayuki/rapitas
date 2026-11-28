@@ -11,6 +11,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type EnqueueOptions } from './workflow-queue';
 import { WorkflowRunner } from './workflow-runner';
+import { isCountedAsCompleted } from './awaiting-ci';
 import { realtimeService } from '../communication/realtime-service';
 
 const log = createLogger('ai-orchestra');
@@ -69,7 +70,7 @@ export class AIOrchestra {
       if (session) {
         // Get latest counts
         const items = await this.queue.getSessionItems(this.currentSessionId);
-        const completed = items.filter((i) => i.status === 'completed').length;
+        const completed = items.filter(isCountedAsCompleted).length;
         const failed = items.filter((i) => i.status === 'failed').length;
 
         sessionData = {

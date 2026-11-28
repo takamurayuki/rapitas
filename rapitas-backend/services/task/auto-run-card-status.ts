@@ -14,6 +14,7 @@
 import type { PrismaClient } from '../../generated/prisma-postgres';
 import { resolveAutoRunMaxConcurrency } from '../workflow/auto-run/auto-run-concurrency';
 import { parseCompanions } from '../workflow/auto-run/parallel/companion-json';
+import { AWAITING_REQUIRED_MERGE_CAUSE, isCiWaitTask } from '../workflow/awaiting-ci';
 
 /** Minimal shape this module needs from a task-list row. */
 export interface TaskLikeForAutoRunCardStatus {
@@ -34,6 +35,11 @@ export interface TaskLikeForAutoRunCardStatus {
    * global slot, so it cannot start until one of them finishes.
    */
   autoRunWaitingForSlot?: boolean;
+  /**
+   * True while the task is parked for CI / its required merge (task 1570); the
+   * other three flags are then false.
+   */
+  autoRunAwaitingCi?: boolean;
   subtasks?: TaskLikeForAutoRunCardStatus[];
   [key: string]: unknown;
 }
@@ -127,6 +133,49 @@ async function currentPicksWaitingForSlot(
   }
 }
 
+/** CI 待ち候補を再帰収集する。子の theme 未取得時は DB 読み取りで能力を確認する。 */
+function collectCiWaitCandidates(tasks: TaskLikeForAutoRunCardStatus[]): number[] {
+  return tasks.flatMap((task) => [
+    ...((task.theme === undefined || themeSupportsAutoRun(task.theme)) && isCiWaitTask(task)
+      ? [task.id]
+      : []),
+    ...collectCiWaitCandidates(task.subtasks ?? []),
+  ]);
+}
+
+/**
+ * Candidates that really wait for CI: no halt, and the LATEST transition is the
+ * required-merge hold (same rule as readTaskAwaitingCi, on the injected client).
+ * Empty on any read failure — a wait that cannot be proven is not claimed.
+ */
+async function tasksAwaitingCi(prisma: PrismaClient, candidates: number[]): Promise<Set<number>> {
+  if (candidates.length === 0) return new Set();
+  try {
+    const parked = await prisma.task.findMany({
+      where: {
+        id: { in: candidates },
+        status: 'in-progress',
+        workflowStatus: 'verify_done',
+        haltReason: null,
+      },
+      select: { id: true, theme: { select: { isDevelopment: true, workingDirectory: true } } },
+    });
+    const waiting = new Set<number>();
+    for (const { id, theme } of parked) {
+      if (!themeSupportsAutoRun(theme)) continue;
+      const last = await prisma.workflowTransition.findFirst({
+        where: { taskId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { cause: true },
+      });
+      if (last?.cause === AWAITING_REQUIRED_MERGE_CAUSE) waiting.add(id);
+    }
+    return waiting;
+  } catch {
+    return new Set();
+  }
+}
+
 /** Head + companion task ids of one ThemeAutoRun row (task 1552). */
 function runningTaskIds(row: {
   currentTaskId: number | null;
@@ -139,7 +188,7 @@ function runningTaskIds(row: {
 }
 
 /**
- * Attach `autoRunCurrent`/`autoRunQueued` to every task in `tasks`, including
+ * Attach `autoRunCurrent`/`autoRunQueued`/`autoRunAwaitingCi` to every task, including
  * nested subtasks. Mutates the given objects in place and also returns them
  * for convenient chaining.
  *
@@ -171,6 +220,8 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
     prisma,
     autoRuns.flatMap((a) => runningTaskIds(a)),
   );
+  // Independent of the theme's run state: the wait continues while paused or idle.
+  const awaitingCi = await tasksAwaitingCi(prisma, collectCiWaitCandidates(tasks));
 
   const apply = (list: T[]) => {
     for (const task of list) {
@@ -185,6 +236,13 @@ export async function attachAutoRunCardStatus<T extends TaskLikeForAutoRunCardSt
         task.autoRunQueued = !current && looksAutoRunEligible(task);
         task.autoRunWaitingForSlot = current && waitingForSlot.has(task.id);
       } else {
+        task.autoRunCurrent = false;
+        task.autoRunQueued = false;
+        task.autoRunWaitingForSlot = false;
+      }
+      // A parked task is neither next up nor queued, even while still the pick.
+      task.autoRunAwaitingCi = awaitingCi.has(task.id);
+      if (task.autoRunAwaitingCi) {
         task.autoRunCurrent = false;
         task.autoRunQueued = false;
         task.autoRunWaitingForSlot = false;

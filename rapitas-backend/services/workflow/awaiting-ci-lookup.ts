@@ -9,8 +9,7 @@
 // NOTE: the barrel client (not config/database) on purpose — the runner's tests mock '../../config'
 // and must not fall through to a real database when this module is consulted every pass.
 import { prisma } from '../../config';
-import { AWAITING_REQUIRED_MERGE_CAUSE } from './required-merge-hold';
-import { isAwaitingCiItem, isCiWaitTask } from './awaiting-ci';
+import { AWAITING_REQUIRED_MERGE_CAUSE, isAwaitingCiItem, isCiWaitTask } from './awaiting-ci';
 
 /** One task that released its slot and now waits for CI / the required merge. */
 export interface AwaitingCiEntry {

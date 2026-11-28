@@ -12,68 +12,22 @@ import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { getAppHidden, subscribeAppHidden } from '@/hooks/common/app-visibility-store';
 import { resolvePollInterval, usePollHidden } from '@/hooks/common/poll-interval';
 
-export type AutoRunStatus = 'idle' | 'running' | 'paused' | 'stopping';
+import type {
+  ActiveTask,
+  AutoRunData,
+  CurrentTask,
+  ThemeAutoRunState,
+} from './theme-auto-run.types';
 
-export interface ThemeAutoRunState {
-  id: number;
-  themeId: number;
-  enabled: boolean;
-  status: AutoRunStatus;
-  order: 'priority' | 'created';
-  currentTaskId: number | null;
-  processedCount: number;
-  lastError: string | null;
-  lastRunAt: string | null;
-  startedAt: string | null;
-  updatedAt: string;
-}
-
-/** The task auto-run is working on, as the state endpoint returns it. */
-export interface CurrentTask {
-  id: number;
-  title: string;
-  status: string;
-  workflowStatus: string | null;
-  /** lightweight / standard / comprehensive; absent from older backends. */
-  workflowMode?: string | null;
-  /** Send-backs to an earlier phase, or null when none. */
-  rework?: ReworkSummary | null;
-  /**
-   * Other tasks of the theme running in parallel with this one (task 1552),
-   * copied from the response's `activeTasks`; absent or empty = one at a time.
-   */
-  companions?: ActiveTask[];
-}
-
-/** One running task of the theme, head first (task 1552). */
-export interface ActiveTask {
-  id: number;
-  title: string;
-  /** `head` = currentTask, `companion` = a 2nd+ task running alongside it. */
-  role: 'head' | 'companion';
-}
-
-/** How often the task was sent back, and the most recent send-back. */
-export interface ReworkSummary {
-  count: number;
-  lastFromStatus: string;
-  lastToStatus: string;
-  lastCause: string;
-  lastAt: string;
-}
-
-/** Auto-run state plus the current task and the remaining backlog count. */
-export interface AutoRunData {
-  autoRun: ThemeAutoRunState;
-  currentTask: CurrentTask | null;
-  remainingCount: number;
-  /** Every running task of the theme (task 1552); absent from older backends. */
-  activeTasks?: ActiveTask[];
-  /** True while auto-run starts no new work until merged code activates (task 1562). */
-  restartWait?: boolean;
-  /** Updates waiting to activate; null when unknown. / 取り込み待ちの件数 */
-  pendingUpdateCount?: number | null;
-}
+export type {
+  ActiveTask,
+  AutoRunData,
+  AutoRunStatus,
+  AwaitingCiEntry,
+  CurrentTask,
+  ReworkSummary,
+  ThemeAutoRunState,
+} from './theme-auto-run.types';
 
 /**
  * Attach the companions to the head so the progress strip, which receives only
@@ -193,6 +147,7 @@ export function useThemeAutoRun(themeId: number | null | undefined, isDevelopmen
           currentTask: withCompanions(json.currentTask ?? null, json.activeTasks),
           remainingCount: json.remainingCount ?? 0,
           activeTasks: json.activeTasks,
+          awaitingCi: json.awaitingCi,
           restartWait: json.restartWait === true,
           pendingUpdateCount:
             typeof json.pendingUpdateCount === 'number' ? json.pendingUpdateCount : null,

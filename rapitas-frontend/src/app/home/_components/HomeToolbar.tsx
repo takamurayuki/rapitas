@@ -11,6 +11,7 @@ import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 import { AutoExecutionMode } from './AutoExecutionMode';
 import { AutoRunProgressStrip } from './AutoRunProgressStrip';
+import { isProgressStripVisible } from './auto-run/strip-visibility';
 import { HomeFilterSummary, type FilterScope } from './HomeFilterSummary';
 
 interface HomeToolbarProps {
@@ -71,8 +72,6 @@ export function HomeToolbar({
   // One poll for both the toolbar control and the progress strip under it.
   const autoRun = useThemeAutoRun(autoRunTheme?.id ?? null, autoRunTheme?.isDevelopment);
   const autoRunData = autoRunTheme?.isDevelopment ? autoRun.data : null;
-  const autoRunStatus = autoRunData?.autoRun.status;
-  const stripVisible = autoRunStatus === 'running' || autoRunStatus === 'paused';
 
   // NOTE: the row wraps instead of squeezing — at 390px the actions were
   // crushed into one-character-wide columns of vertical text. min-h-[62px] is
@@ -275,7 +274,7 @@ export function HomeToolbar({
         state, so the task, its phase and the backlog go here (2026-11-21). */}
       {/* With the filter hidden, its category and theme join this band
         instead of drawing a second one (2026-11-21). */}
-      {autoRunData && stripVisible ? (
+      {autoRunData && isProgressStripVisible(autoRunData) ? (
         <AutoRunProgressStrip
           status={autoRunData.autoRun.status}
           currentTask={autoRunData.currentTask}
@@ -285,6 +284,7 @@ export function HomeToolbar({
           startedAt={autoRunData.autoRun.startedAt}
           scope={filterScope}
           activeTasks={autoRunData.activeTasks}
+          awaitingCi={autoRunData.awaitingCi}
           themeId={autoRunTheme?.id}
         />
       ) : (

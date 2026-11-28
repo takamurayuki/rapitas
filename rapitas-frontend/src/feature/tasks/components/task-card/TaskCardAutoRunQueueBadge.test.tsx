@@ -82,6 +82,34 @@ describe('TaskCardAutoRunQueueBadge', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // task 1570: a task waiting for CI is neither next up nor queued.
+  it('CI 待ちは「次に着手」より優先して「CI 待ち」を表示する', () => {
+    render(
+      <TaskCardAutoRunQueueBadge
+        task={createMockTask({
+          autoRunAwaitingCi: true,
+          autoRunCurrent: true,
+          autoRunQueued: true,
+        })}
+        isExecuting={false}
+      />,
+    );
+    expect(screen.getByText('awaitingCi.card')).toBeInTheDocument();
+    expect(screen.getByTitle('awaitingCi.cardTooltip')).toBeInTheDocument();
+    expect(screen.queryByText('taskCard.autoRunNextUp')).toBeNull();
+    expect(screen.queryByText('taskCard.autoRunQueued')).toBeNull();
+  });
+
+  it('CI 待ちでもエージェント実行中は何も表示しない', () => {
+    const { container } = render(
+      <TaskCardAutoRunQueueBadge
+        task={createMockTask({ autoRunAwaitingCi: true })}
+        isExecuting={true}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it('autoRunCurrent が autoRunQueued より優先される', () => {
     render(
       <TaskCardAutoRunQueueBadge
