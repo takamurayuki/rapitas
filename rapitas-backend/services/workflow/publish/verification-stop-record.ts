@@ -86,6 +86,33 @@ export async function recordVerificationStop(stop: VerificationStop): Promise<vo
   } catch (err) {
     log.warn({ err, taskId, stage, failedChecks }, 'Failed to record the verification stop');
   }
+  // Not awaited: the save stage returns its refusal at once even when the miss
+  // ledger's DB is slow (filePreSaveMisses never rejects).
+  if (stage === 'pre_save') void filePreSaveMisses(stop);
+}
+
+/**
+ * File each failed pre-save check as a self-verify miss (task 1602). Never
+ * throws; the dynamic import keeps a timeline mock from breaking this module.
+ */
+async function filePreSaveMisses(stop: VerificationStop): Promise<void> {
+  try {
+    const { recordSelfVerifyMiss } = await import('../self-verify-miss');
+    for (const name of stop.failedChecks) {
+      const detail = stop.details.find((d) => d.name === name)?.details ?? '';
+      // secret / attribution details are the offending paths, one per line.
+      const files = name === 'tamper' ? [] : detail.split('\n').filter(Boolean);
+      await recordSelfVerifyMiss({
+        taskId: stop.taskId,
+        gate: `presave:${name}`,
+        checkName: name,
+        reason: `${stop.summary}\n${detail}`.trim(),
+        files,
+      });
+    }
+  } catch (err) {
+    log.warn({ err, taskId: stop.taskId }, 'Failed to file pre-save self-verify misses');
+  }
 }
 
 /**

@@ -22,6 +22,7 @@ import {
 } from './daily-report-core';
 import { PLAN_CRITIC_CAUSES, type RawCriticTransition } from './daily-report-critic';
 import { runBriefingHook } from './briefing/briefing-hook';
+import { appendSelfVerifyMissSection, loadSelfVerifyMissSummary } from './self-verify-miss-section';
 import {
   aiFormatDailyReport,
   formatDailyReport,
@@ -212,7 +213,10 @@ export async function runDailyReport(): Promise<number> {
   }
 
   const windowStart = new Date(now.getTime() - DAILY_REPORT_WINDOW_MS);
+  // Task 1602: self-verify misses count as activity and get their own section.
+  const missSummary = await loadSelfVerifyMissSummary(windowStart, now);
   const raw = await collectDailyReportData(windowStart, now);
+  raw.selfVerifyMissCount = missSummary?.misses ?? 0;
   const data = buildDailyReportData(raw, now);
 
   let reportMarkdown = formatDailyReport(data);
@@ -230,6 +234,8 @@ export async function runDailyReport(): Promise<number> {
     }
   }
 
+  // After the AI polish, so the counts and rates are never rewritten.
+  reportMarkdown = appendSelfVerifyMissSection(reportMarkdown, missSummary);
   const summaryMessage = formatDailyReportSummary(data);
   await createNotification({
     type: 'daily_report',
@@ -262,6 +268,7 @@ export async function runDailyReport(): Promise<number> {
         restartBreakdown: data.restartBreakdown,
         humanIntervention: data.humanIntervention,
         planCritic: data.planCritic,
+        selfVerifyMisses: missSummary,
       },
       reportMarkdown,
     },

@@ -25,6 +25,15 @@ const FOREGROUND_WAIT_RULE_JA =
 const FOREGROUND_WAIT_RULE_EN =
   '- **Wait for the self-verification verdict in the foreground (no background waiting)**: do not wait for the result with Monitor, ScheduleWakeup, CronCreate, Bash run_in_background, a trailing `&`, or Start-Process. rapitas runs the agent as a single answer (`--print`), so a background notification never reaches you and the run is recorded as finished the moment you end your turn — do not end your turn while `status` is `running`. Wait by repeating a short command that only sleeps 10 seconds and sends one GET (up to 90 times, 900 seconds total); never sleep longer than 10 seconds in one command. If it is still `running` after 900 seconds, record verification as unconfirmed in your final summary and end your turn.\n';
 
+// NOTE: Task 1602 — each failing check in the self-verify response now carries
+// the files, the real gate's message and a fix hint. Without this rule an
+// implementer fixed the first item, re-ran, and handed over a partially red run.
+const FAILED_CHECKS_RULE_JA =
+  '- **落ちた検査をすべて直してから自己検証をやり直し、通ってから終える**: 自己検証の応答が `ok:false` なら、`checks` のうち `ok:false` の検査を、それぞれの `failureFiles`（対象のファイル）・`gateMessage`（本物のゲートでの扱い）・`fixHint`（直し方）を見て1つ残らず直してください。直したら POST から自己検証をやり直し、`ok:true` になってから終えてください。3回やり直しても通らない場合だけ、残った検査名と理由を最終サマリに書いて終えてください。\n';
+
+const FAILED_CHECKS_RULE_EN =
+  '- **fix every failed check before re-running self-verification, and finish only when it passes**: when the self-verify response is `ok:false`, fix every check in `checks` with `ok:false`, using its `failureFiles` (where), `gateMessage` (what the real gate reports) and `fixHint` (how to fix). Then re-run self-verification from the POST, and finish only once it returns `ok:true`. Only if it still fails after 3 re-runs, end with the remaining check names and why in your final summary.\n';
+
 /**
  * Build the implementer constraints block for one task.
  *
@@ -46,6 +55,7 @@ export function buildImplementerConstraints(taskId: number, language: 'ja' | 'en
         String(taskId),
       ) +
       FOREGROUND_WAIT_RULE_JA +
+      FAILED_CHECKS_RULE_JA +
       verificationEvidencePrompt('ja') +
       shellExitCodeSafetyRule('ja') +
       implementerSelfCheckPrompt('ja') +
@@ -69,6 +79,7 @@ export function buildImplementerConstraints(taskId: number, language: 'ja' | 'en
       String(taskId),
     ) +
     FOREGROUND_WAIT_RULE_EN +
+    FAILED_CHECKS_RULE_EN +
     verificationEvidencePrompt('en') +
     shellExitCodeSafetyRule('en') +
     implementerSelfCheckPrompt('en') +

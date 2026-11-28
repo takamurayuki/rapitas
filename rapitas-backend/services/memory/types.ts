@@ -87,6 +87,9 @@ export type TimelineEventType =
   // without a new table (see verification-job-store.ts).
   | 'verification_job_started'
   | 'verification_job_finished'
+  // NOTE: task 1602 — a real gate failed after a passing self-verify run
+  // (see workflow/self-verify-miss/ for the payload contract).
+  | 'self_verify_miss'
   // NOTE: task 904 — supervision acceptance evidence (intervention, monitor
   // liveness, observation gaps, acceptance snapshots, knowledge-reuse eval).
   // Recorded on TimelineEvent rather than dedicated tables so the same code

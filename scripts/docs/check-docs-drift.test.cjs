@@ -84,3 +84,50 @@ test('env reads: dot and bracket access, not lowercase or computed names', () =>
     "process.env.RAPITAS_X; Bun.env.PORT; process.env['DATABASE_URL']; process.env[name]; process.env.lower";
   assert.deepEqual(envReads(src).sort(), ['DATABASE_URL', 'PORT', 'RAPITAS_X']);
 });
+
+// NOTE: task 1602 — the self-verifier runs this script on an uncommitted
+// worktree, so the file list must include untracked files and skip deleted ones.
+test('env problems: an undocumented read names the files that read it', () => {
+  const { envProblems } = require('./docs-drift-env.cjs');
+  const sources = {
+    'rapitas-backend/services/new-thing.ts': 'const a = process.env.FOO_BAR;',
+    'rapitas-backend/services/old.ts': "const b = process.env['KNOWN_ONE'];",
+    'rapitas-backend/services/new-thing.test.ts': 'process.env.ONLY_IN_TEST;',
+  };
+  const { undocumented, problems } = envProblems({
+    files: Object.keys(sources),
+    read: (f) => sources[f],
+    example: 'KNOWN_ONE=1\n',
+    baseline: ['GONE_VAR'],
+  });
+  assert.deepEqual(undocumented, ['FOO_BAR']);
+  const env = problems.find((p) => p.name === 'FOO_BAR');
+  assert.equal(env.kind, 'env');
+  assert.deepEqual(env.readers, ['rapitas-backend/services/new-thing.ts']);
+  const stale = problems.find((p) => p.name === 'GONE_VAR');
+  assert.equal(stale.kind, 'env-baseline');
+  assert.equal(
+    problems.some((p) => p.name === 'ONLY_IN_TEST'),
+    false,
+  );
+});
+
+test('repo files: untracked files are listed and deleted tracked files are not', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { execFileSync } = require('node:child_process');
+  const { listRepoFiles } = require('./docs-drift-repo.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-drift-files-'));
+  const git = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+  git('init', '-q');
+  fs.writeFileSync(path.join(dir, 'kept.md'), 'x');
+  fs.writeFileSync(path.join(dir, 'gone.md'), 'x');
+  git('add', '.');
+  git('-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-q', '-m', 'base');
+  fs.unlinkSync(path.join(dir, 'gone.md'));
+  fs.writeFileSync(path.join(dir, 'new.md'), 'x');
+  const files = listRepoFiles(dir);
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.deepEqual([...files].sort(), ['kept.md', 'new.md']);
+});
