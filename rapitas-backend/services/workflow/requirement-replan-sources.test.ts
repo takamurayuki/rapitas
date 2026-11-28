@@ -23,6 +23,9 @@ const verdict = {
   criterionIndex: 1,
   planLines: [0, 0],
   failureLines: [0, 0],
+  measuredResult: 'failed',
+  expected: 'completed',
+  observed: 'awaiting_question',
 };
 test('grounds a description requirement without synthesizing acceptance criteria', () => {
   const result = parseReplanVerdict(JSON.stringify(verdict), snapshot);

@@ -53,6 +53,10 @@ mock.module('../task/task-resolver', () => ({
   resolveTaskWorkflowState: resolveTaskWorkflowStateMock,
 }));
 
+// Task 1585: the settle wait asks for a recent verification stop; the real lookup reaches the DB.
+mock.module('./publish/verification-stop-record', () => ({
+  hasFreshVerificationStop: async () => false,
+}));
 const hasFreshVerifyRejectionMock = mock(
   (_taskId: number): Promise<boolean> => Promise.resolve(false),
 );

@@ -115,9 +115,8 @@ export async function attemptRequirementReplan(
     return { committed: false, reason: 'requires_human:review_result_unknown' };
   }
   if (result.verdict.kind === 'unknown') {
-    // Keep the admission decision fail-closed, but retain the review's actual
-    // explanation. Otherwise callers only see "held: unknown" and repeat an
-    // expensive review without learning which evidence is missing (task 902).
+    // Retain the review's actual explanation (task 902). This path does NOT hold
+    // the task — see the NOTE below.
     log.warn(
       {
         taskId,
@@ -126,7 +125,7 @@ export async function attemptRequirementReplan(
         snapshotDigest: result.snapshotDigest,
         durationMs: result.durationMs,
       },
-      'Requirement review held; inspect the reason before retrying unchanged evidence',
+      'Requirement review inconclusive; continuing without a replan',
     );
     // NOTE: An undecidable review is NOT a mismatch. Parking the task as
     // blocked here (2026-09-13, task 901) made every later verify save

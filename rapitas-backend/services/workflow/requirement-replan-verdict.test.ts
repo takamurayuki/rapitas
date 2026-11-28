@@ -21,7 +21,35 @@ const valid = {
   criterion: snapshot.acceptanceCriteria[0],
   planQuote: snapshot.plan,
   failureQuote: snapshot.verify,
+  measuredResult: 'failed',
+  expected: '停止状態のまま',
+  observed: 'in-progressへ復帰',
 };
+
+test('mismatch without a concrete failed measurement is a recorded conflict', () => {
+  for (const [override, code] of [
+    [{ measuredResult: 'passed' }, 'measured_result_not_failed'],
+    [{ measuredResult: undefined }, 'measured_result_not_failed'],
+    [{ expected: undefined }, 'missing_expected'],
+    [{ expected: '' }, 'missing_expected'],
+    [{ observed: null }, 'missing_observed'],
+    [{ observed: valid.expected }, 'observed_equals_expected'],
+  ] as const) {
+    expect(parseReplanVerdict(JSON.stringify({ ...valid, ...override }), snapshot)).toEqual({
+      kind: 'unknown',
+      reason: `verdict_reason_conflict:${code}: ${valid.reason}`,
+    });
+  }
+});
+
+test('earlier rejections keep their own reason even without measurement fields', () => {
+  expect(
+    parseReplanVerdict(
+      JSON.stringify({ ...valid, measuredResult: undefined, failureQuote: '架空の失敗' }),
+      snapshot,
+    ),
+  ).toEqual({ kind: 'unknown', reason: 'failure_quote_missing' });
+});
 
 test('resolves source references exactly and rejects invalid ranges', () => {
   const claim = {

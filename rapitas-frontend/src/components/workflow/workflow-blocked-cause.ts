@@ -24,6 +24,50 @@ export const BLOCKED_CAUSE_I18N_KEYS: Record<string, string> = {
   subtask_failed: 'subtaskFailed',
 };
 
+/** Stop records and the metadata key naming their checks. */
+const CHECK_NAME_KEYS: Record<string, string> = {
+  verification_stopped: 'failedChecks',
+  verification_unverifiable_hold: 'unverifiableChecks',
+};
+
+/**
+ * Follow-up rows written after a stop. They would hide which check stopped the task.
+ * NOTE: Keep in step with the backend's services/task/blocked-cause.ts.
+ */
+const FOLLOW_UP_CAUSES = new Set([
+  'verify_pr_not_created',
+  'verification_gate_failed',
+  'verification_gate_repeat_hold',
+]);
+
+/** The slice of a workflow transition needed to explain a block. */
+export interface BlockedCauseTransition {
+  cause?: string | null;
+  metadata?: unknown;
+}
+
+/**
+ * Cause to show for a blocked task, in the same `<cause>:<check,check>` form the
+ * list endpoint returns.
+ *
+ * @param transitions - Transitions, oldest first / 古い順の遷移
+ * @returns Cause code, or null when there is none / 原因コード
+ */
+export function blockedCauseFromTransitions(transitions: BlockedCauseTransition[]): string | null {
+  for (let i = transitions.length - 1; i >= 0; i--) {
+    const { cause, metadata } = transitions[i];
+    if (cause && Object.hasOwn(CHECK_NAME_KEYS, cause)) {
+      const names = (metadata as Record<string, unknown> | null | undefined)?.[
+        CHECK_NAME_KEYS[cause]
+      ];
+      const checks = Array.isArray(names) ? names.filter((n) => typeof n === 'string') : [];
+      return checks.length ? `${cause}:${checks.join(',')}` : cause;
+    }
+    if (!cause || !FOLLOW_UP_CAUSES.has(cause)) break;
+  }
+  return transitions[transitions.length - 1]?.cause ?? null;
+}
+
 /**
  * Resolve a blocked-cause code to its localized message, using `t` from
  * `useTranslations('workflow')`.
@@ -38,7 +82,12 @@ export function resolveBlockedCauseLabel(
 ): string | undefined {
   if (!cause) return undefined;
   const i18nKey = BLOCKED_CAUSE_I18N_KEYS[cause];
-  return i18nKey
-    ? t(`statusIndicator.blockedCauses.${i18nKey}`)
-    : t('statusIndicator.blockedCauseUnknown', { cause });
+  if (i18nKey) return t(`statusIndicator.blockedCauses.${i18nKey}`);
+  // Only stop records carry check names; other codes may contain ':' themselves.
+  const [code, checks] = cause.split(':');
+  const shown =
+    checks && Object.hasOwn(CHECK_NAME_KEYS, code)
+      ? `${code}: ${checks.split(',').join(', ')}`
+      : cause;
+  return t('statusIndicator.blockedCauseUnknown', { cause: shown });
 }
