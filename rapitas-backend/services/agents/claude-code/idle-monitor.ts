@@ -11,6 +11,10 @@ import { execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { createLogger } from '../../../config/logger';
 import type { AgentExecutionResult } from '../base-agent';
+import {
+  REAL_MONITOR_CLOCK,
+  type MonitorClock,
+} from '../../workflow/self-verification-activity/activity-reporter';
 
 const logger = createLogger('claude-code-agent');
 
@@ -35,7 +39,46 @@ export type IdleMonitorCallbacks = {
   getOutputBuffer: () => string;
   /** Getter for current errorBuffer content (for timeout error message) */
   getErrorBuffer: () => string;
+  /**
+   * Whether self-verification is running in this agent's worktree. While it
+   * is, silence is expected (the agent is waiting on the gate), so both idle
+   * windows are held open. Omitted = never active (pre-1582 behaviour).
+   */
+  isSelfVerificationActive?: () => boolean;
+  /** Called on every idle check (5 s); the self-verification reporter emits its lines here. */
+  onTick?: () => void;
 };
+
+/** Why the monitor force-kills the process tree. */
+export type IdleKillReason = 'idle-hang' | 'wall-clock';
+
+/** Injectable time and kill primitives (tests drive these). */
+export type IdleMonitorDeps = {
+  clock?: MonitorClock;
+  killTree?: (proc: ChildProcess, reason: IdleKillReason) => void;
+};
+
+/** Kill the CLI and its children: taskkill /T on Windows, SIGTERM elsewhere. */
+function killProcessTree(logPrefix: string, proc: ChildProcess, reason: IdleKillReason): void {
+  const pid = proc.pid;
+  if (process.platform !== 'win32') {
+    proc.kill('SIGTERM');
+    return;
+  }
+  try {
+    if (pid) {
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true });
+      logger.info(`${logPrefix} Process ${pid} killed via taskkill (${reason})`);
+    }
+  } catch (e) {
+    logger.warn({ err: e }, `${logPrefix} taskkill failed (${reason}), trying process.kill()`);
+    try {
+      proc.kill();
+    } catch (killErr) {
+      logger.warn({ err: killErr }, `${logPrefix} process.kill() also failed (${reason})`);
+    }
+  }
+}
 
 export type IdleMonitorHandles = {
   /** Stop and clean up both timers */
@@ -54,6 +97,7 @@ export type IdleMonitorHandles = {
  * @param timeout - Max milliseconds of silence before treating execution as timed out / タイムアウトまでのミリ秒
  * @param startTime - Timestamp when execution began / 実行開始タイムスタンプ
  * @param callbacks - Callbacks into the agent instance / エージェントインスタンスへのコールバック
+ * @param deps - Clock and kill overrides for tests / テスト用の時計とkill
  * @returns Handles to control the timers / タイマーを制御するハンドル
  */
 export function startIdleMonitor(
@@ -61,17 +105,35 @@ export function startIdleMonitor(
   timeout: number,
   startTime: number,
   callbacks: IdleMonitorCallbacks,
+  deps: IdleMonitorDeps = {},
 ): IdleMonitorHandles {
-  let lastOutputTime = Date.now();
+  const clock = deps.clock ?? REAL_MONITOR_CLOCK;
+  const killTree = deps.killTree ?? ((proc, reason) => killProcessTree(logPrefix, proc, reason));
+  let lastOutputTime = clock.now();
   let hasReceivedAnyOutput = false;
+  let holdLogged = false;
 
   const OUTPUT_IDLE_TIMEOUT = 30000; // 30 seconds
   const INITIAL_OUTPUT_TIMEOUT = 60000; // Initial output timeout: 60 seconds
   const MAX_OUTPUT_IDLE_TIMEOUT = 300000; // 5 min: treat as hung if idle for 5 min after output
 
-  const idleCheckInterval = setInterval(() => {
-    const idleTime = Date.now() - lastOutputTime;
-    const totalElapsed = Date.now() - startTime;
+  const idleCheckInterval = clock.setInterval(() => {
+    callbacks.onTick?.();
+    // NOTE: Task 1582 — a CLI waiting on self-verification prints nothing for
+    // minutes and was killed as hung. While the gate runs, keep the idle clock
+    // at "now" so the 5-minute rule (and the no-output timeout below) only
+    // starts counting once verification has ended. The wall-clock cap is not held.
+    if (callbacks.isSelfVerificationActive?.()) {
+      lastOutputTime = clock.now();
+      if (!holdLogged) {
+        holdLogged = true;
+        logger.info(`${logPrefix} Self-verification running — holding idle-hang detection`);
+      }
+    } else {
+      holdLogged = false;
+    }
+    const idleTime = clock.now() - lastOutputTime;
+    const totalElapsed = clock.now() - startTime;
 
     // Warn if no output received after 60 seconds (only once)
     if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
@@ -116,29 +178,8 @@ export function startIdleMonitor(
         `\n${logPrefix} Process has been unresponsive for ${Math.floor(idleTime / 1000)} seconds, treating as hang and force-terminating.\n`,
       );
       callbacks.setIdleTimeoutForceKilled(true);
-      clearInterval(idleCheckInterval);
-
-      const pid = proc.pid;
-      if (process.platform === 'win32') {
-        try {
-          if (pid) {
-            execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true });
-            logger.info(`${logPrefix} Process ${pid} killed via taskkill (idle hang)`);
-          }
-        } catch (e) {
-          logger.warn(
-            { err: e },
-            `${logPrefix} taskkill failed (idle hang), trying process.kill()`,
-          );
-          try {
-            proc.kill();
-          } catch (killErr) {
-            logger.warn({ err: killErr }, `${logPrefix} process.kill() also failed (idle hang)`);
-          }
-        }
-      } else {
-        proc.kill('SIGTERM');
-      }
+      clock.clearInterval(idleCheckInterval);
+      killTree(proc, 'idle-hang');
     }
 
     // Wall-clock hard cap. BOTH checks here (and the timeoutCheckInterval below)
@@ -160,32 +201,15 @@ export function startIdleMonitor(
       // this kill apart from an idle hang — a wall-clock kill is not a provider
       // error and must not trigger a provider cooldown (task 546).
       callbacks.setWallClockTimeoutForceKilled(true);
-      clearInterval(idleCheckInterval);
-      const pid = proc.pid;
-      if (process.platform === 'win32') {
-        try {
-          if (pid) execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true });
-        } catch (e) {
-          logger.warn(
-            { err: e },
-            `${logPrefix} taskkill failed (wall-clock), trying process.kill()`,
-          );
-          try {
-            proc.kill();
-          } catch (killErr) {
-            logger.warn({ err: killErr }, `${logPrefix} process.kill() also failed (wall-clock)`);
-          }
-        }
-      } else {
-        proc.kill('SIGTERM');
-      }
+      clock.clearInterval(idleCheckInterval);
+      killTree(proc, 'wall-clock');
     }
   }, 5000); // Check every 5 seconds
 
-  const timeoutCheckInterval = setInterval(() => {
+  const timeoutCheckInterval = clock.setInterval(() => {
     const proc = callbacks.getProcess();
     if (proc && !proc.killed) {
-      const timeSinceLastOutput = Date.now() - lastOutputTime;
+      const timeSinceLastOutput = clock.now() - lastOutputTime;
 
       if (timeSinceLastOutput >= timeout) {
         logger.info(`${logPrefix} TIMEOUT: No output for ${timeout / 1000}s`);
@@ -193,8 +217,8 @@ export function startIdleMonitor(
         logger.info(`${logPrefix} Output so far: ${callbacks.getOutputBuffer().substring(0, 500)}`);
         logger.info(`${logPrefix} Error so far: ${callbacks.getErrorBuffer().substring(0, 500)}`);
         logger.info(`${logPrefix} LineBuffer: ${callbacks.getLineBuffer().substring(0, 500)}`);
-        clearInterval(timeoutCheckInterval);
-        clearInterval(idleCheckInterval);
+        clock.clearInterval(timeoutCheckInterval);
+        clock.clearInterval(idleCheckInterval);
         callbacks.onFlushLineBuffer(
           `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
         );
@@ -203,7 +227,7 @@ export function startIdleMonitor(
           success: false,
           output: callbacks.getOutputBuffer(),
           errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
-          executionTimeMs: Date.now() - startTime,
+          executionTimeMs: clock.now() - startTime,
         });
       }
     }
@@ -211,11 +235,11 @@ export function startIdleMonitor(
 
   return {
     cleanup() {
-      clearInterval(idleCheckInterval);
-      clearInterval(timeoutCheckInterval);
+      clock.clearInterval(idleCheckInterval);
+      clock.clearInterval(timeoutCheckInterval);
     },
     recordOutput() {
-      lastOutputTime = Date.now();
+      lastOutputTime = clock.now();
     },
     markReceivedOutput() {
       hasReceivedAnyOutput = true;

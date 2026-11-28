@@ -60,3 +60,43 @@ describe('scheduleAgentReap', () => {
     expect(order).toEqual(['capture', 'schedule']);
   });
 });
+
+// Task 1582: the gate's lint/test processes run with the worktree in their
+// command line. Sweeping by path while self-verification runs would kill them
+// and record a failed check, so the sweep is skipped (own tree only) then.
+describe('scheduleAgentReap — self-verification in the worktree (task 1582)', () => {
+  const WT = 'C:\\Projects\\rapitas\\.worktrees\\task-1582-3d992549';
+
+  test('while self-verification runs, only the agent tree is reaped (no worktree sweep)', () => {
+    const { d, kills, run } = deps();
+    const asked: string[] = [];
+    d.isSelfVerificationActive = (wd) => {
+      asked.push(wd);
+      return true;
+    };
+    scheduleAgentReap(4321, WT, d);
+    run();
+    expect(asked).toEqual([WT]);
+    expect(kills).toHaveLength(1);
+    expect(kills[0].opts.workdir).toBeUndefined();
+    expect([...(kills[0].opts.knownTargets ?? [])]).toEqual([11, 12]);
+  });
+
+  test('with no self-verification running, the worktree is swept as before', () => {
+    const { d, kills, run } = deps();
+    d.isSelfVerificationActive = () => false;
+    scheduleAgentReap(4321, WT, d);
+    run();
+    expect(kills[0].opts.workdir).toBe(WT);
+  });
+
+  test('the check happens when the reap fires, not when it is scheduled', () => {
+    const { d, kills, run } = deps();
+    let active = false;
+    d.isSelfVerificationActive = () => active;
+    scheduleAgentReap(4321, WT, d);
+    active = true;
+    run();
+    expect(kills[0].opts.workdir).toBeUndefined();
+  });
+});

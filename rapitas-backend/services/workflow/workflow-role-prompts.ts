@@ -1,8 +1,3 @@
-import {
-  verificationEvidencePrompt,
-  shellExitCodeSafetyRule,
-  implementerSelfCheckPrompt,
-} from './workflow-verification-evidence-prompt';
 /**
  * Workflow Role Prompts
  *
@@ -11,10 +6,15 @@ import {
  * read workflow files — that is the role context builders' job.
  */
 import {
+  verificationEvidencePrompt,
+  shellExitCodeSafetyRule,
+} from './workflow-verification-evidence-prompt';
+import {
   QUESTION_FORMAT_GUIDANCE_JA,
   QUESTION_FORMAT_GUIDANCE_EN,
 } from './workflow-question-format-guidance';
 import * as testScope from './workflow-test-scope-rule';
+import { buildImplementerConstraints } from './workflow-implementer-constraints-prompt';
 import { PRIMARY_CHECKOUT_GUIDANCE } from './primary-checkout-guidance';
 import {
   VERDICT_SCOPE_GUIDANCE_JA,
@@ -22,70 +22,11 @@ import {
 } from './verify-verdict-scope-guidance';
 import { PLAN_DECLARATION_GUIDANCE } from './plan-deviation/declaration-parser';
 import { PLAN_SIZE_GUIDANCE } from './plan-size-policy';
-import { resolveAcceptanceCriteria } from '../agents/verification/acceptance-self-check';
+import { buildAcceptanceBlock } from './workflow-role-prompt-acceptance';
 import { RESEARCH_CRITERIA_REVIEW_EN, RESEARCH_CRITERIA_REVIEW_JA } from './criteria-review';
 
-/** Researcher-role prompt texts. */
-export interface ResearcherTexts {
-  /** Lead instruction to investigate the codebase. */
-  instruction: string;
-  /** Premise-audit directive (R2). */
-  premiseAudit: string;
-  /** Investigation item list. */
-  items: string;
-  /** Output-format instruction for research.md. */
-  output: string;
-}
-
-/** Planner-role prompt texts. */
-export interface PlannerTexts {
-  /** Heading placed above the research.md content. */
-  researchHeader: string;
-  /** Lead instruction to produce plan.md. */
-  instruction: string;
-  /** Premortem directive (R7). */
-  premortem: string;
-  /** Self-containment rule for plan.md. */
-  selfContainment: string;
-}
-
-/** Implementer-role prompt texts. */
-export interface ImplementerTexts {
-  /** Heading placed above the research.md content. */
-  researchHeader: string;
-  /** Heading placed above the plan.md content. */
-  planHeader: string;
-  /** Heading placed above the question.md content. */
-  reviewHeader: string;
-  /** Lead instruction when plan.md exists. */
-  leadWithPlan: string;
-  /** Lead instruction when plan.md does not exist (lightweight mode). */
-  leadNoPlan: string;
-  /** Implementer constraints block (self-verification API etc.). */
-  constraints: string;
-}
-
-/** Verifier-role prompt texts (shared by auto_verifier). */
-export interface VerifierTexts {
-  /** Heading placed above the plan.md content. */
-  planHeader: string;
-  /** Heading placed above the git diff block. */
-  diffHeader: string;
-  /** Full verifier instruction block. */
-  instruction: string;
-}
-
-/** All prompt texts for one language, keyed by role. */
-export interface RoleContextTexts {
-  /** Task metadata block (title / description / task id). */
-  taskInfo: string;
-  /** question.md machine-readable format guidance. */
-  questionFormat: string;
-  researcher: ResearcherTexts;
-  planner: PlannerTexts;
-  implementer: ImplementerTexts;
-  verifier: VerifierTexts;
-}
+export type * from './workflow-role-prompt-types'; // NOTE: moved out for the 300-line split
+import type { RoleContextTexts } from './workflow-role-prompt-types';
 
 /**
  * Build the language-specific prompt text templates for all workflow roles.
@@ -100,14 +41,7 @@ export function buildRoleTexts(
   task: { title: string; description: string | null; acceptanceCriteria?: string | null },
   language: 'ja' | 'en',
 ): RoleContextTexts {
-  const criteria = resolveAcceptanceCriteria(task);
-  const acceptanceBlock = criteria.length
-    ? '\n\n' +
-      (language === 'ja'
-        ? '## 明示された受入条件\n以下の各条件を計画・実装・検証に対応づけてください。調査結果や過去の計画を理由に省略しないでください。既存計画との矛盾や欠落は完了扱いせず報告し、正規の再計画経路で解消してください。\n'
-        : '## Explicit acceptance criteria\nMap every criterion to planning, implementation and verification. Do not omit criteria based on prior research or plans. Report contradictions or omissions in an existing plan and resolve them through the supported replanning flow before claiming completion.\n') +
-      criteria.map((criterion, index) => `${index + 1}. ${criterion}`).join('\n')
-    : '';
+  const acceptanceBlock = buildAcceptanceBlock(task, language);
   const texts = {
     ja: {
       taskInfo: `# タスク情報\n- **タイトル**: ${task.title}\n- **説明**: ${task.description || '(なし)'}\n- **タスクID**: ${taskId}${acceptanceBlock}`,
@@ -176,26 +110,7 @@ export function buildRoleTexts(
           '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。',
         leadNoPlan:
           '上記の調査結果とタスク内容に基づいて実装を完了してください。必要なファイルの作成・編集を行い、コードを実装してください。',
-        constraints:
-          '## 実装者の責務 (厳守)\n' +
-          '- あなたの仕事はコード変更だけです。**verify.md / research.md / plan.md は絶対に保存しないでください。**\n' +
-          '- `curl` / `Invoke-RestMethod` / `wget` によるワークフロー API の呼び出しは、下記の**自己検証 API**（と、ユーザー判断が必要な場合の question.md 保存）を除き禁じます。最終検証は次フェーズの verifier ロールが行います。\n' +
-          '- 同様に `PUT /tasks/:id/status` などタスクステータスを変更する API も呼ばないでください。状態遷移は Rapitas 側が自動で行います。\n' +
-          '- ワークフロー API の保存系を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
-          `- **完了前の自己検証（必須・ジョブ起動＋GETポーリング）**: コード変更が完了したと判断したら、終了する前に \`curl -s --max-time 30 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` を実行してください。このAPIは即座に \`{"runId":"...","status":"running","pollUrl":"..."}\` を返し、実際のlint/型/テストゲートはサーバー側で非同期に実行されます。\n` +
-          '- **結果の取得（GETポーリング、POSTの再送は禁止）**: 応答の `pollUrl`（`GET http://127.0.0.1:3001<pollUrl>`）を20秒間隔・最大45回（合計最大900秒）ポーリングしてください。`status:"completed"` になったら `ok`/`unverifiable`/`checks`/`markdown` を確認し、`"ok":false` なら内容を修正して再度POSTから実行（最大3回）。`status:"failed"` ならエラー内容を確認して修正してください。45回経過しても `running` のまま、または `status:"interrupted"`（前回ジョブがサーバー再起動等で中断）の場合は、検証を「未確定」として最終サマリに記録し終了してください。**同一taskIdへ`run-verification`をPOSTで繰り返し送る行為・接続断のたびに新しい検証を起動する行為は禁止**です（実行中のジョブがあれば同じ `runId` を返すだけで新規ジョブは起動されません）。最初のPOSTの応答自体を受け取れなかった場合は `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` で直近のジョブを取得してください（これも新規検証は起動しません）。検証状態を記録するためにローカルファイルを作る場合、`status` が `completed`/`failed`/`interrupted` のいずれかに確定するまではそのファイルを削除しないでください。最終サマリには使用した `runId` を必ず記載してください。\n'.replace(
-            '${taskId}',
-            String(taskId),
-          ) +
-          verificationEvidencePrompt(language) +
-          shellExitCodeSafetyRule(language) +
-          implementerSelfCheckPrompt(language) +
-          '- **受入基準の自己照合（完了宣言の条件）**: 自己検証の応答に `acceptance=NG` が含まれる場合、差分が受入基準に対応していない（または受入基準・タスク本文と無関係な差分である）可能性が高い。各受入基準に「この差分のどのファイル/変更が満たすか」を対応付けて確認し、対応付けられない基準が1つでも残る間は完了を宣言せず、差分を修正して自己検証を再実行してください。機械照合の誤検出（対応済みなのに NG）と判断した場合のみ、どの変更がどの基準を満たすかを最終サマリで明示した上で終了してよい。同様に `coverage=NG`（ソース変更にテスト非同伴）も、テストを追加してから完了してください。\n' +
-          '- **plan.md チェックリストの全件照合（完了宣言の条件、差し戻し最多要因）**: plan.md がある場合、終了前にチェックリストの各項目（特に「テスト」「統合テスト」「〜のテストを追加」の項目）を1つずつ「実装済み / 未実施」で照合し、**未実施が1件でも残る間は終了しない**でください。検証者は未実施の計画項目が1件でも残れば `⚠️ 一部失敗` で差し戻します（2026-09-14〜20 の差し戻し 96 件の大半がこれです）。計画項目が不可能・不適切だと判断した場合は黙って省略せず、question.md で計画の改訂を求めてください。最終サマリに「plan チェックリスト照合: N/N 実装済み」の1行を必ず含めてください。\n' +
-          '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。\n' +
-          testScope.TEST_SCOPE_RULE_IMPLEMENTER_JA +
-          '- **純粋関数・ユーティリティを単体で試したい場合、アドホックな検証スクリプトではなく既存/新規の `*.test.ts` を使ってください**: worktree内で `mkdir`/`cat > ...<<EOF` 等によるアドホックな検証スクリプトの作成や、それに伴うパッケージインストールの試行は禁止します。既存の `*.test.ts` に対象関数を直接importするテストが無いか確認し、無ければ最小限の `*.test.ts` を新規作成して `bun test --isolate <1ファイル>` で検証してください。\n' +
-          PRIMARY_CHECKOUT_GUIDANCE.ja.trimEnd(),
+        constraints: buildImplementerConstraints(taskId, 'ja'),
       },
       verifier: {
         planHeader: '# 実装計画 (plan.md)',
@@ -320,25 +235,7 @@ export function buildRoleTexts(
           'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.',
         leadNoPlan:
           'Please complete the implementation based on the research and task above. Create and edit the necessary files and implement the code.',
-        constraints:
-          '## Implementer Constraints (strict)\n' +
-          '- Your job is code changes ONLY. **DO NOT save verify.md / research.md / plan.md.**\n' +
-          '- Calling the workflow API via `curl` / `Invoke-RestMethod` / `wget` is forbidden except for the self-verification API below (and saving question.md when a user decision is required). Final verification is performed by the verifier role in the next phase.\n' +
-          '- DO NOT call `PUT /tasks/:id/status` or any task-status mutation API. State transitions are managed by Rapitas.\n' +
-          '- Save-type workflow API calls will return 400 if you try (status guard). Do not search for workarounds — finish when code changes are done.\n' +
-          `- **Self-verification before finishing (REQUIRED — job launch + GET polling)**: once you judge the code changes complete, run \`curl -s --max-time 30 -X POST http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification\` before exiting. This API returns immediately with \`{"runId":"...","status":"running","pollUrl":"..."}\`; the actual lint/type/test gate runs asynchronously on the server.\n` +
-          '- **Retrieving the result (GET polling — do NOT re-send the POST)**: poll the response\'s `pollUrl` (`GET http://127.0.0.1:3001<pollUrl>`) every 20 seconds, up to 45 times (900 seconds total). Once `status:"completed"`, check `ok`/`unverifiable`/`checks`/`markdown`; if `"ok":false`, fix the issues and re-run from POST (up to 3 times). If `status:"failed"`, inspect the error and fix it. If it is still `running` after 45 polls, or `status:"interrupted"` (the previous job was interrupted by e.g. a server restart), record verification as unconfirmed in your final summary and exit. **Repeatedly POSTing `run-verification` for the same taskId, or starting a new verification on every disconnect, is FORBIDDEN** — a running job returns the SAME `runId` and no new job is started. If the initial POST response itself was never received, use `GET http://127.0.0.1:3001/workflow/tasks/${taskId}/run-verification/latest` to fetch the most recent job (this also never starts a new one). If you keep a local file to track verification state, do NOT delete it until `status` resolves to one of `completed`/`failed`/`interrupted`. Always record the `runId` you used in your final summary.\n'.replace(
-            '${taskId}',
-            String(taskId),
-          ) +
-          verificationEvidencePrompt(language) +
-          shellExitCodeSafetyRule(language) +
-          implementerSelfCheckPrompt(language) +
-          '- **Reconcile every plan.md checklist item before finishing (the most common cause of repair bounces)**: when plan.md exists, go through each checklist item — especially test / integration-test / "add tests for …" items — and mark it done or not done. **Do not finish while any item is not done**: the verifier returns `⚠️ Partial` for a single unfinished plan item (most of the 96 bounces in the week to 2026-09-20). If an item is impossible or wrong, do not skip it silently — request a plan revision via question.md. End your final summary with one line: "plan checklist: N/N done".\n' +
-          '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.\n' +
-          testScope.TEST_SCOPE_RULE_IMPLEMENTER_EN +
-          '- **To try out a pure function or utility in isolation, use an existing or new `*.test.ts` file — never an ad-hoc script**: do not create ad-hoc verification scripts (`mkdir`/heredoc) or attempt package installs inside the worktree for this. Check whether an existing `*.test.ts` already imports the target function directly; if not, add a minimal `*.test.ts` and verify with `bun test --isolate <file>`.\n' +
-          PRIMARY_CHECKOUT_GUIDANCE.en.trimEnd(),
+        constraints: buildImplementerConstraints(taskId, 'en'),
       },
       verifier: {
         planHeader: '# Implementation Plan (plan.md)',

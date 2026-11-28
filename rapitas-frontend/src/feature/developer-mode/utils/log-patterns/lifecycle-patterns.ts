@@ -233,6 +233,38 @@ export function getLifecyclePatterns(t: LogTranslate): LogPatternRule[] {
       }),
     },
 
+    // ── Self-verification (task 1582) ────────────────────────────────────
+    // Emitted by the backend agent watchdogs (self-verification-activity).
+    // FlaskConical = the verification concept, same glyph as the verify phase.
+    {
+      pattern: /^\[SelfVerification\]\s+waiting\b/,
+      transform: () => ({
+        category: 'progress',
+        message: t('selfVerificationWaiting'),
+        iconName: 'FlaskConical',
+      }),
+    },
+    {
+      pattern:
+        /^\[SelfVerification\]\s+result\b.*?\bok=(true|false)\s+unverifiable=(true|false)\s+passed=(\d+)\s+failed=(\d+)/,
+      transform: (_l, m) => {
+        const counts = { passed: m[3], failed: m[4] };
+        if (m[2] === 'true') {
+          return {
+            category: 'warning',
+            message: t('selfVerificationUnverified', counts),
+            iconName: 'FlaskConical',
+          };
+        }
+        const ok = m[1] === 'true';
+        return {
+          category: ok ? 'success' : 'error',
+          message: t(ok ? 'selfVerificationPassed' : 'selfVerificationFailed', counts),
+          iconName: 'FlaskConical',
+        };
+      },
+    },
+
     // ── Result ───────────────────────────────────────────────────────────
     {
       pattern: /^\[Result:\s*(\w+)(?:\s*\(([^)]+)\))?\s*(\$[\d.]+)?\]/,

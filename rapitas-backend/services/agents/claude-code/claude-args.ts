@@ -83,6 +83,15 @@ export function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logEx
     'ToolSearch',
     'Skill',
     'Task',
+    // NOTE: Background waiters (task 1582). rapitas runs the CLI as one
+    // `--print` turn, so a notification from Monitor / ScheduleWakeup /
+    // CronCreate never arrives: the agent ends its turn "waiting" and the run
+    // is recorded as finished before self-verification has a verdict. Bash's
+    // run_in_background is an argument, not a tool, and is switched off via
+    // CLAUDE_CODE_DISABLE_BACKGROUND_TASKS in claude-spawn-env.ts instead.
+    'Monitor',
+    'ScheduleWakeup',
+    'CronCreate',
     // NOTE(security): destructive git operations are denied even in mutating
     // mode. The agent works in a disposable worktree, but its branch may back
     // an OPEN PR (force-push auto-closes/orphans it — observed with PR #253),

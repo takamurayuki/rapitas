@@ -5,7 +5,9 @@
  * wiring stdout/stderr/close event handlers, and resolving the execution promise.
  * JSON event processing is delegated to json-event-handler.ts. CLI argument/env
  * construction is delegated to process-runner-args.ts, and close-result/success
- * determination is delegated to process-runner-close-result.ts.
+ * determination is delegated to process-runner-close-result.ts. Timers, the
+ * stdout line handler and the close handler live in process-timers.ts,
+ * stdout-line-handler.ts and process-close-handler.ts.
  * Not responsible for prompt building or artifact parsing.
  */
 
@@ -16,29 +18,17 @@ import type { QuestionWaitingState } from '../question-detection';
 import { createLogger } from '../../../config/logger';
 import type { CodexCliAgentConfig } from './types';
 import { resolveCliPath } from './types';
-import { processJsonEvent } from './json-event-handler';
-import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
+import { filterCliDiagnosticOutput } from '../cli-output-filter';
 import { buildCodexArgs, buildSpawnCommand, buildProcessEnv } from './process-runner-args';
-import { buildCloseResult, isSuccessfulClose } from './process-runner-close-result';
-import { registerProcess, unregisterProcess } from '../agent-process-tracker';
-import { scheduleAgentReap } from '../agent-reap';
-import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
+import { registerProcess } from '../agent-process-tracker';
+import { startResourceSampling } from '../process-resource-sampler';
 import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
-import { parseCodexEventLine } from './codex-event-line';
+import { createSelfVerificationReporter } from '../../workflow/self-verification-activity/activity-reporter';
+import { createProcessTimers } from './process-timers';
+import { createStdoutLineHandler } from './stdout-line-handler';
+import { createCodexCloseHandler } from './process-close-handler';
 
 const logger = createLogger('codex-cli-agent/process-runner');
-
-/** Milliseconds of idle stdout before flushing incomplete line buffer. */
-const OUTPUT_IDLE_TIMEOUT = 30000;
-
-/** Milliseconds before warning that no output has been received at all. */
-const INITIAL_OUTPUT_TIMEOUT = 60000;
-
-/** Interval for idle-check polling. */
-const IDLE_CHECK_INTERVAL_MS = 5000;
-
-/** Interval for timeout-check polling. */
-const TIMEOUT_CHECK_INTERVAL_MS = 10000;
 
 /** Callbacks the runner needs from the owning agent. */
 export type ProcessRunnerCallbacks = {
@@ -86,142 +76,6 @@ async function ensureOutputDirectory(outputPath: string | undefined): Promise<vo
   } catch {
     // Best-effort; spawn may still succeed if dir exists
   }
-}
-
-/** Cleanup functions for process timers */
-interface ProcessTimers {
-  cleanupIdle: () => void;
-  cleanupTimeout: () => void;
-  updateLastOutputTime: () => void;
-  markOutputReceived: () => void;
-}
-
-/**
- * Create idle and timeout check intervals for process monitoring.
- */
-function createProcessTimers(
-  state: ProcessRunnerState,
-  callbacks: ProcessRunnerCallbacks,
-  startTime: number,
-  timeout: number,
-  resolve: (result: AgentExecutionResult) => void,
-): ProcessTimers {
-  const { logPrefix } = callbacks;
-  let lastOutputTime = Date.now();
-  let hasReceivedAnyOutput = false;
-
-  const idleCheckInterval = setInterval(() => {
-    const idleTime = Date.now() - lastOutputTime;
-    const totalElapsed = Date.now() - startTime;
-
-    if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
-      logger.warn(`${logPrefix} No output received after ${Math.floor(totalElapsed / 1000)}s`);
-      callbacks.emitOutput(
-        `\n[情報] ${Math.floor(totalElapsed / 1000)}秒経過: Codex は内部処理中です。応答をお待ちください。タイムアウトは ${Math.floor(timeout / 1000)}秒です。\n`,
-      );
-      hasReceivedAnyOutput = true;
-    }
-
-    if (idleTime > OUTPUT_IDLE_TIMEOUT && state.lineBuffer.trim()) {
-      logger.info(`${logPrefix} Holding partial stdout line while waiting for newline`);
-    }
-  }, IDLE_CHECK_INTERVAL_MS);
-
-  const timeoutCheckInterval = setInterval(() => {
-    if (state.process && !state.process.killed) {
-      if (Date.now() - lastOutputTime >= timeout) {
-        clearInterval(timeoutCheckInterval);
-        clearInterval(idleCheckInterval);
-        callbacks.emitOutput(
-          `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
-          true,
-        );
-        state.process.kill('SIGTERM');
-        state.status = 'failed';
-        callbacks.onStatusChange('failed');
-        resolve({
-          success: false,
-          output: state.outputBuffer,
-          errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
-          executionTimeMs: Date.now() - startTime,
-        });
-      }
-    }
-  }, TIMEOUT_CHECK_INTERVAL_MS);
-
-  return {
-    cleanupIdle: () => clearInterval(idleCheckInterval),
-    cleanupTimeout: () => clearInterval(timeoutCheckInterval),
-    updateLastOutputTime: () => {
-      lastOutputTime = Date.now();
-    },
-    markOutputReceived: () => {
-      if (!hasReceivedAnyOutput) {
-        hasReceivedAnyOutput = true;
-        logger.info(`${logPrefix} First stdout after ${Date.now() - startTime}ms`);
-      }
-    },
-  };
-}
-
-/** Line handler for stdout processing */
-type StdoutLineHandler = (line: string) => void;
-
-/**
- * Create stdout line handler based on mode.
- */
-function createStdoutLineHandler(
-  config: CodexCliAgentConfig,
-  state: ProcessRunnerState,
-  callbacks: ProcessRunnerCallbacks,
-): StdoutLineHandler {
-  const { logPrefix } = callbacks;
-
-  const appendRawLine = (line: string) => {
-    // Investigation mode: keep ALL bytes for post-handler parsing
-    if (config.investigationMode) {
-      state.outputBuffer += line + '\n';
-      callbacks.emitOutput(line + '\n');
-      return;
-    }
-    // Implementation mode: filter and truncate
-    if (shouldHideRawCliLine(line)) return;
-    const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
-    state.outputBuffer += displayLine + '\n';
-    callbacks.emitOutput(displayLine + '\n');
-  };
-
-  return (line: string) => {
-    if (!line.trim()) return;
-
-    try {
-      // Only a typed object is an event; any other line is agent text.
-      const event = parseCodexEventLine(line);
-      if (!event) throw new Error('not a Codex event');
-      logger.info(`${logPrefix} Event: ${event.type}`);
-      processJsonEvent(
-        event as Parameters<typeof processJsonEvent>[0],
-        state,
-        callbacks,
-        config,
-        logPrefix,
-      );
-    } catch {
-      // Filter non-JSON output (e.g., chcp on Windows)
-      const trimmed = line.trim();
-      if (
-        !trimmed ||
-        /^Active code page:/i.test(trimmed) ||
-        /^現在のコード ページ:/i.test(trimmed) ||
-        /^chcp\s/i.test(trimmed)
-      ) {
-        logger.info(`${logPrefix} Filtered non-JSON: ${trimmed.substring(0, 100)}`);
-        return;
-      }
-      logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-      appendRawLine(line);
-    }
-  };
 }
 
 /**
@@ -340,9 +194,24 @@ export async function spawnCodexProcess(
 
       state.lineBuffer = '';
 
+      // NOTE: Task 1582 — holds the no-output timeout while self-verification
+      // runs in this worktree and shows its waiting/result lines (display only).
+      const selfVerification = createSelfVerificationReporter({
+        workDir,
+        executionStartedAt: startTime,
+        emit: (line) => callbacks.emitOutput(line),
+      });
+
       // Setup process timers
-      const timers = createProcessTimers(state, callbacks, startTime, timeout, resolve);
-      const handleStdoutLine = createStdoutLineHandler(config, state, callbacks);
+      const timers = createProcessTimers(state, callbacks, startTime, timeout, resolve, {
+        selfVerification,
+      });
+      const parseStdoutLine = createStdoutLineHandler(config, state, callbacks);
+      const handleStdoutLine = (line: string) => {
+        // close時の残り行も含め、完了出力より先に自己検証の状態を通知する。
+        selfVerification.tick();
+        parseStdoutLine(line);
+      };
 
       // Handle stdout
       state.process.stdout?.on('data', (data: Buffer) => {
@@ -373,90 +242,24 @@ export async function spawnCodexProcess(
       });
 
       // Handle close
+      const onClose = createCodexCloseHandler({
+        config,
+        workDir,
+        state,
+        callbacks,
+        startTime,
+        timers,
+        handleStdoutLine,
+        argsForLog,
+        parseArtifacts,
+        parseCommits,
+        resolve,
+        selfVerification,
+      });
       state.process.on('close', (code: number | null) => {
-        timers.cleanupTimeout();
-        timers.cleanupIdle();
-        const executionTimeMs = Date.now() - startTime;
-
-        let resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
-          cpuTimeMs: null,
-          peakRssKb: null,
-        };
-        if (state.process?.pid) {
-          const closedPid = state.process.pid;
-          unregisterProcess(closedPid);
-          resourceStats = stopResourceSampling(closedPid);
-          // On Windows, 'close' (stdio closed) does NOT guarantee the process
-          // exited — mirrors claude-execution-runner.ts's same reap-after-grace.
-          // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
-          // Capture descendants NOW, while the parent links are still live — a
-          // command the agent launched can outlive both the agent and the shell
-          // that started it, and is then unreachable from the root.
-          // Also sweeps detached processes naming the task worktree (agent-reap.ts).
-          scheduleAgentReap(closedPid, workDir);
-        }
-
-        // Process any remaining buffered line
-        if (state.lineBuffer.trim()) {
-          handleStdoutLine(state.lineBuffer);
-        }
-
-        logger.info(`${logPrefix} Closed with code: ${code}, time: ${executionTimeMs}ms`);
-
-        // Log diagnostic for non-zero exit
-        if (code !== null && code !== 0) {
-          const stderrSample =
-            state.errorBuffer?.length > 0 ? state.errorBuffer.slice(-4096) : '(stderr was empty)';
-          logger.error(
-            {
-              exitCode: code,
-              executionTimeMs,
-              stderrTail: stderrSample,
-              outputBufferLen: state.outputBuffer.length,
-              argsForLog,
-            },
-            `${logPrefix} Codex CLI exited non-zero — full diagnostic`,
-          );
-          callbacks.emitOutput(
-            `\n[Codex 終了コード ${code}] stderr (末尾4KB):\n${stderrSample}\n`,
-            true,
-          );
-        }
-        // Handle cancelled state
-        if (state.cancelRequested || state.status === 'cancelled') {
-          resolve({
-            success: false,
-            output: state.outputBuffer,
-            errorMessage: 'Execution cancelled',
-            executionTimeMs,
-            failureType: 'cancelled',
-          });
-          return;
-        }
-        if (state.status === 'failed') return;
-
-        // Build and return result
-        const result = buildCloseResult(
-          code,
-          state,
-          config,
-          startTime,
-          parseArtifacts,
-          parseCommits,
-          resourceStats,
-        );
-
-        if (result.waitingForInput) {
-          state.status = 'waiting_for_input';
-          callbacks.onStatusChange('waiting_for_input');
-          callbacks.emitOutput(`\n${logPrefix} 回答を待っています...\n`);
-        } else {
-          const newStatus = isSuccessfulClose(code, state) ? 'completed' : 'failed';
-          state.status = newStatus;
-          callbacks.onStatusChange(newStatus);
-        }
-
-        resolve(result);
+        onClose(code).catch((err) => {
+          logger.error({ err }, `${logPrefix} close handler failed`);
+        });
       });
 
       // Handle error

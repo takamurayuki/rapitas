@@ -6,9 +6,92 @@
  * 環境サニタイズ）を静かに緩めないようにする。実DB接続なしで動作する（ClaudeCodeAgent の
  * コンストラクタは Prisma へ接続しない — 遅延接続のため import のみでは副作用なし）。
  */
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
+import { EventEmitter } from 'events';
+import type { ChildProcess } from 'child_process';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import * as priority from '../process-priority';
+import * as cli from './cli-utils';
+import * as monitor from './idle-monitor';
+import { createActivityStore } from '../../workflow/self-verification-activity';
+import { orderSelfVerificationResults } from '../../../../rapitas-frontend/src/feature/developer-mode/utils/log-self-verification-order';
 import { ClaudeCodeAgent } from './agent-core';
-import { buildClaudeArgs, buildSpawnEnv } from './claude-execution-runner';
+import { buildClaudeArgs, buildSpawnEnv, runClaudeExecution } from './claude-execution-runner';
+
+test('Workerの完了通知前に自己検証を同期し、次の監視周期まで完了表示を漏らさない', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'claude-result-order-'));
+  const previous = process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR;
+  process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR = dir;
+  const store = createActivityStore({ dir });
+  const ref = { runId: 'early', taskId: 1582, worktreePath: 'C:/work' };
+  const stream = () => Object.assign(new EventEmitter(), { setEncoding() {} });
+  const child = Object.assign(new EventEmitter(), { stdout: stream(), stderr: stream() });
+  const spawn = spyOn(priority, 'spawnLowPriority').mockReturnValue(
+    child as unknown as ChildProcess,
+  );
+  const path = spyOn(cli, 'getClaudePath').mockResolvedValue('claude');
+  const idle = spyOn(monitor, 'startIdleMonitor').mockReturnValue({
+    cleanup() {},
+    recordOutput() {},
+    markReceivedOutput() {},
+  } as ReturnType<typeof monitor.startIdleMonitor>);
+  const OriginalWorker = globalThis.Worker;
+  class FakeWorker {
+    postMessage() {}
+    terminate() {}
+  }
+  globalThis.Worker = FakeWorker as unknown as typeof Worker;
+  const agent = new ClaudeCodeAgent('early', 'test', { resumeSessionId: 'session' });
+  const output: string[] = [];
+  const emit = spyOn(agent, 'emitOutputInternal').mockImplementation((line) => {
+    output.push(line);
+  });
+  try {
+    await runClaudeExecution(
+      agent,
+      { id: 1582, title: 'test' },
+      ref.worktreePath,
+      Date.now(),
+      900000,
+      () => {},
+      () => () => {},
+    );
+    expect(agent.parserWorker).not.toBeNull();
+    store.markStarted(ref);
+    const deliver = () =>
+      agent.parserWorker!.onmessage!({
+        data: {
+          type: 'result-event',
+          displayOutput: '\n[Result: success (0.1s)]\n',
+          result: '待機中',
+        },
+      } as MessageEvent);
+    deliver();
+    const visible = () => orderSelfVerificationResults(output.join('').split('\n'));
+    expect(visible().some((line) => line.startsWith('[Result:'))).toBe(false);
+    expect(visible()).toContain('[SelfVerification] waiting runId=early');
+    store.markFinished({ ...ref, ok: true, unverifiable: false, passed: 4, failed: 0 });
+    deliver();
+    const lines = visible();
+    const verdict = lines.findIndex((line) => line.startsWith('[SelfVerification] result'));
+    expect(lines[verdict]).toContain('ok=true unverifiable=false passed=4 failed=0');
+    expect(lines.findIndex((line) => line.startsWith('[Result:'))).toBeGreaterThan(verdict);
+    expect(agent.outputBuffer).not.toContain('[SelfVerification]');
+  } finally {
+    agent.setStatusInternal('cancelled');
+    child.emit('close', 0);
+    spawn.mockRestore();
+    path.mockRestore();
+    idle.mockRestore();
+    emit.mockRestore();
+    globalThis.Worker = OriginalWorker;
+    if (previous === undefined) delete process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR;
+    else process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 describe('buildClaudeArgs', () => {
   test('verifier can execute checks and save evidence while recursive tools remain denied', () => {
@@ -165,4 +248,36 @@ describe('autonomous reasoning effort', () => {
       }
     },
   );
+});
+
+// Task 1582: an agent that started a background waiter (Monitor) and ended its
+// turn was treated as finished — under `--print` the notification never comes.
+describe('background waiting tools are forbidden (task 1582)', () => {
+  test.each([false, true])(
+    'Monitor / ScheduleWakeup / CronCreate are in --disallowedTools (investigationMode=%p)',
+    (investigationMode) => {
+      const agent = new ClaudeCodeAgent('bg', 'test-agent', { investigationMode });
+      const { args } = buildClaudeArgs(agent);
+      const denied = args[args.indexOf('--disallowedTools') + 1].split(',');
+      for (const tool of ['Monitor', 'ScheduleWakeup', 'CronCreate']) {
+        expect(denied).toContain(tool);
+      }
+    },
+  );
+
+  test('Bash run_in_background is disabled through CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1', () => {
+    // run_in_background is a Bash argument, not a tool name, so --disallowedTools cannot name it.
+    expect(buildSpawnEnv().CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+  });
+
+  test('the inherited environment cannot switch background tasks back on', () => {
+    const prev = process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS;
+    try {
+      process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = '0';
+      expect(buildSpawnEnv().CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+    } finally {
+      if (prev === undefined) delete process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS;
+      else process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = prev;
+    }
+  });
 });

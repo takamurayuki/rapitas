@@ -18,6 +18,7 @@ import {
   stripMarkdownDecorations,
 } from './log-display-utils';
 import { mergeSuccessResults } from './log-result-merge';
+import { orderSelfVerificationResults } from './log-self-verification-order';
 
 // Narrative preview cap — roughly three wrapped lines in the viewer; the full
 // passage stays available via `detail` (click-to-expand).
@@ -198,8 +199,9 @@ export function groupAgentText(entries: UserFriendlyLogEntry[]): UserFriendlyLog
 /**
  * Convert an array of raw log strings into deduplicated user-friendly entries.
  *
- * Pipeline: split lines → collapse raw markdown dumps → classify → drop hidden
- * → group consecutive narrative → merge consecutive duplicates into ×N counts.
+ * Pipeline: split lines → hold completion behind the self-verification verdict
+ * → merge success results → collapse raw markdown dumps → classify → drop
+ * hidden → group consecutive narrative → merge consecutive duplicates into ×N counts.
  *
  * @param logs - raw log lines / 生ログ配列
  * @param t - Optional translator (scoped to `devMode.logTransformer`) forwarded to
@@ -212,7 +214,11 @@ export function transformLogsToSimple(
 ): UserFriendlyLogEntry[] {
   // NOTE: One run woken again by task notifications ends with several result
   // lines; mergeSuccessResults leaves one 「実行完了」 with the summed duration.
-  const tokens = collapseMarkdownBlocks(mergeSuccessResults(splitLogsIntoLines(logs)));
+  // NOTE: Task 1582 — 「実行完了」 is held behind the self-verification verdict.
+  // Ordering runs BEFORE the merge so the merged completion lands after the verdict.
+  const tokens = collapseMarkdownBlocks(
+    mergeSuccessResults(orderSelfVerificationResults(splitLogsIntoLines(logs))),
+  );
   const entries: UserFriendlyLogEntry[] = [];
   for (const token of tokens) {
     // NOTE: A markdown dump (research.md / plan.md / verify.md being written)

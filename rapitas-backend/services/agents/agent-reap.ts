@@ -12,6 +12,7 @@
  * verification of trendline task 1520 failed with "port in use" (2026-11-22).
  */
 import { captureDescendants, killProcessTreeSafely } from './agent-process-tracker';
+import { getActivityStore } from '../workflow/self-verification-activity/activity-store';
 
 /** Grace after the CLI's stdio closed; on Windows that is not process exit. */
 const REAP_DELAY_MS = 3000;
@@ -21,6 +22,11 @@ export interface ReapDeps {
   capture: (pid: number) => Set<number>;
   kill: (pid: number, opts: { workdir?: string; knownTargets?: Iterable<number> }) => boolean;
   schedule: (fn: () => void) => void;
+  /**
+   * Whether self-verification runs in the worktree when the reap fires.
+   * Omitted = never (the sweep always runs, as before task 1582).
+   */
+  isSelfVerificationActive?: (workDir: string) => boolean;
 }
 
 const liveDeps: ReapDeps = {
@@ -29,6 +35,13 @@ const liveDeps: ReapDeps = {
   schedule: (fn) => {
     const timer = setTimeout(fn, REAP_DELAY_MS);
     (timer as { unref?: () => void }).unref?.();
+  },
+  isSelfVerificationActive: (workDir) => {
+    try {
+      return getActivityStore().isActiveForWorktree(workDir);
+    } catch {
+      return false;
+    }
   },
 };
 
@@ -54,6 +67,10 @@ export function scheduleAgentReap(
   const known = deps.capture(pid);
   const workdir = isTaskWorktree(workDir) ? workDir : undefined;
   deps.schedule(() => {
-    deps.kill(pid, { knownTargets: known, ...(workdir ? { workdir } : {}) });
+    // NOTE: Task 1582 — the self-verification gate's lint/test processes name
+    // the worktree in their command line; sweeping by path while it runs would
+    // kill them and record a failed check. Reap only the agent's own tree then.
+    const sweep = workdir && !deps.isSelfVerificationActive?.(workdir) ? { workdir } : {};
+    deps.kill(pid, { knownTargets: known, ...sweep });
   });
 }

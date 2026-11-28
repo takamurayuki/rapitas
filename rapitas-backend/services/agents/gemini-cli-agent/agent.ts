@@ -11,7 +11,7 @@
 import { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
 import type { AgentCapability, AgentTask, AgentExecutionResult } from '../base-agent';
-import { createInitialWaitingState, tolegacyQuestionType } from '../question-detection';
+import { createInitialWaitingState } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
@@ -25,7 +25,11 @@ import {
   checkGeminiAvailability,
 } from './process-manager';
 import { stopResourceSampling } from '../process-resource-sampler';
-import { parseArtifacts, parseCommits } from './output-parser';
+import {
+  buildGeminiCancelledResult,
+  buildGeminiCloseResult,
+  buildGeminiStartupFailure,
+} from './close-result';
 import { buildStructuredPrompt } from './prompt-builder';
 import { attachStreamHandlers } from './stream-handler';
 import { validateAgentConfig } from './config-validator';
@@ -194,84 +198,36 @@ export class GeminiCliAgent extends BaseAgent {
               : { cpuTimeMs: null, peakRssKb: null };
 
             if (this.status === 'cancelled') {
-              resolve({
-                success: false,
-                output: this.outputBuffer,
-                errorMessage: 'Execution cancelled',
-                executionTimeMs: Date.now() - startTime,
-                failureType: 'cancelled',
-                ...resourceStats,
-              });
+              resolve(buildGeminiCancelledResult(this.outputBuffer, startTime, resourceStats));
               return;
             }
 
             if (this.status === 'failed') return;
 
-            const artifacts = parseArtifacts(this.outputBuffer);
-            const commits = parseCommits(this.outputBuffer);
-            const { hasQuestion, question, questionKey, questionDetails } = this.detectedQuestion;
-            const questionType = tolegacyQuestionType(this.detectedQuestion.questionType);
-
-            if (hasQuestion) {
-              this.status = 'waiting_for_input';
-              this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
-              resolve({
-                success: true,
-                output: this.outputBuffer,
-                artifacts,
-                commits,
-                executionTimeMs: Date.now() - startTime,
-                waitingForInput: true,
-                question,
-                questionType,
-                questionDetails,
-                questionKey,
-                // NOTE: Re-using claudeSessionId field for session continuation (checkpoint ID takes priority)
-                claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
-                modelName: this.config.model,
-                ...resourceStats,
-              });
-              return;
-            }
-
-            this.status = code === 0 ? 'completed' : 'failed';
-
-            let errorMessage: string | undefined;
-            if (code !== 0) {
-              const parts: string[] = [`プロセスがコード ${code} で終了しました`];
-              if (this.errorBuffer.trim())
-                parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
-              if (this.outputBuffer.trim())
-                parts.push(`\n${this.outputBuffer.trim().slice(-1000)}`);
-              errorMessage = parts.join('');
-            }
-
-            resolve({
-              success: code === 0,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs: Date.now() - startTime,
-              waitingForInput: false,
-              claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
+            const { status, result } = buildGeminiCloseResult({
+              code,
+              outputBuffer: this.outputBuffer,
+              errorBuffer: this.errorBuffer,
+              detectedQuestion: this.detectedQuestion,
+              startTime,
+              sessionId: this.checkpointId || this.geminiSessionId || undefined,
               modelName: this.config.model,
-              errorMessage,
-              ...resourceStats,
+              resourceStats,
             });
+            this.status = status;
+            if (result.waitingForInput) {
+              this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
+            }
+            resolve(result);
           },
           // onStatusFailed
           () => {
             this.status = 'failed';
-            const parts: string[] = ['プロセス起動エラー'];
-            if (this.errorBuffer.trim())
-              parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
-            resolve({
-              success: false,
-              output: this.outputBuffer,
-              errorMessage: parts.join(''),
-              executionTimeMs: Date.now() - startTime,
-            });
+            resolve(buildGeminiStartupFailure(this.outputBuffer, this.errorBuffer, startTime));
           },
+          // NOTE: Task 1582 — hold the timeout and the resolve while
+          // self-verification runs in this worktree.
+          { workDir, isCancelled: () => this.status === 'cancelled' },
         );
       } catch (error) {
         this.status = 'failed';

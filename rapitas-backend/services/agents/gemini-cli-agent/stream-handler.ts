@@ -7,17 +7,18 @@
  */
 
 import type { ChildProcess } from 'child_process';
-import type { GeminiStreamEvent } from './types';
 import type { GeminiCliAgentConfig } from './types';
-import {
-  detectQuestionFromToolCall,
-  updateWaitingStateFromDetection,
-  tolegacyQuestionType,
-} from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
-import { parseStreamEvent, isNoiseLine } from './output-parser';
 import { createLogger } from '../../../config/logger';
 import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
+import { createGeminiQuotaGuard } from './quota-guard';
+import { handleGeminiStreamLine } from './stream-line-handler';
+import {
+  createSelfVerificationReporter,
+  REAL_MONITOR_CLOCK,
+  type MonitorClock,
+} from '../../workflow/self-verification-activity/activity-reporter';
+import type { ActivityStore } from '../../workflow/self-verification-activity/activity-store';
 import {
   unregisterProcess,
   killProcessTreeSafely,
@@ -42,6 +43,18 @@ export type StreamHandlerCallbacks = {
   onKillProcess: () => void;
 };
 
+/** Self-verification wiring (task 1582); omitted = pre-1582 behaviour. */
+export type GeminiSelfVerificationOptions = {
+  /** Worktree the CLI runs in. */
+  workDir: string;
+  /** True once a stop was requested; ends the post-close wait. */
+  isCancelled: () => boolean;
+  clock?: MonitorClock;
+  /** Test seams for the marker store and the wait's sleep. */
+  store?: ActivityStore;
+  sleep?: (ms: number) => Promise<void>;
+};
+
 /**
  * Attach stdout/stderr handlers to the Gemini CLI process and manage idle/timeout monitoring.
  * Calls the provided resolve callback when the process closes.
@@ -56,6 +69,8 @@ export type StreamHandlerCallbacks = {
  * @param callbacks - Action callbacks for the agent class / エージェントクラスへのコールバック
  * @param onClose - Called when the process closes, with exit code / プロセス終了時のコールバック
  * @param onStatusFailed - Called to set status = 'failed' and resolve the outer promise / 失敗時のコールバック
+ * @param selfVerification - Worktree and stop check for the self-verification hold / 自己検証の保留設定
+ * @returns Interval cleanup handles / タイマー停止関数
  */
 export function attachStreamHandlers(
   proc: ChildProcess,
@@ -68,18 +83,36 @@ export function attachStreamHandlers(
   callbacks: StreamHandlerCallbacks,
   onClose: (code: number | null) => void,
   onStatusFailed: () => void,
+  selfVerification?: GeminiSelfVerificationOptions,
 ): { cleanupIdleCheck: () => void; cleanupTimeoutCheck: () => void } {
   const timeout = config.timeout ?? 900000;
+  const clock = selfVerification?.clock ?? REAL_MONITOR_CLOCK;
+  // NOTE: Task 1582 — display-only waiting/result lines, and the hold below.
+  const reporter = selfVerification
+    ? createSelfVerificationReporter({
+        workDir: selfVerification.workDir,
+        executionStartedAt: startTime,
+        emit: (line) => callbacks.onOutput(line),
+        store: selfVerification.store,
+        sleep: selfVerification.sleep,
+      })
+    : null;
+  // A CLI waiting on the gate is silent; keep the idle clock at "now" while it runs.
+  const holdForSelfVerification = () => {
+    if (reporter?.isActive()) lastOutputTime = clock.now();
+  };
 
-  let lastOutputTime = Date.now();
+  let lastOutputTime = clock.now();
   let hasReceivedAnyOutput = false;
   let lineBuffer = '';
   const OUTPUT_IDLE_TIMEOUT = 30000;
   const INITIAL_OUTPUT_TIMEOUT = 60000;
 
-  const idleCheckInterval = setInterval(() => {
-    const idleTime = Date.now() - lastOutputTime;
-    const totalElapsed = Date.now() - startTime;
+  const idleCheckInterval = clock.setInterval(() => {
+    reporter?.tick();
+    holdForSelfVerification();
+    const idleTime = clock.now() - lastOutputTime;
+    const totalElapsed = clock.now() - startTime;
 
     if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
       logger.warn(
@@ -100,15 +133,16 @@ export function attachStreamHandlers(
     }
   }, 5000);
 
-  const cleanupIdleCheck = () => clearInterval(idleCheckInterval);
+  const cleanupIdleCheck = () => clock.clearInterval(idleCheckInterval);
 
-  const timeoutCheckInterval = setInterval(() => {
+  const timeoutCheckInterval = clock.setInterval(() => {
+    holdForSelfVerification();
     if (proc && !proc.killed) {
-      const timeSinceLastOutput = Date.now() - lastOutputTime;
+      const timeSinceLastOutput = clock.now() - lastOutputTime;
 
       if (timeSinceLastOutput >= timeout) {
         logger.info(`${logPrefix} TIMEOUT: No output for ${timeout / 1000}s`);
-        clearInterval(timeoutCheckInterval);
+        clock.clearInterval(timeoutCheckInterval);
         cleanupIdleCheck();
         callbacks.onOutput(
           `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
@@ -120,12 +154,12 @@ export function attachStreamHandlers(
     }
   }, 10000);
 
-  const cleanupTimeoutCheck = () => clearInterval(timeoutCheckInterval);
+  const cleanupTimeoutCheck = () => clock.clearInterval(timeoutCheckInterval);
 
   proc.stdout?.on('data', (data: Buffer) => {
     const chunk = data.toString();
     lineBuffer += chunk;
-    lastOutputTime = Date.now();
+    lastOutputTime = clock.now();
 
     if (!hasReceivedAnyOutput) {
       hasReceivedAnyOutput = true;
@@ -137,154 +171,28 @@ export function attachStreamHandlers(
     lineBuffer = lines.pop() || '';
 
     for (const line of lines) {
-      if (!line.trim()) continue;
-
-      try {
-        const json = JSON.parse(line) as GeminiStreamEvent;
-        const timestamp = new Date().toISOString();
-        logger.info(`${logPrefix} [${timestamp}] Event type: ${json.type}`);
-
-        // Handle AskUserQuestion tool specially — pause and emit question
-        if (json.type === 'assistant' && json.message?.content) {
-          let questionHandled = false;
-          for (const block of json.message.content) {
-            if (
-              block.type === 'tool_use' &&
-              (block.name === 'AskUserQuestion' ||
-                block.name === 'ask_user' ||
-                block.name === 'ask')
-            ) {
-              logger.info(`${logPrefix} Question tool detected: ${block.name}`);
-
-              const detectionResult = detectQuestionFromToolCall(
-                'AskUserQuestion',
-                block.input,
-                config.timeout ? Math.floor(config.timeout / 1000) : undefined,
-              );
-
-              const newState = updateWaitingStateFromDetection(detectionResult);
-              detectedQuestionRef.value = newState;
-
-              callbacks.onQuestionDetected(newState);
-              callbacks.onQuestionEmit({
-                question: detectionResult.questionText,
-                questionType: tolegacyQuestionType(newState.questionType),
-                questionDetails: newState.questionDetails,
-                questionKey: newState.questionKey,
-              });
-
-              const displayOutput = `\n[質問] ${detectionResult.questionText}\n`;
-              callbacks.onOutputBufferAppend(displayOutput);
-              callbacks.onOutput(displayOutput);
-
-              // NOTE: Kill process to wait for user response before continuing
-              logger.info(`${logPrefix} Stopping process to wait for user response`);
-              callbacks.onKillProcess();
-              questionHandled = true;
-              break;
-            }
-          }
-          if (questionHandled) continue;
-        }
-
-        const prevSessionId = sessionState.sessionId;
-        const prevCheckpointId = sessionState.checkpointId;
-        const displayOutput = parseStreamEvent(json, activeTools, sessionState);
-
-        if (sessionState.sessionId !== prevSessionId) {
-          logger.info(`${logPrefix} Session ID: ${sessionState.sessionId}`);
-          if (sessionState.sessionId) callbacks.onSessionIdUpdate(sessionState.sessionId);
-        }
-        if (sessionState.checkpointId !== prevCheckpointId) {
-          logger.info(`${logPrefix} Checkpoint ID: ${sessionState.checkpointId}`);
-          if (sessionState.checkpointId) callbacks.onCheckpointIdUpdate(sessionState.checkpointId);
-        }
-
-        if (json.type === 'system' && (json.subtype === 'error' || json.error)) {
-          logger.error({ systemError: json }, `${logPrefix} System error`);
-        }
-
-        if (displayOutput) {
-          callbacks.onOutputBufferAppend(displayOutput);
-          callbacks.onOutput(displayOutput);
-        }
-      } catch {
-        // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
-        if (isNoiseLine(line)) {
-          logger.info(`${logPrefix} Filtered non-JSON output: ${line.trim().substring(0, 100)}`);
-          continue;
-        }
-        logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-        if (!shouldHideRawCliLine(line)) {
-          const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
-          callbacks.onOutputBufferAppend(displayLine + '\n');
-          callbacks.onOutput(displayLine + '\n');
-        }
-      }
+      // 監視周期の合間に自己検証が始まっていても、完了出力を先行させない。
+      reporter?.tick();
+      handleGeminiStreamLine(line, {
+        config,
+        logPrefix,
+        activeTools,
+        sessionState,
+        detectedQuestionRef,
+        callbacks,
+      });
     }
 
     // Expose updated lineBuffer via a side-channel for the close handler
     (proc as NodeJS.EventEmitter & { _lineBuffer?: string })._lineBuffer = lineBuffer;
   });
 
-  // Track gemini CLI's internal 429 retry loop. The CLI retries up to 10
-  // times with exponential backoff before giving up — 5-7 minutes wasted.
-  // Detect quota signals (any of the variants below) and short-circuit so
-  // the orchestrator can fall back to claude/codex.
-  //
-  // Variants we have observed in real logs:
-  //   `Attempt 1 failed with status 429. Retrying with backoff...`
-  //   `Attempt 10 failed: No capacity available for model gemini-2.5-flash`
-  //   `RetryableQuotaError: No capacity available...`
-  //   `Quota exceeded for quota metric ...`
-  //   bare `status: 429` in nested error chains
-  // The previous detector only matched the first variant and was bypassed
-  // when the chunk split mid-message or the first occurrence used variant 2.
-  let geminiQuotaHits = 0;
-  let geminiKillScheduled = false;
-  const GEMINI_QUOTA_KILL_THRESHOLD = 2;
-  const QUOTA_PATTERNS: RegExp[] = [
-    /Attempt \d+ failed.*(429|status\s*429|No capacity)/i,
-    /RetryableQuotaError|ResourceExhaustedError/i,
-    /No capacity available for model/i,
-    /Quota exceeded/i,
-    /resource_exhausted/i,
-    /Max attempts reached/i,
-  ];
-
-  function checkGeminiQuotaSignal(output: string): void {
-    if (geminiKillScheduled || proc.killed) return;
-    let hits = 0;
-    for (const re of QUOTA_PATTERNS) {
-      const m = output.match(new RegExp(re.source, re.flags + 'g'));
-      if (m) hits += m.length;
-    }
-    if (hits === 0) return;
-    geminiQuotaHits += hits;
-    if (geminiQuotaHits < GEMINI_QUOTA_KILL_THRESHOLD) return;
-    geminiKillScheduled = true;
-    logger.warn(
-      { logPrefix, hits: geminiQuotaHits },
-      `Gemini hit quota/rate-limit signals (${geminiQuotaHits}× ≥ ${GEMINI_QUOTA_KILL_THRESHOLD}) — placing provider in cooldown and aborting CLI so orchestrator can fall back`,
-    );
-    callbacks.onOutput(
-      `\n[Rapitas] Gemini API がレート/クオータ上限に達したためリトライを打ち切り、別プロバイダにフォールバックします。\n`,
-      true,
-    );
-    import('../../ai/provider-cooldown')
-      .then(({ markProviderCooldown }) => {
-        markProviderCooldown('gemini', 'rate_limit', undefined, {
-          message: 'gemini-cli quota / rate-limit signals detected',
-        });
-      })
-      .catch(() => {});
-    callbacks.onKillProcess();
-  }
+  const checkGeminiQuotaSignal = createGeminiQuotaGuard(proc, logPrefix, callbacks);
 
   proc.stderr?.on('data', (data: Buffer) => {
     const output = data.toString();
     callbacks.onErrorBufferAppend(output);
-    lastOutputTime = Date.now();
+    lastOutputTime = clock.now();
     logger.info(`${logPrefix} stderr: ${output.substring(0, 200)}`);
 
     // Inspect both stderr AND stdout — gemini-cli mixes retry messages
@@ -338,7 +246,17 @@ export function attachStreamHandlers(
     const executionTimeMs = Date.now() - startTime;
     logger.info(`${logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`);
 
-    onClose(code);
+    // NOTE: Task 1582 — the CLI can exit while self-verification still runs;
+    // resolve only after the verdict (bounded by the marker's 30-min limit) or
+    // a stop request. onClose itself turns a cancelled status into cancelled.
+    if (!reporter) {
+      onClose(code);
+      return;
+    }
+    reporter
+      .waitUntilSettled({ isCancelled: selfVerification?.isCancelled ?? (() => false) })
+      .catch((err) => logger.warn({ err }, `${logPrefix} self-verification wait failed`))
+      .finally(() => onClose(code));
   });
 
   proc.on('error', (error: Error) => {

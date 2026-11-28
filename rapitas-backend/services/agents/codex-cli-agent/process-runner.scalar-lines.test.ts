@@ -10,6 +10,11 @@ import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'child_process';
 import { createInitialWaitingState } from '../question-detection';
 import type { ProcessRunnerState } from './process-runner';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createActivityStore } from '../../workflow/self-verification-activity';
+import { orderSelfVerificationResults } from '../../../../rapitas-frontend/src/feature/developer-mode/utils/log-self-verification-order';
 
 type MutableStream = EventEmitter & { setEncoding: (enc: string) => void };
 
@@ -121,6 +126,53 @@ beforeEach(() => {
 // them end in a comma, fail to parse, and survived. The planner was blamed
 // for an edit it had made.
 describe('spawnCodexProcess — raw lines that are JSON scalars', () => {
+  test('監視周期前に到着した完了イベントを自己検証結果まで表示しない', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codex-result-order-'));
+    const previous = process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR;
+    process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR = dir;
+    const store = createActivityStore({ dir });
+    const ref = { runId: 'early', taskId: 1582, worktreePath: 'C:/work' };
+    const state = makeState();
+    const callbacks = makeCallbacks();
+    const output: string[] = [];
+    callbacks.emitOutput.mockImplementation((line) => {
+      output.push(line);
+    });
+    const result = spawnCodexProcess(
+      {},
+      ref.worktreePath,
+      'prompt',
+      state,
+      callbacks,
+      Date.now(),
+      () => [],
+      () => [],
+    );
+    await flush();
+    const child = spawnedChildren[0];
+    try {
+      store.markStarted(ref);
+      child.stdout.emit('data', '{"type":"turn.completed"}\n');
+      const visible = () => orderSelfVerificationResults(output.join('').split('\n'));
+      expect(visible().some((line) => line.startsWith('[Result:'))).toBe(false);
+      expect(visible()).toContain('[SelfVerification] waiting runId=early');
+      store.markFinished({ ...ref, ok: true, unverifiable: false, passed: 4, failed: 0 });
+      child.stdout.emit('data', '{"type":"turn.completed"}\n');
+      const lines = visible();
+      const verdict = lines.findIndex((line) => line.startsWith('[SelfVerification] result'));
+      expect(lines[verdict]).toContain('ok=true unverifiable=false passed=4 failed=0');
+      expect(lines.findIndex((line) => line.startsWith('[Result:'))).toBeGreaterThan(verdict);
+      expect(state.outputBuffer).not.toContain('[SelfVerification]');
+    } finally {
+      store.markFinished({ ...ref, ok: true, unverifiable: false, passed: 4, failed: 0 });
+      child.emit('close', 0);
+      await result;
+      if (previous === undefined) delete process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR;
+      else process.env.RAPITAS_SELF_VERIFY_ACTIVE_DIR = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('keeps the comma-less last element of a JSON array in a written plan', async () => {
     const plan =
       '```json:plan-declaration\n' +

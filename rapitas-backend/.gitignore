@@ -49,6 +49,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Agent PID tracking files
 .agent-pids/
 
+# Running self-verification markers (services/workflow/self-verification-activity)
+.self-verification-active/
+
 # SQLite databases are runtime artifacts, not source. The schema lives in
 # prisma/schema*/ and src/generated/sqlite-init-sql.ts. Nothing ignored these
 # before, which let a 0-byte prisma/schema.desktop/dev.db slip into the repo.

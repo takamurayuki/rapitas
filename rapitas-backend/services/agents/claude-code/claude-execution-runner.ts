@@ -17,81 +17,27 @@ import { tmpdir } from 'os';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
-import { registerProcess, unregisterProcess } from '../agent-process-tracker';
-import { scheduleAgentReap } from '../agent-reap';
-import { startResourceSampling, stopResourceSampling } from '../process-resource-sampler';
+import { registerProcess } from '../agent-process-tracker';
+import { startResourceSampling } from '../process-resource-sampler';
+import { createSelfVerificationReporter } from '../../workflow/self-verification-activity/activity-reporter';
+import {
+  createCloseHandler,
+  createErrorHandler,
+  type ProcessHandlerContext,
+} from './claude-process-handlers';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
-import { buildSanitizedSpawnEnv } from '../../../utils/agent';
 import { buildStructuredPrompt } from './prompt-builder';
 import { startIdleMonitor } from './idle-monitor';
 import type { ClaudeCodeAgent } from './agent-core';
 import { formatPromptPreview } from '../../../utils/agent/prompt-preview';
 
-import { writePromptChunks } from './stdin-prompt-writer';
+import { buildSpawnEnv, writePromptToStdin } from './claude-spawn-env';
 import { buildClaudeArgs } from './claude-args';
 export { buildClaudeArgs } from './claude-args';
+// NOTE: Re-exported — claude-execution-runner.test.ts and agent-core tests' mock.module expect it here.
+export { buildSpawnEnv } from './claude-spawn-env';
 
 const logger = createLogger('claude-code-agent');
-
-/**
- * Build the env passed to the Claude Code CLI subprocess.
- *
- * @returns Sanitized environment (see buildSanitizedSpawnEnv) plus CLI-friendly overrides / サニタイズ済み環境
- */
-export function buildSpawnEnv(): NodeJS.ProcessEnv {
-  const isWindows = process.platform === 'win32';
-  // NOTE: Heap cap for EVERY node process in the agent's tree (NODE_OPTIONS is
-  // inherited by child processes, so `next build` etc. get it too). Task 553:
-  // an agent-run webpack build with splitChunks.maxSize grew to 48 GB RSS and
-  // starved the host (1.9 GB free of 64 GB) — an explicit OOM failure the agent
-  // can see and self-repair beats a silent host-wide stall. 8192 MB is generous:
-  // CI runners build this frontend within ~7 GB total RAM.
-  const heapMb = Math.max(
-    1024,
-    parseInt(process.env.RAPITAS_AGENT_NODE_HEAP_MB ?? '8192', 10) || 8192,
-  );
-  // NOTE: The spawned CLI is prompt-steerable (the task prompt itself can ask
-  // it to print/exfiltrate its own env), so start from a sanitized base —
-  // never the raw inherited env — to keep ENCRYPTION_KEY/DATABASE_URL/
-  // GITHUB_TOKEN/etc out of its reach.
-  return buildSanitizedSpawnEnv({
-    FORCE_COLOR: '0',
-    NO_COLOR: '1',
-    CI: '1',
-    TERM: 'dumb',
-    PYTHONUNBUFFERED: '1',
-    NODE_OPTIONS: `--no-warnings --max-old-space-size=${heapMb}`,
-    ...(isWindows && {
-      LANG: 'en_US.UTF-8',
-      PYTHONIOENCODING: 'utf-8',
-      PYTHONUTF8: '1',
-      CHCP: '65001', // Enable UTF-8 mode on Windows 10+
-    }),
-  });
-}
-
-/** Stream the prompt to stdin in 16 KB chunks (avoids buffering issues). */
-async function writePromptToStdin(agent: ClaudeCodeAgent, prompt: string): Promise<void> {
-  if (!agent.process?.stdin) {
-    logger.info(`${agent.logPrefix} stdin is not available`);
-    return;
-  }
-  const { bytes, completed } = await writePromptChunks(
-    agent.process.stdin,
-    prompt,
-    (err, closed) => {
-      // NOTE: EPIPE means the CLI exited before reading the prompt; the close handler reports the real cause.
-      if (closed)
-        logger.warn(
-          `${agent.logPrefix} stdin closed by CLI before prompt was fully written (${err.message})`,
-        );
-      else logger.error({ err }, `${agent.logPrefix} stdin error`);
-    },
-  );
-  logger.info(
-    `${agent.logPrefix} Prompt ${completed ? 'written to stdin' : 'write aborted'} (${bytes} bytes)`,
-  );
-}
 
 /**
  * Run the spawn-and-wait body for ClaudeCodeAgent.execute().
@@ -205,8 +151,19 @@ export async function runClaudeExecution(
 
     agent.lineBuffer = '';
 
+    // NOTE: Task 1582 — sees self-verification jobs for this worktree written
+    // by the server (any process), emits the waiting/result lines for display
+    // only (not outputBuffer, which feeds artifact parsing and validators).
+    const selfVerification = createSelfVerificationReporter({
+      workDir,
+      executionStartedAt: startTime,
+      emit: (line) => agent.emitOutputInternal(line),
+    });
+
     // Start idle and timeout monitors
     const monitor = startIdleMonitor(agent.logPrefix, timeout, startTime, {
+      isSelfVerificationActive: selfVerification.isActive,
+      onTick: selfVerification.tick,
       onFlushLineBuffer: (content) => {
         agent.outputBuffer += content;
         agent.emitOutputInternal(content);
@@ -243,6 +200,8 @@ export async function runClaudeExecution(
     } satisfies WorkerInputMessage);
 
     agent.parserWorker.onmessage = (event: MessageEvent<WorkerOutputMessage>) => {
+      // 周期通知より先に完了イベントが届いても、待機状態を表示へ先に渡す。
+      selfVerification.tick();
       agent.handleWorkerMessageInternal(event.data);
     };
 
@@ -286,113 +245,23 @@ export async function runClaudeExecution(
       agent.emitOutputInternal(output, true);
     });
 
-    let resourceStats: { cpuTimeMs: number | null; peakRssKb: number | null } = {
-      cpuTimeMs: null,
-      peakRssKb: null,
+    const handlerCtx: ProcessHandlerContext = {
+      agent,
+      workDir,
+      startTime,
+      resolve,
+      buildResolveAfterParse,
+      monitor,
+      cleanupPromptFile,
+      reporter: selfVerification,
     };
+    const onClose = createCloseHandler(handlerCtx);
     agent.process.on('close', (code: number | null) => {
-      monitor.cleanup();
-      cleanupPromptFile();
-      if (agent.process?.pid) {
-        const closedPid = agent.process.pid;
-        unregisterProcess(closedPid);
-        resourceStats = stopResourceSampling(closedPid);
-        // On Windows, 'close' (stdio closed) does NOT guarantee the process
-        // exited — a completed `claude --print` agent can stay resident and pile
-        // up as a zombie. Reap its tree after a short grace if still alive.
-        // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
-        // Capture descendants NOW, while the parent links are still live — a
-        // command the agent launched can outlive both the agent and the shell
-        // that started it, and is then unreachable from the root.
-        // Also sweeps detached processes naming the task worktree (agent-reap.ts).
-        scheduleAgentReap(closedPid, workDir);
-      }
-      const executionTimeMs = Date.now() - startTime;
-
-      if (agent.lineBuffer.trim()) {
-        logger.info(
-          `${agent.logPrefix} Processing remaining lineBuffer: ${agent.lineBuffer.substring(0, 200)}`,
-        );
-        agent.outputBuffer += agent.lineBuffer + '\n';
-        agent.emitOutputInternal(agent.lineBuffer + '\n');
-      }
-
-      logger.info(
-        `${agent.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
-      );
-      logger.info(`${agent.logPrefix} Final output length: ${agent.outputBuffer.length}`);
-      logger.info(`${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`);
-      if (agent.getStatus() === 'cancelled') {
-        resolve({
-          success: false,
-          output: agent.outputBuffer,
-          errorMessage: 'Execution cancelled',
-          executionTimeMs,
-          failureType: 'cancelled',
-        });
-        return;
-      }
-
-      // Skip if already resolved by timeout
-      if (agent.getStatus() === 'failed') return;
-
-      const resolveAfterParse = buildResolveAfterParse(
-        code,
-        workDir,
-        startTime,
-        resolve,
-        resourceStats,
-      );
-
-      // If a Worker exists, send parse-complete and wait for results;
-      // otherwise fall back to direct execution
-      if (agent.parserWorker) {
-        agent.workerArtifacts = [];
-        agent.workerCommits = [];
-        agent.onParseComplete = resolveAfterParse;
-
-        try {
-          agent.parserWorker.postMessage({
-            type: 'parse-complete',
-            outputBuffer: agent.outputBuffer,
-          } satisfies WorkerInputMessage);
-        } catch (workerErr) {
-          logger.warn(
-            { errorDetail: workerErr instanceof Error ? workerErr.message : workerErr },
-            `${agent.logPrefix} Worker postMessage failed on parse-complete, falling back`,
-          );
-          agent.onParseComplete = null;
-          resolveAfterParse();
-        }
-      } else {
-        resolveAfterParse();
-      }
-    });
-
-    agent.process.on('error', (error: Error) => {
-      monitor.cleanup();
-      cleanupPromptFile();
-      if (agent.process?.pid) unregisterProcess(agent.process.pid);
-      agent.setStatusInternal('failed');
-      logger.error({ err: error }, `${agent.logPrefix} Process error`);
-      agent.emitOutputInternal(`${agent.logPrefix} Error: ${error.message}\n`, true);
-
-      const errorParts: string[] = [];
-      errorParts.push(`Process startup error: ${error.message}`);
-      if (agent.errorBuffer.trim()) {
-        errorParts.push(`\n\n【Standard Error Output】\n${agent.errorBuffer.trim()}`);
-      }
-      if (agent.outputBuffer.trim()) {
-        errorParts.push(`\n\n【Standard Output】\n${agent.outputBuffer.trim().slice(-500)}`);
-      }
-
-      resolve({
-        success: false,
-        output: agent.outputBuffer,
-        errorMessage: errorParts.join(''),
-        executionTimeMs: Date.now() - startTime,
+      onClose(code).catch((err) => {
+        logger.error({ err }, `${agent.logPrefix} close handler failed`);
       });
     });
+    agent.process.on('error', createErrorHandler(handlerCtx));
   } catch (error) {
     // NOTE: This catch block handles errors before spawn, so monitor is not yet started
     cleanupPromptFile();
