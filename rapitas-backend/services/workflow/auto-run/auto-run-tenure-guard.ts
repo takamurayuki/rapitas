@@ -22,6 +22,7 @@ import { broadcastAutoRunUpdateImpl } from './auto-run-lifecycle';
 import { selectAndEnqueueNextTask } from './auto-run-advance-select';
 import { isOverlapHeld } from '../workflow-orchestrator-overlap-guard';
 import { isTaskCalendarHeld } from '../../scheduling/calendar-slot/calendar-hold-state';
+import { isParallelRecheckHeld } from './parallel/recheck/recheck-state';
 import { handOffExhaustedMerge } from '../merge-exhausted-handoff';
 import { isTaskTerminalForQueue } from '../queue-terminal-task-guard';
 import { forceStopOverWallBudget, requeueAndResetTenure } from './auto-run-hang-backstop-stop';
@@ -99,7 +100,10 @@ export async function applyTenureWall(
       ? 'the overlap guard'
       : isTaskCalendarHeld(currentTaskId)
         ? 'a calendar checkpoint'
-        : null;
+        : // Task 1572: waiting at the implementer re-check for a running task to leave.
+          isParallelRecheckHeld(currentTaskId)
+          ? 'the parallel re-check'
+          : null;
     if (heldBy) {
       log.info(
         `[ThemeAutoRunScheduler] Task ${currentTaskId} over tenure wall but held by ${heldBy} — deferring hang backstop (theme ${themeId})`,

@@ -12,8 +12,10 @@ import {
   judgePair,
   collectPlanFiles,
   extractDependencyRefs,
+  isEmptyPlanFileSet,
   type PairSide,
 } from './parallel-safety-rules';
+import { isPlanlessCandidate } from './recheck/recheck-state';
 import { createBroadDirectoryCheck } from './shared-directories';
 import { findImportRelation } from './import-relation';
 import type { ParallelFilter, ParallelRejection } from './parallel-types';
@@ -29,6 +31,19 @@ export interface Opponent {
 export interface ParallelFilterDeps {
   readPlan: (taskId: number) => Promise<string | null>;
   importRelated: (cwd: string, a: string[], b: string[]) => Promise<boolean>;
+  /**
+   * Called once for each candidate the filter lets through, with the planless
+   * verdict it judged on (task 1572). Selection writes the re-check mark from
+   * this verdict instead of re-reading, so a plan saved in between cannot
+   * drop the mark. Omitted by every other caller.
+   */
+  onAdmit?: (taskId: number, admission: PlanlessAdmission) => void;
+}
+
+/** The planless verdict a candidate was admitted on. */
+export interface PlanlessAdmission {
+  planless: boolean;
+  workflowStatus: string | null;
 }
 
 const defaultFilterDeps: ParallelFilterDeps = {
@@ -60,7 +75,7 @@ export function buildParallelFilter(
 ): ParallelFilter {
   const d: ParallelFilterDeps = { ...defaultFilterDeps, ...deps };
   const isBroadDirectory = cwd ? createBroadDirectoryCheck(cwd) : undefined;
-  const sides = new Map<number, Promise<PairSide>>();
+  const sides = new Map<number, Promise<PairSide & { workflowStatus: string | null }>>();
   const side = (taskId: number) => {
     if (!sides.has(taskId)) {
       sides.set(
@@ -69,10 +84,18 @@ export function buildParallelFilter(
           const [plan, task] = await Promise.all([
             d.readPlan(taskId).catch(() => null),
             prisma.task
-              .findUnique({ where: { id: taskId }, select: { description: true } })
+              .findUnique({
+                where: { id: taskId },
+                select: { description: true, workflowStatus: true },
+              })
               .catch(() => null),
           ]);
-          return { taskId, plan, description: task?.description ?? null };
+          return {
+            taskId,
+            plan,
+            description: task?.description ?? null,
+            workflowStatus: task?.workflowStatus ?? null,
+          };
         })(),
       );
     }
@@ -93,6 +116,13 @@ export function buildParallelFilter(
       // Same meaning of "done" as UNMET_DEPENDENCIES_EXCLUDED.
       for (const r of rows) if (r.status !== 'done') incomplete.add(r.id);
     }
+    // Task 1572: a candidate that has not planned yet (and changes no files
+    // before its implementer) is compared on dependencies only; the
+    // implementer re-check compares its files once the plan exists.
+    const planless = isPlanlessCandidate(
+      cand.workflowStatus,
+      !isEmptyPlanFileSet(collectPlanFiles(cand.plan)),
+    );
     for (const o of opponents) {
       if (o.taskId === candidate.id) continue;
       const act = await side(o.taskId);
@@ -111,7 +141,7 @@ export function buildParallelFilter(
             .catch(() => null)
         : null;
       const ctx = {
-        requirePlans: o.sameTheme,
+        requirePlans: o.sameTheme && !planless,
         tableLinked: link != null,
         incompleteTaskIds: incomplete,
         isBroadDirectory,
@@ -133,6 +163,7 @@ export function buildParallelFilter(
         };
       }
     }
+    d.onAdmit?.(candidate.id, { planless, workflowStatus: cand.workflowStatus });
     return { ok: true };
   };
 }

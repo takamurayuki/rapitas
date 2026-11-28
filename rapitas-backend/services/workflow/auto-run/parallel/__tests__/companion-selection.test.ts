@@ -1,16 +1,13 @@
 /**
  * companion-selection.test
  *
- * Task 1552 acceptance tables, per-theme limit 2 and global limit 2:
- *  1. only A runs, B does not overlap A → B becomes the 2nd task
- *  2. B shares one file with A → B is not selected, the reason is recorded
- *  3. C has no plan yet → C is not selected
- *  4. the global limit is already full → nothing is selected
- * plus the "do not run together" table (dependency link / text, conflict-prone
- * file, same folder, import relation), the same rules against a task running
- * in ANOTHER theme on the same repository (theme 49), and per-theme limit 1
- * (selection never runs — the pre-task one-at-a-time behaviour).
- * Row 5 (A completes) is in theme-active-set.test.ts and parallel-lifecycle.test.ts.
+ * Task 1552 acceptance tables, per-theme limit 2 and global limit 2: row 1 (B
+ * does not overlap A → selected), row 2 (B shares a file → refused, reason
+ * recorded), row 4 (global limit full), the same rules against another theme
+ * on the same repository (theme 49), and per-theme limit 1. Plan-related rows
+ * (row 3, the "do not run together" table, task 1572's planless candidates)
+ * are in companion-selection.plan-rules.test.ts; row 5 is in
+ * theme-active-set.test.ts and parallel-lifecycle.test.ts.
  *
  * Run on its own: bun's mock.module is process-global.
  */
@@ -220,25 +217,10 @@ describe('acceptance table — per-theme 2, global 2', () => {
     expect(String(rejected?.fields.detail)).toContain('rapitas-backend/services/alpha/a.ts');
   });
 
-  test('row 3: C has no plan yet → C is not selected', async () => {
-    tasks = [tasks[0]!, { id: 30, themeId: 1, status: 'todo' }];
-    expect(await select()).toMatchObject({ selected: null, reason: 'parallel_conflict' });
-    expect(rejectedReasons()).toEqual(['candidate_plan_missing']);
-    expect(rows[0]!.companionTasksJson).toBeNull();
-  });
-
   test('row 4: the global limit is already full → nothing is selected', async () => {
     queueCount = 2;
     expect(await select()).toEqual({ selected: null, reason: 'concurrency_limit' });
     expect(enqueued).toEqual([]);
-  });
-
-  test('a passed-over candidate does not stop a later safe one', async () => {
-    tasks.push({ id: 21, themeId: 1, status: 'todo' });
-    plans[20] = plan('rapitas-backend/services/alpha/a.ts');
-    plans[21] = plan('rapitas-desktop/src/gamma/c.ts');
-    expect(await select()).toEqual({ selected: 21 });
-    expect(rejectedReasons()).toEqual(['file_overlap']);
   });
 
   test('the theme is already full (2 running) → no third task', async () => {
@@ -257,73 +239,6 @@ describe('per-theme limit 1 — the pre-task one-at-a-time behaviour', () => {
   test('a missing column (client before regeneration) is limit 1', async () => {
     settings = { autoRunMaxConcurrency: 2 };
     expect(await select()).toEqual({ selected: null, reason: 'per_theme_limit' });
-  });
-});
-
-describe('pairs that must not run together (same theme)', () => {
-  const rows2: Array<{ name: string; arrange: () => void; reason: string }> = [
-    {
-      name: 'dependency table link',
-      arrange: () => (dependencyLinked = true),
-      reason: 'dependency_link',
-    },
-    {
-      name: 'dependency written in the description',
-      arrange: () => (tasks[1]!.description = 'タスク10に依存する'),
-      reason: 'dependency_text',
-    },
-    {
-      name: 'dependency on an unfinished third task',
-      arrange: () => {
-        tasks[1]!.description = '#77 の後に着手';
-        tasks.push({ id: 77, themeId: 2, status: 'todo' });
-      },
-      reason: 'dependency_text',
-    },
-    // NOTE: since 2026-11-27 a pair-scoped kind refuses only when both the
-    // running task and the candidate touch it, so both sides are arranged here.
-    {
-      name: 'both touch messages (pair-scoped kind)',
-      arrange: () => {
-        plans[10] = plan('rapitas-frontend/messages/en.json');
-        plans[20] = plan('rapitas-frontend/messages/ja.json');
-      },
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'both touch the prisma schema (pair-scoped kind)',
-      arrange: () => {
-        plans[10] = plan('rapitas-backend/prisma/schema/core.prisma');
-        plans[20] = plan('rapitas-backend/prisma/schema/system.prisma');
-      },
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'a lockfile on the candidate (any-scoped kind)',
-      arrange: () => (plans[20] = plan('pnpm-lock.yaml')),
-      reason: 'conflict_prone_file',
-    },
-    {
-      name: 'same folder',
-      arrange: () => (plans[20] = plan('rapitas-backend/services/alpha/other.ts')),
-      reason: 'same_directory',
-    },
-    { name: 'import relation', arrange: () => (importRelated = true), reason: 'import_relation' },
-  ];
-  for (const r of rows2) {
-    test(`${r.name} → not selected (${r.reason})`, async () => {
-      r.arrange();
-      expect(await select()).toMatchObject({ selected: null, reason: 'parallel_conflict' });
-      expect(rejectedReasons()).toEqual([r.reason]);
-      expect(enqueued).toEqual([]);
-    });
-  }
-
-  // 2026-11-27 user request: a schema task next to one that does not touch the schema.
-  test('a schema task next to a task that does not touch the schema is selected', async () => {
-    plans[20] = plan('rapitas-backend/prisma/schema/core.prisma');
-    expect(await select()).toEqual({ selected: 20 });
-    expect(rejectedReasons()).toEqual([]);
   });
 });
 
