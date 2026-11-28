@@ -85,3 +85,63 @@ describe('primary checkout guidance wiring (task 1116)', () => {
     expect(texts.implementer.constraints).toContain('PID');
   });
 });
+
+// Task 1582: run 7975 started Monitor, wrote "waiting for runId 94d7787b…" and
+// ended its turn; under `--print` nothing wakes it, so the run counted as done
+// before the verdict. The implementer must wait in the foreground instead.
+describe('self-verification is awaited in the foreground (task 1582)', () => {
+  const expectations = {
+    ja: [
+      'Monitor',
+      'ScheduleWakeup',
+      'run_in_background',
+      'Start-Process',
+      '--print',
+      '10秒',
+      '最大90回',
+      '900秒',
+      '`status` が `running` の間は番を終えない',
+      '未確定',
+    ],
+    en: [
+      'Monitor',
+      'ScheduleWakeup',
+      'run_in_background',
+      'Start-Process',
+      '--print',
+      '10 seconds',
+      'up to 90 times',
+      '900 seconds',
+      'do not end your turn while `status` is `running`',
+      'unconfirmed',
+    ],
+  } as const;
+
+  test.each(['ja', 'en'] as const)(
+    'the %s implementer constraints carry the procedure',
+    (language) => {
+      const texts = buildRoleTexts(1582, { title: 'Probe', description: null }, language);
+      for (const phrase of expectations[language]) {
+        expect(texts.implementer.constraints).toContain(phrase);
+      }
+      expect(texts.implementer.constraints).toContain(
+        'http://127.0.0.1:3001/workflow/tasks/1582/run-verification',
+      );
+    },
+  );
+
+  test.each(['ja', 'en'] as const)(
+    'the %s constraints no longer tell the agent to poll every 20 seconds',
+    (language) => {
+      const texts = buildRoleTexts(1582, { title: 'Probe', description: null }, language);
+      expect(texts.implementer.constraints).not.toContain(
+        language === 'ja' ? '20秒間隔' : 'every 20 seconds',
+      );
+    },
+  );
+
+  test('the prompt types stay importable from workflow-role-prompts', async () => {
+    const mod = await import('./workflow-role-prompt-types');
+    expect(typeof mod).toBe('object');
+  });
+});

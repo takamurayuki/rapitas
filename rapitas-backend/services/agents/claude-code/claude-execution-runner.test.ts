@@ -166,3 +166,35 @@ describe('autonomous reasoning effort', () => {
     },
   );
 });
+
+// Task 1582: an agent that started a background waiter (Monitor) and ended its
+// turn was treated as finished — under `--print` the notification never comes.
+describe('background waiting tools are forbidden (task 1582)', () => {
+  test.each([false, true])(
+    'Monitor / ScheduleWakeup / CronCreate are in --disallowedTools (investigationMode=%p)',
+    (investigationMode) => {
+      const agent = new ClaudeCodeAgent('bg', 'test-agent', { investigationMode });
+      const { args } = buildClaudeArgs(agent);
+      const denied = args[args.indexOf('--disallowedTools') + 1].split(',');
+      for (const tool of ['Monitor', 'ScheduleWakeup', 'CronCreate']) {
+        expect(denied).toContain(tool);
+      }
+    },
+  );
+
+  test('Bash run_in_background is disabled through CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1', () => {
+    // run_in_background is a Bash argument, not a tool name, so --disallowedTools cannot name it.
+    expect(buildSpawnEnv().CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+  });
+
+  test('the inherited environment cannot switch background tasks back on', () => {
+    const prev = process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS;
+    try {
+      process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = '0';
+      expect(buildSpawnEnv().CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe('1');
+    } finally {
+      if (prev === undefined) delete process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS;
+      else process.env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = prev;
+    }
+  });
+});

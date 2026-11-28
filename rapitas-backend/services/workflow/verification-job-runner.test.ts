@@ -65,6 +65,12 @@ mock.module('./verification-job-store', () => ({
   recordJobFinish: recordJobFinishMock,
 }));
 
+const markStartedMock = mock((_ref: unknown) => {});
+const markFinishedMock = mock((_ref: unknown) => {});
+mock.module('./self-verification-activity', () => ({
+  getActivityStore: () => ({ markStarted: markStartedMock, markFinished: markFinishedMock }),
+}));
+
 const { beginVerificationRun, runVerificationGateAndRecord, computeVerificationCacheKey } =
   await import('./verification-job-runner');
 
@@ -77,6 +83,8 @@ beforeEach(() => {
   resolvePreferredBaseBranchMock.mockClear();
   recordJobStartMock.mockClear();
   recordJobFinishMock.mockClear();
+  markStartedMock.mockClear();
+  markFinishedMock.mockClear();
   runGitCommandMock.mockImplementation(async (args: string[]) => {
     if (args[0] === 'rev-parse') return 'head-1';
     if (args[0] === 'diff') return '';
@@ -156,6 +164,78 @@ describe('runVerificationGateAndRecord', () => {
       { status: string; ok?: boolean; unverifiable?: boolean },
     ];
     expect(outcome).toMatchObject({ status: 'completed', ok: false, unverifiable: true });
+  });
+});
+
+describe('self-verification activity markers (task 1582)', () => {
+  it('beginVerificationRun records the run as running for its worktree', async () => {
+    const { runId } = await beginVerificationRun(5, 'C:/wt/task-5');
+    expect(markStartedMock).toHaveBeenCalledTimes(1);
+    expect(markStartedMock).toHaveBeenCalledWith({
+      runId,
+      taskId: 5,
+      worktreePath: 'C:/wt/task-5',
+    });
+  });
+
+  it('a completed run is marked finished with the verdict and the passed/failed check counts', async () => {
+    runAutomatedVerificationMock.mockImplementation(async () => ({
+      ok: false,
+      summary: 'ng',
+      checks: [
+        { ran: true, ok: true },
+        { ran: true, ok: true },
+        { ran: true, ok: false },
+        { ran: false, ok: true },
+      ],
+    }));
+    const { cacheInputsBefore, keyBefore } = await beginVerificationRun(5, 'C:/wt/task-5');
+    await runVerificationGateAndRecord(5, 'run-a', 'C:/wt/task-5', cacheInputsBefore, keyBefore);
+    expect(markFinishedMock).toHaveBeenCalledTimes(1);
+    expect(markFinishedMock).toHaveBeenCalledWith({
+      runId: 'run-a',
+      taskId: 5,
+      worktreePath: 'C:/wt/task-5',
+      ok: false,
+      unverifiable: false,
+      passed: 2,
+      failed: 1,
+    });
+  });
+
+  it('an input change mid-run is marked finished as unverifiable', async () => {
+    let diffCall = 0;
+    runGitCommandMock.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'diff') return `d${diffCall++}`;
+      return args[0] === 'rev-parse' ? 'head-1' : '';
+    });
+    const { cacheInputsBefore, keyBefore } = await beginVerificationRun(5, 'C:/wt/task-5');
+    await runVerificationGateAndRecord(5, 'run-b', 'C:/wt/task-5', cacheInputsBefore, keyBefore);
+    expect(markFinishedMock.mock.calls[0][0]).toMatchObject({ ok: false, unverifiable: true });
+  });
+
+  it('a crashed gate is still marked finished, so watchdogs stop waiting', async () => {
+    runAutomatedVerificationMock.mockImplementation(async () => {
+      throw new Error('boom');
+    });
+    const { cacheInputsBefore, keyBefore } = await beginVerificationRun(5, 'C:/wt/task-5');
+    await runVerificationGateAndRecord(5, 'run-c', 'C:/wt/task-5', cacheInputsBefore, keyBefore);
+    expect(markFinishedMock.mock.calls[0][0]).toMatchObject({
+      runId: 'run-c',
+      ok: false,
+      unverifiable: true,
+    });
+  });
+
+  it('a marker write failure never fails the verification job', async () => {
+    markFinishedMock.mockImplementationOnce(() => {
+      throw new Error('disk full');
+    });
+    const { cacheInputsBefore, keyBefore } = await beginVerificationRun(5, 'C:/wt/task-5');
+    await expect(
+      runVerificationGateAndRecord(5, 'run-d', 'C:/wt/task-5', cacheInputsBefore, keyBefore),
+    ).resolves.toBeUndefined();
+    expect(recordJobFinishMock).toHaveBeenCalledTimes(1);
   });
 });
 
