@@ -36,6 +36,19 @@ export interface PlanPostProcessingOutcome {
   splitResult: { subtasksCreated: number; subtaskIds: number[] } | null;
 }
 
+/** Enqueues the subtasks of a split plan; failures are logged, never thrown. */
+async function enqueueSplitSubtasks(taskId: number): Promise<void> {
+  try {
+    const { AIOrchestra } = await import('../../../../services/workflow/ai-orchestra');
+    await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
+  } catch (enqErr) {
+    log.error(
+      { err: enqErr, taskId },
+      '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
+    );
+  }
+}
+
 /**
  * Runs subtask auto-splitting and plan auto-approval after a plan.md save.
  *
@@ -143,23 +156,18 @@ export async function runPlanPostProcessing(params: {
       // When the plan was split into subtasks the parent must NOT advance to
       // its own implementer phase — the subtasks do the work. Approve without
       // auto-advancing the parent, then enqueue the subtasks for sequential run.
+      const enqueueSubtasks =
+        splitResult && splitResult.subtaskIds.length > 0
+          ? () => enqueueSplitSubtasks(taskId)
+          : undefined;
       const approval = await maybeAutoApprovePlan(taskId, fileLanguage, {
         autoAdvance: !splitResult,
+        onHeldApproval: enqueueSubtasks,
       });
       if (approval.autoApproved) {
         newStatus = 'plan_approved';
         autoApproved = true;
-        if (splitResult && splitResult.subtaskIds.length > 0) {
-          try {
-            const { AIOrchestra } = await import('../../../../services/workflow/ai-orchestra');
-            await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
-          } catch (enqErr) {
-            log.error(
-              { err: enqErr, taskId },
-              '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
-            );
-          }
-        }
+        await enqueueSubtasks?.();
       }
     }
   }

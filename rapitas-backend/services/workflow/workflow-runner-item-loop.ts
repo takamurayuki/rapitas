@@ -7,7 +7,6 @@
  * is still the runner's own (task 1568). Not responsible for dequeuing or for error handling —
  * see workflow-runner-item-errors.ts.
  */
-import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import type { QueueItem, WorkflowQueueService } from './workflow-queue';
 import type { WorkflowOrchestrator } from './workflow-orchestrator';
@@ -17,7 +16,6 @@ import {
   resolveMaxIterations,
   resolvePhaseTimeoutMs,
   notifyParentOnSubtaskFailure,
-  shouldAutoApprovePlan,
   raceWorkflowAdvance,
   waitBeforeNextPhase,
   logPhaseFailure,
@@ -27,6 +25,7 @@ import { taskVanishedMessage } from './queue-vanished-task-policy';
 import { startPhaseUnlessHalted } from './workflow-runner-halt-guard';
 import { isItemStillOwned } from './awaiting-ci-lookup';
 import { guardQueueWrites, claimAdvance, handOffAfterAdvance } from './workflow-runner-item-claim';
+import { settlePlanCreated } from './workflow-runner-plan-approval';
 import type { ActiveExecution } from './workflow-runner.types';
 
 const log = createLogger('workflow-runner');
@@ -171,26 +170,10 @@ export async function runItemPhaseLoop(
       break;
     }
 
-    // plan_created: check auto-approve setting before waiting
+    // plan_created: auto-approve, hand back, or wait for a human
     if (currentStatus === 'plan_created') {
-      if (await shouldAutoApprovePlan(item.taskId)) {
-        // NOTE: Auto-approve — skip waiting and advance immediately. Keep
-        // task.status in sync with the workflow phase so the subtask-
-        // completion handler (which reads both fields) never sees a stale
-        // status and strands the parent.
-        await prisma.task.update({
-          where: { id: item.taskId },
-          data: { workflowStatus: 'plan_approved', status: 'in-progress' },
-        });
-        deps.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', 'plan_created');
-        log.info(`[WorkflowRunner] Plan auto-approved for task ${item.taskId}`);
-        continue;
-      }
-
-      await queue.updateStatus(item.id, 'waiting_approval', {
-        currentPhase: 'plan_created',
-      });
-      deps.broadcastItemUpdate(item.id, item.taskId, 'waiting_approval', 'plan_created');
+      const next = await settlePlanCreated(queue, item, deps.broadcastItemUpdate);
+      if (next === 'continue') continue;
       break;
     }
 
