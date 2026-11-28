@@ -145,6 +145,12 @@ export function filesForMiss(
   const named = changed.filter((f) =>
     tokens.some((t) => t === f || f.endsWith(`/${t}`) || t.endsWith(`/${f}`)),
   );
-  const out = [...new Set([...explicit, ...named])];
+  // 構造化された指摘パスは、旧ジョブの変更一覧に欠けていても保持する。
+  const findingFiles = findings.flatMap((finding) => {
+    if (!finding || typeof finding !== 'object') return [];
+    const file = (finding as { file?: unknown }).file;
+    return typeof file === 'string' && file.trim() ? [file.trim().replace(/\\/g, '/')] : [];
+  });
+  const out = [...new Set([...explicit, ...findingFiles, ...named])];
   return (out.length > 0 ? out : changed).slice(0, MAX_FILES);
 }

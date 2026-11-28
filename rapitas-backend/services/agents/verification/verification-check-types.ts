@@ -78,7 +78,7 @@ export interface VerificationCheck {
 export interface VerificationResult {
   /** True when every check that ran passed. */
   ok: boolean;
-  /** Code files the agent added/modified (repo-relative). */
+  /** 設定・文書・削除を含む全変更パス（リポジトリ相対）。 */
   changedFiles: string[];
   checks: VerificationCheck[];
   /** One-line human summary. */

@@ -58,6 +58,34 @@ describe('classifyRepairMiss', () => {
 });
 
 describe('gate helpers', () => {
+  test('旧ジョブの変更一覧が空でも指摘の文書パスを保持し、重複を除く', () => {
+    expect(
+      filesForMiss(
+        '文書の説明が不足',
+        [{ file: 'docs\\guide.md' }, { file: 'docs/guide.md' }, { file: '' }, { file: null }, null],
+        [],
+      ),
+    ).toEqual(['docs/guide.md']);
+  });
+
+  test('変更も明示パスもなければ空で、理由中の無関係なパスは採用しない', () => {
+    expect(filesForMiss('docs/unrelated.md の例を参照', [], [])).toEqual([]);
+    expect(filesForMiss('docs/unrelated.md の例を参照', [], ['config.json'])).toEqual([
+      'config.json',
+    ]);
+  });
+
+  test('明示パスは変更一覧より優先し、200件の上限を守る', () => {
+    const files = Array.from({ length: 201 }, (_, i) => `docs/guide-${i}.md`);
+    expect(
+      filesForMiss(
+        '指摘',
+        files.map((file) => ({ file })),
+        ['config.json'],
+      ),
+    ).toEqual(files.slice(0, 200));
+  });
+
   test('machine gates are mechanical, reviewer gates are judgment', () => {
     expect(kindOfGate('ci:Lint Code')).toBe('mechanical');
     expect(kindOfGate('presave:secret')).toBe('mechanical');

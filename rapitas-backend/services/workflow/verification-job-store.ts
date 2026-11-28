@@ -61,7 +61,7 @@ export interface VerificationJobOutcome {
   fingerprintAtFinish?: string | null;
   /** Actual observed subprocess outcomes, independent of the gate verdict. */
   commands?: CommandEvidence[];
-  /** Changed code files the run checked (task 1602: the files of a later self-verify miss). */
+  /** 後段の見落としに引き継ぐ、設定・文書・削除を含む全変更パス。 */
   changedFiles?: string[];
 }
 

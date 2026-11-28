@@ -210,7 +210,15 @@ export async function runAutomatedVerification(
     )
     .join(' / ');
 
-  return { ok, changedFiles, checks, summary: `自動検証: ${summary}`, unverifiable, verdict };
+  // 見落としの記録には、コード以外の設定・文書・削除パスも引き継ぐ。
+  return {
+    ok,
+    changedFiles: allChanged,
+    checks,
+    summary: `自動検証: ${summary}`,
+    unverifiable,
+    verdict,
+  };
 }
 
 // NOTE: Rendering moved to verification-report.ts (file-size split); re-exported

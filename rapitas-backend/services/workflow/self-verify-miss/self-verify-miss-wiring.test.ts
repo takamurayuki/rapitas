@@ -8,12 +8,14 @@
  */
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { fakeEvents, resetFakeTimeline, seedJob } from './timeline-fake.fixture';
+import { makeCatalogRepo } from '../../agents/verification/check-catalog/catalog-repo.fixture';
 
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({ info: () => {}, debug: () => {}, warn: () => {}, error: () => {} }),
 }));
 
 const prisma = {
+  theme: { findFirst: async () => null },
   userSettings: { findFirst: async () => null },
   activityLog: { findFirst: async () => null },
   // No task row: attemptVerifyRepair returns stale right after filing the miss.
@@ -28,7 +30,10 @@ const prisma = {
   },
 };
 mock.module('../../../config/database', () => ({ prisma }));
-mock.module('../../../config', () => ({ prisma }));
+mock.module('../../../config', () => ({
+  prisma,
+  createLogger: () => ({ info: () => {}, debug: () => {}, warn: () => {}, error: () => {} }),
+}));
 
 // CI collaborators, mirroring tests/services/auto-merge-ci-failure.test.ts.
 mock.module('../auto-merge-checks', () => ({
@@ -63,6 +68,9 @@ mock.module('../transition-recorder', () => ({ recordTransition: async () => {} 
 const { attemptVerifyRepair } = await import('../verify-self-repair');
 const { handleCiFailure } = await import('../auto-merge-ci-failure');
 const { recordPreSaveStop } = await import('../publish/verification-stop-record');
+const { runAutomatedVerification } = await import('../../agents/verification/automated-verifier');
+const { recordJobStart, recordJobFinish, getJobByRunId } =
+  await import('../verification-job-store');
 
 const misses = () =>
   fakeEvents.filter((e) => e.eventType === 'self_verify_miss').map((e) => e.payload);
@@ -79,6 +87,64 @@ const candidate = {
 };
 
 beforeEach(() => resetFakeTimeline());
+
+describe('非コード変更の自己検証から実ゲートまで', () => {
+  test.each(['rapitas-backend/.env.example', 'docs/guide.md', ''])(
+    '変更パス %s を終了イベントと見落としに保持する（空文字は変更なし）',
+    async (file) => {
+      const repo = makeCatalogRepo({}, { withScripts: false });
+      try {
+        if (file) repo.write(file, '# 説明を更新\n');
+        const runId = 'non-code-run';
+        const revision = repo.git('rev-parse', 'HEAD').trim();
+        await recordJobStart(31, runId, null, {
+          operation: 'run-verification',
+          worktreePath: repo.dir,
+          revision,
+        });
+        const result = await runAutomatedVerification(repo.dir);
+        expect(result.ok, JSON.stringify(result.checks)).toBe(true);
+        await recordJobFinish(31, runId, { status: 'completed', ...result });
+        await attemptVerifyRepair(31, 'in_progress', '検証担当の指摘', 'body');
+        expect(misses()).toHaveLength(1);
+        expect(misses()[0]).toMatchObject({
+          taskId: 31,
+          runId,
+          revision,
+          gate: 'verify',
+          kind: 'judgment',
+          reasonSummary: '検証担当の指摘',
+          files: file ? [file] : [],
+        });
+        expect((await getJobByRunId(31, runId))?.changedFiles).toEqual(file ? [file] : []);
+        expect(repo.git('rev-parse', 'HEAD').trim()).toBe(revision);
+      } finally {
+        repo.cleanup();
+      }
+    },
+    30_000,
+  );
+
+  test('旧ジョブに変更パスがなくても差分レビューが明示した文書を残す', async () => {
+    await recordJobStart(31, 'legacy-docs', null, {
+      operation: 'run-verification',
+      worktreePath: '/repo',
+      revision: 'sha-docs',
+    });
+    await recordJobFinish(31, 'legacy-docs', { status: 'completed', ok: true, changedFiles: [] });
+    await attemptVerifyRepair(31, 'verify_done', '差分レビュー不合格: 説明不足', 'body', {
+      findings: [{ file: 'docs/guide.md', summary: '説明不足' }],
+    });
+    expect(misses()).toHaveLength(1);
+    expect(misses()[0]).toMatchObject({
+      runId: 'legacy-docs',
+      revision: 'sha-docs',
+      gate: 'diff_review',
+      kind: 'judgment',
+      files: ['docs/guide.md'],
+    });
+  });
+});
 
 describe('verify gate (attemptVerifyRepair)', () => {
   test('a verifier rejection after a pass files one judgment miss', async () => {
