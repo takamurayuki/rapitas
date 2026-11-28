@@ -114,11 +114,15 @@ export async function guardParallelRecheck(
     log.warn({ err, taskId }, '[parallel-recheck] mark read failed — holding');
     return hold(ctx, null, noOpponent('mark_read_failed', 'could not read the re-check mark'));
   }
-  if (!mark.pending || mark.markAt == null || task.themeId == null) {
+  if (!mark.pending || mark.markAt == null) {
     clearRecheckHold(taskId);
     return { done: false };
   }
   const markAt = mark.markAt;
+  // テーマ削除後も未消化の印は残るため、在籍なしとして実装を保留する。
+  if (task.themeId == null) {
+    return hold(ctx, markAt, noOpponent('not_enrolled', 'task holds no slot in its theme'));
+  }
   const themeId = task.themeId;
   const set = await d
     .readActiveSet(prisma, themeId)

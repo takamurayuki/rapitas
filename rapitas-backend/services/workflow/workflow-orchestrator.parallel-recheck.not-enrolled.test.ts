@@ -20,6 +20,7 @@ interface Row {
   metadata: string;
 }
 let transitions: Row[] = [];
+let taskThemeId: number | null;
 let themeRow: { themeId: number; currentTaskId: number | null; companionTasksJson: string | null };
 const mockPrisma = {
   calendarBusyBlock: { findMany: async () => [] },
@@ -77,7 +78,11 @@ let preflight: { workflowMode: string; currentStatus: string };
 mock.module('./workflow-orchestrator-preflight', () => ({
   runPreflight: mock(async () => ({
     done: false,
-    task: { id: 7, themeId: 1, theme: { workingDirectory: null } },
+    task: {
+      id: 7,
+      themeId: taskThemeId,
+      theme: taskThemeId === null ? null : { workingDirectory: null },
+    },
     transition: { role: 'implementer', nextStatus: 'in_progress' },
     ...preflight,
   })),
@@ -108,39 +113,48 @@ const { resetRecheckHoldState } = await import('./auto-run/parallel/recheck/rech
 const MODES = [
   { name: 'standard', workflowMode: 'standard', currentStatus: 'plan_approved' },
   { name: 'lightweight', workflowMode: 'lightweight', currentStatus: 'research_done' },
+  { name: 'comprehensive', workflowMode: 'comprehensive', currentStatus: 'plan_approved' },
 ];
 
-describe('advanceWorkflow — unconsumed mark without a slot (G1)', () => {
-  beforeEach(() => {
-    prepMock.mockClear();
-    executeMock.mockClear();
-    resetRecheckHoldState();
-    transitions = [
-      { taskId: 7, cause: 'parallel_recheck_pending', createdAt: new Date(1_000), metadata: '{}' },
-    ];
-    // Auto-run lost task 7's slot: only task 10 is running now.
-    themeRow = { themeId: 1, currentTaskId: 10, companionTasksJson: null };
+for (const themeId of [1, null]) {
+  describe('advanceWorkflow — unconsumed mark without a slot (G1)', () => {
+    beforeEach(() => {
+      taskThemeId = themeId;
+      prepMock.mockClear();
+      executeMock.mockClear();
+      resetRecheckHoldState();
+      transitions = [
+        {
+          taskId: 7,
+          cause: 'parallel_recheck_pending',
+          createdAt: new Date(1_000),
+          metadata: '{}',
+        },
+      ];
+      // Auto-run lost task 7's slot: only task 10 is running now.
+      themeRow = { themeId: 1, currentTaskId: 10, companionTasksJson: null };
+    });
+
+    for (const m of MODES) {
+      it(`${m.name} (${m.currentStatus}, themeId=${themeId}): 未消化印があると実装を起動しない`, async () => {
+        preflight = { workflowMode: m.workflowMode, currentStatus: m.currentStatus };
+        const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
+        expect(r.skipped).toBe(true);
+        expect(r.held).toContain('not_enrolled');
+        expect(r.status).toBe(m.currentStatus as never);
+        expect(prepMock).not.toHaveBeenCalled();
+        expect(executeMock).not.toHaveBeenCalled();
+        const held = transitions.filter((t) => t.cause === 'parallel_recheck_held');
+        expect(held.map((t) => JSON.parse(t.metadata).reason)).toEqual(['not_enrolled']);
+      });
+
+      it(`${m.name} (themeId=${themeId}): 印がなければ実装準備まで進む`, async () => {
+        preflight = { workflowMode: m.workflowMode, currentStatus: m.currentStatus };
+        transitions = [];
+        const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
+        expect(prepMock).toHaveBeenCalledTimes(1);
+        expect(r.error).toBe('reached');
+      });
+    }
   });
-
-  for (const m of MODES) {
-    it(`${m.name} (${m.currentStatus}): the implementer does not start`, async () => {
-      preflight = { workflowMode: m.workflowMode, currentStatus: m.currentStatus };
-      const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
-      expect(r.skipped).toBe(true);
-      expect(r.held).toContain('not_enrolled');
-      expect(r.status).toBe(m.currentStatus as never);
-      expect(prepMock).not.toHaveBeenCalled();
-      expect(executeMock).not.toHaveBeenCalled();
-      const held = transitions.filter((t) => t.cause === 'parallel_recheck_held');
-      expect(held.map((t) => JSON.parse(t.metadata).reason)).toEqual(['not_enrolled']);
-    });
-
-    it(`${m.name}: without a mark the same advance reaches the implementer`, async () => {
-      preflight = { workflowMode: m.workflowMode, currentStatus: m.currentStatus };
-      transitions = [];
-      const r = await WorkflowOrchestrator.getInstance().advanceWorkflow(7, 'ja');
-      expect(prepMock).toHaveBeenCalledTimes(1);
-      expect(r.error).toBe('reached');
-    });
-  }
-});
+}
