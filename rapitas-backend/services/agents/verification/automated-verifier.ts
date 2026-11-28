@@ -32,6 +32,8 @@ import {
 import { formatProject, lintProject, mergeChecks } from './verifier-project-lint';
 import { testProject, typecheckProject } from './verifier-project-typecheck-test';
 import { coverageCheck, tamperCheck } from './verifier-task-gates';
+import { runCatalogChecks } from './check-catalog/catalog-checks';
+import { attachFailureHints } from './check-catalog/failure-hints';
 import type {
   VerificationCheck,
   VerificationOptions,
@@ -70,13 +72,16 @@ export {
  * are token-matching heuristics whose false positives must not block a
  * genuinely green change (see the NOTE above the staticOk call site; scope's
  * hard→advisory demotion history is task 298). Exported for unit tests that
- * pin the advisory exclusion.
+ * pin the advisory exclusion. A check marked `advisory` (task 1602: the
+ * pre-save attribution dry-run) is reported the same way and excluded too.
  *
  * @param checks - Individual check results. / 各チェック結果
  * @returns Hard-gate verdict. / 総合判定
  */
 export function computeOverallOk(checks: VerificationCheck[]): boolean {
-  return checks.filter((c) => c.name !== 'scope' && c.name !== 'acceptance').every((c) => c.ok);
+  return checks
+    .filter((c) => c.name !== 'scope' && c.name !== 'acceptance' && !c.advisory)
+    .every((c) => c.ok);
 }
 
 /**
@@ -139,6 +144,9 @@ export async function runAutomatedVerification(
   // ratchet): each hard-fails CI, so catching it here saves a ci_repair round.
   const generatedSync = generatedSyncCheck(allChanged);
   const parity = await ciParityChecks(workdir, allChanged);
+  // Task 1602: the checks the real gates run that the scoped commands above
+  // cannot see (import-graph, docs-drift, HACK/FIXME ceilings, pre-save dry-run).
+  const catalog = await runCatalogChecks(workdir, allChanged, options.taskId);
   // Acceptance self-check (ADVISORY, task 617): criterion↔diff token matching
   // over the FULL diff (criteria may reference docs/config, not just code).
   const acceptance =
@@ -156,6 +164,7 @@ export async function runAutomatedVerification(
     ...(formatParts.length > 0 ? [mergeChecks('format', formatParts)] : []),
     ...(generatedSync ? [generatedSync] : []),
     ...parity,
+    ...catalog,
     ...hardGateChecks,
     ...(coverage ? [coverage] : []),
     ...(redState ? [redState] : []),
@@ -184,6 +193,8 @@ export async function runAutomatedVerification(
     if (runtime) checks.push(runtime);
   }
 
+  // What to fix and where, for the implementer reading the self-verify response.
+  attachFailureHints(checks, allChanged, workdir);
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = computeOverallOk(checks);
   const verdict = !ok ? 'fail' : checks.some((c) => c.indeterminate) ? 'unknown' : 'pass';
