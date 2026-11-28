@@ -18,7 +18,14 @@ import type { AutoCommitPRResult } from '../../services/workflow/publish/workflo
 import type { PublishBinding } from '../../services/workflow/publish/workflow-auto-commit-binding';
 import { runLocalSaveStage } from '../../services/workflow/publish/auto-commit-local-save-stage';
 import { runPrCreationStage } from '../../services/workflow/publish/auto-commit-pr-stage';
-import { readHeadRevision, runPreSaveChecks } from './workflow-auto-commit-presave';
+import {
+  readHeadRevision,
+  runPreSaveChecks,
+  saveTaskWorkLocally,
+} from './workflow-auto-commit-presave';
+import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
+import { countCommitsAhead, isNoChangeCompletion } from './workflow-auto-commit-classify';
+import { pushExistingPrBranch } from './workflow-auto-commit-reuse-push';
 import { syncAndReverifyBeforePublish } from './workflow-auto-commit-publish-guard';
 import {
   recordGateStop,
@@ -161,6 +168,7 @@ export async function performAutoCommitAndPR(
         targetBranch,
         binding: opts.binding,
         result,
+        deps: { saveTaskWorkLocally, logAutoCommit },
       });
       if (stopped) return stopped;
     }
@@ -255,6 +263,7 @@ export async function performAutoCommitAndPR(
         branchName,
         targetBranch,
         result,
+        deps: { countCommitsAhead, isNoChangeCompletion, pushExistingPrBranch, logAutoPR },
       });
       if (stopped) return stopped;
     }

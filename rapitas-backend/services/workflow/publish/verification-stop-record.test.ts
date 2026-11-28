@@ -99,5 +99,6 @@ describe('hasFreshVerificationStop', () => {
     findFirst.mockRejectedValue(new Error('down'));
 
     expect(await hasFreshVerificationStop(5)).toBe(false);
+    expect(warnings).toEqual(['直近の検証停止履歴を取得できませんでした']);
   });
 });

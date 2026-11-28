@@ -4,11 +4,12 @@
  * Records the task's working tree as a local commit on its branch, guarding the
  * stop intent and any review-hold binding around the write. Not responsible for
  * pre-save checks, verification, push or PR creation.
+ *
+ * NOTE: The route-layer helpers are injected — services must not import routes
+ * (scripts/import-graph/check-import-graph.cjs).
  */
 import { createLogger } from '../../../config/logger';
 import type { AgentOrchestrator } from '../../agents/agent-orchestrator';
-import { logAutoCommit } from '../../../routes/workflow/workflow-activity-logger';
-import { saveTaskWorkLocally } from '../../../routes/workflow/workflow-auto-commit-presave';
 import { PUBLICATION_CANCELLED_ERROR, publicationAborted } from '../publication-cancellation-guard';
 import {
   bindingDriftAfterCommit,
@@ -19,10 +20,36 @@ import type { AutoCommitPRResult } from './workflow-auto-commit-types';
 
 const log = createLogger('routes:workflow:auto-commit');
 
+type SavedCommit = NonNullable<AutoCommitPRResult['autoCommitResult']> & {
+  additions?: number;
+  deletions?: number;
+  alreadyCommitted?: boolean;
+};
+
+/** Route-layer helpers this stage calls. */
+export interface LocalSaveDeps {
+  saveTaskWorkLocally: (p: {
+    orchestrator: AgentOrchestrator;
+    gitCwd: string;
+    branchName: string | null | undefined;
+    message: string;
+    targetBranch: string;
+  }) => Promise<SavedCommit>;
+  logAutoCommit: (
+    taskId: number,
+    hash: string,
+    branch: string,
+    filesChanged: number,
+    additions: number,
+    deletions: number,
+    alreadyCommitted: boolean,
+  ) => Promise<unknown>;
+}
+
 /**
  * Save the working tree locally, writing the outcome onto `p.result`.
  *
- * @param p - Task, worktree, branch, optional binding and the shared result / 入力
+ * @param p - Task, worktree, branch, optional binding, shared result and helpers / 入力
  * @returns The result to return immediately, or null to continue / 中断時の結果、継続なら null
  */
 export async function runLocalSaveStage(p: {
@@ -34,6 +61,7 @@ export async function runLocalSaveStage(p: {
   targetBranch: string;
   binding?: PublishBinding;
   result: AutoCommitPRResult;
+  deps: LocalSaveDeps;
 }): Promise<AutoCommitPRResult | null> {
   const { taskId, gitCwd, result } = p;
   // Boundary 2/5 — the last point before this run writes to git (locally).
@@ -43,7 +71,7 @@ export async function runLocalSaveStage(p: {
   // commits, so a change after the human looked is never recorded.
   const pre = p.binding && (await checkBindingBeforeCommit(taskId, gitCwd, p.binding));
   if (pre?.drift) return { ...result, bindingMismatch: pre.drift, error: pre.drift };
-  const saved = await saveTaskWorkLocally({
+  const saved = await p.deps.saveTaskWorkLocally({
     orchestrator: p.orchestrator,
     gitCwd,
     branchName: p.branchName,
@@ -60,7 +88,7 @@ export async function runLocalSaveStage(p: {
   const after = pre?.stable && (await bindingDriftAfterCommit(gitCwd, pre.stable));
   if (after) return { ...result, bindingMismatch: after, error: after };
   log.info(`[Workflow] Local save recorded for task ${taskId}: ${saved.hash}`);
-  await logAutoCommit(
+  await p.deps.logAutoCommit(
     taskId,
     saved.hash ?? '',
     saved.branch ?? '',

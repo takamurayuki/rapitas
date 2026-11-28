@@ -4,6 +4,9 @@
  * Publishes the verified commit: reuses the task's open PR or creates one,
  * under the per-task PR-creation lock. Not responsible for verification, base
  * sync or merge.
+ *
+ * NOTE: The route-layer helpers are injected — services must not import routes
+ * (scripts/import-graph/check-import-graph.cjs).
  */
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
@@ -16,12 +19,6 @@ import {
   claimPrCreationLock,
   releasePrCreationLock,
 } from '../../github/pr-duplicate-guard';
-import { logAutoPR } from '../../../routes/workflow/workflow-activity-logger';
-import {
-  countCommitsAhead,
-  isNoChangeCompletion,
-} from '../../../routes/workflow/workflow-auto-commit-classify';
-import { pushExistingPrBranch } from '../../../routes/workflow/workflow-auto-commit-reuse-push';
 import { notify } from '../auto-merge-notify';
 import { PR_CREATION_IN_FLIGHT_ERROR } from '../pr-in-flight-wait';
 import { PUBLICATION_CANCELLED_ERROR, publicationAborted } from '../publication-cancellation-guard';
@@ -29,10 +26,21 @@ import type { AutoCommitPRResult } from './workflow-auto-commit-types';
 
 const log = createLogger('routes:workflow:auto-commit');
 
+/** Route-layer helpers this stage calls. */
+export interface PrStageDeps {
+  countCommitsAhead: (gitCwd: string, targetBranch: string) => Promise<number | null>;
+  isNoChangeCompletion: (input: { errorBlob: string; filesChanged: number | undefined }) => boolean;
+  pushExistingPrBranch: (
+    gitCwd: string,
+    branch: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  logAutoPR: (taskId: number, title: string, prUrl?: string, prNumber?: number) => Promise<unknown>;
+}
+
 /**
  * Create (or reuse) the task's PR, writing the outcome onto `p.result`.
  *
- * @param p - Task, worktree, branches, verify.md and the shared result / 入力
+ * @param p - Task, worktree, branches, verify.md, shared result and helpers / 入力
  * @returns The result to return immediately, or null to continue / 中断時の結果、継続なら null
  */
 export async function runPrCreationStage(p: {
@@ -44,6 +52,7 @@ export async function runPrCreationStage(p: {
   branchName: string | null | undefined;
   targetBranch: string;
   result: AutoCommitPRResult;
+  deps: PrStageDeps;
 }): Promise<AutoCommitPRResult | null> {
   const { taskId, task, gitCwd, branchName, targetBranch, orchestrator, result } = p;
   // Boundary 4/5 — the pre-PR base sync above can run an aux conflict
@@ -76,7 +85,7 @@ export async function runPrCreationStage(p: {
       // reached the PR (tasks 995/1002, 2026-09-20). Push explicitly.
       const pushBranch = result.autoCommitResult?.branch ?? branchName;
       const pushed = pushBranch
-        ? await pushExistingPrBranch(gitCwd, pushBranch)
+        ? await p.deps.pushExistingPrBranch(gitCwd, pushBranch)
         : { success: false, error: 'branch name unknown — cannot push to the existing PR' };
       result.autoPRResult = pushed.success
         ? { success: true, prUrl: existingOpenPr.url, prNumber: existingOpenPr.prNumber }
@@ -104,7 +113,7 @@ export async function runPrCreationStage(p: {
       // 739). The "No commits between" wording is kept on purpose: it is
       // what isNoChangeCompletion classifies, so the no-change path below
       // is unchanged; only the pointless gh call and its ERROR line go.
-      const aheadOfBase = await countCommitsAhead(gitCwd, targetBranch);
+      const aheadOfBase = await p.deps.countCommitsAhead(gitCwd, targetBranch);
       const prResult =
         aheadOfBase === 0
           ? {
@@ -123,7 +132,7 @@ export async function runPrCreationStage(p: {
 
       if (prResult.success) {
         log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
-        await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
+        await p.deps.logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
         // Persist + link the PR locally so the task's "PRを開く" button can
         // resolve task → local PR id. Without this the by-task lookup 404s and
         // the button silently does nothing.
@@ -147,7 +156,7 @@ export async function runPrCreationStage(p: {
         // as a recurring generic bug report. Only a genuine PR-creation
         // failure (auth, network, foreign-PR collision, etc.) is an
         // operational error worth ERROR severity.
-        const benignNoChange = isNoChangeCompletion({
+        const benignNoChange = p.deps.isNoChangeCompletion({
           errorBlob: prResult.error ?? '',
           filesChanged: result.autoCommitResult?.filesChanged,
         });

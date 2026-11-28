@@ -10,8 +10,6 @@
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import type { GateOutcome } from '../../agents/verification/verification-gate';
-import type { PreSaveCheckResult } from '../../../routes/workflow/workflow-auto-commit-presave';
-import type { PublishGuardResult } from '../../../routes/workflow/workflow-auto-commit-publish-guard';
 import { VERIFICATION_UNVERIFIABLE_HOLD_CAUSE } from '../blocked-task-policy';
 
 const log = createLogger('workflow:verification-stop');
@@ -30,6 +28,22 @@ export interface VerificationStop {
   reason: string;
   failedChecks: string[];
   details: Array<{ name: string; details: string }>;
+}
+
+// NOTE: Only the fields read here, declared locally because services must not
+// import the route modules that produce them.
+export interface PreSaveStopInput {
+  summary: string;
+  tamper: { ok: boolean; details?: string } | null;
+  secrets: string[];
+  unattributed: string[];
+}
+
+export interface PublishGuardStopInput {
+  verificationBlocked?: boolean;
+  verificationUnverifiable?: boolean;
+  error?: string;
+  baseSync: { detail: string };
 }
 
 const clip = (text: string | undefined) => (text ?? '').slice(0, TEXT_LIMIT);
@@ -83,7 +97,7 @@ export async function recordVerificationStop(stop: VerificationStop): Promise<vo
  */
 export async function recordPreSaveStop(
   taskId: number,
-  preSave: PreSaveCheckResult,
+  preSave: PreSaveStopInput,
   reason: string,
 ): Promise<void> {
   const failed = [
@@ -142,7 +156,7 @@ export async function recordGateStop(
  */
 export async function recordPublishGuardStop(
   taskId: number,
-  guard: PublishGuardResult,
+  guard: PublishGuardStopInput,
   startedAt: Date,
 ): Promise<void> {
   if (!guard.verificationBlocked) return;
@@ -190,7 +204,8 @@ export async function hasFreshVerificationStop(taskId: number): Promise<boolean>
       last?.cause === VERIFICATION_STOPPED_CAUSE &&
       Date.now() - last.createdAt.getTime() <= FRESH_WINDOW_MS
     );
-  } catch {
+  } catch (err) {
+    log.warn({ err, taskId }, '直近の検証停止履歴を取得できませんでした');
     return false;
   }
 }
