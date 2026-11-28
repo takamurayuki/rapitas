@@ -18,10 +18,9 @@
 import { createLogger } from '../../config/logger';
 import { logCycleEvent } from '../observability';
 import { getMergeBarrierMaxHoldMs } from '../scheduling/merge-barrier/merge-barrier';
-import { parsePlanFiles } from '../agents/verification/scope-check';
-import { isTaskHaltActive } from './queue-terminal-task-guard';
 import type { WorkflowAdvanceResult } from './workflow-agent-executor';
 import type { RoleTransition, WorkflowStatus } from './workflow-types';
+import { defaultOverlapGuardDeps } from './overlap-guard-default-deps';
 
 const log = createLogger('workflow:overlap-guard');
 
@@ -33,27 +32,9 @@ const log = createLogger('workflow:overlap-guard');
  */
 export const OVERLAP_PR_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
-/** Transition causes that record an auto-merge outcome; the latest one decides "parked". */
-export const MERGE_OUTCOME_CAUSES = [
-  'auto_merged',
-  'auto_merge_exhausted',
-  'auto_merge_conflict_filed',
-] as const;
-
-/**
- * Whether a PR's latest auto-merge outcome leaves it unable to merge on its own.
- *
- * NOTE: "conflict filed" joins "exhausted": the PR conflicts with the base and
- * merges only after the filed resolver task runs — which may be queued behind
- * the very task being held. TempoRaid 1420 and 1418 each sat out the 30-minute
- * ceiling twice on such a PR (#35) on 2026-11-24.
- *
- * @param cause - Latest outcome cause, or undefined when none / 最新の結果、無ければ undefined
- * @returns True when nothing will merge the PR without outside help / 外部の助け無しにマージされないなら true
- */
-export function isParkedMergeOutcome(cause: string | undefined): boolean {
-  return cause === 'auto_merge_exhausted' || cause === 'auto_merge_conflict_filed';
-}
+// NOTE: Moved to overlap-guard-merge-state.ts (task size limit); re-exported so
+// existing imports and mock.module mirrors keep working.
+export { MERGE_OUTCOME_CAUSES, isParkedMergeOutcome } from './overlap-guard-merge-state';
 
 /** Per-task hold start (epoch ms); deleted on release. */
 const holdSince = new Map<number, number>();
@@ -107,7 +88,7 @@ export interface OverlapGuardDeps {
   artifact: (taskId: number, fileType: 'plan' | 'research') => Promise<string | null>;
   parseFiles: (content: string) => string[];
   overlap: (planFiles: string[], prFiles: string[]) => Promise<string[]>;
-  /** Whether the PR's auto-merge is parked (exhausted) — such a PR merges only after outside help. */
+  /** Whether the PR will not merge soon: parked, or its task went back to work / is blocked. */
   isParked: (linkedTaskId: number) => Promise<boolean>;
   /** Whether the PR's task is halted (budget/iteration ceiling) — nothing drives its merge either. */
   isHalted: (linkedTaskId: number) => Promise<boolean>;
@@ -115,55 +96,6 @@ export interface OverlapGuardDeps {
   ownPr: (taskId: number) => Promise<number | null>;
   now: () => number;
 }
-
-const defaultDeps: OverlapGuardDeps = {
-  openPrs: async (themeId, cwd) => {
-    const { prisma } = await import('../../config');
-    const { getOpenAutoPrsForRepository } = await import('./auto-run/open-pr-files-cache');
-    return getOpenAutoPrsForRepository(prisma, themeId, cwd);
-  },
-  prFiles: async (cwd, prNumber) => {
-    const { getPrChangedFiles } = await import('./auto-run/open-pr-files-cache');
-    return getPrChangedFiles(cwd, prNumber);
-  },
-  artifact: async (taskId, fileType) => {
-    const { readWorkflowFile } = await import('./workflow-file-utils');
-    return readWorkflowFile(taskId, fileType);
-  },
-  parseFiles: parsePlanFiles,
-  overlap: async (planFiles, prFiles) => {
-    const { overlappingFiles } = await import('./auto-run/auto-run-selection');
-    return overlappingFiles(planFiles, prFiles);
-  },
-  isParked: async (linkedTaskId) => {
-    const { prisma } = await import('../../config');
-    const latest = await prisma.workflowTransition.findFirst({
-      where: { taskId: linkedTaskId, cause: { in: [...MERGE_OUTCOME_CAUSES] } },
-      orderBy: { createdAt: 'desc' },
-      select: { cause: true },
-    });
-    return isParkedMergeOutcome(latest?.cause);
-  },
-  isHalted: async (linkedTaskId) => {
-    const { prisma } = await import('../../config');
-    const row = await prisma.task.findUnique({
-      where: { id: linkedTaskId },
-      select: { haltReason: true, status: true, workflowStatus: true },
-    });
-    // NOTE: Status-aware on purpose — a finished task keeps its haltReason, and
-    // reading that as halted skips its open PR. See isTaskHaltActive.
-    return isTaskHaltActive(row);
-  },
-  ownPr: async (taskId) => {
-    const { prisma } = await import('../../config');
-    const row = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { githubPrId: true },
-    });
-    return row?.githubPrId ?? null;
-  },
-  now: () => Date.now(),
-};
 
 /** The slice of the resolved task the guard needs. */
 export interface OverlapGuardTask {
@@ -201,7 +133,7 @@ export async function guardImplementOverlap(
   const themeId = task.themeId;
   const cwd = task.theme?.workingDirectory;
   if (themeId == null || !cwd) return { done: false };
-  const d: OverlapGuardDeps = { ...defaultDeps, ...deps };
+  const d: OverlapGuardDeps = { ...defaultOverlapGuardDeps, ...deps };
   try {
     // The task's own PR (re-runs, ci_repair) is never a reason to wait, and
     // neither is a stale one — only a PR fresh enough to merge soon holds us.
