@@ -12,6 +12,7 @@ import CriticHistorySection from '@/components/workflow/CriticHistorySection';
 import RepairStagnationBanner from '@/components/workflow/RepairStagnationBanner';
 import RepairIterationMetricsPanel from '@/components/workflow/RepairIterationMetricsPanel';
 import DryRunPanel from '@/components/workflow/DryRunPanel';
+import { WorkflowStatusChange } from '@/components/workflow/status-change';
 import PhaseBreakdown from '@/feature/tasks/components/detail/PhaseBreakdown';
 import { useWorkflowDisabledToggle } from '../hooks/useWorkflowDisabledToggle';
 import { useBlockedCauseLabel } from '../hooks/useBlockedCauseLabel';
@@ -142,6 +143,15 @@ export default function TaskWorkflowSection({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <WorkflowStatusChange
+              key={taskId}
+              taskId={taskId}
+              currentStatus={currentWorkflowStatus}
+              onChanged={(newStatus) => {
+                setCurrentWorkflowStatus(newStatus);
+                onTaskUpdated?.();
+              }}
+            />
             <WorkflowModeChip task={task} />
             <span
               className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${

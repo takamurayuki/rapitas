@@ -367,6 +367,32 @@
       "submitting": "依頼中...",
       "failed": "修正依頼を送信できませんでした"
     },
+    "statusChange": {
+      "cta": "状態を変更",
+      "title": "ワークフローの状態を変更",
+      "current": "現在の状態",
+      "next": "変更後の状態",
+      "selectPlaceholder": "状態を選択",
+      "reason": "理由（必須）",
+      "noteRunning": "実行中の工程は停止しません。工程の結果で状態が上書きされることがあります。",
+      "noteVerifyDone": "「検証完了」にしても、コミットや PR の作成は実行されません。",
+      "submit": "変更する",
+      "submitting": "変更中...",
+      "failed": "状態を変更できませんでした",
+      "syncFailed": "状態は保存しましたが、自動実行への反映に失敗しました。もう一度「変更する」を押してください。",
+      "missingFiles": "変更先の状態に必要なファイルがありません",
+      "status": {
+        "draft": "下書き",
+        "research_done": "調査完了",
+        "plan_created": "計画作成済み",
+        "plan_approved": "計画承認済み",
+        "in_progress": "進行中",
+        "awaiting_question": "回答待ち",
+        "verify_done": "検証完了",
+        "completed": "完了",
+        "blocked": "ブロック"
+      }
+    },
     "dryRun": {
       "title": "ドライラン",
       "button": "ドライラン実行",
