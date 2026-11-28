@@ -85,6 +85,8 @@ export interface DailyReportRaw {
   queueCandidates: RawQueueTask[];
   /** Plan-critic transitions; omitted = none, null = lookup failed. */
   criticTransitions?: RawCriticTransition[] | null;
+  /** Self-verify misses in the window (task 1602); any miss makes the day non-empty. */
+  selfVerifyMissCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +226,8 @@ export function buildDailyReportData(raw: DailyReportRaw, now: Date): DailyRepor
     raw.prs.length === 0 &&
     raw.concerns.length === 0 &&
     decisions.length === 0 &&
-    restartCount === 0;
+    restartCount === 0 &&
+    (raw.selfVerifyMissCount ?? 0) === 0;
 
   return {
     date: localDateStamp(now),
