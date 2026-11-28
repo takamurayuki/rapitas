@@ -179,3 +179,59 @@ describe('transformLogsToSimple result lines across runs', () => {
     expect(done.map((e) => e.message)).toEqual(['実行完了 - 11.0s', '実行完了 - 20.0s']);
   });
 });
+
+// Task 1582: 「実行完了」 appeared while self-verification was still running.
+describe('transformLogsToSimple with self-verification (task 1582)', () => {
+  const start = '[Claude Code] Starting execution...';
+  const wait = '[SelfVerification] waiting runId=94d7787b';
+  const done = '[Result: success (88.3s)]';
+  const messages = (logs: string[]) => transformLogsToSimple(logs).map((e) => e.message);
+
+  test('before the result only 「自己検証の結果待ちです」 is shown, without 「実行完了」', () => {
+    const shown = messages([start, wait, done]);
+    expect(shown).toContain('自己検証の結果待ちです');
+    expect(shown.some((m) => m.startsWith('実行完了'))).toBe(false);
+  });
+
+  test('after the result the verdict with check counts is shown, then 「実行完了」', () => {
+    const shown = messages([
+      start,
+      wait,
+      done,
+      '[SelfVerification] result runId=94d7787b ok=false unverifiable=false passed=4 failed=2',
+    ]);
+    const verdict = shown.indexOf('自己検証: 不合格（通過 4 / 失敗 2）');
+    const completed = shown.findIndex((m) => m.startsWith('実行完了'));
+    expect(shown.indexOf('自己検証の結果待ちです')).toBeGreaterThanOrEqual(0);
+    expect(verdict).toBeGreaterThanOrEqual(0);
+    expect(completed).toBeGreaterThan(verdict);
+    expect(shown[completed]).toBe('実行完了 - 88.3s');
+  });
+
+  test.each([
+    [
+      'ok=true unverifiable=false passed=7 failed=0',
+      '自己検証: 合格（通過 7 / 失敗 0）',
+      'success',
+    ],
+    [
+      'ok=false unverifiable=true passed=0 failed=0',
+      '自己検証: 確認できず（通過 0 / 失敗 0）',
+      'warning',
+    ],
+  ])('renders %s as %s', (fields, message, category) => {
+    const entry = transformLogToUserFriendly(`[SelfVerification] result runId=r1 ${fields}`);
+    expect(entry.message).toBe(message);
+    expect(entry.category).toBe(category);
+    expect(entry.iconName).toBe('FlaskConical');
+  });
+
+  test('an old log without self-verification markers is unchanged', () => {
+    expect(messages([start, 'Reading files', done])).toEqual(
+      transformLogsToSimple([start, 'Reading files', done]).map((e) => e.message),
+    );
+    expect(messages([start, done]).filter((m) => m.startsWith('実行完了'))).toEqual([
+      '実行完了 - 88.3s',
+    ]);
+  });
+});
