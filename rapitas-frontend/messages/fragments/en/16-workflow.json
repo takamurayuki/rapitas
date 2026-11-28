@@ -367,6 +367,32 @@
       "submitting": "Sending...",
       "failed": "Could not send the revision request"
     },
+    "statusChange": {
+      "cta": "Change status",
+      "title": "Change the workflow status",
+      "current": "Current status",
+      "next": "New status",
+      "selectPlaceholder": "Select a status",
+      "reason": "Reason (required)",
+      "noteRunning": "A running phase is not stopped. Its result may overwrite the status.",
+      "noteVerifyDone": "Setting \"Verified\" does not run the commit or create a PR.",
+      "submit": "Apply change",
+      "submitting": "Applying...",
+      "failed": "Could not change the status",
+      "syncFailed": "The status was saved, but auto-run could not be updated. Press \"Apply change\" again.",
+      "missingFiles": "Files required by the new status are missing",
+      "status": {
+        "draft": "Draft",
+        "research_done": "Research done",
+        "plan_created": "Plan created",
+        "plan_approved": "Plan approved",
+        "in_progress": "In progress",
+        "awaiting_question": "Awaiting answer",
+        "verify_done": "Verified",
+        "completed": "Completed",
+        "blocked": "Blocked"
+      }
+    },
     "dryRun": {
       "title": "Dry run",
       "button": "Run dry run",

@@ -431,6 +431,7 @@ export const LUCIDE_USED_ICONS = [
   'Regex',
   'Repeat',
   'Repeat1',
+  'Replace',
   'Rewind',
   'Rocket',
   'RotateCcw',
