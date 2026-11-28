@@ -10,18 +10,12 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { ADVANCING_PHASE, CI_WAIT_PHASE } from './awaiting-ci';
+import { ADVANCING_PHASE, AWAITING_REQUIRED_MERGE_CAUSE, CI_WAIT_PHASE } from './awaiting-ci';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 
 const log = createLogger('workflow:required-merge-hold');
 
-/**
- * Transition cause recorded whenever a completion path defers to the merge
- * watcher. Distinct from `verify_passed` (completed) and
- * `verify_pr_not_created` (blocked, no PR): here the PR exists and verification
- * passed — only the REQUESTED merge is outstanding.
- */
-export const AWAITING_REQUIRED_MERGE_CAUSE = 'verify_awaiting_required_merge';
+export { AWAITING_REQUIRED_MERGE_CAUSE };
 
 /**
  * True when the task is already parked in the held shape AND its latest transition is this same

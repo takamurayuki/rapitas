@@ -2,7 +2,8 @@
 /**
  * AutoRunProgressStrip
  *
- * Full-width strip under the home toolbar, shown only while auto-run is on:
+ * Full-width strip under the home toolbar, shown while auto-run is on (or while
+ * tasks still wait for CI, task 1570):
  * the task being worked on (a link to its detail page), its phase, the
  * remaining backlog and the time since the run started. With several tasks
  * running in the theme (task 1552) it also lists the others. The toolbar panel
@@ -13,7 +14,14 @@ import Link from 'next/link';
 import { Hourglass, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
-import type { ActiveTask, AutoRunStatus, CurrentTask } from '@/hooks/workflow/useThemeAutoRun';
+import type {
+  ActiveTask,
+  AutoRunStatus,
+  AwaitingCiEntry,
+  CurrentTask,
+} from '@/hooks/workflow/useThemeAutoRun';
+import { AutoRunAwaitingCi } from './auto-run/AutoRunAwaitingCi';
+import { isProgressStripVisible } from './auto-run/strip-visibility';
 import {
   phaseOfStatus,
   phaseSendBackLeft,
@@ -29,7 +37,7 @@ import { useAutoRunTaskSelection } from './useAutoRunTaskSelection';
 import { useSelectedTaskStatus } from './useSelectedTaskStatus';
 
 interface AutoRunProgressStripProps {
-  /** Auto-run status; the strip renders only while running or paused. / 自動実行の状態 */
+  /** Auto-run status; while idle or stopping only the CI wait shows. / 自動実行の状態 */
   status: AutoRunStatus;
   /** Task being worked on, or null between tasks. / 処理中のタスク */
   currentTask: CurrentTask | null;
@@ -50,6 +58,8 @@ interface AutoRunProgressStripProps {
   activeTasks?: ActiveTask[];
   /** Theme the choice in the dropdown is remembered under. / 選択の記憶先テーマ */
   themeId?: number | null;
+  /** Tasks waiting for CI without a slot. / CI待ちのタスク */
+  awaitingCi?: AwaitingCiEntry[];
 }
 
 const SEPARATOR = (
@@ -66,7 +76,8 @@ const SEPARATOR = (
  * @param props.scope - Hidden filter's category and theme / 隠したフィルターの範囲
  * @param props.activeTasks - Running tasks of the theme / 動作中の全タスク
  * @param props.themeId - Theme for remembering the choice / テーマID
- * @returns The strip, or null while auto-run is idle or stopping / 帯（停止時は null）
+ * @param props.awaitingCi - Tasks waiting for CI / CI待ちのタスク
+ * @returns The strip, or null while auto-run is off with no CI wait / 帯（表示なしは null）
  */
 export function AutoRunProgressStrip({
   status,
@@ -78,6 +89,7 @@ export function AutoRunProgressStrip({
   scope,
   activeTasks,
   themeId,
+  awaitingCi,
 }: AutoRunProgressStripProps) {
   const t = useTranslations('autoRun');
   const showSelect = (activeTasks?.length ?? 0) >= 2;
@@ -85,9 +97,11 @@ export function AutoRunProgressStrip({
   // The head's state is already in currentTask; only others are fetched.
   const otherId = showSelect && selectedId !== null && selectedId !== headId ? selectedId : null;
   const otherStatus = useSelectedTaskStatus(otherId);
-  const visible = status === 'running' || status === 'paused';
+  // Idle or stopping: no task is being worked on, so only the wait and backlog show.
+  const active = status === 'running' || status === 'paused';
+  const visible = isProgressStripVisible({ autoRun: { status }, awaitingCi });
   // Only re-renders the strip while running; the text below is minute-grained.
-  useElapsedTime(startedAt, visible && status === 'running');
+  useElapsedTime(startedAt, status === 'running');
 
   if (!visible) return null;
 
@@ -131,7 +145,7 @@ export function AutoRunProgressStrip({
     ? null
     : Math.max(0, Math.floor((Date.now() - startMs) / 60_000));
   const elapsed =
-    minutes === null
+    !active || minutes === null
       ? null
       : minutes >= 60
         ? t('progress.elapsedHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
@@ -154,7 +168,7 @@ export function AutoRunProgressStrip({
           {SEPARATOR}
         </>
       )}
-      {currentTask && shown && view ? (
+      {!active ? null : currentTask && shown && view ? (
         <>
           {showSelect && activeTasks ? (
             <AutoRunTaskSelect tasks={activeTasks} shown={shown} onSelect={select} />
@@ -217,7 +231,9 @@ export function AutoRunProgressStrip({
         </span>
       )}
 
-      {restartWait && (
+      <AutoRunAwaitingCi entries={awaitingCi ?? []} />
+
+      {active && restartWait && (
         // Hourglass = 承認待ち／回答待ち／待機 (ICON_POLICY): the same "waiting" concept.
         <span
           data-testid="auto-run-restart-wait"

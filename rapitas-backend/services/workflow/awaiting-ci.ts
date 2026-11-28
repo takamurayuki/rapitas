@@ -28,6 +28,31 @@ export const ADVANCING_PHASE = 'advancing';
 export const AWAITING_CI_PHASE = 'awaiting_ci';
 
 /**
+ * Transition cause recorded whenever a completion path defers to the merge
+ * watcher. Distinct from `verify_passed` (completed) and
+ * `verify_pr_not_created` (blocked, no PR): here the PR exists and verification
+ * passed — only the REQUESTED merge is outstanding.
+ * NOTE: Defined here (task 1570) so read-only callers need not load
+ * required-merge-hold's database imports; that module re-exports it.
+ */
+export const AWAITING_REQUIRED_MERGE_CAUSE = 'verify_awaiting_required_merge';
+
+/**
+ * Whether a queue item counts as completed work. A hand-back for a CI wait is
+ * stored as `completed` but its task has not finished, so it never counts —
+ * not even after CI later passes (task 1570).
+ *
+ * @param item - Queue item. / キュー項目
+ * @returns True for `completed` items that are not CI-wait hand-backs. / 完了として数える項目なら true
+ */
+export function isCountedAsCompleted(item: {
+  status: string;
+  currentPhase?: string | null;
+}): boolean {
+  return item.status === 'completed' && !isAwaitingCiItem(item);
+}
+
+/**
  * Whether a queue item is one handed back for a CI wait.
  *
  * @param item - Queue item (or null). / キュー項目

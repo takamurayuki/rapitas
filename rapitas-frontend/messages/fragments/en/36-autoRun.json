@@ -16,6 +16,11 @@
     "statusPaused": "Paused",
     "statusStopping": "Stopping",
     "pillRunning": "Auto-running",
+    "awaitingCi": {
+      "label": "Awaiting CI",
+      "card": "Awaiting CI",
+      "cardTooltip": "Waiting for CI and the merge without holding a slot"
+    },
     "progress": {
       "label": "Auto-run progress",
       "choosingNext": "Choosing the next task",

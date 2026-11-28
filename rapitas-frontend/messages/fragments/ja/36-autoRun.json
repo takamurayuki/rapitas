@@ -16,6 +16,11 @@
     "statusPaused": "一時停止",
     "statusStopping": "停止中",
     "pillRunning": "自動実行中",
+    "awaitingCi": {
+      "label": "CI 待ち",
+      "card": "CI 待ち",
+      "cardTooltip": "枠を空けて、CI の結果とマージを待っています"
+    },
     "progress": {
       "label": "自動実行の進み具合",
       "choosingNext": "次のタスクを選んでいます",

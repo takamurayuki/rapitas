@@ -6,11 +6,12 @@
  * looked identical to a plain todo card: auto-run has picked this task but
  * hasn't dispatched an agent yet (task.autoRunCurrent — e.g. an overlap-guard
  * hold still open), vs. eligible and simply waiting behind other tasks
- * (task.autoRunQueued). Renders nothing while an agent is actually
+ * (task.autoRunQueued). A third state, waiting for CI (task.autoRunAwaitingCi),
+ * takes precedence over both. Renders nothing while an agent is actually
  * executing — the existing running badge/spin-border already covers that,
  * and this badge must never duplicate it.
  */
-import { Layers3, CircleArrowRight } from 'lucide-react';
+import { Layers3, CircleArrowRight, ClockArrowUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import { useElapsedTime } from '@/hooks/common/useElapsedTime';
@@ -22,8 +23,8 @@ interface TaskCardAutoRunQueueBadgeProps {
 }
 
 /**
- * Renders the "next up" or "queued" auto-run badge for a task card, or
- * nothing when neither applies.
+ * Renders the "awaiting CI", "next up" or "queued" auto-run badge for a task
+ * card, or nothing when none applies.
  *
  * @param task - Task carrying autoRunCurrent/autoRunQueued (server-computed). / 対象タスク
  * @param isExecuting - Whether an agent is currently running on this task. / 実行中か
@@ -33,17 +34,32 @@ export default function TaskCardAutoRunQueueBadge({
   isExecuting,
 }: TaskCardAutoRunQueueBadgeProps) {
   const t = useTranslations('task');
+  const tAutoRun = useTranslations('autoRun');
+  const awaitingCi = Boolean(task.autoRunAwaitingCi);
   // NOTE: A current pick that only waits for another task to free the global
   // slot is "waiting its turn", not "about to start" — showing 次に着手 for
   // 30〜65 minutes made it look stuck (2026-11-25).
   const waitingForSlot = Boolean(task.autoRunCurrent && task.autoRunWaitingForSlot);
-  const nextUpActive = Boolean(task.autoRunCurrent) && !isExecuting && !waitingForSlot;
+  const nextUpActive =
+    Boolean(task.autoRunCurrent) && !isExecuting && !waitingForSlot && !awaitingCi;
   // task.updatedAt approximates "since the last real progress" — the same
   // timestamp this session's supervisor kept checking by hand to tell a
   // stuck overlap-guard hold apart from normal dispatch latency.
   const waitingElapsed = useElapsedTime(nextUpActive ? task.updatedAt : null, nextUpActive);
 
   if (isExecuting) return null;
+
+  if (awaitingCi) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 shrink-0 rounded-full border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 text-zinc-600 dark:text-zinc-300"
+        title={tAutoRun('awaitingCi.cardTooltip')}
+      >
+        <ClockArrowUp className="w-3 h-3" aria-hidden="true" />
+        {tAutoRun('awaitingCi.card')}
+      </span>
+    );
+  }
 
   if (waitingForSlot) {
     return (
