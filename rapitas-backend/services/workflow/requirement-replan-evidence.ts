@@ -45,6 +45,10 @@ export interface ReplanEvidence {
   criterion: string;
   planQuote: string;
   failureQuote: string;
+  /** Expected state stated by the judge. Optional: rows saved before this field exist. */
+  expected?: string;
+  /** Measured state that differs from `expected`. Optional for the same reason. */
+  observed?: string;
 }
 
 /** Bind the entire ordered criteria and both artifacts, including unseen tails. */

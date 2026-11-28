@@ -28,6 +28,10 @@ mock.module('./awaiting-ci-lookup', () => ({
   listAwaitingCi: async () => [],
 }));
 mock.module('../task/task-resolver', () => ({ resolveTaskWorkflowState: async () => live }));
+// Task 1585: the settle wait asks for a recent verification stop; the real lookup reaches the DB.
+mock.module('./publish/verification-stop-record', () => ({
+  hasFreshVerificationStop: async () => false,
+}));
 mock.module('./verify-self-repair', () => ({ hasFreshVerifyRejection: async () => false }));
 mock.module('./verify-settle-artifact-recovery', () => ({
   recoverFromLandedArtifact: async () => false,

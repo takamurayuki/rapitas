@@ -41,6 +41,9 @@ async function recoverFromLandedArtifact(
   try {
     const { hasFreshVerifyRejection } = await import('./verify-self-repair');
     if (await hasFreshVerifyRejection(taskId).catch(() => false)) return 'none';
+    // Task 1585: the stop row can cover that rejection and is itself a reason not to complete.
+    const { hasFreshVerificationStop } = await import('./publish/verification-stop-record');
+    if (await hasFreshVerificationStop(taskId)) return 'none';
     const { recoverFromLandedArtifact: recover } =
       await import('./verify-settle-artifact-recovery');
     return (await recover(taskId)) ? 'completed' : 'none';

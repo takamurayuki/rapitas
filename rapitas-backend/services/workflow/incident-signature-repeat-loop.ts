@@ -13,6 +13,11 @@
 // would pull prisma into this DB-independent module.
 const AWAITING_MERGE_CAUSE = 'verify_awaiting_required_merge';
 
+// Mirrors publish/verification-stop-record.ts's VERIFICATION_STOPPED_CAUSE (same reason as above).
+// The row only explains a stop and accompanies every gate failure, so counting it would report a
+// normal repair cycle as a loop; the bounces themselves are still counted.
+const VERIFICATION_STOPPED_CAUSE = 'verification_stopped';
+
 /** Task statuses that are terminal — a finished task can never be looping. */
 const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled', 'archived', 'completed']);
 
@@ -178,7 +183,10 @@ export function detectRepeatLoop(input: {
     .sort((a, b) => a.createdAtMs - b.createdAtMs);
   // actor='user' is excluded from counting, but a user-requested plan revision still legitimately
   // re-authorizes one planner re-run, so replan causes are kept for the budget walk (task 1202).
-  const windowed = inWindow.filter((t) => t.actor !== 'user' || REPLAN_CAUSES.has(t.cause));
+  const windowed = inWindow.filter(
+    (t) =>
+      t.cause !== VERIFICATION_STOPPED_CAUSE && (t.actor !== 'user' || REPLAN_CAUSES.has(t.cause)),
+  );
   const replanTotal = windowed.filter((t) => REPLAN_CAUSES.has(t.cause)).length;
 
   let bounceTotal = 0;

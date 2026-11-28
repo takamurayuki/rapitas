@@ -31,6 +31,25 @@ function sourceLines(text: string, range: unknown): string | null {
   return quote.trim() ? quote : null;
 }
 
+/**
+ * Check the judge's own structured fields for a concrete unmet requirement.
+ * Never reads `reason`: words in free text must not open or close the hold.
+ *
+ * @param row - Parsed judge response / 判定役の応答
+ * @returns The expected/observed pair, or the code naming the contradiction / 期待値と実測値、または食い違いのコード
+ */
+function readUnmetMeasurement(
+  row: Record<string, unknown>,
+): { expected: string; observed: string } | { conflict: string } {
+  if (row.measuredResult !== 'failed') return { conflict: 'measured_result_not_failed' };
+  const expected = typeof row.expected === 'string' ? row.expected.trim() : '';
+  if (!expected) return { conflict: 'missing_expected' };
+  const observed = typeof row.observed === 'string' ? row.observed.trim() : '';
+  if (!observed) return { conflict: 'missing_observed' };
+  if (observed === expected) return { conflict: 'observed_equals_expected' };
+  return { expected, observed };
+}
+
 /** Parse only a complete JSON response and ground any claimed mismatch locally. */
 export function parseReplanVerdict(content: string, snapshot: ReplanSnapshot): ReplanVerdict {
   let value: unknown;
@@ -97,7 +116,16 @@ export function parseReplanVerdict(content: string, snapshot: ReplanSnapshot): R
     failureQuote,
   };
   const invalid = validateReplanEvidence(snapshot, evidence);
-  return invalid
-    ? { kind: 'unknown', reason: invalid }
-    : { kind: 'mismatch', evidence, reason: row.reason };
+  if (invalid) return { kind: 'unknown', reason: invalid };
+  // Checked last so every earlier `unknown` keeps its existing code. `unknown`
+  // takes the service's continue path, which records this reason on the verify
+  // transition instead of holding the task.
+  const measured = readUnmetMeasurement(row);
+  if ('conflict' in measured) {
+    return {
+      kind: 'unknown',
+      reason: `verdict_reason_conflict:${measured.conflict}: ${row.reason}`,
+    };
+  }
+  return { kind: 'mismatch', evidence: { ...evidence, ...measured }, reason: row.reason };
 }

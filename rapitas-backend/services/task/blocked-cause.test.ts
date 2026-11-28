@@ -150,7 +150,65 @@ describe('attachBlockedCauses', () => {
     const callArgs = findMany.mock.calls[0][0] as FindManyArgs;
     expect(callArgs.where.taskId.in).toEqual([1, 2, 3]);
     expect(callArgs.orderBy).toEqual({ createdAt: 'desc' });
-    expect(callArgs.select).toEqual({ taskId: true, cause: true });
+    expect(callArgs.select).toEqual({ taskId: true, cause: true, metadata: true });
+  });
+
+  const causeOf = async (rows: Array<{ cause: string; metadata?: string }>) => {
+    findMany.mockResolvedValueOnce(rows.map((row) => ({ taskId: 1, ...row })));
+    const tasks: TaskLikeForBlockedCause[] = [{ id: 1, status: 'blocked' }];
+    const [task] = await attachBlockedCauses(buildPrisma(), tasks);
+    return task.blockedCause;
+  };
+  const stopped = {
+    cause: 'verification_stopped',
+    metadata: JSON.stringify({ failedChecks: ['scope', 'runtime'] }),
+  };
+
+  test('検査で止まった場合 → 検査名を付けて返すこと', async () => {
+    expect(await causeOf([stopped])).toBe('verification_stopped:scope,runtime');
+  });
+
+  test('検査不能の保留 → unverifiableChecks の検査名を付けて返すこと', async () => {
+    const hold = {
+      cause: 'verification_unverifiable_hold',
+      metadata: JSON.stringify({ unverifiableChecks: ['runtime'] }),
+    };
+
+    expect(await causeOf([hold])).toBe('verification_unverifiable_hold:runtime');
+  });
+
+  test('停止後に PR 未作成などの後続行がある場合 → 直前の停止記録を返すこと', async () => {
+    for (const cause of [
+      'verify_pr_not_created',
+      'verification_gate_failed',
+      'verification_gate_repeat_hold',
+    ]) {
+      expect(await causeOf([{ cause }, stopped])).toBe('verification_stopped:scope,runtime');
+    }
+  });
+
+  test('別の行が挟まる、または停止記録が無い場合 → 最新の cause のままにすること', async () => {
+    expect(await causeOf([{ cause: 'verify_repair' }, stopped])).toBe('verify_repair');
+    expect(await causeOf([{ cause: 'verify_pr_not_created' }, { cause: 'x' }, stopped])).toBe(
+      'verify_pr_not_created',
+    );
+    expect(await causeOf([{ cause: 'verify_pr_not_created' }])).toBe('verify_pr_not_created');
+  });
+
+  test('metadata が壊れている・空の場合 → cause だけを返すこと', async () => {
+    for (const metadata of [
+      '{broken',
+      'null',
+      '{}',
+      JSON.stringify({ failedChecks: 'runtime' }),
+      JSON.stringify({ failedChecks: [] }),
+      JSON.stringify({ failedChecks: [1, null] }),
+      undefined,
+    ]) {
+      expect(await causeOf([{ cause: 'verification_stopped', metadata }])).toBe(
+        'verification_stopped',
+      );
+    }
   });
 
   test('戻り値は入力と同一の配列参照であること（インプレース変更）', async () => {
