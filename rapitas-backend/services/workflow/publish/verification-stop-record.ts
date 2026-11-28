@@ -86,7 +86,9 @@ export async function recordVerificationStop(stop: VerificationStop): Promise<vo
   } catch (err) {
     log.warn({ err, taskId, stage, failedChecks }, 'Failed to record the verification stop');
   }
-  if (stage === 'pre_save') await filePreSaveMisses(stop);
+  // Not awaited: the save stage returns its refusal at once even when the miss
+  // ledger's DB is slow (filePreSaveMisses never rejects).
+  if (stage === 'pre_save') void filePreSaveMisses(stop);
 }
 
 /**

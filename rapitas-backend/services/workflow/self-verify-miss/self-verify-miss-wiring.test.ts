@@ -170,6 +170,8 @@ describe('presave gate (recordPreSaveStop)', () => {
       },
       'pre-save check failed',
     );
+    // The stop record files the miss without awaiting it; let it settle.
+    for (let i = 0; i < 100 && misses().length === 0; i++) await Bun.sleep(10);
     expect(misses()).toHaveLength(1);
     expect(misses()[0]).toMatchObject({
       gate: 'presave:secret',
