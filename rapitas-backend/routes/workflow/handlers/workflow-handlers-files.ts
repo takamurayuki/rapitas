@@ -19,6 +19,7 @@ import {
 import { createLogger } from '../../../config/logger';
 import { VALID_FILE_TYPES, resolveWorkflowDir, getFileInfo } from '../core/workflow-helpers';
 import { withTaskLifecycleLock } from '../../../services/workflow/task-lifecycle-lock';
+import { reserveCritique } from '../../../services/workflow/phase-critic/critic-inflight';
 import {
   validateFileType,
   resolveTargetTask,
@@ -141,22 +142,34 @@ export async function handleSaveFile({
     // and are excluded — verify in particular can run
     // runVerifyPostSaveAutomation for minutes, which must not block the
     // scheduler's same-task lock.
-    const transition =
-      fileType === 'question'
-        ? await withTaskLifecycleLock(taskId, () =>
-            computeAndApplyStatusTransition({ taskId, fileType, currentStatus, savedContent }),
-          )
-        : await computeAndApplyStatusTransition({ taskId, fileType, currentStatus, savedContent });
-    let newStatus = transition.newStatus;
-
-    const critic = await runPhaseCriticGate({
-      taskId,
-      fileType,
-      newStatus,
-      savedContent,
-      workflowMode: resolved.task.workflowMode,
-    });
-    newStatus = critic.newStatus;
+    // NOTE: plan_created is written before the critique registers; reserve so an
+    // auto-approval cannot slip into that window (task 1593).
+    const releaseCritique = fileType === 'plan' ? reserveCritique(taskId) : undefined;
+    let transition: Awaited<ReturnType<typeof computeAndApplyStatusTransition>>;
+    let critic: Awaited<ReturnType<typeof runPhaseCriticGate>>;
+    try {
+      transition =
+        fileType === 'question'
+          ? await withTaskLifecycleLock(taskId, () =>
+              computeAndApplyStatusTransition({ taskId, fileType, currentStatus, savedContent }),
+            )
+          : await computeAndApplyStatusTransition({
+              taskId,
+              fileType,
+              currentStatus,
+              savedContent,
+            });
+      critic = await runPhaseCriticGate({
+        taskId,
+        fileType,
+        newStatus: transition.newStatus,
+        savedContent,
+        workflowMode: resolved.task.workflowMode,
+      });
+    } finally {
+      releaseCritique?.();
+    }
+    let newStatus = critic.newStatus;
     const criticRejection = critic.criticRejection;
 
     // The plan is made against the criteria, so they are settled first: the

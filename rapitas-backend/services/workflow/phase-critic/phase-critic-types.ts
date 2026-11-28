@@ -29,6 +29,8 @@ export interface PhaseCritiqueResult {
   reasons: string[];
   /** True when the critic judged with part of its input truncated (task 911). */
   inputTruncated?: boolean;
+  /** True when a pass became 'unknown' only because the artifact or requirements were cut. */
+  downgradedByTruncation?: boolean;
   /** False when any lens failed; partial verdicts are not full evaluation evidence. */
   evaluationComplete?: boolean;
 }

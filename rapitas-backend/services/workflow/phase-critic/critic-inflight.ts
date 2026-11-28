@@ -13,6 +13,8 @@
  */
 
 const inFlight = new Map<number, Promise<unknown>>();
+/** Saves that will start a critique but have not yet; each entry settles on release. */
+const reservations = new Map<number, Set<Promise<void>>>();
 
 /** Cap on how long an advance will wait for a verdict — comfortably above the
  * gate's own timeout so the wait ends via settlement, not this cap. */
@@ -36,17 +38,38 @@ export function registerCritique(taskId: number, critique: Promise<unknown>): vo
 }
 
 /**
- * Whether a critique is currently in flight for the task (exported for tests).
+ * Mark a task as about to be critiqued, so a reader of the new workflowStatus
+ * cannot slip in before the critique registers (task 1593).
  *
- * @param taskId - Task to check. / 対象タスク
- * @returns True when a critique is registered. / 実行中ならtrue
+ * @param taskId - Task being saved. / 保存中のタスク
+ * @returns Synchronous, idempotent release. / 同期で何度呼んでもよい解除関数
  */
-export function hasCritiqueInFlight(taskId: number): boolean {
-  return inFlight.has(taskId);
+export function reserveCritique(taskId: number): () => void {
+  let settle!: () => void;
+  const reservation = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  const held = reservations.get(taskId) ?? new Set<Promise<void>>();
+  reservations.set(taskId, held.add(reservation));
+  return () => {
+    held.delete(reservation);
+    if (held.size === 0 && reservations.get(taskId) === held) reservations.delete(taskId);
+    settle();
+  };
 }
 
 /**
- * Wait until the task's in-flight critique (if any) settles, so the caller
+ * Whether a critique is currently in flight for the task (exported for tests).
+ *
+ * @param taskId - Task to check. / 対象タスク
+ * @returns True when a critique is registered or reserved. / 実行中か予約中ならtrue
+ */
+export function hasCritiqueInFlight(taskId: number): boolean {
+  return inFlight.has(taskId) || reservations.has(taskId);
+}
+
+/**
+ * Wait until the task's reservations and in-flight critique (if any) settle, so the caller
  * observes the POST-verdict workflowStatus. Never throws; bounded by capMs.
  *
  * @param taskId - Task about to advance. / 前進しようとしているタスク
@@ -56,14 +79,20 @@ export async function awaitCriticSettled(
   taskId: number,
   capMs: number = DEFAULT_SETTLE_CAP_MS,
 ): Promise<void> {
-  const pending = inFlight.get(taskId);
-  if (!pending) return;
+  if (!hasCritiqueInFlight(taskId)) return;
+  let capped = false;
   let capTimer: NodeJS.Timeout | undefined;
-  await Promise.race([
-    pending.catch(() => {}),
-    new Promise<void>((resolve) => {
-      capTimer = setTimeout(resolve, capMs);
-    }),
-  ]);
-  if (capTimer) clearTimeout(capTimer);
+  const cap = new Promise<void>((resolve) => {
+    capTimer = setTimeout(() => {
+      capped = true;
+      resolve();
+    }, capMs);
+  });
+  // NOTE: Loops because a critique registers while its save still holds a
+  // reservation, and may outlive it when the save stops waiting.
+  while (!capped && hasCritiqueInFlight(taskId)) {
+    const pending = [inFlight.get(taskId)?.catch(() => {}), ...(reservations.get(taskId) ?? [])];
+    await Promise.race([Promise.all(pending), cap]);
+  }
+  clearTimeout(capTimer);
 }

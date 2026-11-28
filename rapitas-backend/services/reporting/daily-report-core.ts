@@ -8,6 +8,11 @@
  * daily-report-format.
  */
 import { parseDecider, type DecisionActor } from '../memory/decision-journal';
+import {
+  summarizePlanCritic,
+  type PlanCriticSummary,
+  type RawCriticTransition,
+} from './daily-report-critic';
 
 /** Aggregation window: the "last 24 hours" required by task #564. */
 export const DAILY_REPORT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -78,6 +83,8 @@ export interface DailyReportRaw {
   restarts: RawRestartCounts;
   themes: RawThemeAutoRun[];
   queueCandidates: RawQueueTask[];
+  /** Plan-critic transitions; omitted = none, null = lookup failed. */
+  criticTransitions?: RawCriticTransition[] | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +119,8 @@ export interface DailyReportData {
   upcomingQueue: Array<{ id: number; title: string; priority: string }>;
   satiated: boolean;
   satiatedReason: string | null;
+  /** Plan-critic truncation counts. */
+  planCritic: PlanCriticSummary;
   /** True when every aggregated source is zero (skip the AI call). */
   empty: boolean;
 }
@@ -232,6 +241,7 @@ export function buildDailyReportData(raw: DailyReportRaw, now: Date): DailyRepor
     upcomingQueue,
     satiated,
     satiatedReason,
+    planCritic: summarizePlanCritic(raw.criticTransitions),
     empty,
   };
 }

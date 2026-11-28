@@ -5,7 +5,12 @@
  * settle-waiting, the cap, and late-settlement of superseded critiques.
  */
 import { describe, it, expect } from 'bun:test';
-import { registerCritique, awaitCriticSettled, hasCritiqueInFlight } from './critic-inflight';
+import {
+  registerCritique,
+  reserveCritique,
+  awaitCriticSettled,
+  hasCritiqueInFlight,
+} from './critic-inflight';
 
 /** A promise controllable from the outside. */
 function deferred<T>(): {
@@ -83,5 +88,54 @@ describe('critic-inflight registry', () => {
     newer.resolve('new verdict');
     await tick();
     expect(hasCritiqueInFlight(9005)).toBe(false);
+  });
+});
+
+describe('reserveCritique — the save has not started its critique yet', () => {
+  it('counts as in flight until released, and release is immediate and repeatable', () => {
+    const release = reserveCritique(9100);
+    expect(hasCritiqueInFlight(9100)).toBe(true);
+    release();
+    expect(hasCritiqueInFlight(9100)).toBe(false);
+    release();
+    expect(hasCritiqueInFlight(9100)).toBe(false);
+  });
+
+  it('keeps another reservation and the running critique when one is released', async () => {
+    const first = reserveCritique(9101);
+    const second = reserveCritique(9101);
+    first();
+    expect(hasCritiqueInFlight(9101)).toBe(true);
+    const d = deferred<string>();
+    registerCritique(9101, d.promise);
+    second();
+    expect(hasCritiqueInFlight(9101)).toBe(true);
+    d.resolve('verdict');
+    await tick();
+    expect(hasCritiqueInFlight(9101)).toBe(false);
+  });
+
+  it('keeps waiting for a critique registered while the reservation was held', async () => {
+    const release = reserveCritique(9102);
+    let settled = false;
+    const waiter = awaitCriticSettled(9102).then(() => {
+      settled = true;
+    });
+    const d = deferred<string>();
+    registerCritique(9102, d.promise);
+    release(); // the save gave up waiting; the critique is still running
+    await tick();
+    expect(settled).toBe(false);
+    d.resolve('late verdict');
+    await waiter;
+    expect(settled).toBe(true);
+  });
+
+  it('caps the wait on a reservation that is never released', async () => {
+    const release = reserveCritique(9103);
+    const start = Date.now();
+    await awaitCriticSettled(9103, 50);
+    expect(Date.now() - start).toBeLessThan(2_000);
+    release();
   });
 });

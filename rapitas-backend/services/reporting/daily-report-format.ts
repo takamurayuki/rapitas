@@ -8,6 +8,7 @@
  */
 import { callClaudeForReview } from '../ai/weekly-review-service';
 import type { DailyReportData } from './daily-report-core';
+import { formatPlanCriticSection, stripPlanCriticSection } from './daily-report-critic';
 
 /**
  * One-line summary used as the notification message (bell preview).
@@ -113,6 +114,8 @@ export function formatDailyReport(data: DailyReportData): string {
     '',
     `- 合計 ${data.restartCount} 回（cycle log: ${data.restartBreakdown.fromCycleLog} / 通知: ${data.restartBreakdown.fromNotifications}）`,
     '',
+    ...formatPlanCriticSection(data.planCritic),
+    '',
     '## 次に着手予定のキュー先頭3件（プレビュー）',
     '',
     ...(queue.length === 0 ? ['- なし（実行可能なバックログが空です）'] : queue),
@@ -131,7 +134,8 @@ export function formatDailyReport(data: DailyReportData): string {
  * @throws {Error} When the aux AI is unavailable or returns nothing / 補助AI不可時
  */
 export async function aiFormatDailyReport(data: DailyReportData): Promise<string> {
-  const plain = formatDailyReport(data);
+  // The AI never sees the plan-critic section; it is attached after the rewrite.
+  const plain = stripPlanCriticSection(formatDailyReport(data));
   const prompt = `あなたは自律開発エージェントの活動を毎朝人間に報告するアシスタントです。
 以下の集計データ(markdown)を、人間が5分で監査できる読みやすい日次レポートに整形してください。
 
@@ -145,5 +149,13 @@ export async function aiFormatDailyReport(data: DailyReportData): Promise<string
 ## 集計データ
 ${plain}`;
 
-  return callClaudeForReview(prompt);
+  const polished = await callClaudeForReview(prompt);
+  // NOTE: The counts (and a failed lookup) are what the operator reads each
+  // morning, so the section never depends on what the rewrite did with it.
+  return [
+    stripPlanCriticSection(polished),
+    '',
+    ...formatPlanCriticSection(data.planCritic),
+    '',
+  ].join('\n');
 }

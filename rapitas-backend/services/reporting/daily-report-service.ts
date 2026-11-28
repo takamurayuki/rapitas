@@ -20,6 +20,7 @@ import {
   localDateStamp,
   type DailyReportRaw,
 } from './daily-report-core';
+import { PLAN_CRITIC_CAUSES, type RawCriticTransition } from './daily-report-critic';
 import { runBriefingHook } from './briefing/briefing-hook';
 import {
   aiFormatDailyReport,
@@ -76,6 +77,22 @@ export async function countCycleLogRestarts(windowStart: Date, now: Date): Promi
     }
   }
   return count;
+}
+
+/** Best-effort: a failed lookup yields null so the report still ships. */
+async function collectCriticTransitions(
+  windowStart: Date,
+  now: Date,
+): Promise<RawCriticTransition[] | null> {
+  try {
+    return await prisma.workflowTransition.findMany({
+      where: { cause: { in: PLAN_CRITIC_CAUSES }, createdAt: { gte: windowStart, lte: now } },
+      select: { cause: true, metadata: true },
+    });
+  } catch (err) {
+    log.warn({ err }, '[daily-report] Plan critic lookup failed');
+    return null;
+  }
 }
 
 /**
@@ -167,6 +184,7 @@ export async function collectDailyReportData(
     restarts: { fromCycleLog, fromNotifications: restartNotifications },
     themes,
     queueCandidates,
+    criticTransitions: await collectCriticTransitions(windowStart, now),
   };
 }
 
@@ -243,6 +261,7 @@ export async function runDailyReport(): Promise<number> {
         upcomingQueue: data.upcomingQueue,
         restartBreakdown: data.restartBreakdown,
         humanIntervention: data.humanIntervention,
+        planCritic: data.planCritic,
       },
       reportMarkdown,
     },

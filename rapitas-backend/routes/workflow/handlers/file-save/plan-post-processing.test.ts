@@ -36,13 +36,25 @@ mock.module('../../../../services/workflow/transition-recorder', () => ({
   },
 }));
 
-const maybeAutoApprovePlan = mock(async () => ({ autoApproved: false }));
+type ApproveOpts = { autoAdvance?: boolean; onHeldApproval?: () => Promise<void> };
+const maybeAutoApprovePlan = mock(async (_taskId: number, _lang: string, _opts: ApproveOpts) => ({
+  autoApproved: false,
+}));
 mock.module('../../../../services/workflow/plan-auto-approve', () => ({
   maybeAutoApprovePlan,
 }));
 
+let splitEnabled = false;
 mock.module('../../../../services/workflow/subtask-split-policy', () => ({
-  isSubtaskSplitEnabled: () => false,
+  isSubtaskSplitEnabled: () => splitEnabled,
+}));
+mock.module('../../../../services/workflow/subtask-splitter', () => ({
+  analyzePlanForSplitting: () => ({ shouldSplit: true, reason: 'large' }),
+  createSubtasksFromPlan: async () => ({ success: true, subtasksCreated: 1, subtaskIds: [11] }),
+}));
+const enqueueSubtasks = mock(async (_taskId: number) => {});
+mock.module('../../../../services/workflow/ai-orchestra', () => ({
+  AIOrchestra: { getInstance: () => ({ enqueueSubtasksForExecution: enqueueSubtasks }) },
 }));
 
 mock.module('../../../../services/workflow/workflow-file-utils', () => ({
@@ -55,6 +67,8 @@ beforeEach(() => {
   taskUpdates.length = 0;
   recorded.length = 0;
   maybeAutoApprovePlan.mockClear();
+  enqueueSubtasks.mockClear();
+  splitEnabled = false;
   taskRow = { forbiddenChangeOverride: false };
 });
 
@@ -113,6 +127,25 @@ describe('runPlanPostProcessing — スキーマ変更を含まないplan（回�
 
     expect(taskUpdates).toHaveLength(0);
     expect(maybeAutoApprovePlan).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runPlanPostProcessing — 保留された承認の後の子タスク投入', () => {
+  const content = '対象ファイル: `src/foo.ts`';
+
+  test('分割があれば onHeldApproval が子タスクを投入する', async () => {
+    splitEnabled = true;
+    await runPlanPostProcessing({ ...baseParams, content });
+    const opts = maybeAutoApprovePlan.mock.calls[0]?.[2];
+    expect(opts?.autoAdvance).toBe(false);
+    expect(enqueueSubtasks).not.toHaveBeenCalled();
+    await opts?.onHeldApproval?.();
+    expect(enqueueSubtasks).toHaveBeenCalledWith(1059);
+  });
+
+  test('分割がなければ onHeldApproval を渡さない', async () => {
+    await runPlanPostProcessing({ ...baseParams, content });
+    expect(maybeAutoApprovePlan.mock.calls[0]?.[2]?.onHeldApproval).toBeUndefined();
   });
 });
 
