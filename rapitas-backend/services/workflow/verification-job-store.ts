@@ -30,6 +30,7 @@ export const STALE_RUNNING_MS = Number(process.env.RAPITAS_VERIFY_JOB_STALE_MS) 
 
 const MAX_CHECK_DETAILS_CHARS = 4_000;
 const MAX_MARKDOWN_CHARS = 8_000;
+const MAX_CHANGED_FILES = 200;
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…(truncated)` : text;
@@ -60,6 +61,8 @@ export interface VerificationJobOutcome {
   fingerprintAtFinish?: string | null;
   /** Actual observed subprocess outcomes, independent of the gate verdict. */
   commands?: CommandEvidence[];
+  /** Changed code files the run checked (task 1602: the files of a later self-verify miss). */
+  changedFiles?: string[];
 }
 
 /** Derived state of a verification job, ready for the GET status handler to shape into a response. */
@@ -80,9 +83,11 @@ export interface VerificationJobRecord {
   worktreePath?: string;
   revision?: string | null;
   commands?: CommandEvidence[];
+  changedFiles?: string[];
 }
 
-function correlationIdFor(taskId: number): string {
+/** Correlation id shared by every TimelineEvent of one task's verification jobs. */
+export function correlationIdFor(taskId: number): string {
   return `verify-job-${taskId}`;
 }
 
@@ -157,6 +162,7 @@ export async function recordJobFinish(
       durationMs: outcome.durationMs,
       fingerprintAtFinish: outcome.fingerprintAtFinish,
       commands: outcome.commands,
+      changedFiles: outcome.changedFiles?.slice(0, MAX_CHANGED_FILES),
     },
   });
 }
@@ -187,6 +193,7 @@ interface FinishPayload {
   durationMs?: number;
   fingerprintAtFinish?: string | null;
   commands?: CommandEvidence[];
+  changedFiles?: string[];
 }
 
 /** Derive `running`/`completed`/`failed`/`interrupted` from a job's start row and (if any) finish row. Never mutates either row. */
@@ -214,6 +221,7 @@ function deriveRecord(
       worktreePath: start.worktreePath,
       revision: start.revision,
       commands: finish.commands,
+      changedFiles: finish.changedFiles,
     };
   }
   const startedAtMs = new Date(start.startedAt).getTime();

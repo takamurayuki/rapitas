@@ -153,6 +153,22 @@ async function isNoDiffSinceLastRepair(c: Candidate): Promise<boolean> {
 }
 
 /**
+ * File each failing CI job as a self-verify miss (task 1602). Never throws: the
+ * dynamic import keeps tests that mock the timeline from losing this module.
+ */
+async function fileCiMisses(taskId: number, jobs: string[]): Promise<void> {
+  try {
+    const { recordSelfVerifyMiss } = await import('./self-verify-miss');
+    for (const job of jobs) {
+      const reason = `CI の必須の検査「${job}」が失敗しました`;
+      await recordSelfVerifyMiss({ taskId, gate: `ci:${job}`, checkName: job, reason });
+    }
+  } catch (err) {
+    log.warn({ err, taskId }, '[auto-merge] Failed to file CI self-verify misses');
+  }
+}
+
+/**
  * Handle a candidate whose blocking CI checks failed. Ordered: base update
  * (BEHIND), conflict delegation (DIRTY), one rerun of known environmental failures, void-repair park (no diff since the
  * last bounce), then a bounded ci_repair bounce with PR context for log
@@ -223,6 +239,8 @@ export async function handleCiFailure(
     return;
   }
   const repairTargets = own.length > 0 ? own : failedChecks;
+  // Task 1602: the PR's own CI failures are what a self-verify run should have caught.
+  await fileCiMisses(c.taskId, repairTargets);
 
   // CI failed — try to self-repair: bounce the task back to the implementer
   // with the failing checks as feedback so it fixes them, pushes to the same

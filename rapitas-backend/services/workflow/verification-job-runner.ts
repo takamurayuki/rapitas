@@ -182,6 +182,7 @@ export async function runVerificationGateAndRecord(
       ok: result.ok,
       unverifiable: false,
       checks: result.checks,
+      changedFiles: result.changedFiles,
       summary: result.summary,
       markdown,
       durationMs,
